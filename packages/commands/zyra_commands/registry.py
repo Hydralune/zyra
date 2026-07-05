@@ -61,7 +61,7 @@ def default_command_registry() -> SlashCommandRegistry:
             _command("/rewind", "Request recovery of a previous context point after clear or rollback.", "claude-code-best rewind command", "control_command", "context_session", runtime_status=COMMAND_RUNTIME_STATEFUL),
             _command("/resume", "Resume a prior task or session by id/name.", "claude-code-best resume/session command", "control_command", "context_session", runtime_status=COMMAND_RUNTIME_STATEFUL),
             _command("/export", "Export the current conversation, event trace, and artifact references.", "claude-code-best export command", "control_command", "context_session", runtime_status=COMMAND_RUNTIME_STATEFUL),
-            _command("/memory", "Inspect, refresh, or edit memory state.", "claude-code-best memory command", "control_command", "context_session"),
+            _command("/memory", "Inspect, refresh, or edit memory state.", "claude-code-best memory command", "control_command", "context_session", runtime_status=COMMAND_RUNTIME_STATEFUL),
             _command("/init", "Initialize project memory and local agent instructions.", "claude-code-best init command", "control_command", "context_session"),
             _command("/model", "Inspect or switch model/provider selection.", "claude-code-best model command", "control_command", "model_resource"),
             _command("/doctor", "Run environment and toolchain health checks.", "claude-code-best doctor command", "control_command", "model_resource"),

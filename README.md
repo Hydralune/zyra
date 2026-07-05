@@ -59,11 +59,21 @@ M3 established the structured collaboration and neuro-symbolic control layer:
 - `/inject` now creates a structured failure recovery node and route decision after preserving a `node_failed` event
 - `/verify` and `/eval` metrics now include symbolic control evidence: decision records, topology routes, constraint checks, structured messages, and replanned/superseded nodes
 
-## Direction For M4-M6
+M4 established the memory, context compact, and long trajectory layer:
 
-M0-M3 established contracts and runtime control paths. The next milestones must use those boundaries to internalize substantial mature capabilities from the reference repositories, not merely add thin wrappers.
+- `MemoryFabric` ingests working, episodic, semantic, and skill memory from checkpoints, event logs, artifacts, worker traces, and skill invocation events
+- `SQLiteStore` persists `memory_records` and `compact_records`
+- context compact flushes memory first, preserves initial goal, constraints, requirement changes, failure events, route/constraint/evaluation decisions, tool-call atomic groups, and the final tail
+- large tool/agent payloads are represented by compact source artifacts instead of inline context
+- trajectory replay frames expose task state, topology route, tool calls, requirement changes, fault injection, verification, worker, route, status, and artifact refs
+- API endpoints expose task memory, memory ingest, memory compact, trajectory replay, and compaction history
+- `/memory`, `/compact`, and `/context` now use MemoryFabric instead of only context-session metadata
+- the static console includes connected Memory and Trajectory panels
 
-- M4 should turn memory, context compaction, trajectory replay, checkpoint/retrieval, and skill memory into callable Zyra modules.
+## Direction For M5-M6
+
+M0-M4 established contracts, runtime control paths, symbolic collaboration, and long-memory boundaries. The next milestones must use those boundaries to internalize substantial mature capabilities from the reference repositories, not merely add thin wrappers.
+
 - M5 should make resource scheduling, worker manifests, sandbox/gateway boundaries, fault injection, and recovery policies affect real task execution.
 - M6 should replace the current console shell with a connected control console for task graph, event timeline, worker state, artifact/diff/browser/terminal views, slash commands, and live requirement changes.
 
@@ -134,6 +144,12 @@ Run the M3 structured collaboration scenario:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.scenarios.test_m3_symbolic_collaboration
+```
+
+Run the M4 memory, compact, and trajectory verification:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_m4.py
 ```
 
 Audit M0-M3 against the heavyweight internalization goal:
@@ -213,6 +229,11 @@ Useful development API endpoints:
 - `POST /tasks/{task_id}/workers/code`
 - `POST /tasks/{task_id}/workers/browser`
 - `GET /tasks/{task_id}/events`
+- `GET /tasks/{task_id}/memory`
+- `POST /tasks/{task_id}/memory/ingest`
+- `POST /tasks/{task_id}/memory/compact`
+- `GET /tasks/{task_id}/trajectory`
+- `GET /tasks/{task_id}/compactions`
 - `GET /tasks/{task_id}/artifacts`
 - `GET /events?limit=100`
 - `GET /artifacts`

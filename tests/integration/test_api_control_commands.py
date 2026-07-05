@@ -276,6 +276,66 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
+    def test_memory_fabric_endpoints_ingest_compact_and_replay(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
+
+            from apps.api.zyra_api.main import ZyraRequestHandler
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(base_url, "/tasks", {"goal": "Exercise M4 memory fabric.", "auto_run": False})
+                task_id = created["task"]["task_id"]
+                _post(
+                    base_url,
+                    f"/tasks/{task_id}/tools",
+                    {
+                        "tool_name": "artifact_write",
+                        "arguments": {
+                            "title": "Verifier evidence",
+                            "content": "requirement change evidence and trajectory replay notes",
+                            "kind": "markdown",
+                        },
+                    },
+                )
+                _post(base_url, f"/tasks/{task_id}/skills", {"skill_name": "trace-summary"})
+                _post(base_url, f"/tasks/{task_id}/commands", {"text": "/change add replay evidence"})
+                _post(base_url, f"/tasks/{task_id}/commands", {"text": "/inject node=execute transient failure"})
+
+                ingested = _post(base_url, f"/tasks/{task_id}/memory/ingest", {})
+                memory = _get(base_url, f"/tasks/{task_id}/memory?q=replay")
+                compacted = _post(
+                    base_url,
+                    f"/tasks/{task_id}/memory/compact",
+                    {"focus": "replay evidence", "tail_groups": 3},
+                )
+                trajectory = _get(base_url, f"/tasks/{task_id}/trajectory")
+                compactions = _get(base_url, f"/tasks/{task_id}/compactions")
+                events_after_trajectory = _get(base_url, f"/tasks/{task_id}/events")["events"]
+                command_memory = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/memory replay"})
+
+                self.assertGreaterEqual(ingested["layer_counts"]["working"], 1)
+                self.assertGreaterEqual(ingested["layer_counts"]["episodic"], 1)
+                self.assertGreaterEqual(memory["layer_counts"]["semantic"], 1)
+                self.assertTrue(memory["search_results"])
+                self.assertTrue(compacted["compact"]["preserved_event_ids"])
+                self.assertTrue(compacted["compact"]["summarized_event_ids"])
+                self.assertTrue(compacted["compact"]["artifact_ids"])
+                self.assertEqual(len(compactions["compactions"]), 1)
+                self.assertEqual(trajectory["frame_count"], len(events_after_trajectory))
+                self.assertTrue(any(frame["requirement_change"] for frame in trajectory["frames"]))
+                self.assertTrue(any(frame["failure_injection"] for frame in trajectory["frames"]))
+                self.assertEqual(command_memory["command_result"]["summary"], "MemoryFabric task memory view.")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
     def test_eval_command_runs_trace_evaluator_and_records_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")

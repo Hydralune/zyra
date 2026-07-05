@@ -422,12 +422,14 @@
       <aside>
         <div class="brand">
           <h1>Zyra</h1>
-          <span class="phase">M2</span>
+          <span class="phase">M4</span>
         </div>
         <nav>
           <button class="active" type="button">Run State</button>
           <button type="button">Task Graph</button>
           <button type="button">Events</button>
+          <button type="button">Memory</button>
+          <button type="button">Trajectory</button>
           <button type="button">Artifacts</button>
           <button type="button">Commands</button>
           <button type="button">Skills</button>
@@ -489,6 +491,29 @@
               <h3>Events</h3>
               <p id="eventSummary">No event stream loaded.</p>
               <div id="eventList" class="list"></div>
+            </section>
+
+            <section>
+              <h3>Memory</h3>
+              <p id="memorySummary">No memory state loaded.</p>
+              <label>
+                Query
+                <input id="memoryQuery" value="replay evidence" />
+              </label>
+              <div class="actions">
+                <button id="refreshMemory" class="ghost" type="button">Refresh memory</button>
+                <button id="compactMemory" class="action" type="button">Compact</button>
+              </div>
+              <div id="memoryList" class="list"></div>
+            </section>
+
+            <section>
+              <h3>Trajectory</h3>
+              <p id="trajectorySummary">No trajectory loaded.</p>
+              <div class="actions">
+                <button id="refreshTrajectory" class="ghost" type="button">Refresh trajectory</button>
+              </div>
+              <div id="trajectoryList" class="list"></div>
             </section>
 
             <section>
@@ -565,6 +590,10 @@
       const graphView = document.querySelector("#graphView");
       const eventSummary = document.querySelector("#eventSummary");
       const eventList = document.querySelector("#eventList");
+      const memorySummary = document.querySelector("#memorySummary");
+      const memoryList = document.querySelector("#memoryList");
+      const trajectorySummary = document.querySelector("#trajectorySummary");
+      const trajectoryList = document.querySelector("#trajectoryList");
       const artifactSummary = document.querySelector("#artifactSummary");
       const artifactList = document.querySelector("#artifactList");
       const selectedTask = document.querySelector("#selectedTask");
@@ -622,6 +651,61 @@
         if (selectedTaskState) {
           renderGraph(selectedTaskState, selectedTaskEvents);
         }
+      }
+
+      function renderMemory(data) {
+        const counts = data.layer_counts || {};
+        const searchResults = data.search_results || [];
+        memorySummary.textContent = `${data.record_count || 0} record(s), working ${counts.working || 0}, episodic ${counts.episodic || 0}, semantic ${counts.semantic || 0}, skill ${counts.skill || 0}`;
+        const rows = [
+          ...searchResults.map((record) => ({ label: `hit:${record.layer}`, record })),
+          ...(data.working || []).slice(0, 2).map((record) => ({ label: "working", record })),
+          ...(data.episodic || []).slice(0, 4).map((record) => ({ label: "episodic", record })),
+          ...(data.semantic || []).slice(0, 3).map((record) => ({ label: "semantic", record })),
+          ...(data.skill || []).slice(0, 3).map((record) => ({ label: "skill", record })),
+        ];
+        memoryList.innerHTML = rows.length
+          ? rows
+              .map(
+                ({ label, record }) => `
+                  <div class="row">
+                    <div><span class="pill">${escapeHtml(label)}</span> ${escapeHtml(record.summary)}</div>
+                    <div class="meta">${escapeHtml(record.source_type)} / ${escapeHtml(record.source_id)}</div>
+                    <div class="meta">${escapeHtml((record.keywords || []).slice(0, 8).join(", "))}</div>
+                  </div>
+                `,
+              )
+              .join("")
+          : '<div class="row"><div>No memory records available.</div></div>';
+      }
+
+      function renderTrajectory(data) {
+        const frames = data.frames || [];
+        const changes = frames.filter((frame) => frame.requirement_change).length;
+        const failures = frames.filter((frame) => frame.failure_injection).length;
+        const verification = frames.filter((frame) => frame.verification).length;
+        trajectorySummary.textContent = `${frames.length} frame(s), ${changes} change(s), ${failures} failure(s), ${verification} verification frame(s)`;
+        trajectoryList.innerHTML = frames
+          .slice()
+          .reverse()
+          .slice(0, 12)
+          .map((frame) => {
+            const tags = [
+              frame.requirement_change ? "change" : "",
+              frame.failure_injection ? "failure" : "",
+              frame.verification ? "verify" : "",
+              frame.worker || frame.route || "",
+            ].filter(Boolean);
+            return `
+              <div class="row">
+                <div><span class="pill">#${frame.index}</span> ${escapeHtml(frame.title)}</div>
+                <div>${escapeHtml(frame.summary)}</div>
+                <div class="meta">${escapeHtml(tags.join(" / "))}</div>
+                <div class="meta">${escapeHtml(frame.event_id)} / ${escapeHtml(frame.created_at)}</div>
+              </div>
+            `;
+          })
+          .join("");
       }
 
       function renderGraph(task, events = []) {
@@ -857,6 +941,50 @@
         show(data);
       }
 
+      async function refreshMemory() {
+        if (!selectedTaskId) {
+          show({ error: "No task selected" });
+          return;
+        }
+        const query = encodeURIComponent(document.querySelector("#memoryQuery").value.trim());
+        const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/memory?q=${query}`);
+        const data = await response.json();
+        renderMemory(data);
+        show(data);
+      }
+
+      async function compactMemory() {
+        if (!selectedTaskId) {
+          show({ error: "No task selected" });
+          return;
+        }
+        const focus = document.querySelector("#memoryQuery").value.trim();
+        const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/memory/compact`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ focus }),
+        });
+        const data = await response.json();
+        if (data.task) {
+          selectedTaskState = data.task;
+        }
+        show(data);
+        await refreshMemory();
+        await refreshTrajectory();
+        await refreshArtifacts();
+      }
+
+      async function refreshTrajectory() {
+        if (!selectedTaskId) {
+          show({ error: "No task selected" });
+          return;
+        }
+        const response = await fetch(`${API_BASE}/tasks/${selectedTaskId}/trajectory`);
+        const data = await response.json();
+        renderTrajectory(data);
+        show(data);
+      }
+
       async function loadTask(taskId) {
         selectedTaskId = taskId;
         selectedTask.textContent = `Selected ${taskId}`;
@@ -868,6 +996,8 @@
         const eventResponse = await fetch(`${API_BASE}/tasks/${taskId}/events`);
         const eventData = await eventResponse.json();
         renderEvents(eventData.events || []);
+        await refreshMemory();
+        await refreshTrajectory();
         await refreshArtifacts();
       }
 
@@ -888,6 +1018,8 @@
         show(data);
         await refreshTasks();
         await refreshEvents();
+        await refreshMemory().catch(() => {});
+        await refreshTrajectory().catch(() => {});
         await refreshArtifacts();
       }
 
@@ -910,6 +1042,8 @@
         show(data);
         await refreshTasks();
         await refreshEvents();
+        await refreshMemory().catch(() => {});
+        await refreshTrajectory().catch(() => {});
       }
 
       async function refreshRuntime() {
@@ -1006,6 +1140,9 @@
       document.querySelector("#createTask").addEventListener("click", createTask);
       document.querySelector("#refreshTasks").addEventListener("click", refreshTasks);
       document.querySelector("#refreshEvents").addEventListener("click", refreshEvents);
+      document.querySelector("#refreshMemory").addEventListener("click", refreshMemory);
+      document.querySelector("#compactMemory").addEventListener("click", compactMemory);
+      document.querySelector("#refreshTrajectory").addEventListener("click", refreshTrajectory);
       document.querySelector("#refreshArtifacts").addEventListener("click", refreshArtifacts);
       document.querySelector("#sendCommand").addEventListener("click", sendCommand);
       document.querySelector("#refreshRuntime").addEventListener("click", refreshRuntime);
@@ -1015,6 +1152,8 @@
       checkHealth();
       refreshTasks().catch(() => {});
       refreshEvents().catch(() => {});
+      refreshMemory().catch(() => {});
+      refreshTrajectory().catch(() => {});
       refreshArtifacts().catch(() => {});
       refreshRuntime().catch(() => {});
       refreshPermissions().catch(() => {});

@@ -28,7 +28,7 @@ for package_path in PACKAGE_PATHS:
 
 from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType, create_task_state, to_jsonable
 from zyra_core.event_log import append_event as append_jsonl_event
-from zyra_memory import SQLiteStore
+from zyra_memory import CompactPolicy, MemoryFabric, SQLiteStore
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
 from zyra_commands import default_command_registry, parse_slash_command
@@ -115,6 +115,10 @@ def get_permission_store() -> JsonPermissionStore:
     return JsonPermissionStore(permission_store_path())
 
 
+def _memory_fabric(store: SQLiteStore) -> MemoryFabric:
+    return MemoryFabric(store=store, artifact_store=LocalArtifactStore(artifact_root_path()))
+
+
 def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
     state = create_task_state(user_goal=user_goal)
     event = EventRecord(
@@ -152,7 +156,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     "service": "zyra-api",
-                    "phase": "m3-symbolic-collaboration",
+                    "phase": "m4-memory-compact-trajectory",
                     "event_log": str(event_log_path()),
                     "sqlite": str(sqlite_path()),
                     "tool_workspace": str(tool_workspace_path()),
@@ -285,6 +289,53 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, {"events": store.task_events(parts[1])})
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "memory":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            query = parse_qs(parsed.query)
+            memory = _memory_fabric(store).memory_view(
+                state,
+                store.task_events(parts[1]),
+                query=_optional_query_value(query, "q") or "",
+                limit=_positive_int(query.get("limit", ["12"])[0], default=12),
+            )
+            self._send_json(HTTPStatus.OK, memory["data"])
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "trajectory":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            frames = _memory_fabric(store).replay_trajectory(state, store.task_events(parts[1]))
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task_id": parts[1],
+                    "run_id": state.run_id,
+                    "frame_count": len(frames),
+                    "frames": [to_jsonable(frame) for frame in frames],
+                },
+            )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "compactions":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task_id": parts[1],
+                    "run_id": state.run_id,
+                    "compactions": store.task_compactions(parts[1]),
+                },
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "artifacts":
             state = store.load_task(parts[1])
             if state is None:
@@ -353,6 +404,69 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(
                 HTTPStatus.OK,
                 {"task": to_jsonable(state), "events": [to_jsonable(event) for event in events]},
+            )
+            return
+
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "ingest":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            snapshot = _memory_fabric(store).refresh_task_memory(state, store.task_events(parts[1]), persist=True)
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task_id": parts[1],
+                    "run_id": state.run_id,
+                    "record_count": len(snapshot.records),
+                    "layer_counts": snapshot.layer_counts(),
+                    "source_modules": snapshot.metadata.get("source_modules", {}),
+                },
+            )
+            return
+
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "compact":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            result = _memory_fabric(store).compact_context(
+                state,
+                store.task_events(parts[1]),
+                focus=str(payload.get("focus") or payload.get("raw") or ""),
+                policy=_compact_policy_from_payload(payload),
+                persist=True,
+            )
+            _attach_artifacts(state, result.artifacts)
+            _record_compaction_metadata(state, result, source_event_id=str(payload.get("source_event_id") or "api"))
+            event = EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                event_type=EventType.SYSTEM_NOTICE,
+                node_id=state.root_node_id,
+                payload={
+                    "memory_compact": {
+                        "compact_id": result.compact_id,
+                        "focus": result.focus,
+                        "artifact_ids": list(result.artifact_ids),
+                        "preserved_event_count": len(result.preserved_event_ids),
+                        "summarized_event_count": len(result.summarized_event_ids),
+                        "memory_record_count": len(result.memory_ids),
+                        "compression_ratio": result.compression_ratio,
+                    }
+                },
+            )
+            persist_events(store, [event])
+            state.updated_at = event.created_at
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "task": to_jsonable(state),
+                    "compact": to_jsonable(result),
+                    "event": to_jsonable(event),
+                    "artifacts": [_artifact_entry(LocalArtifactStore(artifact_root_path()), artifact) for artifact in result.artifacts],
+                },
             )
             return
 
@@ -668,6 +782,14 @@ def _positive_int(value: str, default: int) -> int:
     return parsed if parsed > 0 else default
 
 
+def _bounded_int(value: Any, *, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(minimum, min(maximum, parsed))
+
+
 def _optional_query_value(query: dict[str, list[str]], name: str) -> str | None:
     values = query.get(name)
     if not values:
@@ -779,8 +901,13 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
     elif name == "/context":
         events = store.task_events(state.task_id)
         session_runtime = ContextSessionRuntime(events)
+        memory_snapshot = _memory_fabric(store).refresh_task_memory(state, events, persist=True)
         result["summary"] = "Context and checkpoint pressure summary."
         result["data"] = session_runtime.summarize(state)
+        result["data"]["memory"] = {
+            "record_count": len(memory_snapshot.records),
+            "layer_counts": memory_snapshot.layer_counts(),
+        }
     elif name == "/agents":
         result["summary"] = "Registered worker descriptors."
         result["data"] = {"workers": [to_jsonable(worker) for worker in default_worker_descriptors()]}
@@ -836,7 +963,12 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             )
         )
     elif name == "/memory":
-        result.update(ContextSessionRuntime(store.task_events(state.task_id)).memory_view(state))
+        memory = _memory_fabric(store).memory_view(
+            state,
+            store.task_events(state.task_id),
+            query=str(event.payload.get("raw") or ""),
+        )
+        result.update(memory)
     elif name in {"/verify", "/eval"}:
         evaluation = evaluate_task_trace(to_jsonable(state), store.task_events(state.task_id))
         evaluations = state.metadata.setdefault("evaluations", [])
@@ -881,68 +1013,64 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
 def _compact_task_context(state: Any, event: EventRecord, store: SQLiteStore) -> dict[str, Any]:
     events = store.task_events(state.task_id)
     focus = str(event.payload.get("raw") or "").strip()
-    event_counts: dict[str, int] = {}
-    for item in events:
-        event_type = str(item.get("event_type") or "unknown")
-        event_counts[event_type] = event_counts.get(event_type, 0) + 1
-    recent = events[-12:]
-    lines = [
-        "# Zyra Context Compact",
-        "",
-        f"- task_id: `{state.task_id}`",
-        f"- run_id: `{state.run_id}`",
-        f"- status: `{state.status}`",
-        f"- focus: `{focus or 'general'}`",
-        f"- event_count: `{len(events)}`",
-        f"- plan_nodes: `{len(state.plan_nodes)}`",
-        f"- artifacts: `{len(state.artifacts)}`",
-        "",
-        "## Event Counts",
-        "",
-        *[f"- {key}: {value}" for key, value in sorted(event_counts.items())],
-        "",
-        "## Recent Events",
-        "",
-        *[
-            f"- {item.get('created_at')} / {item.get('event_type')} / {item.get('node_id') or 'task'}"
-            for item in recent
-        ],
-        "",
-        "## Control Summary",
-        "",
-        f"- control_commands: `{len(state.metadata.get('control_commands', []))}`",
-        f"- requirement_changes: `{len(state.metadata.get('requirement_changes', []))}`",
-        f"- failure_injections: `{len(state.metadata.get('failure_injections', []))}`",
-        "",
-    ]
-    artifact = LocalArtifactStore(artifact_root_path()).write_text(
-        run_id=state.run_id,
-        task_id=state.task_id,
-        content="\n".join(lines),
-        title="Context compact summary",
-        kind=ArtifactKind.TRACE,
-        extension=".md",
-        producer_node_id=event.node_id,
+    result = _memory_fabric(store).compact_context(
+        state,
+        events,
+        focus=focus,
+        source_event_id=event.event_id,
+        persist=True,
     )
-    state.artifacts.append(artifact)
-    compactions = state.metadata.setdefault("compactions", [])
-    compactions.append(
-        {
-            "event_id": event.event_id,
-            "artifact_id": artifact.artifact_id,
-            "focus": focus,
-            "event_count": len(events),
-            "created_at": event.created_at,
-        }
-    )
+    _attach_artifacts(state, result.artifacts)
+    _record_compaction_metadata(state, result, source_event_id=event.event_id)
     return {
         "summary": "Context compact summary artifact written.",
         "data": {
-            "artifact": _artifact_entry(LocalArtifactStore(artifact_root_path()), artifact),
+            "artifact": (
+                _artifact_entry(LocalArtifactStore(artifact_root_path()), result.artifacts[-1])
+                if result.artifacts
+                else None
+            ),
+            "compact": to_jsonable(result),
             "event_count": len(events),
             "focus": focus,
         },
     }
+
+
+def _attach_artifacts(state: Any, artifacts: list[ArtifactRef]) -> None:
+    existing_ids = {artifact.artifact_id for artifact in state.artifacts}
+    for artifact in artifacts:
+        if artifact.artifact_id not in existing_ids:
+            state.artifacts.append(artifact)
+            existing_ids.add(artifact.artifact_id)
+
+
+def _record_compaction_metadata(state: Any, result: Any, *, source_event_id: str) -> None:
+    compactions = state.metadata.setdefault("compactions", [])
+    compactions.append(
+        {
+            "event_id": source_event_id,
+            "compact_id": result.compact_id,
+            "artifact_ids": list(result.artifact_ids),
+            "artifact_id": result.artifact_ids[-1] if result.artifact_ids else "",
+            "focus": result.focus,
+            "event_count": len(result.preserved_event_ids) + len(result.summarized_event_ids),
+            "preserved_event_count": len(result.preserved_event_ids),
+            "summarized_event_count": len(result.summarized_event_ids),
+            "memory_record_count": len(result.memory_ids),
+            "compression_ratio": result.compression_ratio,
+            "created_at": result.created_at,
+            "source": "MemoryFabric",
+        }
+    )
+
+
+def _compact_policy_from_payload(payload: dict[str, Any]) -> CompactPolicy:
+    return CompactPolicy(
+        max_active_tokens=_bounded_int(payload.get("max_active_tokens"), default=8000, minimum=1000, maximum=200000),
+        tail_groups=_bounded_int(payload.get("tail_groups"), default=8, minimum=1, maximum=100),
+        max_inline_chars=_bounded_int(payload.get("max_inline_chars"), default=3000, minimum=500, maximum=50000),
+    )
 
 
 def _export_task_run(state: Any, event: EventRecord, store: SQLiteStore) -> dict[str, Any]:

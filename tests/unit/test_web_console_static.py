@@ -13,9 +13,15 @@ class WebConsoleStaticTests(unittest.TestCase):
         self.assertIn('id="graphSummary"', html)
         self.assertIn('id="graphMetrics"', html)
         self.assertIn('id="graphView"', html)
+        self.assertIn('id="memorySummary"', html)
+        self.assertIn('id="trajectorySummary"', html)
         self.assertIn("function renderGraph", html)
         self.assertIn("function orderGraphNodes", html)
         self.assertIn("function renderGraphNode", html)
+        self.assertIn("function renderMemory", html)
+        self.assertIn("function renderTrajectory", html)
+        self.assertIn("/memory/compact", html)
+        self.assertIn("/trajectory", html)
         self.assertIn("new URLSearchParams(window.location.search).get(\"api\")", html)
 
 
