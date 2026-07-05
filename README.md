@@ -136,6 +136,12 @@ Run the M3 structured collaboration scenario:
 .\.venv\Scripts\python.exe -m unittest tests.scenarios.test_m3_symbolic_collaboration
 ```
 
+Audit M0-M3 against the heavyweight internalization goal:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\audit_m0_m3_internalization.py
+```
+
 Check vendored browser-use Python runtime health:
 
 ```powershell

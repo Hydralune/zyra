@@ -43,6 +43,7 @@
 - 阶段审查还必须检查是否出现“为了快而缩小能力面”的倾向；如果里程碑只是 mock、占位实现、单路径 demo 或轻量替代，应视为未充分完成，并优先补齐成熟模块复用或记录明确的补齐计划。
 - 阶段审查必须检查 `zyra` 是否仍依赖根目录来源仓库的 `../` 路径；如果存在，应视为开发期临时桥接，必须迁移进 `zyra` 或记录明确的落位计划。
 - 阶段审查必须检查本阶段是否产生了足够的可运行能力和代码内化证据。只有薄 wrapper、空 schema、未连接的 API 或未接入 event log/control command/artifact 的模块，不能单独支撑里程碑完成。
+- M0-M3 已有重型目标自检文档：`docs/plans/M0-M3-heavyweight-self-check.md`；对应脚本：`scripts/audit_m0_m3_internalization.py`。后续进入 M4-M6 前应先读取该文档或运行该脚本，把其中的 internalization debt 作为阶段输入。
 - 新增模块要优先明确 schema、event、artifact、adapter 边界。
 - 不要让 agent 间自由广播长上下文；公共通信层应使用结构化消息、evidence ref、artifact ref 和状态 delta。
 - 需求变更必须支持任务运行中直接输入新指令，并记录为 `requirement_change` 事件，而不是停止当前 run 后重开。

@@ -6,6 +6,7 @@ Primary planning references remain in the parent workspace:
 
 - `../../docs/比赛项目开源Agent架构借鉴分析.md`
 - `../../docs/第一阶段工程计划.md`
+- `plans/M0-M3-heavyweight-self-check.md`
 
 ## Runtime Integration Notes
 
