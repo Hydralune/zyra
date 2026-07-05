@@ -100,6 +100,9 @@ def apply_requirement_change(
     decision.state_delta["affected_node_ids"] = list(affected_node_ids)
     route_event.payload["decision"] = to_jsonable(decision)
     events.append(route_event)
+    resource_event = _resource_decision_event_from_route(route_event)
+    if resource_event is not None:
+        events.append(resource_event)
 
     check_results = guard.check_task_state(state, node=replan_node, transition="start")
     decision.checks = [to_jsonable(result) for result in check_results]
@@ -122,6 +125,7 @@ def apply_requirement_change(
             "affected_node_ids": affected_node_ids,
             "replan_node_id": replan_node.node_id,
             "decision_id": decision.decision_id,
+            "resource_decision_id": str(route_event.payload.get("resource_decision", {}).get("decision_id") if isinstance(route_event.payload.get("resource_decision"), dict) else ""),
             "created_at": event.created_at,
         }
     )
@@ -222,6 +226,9 @@ def apply_failure_injection(
     decision.state_delta["target_node_id"] = target_node_id
     route_event.payload["decision"] = to_jsonable(decision)
     events.append(route_event)
+    resource_event = _resource_decision_event_from_route(route_event)
+    if resource_event is not None:
+        events.append(resource_event)
 
     check_results = guard.check_task_state(state, node=recovery_node, transition="start")
     decision.checks = [to_jsonable(result) for result in check_results]
@@ -235,6 +242,19 @@ def apply_failure_injection(
         )
     )
 
+    recovery_plan_id = ""
+    try:
+        from zyra_scheduler import RecoveryPlanner, RuntimeWatchdog
+    except Exception:  # noqa: BLE001 - symbolic control remains usable before scheduler path is configured.
+        pass
+    else:
+        signal = RuntimeWatchdog().classify(state, node=recovery_node, event=event, decision=None)
+        planner = RecoveryPlanner()
+        plan = planner.plan(state, signal, node=recovery_node, cause_event=event)
+        recovery_plan_id = plan.plan_id
+        recovery_node.metadata["recovery_plan"] = to_jsonable(plan)
+        events.append(planner.event_for_plan(plan, signal))
+
     failures = state.metadata.setdefault("failure_injections", [])
     failures.append(
         {
@@ -244,6 +264,8 @@ def apply_failure_injection(
             "target_node_id": target_node_id,
             "recovery_node_id": recovery_node.node_id,
             "decision_id": decision.decision_id,
+            "resource_decision_id": str(route_event.payload.get("resource_decision", {}).get("decision_id") if isinstance(route_event.payload.get("resource_decision"), dict) else ""),
+            "recovery_plan_id": recovery_plan_id,
             "created_at": event.created_at,
         }
     )
@@ -310,6 +332,27 @@ def _node_update_event(state: TaskState, node: PlanNode, transition: str, summar
         event_type=EventType.NODE_UPDATED,
         node_id=node.node_id,
         payload={"transition": transition, "summary": summary, "node": to_jsonable(node)},
+    )
+
+
+def _resource_decision_event_from_route(route_event: EventRecord) -> EventRecord | None:
+    resource_decision = route_event.payload.get("resource_decision")
+    if not isinstance(resource_decision, dict):
+        return None
+    return EventRecord(
+        run_id=route_event.run_id,
+        task_id=route_event.task_id,
+        event_type=EventType.RESOURCE_DECISION,
+        node_id=route_event.node_id,
+        payload={
+            "resource_decision": resource_decision,
+            "topology_event_id": route_event.event_id,
+            "selected_worker": resource_decision.get("selected_worker"),
+            "selected_manifest_id": resource_decision.get("selected_manifest_id"),
+            "selected_backend": resource_decision.get("selected_backend"),
+            "selected_location": resource_decision.get("selected_location"),
+            "model_split": resource_decision.get("model_split") or {},
+        },
     )
 
 

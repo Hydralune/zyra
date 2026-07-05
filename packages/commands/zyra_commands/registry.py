@@ -50,6 +50,7 @@ def default_command_registry() -> SlashCommandRegistry:
             _command("/graph", "Inspect task graph and dependencies.", "zyra", "control_command", "runtime_observation"),
             _command("/trace", "Inspect event trace.", "zyra", "control_command", "runtime_observation"),
             _command("/agents", "Inspect active worker and subagent state.", "claude-code-best AgentTool", "control_command", "runtime_observation"),
+            _command("/scheduler", "Inspect resource scheduler, worker manifests, health, and recovery routes.", "zyra m5 resource scheduler", "control_command", "runtime_observation"),
             _command("/artifacts", "Inspect artifact refs and outputs.", "zyra", "control_command", "runtime_observation"),
             _command("/tools", "Inspect registered tools and MCP/worker capabilities.", "claude-code-best tool registry", "control_command", "runtime_observation"),
             _command("/permissions", "Inspect or modify tool permission policy.", "claude-code-best permission runtime", "control_command", "runtime_observation"),

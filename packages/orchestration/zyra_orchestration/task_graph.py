@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -289,6 +290,9 @@ def _run_route_node(state: TaskState, node: PlanNode, router: Any, route_checks:
     decision.checks = [to_jsonable(result) for result in route_checks]
     route_event.payload["decision"] = to_jsonable(decision)
     events.append(route_event)
+    resource_event = _resource_decision_event_from_route(route_event)
+    if resource_event is not None:
+        events.append(resource_event)
 
     node.status = PlanNodeStatus.COMPLETED
     node.updated_at = now_iso()
@@ -353,6 +357,7 @@ def _run_execute_node(
                 },
             )
         )
+        events.extend(_plan_runtime_recovery(state, node, error=error))
         return events
 
     events.extend(worker_run.event_records)
@@ -364,6 +369,7 @@ def _run_execute_node(
     if not worker_run.worker_result.ok:
         state.status = PlanNodeStatus.FAILED
         state.updated_at = node.updated_at
+        events.extend(_plan_runtime_recovery(state, node, worker_result=worker_run.worker_result))
     node.metadata["result_summary"] = worker_run.worker_result.summary
     node.metadata["worker_result"] = to_jsonable(worker_run.worker_result)
     transition = "completed" if worker_run.worker_result.ok else "failed"
@@ -380,7 +386,23 @@ def _run_selected_worker(
     from zyra_workers import BrowserWorkerRuntime, CodeWorkerRuntime
 
     hints = _runtime_hints(state)
-    preferred_worker = str(node.assigned_worker_id or hints.get("preferred_worker") or hints.get("worker") or "")
+    resource_decision = _node_resource_decision(node)
+    selected_manifest = _selected_manifest(resource_decision, node.assigned_worker_id)
+    preferred_worker = str(
+        (selected_manifest or {}).get("runtime_worker")
+        or resource_decision.get("selected_worker")
+        or node.assigned_worker_id
+        or hints.get("preferred_worker")
+        or hints.get("worker")
+        or ""
+    )
+    request_metadata = _worker_request_metadata(
+        state,
+        node,
+        execution_context,
+        resource_decision=resource_decision,
+        selected_manifest=selected_manifest,
+    )
     browser_url = str(hints.get("browser_url") or _extract_first_url(state.user_goal) or "")
     if preferred_worker == "BrowserWorker" or browser_url:
         constraints = _browser_constraints(state, hints, browser_url)
@@ -390,6 +412,7 @@ def _run_selected_worker(
             node_id=node.node_id,
             worker_name="BrowserWorker",
             constraints=constraints,
+            metadata=request_metadata,
         )
         return (
             BrowserWorkerRuntime(
@@ -406,6 +429,7 @@ def _run_selected_worker(
         node_id=node.node_id,
         worker_name="CodeWorkerRuntime",
         constraints=_code_constraints(state, hints),
+        metadata=request_metadata,
     )
     return (
         CodeWorkerRuntime(
@@ -420,6 +444,155 @@ def _run_selected_worker(
         ).run(request),
         "CodeWorkerRuntime",
     )
+
+
+def _resource_decision_event_from_route(route_event: EventRecord) -> EventRecord | None:
+    resource_decision = route_event.payload.get("resource_decision")
+    if not isinstance(resource_decision, dict):
+        return None
+    return EventRecord(
+        run_id=route_event.run_id,
+        task_id=route_event.task_id,
+        event_type=EventType.RESOURCE_DECISION,
+        node_id=route_event.node_id,
+        payload={
+            "resource_decision": resource_decision,
+            "topology_event_id": route_event.event_id,
+            "selected_worker": resource_decision.get("selected_worker"),
+            "selected_manifest_id": resource_decision.get("selected_manifest_id"),
+            "selected_backend": resource_decision.get("selected_backend"),
+            "selected_location": resource_decision.get("selected_location"),
+            "model_split": resource_decision.get("model_split") or {},
+        },
+    )
+
+
+def _plan_runtime_recovery(
+    state: TaskState,
+    node: PlanNode,
+    *,
+    worker_result: Any | None = None,
+    error: BaseException | None = None,
+) -> list[EventRecord]:
+    try:
+        from zyra_scheduler import RecoveryPlanner, RuntimeWatchdog
+    except Exception:  # noqa: BLE001 - recovery planner should not hide the original worker failure.
+        return []
+    decision_payload = _node_resource_decision(node)
+    signal = RuntimeWatchdog().classify(
+        state,
+        node=node,
+        worker_result=worker_result,
+        error=error,
+        decision=_resource_decision_from_payload(decision_payload),
+    )
+    planner = RecoveryPlanner()
+    plan = planner.plan(
+        state,
+        signal,
+        node=node,
+    )
+    node.metadata["recovery_plan"] = to_jsonable(plan)
+    return [planner.event_for_plan(plan, signal)]
+
+
+def _resource_decision_from_payload(payload: dict[str, Any]) -> Any | None:
+    if not payload:
+        return None
+    try:
+        from zyra_scheduler import ResourceDecision, SchedulerSignals, WorkerBackendKind, ResourceLocation
+    except Exception:  # noqa: BLE001
+        return None
+    try:
+        signals_payload = payload.get("signals") if isinstance(payload.get("signals"), dict) else {}
+        return ResourceDecision(
+            run_id=str(payload.get("run_id") or ""),
+            task_id=str(payload.get("task_id") or ""),
+            node_id=str(payload.get("node_id")) if payload.get("node_id") is not None else None,
+            selected_manifest_id=str(payload.get("selected_manifest_id") or ""),
+            selected_worker=str(payload.get("selected_worker") or ""),
+            selected_backend=WorkerBackendKind(str(payload.get("selected_backend") or WorkerBackendKind.LOCAL_PROCESS)),
+            selected_location=ResourceLocation(str(payload.get("selected_location") or ResourceLocation.LOCAL)),
+            score=float(payload.get("score") or 0),
+            reasons=[str(item) for item in payload.get("reasons", [])],
+            alternatives=[dict(item) for item in payload.get("alternatives", []) if isinstance(item, dict)],
+            model_split=dict(payload.get("model_split") or {}),
+            signals=SchedulerSignals(**signals_payload),
+            decision_id=str(payload.get("decision_id") or ""),
+            source_modules=dict(payload.get("source_modules") or {}),
+            metadata=dict(payload.get("metadata") or {}),
+        )
+    except Exception:  # noqa: BLE001 - malformed metadata should not break recovery planning.
+        return None
+
+
+def _node_resource_decision(node: PlanNode) -> dict[str, Any]:
+    decision = node.metadata.get("resource_decision")
+    return dict(decision) if isinstance(decision, dict) else {}
+
+
+def _selected_manifest(resource_decision: dict[str, Any], fallback_worker: str | None) -> dict[str, str]:
+    manifest_id = str(resource_decision.get("selected_manifest_id") or fallback_worker or "")
+    try:
+        from zyra_scheduler import WorkerPool
+    except Exception:  # noqa: BLE001 - early package imports can run without scheduler path.
+        return {}
+    manifest = WorkerPool().by_id(manifest_id)
+    if manifest is None:
+        return {}
+    return {
+        "worker_id": manifest.worker_id,
+        "runtime_worker": manifest.runtime_worker,
+        "backend": str(manifest.backend),
+        "location": str(manifest.location),
+        "sandbox": manifest.sandbox,
+        "gateway": manifest.gateway,
+        "workspace_scope": manifest.workspace_scope,
+        "privacy_level": manifest.privacy_level,
+    }
+
+
+def _worker_request_metadata(
+    state: TaskState,
+    node: PlanNode,
+    execution_context: GraphExecutionContext,
+    *,
+    resource_decision: dict[str, Any],
+    selected_manifest: dict[str, str],
+) -> dict[str, str]:
+    metadata = {
+        "scheduler": "m5-resource-scheduler" if resource_decision else "",
+        "resource_decision_id": str(resource_decision.get("decision_id") or ""),
+        "worker_manifest_id": str(resource_decision.get("selected_manifest_id") or selected_manifest.get("worker_id") or ""),
+        "backend": str(resource_decision.get("selected_backend") or selected_manifest.get("backend") or ""),
+        "location": str(resource_decision.get("selected_location") or selected_manifest.get("location") or ""),
+        "model_split": json.dumps(resource_decision.get("model_split") or {}, ensure_ascii=False, sort_keys=True),
+    }
+    try:
+        from zyra_scheduler import WorkerPool, build_dispatch_envelope
+    except Exception:  # noqa: BLE001 - dispatch envelope is an M5 enhancement, not an import-time requirement.
+        return metadata
+    manifest = WorkerPool().by_id(metadata["worker_manifest_id"] or node.assigned_worker_id or "")
+    if manifest is None:
+        return metadata
+    envelope = build_dispatch_envelope(
+        state,
+        manifest,
+        workspace_root=execution_context.workspace_root,
+        artifact_root=execution_context.artifact_root,
+        node_id=node.node_id,
+        decision_id=metadata["resource_decision_id"],
+    )
+    node.metadata["dispatch_envelope"] = to_jsonable(envelope)
+    metadata.update(
+        {
+            "dispatch_envelope_id": envelope.envelope_id,
+            "sandbox": envelope.sandbox,
+            "gateway": envelope.gateway,
+            "workspace_scope": str(envelope.metadata.get("workspace_scope") or ""),
+        }
+    )
+    return metadata
 
 
 def _runtime_hints(state: TaskState) -> dict[str, Any]:

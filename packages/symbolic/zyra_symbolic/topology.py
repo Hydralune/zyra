@@ -20,8 +20,9 @@ class RouteCandidate:
 class TopologyRouter:
     """Sparse symbolic router over heterogeneous workers and current graph state."""
 
-    def __init__(self, worker_descriptors: list[Any] | None = None) -> None:
+    def __init__(self, worker_descriptors: list[Any] | None = None, resource_scheduler: Any | None = None) -> None:
         self.worker_descriptors = worker_descriptors if worker_descriptors is not None else self._default_workers()
+        self.resource_scheduler = resource_scheduler if resource_scheduler is not None else self._default_resource_scheduler()
 
     def route(
         self,
@@ -32,7 +33,51 @@ class TopologyRouter:
         cause_event: EventRecord | None = None,
         route_type: str = "topology_route",
     ) -> tuple[DecisionRecord, EventRecord]:
-        candidates = self.rank_candidates(state, node=node, cause_event=cause_event)
+        resource_decision = None
+        candidates: list[RouteCandidate]
+        if self.resource_scheduler is not None:
+            try:
+                resource_decision = self.resource_scheduler.decide(
+                    state,
+                    node=node,
+                    cause_event=cause_event,
+                )
+                self.resource_scheduler.attach_decision_to_state(state, resource_decision, node=node)
+                candidates = [
+                    RouteCandidate(
+                        worker_name=resource_decision.selected_worker,
+                        score=resource_decision.score,
+                        reasons=list(resource_decision.reasons),
+                        capabilities=list(resource_decision.metadata.get("selected_capabilities", [])),
+                        source=",".join(resource_decision.source_modules.keys()),
+                        metadata={
+                            "manifest_id": resource_decision.selected_manifest_id,
+                            "backend": str(resource_decision.selected_backend),
+                            "location": str(resource_decision.selected_location),
+                            "resource_decision_id": resource_decision.decision_id,
+                        },
+                    ),
+                    *[
+                        RouteCandidate(
+                            worker_name=str(item["runtime_worker"]),
+                            score=float(item["score"]),
+                            reasons=[str(reason) for reason in item.get("reasons", [])],
+                            source="m5-resource-scheduler",
+                            metadata={
+                                "manifest_id": str(item["worker_id"]),
+                                "backend": str(item["backend"]),
+                                "location": str(item["location"]),
+                            },
+                        )
+                        for item in resource_decision.alternatives
+                    ],
+                ]
+            except Exception as error:  # noqa: BLE001 - keep symbolic fallback usable if scheduler package is absent/broken.
+                state.metadata["resource_scheduler_error"] = f"{type(error).__name__}: {error}"
+                candidates = self.rank_candidates(state, node=node, cause_event=cause_event)
+        else:
+            candidates = self.rank_candidates(state, node=node, cause_event=cause_event)
+
         selected = candidates[0] if candidates else RouteCandidate("ChiefPlanner", 0.0, ["fallback route"])
         if node is not None and selected.worker_name not in {"ChiefPlanner", "ConstraintKeeper"}:
             node.assigned_worker_id = selected.worker_name
@@ -54,17 +99,20 @@ class TopologyRouter:
                 "route_type": route_type,
             },
             metadata={
-                "router": "m3-symbolic-topology-router",
+                "router": "m5-resource-aware-topology-router" if resource_decision is not None else "m3-symbolic-topology-router",
                 "top_k": str(top_k),
                 "cause_event_id": "" if cause_event is None else cause_event.event_id,
             },
         )
+        if resource_decision is not None:
+            self.resource_scheduler.enrich_decision_record(decision, resource_decision)
         state.decisions.append(decision)
         state.metadata["last_topology_route"] = {
             "decision_id": decision.decision_id,
             "selected_worker": selected.worker_name,
             "node_id": decision.node_id,
             "route_type": route_type,
+            "resource_decision_id": "" if resource_decision is None else resource_decision.decision_id,
         }
         event = EventRecord(
             run_id=state.run_id,
@@ -76,6 +124,7 @@ class TopologyRouter:
                 "selected_worker": selected.worker_name,
                 "candidate_count": len(candidates),
                 "route_type": route_type,
+                "resource_decision": None if resource_decision is None else to_jsonable(resource_decision),
             },
         )
         return decision, event
@@ -202,6 +251,13 @@ class TopologyRouter:
                 {"name": "BrowserWorker", "source": "zyra", "capabilities": ("web-research", "browser-agent")},
             ]
         return list(default_worker_descriptors())
+
+    def _default_resource_scheduler(self) -> Any | None:
+        try:
+            from zyra_scheduler import ResourceScheduler
+        except Exception:  # noqa: BLE001 - scheduler is optional for early package-only imports.
+            return None
+        return ResourceScheduler()
 
     def _descriptor_value(self, worker: Any, key: str) -> str:
         if isinstance(worker, dict):

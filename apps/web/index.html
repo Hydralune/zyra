@@ -422,7 +422,7 @@
       <aside>
         <div class="brand">
           <h1>Zyra</h1>
-          <span class="phase">M4</span>
+          <span class="phase">M5</span>
         </div>
         <nav>
           <button class="active" type="button">Run State</button>
@@ -430,6 +430,7 @@
           <button type="button">Events</button>
           <button type="button">Memory</button>
           <button type="button">Trajectory</button>
+          <button type="button">Scheduler</button>
           <button type="button">Artifacts</button>
           <button type="button">Commands</button>
           <button type="button">Skills</button>
@@ -517,6 +518,16 @@
             </section>
 
             <section>
+              <h3>Scheduler</h3>
+              <p id="schedulerSummary">No scheduler state loaded.</p>
+              <div class="actions">
+                <button id="refreshScheduler" class="ghost" type="button">Refresh scheduler</button>
+              </div>
+              <div id="schedulerList" class="list"></div>
+              <div id="recoveryList" class="list"></div>
+            </section>
+
+            <section>
               <h3>Artifacts</h3>
               <p id="artifactSummary">No artifacts loaded.</p>
               <div class="actions">
@@ -594,6 +605,9 @@
       const memoryList = document.querySelector("#memoryList");
       const trajectorySummary = document.querySelector("#trajectorySummary");
       const trajectoryList = document.querySelector("#trajectoryList");
+      const schedulerSummary = document.querySelector("#schedulerSummary");
+      const schedulerList = document.querySelector("#schedulerList");
+      const recoveryList = document.querySelector("#recoveryList");
       const artifactSummary = document.querySelector("#artifactSummary");
       const artifactList = document.querySelector("#artifactList");
       const selectedTask = document.querySelector("#selectedTask");
@@ -706,6 +720,62 @@
             `;
           })
           .join("");
+      }
+
+      function renderScheduler(data, recovery = {}) {
+        const manifests = data.manifests || [];
+        const health = data.health || [];
+        const decision = data.latest_resource_decision || data.preview_decision || {};
+        const recoveryPlans = recovery.recovery_plans || [];
+        const selected = decision.selected_manifest_id || "unrouted";
+        schedulerSummary.textContent = `${manifests.length} manifest(s), ${health.length} health record(s), selected ${selected}, ${recoveryPlans.length} recovery plan(s)`;
+        schedulerList.innerHTML = [
+          ...(decision.selected_manifest_id
+            ? [
+                {
+                  title: `Selected ${decision.selected_worker || ""}`,
+                  meta: `${decision.selected_manifest_id || ""} / ${decision.selected_backend || ""} / ${decision.selected_location || ""}`,
+                  detail: (decision.reasons || []).slice(0, 3).join("; "),
+                },
+              ]
+            : []),
+          ...health.map((item) => ({
+            title: item.worker_id,
+            meta: `${item.status} / failures ${item.recent_failures || 0} / load ${item.current_load || 0}`,
+            detail: item.reason || item.metadata?.backend || "",
+          })),
+          ...manifests.slice(0, 4).map((manifest) => ({
+            title: manifest.display_name || manifest.worker_id,
+            meta: `${manifest.runtime_worker} / ${manifest.backend} / ${manifest.location}`,
+            detail: (manifest.capabilities || []).slice(0, 5).join(", "),
+          })),
+        ]
+          .map(
+            (item) => `
+              <div class="row">
+                <div>${escapeHtml(item.title)}</div>
+                <div class="meta">${escapeHtml(item.meta)}</div>
+                <div class="meta">${escapeHtml(item.detail)}</div>
+              </div>
+            `,
+          )
+          .join("");
+        recoveryList.innerHTML = recoveryPlans.length
+          ? recoveryPlans
+              .slice()
+              .reverse()
+              .slice(0, 5)
+              .map(
+                (plan) => `
+                  <div class="row">
+                    <div><span class="pill">recovery</span> ${escapeHtml(plan.selected_worker || "")}</div>
+                    <div>${escapeHtml(plan.summary || "")}</div>
+                    <div class="meta">${escapeHtml((plan.actions || []).join(", "))}</div>
+                  </div>
+                `,
+              )
+              .join("")
+          : '<div class="row"><div>No recovery plan recorded.</div></div>';
       }
 
       function renderGraph(task, events = []) {
@@ -971,6 +1041,7 @@
         show(data);
         await refreshMemory();
         await refreshTrajectory();
+        await refreshScheduler();
         await refreshArtifacts();
       }
 
@@ -1020,6 +1091,7 @@
         await refreshEvents();
         await refreshMemory().catch(() => {});
         await refreshTrajectory().catch(() => {});
+        await refreshScheduler().catch(() => {});
         await refreshArtifacts();
       }
 
@@ -1044,6 +1116,26 @@
         await refreshEvents();
         await refreshMemory().catch(() => {});
         await refreshTrajectory().catch(() => {});
+        await refreshScheduler().catch(() => {});
+      }
+
+      async function refreshScheduler() {
+        if (!selectedTaskId) {
+          const [manifests, health] = await Promise.all([
+            fetch(`${API_BASE}/scheduler/manifests`).then((response) => response.json()),
+            fetch(`${API_BASE}/scheduler/health`).then((response) => response.json()),
+          ]);
+          const data = { manifests: manifests.manifests || [], health: health.health || [] };
+          renderScheduler(data, { recovery_plans: [] });
+          show(data);
+          return;
+        }
+        const [scheduler, recovery] = await Promise.all([
+          fetch(`${API_BASE}/tasks/${selectedTaskId}/scheduler`).then((response) => response.json()),
+          fetch(`${API_BASE}/tasks/${selectedTaskId}/recovery`).then((response) => response.json()),
+        ]);
+        renderScheduler(scheduler, recovery);
+        show({ scheduler, recovery });
       }
 
       async function refreshRuntime() {
@@ -1143,6 +1235,7 @@
       document.querySelector("#refreshMemory").addEventListener("click", refreshMemory);
       document.querySelector("#compactMemory").addEventListener("click", compactMemory);
       document.querySelector("#refreshTrajectory").addEventListener("click", refreshTrajectory);
+      document.querySelector("#refreshScheduler").addEventListener("click", refreshScheduler);
       document.querySelector("#refreshArtifacts").addEventListener("click", refreshArtifacts);
       document.querySelector("#sendCommand").addEventListener("click", sendCommand);
       document.querySelector("#refreshRuntime").addEventListener("click", refreshRuntime);
@@ -1154,6 +1247,7 @@
       refreshEvents().catch(() => {});
       refreshMemory().catch(() => {});
       refreshTrajectory().catch(() => {});
+      refreshScheduler().catch(() => {});
       refreshArtifacts().catch(() => {});
       refreshRuntime().catch(() => {});
       refreshPermissions().catch(() => {});

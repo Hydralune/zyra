@@ -437,7 +437,7 @@ class MemoryFabric:
                 preserved.add(index)
             if policy.preserve_failures and event_types.intersection({"failure_injected", "node_failed"}):
                 preserved.add(index)
-            if policy.preserve_decisions and event_types.intersection({"topology_route", "constraint_check", "evaluation"}):
+            if policy.preserve_decisions and event_types.intersection({"topology_route", "resource_decision", "recovery_planned", "constraint_check", "evaluation"}):
                 preserved.add(index)
             if policy.preserve_tool_groups and group.get("tool_group_key"):
                 preserved.add(index)
@@ -498,6 +498,15 @@ def _event_summary(event: Mapping[str, Any]) -> str:
     if event_type == "topology_route":
         decision = payload.get("decision") if isinstance(payload.get("decision"), Mapping) else {}
         return f"Topology route selected {decision.get('selected') or payload.get('selected_worker') or ''}: {decision.get('summary') or decision.get('rationale') or ''}".strip()
+    if event_type == "resource_decision":
+        decision = payload.get("resource_decision") if isinstance(payload.get("resource_decision"), Mapping) else {}
+        return (
+            f"Resource decision selected {decision.get('selected_worker') or payload.get('selected_worker') or ''} "
+            f"via {decision.get('selected_manifest_id') or payload.get('selected_manifest_id') or ''}."
+        ).strip()
+    if event_type == "recovery_planned":
+        plan = payload.get("recovery_plan") if isinstance(payload.get("recovery_plan"), Mapping) else {}
+        return f"Recovery planned: {plan.get('summary') or payload.get('selected_worker') or ''}".strip()
     if event_type == "constraint_check":
         return f"Constraint check: {_first_text(payload, ['summary', 'status']) or len(payload.get('results', []))}."
     if event_type == "skill_invoked":
@@ -545,6 +554,9 @@ def _is_episodic_event(event: Mapping[str, Any]) -> bool:
         "node_failed",
         "constraint_check",
         "topology_route",
+        "resource_decision",
+        "recovery_planned",
+        "worker_health",
         "evaluation",
         "system_notice",
     }:
@@ -560,7 +572,7 @@ def _event_score(event: Mapping[str, Any]) -> float:
     event_type = _event_type(event)
     if event_type in {"requirement_change", "failure_injected", "node_failed"}:
         return 1.0
-    if event_type in {"topology_route", "constraint_check", "evaluation", "skill_invoked"}:
+    if event_type in {"topology_route", "resource_decision", "recovery_planned", "constraint_check", "evaluation", "skill_invoked"}:
         return 0.85
     if _is_worker_trace(event):
         return 0.75
@@ -754,7 +766,9 @@ def _frame_title(event: Mapping[str, Any]) -> str:
 
 def _route_from_payload(payload: Mapping[str, Any]) -> str | None:
     decision = payload.get("decision") if isinstance(payload.get("decision"), Mapping) else {}
-    selected = decision.get("selected") or payload.get("selected_worker")
+    resource = payload.get("resource_decision") if isinstance(payload.get("resource_decision"), Mapping) else {}
+    plan = payload.get("recovery_plan") if isinstance(payload.get("recovery_plan"), Mapping) else {}
+    selected = decision.get("selected") or resource.get("selected_worker") or plan.get("selected_worker") or payload.get("selected_worker")
     return None if selected is None else str(selected)
 
 

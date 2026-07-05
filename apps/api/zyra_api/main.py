@@ -20,6 +20,7 @@ PACKAGE_PATHS = [
     PROJECT_ROOT / "packages" / "integrations",
     PROJECT_ROOT / "packages" / "workers",
     PROJECT_ROOT / "packages" / "symbolic",
+    PROJECT_ROOT / "packages" / "scheduler",
     PROJECT_ROOT / "packages" / "evaluation",
 ]
 for package_path in PACKAGE_PATHS:
@@ -31,6 +32,12 @@ from zyra_core.event_log import append_event as append_jsonl_event
 from zyra_memory import CompactPolicy, MemoryFabric, SQLiteStore
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
+from zyra_scheduler import (
+    ResourceScheduler,
+    RuntimeWatchdog,
+    WorkerPool,
+    source_to_target_ledger,
+)
 from zyra_commands import default_command_registry, parse_slash_command
 from zyra_runtime import (
     ContextSessionRuntime,
@@ -156,7 +163,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     "service": "zyra-api",
-                    "phase": "m4-memory-compact-trajectory",
+                    "phase": "m5-resource-scheduler-fault-recovery",
                     "event_log": str(event_log_path()),
                     "sqlite": str(sqlite_path()),
                     "tool_workspace": str(tool_workspace_path()),
@@ -208,7 +215,30 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if parts == ["workers"]:
             self._send_json(
                 HTTPStatus.OK,
-                {"workers": [to_jsonable(worker) for worker in default_worker_descriptors()]},
+                {
+                    "workers": [to_jsonable(worker) for worker in default_worker_descriptors()],
+                    "manifests": [to_jsonable(manifest) for manifest in WorkerPool().manifests()],
+                },
+            )
+            return
+
+        if parts == ["scheduler", "manifests"]:
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "manifests": [to_jsonable(manifest) for manifest in WorkerPool().manifests()],
+                    "source_to_target_ledger": source_to_target_ledger(),
+                },
+            )
+            return
+
+        if parts == ["scheduler", "health"]:
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "health": [to_jsonable(item) for item in WorkerPool().health_snapshot(events=store.all_events(limit=200))],
+                    "source_to_target_ledger": source_to_target_ledger(),
+                },
             )
             return
 
@@ -334,6 +364,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "compactions": store.task_compactions(parts[1]),
                 },
             )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "scheduler":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            self._send_json(HTTPStatus.OK, _scheduler_task_view(state, store))
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "recovery":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            self._send_json(HTTPStatus.OK, _recovery_task_view(state, store))
             return
 
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "artifacts":
@@ -839,6 +885,61 @@ def _artifact_entry(catalog: LocalArtifactStore, artifact: ArtifactRef) -> dict[
         }
 
 
+def _scheduler_task_view(state: Any, store: SQLiteStore) -> dict[str, Any]:
+    events = store.task_events(state.task_id)
+    memory_records = store.task_memory_records(state.task_id)
+    scheduler = ResourceScheduler()
+    execute_node = _stage_node(state, "execute")
+    preview = scheduler.decide(
+        state,
+        node=execute_node,
+        events=events,
+        memory_records=memory_records,
+    )
+    decisions = list(state.metadata.get("resource_decisions", []))
+    return {
+        "task_id": state.task_id,
+        "run_id": state.run_id,
+        "manifests": [to_jsonable(manifest) for manifest in WorkerPool().manifests()],
+        "health": [to_jsonable(item) for item in WorkerPool().health_snapshot(state=state, events=events)],
+        "latest_resource_decision": state.metadata.get("last_resource_decision"),
+        "resource_decisions": decisions,
+        "preview_decision": to_jsonable(preview),
+        "source_to_target_ledger": source_to_target_ledger(),
+        "event_counts": _event_counts(events),
+        "memory_record_count": len(memory_records),
+    }
+
+
+def _recovery_task_view(state: Any, store: SQLiteStore) -> dict[str, Any]:
+    events = store.task_events(state.task_id)
+    signals = RuntimeWatchdog().scan_events(state, events)
+    return {
+        "task_id": state.task_id,
+        "run_id": state.run_id,
+        "recovery_plans": list(state.metadata.get("recovery_plans", [])),
+        "last_recovery_plan": state.metadata.get("last_recovery_plan"),
+        "failure_injections": list(state.metadata.get("failure_injections", [])),
+        "signals": [to_jsonable(signal) for signal in signals],
+        "event_counts": _event_counts(events),
+    }
+
+
+def _stage_node(state: Any, stage: str) -> Any | None:
+    for node in state.plan_nodes.values():
+        if node.metadata.get("stage") == stage:
+            return node
+    return None
+
+
+def _event_counts(events: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for event in events:
+        event_type = str(event.get("event_type") or "unknown")
+        counts[event_type] = counts.get(event_type, 0) + 1
+    return counts
+
+
 def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore) -> dict[str, Any]:
     command = event.payload.get("command")
     if not isinstance(command, dict):
@@ -897,7 +998,14 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
         }
     elif name in {"/cost", "/usage"}:
         result["summary"] = "Task resource usage."
-        result["data"] = {"budget": to_jsonable(state.budget)}
+        result["data"] = {
+            "budget": to_jsonable(state.budget),
+            "scheduler": {
+                "resource_decision_count": len(state.metadata.get("resource_decisions", [])),
+                "recovery_plan_count": len(state.metadata.get("recovery_plans", [])),
+                "latest_resource_decision": state.metadata.get("last_resource_decision"),
+            },
+        }
     elif name == "/context":
         events = store.task_events(state.task_id)
         session_runtime = ContextSessionRuntime(events)
@@ -910,7 +1018,14 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
         }
     elif name == "/agents":
         result["summary"] = "Registered worker descriptors."
-        result["data"] = {"workers": [to_jsonable(worker) for worker in default_worker_descriptors()]}
+        result["data"] = {
+            "workers": [to_jsonable(worker) for worker in default_worker_descriptors()],
+            "manifests": [to_jsonable(manifest) for manifest in WorkerPool().manifests()],
+            "health": [to_jsonable(item) for item in WorkerPool().health_snapshot(state=state, events=store.task_events(state.task_id))],
+        }
+    elif name == "/scheduler":
+        result["summary"] = "M5 resource scheduler, worker manifests, and recovery state."
+        result["data"] = _scheduler_task_view(state, store)
     elif name == "/mcp":
         result["summary"] = "MCP runtime inventory from CodeWorker sidecar."
         result["data"] = {"mcp_runtime_files": CodeWorkerSidecarClient(PROJECT_ROOT).runtime_inventory()["runtimeBoundaries"]["mcpRuntimeFiles"]}
@@ -930,6 +1045,8 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             "tool_workspace": str(tool_workspace_path()),
             "artifact_root": str(artifact_root_path()),
             "permission_store": str(permission_store_path()),
+            "scheduler_health": [to_jsonable(item) for item in WorkerPool().health_snapshot(state=state, events=store.task_events(state.task_id))],
+            "scheduler_ledger_entries": source_to_target_ledger(),
         }
     elif name == "/model":
         result["summary"] = "Configured model/provider environment."
@@ -990,6 +1107,7 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             "raw": event.payload.get("raw", ""),
             "requirement_change": latest,
             "latest_decision": to_jsonable(state.decisions[-1]) if state.decisions else None,
+            "latest_resource_decision": state.metadata.get("last_resource_decision"),
         }
     elif name == "/inject":
         latest = _latest_metadata_item(state, "failure_injections")
@@ -999,6 +1117,8 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             "raw": event.payload.get("raw", ""),
             "failure_injection": latest,
             "latest_decision": to_jsonable(state.decisions[-1]) if state.decisions else None,
+            "latest_resource_decision": state.metadata.get("last_resource_decision"),
+            "latest_recovery_plan": state.metadata.get("last_recovery_plan"),
         }
     elif name in {"/init", "/hooks", "/plan", "/goal", "/team-onboarding"}:
         result["summary"] = f"{name} accepted and recorded for downstream runtime handling."

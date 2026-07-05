@@ -70,12 +70,26 @@ M4 established the memory, context compact, and long trajectory layer:
 - `/memory`, `/compact`, and `/context` now use MemoryFabric instead of only context-session metadata
 - the static console includes connected Memory and Trajectory panels
 
+M5 established the resource scheduler and fault recovery layer:
+
+- `packages/scheduler/zyra_scheduler` now contains `WorkerManifest`, `WorkerPool`, `ResourceScheduler`, `WorkerBackendGateway`, `RuntimeWatchdog`, and `RecoveryPlanner`
+- worker manifests cover local code execution, simulated edge browser execution, cloud planner/verifier routing, and local memory curator routing
+- `TopologyRouter` consumes `ResourceScheduler` decisions, so route nodes assign real `CodeWorkerRuntime` or `BrowserWorker` execution based on manifest scoring rather than only static worker names
+- route stages emit `resource_decision` records with selected manifest, backend, location, model split, alternatives, and source-module evidence
+- execute stages attach dispatch envelope metadata to `WorkerRequest`, including manifest id, backend, sandbox, gateway, workspace scope, and model split
+- `RuntimeWatchdog` classifies tool timeout, worker unavailable, browser crash, permission denied, model error, schema/validation failure, and node failure signals
+- `/inject` now creates recovery nodes, resource-aware recovery routes, `recovery_planned` events, and checkpoint metadata under `recovery_plans`
+- MemoryFabric preserves `resource_decision`, `recovery_planned`, and `worker_health` events, so failure history, requirement changes, compact summaries, and trajectory records influence later scheduling
+- API endpoints expose scheduler state through `/scheduler/manifests`, `/scheduler/health`, `/tasks/{task_id}/scheduler`, and `/tasks/{task_id}/recovery`
+- slash command surface includes `/scheduler`; `/agents`, `/doctor`, `/usage`, `/change`, and `/inject` return scheduler/recovery context
+- the static console includes an M5 Scheduler panel connected to real scheduler and recovery APIs
+
 ## Direction For M5-M6
 
-M0-M4 established contracts, runtime control paths, symbolic collaboration, and long-memory boundaries. The next milestones must use those boundaries to internalize substantial mature capabilities from the reference repositories, not merely add thin wrappers.
+M0-M5 established contracts, runtime control paths, symbolic collaboration, long-memory boundaries, and the first resource/fault scheduler. The next milestones must use those boundaries to internalize substantial mature capabilities from the reference repositories, not merely add thin wrappers.
 
-- M5 should make resource scheduling, worker manifests, sandbox/gateway boundaries, fault injection, and recovery policies affect real task execution.
 - M6 should replace the current console shell with a connected control console for task graph, event timeline, worker state, artifact/diff/browser/terminal views, slash commands, and live requirement changes.
+- M7 should freeze, productize, and source-map capabilities already internalized in M2-M6.
 
 Vendor snapshots are a migration pool or explicit runtime boundary. Long-term capabilities should be collected into `apps/`, `packages/`, or clearly named runtime adapters before the first-stage freeze.
 
@@ -150,6 +164,12 @@ Run the M4 memory, compact, and trajectory verification:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_m4.py
+```
+
+Run the M5 scheduler, fault injection, and recovery verification:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_m5.py
 ```
 
 Audit M0-M3 against the heavyweight internalization goal:
