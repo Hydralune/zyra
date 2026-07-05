@@ -1,6 +1,8 @@
-# M5 Scheduler, Fault Injection, And Recovery
+# Historical M0.5 Scheduler, Fault Injection, And Recovery
 
-M5 is the first backend-heavy internalization pass for edge/local/cloud resource scheduling and runtime fault recovery. It builds on M2 worker runtimes, M3 symbolic control, and M4 memory/trajectory rather than replacing them with a standalone scheduler.
+This file records the former M5 work. It is now a historical subrecord of the consolidated new `M0: foundation and main-path bootstrap`, not evidence that a separate heavyweight M5 milestone was completed.
+
+The implementation is valuable because it created the first resource scheduling and runtime fault recovery path. It is not sufficient as the new M1 heavyweight Runtime/Memory/Scheduler/Fault internalization target. New M1 must deepen this work with larger module migration or encapsulation from `claude-code-best`, `browser-use`, OpenHands, OpenClaw, AgentScope, Agent Framework, and related source repositories.
 
 ## Source-To-Target Ledger
 
@@ -54,7 +56,7 @@ Regression checks:
 
 ## Critical Self-Check
 
-- M5 is not only a `WorkerManifest` dataclass: the scheduler now mutates route/execute node metadata, worker selection, event log records, API responses, command results, and Web data.
+- Historical M0.5 is not only a `WorkerManifest` dataclass: the scheduler mutates route/execute node metadata, worker selection, event log records, API responses, command results, and Web data.
 - Fault injection no longer stops at `node_failed`; it creates a recovery node, a resource-aware route, and a recovery plan.
 - Memory-to-routing is present in the first version: `ResourceScheduler` consumes failure injections, requirement changes, compact counts, trajectory mentions, event history, and persisted memory records.
-- The current implementation is still a first backend integration pass. It does not yet provide real remote cloud workers, real Docker sandbox isolation, or full Claude Code AgentTool/MCP/SkillTool deep execution. Those remain M6/M7/second-stage debt and should not be misread as complete.
+- The current implementation is still a first backend integration pass. It does not yet provide real remote cloud workers, real Docker sandbox isolation, or full Claude Code AgentTool/MCP/SkillTool deep execution. These are new M1 debt and should not be misread as complete.

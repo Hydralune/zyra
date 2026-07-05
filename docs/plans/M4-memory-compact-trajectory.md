@@ -1,10 +1,12 @@
-# M4 Memory, Compact, and Long Trajectory Self-Check
+# Historical M0.4 Memory, Compact, and Long Trajectory Self-Check
 
 ## Status
 
-M4 is implemented as a runnable Zyra subsystem, not as schema-only memory placeholders.
+This file records the former M4 work. It is now a historical subrecord of the consolidated new `M0: foundation and main-path bootstrap`.
 
-This milestone should not be used as evidence that the whole memory/skill/retrieval internalization effort is already finished. M4 delivered the first real MemoryFabric, compact, persistence, API, and replay path. It did not yet absorb the full mature memory stacks from the source repositories, and it does not remove the M5/M6 responsibility to keep internalizing large runtime modules.
+Former M4 is implemented as a runnable Zyra subsystem, not as schema-only memory placeholders.
+
+This historical subrecord should not be used as evidence that the whole memory/skill/retrieval internalization effort is already finished. Former M4 delivered the first real MemoryFabric, compact, persistence, API, and replay path. It did not yet absorb the full mature memory stacks from the source repositories, and it does not remove the new M1 responsibility to keep internalizing large runtime and memory modules.
 
 ## Internalized Sources
 
@@ -46,18 +48,18 @@ M4 now has a real runnable subsystem, but it is still a first-stage integration 
 
 - Retrieval is lexical and approximate-token based; semantic vector retrieval or SQLite FTS can be added in the second stage.
 - Compact summaries are deterministic structured summaries, not LLM-generated summaries yet. This is acceptable for first-stage stability, but a future MemoryCurator worker should be able to call an LLM/provider for richer summarization.
-- Frontend trajectory replay is a connected static panel. The full M6 console should add richer filtering, topology playback, artifact previews, and step-by-step replay controls.
-- Historical failure memory is now persisted and replayable; M5 should connect it into ResourceScheduler and recovery policy scoring.
+- Frontend trajectory replay is a connected static panel. The full new M2 console should add richer filtering, topology playback, artifact previews, and step-by-step replay controls.
+- Historical failure memory is now persisted and replayable; former M5 connected a first scheduler path, and new M1 must deepen it into real resource scheduling and recovery policy scoring.
 
 ## Internalization Debt Carried Forward
 
-M5 must treat these as inputs rather than optional polish:
+New M1 must treat these as inputs rather than optional polish:
 
 - Connect MemoryFabric failure history, requirement changes, compact records, and trajectory frames into `ResourceScheduler` and recovery planning.
 - Add a real `MemoryCurator` worker path that can decide what to preserve, retrieve, compact, and promote into skill memory.
 - Expand skill memory beyond invocation records: load skill bodies/resources, attach allowed tools, and persist reusable procedures from traces.
 - Add stronger retrieval backends such as SQLite FTS or a vector adapter behind the current memory interface.
 - Make compact restore affect the next worker context, not only produce a compact artifact and metadata.
-- Carry the memory/trajectory views into the M6 console as interactive playback, filtering, artifact preview, and topology correlation.
+- Carry the memory/trajectory views into the new M2 console as interactive playback, filtering, artifact preview, and topology correlation.
 
 If later milestones only cite M4 as “memory done” without advancing these items, the first-stage heavy integration target is drifting.

@@ -6,90 +6,26 @@ Zyra is the project workspace for the competition system "智衍群策：动态�
 
 ## Current Phase
 
-M0 established the engineering baseline:
+Canonical status: the previous M0-M5 work is now consolidated into a single completed `M0: foundation and main-path bootstrap`. It is not treated as six completed heavyweight milestones.
 
-- shared core schema for runs, tasks, plan nodes, messages, commands, artifacts, budgets, workers, and events
-- JSONL event log with stable `run_id`, `task_id`, `node_id`, and `event_id`
-- zero-dependency development API that can create an empty task and persist the creation event
-- static Web console shell for local inspection and task creation
-- local verification script and stdlib unit tests
+Consolidated M0 delivered:
 
-M1 established the control plane and task graph:
+- shared schema, event log, checkpoint store, task graph, control commands, slash-command surface, skills/tools/worker registries, artifact catalog, and a static inspection console
+- vendored `claude-code-best` and `browser-use` snapshots inside `vendor/`, plus first CodeWorker and BrowserWorker adapter boundaries
+- permissioned tool execution, API-backed tool events, context/session commands, runtime inventory, and task graph execution through worker runtimes
+- first structured collaboration path with `ConstraintKeeper`, `TopologyRouter`, structured messages, route decisions, `/change`, `/inject`, `/verify`, and `/eval`
+- first MemoryFabric path for memory records, compact records, trajectory replay, memory/compact/context commands, and API/console panels
+- first scheduler/fault path with worker manifests, resource decisions, backend dispatch envelopes, watchdog classification, recovery planning, scheduler APIs, and a connected scheduler panel
 
-- staged graph shape: `plan -> route -> execute -> verify -> finalize`
-- SQLite event log and checkpoint store at `tmp/zyra.sqlite3`
-- task creation, listing, query, run, cancellation, and event query endpoints
-- Web console task list and event stream shell
+What M0 does not prove:
 
-M2 established the worker runtime and tool governance layer:
+- full Claude Code QueryEngine/ToolPermission/MCP/SkillTool/AgentTool/compact/session-command internalization
+- full browser-use message manager, watchdog, browser session, trace, and agent-history internalization
+- mature OpenHands/OpenClaw/AgentScope-style sandbox, workspace, gateway, event stream, or backend failover integration
+- complete memory retrieval, skill memory, MemoryCurator, compact restore, or trajectory-driven recovery
+- formal control console with event stream, topology replay, artifact/diff/browser/terminal viewers, permission/session/context panels, command palette, and live requirement-change flow
 
-- slash command, skill, tool, and worker runtime registries
-- `/skills` command and `POST /tasks/{task_id}/skills` skill invocation endpoint, with independent `skill_invoked` events and checkpoint metadata
-- vendored `claude-code-best` and `browser-use` snapshots inside `vendor/`
-- CodeWorker sidecar boundary for the vendored TypeScript runtime
-- permissioned `ToolExecutor` for file read/write/edit, shell, and artifact output
-- controlled `web_search` execution over workspace research files, local file URLs, and explicitly allowed network URLs, with search trace artifacts
-- `browser` tool execution for single-call inline HTML or allowed URL state snapshots; multi-step browser plans remain under `BrowserWorkerRuntime`
-- `trace` tool execution through the API, backed by SQLite task events and optional trace artifacts
-- `checkpoint` tool execution through the API, backed by SQLite task checkpoints and optional checkpoint artifacts
-- JSON-backed permission rules and pending approval requests for allow/deny/ask shell governance
-- API tool execution endpoint that records tool results in the task event stream
-- `CodeWorkerRuntime` QueryEngine contract-backed loop exposed through the API, with vendored Claude Code sidecar contract, `stream_request_start`, session/turn lifecycle events, read-only concurrent/write-serial tool batching, tool use summaries, turn limits, tool result budget, query context compaction artifacts, and error stop/continue behavior
-- CodeWorker source inventory for `claude-code-best` tools, commands, permission, compact, MCP, skills, and subagent boundaries
-- `BrowserWorkerRuntime` browser-use adapter boundary for URL/HTML state capture, extracted text, structured page state, click/input/search-page actions, live-only browser-use tool actions, artifacts, and event trace
-- optional `browser-use-live` backend for `BrowserWorkerRuntime`, backed by vendored `browser-use` `BrowserSession` in headless Chrome/Edge, including real input/click/search, wait, scroll, scroll-to-text, keyboard, screenshot/PDF artifacts, JavaScript evaluation, back-navigation, workspace file upload, and downloaded-file artifact collection; runtime config/cache/temp/profile/download writes are isolated under `tmp/browser-use-runtime`
-- optional `browser-use-agent` backend for `BrowserWorkerRuntime`, backed by vendored `browser-use` `Agent`, explicit LLM provider/key configuration, `BrowserSession`, Agent history artifacts, Agent trace events, available-file constraints, and project-local runtime directories
-- BrowserWorker action metadata loaded from vendored `browser-use` action models and registry source files
-- BrowserWorker runtime health API for vendored `browser-use` Python imports, Agent/AgentHistoryList, action models, LLM factory, CDP dependency, and project-local browser-use environment
-- artifact catalog endpoints and Web console panel for task-scoped runtime evidence
-- expanded slash command control plane with command result views, context compact artifacts, and run export artifacts
-- lightweight trace evaluator behind `/verify` and `/eval`, recording score summaries in task metadata
-- stateful context session runtime for `/clear`, `/rewind`, `/resume`, `/context`, and `/memory`, backed by visible context windows and resumable snapshots in task checkpoint metadata
-- task graph `execute` stage can now call worker runtimes when the API provides `GraphExecutionContext`
-- Web console task graph visualization, runtime inventory, artifact, and permission panels
-
-M3 established the structured collaboration and neuro-symbolic control layer:
-
-- core schema now carries M3 collaboration fields on `AgentMessage`, `PlanNode`, `ConstraintSet`, and `DecisionRecord`
-- task graph version upgraded to `m3-symbolic-v1`, with low-entropy structured `agent_message`, `constraint_check`, and `topology_route` events
-- `ConstraintKeeper` checks node schema, dependencies, worker allow-lists, budget, message-size pressure, forbidden terms, state transitions, and terminal criteria
-- `TopologyRouter` selects top-k heterogeneous worker routes from task text, runtime hints, worker capabilities, resource constraints, and failure history, then appends replayable `DecisionRecord` entries
-- route nodes now assign the M2 `CodeWorkerRuntime` or `BrowserWorker` execution node instead of recording a static supervisor route
-- `/change` now associates the requirement change with affected `PlanNode` ids, supersedes stale nodes, creates a local replan node, and emits route/check events
-- `/inject` now creates a structured failure recovery node and route decision after preserving a `node_failed` event
-- `/verify` and `/eval` metrics now include symbolic control evidence: decision records, topology routes, constraint checks, structured messages, and replanned/superseded nodes
-
-M4 established the memory, context compact, and long trajectory layer:
-
-- `MemoryFabric` ingests working, episodic, semantic, and skill memory from checkpoints, event logs, artifacts, worker traces, and skill invocation events
-- `SQLiteStore` persists `memory_records` and `compact_records`
-- context compact flushes memory first, preserves initial goal, constraints, requirement changes, failure events, route/constraint/evaluation decisions, tool-call atomic groups, and the final tail
-- large tool/agent payloads are represented by compact source artifacts instead of inline context
-- trajectory replay frames expose task state, topology route, tool calls, requirement changes, fault injection, verification, worker, route, status, and artifact refs
-- API endpoints expose task memory, memory ingest, memory compact, trajectory replay, and compaction history
-- `/memory`, `/compact`, and `/context` now use MemoryFabric instead of only context-session metadata
-- the static console includes connected Memory and Trajectory panels
-
-M5 established the resource scheduler and fault recovery layer:
-
-- `packages/scheduler/zyra_scheduler` now contains `WorkerManifest`, `WorkerPool`, `ResourceScheduler`, `WorkerBackendGateway`, `RuntimeWatchdog`, and `RecoveryPlanner`
-- worker manifests cover local code execution, simulated edge browser execution, cloud planner/verifier routing, and local memory curator routing
-- `TopologyRouter` consumes `ResourceScheduler` decisions, so route nodes assign real `CodeWorkerRuntime` or `BrowserWorker` execution based on manifest scoring rather than only static worker names
-- route stages emit `resource_decision` records with selected manifest, backend, location, model split, alternatives, and source-module evidence
-- execute stages attach dispatch envelope metadata to `WorkerRequest`, including manifest id, backend, sandbox, gateway, workspace scope, and model split
-- `RuntimeWatchdog` classifies tool timeout, worker unavailable, browser crash, permission denied, model error, schema/validation failure, and node failure signals
-- `/inject` now creates recovery nodes, resource-aware recovery routes, `recovery_planned` events, and checkpoint metadata under `recovery_plans`
-- MemoryFabric preserves `resource_decision`, `recovery_planned`, and `worker_health` events, so failure history, requirement changes, compact summaries, and trajectory records influence later scheduling
-- API endpoints expose scheduler state through `/scheduler/manifests`, `/scheduler/health`, `/tasks/{task_id}/scheduler`, and `/tasks/{task_id}/recovery`
-- slash command surface includes `/scheduler`; `/agents`, `/doctor`, `/usage`, `/change`, and `/inject` return scheduler/recovery context
-- the static console includes an M5 Scheduler panel connected to real scheduler and recovery APIs
-
-## Direction For M5-M6
-
-M0-M5 established contracts, runtime control paths, symbolic collaboration, long-memory boundaries, and the first resource/fault scheduler. The next milestones must use those boundaries to internalize substantial mature capabilities from the reference repositories, not merely add thin wrappers.
-
-- M6 should replace the current console shell with a connected control console for task graph, event timeline, worker state, artifact/diff/browser/terminal views, slash commands, and live requirement changes.
-- M7 should freeze, productize, and source-map capabilities already internalized in M2-M6.
+Next milestone: new `M1: heavyweight Runtime / Memory / Scheduler / Fault internalization backfill`. New M1 must use the consolidated M0 boundaries to migrate, encapsulate, or productize substantial mature modules from the reference repositories. It should not be completed by adding only thin adapters, small hand-written schedulers, inventory scans, or static UI panels.
 
 Vendor snapshots are a migration pool or explicit runtime boundary. Long-term capabilities should be collected into `apps/`, `packages/`, or clearly named runtime adapters before the first-stage freeze.
 
@@ -118,61 +54,61 @@ The higher-level planning documents live one level up:
 
 ## Local Commands
 
-Run the M0 verification:
+Run the consolidated M0 foundation verification:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_m0.py
 ```
 
-Run the M1 verification:
+Run the historical M0.1 task-graph verification:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_m1.py
 ```
 
-Run the current M2 protocol/vendor verification:
+Run the historical M0.2 protocol/vendor verification:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_m2.py
 ```
 
-Run the current M3 symbolic collaboration verification:
+Run the historical M0.3 symbolic collaboration verification:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_m3.py
 ```
 
-Run the M2 cross-module acceptance scenario:
+Run the historical M0.2 cross-module acceptance scenario:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.scenarios.test_m2_runtime_acceptance
 ```
 
-Run the M2 demo scenario report generator:
+Run the historical M0.2 demo scenario report generator:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_m2_scenarios.py
 ```
 
-Run the M3 structured collaboration scenario:
+Run the historical M0.3 structured collaboration scenario:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.scenarios.test_m3_symbolic_collaboration
 ```
 
-Run the M4 memory, compact, and trajectory verification:
+Run the historical M0.4 memory, compact, and trajectory verification:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_m4.py
 ```
 
-Run the M5 scheduler, fault injection, and recovery verification:
+Run the historical M0.5 scheduler, fault injection, and recovery verification:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_m5.py
 ```
 
-Audit M0-M3 against the heavyweight internalization goal:
+Audit the historical M0.0-M0.3 work against the heavyweight internalization goal:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\audit_m0_m3_internalization.py
