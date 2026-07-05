@@ -33,6 +33,11 @@
 - 代码规模不是单独的验收指标，但第一阶段预期会继续向数十万行量级增长。若后续里程碑只新增少量 glue code，却没有把 memory、scheduler、fault recovery、control console、artifact/diff/browser/terminal 等成熟能力内化进 `zyra`，应视为执行偏轻。
 - M4 应重点落地长程记忆、context compact、trajectory replay、skill memory、checkpoint/retrieval；M5 应重点落地端边云 resource scheduler、worker manifest、sandbox/gateway、fault injection、recovery；M6 应重点落地正式控制台、事件时间线、拓扑视图、artifact/diff/browser/terminal 面板和运行中需求变更交互。
 - 后续每个里程碑计划和自检都应列出本阶段内化的来源仓库模块、目标路径、运行入口、测试或验证命令，以及仍保留在 vendor pool 中的原因。不要只写“参考了某仓库”，必须说明它如何成为 `zyra` 的可运行组成部分。
+- 不允许把真正的代码内化继续后移。M2-M4 已经建立主路径，但不能被解释成 runtime、browser、memory、skills、permission、MCP、watchdog 和 UI 的深度内化已经足够；M5 必须从清算这些债务开始，而不是只做一个新的轻量调度器。
+- M5 的最低完成形态是后端重型集成：worker pool/lifecycle、resource scheduler、local/docker/cloud 或 simulated backend、sandbox/gateway、watchdog、fault injection、recovery planner、scheduler-to-symbolic、scheduler-to-memory、control command/API 接入都必须进入真实运行路径。
+- M6 的最低完成形态是正式控制台：event stream、任务图/拓扑、agent 状态、artifact/diff/terminal/browser viewer、permission/session/context/memory panels、command palette、故障注入和运行中需求变更输入都必须连接真实 API 和 event log。
+- 如果一个里程碑只新增少量 schema、简单 if/else、薄 wrapper、mock 数据或静态页面，即使测试通过，也不能视为完成重型目标。阶段自检必须先补齐，或者明确把里程碑保持为未完成。
+- M7 只能做冻结、产品化整合、vendor 收束和来源映射；不能把第一次大规模迁移 runtime/scheduler/UI 推迟到 M7。
 
 ## 工程执行约定
 
@@ -43,6 +48,7 @@
 - 阶段审查还必须检查是否出现“为了快而缩小能力面”的倾向；如果里程碑只是 mock、占位实现、单路径 demo 或轻量替代，应视为未充分完成，并优先补齐成熟模块复用或记录明确的补齐计划。
 - 阶段审查必须检查 `zyra` 是否仍依赖根目录来源仓库的 `../` 路径；如果存在，应视为开发期临时桥接，必须迁移进 `zyra` 或记录明确的落位计划。
 - 阶段审查必须检查本阶段是否产生了足够的可运行能力和代码内化证据。只有薄 wrapper、空 schema、未连接的 API 或未接入 event log/control command/artifact 的模块，不能单独支撑里程碑完成。
+- 阶段审查必须附带内化账本：来源仓库、来源模块、目标路径、接入方式、验证命令、仍保留在 vendor pool 的原因、是否进入任务图/event log/artifact/control command/API/UI 主路径。
 - M0-M3 已有重型目标自检文档：`docs/plans/M0-M3-heavyweight-self-check.md`；对应脚本：`scripts/audit_m0_m3_internalization.py`。后续进入 M4-M6 前应先读取该文档或运行该脚本，把其中的 internalization debt 作为阶段输入。
 - 新增模块要优先明确 schema、event、artifact、adapter 边界。
 - 不要让 agent 间自由广播长上下文；公共通信层应使用结构化消息、evidence ref、artifact ref 和状态 delta。
