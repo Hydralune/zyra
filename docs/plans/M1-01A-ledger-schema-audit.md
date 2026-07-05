@@ -20,7 +20,31 @@ Implemented a runnable internalization ledger subsystem for source-to-target tra
   - `POST /ledger/audit`
   - `POST /ledger/seed`
   - `POST /ledger/entries`
+  - `GET /ledger/readiness`
+  - `GET /ledger/report`
+  - `GET /ledger/accounting`
+  - `GET /ledger/linecount`
+  - `GET /ledger/snapshots`
+  - `POST /ledger/snapshots`
+  - `POST /ledger/{ledger_id}/advance`
   - same aliases under `/integrations/ledger`
+
+Strict supplement modules added after the initial 01A review:
+
+- `ledger_policy.py`
+- `ledger_linecount.py`
+- `ledger_reports.py`
+- `ledger_snapshots.py`
+- `ledger_workflow.py`
+- `ledger_source_scan.py`
+- `ledger_matrix.py`
+- `ledger_gate.py`
+- `ledger_selectors.py`
+- `ledger_remediation.py`
+- `ledger_handoff.py`
+- `ledger_health.py`
+- `ledger_contracts.py`
+- `ledger_accounting.py`
 
 ## Internalization Ledger
 
@@ -43,14 +67,23 @@ Validated with:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.unit.test_internalization_ledger
+.\.venv\Scripts\python.exe -m unittest tests.unit.test_internalization_ledger_policy_linecount
+.\.venv\Scripts\python.exe -m unittest tests.unit.test_internalization_ledger_reports_workflow
+.\.venv\Scripts\python.exe -m unittest tests.unit.test_internalization_ledger_handoff_health
+.\.venv\Scripts\python.exe -m unittest tests.unit.test_internalization_ledger_contracts
+.\.venv\Scripts\python.exe -m unittest tests.unit.test_internalization_ledger_accounting
 .\.venv\Scripts\python.exe -m unittest tests.integration.test_internalization_ledger_cli
+.\.venv\Scripts\python.exe -m unittest tests.integration.test_internalization_ledger_gate_cli
 .\.venv\Scripts\python.exe -m unittest tests.integration.test_internalization_ledger_api
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 .\.venv\Scripts\python.exe scripts\verify_submission_boundary.py
 .\.venv\Scripts\python.exe scripts\zyra_integration_ledger.py audit --strict --write-event --event-log tmp\ledger-audit-events.jsonl --fail-on-error
+.\.venv\Scripts\python.exe scripts\verify_internalization_ledger.py --base 68587549447cacfdbf7992387823b5af6f7f9cf3 --cached --unit M1-01A --minimum-effective-lines 10000 --fail-on-shortfall
 ```
 
 Audit status after implementation: `ok=True`, `errors=0`, `blockers=0`, with warnings for planned targets and M3 NOTICE finalization debt.
+
+Strict line-count status after supplement: `effective_added=10005`, `raw_added=118166`, `excluded_added=108161`, `minimum=10000`, `line_count_ok=True`. The excluded lines are seed/list/index data and are not counted as effective implementation.
 
 ## Critical Review
 
@@ -59,8 +92,9 @@ Audit status after implementation: `ok=True`, `errors=0`, `blockers=0`, with war
 - The raw diff was inflated by roughly 108,161 lines of seed ledger data. Those lines cannot be counted as productized runtime code, cannot be presented as reused upstream source code, and cannot be used as evidence that heavy source-code internalization has already happened.
 - Future units must convert planned ledger entries into real `zyra` modules through source migration, adapter encapsulation, runtime integration, tests, and main-path binding. Large data files, inventories, schemas, test volume, thin wrappers, or glue code cannot satisfy line-count requirements by themselves.
 - The audit currently treats many planned entries as warnings. Later units must update those entries to active/internalized only after actual target paths, tests, runtime entries, and main-path bindings exist.
-- Final line-count audit should be run after commit with:
+- M1-01A now includes strict line-count classification, completion gate, readiness report, source-scan, workflow guarded advance, contract summary, and source/unit/target accounting. These exist to prevent later units from claiming progress through unintegrated data files or thin records.
+- Final line-count audit after commit should use:
 
 ```powershell
-git diff --numstat 68587549447cacfdbf7992387823b5af6f7f9cf3 HEAD -- apps packages tests scripts vendor-runtimes skills
+.\.venv\Scripts\python.exe scripts\verify_internalization_ledger.py --base 68587549447cacfdbf7992387823b5af6f7f9cf3 --unit M1-01A --minimum-effective-lines 10000 --fail-on-shortfall
 ```

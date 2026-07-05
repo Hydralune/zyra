@@ -15,6 +15,12 @@ from .ledger_models import (
     NoticeStatus,
     to_jsonable,
 )
+from .ledger_policy import (
+    UNIT_BUDGETS,
+    LedgerPolicySeverity,
+    classify_path,
+    validate_entry_policy,
+)
 from .ledger_store import InternalizationLedger
 
 
@@ -44,6 +50,11 @@ class AuditFindingCode(StrEnum):
     PLANNED_TARGET_NOT_MATERIALIZED = "PLANNED_TARGET_NOT_MATERIALIZED"
     SOURCE_PATH_NOT_VERIFIED = "SOURCE_PATH_NOT_VERIFIED"
     AUDIT_EVENT_NOT_WRITTEN = "AUDIT_EVENT_NOT_WRITTEN"
+    POLICY_VALIDATION_ERROR = "POLICY_VALIDATION_ERROR"
+    POLICY_VALIDATION_WARNING = "POLICY_VALIDATION_WARNING"
+    EXECUTION_UNIT_COVERAGE_INCOMPLETE = "EXECUTION_UNIT_COVERAGE_INCOMPLETE"
+    MATERIALIZED_TARGET_IS_DATA_ONLY = "MATERIALIZED_TARGET_IS_DATA_ONLY"
+    COUNTABLE_FILE_UNMAPPED_IN_LEDGER = "COUNTABLE_FILE_UNMAPPED_IN_LEDGER"
 
 
 REQUIRED_SOURCE_REPOS = {
@@ -139,6 +150,7 @@ class InternalizationLedgerAuditor:
     def audit(self, ledger: InternalizationLedger) -> LedgerAuditReport:
         findings: list[LedgerAuditFinding] = []
         findings.extend(self._audit_seed_coverage(ledger))
+        findings.extend(self._audit_execution_unit_coverage(ledger))
         findings.extend(self._audit_schema(ledger))
         findings.extend(self._audit_target_ownership(ledger))
         for entry in ledger.entries():
@@ -156,6 +168,7 @@ class InternalizationLedgerAuditor:
         findings.extend(self._audit_license(entry))
         findings.extend(self._audit_line_count_policy(entry))
         findings.extend(self._audit_source_evidence(entry))
+        findings.extend(self._audit_policy(entry))
         return findings
 
     def _audit_seed_coverage(self, ledger: InternalizationLedger) -> list[LedgerAuditFinding]:
@@ -187,6 +200,21 @@ class InternalizationLedgerAuditor:
                 )
             )
         return findings
+
+    def _audit_execution_unit_coverage(self, ledger: InternalizationLedger) -> list[LedgerAuditFinding]:
+        present = {entry.owner_unit for entry in ledger.entries() if entry.owner_unit}
+        missing = sorted(set(UNIT_BUDGETS) - present)
+        if not missing:
+            return []
+        return [
+            LedgerAuditFinding(
+                code=AuditFindingCode.EXECUTION_UNIT_COVERAGE_INCOMPLETE,
+                severity=AuditSeverity.WARNING,
+                message=f"Ledger has no source-to-target records for execution units: {', '.join(missing)}",
+                remediation="Add planned ledger records or document why the unit has no source-mapped migration objects.",
+                metadata={"missing_owner_units": missing, "required_owner_units": sorted(UNIT_BUDGETS)},
+            )
+        ]
 
     def _audit_targets(self, entry: InternalizationLedgerEntry) -> list[LedgerAuditFinding]:
         findings: list[LedgerAuditFinding] = []
@@ -359,7 +387,55 @@ class InternalizationLedgerAuditor:
                     remediation="Use counts_as_runtime/test/script or downgrade lifecycle.",
                 )
             ]
+        if entry.lifecycle in MATERIALIZED_LIFECYCLES:
+            data_only_targets = [
+                target
+                for target in entry.target_paths
+                if classify_path(target).is_generated_data and not classify_path(target).is_source_like
+            ]
+            if data_only_targets and len(data_only_targets) == len(entry.target_paths):
+                return [
+                    self._entry_finding(
+                        entry,
+                        AuditFindingCode.MATERIALIZED_TARGET_IS_DATA_ONLY,
+                        AuditSeverity.ERROR,
+                        "Materialized entry targets only seed/inventory/data files.",
+                        target_path=data_only_targets[0],
+                        remediation="Add real source/runtime/test target paths before marking the entry materialized.",
+                        metadata={"data_only_targets": data_only_targets},
+                    )
+                ]
         return []
+
+    def _audit_policy(self, entry: InternalizationLedgerEntry) -> list[LedgerAuditFinding]:
+        findings: list[LedgerAuditFinding] = []
+        for policy_finding in validate_entry_policy(entry):
+            severity = (
+                AuditSeverity.BLOCKER
+                if policy_finding.severity == LedgerPolicySeverity.BLOCKER
+                else AuditSeverity.ERROR
+                if policy_finding.severity == LedgerPolicySeverity.ERROR
+                else AuditSeverity.WARNING
+                if policy_finding.severity == LedgerPolicySeverity.WARNING
+                else AuditSeverity.INFO
+            )
+            code = AuditFindingCode.POLICY_VALIDATION_ERROR if severity in {AuditSeverity.ERROR, AuditSeverity.BLOCKER} else AuditFindingCode.POLICY_VALIDATION_WARNING
+            findings.append(
+                self._entry_finding(
+                    entry,
+                    code,
+                    severity,
+                    policy_finding.message,
+                    target_path=policy_finding.path,
+                    remediation=policy_finding.remediation,
+                    metadata={
+                        "policy_code": str(policy_finding.code),
+                        "field": policy_finding.field,
+                        **policy_finding.metadata,
+                    },
+                )
+            )
+        return findings
 
     def _audit_source_evidence(self, entry: InternalizationLedgerEntry) -> list[LedgerAuditFinding]:
         if entry.source_evidence and any(evidence.exists_in_workspace for evidence in entry.source_evidence):

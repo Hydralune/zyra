@@ -67,14 +67,27 @@ from zyra_workers import (
 )
 from zyra_evaluation import evaluate_task_trace
 from zyra_integrations import (
+    LedgerAdvanceRequest,
+    LedgerSelector,
+    LedgerWorkflow,
     InternalizationLedgerEntry,
     InternalizationLedgerAuditor,
+    build_accounting_report,
+    build_full_ledger_report,
+    build_line_count_report,
+    build_selection_report,
+    build_snapshot,
+    build_unit_readiness_report,
     event_record_from_audit,
     event_record_from_mutation,
+    line_count_payload,
+    list_snapshots,
     load_project_ledger,
     load_seed_ledger,
+    minimum_effective_lines_for_unit,
     parse_query as parse_ledger_query,
     project_ledger_path,
+    save_snapshot_to_default_dir,
     save_project_ledger,
 )
 
@@ -255,13 +268,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
         if _is_ledger_list_path(parts):
             ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
-            query = parse_ledger_query(_flatten_query(parse_qs(parsed.query)))
+            query_params = _flatten_query(parse_qs(parsed.query))
+            query = parse_ledger_query(query_params)
             include_audit = _truthy(_optional_query_value(parse_qs(parsed.query), "include_findings"))
-            payload = {
-                "ledger_path": str(project_ledger_path(PROJECT_ROOT)),
-                "summary": ledger.summary().to_dict(),
-                "entries": [entry.to_dict() for entry in ledger.query(query)],
-            }
+            if _uses_advanced_ledger_selector(query_params):
+                selection = build_selection_report(ledger, LedgerSelector.from_params(query_params), project_root=PROJECT_ROOT)
+                payload = {
+                    "ledger_path": str(project_ledger_path(PROJECT_ROOT)),
+                    "summary": ledger.summary().to_dict(),
+                    "entries": selection.entries,
+                    "selection": selection.to_dict(),
+                }
+            else:
+                payload = {
+                    "ledger_path": str(project_ledger_path(PROJECT_ROOT)),
+                    "summary": ledger.summary().to_dict(),
+                    "entries": [entry.to_dict() for entry in ledger.query(query)],
+                }
             if include_audit:
                 payload["audit"] = InternalizationLedgerAuditor(PROJECT_ROOT, strict=True).audit(ledger).to_dict()
             self._send_json(HTTPStatus.OK, payload)
@@ -274,6 +297,77 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             report = InternalizationLedgerAuditor(PROJECT_ROOT, strict=strict).audit(ledger)
             filtered = _filtered_audit_payload(report, query_params)
             self._send_json(HTTPStatus.OK, filtered)
+            return
+
+        if _is_ledger_readiness_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            query_params = _flatten_query(parse_qs(parsed.query))
+            owner_unit = query_params.get("owner_unit") or query_params.get("unit") or ""
+            line_count = _optional_line_count_report(query_params)
+            audit = InternalizationLedgerAuditor(PROJECT_ROOT, strict=True).audit(ledger)
+            self._send_json(
+                HTTPStatus.OK,
+                build_unit_readiness_report(
+                    PROJECT_ROOT,
+                    ledger,
+                    owner_unit=owner_unit,
+                    audit_report=audit,
+                    line_count_report=line_count,
+                ).to_dict(),
+            )
+            return
+
+        if _is_ledger_report_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            query_params = _flatten_query(parse_qs(parsed.query))
+            owner_unit = query_params.get("owner_unit") or query_params.get("unit") or ""
+            self._send_json(
+                HTTPStatus.OK,
+                build_full_ledger_report(
+                    PROJECT_ROOT,
+                    ledger,
+                    owner_unit=owner_unit,
+                    line_count_report=_optional_line_count_report(query_params),
+                ),
+            )
+            return
+
+        if _is_ledger_accounting_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            query_params = _flatten_query(parse_qs(parsed.query))
+            owner_unit = query_params.get("owner_unit") or query_params.get("unit") or ""
+            include_entries = not _truthy(query_params.get("no_entries"))
+            self._send_json(
+                HTTPStatus.OK,
+                build_accounting_report(
+                    PROJECT_ROOT,
+                    ledger,
+                    owner_unit=owner_unit,
+                    include_entries=include_entries,
+                ).to_dict(),
+            )
+            return
+
+        if _is_ledger_linecount_path(parts):
+            query_params = _flatten_query(parse_qs(parsed.query))
+            base = query_params.get("base") or ""
+            if not base:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing_base", "message": "linecount requires ?base=<commit>"})
+                return
+            owner_unit = query_params.get("owner_unit") or query_params.get("unit") or ""
+            minimum = _int_or_default(query_params.get("minimum_effective_lines"), minimum_effective_lines_for_unit(owner_unit))
+            report = build_line_count_report(
+                PROJECT_ROOT,
+                base=base,
+                head=query_params.get("head") or "HEAD",
+                cached=_truthy(query_params.get("cached")),
+                minimum_effective_lines=minimum,
+            )
+            self._send_json(HTTPStatus.OK, line_count_payload(report))
+            return
+
+        if _is_ledger_snapshots_path(parts):
+            self._send_json(HTTPStatus.OK, {"snapshots": list_snapshots(PROJECT_ROOT)})
             return
 
         ledger_id = _ledger_entry_id_from_path(parts)
@@ -666,6 +760,32 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        advance_ledger_id = _ledger_advance_id_from_path(parts)
+        if advance_ledger_id:
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            request = LedgerAdvanceRequest.from_dict({**payload, "ledger_id": advance_ledger_id, "actor": payload.get("actor") or "api"})
+            workflow = LedgerWorkflow(PROJECT_ROOT, ledger, event_log_path=event_log_path())
+            result = workflow.advance(request)
+            if result.mutation is not None:
+                save_project_ledger(PROJECT_ROOT, ledger)
+            self._send_json(HTTPStatus.CREATED if result.ok else HTTPStatus.BAD_REQUEST, result.to_dict())
+            return
+
+        if _is_ledger_snapshots_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            snapshot = build_snapshot(
+                PROJECT_ROOT,
+                ledger,
+                label=str(payload.get("label") or ""),
+                owner_unit=str(payload.get("owner_unit") or payload.get("unit") or ""),
+                base_commit=str(payload.get("base") or ""),
+                include_entries=not _truthy(payload.get("no_entries"), default=False),
+                metadata={"trigger": "api"},
+            )
+            path = save_snapshot_to_default_dir(PROJECT_ROOT, snapshot)
+            self._send_json(HTTPStatus.CREATED, {"snapshot": snapshot.to_dict(), "path": str(path)})
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "skills":
             state = store.load_task(parts[1])
             if state is None:
@@ -940,6 +1060,26 @@ def _is_ledger_audit_path(parts: list[str]) -> bool:
     return parts == ["ledger", "audit"] or parts == ["integrations", "ledger", "audit"]
 
 
+def _is_ledger_readiness_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "readiness"] or parts == ["integrations", "ledger", "readiness"]
+
+
+def _is_ledger_report_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "report"] or parts == ["integrations", "ledger", "report"]
+
+
+def _is_ledger_accounting_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "accounting"] or parts == ["integrations", "ledger", "accounting"]
+
+
+def _is_ledger_linecount_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "linecount"] or parts == ["integrations", "ledger", "linecount"]
+
+
+def _is_ledger_snapshots_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "snapshots"] or parts == ["integrations", "ledger", "snapshots"]
+
+
 def _is_ledger_seed_path(parts: list[str]) -> bool:
     return parts == ["ledger", "seed"] or parts == ["integrations", "ledger", "seed"]
 
@@ -949,9 +1089,18 @@ def _is_ledger_entries_path(parts: list[str]) -> bool:
 
 
 def _ledger_entry_id_from_path(parts: list[str]) -> str:
-    if len(parts) == 2 and parts[0] == "ledger" and parts[1] not in {"audit", "seed", "entries"}:
+    reserved = {"audit", "seed", "entries", "readiness", "report", "linecount", "snapshots"}
+    if len(parts) == 2 and parts[0] == "ledger" and parts[1] not in reserved:
         return parts[1]
-    if len(parts) == 3 and parts[0] == "integrations" and parts[1] == "ledger" and parts[2] not in {"audit", "seed", "entries"}:
+    if len(parts) == 3 and parts[0] == "integrations" and parts[1] == "ledger" and parts[2] not in reserved:
+        return parts[2]
+    return ""
+
+
+def _ledger_advance_id_from_path(parts: list[str]) -> str:
+    if len(parts) == 3 and parts[0] == "ledger" and parts[2] == "advance":
+        return parts[1]
+    if len(parts) == 4 and parts[0] == "integrations" and parts[1] == "ledger" and parts[3] == "advance":
         return parts[2]
     return ""
 
@@ -966,6 +1115,63 @@ def _truthy(value: Any, *, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on", "strict"}
+
+
+def _int_or_default(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _optional_line_count_report(query_params: dict[str, str]) -> Any:
+    base = query_params.get("base") or ""
+    if not base:
+        return None
+    owner_unit = query_params.get("owner_unit") or query_params.get("unit") or ""
+    minimum = _int_or_default(query_params.get("minimum_effective_lines"), minimum_effective_lines_for_unit(owner_unit))
+    return build_line_count_report(
+        PROJECT_ROOT,
+        base=base,
+        head=query_params.get("head") or "HEAD",
+        cached=_truthy(query_params.get("cached")),
+        minimum_effective_lines=minimum,
+    )
+
+
+def _uses_advanced_ledger_selector(query_params: dict[str, str]) -> bool:
+    advanced_keys = {
+        "runtime_module",
+        "runtime_module_contains",
+        "runtime_command",
+        "runtime_command_contains",
+        "runtime_protocol",
+        "test_kind",
+        "test_path",
+        "test_path_contains",
+        "test_command",
+        "test_command_contains",
+        "api_route",
+        "api_route_contains",
+        "event_type",
+        "control_command",
+        "surface",
+        "worker_runtime",
+        "ui_panel",
+        "artifact_kind",
+        "license_status",
+        "target_prefix",
+        "target_verdict",
+        "target_exists",
+        "has_blockers",
+        "has_risk_notes",
+        "has_replacement_plan",
+        "dependency",
+        "downstream_unit",
+        "metadata_key",
+        "text",
+    }
+    return any(key in query_params for key in advanced_keys)
 
 
 def _filtered_audit_payload(report: Any, query_params: dict[str, str]) -> dict[str, Any]:

@@ -37,6 +37,10 @@ class InternalizationLedgerApiTests(unittest.TestCase):
                 self.assertEqual(len(listed["entries"]), 2)
                 self.assertGreaterEqual(listed["summary"]["total_entries"], 800)
 
+                advanced_list = _get(base_url, "/ledger", {"target_verdict": "effective", "limit": "2"})
+                self.assertIn("selection", advanced_list)
+                self.assertGreaterEqual(advanced_list["selection"]["total_matches"], 1)
+
                 ledger_id = listed["entries"][0]["ledger_id"]
                 shown = _get(base_url, f"/integrations/ledger/{ledger_id}")
                 self.assertEqual(shown["entry"]["ledger_id"], ledger_id)
@@ -50,6 +54,28 @@ class InternalizationLedgerApiTests(unittest.TestCase):
                 self.assertTrue(posted["audit"]["ok"])
                 self.assertTrue(posted["audit"]["event_written"])
                 self.assertEqual(posted["event"]["payload"]["integration_ledger_audit"]["trigger"], "api")
+
+                readiness = _get(base_url, "/ledger/readiness", {"unit": "M1-01A"})
+                self.assertEqual(readiness["owner_unit"], "M1-01A")
+
+                report = _get(base_url, "/ledger/report", {"unit": "M1-01A"})
+                self.assertIn("unit_matrix", report)
+                self.assertIn("coverage", report)
+                self.assertIn("accounting", report)
+
+                accounting = _get(base_url, "/ledger/accounting", {"unit": "M1-01A", "no_entries": "1"})
+                self.assertEqual(accounting["summary"]["owner_unit"], "M1-01A")
+                self.assertIn("source_accounts", accounting)
+                self.assertIn("unit_accounts", accounting)
+
+                missing_linecount = _get_error(base_url, "/ledger/linecount")
+                self.assertEqual(missing_linecount["error"], "missing_base")
+
+                snapshot = _post(base_url, "/ledger/snapshots", {"label": "api-test", "owner_unit": "M1-01A"})
+                self.assertTrue(Path(snapshot["path"]).exists())
+
+                snapshots = _get(base_url, "/ledger/snapshots")
+                self.assertTrue(snapshots["snapshots"])
 
                 events = _get(base_url, "/events", {"limit": "5"})
                 audit_events = [
@@ -82,6 +108,20 @@ def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _get_error(base_url: str, path: str, query: dict[str, str] | None = None) -> dict[str, Any]:
+    suffix = ""
+    if query:
+        suffix = "?" + urllib.parse.urlencode(query)
+    try:
+        urllib.request.urlopen(f"{base_url}{path}{suffix}", timeout=30)
+    except Exception as error:
+        response = getattr(error, "fp", None)
+        if response is None:
+            raise
+        return json.loads(response.read().decode("utf-8"))
+    raise AssertionError("expected HTTP error")
 
 
 if __name__ == "__main__":
