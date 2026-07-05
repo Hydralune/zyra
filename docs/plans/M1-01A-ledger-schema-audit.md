@@ -55,7 +55,9 @@ Audit status after implementation: `ok=True`, `errors=0`, `blockers=0`, with war
 ## Critical Review
 
 - This unit deliberately does not mark future M1/M2 modules as already productized.
-- The large seed file is used by the runtime ledger, CLI, API, audit, and tests; it is not documentation-only line padding.
+- The large seed file is used by the runtime ledger, CLI, API, audit, and tests, but it must be reported as ledger data scale, not as effective source-code internalization.
+- The raw diff was inflated by roughly 108,161 lines of seed ledger data. Those lines cannot be counted as productized runtime code, cannot be presented as reused upstream source code, and cannot be used as evidence that heavy source-code internalization has already happened.
+- Future units must convert planned ledger entries into real `zyra` modules through source migration, adapter encapsulation, runtime integration, tests, and main-path binding. Large data files, inventories, schemas, test volume, thin wrappers, or glue code cannot satisfy line-count requirements by themselves.
 - The audit currently treats many planned entries as warnings. Later units must update those entries to active/internalized only after actual target paths, tests, runtime entries, and main-path bindings exist.
 - Final line-count audit should be run after commit with:
 
