@@ -16,7 +16,7 @@ M2 is acceptable only as the start of heavyweight integration, not as deep code 
 
 M3 is acceptable as a symbolic-control milestone, not as a major code-volume milestone. It connected `ConstraintKeeper`, `TopologyRouter`, structured low-entropy messages, requirement-change replan, failure-recovery routing, and trace evaluation to the main task graph.
 
-The concern about low non-vendor code volume is valid. The audit script currently reports a project dominated by vendor code, with non-vendor Zyra code still in the low tens of thousands of lines. This is not a reason to reject M0-M3 retroactively, but it is a hard warning for M4-M6: the next milestones must perform deeper internalization rather than adding more small glue layers.
+The concern about low non-vendor code volume is valid. The audit script currently reports a project dominated by vendor code, with non-vendor Zyra code still in the low tens of thousands of lines. This is not a reason to reject M0-M3 retroactively. M4 has since delivered a real first memory subsystem, but the warning remains active for M5/M6: the next milestones must perform deeper runtime, scheduler, recovery, and UI internalization rather than adding more small glue layers.
 
 ## What Was Intentional
 
@@ -36,13 +36,13 @@ The concern about low non-vendor code volume is valid. The audit script currentl
 
 - Added `scripts/audit_m0_m3_internalization.py` so future agents can re-run this review and see line counts, required path checks, and known internalization debt.
 - Added this self-check document so M2/M3 are not mistaken for completed deep internalization.
-- Updated project docs to point M4-M6 at concrete internalization responsibilities.
+- Updated project docs to point M4-M7 at concrete source-to-target internalization responsibilities.
 
 ## Required Follow-Through
 
-M4 must convert the current context/session/compact traces into a real memory subsystem: working memory, episodic trajectory, semantic retrieval, compact restore, skill memory, and replay.
+M4 has converted the current context/session/compact traces into a first real memory subsystem: MemoryFabric, four-layer memory records, compact records, API endpoints, and trajectory replay. It still carries debt for richer retrieval, MemoryCurator, skill memory body loading, and compact restore into worker context.
 
-M5 must convert M3 routing and failure events into a real scheduler and recovery subsystem: worker manifests, resource selection, local/docker/cloud simulation, sandbox/gateway boundaries, fault injection, and recovery policies.
+M5 must convert M3 routing, M4 memory/failure records, and M2 runtime debt into a real scheduler and recovery subsystem: worker manifests, resource selection, local/docker/cloud simulation, sandbox/gateway boundaries, fault injection, watchdogs, and recovery policies.
 
 M6 must convert the static console into the first-stage control console: graph, topology, event timeline, worker state, artifacts, diff/browser/terminal output, slash command panel, and live requirement-change input.
 

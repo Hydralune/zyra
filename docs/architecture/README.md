@@ -10,7 +10,7 @@ M0 establishes the system spine:
 
 Later milestones should extend these contracts instead of replacing them.
 
-M0-M3 are the system spine, not the final system weight. M4-M6 should attach substantial internalized modules to these contracts:
+M0-M3 are the system spine, not the final system weight. M4 has attached the first MemoryFabric/compact/trajectory subsystem. M5-M6 must continue attaching substantial internalized modules to these contracts:
 
 - memory, compaction, trajectory replay, checkpoint/retrieval, and skill memory
 - resource scheduling, worker manifests, sandbox/gateway boundaries, fault injection, and recovery

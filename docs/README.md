@@ -9,6 +9,8 @@ Primary planning references remain in the parent workspace:
 - `plans/M0-M3-heavyweight-self-check.md`
 - `plans/M4-memory-compact-trajectory.md`
 
+For future implementation work, read `../../docs/比赛项目开源Agent架构借鉴分析.md` section `0.4` and `../../docs/第一阶段工程计划.md` section `1.5` plus the active milestone section before coding.
+
 ## Runtime Integration Notes
 
 - CodeWorker uses `apps/code-worker` as a Node sidecar over the vendored `claude-code-best` source tree.
