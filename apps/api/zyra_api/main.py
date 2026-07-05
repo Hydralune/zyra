@@ -66,6 +66,17 @@ from zyra_workers import (
     inspect_browser_use_runtime,
 )
 from zyra_evaluation import evaluate_task_trace
+from zyra_integrations import (
+    InternalizationLedgerEntry,
+    InternalizationLedgerAuditor,
+    event_record_from_audit,
+    event_record_from_mutation,
+    load_project_ledger,
+    load_seed_ledger,
+    parse_query as parse_ledger_query,
+    project_ledger_path,
+    save_project_ledger,
+)
 
 
 def event_log_path() -> Path:
@@ -240,6 +251,39 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "source_to_target_ledger": source_to_target_ledger(),
                 },
             )
+            return
+
+        if _is_ledger_list_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            query = parse_ledger_query(_flatten_query(parse_qs(parsed.query)))
+            include_audit = _truthy(_optional_query_value(parse_qs(parsed.query), "include_findings"))
+            payload = {
+                "ledger_path": str(project_ledger_path(PROJECT_ROOT)),
+                "summary": ledger.summary().to_dict(),
+                "entries": [entry.to_dict() for entry in ledger.query(query)],
+            }
+            if include_audit:
+                payload["audit"] = InternalizationLedgerAuditor(PROJECT_ROOT, strict=True).audit(ledger).to_dict()
+            self._send_json(HTTPStatus.OK, payload)
+            return
+
+        if _is_ledger_audit_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            query_params = _flatten_query(parse_qs(parsed.query))
+            strict = _truthy(query_params.get("strict"), default=True)
+            report = InternalizationLedgerAuditor(PROJECT_ROOT, strict=strict).audit(ledger)
+            filtered = _filtered_audit_payload(report, query_params)
+            self._send_json(HTTPStatus.OK, filtered)
+            return
+
+        ledger_id = _ledger_entry_id_from_path(parts)
+        if ledger_id:
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            entry = ledger.get(ledger_id)
+            if entry is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "ledger_entry_not_found", "ledger_id": ledger_id})
+                return
+            self._send_json(HTTPStatus.OK, {"entry": entry.to_dict()})
             return
 
         if parts == ["workers", "code", "inventory"]:
@@ -554,6 +598,74 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if _is_ledger_audit_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            strict = _truthy(payload.get("strict"), default=True)
+            write_event = _truthy(payload.get("write_event"), default=True)
+            report = InternalizationLedgerAuditor(PROJECT_ROOT, strict=strict).audit(ledger)
+            event_payload: dict[str, Any] | None = None
+            if write_event:
+                event = event_record_from_audit(report, trigger="api")
+                persist_events(store, [event])
+                report.event_written = True
+                event_payload = to_jsonable(event)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "audit": report.to_dict(),
+                    "event": event_payload,
+                    "ledger_path": str(project_ledger_path(PROJECT_ROOT)),
+                },
+            )
+            return
+
+        if _is_ledger_seed_path(parts):
+            ledger = load_seed_ledger()
+            save_project_ledger(PROJECT_ROOT, ledger)
+            event_payload = None
+            if _truthy(payload.get("write_event"), default=True):
+                event = event_record_from_audit(
+                    InternalizationLedgerAuditor(PROJECT_ROOT, strict=False).audit(ledger),
+                    trigger="api_seed",
+                )
+                persist_events(store, [event])
+                event_payload = to_jsonable(event)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "ledger_path": str(project_ledger_path(PROJECT_ROOT)),
+                    "summary": ledger.summary().to_dict(),
+                    "event": event_payload,
+                },
+            )
+            return
+
+        if _is_ledger_entries_path(parts):
+            ledger = load_project_ledger(PROJECT_ROOT, bootstrap=True)
+            entry_payload = payload.get("entry") if isinstance(payload.get("entry"), dict) else payload
+            try:
+                entry = InternalizationLedgerEntry.from_dict(entry_payload)
+            except Exception as error:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_ledger_entry", "message": str(error)})
+                return
+            mutation = ledger.upsert(entry)
+            save_project_ledger(PROJECT_ROOT, ledger)
+            event_payload = None
+            if _truthy(payload.get("write_event"), default=True):
+                event = event_record_from_mutation(mutation, trigger="api")
+                persist_events(store, [event])
+                event_payload = to_jsonable(event)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "entry": entry.to_dict(),
+                    "mutation": to_jsonable(mutation),
+                    "event": event_payload,
+                    "ledger_path": str(project_ledger_path(PROJECT_ROOT)),
+                },
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "skills":
             state = store.load_task(parts[1])
             if state is None:
@@ -818,6 +930,65 @@ def run(host: str | None = None, port: int | None = None) -> None:
 
 def _path_parts(path: str) -> list[str]:
     return [part for part in path.strip("/").split("/") if part]
+
+
+def _is_ledger_list_path(parts: list[str]) -> bool:
+    return parts == ["ledger"] or parts == ["integrations", "ledger"]
+
+
+def _is_ledger_audit_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "audit"] or parts == ["integrations", "ledger", "audit"]
+
+
+def _is_ledger_seed_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "seed"] or parts == ["integrations", "ledger", "seed"]
+
+
+def _is_ledger_entries_path(parts: list[str]) -> bool:
+    return parts == ["ledger", "entries"] or parts == ["integrations", "ledger", "entries"]
+
+
+def _ledger_entry_id_from_path(parts: list[str]) -> str:
+    if len(parts) == 2 and parts[0] == "ledger" and parts[1] not in {"audit", "seed", "entries"}:
+        return parts[1]
+    if len(parts) == 3 and parts[0] == "integrations" and parts[1] == "ledger" and parts[2] not in {"audit", "seed", "entries"}:
+        return parts[2]
+    return ""
+
+
+def _flatten_query(query: dict[str, list[str]]) -> dict[str, str]:
+    return {key: values[-1] for key, values in query.items() if values}
+
+
+def _truthy(value: Any, *, default: bool = False) -> bool:
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on", "strict"}
+
+
+def _filtered_audit_payload(report: Any, query_params: dict[str, str]) -> dict[str, Any]:
+    payload = report.to_dict()
+    severity = query_params.get("severity", "")
+    source_repo = query_params.get("source_repo", "") or query_params.get("repo", "")
+    owner_unit = query_params.get("owner_unit", "") or query_params.get("unit", "")
+    code = query_params.get("code", "")
+    if any([severity, source_repo, owner_unit, code]):
+        findings = []
+        for finding in report.findings:
+            if severity and str(finding.severity) != severity:
+                continue
+            if source_repo and finding.source_repo != source_repo:
+                continue
+            if owner_unit and finding.owner_unit != owner_unit:
+                continue
+            if code and str(finding.code) != code:
+                continue
+            findings.append(finding.to_dict())
+        payload["findings"] = findings
+        payload["filtered_finding_count"] = len(findings)
+    return payload
 
 
 def _positive_int(value: str, default: int) -> int:
