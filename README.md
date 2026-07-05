@@ -49,8 +49,12 @@ tests/      Unit, integration, and scenario tests.
 
 The higher-level planning documents live one level up:
 
+- `../docs/第一阶段总工程计划.md`
+- `../docs/milestones/`
 - `../docs/比赛项目开源Agent架构借鉴分析.md`
 - `../docs/第一阶段工程计划.md`
+
+The current execution unit is selected from `../docs/milestones/**/unit-*.md`. Do not treat the old milestone plan as the execution entrypoint.
 
 ## Local Commands
 

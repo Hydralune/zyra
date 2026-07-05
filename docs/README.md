@@ -4,13 +4,15 @@ This directory records project-local design decisions and implementation notes.
 
 Primary planning references remain in the parent workspace:
 
+- `../../docs/第一阶段总工程计划.md`
+- `../../docs/milestones/`
 - `../../docs/比赛项目开源Agent架构借鉴分析.md`
 - `../../docs/第一阶段工程计划.md`
 - `plans/M0-M3-heavyweight-self-check.md`
 - `plans/M4-memory-compact-trajectory.md`
 - `plans/M5-scheduler-fault-recovery.md`
 
-For future implementation work, read `../../docs/比赛项目开源Agent架构借鉴分析.md` section `0.4` and `../../docs/第一阶段工程计划.md` section `1.5` plus the active milestone section before coding.
+For future implementation work, read `../../docs/第一阶段总工程计划.md`, the active `../../docs/milestones/**/unit-*.md`, and `../../docs/比赛项目开源Agent架构借鉴分析.md` section `0.4` before coding. The old `../../docs/第一阶段工程计划.md` is background, not the execution entrypoint.
 
 ## Runtime Integration Notes
 

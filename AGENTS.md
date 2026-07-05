@@ -11,16 +11,18 @@
 ## 参考文档
 
 - 赛题分析：`../docs/比赛项目开源Agent架构借鉴分析.md`
-- 第一阶段工程计划：`../docs/第一阶段工程计划.md`
+- 第一阶段权威执行计划：`../docs/第一阶段总工程计划.md`
+- 执行单元目录：`../docs/milestones/`
+- 旧版工程计划背景：`../docs/第一阶段工程计划.md`
 - 根目录约定：`../AGENTS.md`
 
 正式开发前应优先阅读上述文档，尤其是：
 
+- `../docs/第一阶段总工程计划.md`。
+- 当前被用户指定的 `../docs/milestones/**/unit-*.md`。
 - `../docs/比赛项目开源Agent架构借鉴分析.md` 的 `0.4 里程碑内化索引`。
-- `../docs/第一阶段工程计划.md` 的 `1.5 代码内化工作量纠偏`。
-- `../docs/第一阶段工程计划.md` 中“里程碑编号重置”的说明和当前待执行里程碑的完整小节。
 
-如果工程计划和分析文档不一致，应先更新这两份文档，再继续实现。
+如果总工程计划、执行单元文档和分析文档不一致，应先更新这些文档，再继续实现。
 
 ## 里程碑编号重置
 
@@ -51,17 +53,22 @@
 - 新 M2 的最低完成形态是正式控制台：event stream、任务图/拓扑、agent 状态、artifact/diff/terminal/browser viewer、permission/session/context/memory panels、command palette、故障注入和运行中需求变更输入都必须连接真实 API 和 event log。
 - 如果一个里程碑只新增少量 schema、简单 if/else、薄 wrapper、mock 数据或静态页面，即使测试通过，也不能视为完成重型目标。阶段自检必须先补齐，或者明确把里程碑保持为未完成。
 - 新 M3 只能做冻结、产品化整合、vendor 收束和来源映射；不能把第一次大规模迁移 runtime/scheduler/UI 推迟到新 M3。
+- 第一阶段剩余执行单元的最低有效新增代码总量为 `550,000` 行，具体分配见 `../docs/第一阶段总工程计划.md` 和当前执行单元文档。
+- 代码行数下限是失败线，不是完成线。即使超过目标行数，只要执行单元目标、详细任务、主路径接入、验证或批判式审查没有完成，仍然视为失败。
+- 低于执行单元行数下限默认失败，除非能给出非常强的工程理由，例如目标上游模块已经完整内化、裁剪、重构并强化，再增加只会制造废代码。
+- 文档、注释、mock、死代码、未接入 vendor 堆放、无关上游外壳不得计入有效新增代码。
 
 ## 工程执行约定
 
-- 按 `../docs/第一阶段工程计划.md` 重置后的新 M0-M3 推进。
-- 每完成一个里程碑，应把对应标题从 `[ ]` 改为 `[x]`。
+- 按 `../docs/第一阶段总工程计划.md` 和 `../docs/milestones/**/unit-*.md` 推进。用户每次会指定一个执行单元；agent 只执行该单元，不自行跨到下一个单元。
+- 每完成一个执行单元，应更新对应单元执行记录或自检文档；只有该里程碑全部单元完成后，才可更新里程碑状态。
 - 每完成一个阶段或里程碑后，应先以批判、审视的视角进行代码审查，再进入下一阶段；发现实际问题时应优先修复，并重新运行相关验证。
 - 阶段审查应重点检查 bug、行为回归、架构边界失控、与赛题要求不匹配、缺少必要测试、代码复用模块适配问题和后续扩展风险。
 - 阶段审查还必须检查是否出现“为了快而缩小能力面”的倾向；如果里程碑只是 mock、占位实现、单路径 demo 或轻量替代，应视为未充分完成，并优先补齐成熟模块复用或记录明确的补齐计划。
 - 阶段审查必须检查 `zyra` 是否仍依赖根目录来源仓库的 `../` 路径；如果存在，应视为开发期临时桥接，必须迁移进 `zyra` 或记录明确的落位计划。
 - 阶段审查必须检查本阶段是否产生了足够的可运行能力和代码内化证据。只有薄 wrapper、空 schema、未连接的 API 或未接入 event log/control command/artifact 的模块，不能单独支撑里程碑完成。
 - 阶段审查必须附带内化账本：来源仓库、来源模块、目标路径、接入方式、验证命令、仍保留在 vendor pool 的原因、是否进入任务图/event log/artifact/control command/API/UI 主路径。
+- 阶段审查必须附带代码行数审查：执行前 `BASE_COMMIT`，执行后 `git diff --numstat <BASE_COMMIT> HEAD -- apps packages tests scripts vendor-runtimes skills`，有效新增代码行数、排除项和是否达标。
 - 原 M0-M5 已有历史记录：`docs/plans/M0-M3-heavyweight-self-check.md`、`docs/plans/M4-memory-compact-trajectory.md`、`docs/plans/M5-scheduler-fault-recovery.md`。后续进入新 M1 前应先读取这些文档或运行审计脚本，把其中的 internalization debt 作为阶段输入。
 - 新增模块要优先明确 schema、event、artifact、adapter 边界。
 - 不要让 agent 间自由广播长上下文；公共通信层应使用结构化消息、evidence ref、artifact ref 和状态 delta。
