@@ -1,6 +1,6 @@
 # Phase Plans
 
-Project-local milestone records live here. The canonical first-stage plan is now `../../docs/第一阶段总工程计划.md` plus the execution units under `../../docs/milestones/` in the parent workspace. The older `../../docs/第一阶段工程计划.md` is background.
+Project-local milestone records live here. The canonical first-stage plan is now `../../docs/第一阶段总工程计划.md` plus the execution units under `../../docs/milestones/` in the parent workspace. The older `../../docs/第一阶段工程计划（旧版，仅作背景参考）.md` is background.
 
 The previous M0-M5 records are now historical subrecords of the consolidated new `M0: foundation and main-path bootstrap`. They are retained as implementation notes and verification entrypoints, not as proof that six heavyweight milestones were completed.
 
