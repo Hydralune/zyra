@@ -20,3 +20,8 @@ Thumbs.db
 
 .idea/
 .vscode/
+
+tmp/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

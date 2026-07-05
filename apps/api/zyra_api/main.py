@@ -1,0 +1,1068 @@
+from __future__ import annotations
+
+import json
+import os
+import sys
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PACKAGE_PATHS = [
+    PROJECT_ROOT / "packages" / "core",
+    PROJECT_ROOT / "packages" / "orchestration",
+    PROJECT_ROOT / "packages" / "memory",
+    PROJECT_ROOT / "packages" / "commands",
+    PROJECT_ROOT / "packages" / "skills",
+    PROJECT_ROOT / "packages" / "runtime",
+    PROJECT_ROOT / "packages" / "integrations",
+    PROJECT_ROOT / "packages" / "workers",
+    PROJECT_ROOT / "packages" / "symbolic",
+    PROJECT_ROOT / "packages" / "evaluation",
+]
+for package_path in PACKAGE_PATHS:
+    if str(package_path) not in sys.path:
+        sys.path.insert(0, str(package_path))
+
+from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType, create_task_state, to_jsonable
+from zyra_core.event_log import append_event as append_jsonl_event
+from zyra_memory import SQLiteStore
+from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
+from zyra_symbolic import apply_failure_injection, apply_requirement_change
+from zyra_commands import default_command_registry, parse_slash_command
+from zyra_runtime import (
+    ContextSessionRuntime,
+    JsonPermissionStore,
+    LocalArtifactStore,
+    PermissionEffect,
+    PermissionOperation,
+    PermissionRequestStatus,
+    PermissionRule,
+    ToolCall,
+    ToolExecutionContext,
+    ToolExecutor,
+    WorkerRequest,
+    control_event_from_command,
+    default_tool_registry,
+    default_worker_descriptors,
+    tool_result_event,
+)
+from zyra_skills import default_skill_registry
+from zyra_workers import (
+    BrowserWorkerRuntime,
+    CodeWorkerRuntime,
+    CodeWorkerSidecarClient,
+    browser_use_health_summary,
+    default_browser_action_registry,
+    inspect_browser_use_runtime,
+)
+from zyra_evaluation import evaluate_task_trace
+
+
+def event_log_path() -> Path:
+    configured = Path(os.environ.get("ZYRA_EVENT_LOG", "tmp/events.jsonl"))
+    if configured.is_absolute():
+        return configured
+    return PROJECT_ROOT / configured
+
+
+def sqlite_path() -> Path:
+    configured = Path(os.environ.get("ZYRA_SQLITE_PATH", "tmp/zyra.sqlite3"))
+    if configured.is_absolute():
+        return configured
+    return PROJECT_ROOT / configured
+
+
+def tool_workspace_path() -> Path:
+    configured = Path(os.environ.get("ZYRA_TOOL_WORKSPACE", "tmp/workspace"))
+    if configured.is_absolute():
+        return configured
+    return PROJECT_ROOT / configured
+
+
+def artifact_root_path() -> Path:
+    configured = Path(os.environ.get("ZYRA_ARTIFACT_ROOT", "tmp/artifacts"))
+    if configured.is_absolute():
+        return configured
+    return PROJECT_ROOT / configured
+
+
+def permission_store_path() -> Path:
+    configured = Path(os.environ.get("ZYRA_PERMISSION_STORE", "tmp/permissions.json"))
+    if configured.is_absolute():
+        return configured
+    return PROJECT_ROOT / configured
+
+
+def get_store() -> SQLiteStore:
+    store = SQLiteStore(sqlite_path())
+    store.initialize()
+    return store
+
+
+def graph_execution_context() -> GraphExecutionContext:
+    return GraphExecutionContext.from_paths(
+        project_root=PROJECT_ROOT,
+        workspace_root=tool_workspace_path(),
+        artifact_root=artifact_root_path(),
+        permission_store_path=permission_store_path(),
+    )
+
+
+def get_permission_store() -> JsonPermissionStore:
+    return JsonPermissionStore(permission_store_path())
+
+
+def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
+    state = create_task_state(user_goal=user_goal)
+    event = EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_type=EventType.TASK_CREATED,
+        node_id=state.root_node_id,
+        payload={"task": to_jsonable(state)},
+    )
+    return state, event
+
+
+def persist_events(store: SQLiteStore, events: list[EventRecord]) -> None:
+    for event in events:
+        append_jsonl_event(event, event_log_path())
+    store.append_events(events)
+
+
+class ZyraRequestHandler(BaseHTTPRequestHandler):
+    server_version = "ZyraDevAPI/0.2"
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self._send_cors_headers()
+        self.end_headers()
+
+    def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        parts = _path_parts(parsed.path)
+        store = get_store()
+
+        if parts == ["health"]:
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "service": "zyra-api",
+                    "phase": "m3-symbolic-collaboration",
+                    "event_log": str(event_log_path()),
+                    "sqlite": str(sqlite_path()),
+                    "tool_workspace": str(tool_workspace_path()),
+                    "artifact_root": str(artifact_root_path()),
+                    "permission_store": str(permission_store_path()),
+                },
+            )
+            return
+
+        if parts == ["schema", "sample-task"]:
+            state, event = make_task_created_event("Inspect a long-horizon task.")
+            graph_events = ensure_default_graph(state)
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task": to_jsonable(state),
+                    "events": [to_jsonable(item) for item in [event, *graph_events]],
+                },
+            )
+            return
+
+        if parts == ["events"]:
+            query = parse_qs(parsed.query)
+            limit = _positive_int(query.get("limit", ["100"])[0], default=100)
+            self._send_json(HTTPStatus.OK, {"events": store.all_events(limit=limit)})
+            return
+
+        if parts == ["commands"]:
+            self._send_json(
+                HTTPStatus.OK,
+                {"commands": [to_jsonable(command) for command in default_command_registry().list()]},
+            )
+            return
+
+        if parts == ["skills"]:
+            self._send_json(
+                HTTPStatus.OK,
+                {"skills": [to_jsonable(skill) for skill in default_skill_registry().list()]},
+            )
+            return
+
+        if parts == ["tools"]:
+            self._send_json(
+                HTTPStatus.OK,
+                {"tools": [to_jsonable(tool) for tool in default_tool_registry().list()]},
+            )
+            return
+
+        if parts == ["workers"]:
+            self._send_json(
+                HTTPStatus.OK,
+                {"workers": [to_jsonable(worker) for worker in default_worker_descriptors()]},
+            )
+            return
+
+        if parts == ["workers", "code", "inventory"]:
+            self._send_json(HTTPStatus.OK, CodeWorkerSidecarClient(PROJECT_ROOT).runtime_inventory())
+            return
+
+        if parts == ["workers", "browser", "actions"]:
+            self._send_json(HTTPStatus.OK, default_browser_action_registry(PROJECT_ROOT).describe())
+            return
+
+        if parts == ["workers", "browser", "health"]:
+            self._send_json(HTTPStatus.OK, browser_use_health_summary(inspect_browser_use_runtime(PROJECT_ROOT)))
+            return
+
+        if parts == ["permissions"]:
+            permission_store = get_permission_store()
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "rules": [to_jsonable(rule) for rule in permission_store.list_rules()],
+                    "requests": [to_jsonable(request) for request in permission_store.list_requests()],
+                },
+            )
+            return
+
+        if parts == ["artifacts"]:
+            query = parse_qs(parsed.query)
+            task_id = _optional_query_value(query, "task_id")
+            artifact_refs = _artifact_refs_from_store(store, task_id=task_id)
+            if artifact_refs is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found", "task_id": task_id})
+                return
+            catalog = LocalArtifactStore(artifact_root_path())
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "artifact_root": str(catalog.root),
+                    "task_id": task_id,
+                    "artifacts": [_artifact_entry(catalog, artifact) for artifact in artifact_refs],
+                },
+            )
+            return
+
+        if len(parts) == 2 and parts[0] == "artifacts":
+            artifact = _find_artifact_ref(store, parts[1])
+            if artifact is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "artifact_not_found", "artifact_id": parts[1]})
+                return
+            catalog = LocalArtifactStore(artifact_root_path())
+            try:
+                preview = catalog.read_preview(artifact)
+            except ValueError as error:
+                self._send_json(
+                    HTTPStatus.FORBIDDEN,
+                    {"error": "artifact_outside_store", "message": str(error), "artifact": to_jsonable(artifact)},
+                )
+                return
+            self._send_json(HTTPStatus.OK, {"artifact": preview})
+            return
+
+        if parts == ["tasks"]:
+            self._send_json(HTTPStatus.OK, {"tasks": store.list_tasks()})
+            return
+
+        if len(parts) == 2 and parts[0] == "tasks":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            self._send_json(HTTPStatus.OK, {"task": to_jsonable(state)})
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "events":
+            if store.load_task(parts[1]) is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            self._send_json(HTTPStatus.OK, {"events": store.task_events(parts[1])})
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "artifacts":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            catalog = LocalArtifactStore(artifact_root_path())
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "artifact_root": str(catalog.root),
+                    "task_id": parts[1],
+                    "artifacts": [_artifact_entry(catalog, artifact) for artifact in state.artifacts],
+                },
+            )
+            return
+
+        self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        parts = _path_parts(parsed.path)
+        store = get_store()
+        payload = self._read_json_body()
+
+        if parts == ["tasks"]:
+            user_goal = str(payload.get("goal") or "Unspecified long-horizon task")
+            auto_run = payload.get("auto_run", True) is not False
+            state, created_event = make_task_created_event(user_goal)
+            events = [created_event, *ensure_default_graph(state)]
+            if auto_run:
+                events.extend(run_task_graph(state, execution_context=graph_execution_context()))
+            persist_events(store, events)
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "task": to_jsonable(state),
+                    "events": [to_jsonable(event) for event in events],
+                },
+            )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "run":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            events = run_task_graph(state, execution_context=graph_execution_context())
+            persist_events(store, events)
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.OK,
+                {"task": to_jsonable(state), "events": [to_jsonable(event) for event in events]},
+            )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "cancel":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            reason = str(payload.get("reason") or "Cancelled by control API.")
+            events = cancel_task_graph(state, reason=reason)
+            persist_events(store, events)
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.OK,
+                {"task": to_jsonable(state), "events": [to_jsonable(event) for event in events]},
+            )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "commands":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            text = str(payload.get("text") or "")
+            parsed_command = parse_slash_command(
+                text,
+                run_id=state.run_id,
+                task_id=state.task_id,
+            )
+            if parsed_command is None:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "unknown_or_invalid_command", "text": text},
+                )
+                return
+
+            event = control_event_from_command(
+                parsed_command.control_command,
+                node_id=state.root_node_id,
+            )
+            applied_events = _apply_control_event_to_state(state, event)
+            persist_events(store, [event, *applied_events])
+            command_result = _command_result_for_event(state, event, store)
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "task": to_jsonable(state),
+                    "command": to_jsonable(parsed_command.control_command),
+                    "command_result": command_result,
+                    "event": to_jsonable(event),
+                    "events": [to_jsonable(item) for item in [event, *applied_events]],
+                },
+            )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "skills":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            skill_name = str(payload.get("skill_name") or payload.get("skill") or "").strip()
+            skill = default_skill_registry().get(skill_name)
+            if skill is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "skill_not_found", "skill_name": skill_name},
+                )
+                return
+            arguments = payload.get("arguments")
+            if not isinstance(arguments, dict):
+                arguments = {}
+            event = _skill_invocation_event(
+                state,
+                skill,
+                arguments=arguments,
+                node_id=str(payload.get("node_id") or state.root_node_id),
+            )
+            _apply_skill_invocation_to_state(state, event)
+            persist_events(store, [event])
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "task": to_jsonable(state),
+                    "skill": to_jsonable(skill),
+                    "event": to_jsonable(event),
+                    "skill_result": {
+                        "ok": True,
+                        "summary": f"Skill {skill.name} invocation recorded for {skill.preferred_runtime}.",
+                        "runtime_status": "recorded",
+                        "data": event.payload["skill_invocation"],
+                    },
+                },
+            )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "tools":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            tool_name = str(payload.get("tool_name") or payload.get("tool") or "")
+            arguments = payload.get("arguments")
+            if not isinstance(arguments, dict):
+                arguments = {}
+            call = ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=str(payload.get("node_id") or state.root_node_id),
+                tool_name=tool_name,
+                arguments=arguments,
+            )
+            context = ToolExecutionContext.for_workspace(
+                workspace_root=tool_workspace_path(),
+                artifact_root=artifact_root_path(),
+                permission_store=get_permission_store(),
+                event_reader=store.task_events,
+                checkpoint_reader=lambda task_id: _checkpoint_json(store, task_id),
+            )
+            result = ToolExecutor(context).execute(call)
+            event = tool_result_event(call, result)
+            if result.artifacts:
+                state.artifacts.extend(result.artifacts)
+            state.budget.tool_calls += 1
+            state.updated_at = event.created_at
+            persist_events(store, [event])
+            store.save_checkpoint(state)
+            status = HTTPStatus.CREATED if result.ok else HTTPStatus.CONFLICT
+            self._send_json(
+                status,
+                {
+                    "task": to_jsonable(state),
+                    "tool_call": to_jsonable(call),
+                    "tool_result": to_jsonable(result),
+                    "event": to_jsonable(event),
+                },
+            )
+            return
+
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "code":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            constraints = payload.get("constraints")
+            if not isinstance(constraints, dict):
+                constraints = {}
+            if "tool_plan" in payload and "tool_plan" not in constraints:
+                constraints["tool_plan"] = payload["tool_plan"]
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=str(payload.get("node_id") or state.root_node_id),
+                worker_name="CodeWorkerRuntime",
+                constraints=constraints,
+            )
+            try:
+                run_result = CodeWorkerRuntime(
+                    project_root=PROJECT_ROOT,
+                    workspace_root=tool_workspace_path(),
+                    artifact_root=artifact_root_path(),
+                    permission_store=get_permission_store(),
+                ).run(request)
+            except Exception as error:  # noqa: BLE001 - API must report worker startup/runtime failures.
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "code_worker_failed", "message": str(error)},
+                )
+                return
+
+            if run_result.worker_result.artifacts:
+                state.artifacts.extend(run_result.worker_result.artifacts)
+            state.budget.tool_calls += sum(1 for event in run_result.event_records if "tool_result" in event.payload)
+            if run_result.event_records:
+                state.updated_at = run_result.event_records[-1].created_at
+            persist_events(store, run_result.event_records)
+            store.save_checkpoint(state)
+            status = HTTPStatus.CREATED if run_result.worker_result.ok else HTTPStatus.CONFLICT
+            self._send_json(
+                status,
+                {
+                    "task": to_jsonable(state),
+                    "worker_request": to_jsonable(request),
+                    "worker_result": to_jsonable(run_result.worker_result),
+                    "events": [to_jsonable(event) for event in run_result.event_records],
+                },
+            )
+            return
+
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "browser":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            constraints = payload.get("constraints")
+            if not isinstance(constraints, dict):
+                constraints = {}
+            if "browser_plan" in payload and "browser_plan" not in constraints:
+                constraints["browser_plan"] = payload["browser_plan"]
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=str(payload.get("node_id") or state.root_node_id),
+                worker_name="BrowserWorker",
+                constraints=constraints,
+            )
+            try:
+                run_result = BrowserWorkerRuntime(
+                    project_root=PROJECT_ROOT,
+                    workspace_root=tool_workspace_path(),
+                    artifact_root=artifact_root_path(),
+                ).run(request)
+            except Exception as error:  # noqa: BLE001 - API must report browser worker startup/runtime failures.
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "browser_worker_failed", "message": str(error)},
+                )
+                return
+
+            if run_result.worker_result.artifacts:
+                state.artifacts.extend(run_result.worker_result.artifacts)
+            state.budget.tool_calls += sum(1 for event in run_result.event_records if "browser_result" in event.payload)
+            if run_result.event_records:
+                state.updated_at = run_result.event_records[-1].created_at
+            persist_events(store, run_result.event_records)
+            store.save_checkpoint(state)
+            status = HTTPStatus.CREATED if run_result.worker_result.ok else HTTPStatus.CONFLICT
+            self._send_json(
+                status,
+                {
+                    "task": to_jsonable(state),
+                    "worker_request": to_jsonable(request),
+                    "worker_result": to_jsonable(run_result.worker_result),
+                    "events": [to_jsonable(event) for event in run_result.event_records],
+                },
+            )
+            return
+
+        if parts == ["permissions", "rules"]:
+            try:
+                rule = PermissionRule(
+                    operation=PermissionOperation(str(payload.get("operation") or PermissionOperation.SHELL)),
+                    pattern=str(payload.get("pattern") or ""),
+                    effect=PermissionEffect(str(payload.get("effect") or PermissionEffect.ASK)),
+                    reason=str(payload.get("reason") or ""),
+                )
+            except ValueError as error:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_permission_rule", "message": str(error)})
+                return
+            if not rule.pattern:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing_pattern"})
+                return
+            stored_rule = get_permission_store().add_rule(rule)
+            self._send_json(HTTPStatus.CREATED, {"rule": to_jsonable(stored_rule)})
+            return
+
+        if len(parts) == 4 and parts[0] == "permissions" and parts[1] == "requests" and parts[3] == "resolve":
+            try:
+                status = PermissionRequestStatus(str(payload.get("status") or ""))
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_permission_request_status"})
+                return
+            resolved = get_permission_store().resolve_request(
+                parts[2],
+                status,
+                create_rule=payload.get("create_rule") is True,
+            )
+            if resolved is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "permission_request_not_found"})
+                return
+            self._send_json(HTTPStatus.OK, {"request": to_jsonable(resolved)})
+            return
+
+        self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
+
+    def log_message(self, format: str, *args: Any) -> None:
+        return
+
+    def _read_json_body(self) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            return {}
+        raw = self.rfile.read(length)
+        if not raw:
+            return {}
+        try:
+            body = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return body if isinstance(body, dict) else {}
+
+    def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self.send_response(status)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+
+def run(host: str | None = None, port: int | None = None) -> None:
+    bind_host = host or os.environ.get("ZYRA_API_HOST", "127.0.0.1")
+    bind_port = port or int(os.environ.get("ZYRA_API_PORT", "8000"))
+    get_store()
+    server = ThreadingHTTPServer((bind_host, bind_port), ZyraRequestHandler)
+    print(f"Zyra API listening on http://{bind_host}:{bind_port}")
+    print(f"Event log: {event_log_path()}")
+    print(f"SQLite: {sqlite_path()}")
+    server.serve_forever()
+
+
+def _path_parts(path: str) -> list[str]:
+    return [part for part in path.strip("/").split("/") if part]
+
+
+def _positive_int(value: str, default: int) -> int:
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _optional_query_value(query: dict[str, list[str]], name: str) -> str | None:
+    values = query.get(name)
+    if not values:
+        return None
+    value = values[0].strip()
+    return value or None
+
+
+def _artifact_refs_from_store(store: SQLiteStore, *, task_id: str | None = None) -> list[ArtifactRef] | None:
+    if task_id is not None:
+        state = store.load_task(task_id)
+        return None if state is None else list(state.artifacts)
+
+    artifacts: list[ArtifactRef] = []
+    for task in store.list_tasks():
+        state = store.load_task(str(task["task_id"]))
+        if state is not None:
+            artifacts.extend(state.artifacts)
+    return artifacts
+
+
+def _find_artifact_ref(store: SQLiteStore, artifact_id: str) -> ArtifactRef | None:
+    for artifact in _artifact_refs_from_store(store) or []:
+        if artifact.artifact_id == artifact_id:
+            return artifact
+    return None
+
+
+def _checkpoint_json(store: SQLiteStore, task_id: str) -> dict[str, Any] | None:
+    state = store.load_task(task_id)
+    return None if state is None else to_jsonable(state)
+
+
+def _artifact_entry(catalog: LocalArtifactStore, artifact: ArtifactRef) -> dict[str, Any]:
+    try:
+        return catalog.describe(artifact)
+    except ValueError as error:
+        return {
+            "artifact": to_jsonable(artifact),
+            "relative_path": artifact.metadata.get("relative_path", ""),
+            "exists": False,
+            "is_file": False,
+            "size_bytes": 0,
+            "content_type": "application/octet-stream",
+            "previewable": False,
+            "error": str(error),
+        }
+
+
+def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore) -> dict[str, Any]:
+    command = event.payload.get("command")
+    if not isinstance(command, dict):
+        return {"ok": False, "summary": "Control event has no command payload.", "data": {}}
+    name = str(command.get("name") or "")
+    metadata = command.get("metadata") if isinstance(command.get("metadata"), dict) else {}
+    category = str(metadata.get("category") or "")
+    runtime_status = str(metadata.get("runtime_status") or "event_only")
+    result = {
+        "ok": True,
+        "name": name,
+        "category": category,
+        "runtime_status": runtime_status,
+        "summary": f"{name} recorded as a control command.",
+        "data": {},
+    }
+
+    if name == "/status":
+        result["summary"] = "Current task status."
+        result["data"] = {
+            "task_id": state.task_id,
+            "run_id": state.run_id,
+            "status": str(state.status),
+            "plan_nodes": len(state.plan_nodes),
+            "artifacts": len(state.artifacts),
+            "tool_calls": state.budget.tool_calls,
+            "updated_at": state.updated_at,
+        }
+    elif name == "/graph":
+        result["summary"] = "Current task graph."
+        result["data"] = {"plan_nodes": [to_jsonable(node) for node in state.plan_nodes.values()]}
+    elif name == "/trace":
+        events = store.task_events(state.task_id)
+        result["summary"] = "Recent task events."
+        result["data"] = {"events": events[-20:], "event_count": len(events)}
+    elif name == "/artifacts":
+        catalog = LocalArtifactStore(artifact_root_path())
+        result["summary"] = "Task artifacts."
+        result["data"] = {"artifacts": [_artifact_entry(catalog, artifact) for artifact in state.artifacts]}
+    elif name == "/tools":
+        result["summary"] = "Registered tools."
+        result["data"] = {"tools": [to_jsonable(tool) for tool in default_tool_registry().list()]}
+    elif name == "/permissions":
+        permission_store = get_permission_store()
+        result["summary"] = "Permission rules and requests."
+        result["data"] = {
+            "rules": [to_jsonable(rule) for rule in permission_store.list_rules()],
+            "requests": [to_jsonable(request) for request in permission_store.list_requests()],
+        }
+    elif name == "/help":
+        commands = [to_jsonable(command_spec) for command_spec in default_command_registry().list()]
+        result["summary"] = "Available slash commands."
+        result["data"] = {
+            "commands": commands,
+            "groups": _command_groups(commands),
+        }
+    elif name in {"/cost", "/usage"}:
+        result["summary"] = "Task resource usage."
+        result["data"] = {"budget": to_jsonable(state.budget)}
+    elif name == "/context":
+        events = store.task_events(state.task_id)
+        session_runtime = ContextSessionRuntime(events)
+        result["summary"] = "Context and checkpoint pressure summary."
+        result["data"] = session_runtime.summarize(state)
+    elif name == "/agents":
+        result["summary"] = "Registered worker descriptors."
+        result["data"] = {"workers": [to_jsonable(worker) for worker in default_worker_descriptors()]}
+    elif name == "/mcp":
+        result["summary"] = "MCP runtime inventory from CodeWorker sidecar."
+        result["data"] = {"mcp_runtime_files": CodeWorkerSidecarClient(PROJECT_ROOT).runtime_inventory()["runtimeBoundaries"]["mcpRuntimeFiles"]}
+    elif name == "/skills":
+        result["summary"] = "Registered skills and recent skill invocations."
+        result["data"] = {
+            "skills": [to_jsonable(skill) for skill in default_skill_registry().list()],
+            "skill_invocations": list(state.metadata.get("skill_invocations", [])),
+        }
+    elif name == "/doctor":
+        result["summary"] = "Development runtime health checks."
+        result["data"] = {
+            "project_root_exists": PROJECT_ROOT.exists(),
+            "vendor_claude_code_best_exists": (PROJECT_ROOT / "vendor" / "claude-code-best").exists(),
+            "vendor_browser_use_exists": (PROJECT_ROOT / "vendor" / "browser-use").exists(),
+            "browser_use_runtime": browser_use_health_summary(inspect_browser_use_runtime(PROJECT_ROOT)),
+            "tool_workspace": str(tool_workspace_path()),
+            "artifact_root": str(artifact_root_path()),
+            "permission_store": str(permission_store_path()),
+        }
+    elif name == "/model":
+        result["summary"] = "Configured model/provider environment."
+        result["data"] = {
+            "provider": os.environ.get("ZYRA_MODEL_PROVIDER", "local-or-unconfigured"),
+            "model": os.environ.get("ZYRA_MODEL", "unconfigured"),
+        }
+    elif name == "/bashes":
+        result["summary"] = "No background shell task registry is active yet."
+        result["data"] = {"background_tasks": []}
+    elif name == "/compact":
+        result.update(_compact_task_context(state, event, store))
+    elif name == "/export":
+        result.update(_export_task_run(state, event, store))
+    elif name == "/clear":
+        result.update(ContextSessionRuntime(store.task_events(state.task_id)).clear(state, event))
+    elif name == "/rewind":
+        result.update(
+            ContextSessionRuntime(store.task_events(state.task_id)).rewind(
+                state,
+                event,
+                target=str(event.payload.get("raw") or ""),
+            )
+        )
+    elif name == "/resume":
+        result.update(
+            ContextSessionRuntime(store.task_events(state.task_id)).resume(
+                state,
+                event,
+                target=str(event.payload.get("raw") or ""),
+            )
+        )
+    elif name == "/memory":
+        result.update(ContextSessionRuntime(store.task_events(state.task_id)).memory_view(state))
+    elif name in {"/verify", "/eval"}:
+        evaluation = evaluate_task_trace(to_jsonable(state), store.task_events(state.task_id))
+        evaluations = state.metadata.setdefault("evaluations", [])
+        evaluations.append(
+            {
+                "event_id": event.event_id,
+                "name": name,
+                "score": evaluation["score"],
+                "created_at": event.created_at,
+            }
+        )
+        result["summary"] = "Trace evaluation completed."
+        result["data"] = evaluation
+    elif name == "/change":
+        latest = _latest_metadata_item(state, "requirement_changes")
+        result["summary"] = "/change associated affected PlanNodes and created a local replan route."
+        result["data"] = {
+            "event_id": event.event_id,
+            "raw": event.payload.get("raw", ""),
+            "requirement_change": latest,
+            "latest_decision": to_jsonable(state.decisions[-1]) if state.decisions else None,
+        }
+    elif name == "/inject":
+        latest = _latest_metadata_item(state, "failure_injections")
+        result["summary"] = "/inject produced a structured failure recovery route."
+        result["data"] = {
+            "event_id": event.event_id,
+            "raw": event.payload.get("raw", ""),
+            "failure_injection": latest,
+            "latest_decision": to_jsonable(state.decisions[-1]) if state.decisions else None,
+        }
+    elif name in {"/init", "/hooks", "/plan", "/goal", "/team-onboarding"}:
+        result["summary"] = f"{name} accepted and recorded for downstream runtime handling."
+        result["data"] = {
+            "event_id": event.event_id,
+            "raw": event.payload.get("raw", ""),
+        }
+
+    return result
+
+
+def _compact_task_context(state: Any, event: EventRecord, store: SQLiteStore) -> dict[str, Any]:
+    events = store.task_events(state.task_id)
+    focus = str(event.payload.get("raw") or "").strip()
+    event_counts: dict[str, int] = {}
+    for item in events:
+        event_type = str(item.get("event_type") or "unknown")
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
+    recent = events[-12:]
+    lines = [
+        "# Zyra Context Compact",
+        "",
+        f"- task_id: `{state.task_id}`",
+        f"- run_id: `{state.run_id}`",
+        f"- status: `{state.status}`",
+        f"- focus: `{focus or 'general'}`",
+        f"- event_count: `{len(events)}`",
+        f"- plan_nodes: `{len(state.plan_nodes)}`",
+        f"- artifacts: `{len(state.artifacts)}`",
+        "",
+        "## Event Counts",
+        "",
+        *[f"- {key}: {value}" for key, value in sorted(event_counts.items())],
+        "",
+        "## Recent Events",
+        "",
+        *[
+            f"- {item.get('created_at')} / {item.get('event_type')} / {item.get('node_id') or 'task'}"
+            for item in recent
+        ],
+        "",
+        "## Control Summary",
+        "",
+        f"- control_commands: `{len(state.metadata.get('control_commands', []))}`",
+        f"- requirement_changes: `{len(state.metadata.get('requirement_changes', []))}`",
+        f"- failure_injections: `{len(state.metadata.get('failure_injections', []))}`",
+        "",
+    ]
+    artifact = LocalArtifactStore(artifact_root_path()).write_text(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        content="\n".join(lines),
+        title="Context compact summary",
+        kind=ArtifactKind.TRACE,
+        extension=".md",
+        producer_node_id=event.node_id,
+    )
+    state.artifacts.append(artifact)
+    compactions = state.metadata.setdefault("compactions", [])
+    compactions.append(
+        {
+            "event_id": event.event_id,
+            "artifact_id": artifact.artifact_id,
+            "focus": focus,
+            "event_count": len(events),
+            "created_at": event.created_at,
+        }
+    )
+    return {
+        "summary": "Context compact summary artifact written.",
+        "data": {
+            "artifact": _artifact_entry(LocalArtifactStore(artifact_root_path()), artifact),
+            "event_count": len(events),
+            "focus": focus,
+        },
+    }
+
+
+def _export_task_run(state: Any, event: EventRecord, store: SQLiteStore) -> dict[str, Any]:
+    events = store.task_events(state.task_id)
+    export_payload = {
+        "task": to_jsonable(state),
+        "events": events,
+        "control_commands": state.metadata.get("control_commands", []),
+        "source_event_id": event.event_id,
+    }
+    artifact = LocalArtifactStore(artifact_root_path()).write_text(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        content=json.dumps(export_payload, ensure_ascii=False, indent=2),
+        title="Run export",
+        kind=ArtifactKind.STRUCTURED_DATA,
+        extension=".json",
+        producer_node_id=event.node_id,
+    )
+    state.artifacts.append(artifact)
+    exports = state.metadata.setdefault("exports", [])
+    exports.append(
+        {
+            "event_id": event.event_id,
+            "artifact_id": artifact.artifact_id,
+            "event_count": len(events),
+            "created_at": event.created_at,
+        }
+    )
+    return {
+        "summary": "Run export artifact written.",
+        "data": {
+            "artifact": _artifact_entry(LocalArtifactStore(artifact_root_path()), artifact),
+            "event_count": len(events),
+        },
+    }
+
+
+def _command_groups(commands: list[dict[str, Any]]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for command in commands:
+        metadata = command.get("metadata") if isinstance(command.get("metadata"), dict) else {}
+        category = str(metadata.get("category") or "uncategorized")
+        groups.setdefault(category, []).append(str(command.get("name") or ""))
+    return groups
+
+
+def _latest_metadata_item(state: Any, key: str) -> dict[str, Any]:
+    items = state.metadata.get(key)
+    if isinstance(items, list) and items and isinstance(items[-1], dict):
+        return dict(items[-1])
+    return {}
+
+
+def _apply_control_event_to_state(state: Any, event: EventRecord) -> list[EventRecord]:
+    command = event.payload.get("command")
+    if isinstance(command, dict):
+        controls = state.metadata.setdefault("control_commands", [])
+        controls.append(
+            {
+                "event_id": event.event_id,
+                "command_id": command.get("command_id", ""),
+                "name": command.get("name", ""),
+                "arguments": command.get("arguments", {}),
+                "metadata": command.get("metadata", {}),
+                "created_at": event.created_at,
+            }
+        )
+    applied_events: list[EventRecord] = []
+    if event.event_type == EventType.REQUIREMENT_CHANGE:
+        applied_events.extend(apply_requirement_change(state, event))
+    elif event.event_type == EventType.FAILURE_INJECTED:
+        applied_events.extend(apply_failure_injection(state, event))
+    state.updated_at = event.created_at
+    return applied_events
+
+
+def _skill_invocation_event(
+    state: Any,
+    skill: Any,
+    *,
+    arguments: dict[str, Any],
+    node_id: str,
+) -> EventRecord:
+    return EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        event_type=EventType.SKILL_INVOKED,
+        node_id=node_id,
+        payload={
+            "skill_invocation": {
+                "skill_name": skill.name,
+                "purpose": skill.purpose,
+                "source": skill.source,
+                "preferred_runtime": skill.preferred_runtime,
+                "allowed_tools": list(skill.allowed_tools),
+                "vendor_paths": list(skill.vendor_paths),
+                "arguments": arguments,
+                "status": "recorded",
+            }
+        },
+    )
+
+
+def _apply_skill_invocation_to_state(state: Any, event: EventRecord) -> None:
+    invocation = event.payload.get("skill_invocation")
+    if isinstance(invocation, dict):
+        state.metadata.setdefault("skill_invocations", []).append(
+            {
+                "event_id": event.event_id,
+                "node_id": event.node_id,
+                "skill_name": invocation.get("skill_name", ""),
+                "preferred_runtime": invocation.get("preferred_runtime", ""),
+                "allowed_tools": invocation.get("allowed_tools", []),
+                "status": invocation.get("status", "recorded"),
+                "created_at": event.created_at,
+            }
+        )
+    state.updated_at = event.created_at
+
+
+if __name__ == "__main__":
+    run()

@@ -1,0 +1,9 @@
+[project]
+name = "zyra"
+version = "0.1.0"
+description = "Dynamic heterogeneous multi-agent system for long-horizon complex tasks."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.zyra]
+phase = "m3-symbolic-collaboration"
