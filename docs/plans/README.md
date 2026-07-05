@@ -6,3 +6,5 @@ Project-local milestone records live here. The canonical first-stage plan is `..
 - `M1.md`: task graph and checkpoint control plane.
 - `M2.md`: worker runtime and tool governance.
 - `M3.md`: structured collaboration and neuro-symbolic control self-check.
+
+Future milestone records for M4-M6 must include code-internalization evidence: source repository modules reused, target `zyra` paths, adapter/runtime boundaries, verification commands, and remaining vendor-pool work. These milestones are expected to grow real Zyra capabilities, not just add placeholder schemas or thin wrappers.

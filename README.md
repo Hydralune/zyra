@@ -59,6 +59,16 @@ M3 established the structured collaboration and neuro-symbolic control layer:
 - `/inject` now creates a structured failure recovery node and route decision after preserving a `node_failed` event
 - `/verify` and `/eval` metrics now include symbolic control evidence: decision records, topology routes, constraint checks, structured messages, and replanned/superseded nodes
 
+## Direction For M4-M6
+
+M0-M3 established contracts and runtime control paths. The next milestones must use those boundaries to internalize substantial mature capabilities from the reference repositories, not merely add thin wrappers.
+
+- M4 should turn memory, context compaction, trajectory replay, checkpoint/retrieval, and skill memory into callable Zyra modules.
+- M5 should make resource scheduling, worker manifests, sandbox/gateway boundaries, fault injection, and recovery policies affect real task execution.
+- M6 should replace the current console shell with a connected control console for task graph, event timeline, worker state, artifact/diff/browser/terminal views, slash commands, and live requirement changes.
+
+Vendor snapshots are a migration pool or explicit runtime boundary. Long-term capabilities should be collected into `apps/`, `packages/`, or clearly named runtime adapters before the first-stage freeze.
+
 ## Layout
 
 ```text

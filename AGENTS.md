@@ -26,6 +26,14 @@
 - 不要把 M0/M1 的轻量骨架实现误解为后续阶段的执行策略。从 M2 开始应明显转向成熟代码迁移、大模块复用和 sidecar/adapter 接入；不能用小规模手写闭环、mock 或占位模块替代第一阶段完整系统目标。
 - `../` 下的其它仓库只是来源仓库，`zyra` 才是最终提交项目。凡是最终运行依赖的复用代码、skills、配置、前端组件或 sidecar runtime，都必须迁移、vendor、subtree/submodule 或封装进 `zyra` 内部，不能让 `zyra` 在提交后依赖 `../claude-code-best`、`../browser-use`、`../OpenHands` 等相对路径。
 
+## 重型内化目标
+
+- 第一阶段完成时，`zyra` 应是完整、可运行、可演示、可继续优化的重型 Agent 系统，而不是轻量控制壳、接口样例或单路径 demo。
+- 当前 M0-M3 主要建立 schema、runtime 边界、控制协议和神经符号协作主路径；M4-M6 必须明显增加真实运行能力和非 vendor 主体代码，把来源仓库中成熟模块转化为 `zyra` 内部可维护的 package、app、runtime、adapter 或 UI 视图。
+- 代码规模不是单独的验收指标，但第一阶段预期会继续向数十万行量级增长。若后续里程碑只新增少量 glue code，却没有把 memory、scheduler、fault recovery、control console、artifact/diff/browser/terminal 等成熟能力内化进 `zyra`，应视为执行偏轻。
+- M4 应重点落地长程记忆、context compact、trajectory replay、skill memory、checkpoint/retrieval；M5 应重点落地端边云 resource scheduler、worker manifest、sandbox/gateway、fault injection、recovery；M6 应重点落地正式控制台、事件时间线、拓扑视图、artifact/diff/browser/terminal 面板和运行中需求变更交互。
+- 后续每个里程碑计划和自检都应列出本阶段内化的来源仓库模块、目标路径、运行入口、测试或验证命令，以及仍保留在 vendor pool 中的原因。不要只写“参考了某仓库”，必须说明它如何成为 `zyra` 的可运行组成部分。
+
 ## 工程执行约定
 
 - 按 `../docs/第一阶段工程计划.md` 的 M0-M7 推进。
@@ -34,6 +42,7 @@
 - 阶段审查应重点检查 bug、行为回归、架构边界失控、与赛题要求不匹配、缺少必要测试、代码复用模块适配问题和后续扩展风险。
 - 阶段审查还必须检查是否出现“为了快而缩小能力面”的倾向；如果里程碑只是 mock、占位实现、单路径 demo 或轻量替代，应视为未充分完成，并优先补齐成熟模块复用或记录明确的补齐计划。
 - 阶段审查必须检查 `zyra` 是否仍依赖根目录来源仓库的 `../` 路径；如果存在，应视为开发期临时桥接，必须迁移进 `zyra` 或记录明确的落位计划。
+- 阶段审查必须检查本阶段是否产生了足够的可运行能力和代码内化证据。只有薄 wrapper、空 schema、未连接的 API 或未接入 event log/control command/artifact 的模块，不能单独支撑里程碑完成。
 - 新增模块要优先明确 schema、event、artifact、adapter 边界。
 - 不要让 agent 间自由广播长上下文；公共通信层应使用结构化消息、evidence ref、artifact ref 和状态 delta。
 - 需求变更必须支持任务运行中直接输入新指令，并记录为 `requirement_change` 事件，而不是停止当前 run 后重开。
