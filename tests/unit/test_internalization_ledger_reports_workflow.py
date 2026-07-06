@@ -59,6 +59,34 @@ class LedgerReportsWorkflowTests(unittest.TestCase):
         self.assertIn("M3-03", matrix.dependency_order)
         self.assertGreaterEqual(matrix.uncovered_units, 0)
 
+    def test_non_migration_units_do_not_require_source_to_target_coverage(self) -> None:
+        matrix = build_unit_matrix(InternalizationLedger([]))
+        rows = {row.owner_unit: row for row in matrix.rows}
+
+        self.assertFalse(rows["M1-01A"].requires_source_migration)
+        self.assertFalse(rows["M1-01A"].has_ledger_coverage)
+        self.assertTrue(rows["M1-01A"].coverage_ok)
+        self.assertTrue(rows["M1-01B"].requires_source_migration)
+        self.assertFalse(rows["M1-01B"].coverage_ok)
+
+    def test_completion_gate_allows_infrastructure_unit_without_ledger_records(self) -> None:
+        ledger = load_seed_ledger()
+
+        report = build_completion_gate_report(ROOT, ledger, owner_unit="M1-01A")
+        missing_codes = {str(finding.code) for finding in report.findings}
+
+        self.assertTrue(report.ok)
+        self.assertNotIn("UNIT_LEDGER_COVERAGE_MISSING", missing_codes)
+
+    def test_completion_gate_blocks_migration_unit_without_ledger_records(self) -> None:
+        ledger = load_seed_ledger()
+
+        report = build_completion_gate_report(ROOT, ledger, owner_unit="M1-01B")
+        missing_codes = {str(finding.code) for finding in report.findings}
+
+        self.assertFalse(report.ok)
+        self.assertIn("UNIT_LEDGER_COVERAGE_MISSING", missing_codes)
+
     def test_readiness_report_uses_line_count_gate(self) -> None:
         ledger = InternalizationLedger([sample_entry()])
         audit = InternalizationLedgerAuditor(ROOT, strict=False).audit(ledger)

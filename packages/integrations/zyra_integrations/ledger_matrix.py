@@ -99,6 +99,7 @@ class UnitMatrixRow:
     owner_unit: str
     milestone: str
     minimum_effective_lines: int
+    requires_source_migration: bool
     dependency_units: list[str]
     downstream_units: list[str]
     required_surfaces: list[str]
@@ -119,12 +120,22 @@ class UnitMatrixRow:
         return self.entry_count > 0
 
     @property
+    def coverage_required(self) -> bool:
+        return self.requires_source_migration
+
+    @property
+    def coverage_ok(self) -> bool:
+        return self.has_ledger_coverage or not self.coverage_required
+
+    @property
     def surface_coverage_ok(self) -> bool:
         return not self.missing_required_surfaces
 
     def to_dict(self) -> dict[str, Any]:
         payload = to_jsonable(self)
         payload["has_ledger_coverage"] = self.has_ledger_coverage
+        payload["coverage_required"] = self.coverage_required
+        payload["coverage_ok"] = self.coverage_ok
         payload["surface_coverage_ok"] = self.surface_coverage_ok
         return payload
 
@@ -151,7 +162,7 @@ class UnitMatrixReport:
 
 def build_unit_matrix(ledger: InternalizationLedger) -> UnitMatrixReport:
     rows = [_build_unit_row(unit, budget, ledger) for unit, budget in sorted(UNIT_BUDGETS.items())]
-    missing = [row.owner_unit for row in rows if not row.has_ledger_coverage]
+    missing = [row.owner_unit for row in rows if not row.coverage_ok]
     order, unresolved = topological_unit_order(UNIT_BUDGETS, UNIT_DEPENDENCIES)
     return UnitMatrixReport(
         unit_count=len(rows),
@@ -249,6 +260,7 @@ def _build_unit_row(unit: str, budget: UnitBudget, ledger: InternalizationLedger
         owner_unit=unit,
         milestone=budget.milestone,
         minimum_effective_lines=budget.minimum_effective_lines,
+        requires_source_migration=budget.requires_source_migration,
         dependency_units=UNIT_DEPENDENCIES.get(unit, []),
         downstream_units=unit_downstreams(unit),
         required_surfaces=required,

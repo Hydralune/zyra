@@ -83,7 +83,7 @@ Validated with:
 
 Audit status after implementation: `ok=True`, `errors=0`, `blockers=0`, with warnings for planned targets and M3 NOTICE finalization debt.
 
-Strict line-count status after supplement: `effective_added=10005`, `raw_added=118166`, `excluded_added=108161`, `minimum=10000`, `line_count_ok=True`. The excluded lines are seed/list/index data and are not counted as effective implementation.
+Strict line-count status after supplement: `effective_added=10049`, `raw_added=118210`, `excluded_added=108161`, `minimum=10000`, `line_count_ok=True`. The excluded lines are seed/list/index data and are not counted as effective implementation.
 
 ## Critical Review
 
@@ -93,6 +93,7 @@ Strict line-count status after supplement: `effective_added=10005`, `raw_added=1
 - Future units must convert planned ledger entries into real `zyra` modules through source migration, adapter encapsulation, runtime integration, tests, and main-path binding. Large data files, inventories, schemas, test volume, thin wrappers, or glue code cannot satisfy line-count requirements by themselves.
 - The audit currently treats many planned entries as warnings. Later units must update those entries to active/internalized only after actual target paths, tests, runtime entries, and main-path bindings exist.
 - M1-01A now includes strict line-count classification, completion gate, readiness report, source-scan, workflow guarded advance, contract summary, and source/unit/target accounting. These exist to prevent later units from claiming progress through unintegrated data files or thin records.
+- Follow-up self-review fixed the completion-gate semantics for infrastructure units: `M1-01A` and other `requires_source_migration=False` units no longer fail solely because they have no source-to-target migration records, while migration units such as `M1-01B` still require ledger coverage.
 - Final line-count audit after commit should use:
 
 ```powershell

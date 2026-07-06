@@ -243,13 +243,13 @@ def _readiness_gate_findings(report: UnitReadinessReport) -> list[GateFinding]:
 def _matrix_gate_findings(report: UnitMatrixReport, owner_unit: str) -> list[GateFinding]:
     findings: list[GateFinding] = []
     row = next((item for item in report.rows if item.owner_unit == owner_unit), None)
-    if row is not None and not row.has_ledger_coverage:
+    if row is not None and not row.coverage_ok:
         findings.append(
             GateFinding(
                 code=GateCode.UNIT_LEDGER_COVERAGE_MISSING,
                 severity=GateSeverity.ERROR,
                 message=f"{owner_unit} has no ledger records.",
-                remediation="Add planned source-to-target records before executing the unit.",
+                remediation="Add planned source-to-target records before executing the migration unit.",
             )
         )
     return findings

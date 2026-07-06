@@ -203,7 +203,11 @@ class InternalizationLedgerAuditor:
 
     def _audit_execution_unit_coverage(self, ledger: InternalizationLedger) -> list[LedgerAuditFinding]:
         present = {entry.owner_unit for entry in ledger.entries() if entry.owner_unit}
-        missing = sorted(set(UNIT_BUDGETS) - present)
+        missing = sorted(
+            unit
+            for unit, budget in UNIT_BUDGETS.items()
+            if budget.requires_source_migration and unit not in present
+        )
         if not missing:
             return []
         return [
