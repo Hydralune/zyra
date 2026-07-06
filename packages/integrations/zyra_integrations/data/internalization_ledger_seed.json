@@ -4,7 +4,7 @@
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_context_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=189.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -49,23 +49,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 189,
-        "extracted_sha256": "8991076c0b0c74fffe192f764cb3883f21a7265ec173addc9b0f087317b23406",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/context.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "context"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "8991076c0b0c74fffe192f764cb3883f21a7265ec173addc9b0f087317b23406"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -83,7 +67,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/context.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "context"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/context.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -116,13 +115,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_cost_tracker_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=323.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -167,23 +166,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 323,
-        "extracted_sha256": "5682ea7186722dc23e084389c6a275dc7ec947f9f5284b125093a193520e25fa",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/cost-tracker.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "cost-tracker"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "5682ea7186722dc23e084389c6a275dc7ec947f9f5284b125093a193520e25fa"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -201,7 +184,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/cost-tracker.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "cost-tracker"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/cost-tracker.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -234,13 +232,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_config_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=46.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -285,23 +283,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 46,
-        "extracted_sha256": "bcb250b077cffe8b159ff5820489fb7d6a9ffd732fffa87b9593a9de4254035f",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/query/config.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "config"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "bcb250b077cffe8b159ff5820489fb7d6a9ffd732fffa87b9593a9de4254035f"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -319,7 +301,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/query/config.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "config"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/query/config.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -352,13 +349,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_deps_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=40.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -403,23 +400,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 40,
-        "extracted_sha256": "437af0746d45f1c7bf258ecdfe97b7c7f67f49bf001e9cdeceeb644a8b7d50d4",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/query/deps.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "deps"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "437af0746d45f1c7bf258ecdfe97b7c7f67f49bf001e9cdeceeb644a8b7d50d4"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -437,7 +418,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/query/deps.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "deps"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/query/deps.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -470,13 +466,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_stopHooks_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=473.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -521,23 +517,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 473,
-        "extracted_sha256": "a21513a2b0e25aafd45d4f1846fc59327f37831160c7ea0e181d39c5c4d96114",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/query/stopHooks.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "stopHooks"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "a21513a2b0e25aafd45d4f1846fc59327f37831160c7ea0e181d39c5c4d96114"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -555,7 +535,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/query/stopHooks.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "stopHooks"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/query/stopHooks.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -588,13 +583,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_tokenBudget_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=93.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -639,23 +634,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 93,
-        "extracted_sha256": "3ba8f1079a80aba59b5d634aec66d79a1974c768b04406bca25dfe25c35b9abb",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/query/tokenBudget.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "tokenBudget"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "3ba8f1079a80aba59b5d634aec66d79a1974c768b04406bca25dfe25c35b9abb"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -673,7 +652,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/query/tokenBudget.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "tokenBudget"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/query/tokenBudget.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -706,13 +700,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_services_tools_StreamingToolExecutor_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=530.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -757,23 +751,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 530,
-        "extracted_sha256": "7da4e2c823a7655cf383e8c8fda06b927c0881467bde2b60a35741e7325205f6",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/services/tools/StreamingToolExecutor.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "StreamingToolExecutor"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "7da4e2c823a7655cf383e8c8fda06b927c0881467bde2b60a35741e7325205f6"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -791,7 +769,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/services/tools/StreamingToolExecutor.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "StreamingToolExecutor"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/services/tools/StreamingToolExecutor.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -824,13 +817,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_services_tools_toolOrchestration_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=188.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -875,23 +868,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 188,
-        "extracted_sha256": "21aa00272b057b35772263322d54608df8c16347baffaa46b31ed2fa216423b1",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/services/tools/toolOrchestration.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "toolOrchestration"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "21aa00272b057b35772263322d54608df8c16347baffaa46b31ed2fa216423b1"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -909,7 +886,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/services/tools/toolOrchestration.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "toolOrchestration"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/services/tools/toolOrchestration.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -942,13 +934,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_Tool_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=792.",
-      "created_at": "2026-07-06T03:22:04.323Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -993,23 +985,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 792,
-        "extracted_sha256": "7bb7e0bcc4c6e691f907a59c7e3aea5522471bb32fac01b48403446bbd48f145",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/Tool.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "Tool"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "7bb7e0bcc4c6e691f907a59c7e3aea5522471bb32fac01b48403446bbd48f145"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1027,7 +1003,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/Tool.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "Tool"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/Tool.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1060,13 +1051,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.323Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_agentMemory_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=177.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1111,23 +1102,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 177,
-        "extracted_sha256": "7417adb56e73b236fd8d94bcfb5be16949b1d21f208470026b869889abe96c47",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/AgentTool/agentMemory.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "agentMemory"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "7417adb56e73b236fd8d94bcfb5be16949b1d21f208470026b869889abe96c47"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1145,7 +1120,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/AgentTool/agentMemory.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "agentMemory"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/AgentTool/agentMemory.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1178,13 +1168,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_agentMemorySnapshot_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=197.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1229,23 +1219,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 197,
-        "extracted_sha256": "037b994365519cc29348f06c0dc144b6c91785005bb1d2f4ab6c6659ebd5525d",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/AgentTool/agentMemorySnapshot.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "agentMemorySnapshot"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "037b994365519cc29348f06c0dc144b6c91785005bb1d2f4ab6c6659ebd5525d"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1263,7 +1237,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/AgentTool/agentMemorySnapshot.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "agentMemorySnapshot"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/AgentTool/agentMemorySnapshot.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1296,13 +1285,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_agentToolUtils_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=687.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1347,23 +1336,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 687,
-        "extracted_sha256": "019edef83a313c874ab885f63de2795109d0a2b16d19bffda967fec30b7cea7f",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/AgentTool/agentToolUtils.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "agentToolUtils"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "019edef83a313c874ab885f63de2795109d0a2b16d19bffda967fec30b7cea7f"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1381,7 +1354,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/AgentTool/agentToolUtils.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "agentToolUtils"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/AgentTool/agentToolUtils.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1414,13 +1402,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_forkSubagent_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=210.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1465,23 +1453,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 210,
-        "extracted_sha256": "fafd5dcacb5c437ab18feb39c4aa8f6384769b91140bec3c6bd672acef32bb62",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/AgentTool/forkSubagent.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "forkSubagent"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "fafd5dcacb5c437ab18feb39c4aa8f6384769b91140bec3c6bd672acef32bb62"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1499,7 +1471,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/AgentTool/forkSubagent.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "forkSubagent"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/AgentTool/forkSubagent.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1532,13 +1519,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_prompt_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=287.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1583,23 +1570,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 287,
-        "extracted_sha256": "eedf3fcf36af5e6609cf9f25868e85def405de11cc3a6e4e4aad8ec31d9518fd",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/AgentTool/prompt.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "prompt"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "eedf3fcf36af5e6609cf9f25868e85def405de11cc3a6e4e4aad8ec31d9518fd"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1617,7 +1588,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/AgentTool/prompt.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "prompt"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/AgentTool/prompt.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1650,13 +1636,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_bashCommandHelpers_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=265.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1701,23 +1687,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 265,
-        "extracted_sha256": "336852d185f965214ee1887cc95ef36af0c851f6b34e8f643664b877ba4a1796",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/bashCommandHelpers.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "bashCommandHelpers"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "336852d185f965214ee1887cc95ef36af0c851f6b34e8f643664b877ba4a1796"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1735,7 +1705,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/bashCommandHelpers.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "bashCommandHelpers"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/bashCommandHelpers.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1768,13 +1753,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_bashPermissions_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=2621.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1819,23 +1804,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 2621,
-        "extracted_sha256": "f894f793840b0698c2d2d859fb7f9213ef87782ad6ee053a41e5090328e07565",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/bashPermissions.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "bashPermissions"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "f894f793840b0698c2d2d859fb7f9213ef87782ad6ee053a41e5090328e07565"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1853,7 +1822,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/bashPermissions.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "bashPermissions"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/bashPermissions.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -1886,13 +1870,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_bashSecurity_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=2592.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -1937,23 +1921,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 2592,
-        "extracted_sha256": "e68f717dc1abfa257be610407c4ae5b237e70bb6b5d1013d887129c7c00f0f25",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/bashSecurity.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "bashSecurity"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "e68f717dc1abfa257be610407c4ae5b237e70bb6b5d1013d887129c7c00f0f25"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -1971,7 +1939,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/bashSecurity.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "bashSecurity"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/bashSecurity.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2004,13 +1987,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_commandSemantics_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=140.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2055,23 +2038,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 140,
-        "extracted_sha256": "14c1b3b81b9b7fac7e49b3f21eea87aedfaf55b1b252478a70b0b29edc0ecac6",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/commandSemantics.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "commandSemantics"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "14c1b3b81b9b7fac7e49b3f21eea87aedfaf55b1b252478a70b0b29edc0ecac6"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2089,7 +2056,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/commandSemantics.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "commandSemantics"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/commandSemantics.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2122,13 +2104,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_destructiveCommandWarning_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=102.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2173,23 +2155,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 102,
-        "extracted_sha256": "f80b1b46c55c5f0c5027ca99f6e17b243b891690e627330657e98712224c64f2",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/destructiveCommandWarning.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "destructiveCommandWarning"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "f80b1b46c55c5f0c5027ca99f6e17b243b891690e627330657e98712224c64f2"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2207,7 +2173,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/destructiveCommandWarning.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "destructiveCommandWarning"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/destructiveCommandWarning.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2240,13 +2221,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_modeValidation_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=115.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2291,23 +2272,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 115,
-        "extracted_sha256": "80172efef8ca29161f7ce2fe7335ea0169694dd5b05deeed42e106f104de064a",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/modeValidation.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "modeValidation"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "80172efef8ca29161f7ce2fe7335ea0169694dd5b05deeed42e106f104de064a"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2325,7 +2290,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/modeValidation.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "modeValidation"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/modeValidation.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2358,13 +2338,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_pathValidation_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=1303.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2409,23 +2389,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 1303,
-        "extracted_sha256": "7bb7739a677cd5287a657c4e382d5c44e589081f74ef09acde34a23a8956d7da",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/pathValidation.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "pathValidation"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "7bb7739a677cd5287a657c4e382d5c44e589081f74ef09acde34a23a8956d7da"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2443,7 +2407,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/pathValidation.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "pathValidation"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/pathValidation.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2476,13 +2455,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_readOnlyValidation_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=1990.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2527,23 +2506,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 1990,
-        "extracted_sha256": "e7dbbf624ff9cae22856e0b78bcfe65b7c52a6b3559d1bdfca6946255a5541bd",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/readOnlyValidation.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "readOnlyValidation"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "e7dbbf624ff9cae22856e0b78bcfe65b7c52a6b3559d1bdfca6946255a5541bd"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2561,7 +2524,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/readOnlyValidation.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "readOnlyValidation"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/readOnlyValidation.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2594,13 +2572,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_shouldUseSandbox_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=153.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2645,23 +2623,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 153,
-        "extracted_sha256": "49f47ade30016b47e674ab1d43da36e55062e5eddd10bd85fb717419a89c68d7",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/BashTool/shouldUseSandbox.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "shouldUseSandbox"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "49f47ade30016b47e674ab1d43da36e55062e5eddd10bd85fb717419a89c68d7"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2679,7 +2641,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/BashTool/shouldUseSandbox.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "shouldUseSandbox"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/BashTool/shouldUseSandbox.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2712,13 +2689,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_SkillTool_prompt_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=241.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2763,23 +2740,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 241,
-        "extracted_sha256": "4061545bf37bd64786b6140f9c21642828d9fce11c6541b34f73a47759a0a104",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools/SkillTool/prompt.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "prompt"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "4061545bf37bd64786b6140f9c21642828d9fce11c6541b34f73a47759a0a104"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2797,7 +2758,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools/SkillTool/prompt.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "prompt"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools/SkillTool/prompt.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2830,13 +2806,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=389.",
-      "created_at": "2026-07-06T03:22:04.324Z",
+      "created_at": "2026-07-06T03:58:19.418Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2881,23 +2857,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 389,
-        "extracted_sha256": "2bb1f7b81dcd4da482549c3ebba1b13433ededa9d0d8cd93583201debc3ac1bf",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/tools.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "tools"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "2bb1f7b81dcd4da482549c3ebba1b13433ededa9d0d8cd93583201debc3ac1bf"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -2915,7 +2875,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/tools.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "tools"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/tools.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -2948,13 +2923,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.324Z"
+      "updated_at": "2026-07-06T03:58:19.418Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_ids_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=44.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2999,23 +2974,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 44,
-        "extracted_sha256": "84ef214795cd41b1c73d23e9134e89b95ec44ddcaddb6c8362a25acf6647671d",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/types/ids.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "ids"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "84ef214795cd41b1c73d23e9134e89b95ec44ddcaddb6c8362a25acf6647671d"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3033,7 +2992,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/types/ids.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "ids"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/types/ids.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3066,13 +3040,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_message_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=167.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.419Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3117,23 +3091,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 167,
-        "extracted_sha256": "ed161a904aa50fd4c25c668d4bdd671c322bccb38bd908af85e3967b4f1ceecc",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/types/message.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "message"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "ed161a904aa50fd4c25c668d4bdd671c322bccb38bd908af85e3967b4f1ceecc"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3151,7 +3109,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/types/message.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "message"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/types/message.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3184,13 +3157,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.419Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_permissions_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=441.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.420Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3235,23 +3208,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 441,
-        "extracted_sha256": "ed52dbf9790b54f30bc14213d9d809d1e4cb83df47026eb345a663539f8ba936",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/types/permissions.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "permissions"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "ed52dbf9790b54f30bc14213d9d809d1e4cb83df47026eb345a663539f8ba936"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3269,7 +3226,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/types/permissions.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "permissions"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/types/permissions.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3302,13 +3274,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.420Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_tools_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=12.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.420Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3353,23 +3325,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 12,
-        "extracted_sha256": "814f44c5437b08ad3aba840451cf6a3ed962312682f771a5cbb92c07585f1887",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/types/tools.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "tools"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "814f44c5437b08ad3aba840451cf6a3ed962312682f771a5cbb92c07585f1887"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3387,7 +3343,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/types/tools.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "tools"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/types/tools.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3420,13 +3391,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.420Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_abortController_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=99.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.420Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3471,23 +3442,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 99,
-        "extracted_sha256": "02e4b72afdbcff8c8397cabf3c0e9b4ef60bf5019b8cef112cc67ab2f3e1fcc7",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/utils/abortController.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "abortController"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "02e4b72afdbcff8c8397cabf3c0e9b4ef60bf5019b8cef112cc67ab2f3e1fcc7"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3505,7 +3460,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/utils/abortController.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "abortController"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/utils/abortController.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3538,13 +3508,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.420Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_generators_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=88.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.420Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3589,23 +3559,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 88,
-        "extracted_sha256": "7799e5f78c87ba7f8db937f9fc170ebfc8aaa12b0977ae41cdf70c8e210cadd3",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/utils/generators.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "generators"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "7799e5f78c87ba7f8db937f9fc170ebfc8aaa12b0977ae41cdf70c8e210cadd3"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3623,7 +3577,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/utils/generators.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "generators"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/utils/generators.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3656,13 +3625,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.420Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_sessionState_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=150.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.420Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3707,23 +3676,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 150,
-        "extracted_sha256": "9af0e6cbeab36faa71a1847e426d0d61ab134d93fff908c784fc6eec0ee06f4d",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/utils/sessionState.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "sessionState"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "9af0e6cbeab36faa71a1847e426d0d61ab134d93fff908c784fc6eec0ee06f4d"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3741,7 +3694,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/utils/sessionState.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "sessionState"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/utils/sessionState.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3774,13 +3742,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.420Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_systemPromptType_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=14.",
-      "created_at": "2026-07-06T03:22:04.325Z",
+      "created_at": "2026-07-06T03:58:19.420Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3825,23 +3793,7 @@
       "main_path_status": "worker_runtime_connected",
       "metadata": {
         "extracted_lines": 14,
-        "extracted_sha256": "fce05fd6789b38d8cb6627e1538855bf0e60f83beae0740adfc1e3c1f34ee92c",
-        "source_evidence": [
-          {
-            "exists_in_workspace": true,
-            "reason": "pilot extraction source file",
-            "source_kind": "file",
-            "source_path": "src/utils/systemPromptType.ts",
-            "source_repo": "claude-code-best",
-            "symbols": [
-              "systemPromptType"
-            ],
-            "tags": [
-              "m1-01b",
-              "pilot-extraction"
-            ]
-          }
-        ]
+        "extracted_sha256": "fce05fd6789b38d8cb6627e1538855bf0e60f83beae0740adfc1e3c1f34ee92c"
       },
       "migration_strategy": "vendored_runtime",
       "milestone": "M1",
@@ -3859,7 +3811,22 @@
         "module": "zyra_runtime.scaffold",
         "protocol": "zyra-runtime-scaffold-v1"
       },
-      "source_evidence": [],
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "pilot extraction source file",
+          "source_kind": "file",
+          "source_path": "src/utils/systemPromptType.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "systemPromptType"
+          ],
+          "tags": [
+            "m1-01b",
+            "pilot-extraction"
+          ]
+        }
+      ],
       "source_path": "src/utils/systemPromptType.ts",
       "source_repo": "claude-code-best",
       "tags": [
@@ -3892,7 +3859,7 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T03:22:04.325Z"
+      "updated_at": "2026-07-06T03:58:19.420Z"
     },
     {
       "blockers": [],

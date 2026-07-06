@@ -115,6 +115,21 @@ class SourceExtractionRuntimeScaffoldTests(unittest.TestCase):
             self.assertIn('"ledger_upsert_count": 1', inventory.read_text(encoding="utf-8"))
             self.assertEqual(entries[0].migration_strategy, MigrationStrategy.VENDORED_RUNTIME)
             self.assertEqual(entries[0].main_path_status, MainPathStatus.WORKER_RUNTIME_CONNECTED)
+            self.assertEqual(entries[0].source_evidence[0].source_path, "runtime.ts")
+            self.assertNotIn("source_evidence", entries[0].metadata)
+
+            always_plan = ExtractionPlan(
+                source_repo="test-repo",
+                source_root=source_root,
+                project_root=project_root,
+                target_root=project_root / "vendor-runtimes" / "test-runtime",
+                include_paths=["runtime.ts"],
+                owner_unit="M1-01B",
+                overwrite_policy=OverwritePolicy.ALWAYS,
+            )
+            forced = SourceExtractor(always_plan).run()
+            self.assertEqual(forced.copied_count, 1)
+            self.assertEqual(forced.copied[0].reason, "overwrite policy is always")
 
     def test_runtime_scaffold_defines_required_surfaces_and_event_payload(self) -> None:
         scaffold = default_m1_01b_runtime_scaffold(ROOT)

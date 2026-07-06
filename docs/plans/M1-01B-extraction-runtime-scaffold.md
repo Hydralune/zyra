@@ -69,6 +69,18 @@ The extraction registered 33 `M1-01B` ledger entries with:
 
 The bundled seed ledger was also updated so the M1-01B source-to-target map is reproducible after a clean checkout.
 
+Post-review accounting status for `M1-01B`:
+
+```text
+total_entries=33
+missing_source_evidence_entries=0
+missing_target_entries=0
+missing_runtime_entries=0
+missing_test_entries=0
+policy_error_entries=0
+policy_warning_entries=0
+```
+
 ## Critical Review
 
 - This unit performs real source migration into `zyra`, not a root-workspace `../claude-code-best` dependency.

@@ -453,13 +453,16 @@ class SourceExtractor:
             disposition = ExtractionDisposition.DRY_RUN
             reason = "dry run"
         elif target_abs.exists():
-            if previous_sha == sha:
+            if self.plan.overwrite_policy == OverwritePolicy.ALWAYS:
+                disposition = ExtractionDisposition.COPIED
+                reason = "overwrite policy is always"
+            elif previous_sha == sha:
                 disposition = ExtractionDisposition.SKIPPED_IDENTICAL
                 reason = "target already matches source"
             elif self.plan.overwrite_policy == OverwritePolicy.NEVER:
                 disposition = ExtractionDisposition.SKIPPED_EXISTING
                 reason = "target exists and overwrite policy is never"
-            elif self.plan.overwrite_policy in {OverwritePolicy.IF_CHANGED, OverwritePolicy.ALWAYS}:
+            elif self.plan.overwrite_policy == OverwritePolicy.IF_CHANGED:
                 disposition = ExtractionDisposition.COPIED
                 reason = "target changed and overwrite allowed"
         return ExtractionItem(
@@ -602,20 +605,20 @@ class SourceExtractor:
                 notice_path="third_party/NOTICE.md",
                 notes="M1-01B pilot extraction; final NOTICE consolidation is handled by M3.",
             ),
-            source_evidence=[
-                SourceEvidence(
-                    source_repo=item.source.source_repo,
-                    source_path=item.source.source_path,
-                    exists_in_workspace=True,
-                    source_kind="file",
-                    reason="pilot extraction source file",
-                    symbols=[PurePosixPath(item.source.source_path).stem],
-                    tags=["m1-01b", "pilot-extraction"],
-                )
-            ],
             extracted_sha256=item.sha256,
             extracted_lines=item.line_count,
         )
+        entry.source_evidence = [
+            SourceEvidence(
+                source_repo=item.source.source_repo,
+                source_path=item.source.source_path,
+                exists_in_workspace=True,
+                source_kind="file",
+                reason="pilot extraction source file",
+                symbols=[PurePosixPath(item.source.source_path).stem],
+                tags=["m1-01b", "pilot-extraction"],
+            )
+        ]
         entry.downstream_units = list(self.plan.downstream_units)
         entry.tags = ["m1-01b", "source-extraction", "claude-code-runtime-pilot"]
         entry.replacement_plan = "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary."
