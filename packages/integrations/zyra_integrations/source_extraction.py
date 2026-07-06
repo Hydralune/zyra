@@ -178,6 +178,47 @@ CLAUDE_CODE_PRODUCTIZED_RUNTIME_SOURCES = [
 ]
 
 
+CLAUDE_CODE_QUERY_SESSION_RUNTIME_SOURCES = [
+    "src/assistant/sessionHistory.ts",
+    "src/bridge/inboundMessages.ts",
+    "src/services/api/claude.ts",
+    "src/services/api/bootstrap.ts",
+    "src/services/api/client.ts",
+    "src/services/api/dumpPrompts.ts",
+    "src/services/api/errorUtils.ts",
+    "src/services/api/errors.ts",
+    "src/services/api/filesApi.ts",
+    "src/services/api/logging.ts",
+    "src/services/api/promptCacheBreakDetection.ts",
+    "src/services/api/sessionIngress.ts",
+    "src/services/api/withRetry.ts",
+    "src/bridge/codeSessionApi.ts",
+    "src/bridge/createSession.ts",
+    "src/bridge/sessionIdCompat.ts",
+    "src/bridge/sessionRunner.ts",
+    "src/commands/clear/conversation.ts",
+    "src/commands/rename/generateSessionName.ts",
+    "src/commands/resume",
+    "src/commands/session",
+    "src/utils/agenticSessionSearch.ts",
+    "src/utils/concurrentSessions.ts",
+    "src/utils/conversationRecovery.ts",
+    "src/utils/crossProjectResume.ts",
+    "src/utils/fileHistory.ts",
+    "src/utils/listSessionsImpl.ts",
+    "src/utils/queryProfiler.ts",
+    "src/utils/sessionActivity.ts",
+    "src/utils/sessionEnvironment.ts",
+    "src/utils/sessionFileAccessHooks.ts",
+    "src/utils/sessionRestore.ts",
+    "src/utils/sessionStart.ts",
+    "src/utils/sessionStoragePortable.ts",
+    "src/utils/sessionTitle.ts",
+    "src/utils/sessionUrl.ts",
+    "src/utils/transcriptSearch.ts",
+]
+
+
 class OverwritePolicy(StrEnum):
     NEVER = "never"
     IF_CHANGED = "if_changed"
@@ -843,6 +884,81 @@ def claude_code_m1_02a_plan(
         replacement_plan=(
             "M1-02B/M1-02C/M1-02D will bind these productized Claude Code runtime sources to Zyra's "
             "query loop, tool loop, session lifecycle, compact/restore, and CodeWorker API without relying on parent paths."
+        ),
+    )
+
+
+def claude_code_m1_02b_plan(
+    *,
+    project_root: Path,
+    source_workspace_root: Path,
+    dry_run: bool = False,
+    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED,
+) -> ExtractionPlan:
+    target_root = project_root / "vendor-runtimes" / "claude-code-runtime"
+    return ExtractionPlan(
+        source_repo="claude-code-best",
+        source_root=source_workspace_root / "claude-code-best",
+        project_root=project_root,
+        target_root=target_root,
+        include_paths=list(CLAUDE_CODE_QUERY_SESSION_RUNTIME_SOURCES),
+        owner_unit="M1-02B",
+        milestone="M1",
+        downstream_units=["M1-02C", "M1-02D", "M1-03A", "M1-03B", "M1-03C", "M1-03D", "M1-08", "M2-01B", "M2-04B"],
+        dry_run=dry_run,
+        overwrite_policy=overwrite_policy,
+        report_path=target_root / "metadata" / "query_session_source_inventory.json",
+        manifest_module_path=target_root / "src" / "zyra-query-session-manifest.mjs",
+        runtime_command="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --session-contract",
+        runtime_module="@zyra/claude-code-runtime/query-session",
+        runtime_function="zyraClaudeCodeQuerySessionHealth",
+        runtime_health_check="python scripts/verify_code_worker_sidecar.py",
+        test_path="tests/integration/test_code_worker_query_session_lifecycle.py",
+        test_command="python -m unittest tests.integration.test_code_worker_query_session_lifecycle",
+        capability_prefix="claude_code_query_session",
+        capability_summary=(
+            "Claude Code query/session lifecycle source boundary for append-only transcripts, parent-UUID "
+            "resume, stream request lifecycle, retry/continue handling, and CodeWorkerRuntime session snapshots."
+        ),
+        target_mount="productized/claude-code-best",
+        manifest_export_name="zyraClaudeCodeQuerySessionManifest",
+        manifest_health_export_name="zyraClaudeCodeQuerySessionHealth",
+        manifest_kind="query-session",
+        lifecycle=LedgerLifecycle.PRODUCTIZED,
+        main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
+        main_path_worker_runtime="CodeWorkerRuntime:query-session-lifecycle",
+        main_path_event_types=[
+            "query_session",
+            "query_session_snapshot",
+            "stream_request_start",
+            "turn_start",
+            "message_delta",
+            "turn_end",
+            "error",
+            "continue",
+        ],
+        main_path_control_commands=[
+            "code-worker:query-contract",
+            "code-worker:session-contract",
+            "session:resume",
+            "session:replay",
+            "ledger:accounting",
+            "ledger:gate",
+        ],
+        main_path_artifact_kinds=[
+            "trace",
+            "session_snapshot",
+            "session_transcript",
+            "source_inventory",
+            "runtime_manifest",
+            "structured_data",
+        ],
+        tags=["m1-02b", "query-session-lifecycle", "claude-code-runtime-productized", "reference-only-assisted"],
+        source_evidence_tags=["m1-02b", "query-session", "session-persistence", "stream-lifecycle"],
+        replacement_plan=(
+            "M1-02B binds these productized Claude Code query/session sources to Zyra QuerySession, "
+            "TurnState, MessageLifecycle, event log metadata, checkpoint snapshots, and replay/resume support. "
+            "M1-02C adds tool-loop depth inside the same lifecycle and M1-02D adds compact/restore."
         ),
     )
 

@@ -5,8 +5,18 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
-from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType, new_id, to_jsonable
-from zyra_runtime import ToolCall, ToolExecutionContext, ToolExecutor, ToolResult, tool_result_event
+from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType, to_jsonable
+from zyra_runtime import (
+    QuerySession,
+    QueryStreamEventType,
+    StopReason,
+    ToolCall,
+    ToolExecutionContext,
+    ToolExecutor,
+    ToolResult,
+    snapshot_checkpoint_metadata,
+    tool_result_event,
+)
 
 
 READ_ONLY_TOOL_NAMES = {"file_read", "web_search", "browser", "trace", "checkpoint"}
@@ -19,6 +29,7 @@ class CodeQueryLoopConfig:
     max_query_context_chars: int = 32000
     continue_on_error: bool = False
     query_contract: dict[str, Any] | None = None
+    session_contract: dict[str, Any] | None = None
     max_read_only_concurrency: int = 10
     emit_tool_use_summaries: bool = True
 
@@ -33,6 +44,7 @@ class CodeQueryLoopResult:
     tool_call_count: int
     context_compaction_count: int = 0
     stopped_reason: str | None = None
+    session_snapshot: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, str] = field(default_factory=dict)
 
 
@@ -73,13 +85,24 @@ class CodeQueryLoop:
         compaction_count = 0
         tool_use_summary_count = 0
         executed_turn_count = 0
-        session_id = new_id("codesession")
         ok = True
         stopped_reason: str | None = None
         tool_call_count = 0
         contract = self.config.query_contract or {}
+        session_contract = self.config.session_contract or {}
         orchestration = contract.get("toolOrchestration") if isinstance(contract.get("toolOrchestration"), dict) else {}
         source_files = contract.get("sourceFiles") if isinstance(contract.get("sourceFiles"), list) else []
+        session = QuerySession(
+            run_id=run_id,
+            task_id=task_id,
+            node_id=node_id,
+            worker_request_id=worker_request_id,
+            source_contract={
+                "query_contract": contract,
+                "session_contract": session_contract,
+            },
+        )
+        session_id = session.session_id
 
         max_turns = self.config.max_turns or len(turns)
         event_records.append(
@@ -94,6 +117,7 @@ class CodeQueryLoop:
                     "max_turns": max_turns,
                     "tool_result_budget_chars": self.config.max_tool_result_chars,
                     "query_context_budget_chars": self.config.max_query_context_chars,
+                    "resume_token": session.resume_token,
                 },
             )
         )
@@ -101,6 +125,11 @@ class CodeQueryLoop:
             if turn_index > max_turns:
                 ok = False
                 stopped_reason = "max_turns_exceeded"
+                session.record_error(
+                    error=stopped_reason,
+                    stop_reason=StopReason.MAX_TURNS_EXCEEDED,
+                    metadata={"turn_index": turn_index, "max_turns": max_turns},
+                )
                 event_records.append(
                     _query_lifecycle_event(
                         run_id,
@@ -109,12 +138,37 @@ class CodeQueryLoop:
                         worker_request_id,
                         session_id=session_id,
                         phase="session_stopped",
-                        payload={"turn_index": turn_index, "stopped_reason": stopped_reason},
+                        payload={
+                            "turn_index": turn_index,
+                            "stopped_reason": stopped_reason,
+                            "resume_token": session.resume_token,
+                        },
+                    )
+                )
+                event_records.append(
+                    _query_lifecycle_event(
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        session_id=session_id,
+                        phase="error",
+                        payload={
+                            "turn_index": turn_index,
+                            "error": stopped_reason,
+                            "stop_reason": str(StopReason.MAX_TURNS_EXCEEDED),
+                            "resume_token": session.resume_token,
+                        },
                     )
                 )
                 break
             executed_turn_count += 1
             turn_started_at_count = tool_call_count
+            turn_state = session.start_turn(
+                turn_index,
+                user_content=_turn_user_content(turn_index, turn),
+                metadata={"planned_tool_calls": len(turn), "source_path": "src/QueryEngine.ts"},
+            )
             event_records.append(
                 _query_lifecycle_event(
                     run_id,
@@ -123,8 +177,54 @@ class CodeQueryLoop:
                     worker_request_id,
                     session_id=session_id,
                     phase="turn_started",
-                    payload={"turn_index": turn_index, "planned_tool_calls": len(turn)},
+                    payload={
+                        "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
+                        "planned_tool_calls": len(turn),
+                        "resume_token": session.resume_token,
+                    },
                 )
+            )
+            event_records.append(
+                _query_lifecycle_event(
+                    run_id,
+                    task_id,
+                    node_id,
+                    worker_request_id,
+                    session_id=session_id,
+                    phase="turn_start",
+                    payload={
+                        "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
+                        "planned_tool_calls": len(turn),
+                        "resume_token": session.resume_token,
+                    },
+                )
+            )
+            event_records.append(
+                _query_lifecycle_event(
+                    run_id,
+                    task_id,
+                    node_id,
+                    worker_request_id,
+                    session_id=session_id,
+                    phase="message_delta",
+                    payload={
+                        "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
+                        "role": "user",
+                        "delta": _turn_user_content(turn_index, turn),
+                        "resume_token": session.resume_token,
+                    },
+                )
+            )
+            session.start_stream_request(
+                turn_id=turn_state.turn_id,
+                metadata={
+                    "turn_index": turn_index,
+                    "source_path": "src/query.ts",
+                    "contract_source": str(contract.get("source") or ""),
+                },
             )
             event_records.append(
                 _query_lifecycle_event(
@@ -136,8 +236,36 @@ class CodeQueryLoop:
                     phase="stream_request_start",
                     payload={
                         "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
                         "source_path": "src/query.ts",
                         "contract_source": str(contract.get("source") or ""),
+                        "resume_token": session.resume_token,
+                    },
+                )
+            )
+            session.start_assistant_message(
+                turn_id=turn_state.turn_id,
+                metadata={"turn_index": turn_index, "source_path": "src/query.ts"},
+            )
+            assistant_delta = f"Executing structured CodeWorker turn {turn_index} with {len(turn)} planned tool call(s)."
+            session.append_assistant_delta(
+                assistant_delta,
+                metadata={"turn_index": turn_index, "planned_tool_calls": len(turn)},
+            )
+            event_records.append(
+                _query_lifecycle_event(
+                    run_id,
+                    task_id,
+                    node_id,
+                    worker_request_id,
+                    session_id=session_id,
+                    phase="message_delta",
+                    payload={
+                        "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
+                        "role": "assistant",
+                        "delta": assistant_delta,
+                        "resume_token": session.resume_token,
                     },
                 )
             )
@@ -155,6 +283,16 @@ class CodeQueryLoop:
             ]
             for batch_index, batch in enumerate(self._partition_tool_calls(planned_calls), start=1):
                 execution_mode = _batch_execution_mode(batch)
+                session.record_batch_event(
+                    QueryStreamEventType.TOOL_BATCH_STARTED,
+                    turn_id=turn_state.turn_id,
+                    metadata={
+                        "turn_index": turn_index,
+                        "batch_index": batch_index,
+                        "tool_count": len(batch),
+                        "execution_mode": execution_mode,
+                    },
+                )
                 event_records.append(
                     _query_lifecycle_event(
                         run_id,
@@ -165,6 +303,7 @@ class CodeQueryLoop:
                         phase="tool_batch_started",
                         payload={
                             "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
                             "batch_index": batch_index,
                             "tool_count": len(batch),
                             "execution_mode": execution_mode,
@@ -175,6 +314,17 @@ class CodeQueryLoop:
                     )
                 )
                 for planned in batch:
+                    session.record_tool_call(
+                        tool_call_id=planned.call.tool_call_id,
+                        tool_name=planned.call.tool_name,
+                        turn_id=turn_state.turn_id,
+                        metadata={
+                            "turn_index": turn_index,
+                            "batch_index": batch_index,
+                            "step_index": planned.step_index,
+                            "read_only": planned.read_only,
+                        },
+                    )
                     event_records.append(
                         _query_lifecycle_event(
                             run_id,
@@ -185,6 +335,7 @@ class CodeQueryLoop:
                             phase="tool_call_started",
                             payload={
                                 "turn_index": turn_index,
+                                "turn_id": turn_state.turn_id,
                                 "batch_index": batch_index,
                                 "step_index": planned.step_index,
                                 "tool_call_id": planned.call.tool_call_id,
@@ -208,6 +359,7 @@ class CodeQueryLoop:
                             phase="tool_call_completed",
                             payload={
                                 "turn_index": turn_index,
+                                "turn_id": turn_state.turn_id,
                                 "batch_index": batch_index,
                                 "step_index": planned.step_index,
                                 "tool_call_id": planned.call.tool_call_id,
@@ -215,6 +367,7 @@ class CodeQueryLoop:
                                 "ok": bounded_result.ok,
                                 "error": bounded_result.error,
                                 "artifact_ids": [artifact.artifact_id for artifact in bounded_result.artifacts],
+                                "resume_token": session.resume_token,
                             },
                         )
                     )
@@ -222,6 +375,42 @@ class CodeQueryLoop:
                     tool_call_count += 1
                     step_summary = f"turn {turn_index}.{planned.step_index} {planned.call.tool_name}: {bounded_result.summary}"
                     step_summaries.append(step_summary)
+                    artifact_ids = [artifact.artifact_id for artifact in bounded_result.artifacts]
+                    session.record_tool_result(
+                        tool_call_id=planned.call.tool_call_id,
+                        tool_name=planned.call.tool_name,
+                        summary=bounded_result.summary,
+                        ok=bounded_result.ok,
+                        error=bounded_result.error,
+                        artifacts=artifact_ids,
+                        turn_id=turn_state.turn_id,
+                        metadata={
+                            "turn_index": turn_index,
+                            "batch_index": batch_index,
+                            "step_index": planned.step_index,
+                        },
+                    )
+                    event_records.append(
+                        _query_lifecycle_event(
+                            run_id,
+                            task_id,
+                            node_id,
+                            worker_request_id,
+                            session_id=session_id,
+                            phase="message_delta",
+                            payload={
+                                "turn_index": turn_index,
+                                "turn_id": turn_state.turn_id,
+                                "role": "tool",
+                                "tool_call_id": planned.call.tool_call_id,
+                                "tool_name": planned.call.tool_name,
+                                "delta": bounded_result.summary,
+                                "ok": bounded_result.ok,
+                                "error": bounded_result.error,
+                                "resume_token": session.resume_token,
+                            },
+                        )
+                    )
                     result_chars = len(json.dumps(to_jsonable(bounded_result.output), ensure_ascii=False, sort_keys=True))
                     context_entries.append(
                         {
@@ -267,6 +456,15 @@ class CodeQueryLoop:
                         )
                         artifacts.append(artifact)
                         compaction_count += 1
+                        session.record_context_compaction(
+                            artifact_id=artifact.artifact_id,
+                            metadata={
+                                "turn_index": turn_index,
+                                "batch_index": batch_index,
+                                "step_index": planned.step_index,
+                                "context_chars": context_chars,
+                            },
+                        )
                         event_records.append(
                             _query_lifecycle_event(
                                 run_id,
@@ -277,10 +475,12 @@ class CodeQueryLoop:
                                 phase="context_compacted",
                                 payload={
                                     "turn_index": turn_index,
+                                    "turn_id": turn_state.turn_id,
                                     "batch_index": batch_index,
                                     "step_index": planned.step_index,
                                     "context_chars": context_chars,
                                     "artifact_id": artifact.artifact_id,
+                                    "resume_token": session.resume_token,
                                 },
                             )
                         )
@@ -289,8 +489,80 @@ class CodeQueryLoop:
                     if not bounded_result.ok and not self.config.continue_on_error and stopped_reason is None:
                         ok = False
                         stopped_reason = bounded_result.error or "tool_step_failed"
+                        session.record_error(
+                            error=stopped_reason,
+                            stop_reason=StopReason.TOOL_ERROR,
+                            metadata={
+                                "turn_index": turn_index,
+                                "batch_index": batch_index,
+                                "step_index": planned.step_index,
+                                "tool_call_id": planned.call.tool_call_id,
+                                "tool_name": planned.call.tool_name,
+                            },
+                        )
+                        event_records.append(
+                            _query_lifecycle_event(
+                                run_id,
+                                task_id,
+                                node_id,
+                                worker_request_id,
+                                session_id=session_id,
+                                phase="error",
+                                payload={
+                                    "turn_index": turn_index,
+                                    "turn_id": turn_state.turn_id,
+                                    "tool_call_id": planned.call.tool_call_id,
+                                    "tool_name": planned.call.tool_name,
+                                    "error": stopped_reason,
+                                    "stop_reason": str(StopReason.TOOL_ERROR),
+                                    "resume_token": session.resume_token,
+                                },
+                            )
+                        )
+                    elif not bounded_result.ok and self.config.continue_on_error:
+                        session.record_continue(
+                            reason=StopReason.CONTINUE_REQUESTED,
+                            error=bounded_result.error or "tool_step_failed",
+                            metadata={
+                                "turn_index": turn_index,
+                                "batch_index": batch_index,
+                                "step_index": planned.step_index,
+                                "tool_call_id": planned.call.tool_call_id,
+                                "tool_name": planned.call.tool_name,
+                            },
+                        )
+                        event_records.append(
+                            _query_lifecycle_event(
+                                run_id,
+                                task_id,
+                                node_id,
+                                worker_request_id,
+                                session_id=session_id,
+                                phase="continue",
+                                payload={
+                                    "turn_index": turn_index,
+                                    "turn_id": turn_state.turn_id,
+                                    "tool_call_id": planned.call.tool_call_id,
+                                    "tool_name": planned.call.tool_name,
+                                    "reason": str(StopReason.CONTINUE_REQUESTED),
+                                    "error": bounded_result.error,
+                                    "resume_token": session.resume_token,
+                                },
+                            )
+                        )
                 if self.config.emit_tool_use_summaries:
                     tool_use_summary_count += 1
+                    session.record_batch_event(
+                        QueryStreamEventType.TOOL_USE_SUMMARY,
+                        turn_id=turn_state.turn_id,
+                        metadata={
+                            "turn_index": turn_index,
+                            "batch_index": batch_index,
+                            "execution_mode": execution_mode,
+                            "tool_count": len(batch),
+                            "summary": batch_summaries,
+                        },
+                    )
                     event_records.append(
                         _query_lifecycle_event(
                             run_id,
@@ -301,11 +573,13 @@ class CodeQueryLoop:
                             phase="tool_use_summary",
                             payload={
                                 "turn_index": turn_index,
+                                "turn_id": turn_state.turn_id,
                                 "batch_index": batch_index,
                                 "execution_mode": execution_mode,
                                 "tool_count": len(batch),
                                 "source_path": "src/query.ts",
                                 "summary": batch_summaries,
+                                "resume_token": session.resume_token,
                             },
                         )
                     )
@@ -319,16 +593,40 @@ class CodeQueryLoop:
                         phase="tool_batch_completed",
                         payload={
                             "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
                             "batch_index": batch_index,
                             "tool_count": len(batch),
                             "execution_mode": execution_mode,
                             "ok": all(item["ok"] for item in batch_summaries),
                             "stopped_reason": stopped_reason,
+                            "resume_token": session.resume_token,
                         },
                     )
                 )
+                session.record_batch_event(
+                    QueryStreamEventType.TOOL_BATCH_COMPLETED,
+                    turn_id=turn_state.turn_id,
+                    metadata={
+                        "turn_index": turn_index,
+                        "batch_index": batch_index,
+                        "tool_count": len(batch),
+                        "execution_mode": execution_mode,
+                        "ok": all(item["ok"] for item in batch_summaries),
+                        "stopped_reason": stopped_reason,
+                    },
+                )
                 if not ok and not self.config.continue_on_error:
                     break
+            session.end_turn(
+                ok=ok or self.config.continue_on_error,
+                stop_reason=StopReason.END_TURN if ok or self.config.continue_on_error else StopReason.TOOL_ERROR,
+                error=stopped_reason,
+                metadata={
+                    "turn_index": turn_index,
+                    "tool_calls": tool_call_count - turn_started_at_count,
+                    "stopped_reason": stopped_reason,
+                },
+            )
             event_records.append(
                 _query_lifecycle_event(
                     run_id,
@@ -339,15 +637,90 @@ class CodeQueryLoop:
                     phase="turn_completed",
                     payload={
                         "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
                         "ok": ok,
                         "tool_calls": tool_call_count - turn_started_at_count,
                         "stopped_reason": stopped_reason,
+                        "resume_token": session.resume_token,
+                    },
+                )
+            )
+            event_records.append(
+                _query_lifecycle_event(
+                    run_id,
+                    task_id,
+                    node_id,
+                    worker_request_id,
+                    session_id=session_id,
+                    phase="turn_end",
+                    payload={
+                        "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
+                        "ok": ok or self.config.continue_on_error,
+                        "tool_calls": tool_call_count - turn_started_at_count,
+                        "stopped_reason": stopped_reason,
+                        "resume_token": session.resume_token,
                     },
                 )
             )
             if not ok and not self.config.continue_on_error:
                 break
 
+        session.complete_session(
+            ok=ok,
+            stop_reason=StopReason.SESSION_COMPLETED if ok else StopReason.TOOL_ERROR,
+            metadata={
+                "tool_call_count": tool_call_count,
+                "turn_count": executed_turn_count,
+                "context_compaction_count": compaction_count,
+                "stopped_reason": stopped_reason,
+            },
+        )
+        session_snapshot = session.snapshot_payload(
+            include_transcript=True,
+            metadata={
+                "tool_call_count": tool_call_count,
+                "turn_count": executed_turn_count,
+                "context_compaction_count": compaction_count,
+                "stopped_reason": stopped_reason,
+            },
+        )
+        snapshot_artifact = self.context.artifact_store.write_text(
+            run_id=run_id,
+            task_id=task_id,
+            content=json.dumps(session_snapshot, ensure_ascii=False, indent=2, sort_keys=True),
+            title=f"CodeWorker query session snapshot {session_id}",
+            kind=ArtifactKind.STRUCTURED_DATA,
+            extension=".json",
+            producer_node_id=node_id,
+        )
+        transcript_artifact = self.context.artifact_store.write_text(
+            run_id=run_id,
+            task_id=task_id,
+            content=session.to_jsonl(),
+            title=f"CodeWorker query session transcript {session_id}",
+            kind=ArtifactKind.TRACE,
+            extension=".jsonl",
+            producer_node_id=node_id,
+        )
+        artifacts.extend([snapshot_artifact, transcript_artifact])
+        event_records.append(
+            _query_lifecycle_event(
+                run_id,
+                task_id,
+                node_id,
+                worker_request_id,
+                session_id=session_id,
+                phase="query_session_snapshot",
+                payload={
+                    "snapshot_artifact_id": snapshot_artifact.artifact_id,
+                    "transcript_artifact_id": transcript_artifact.artifact_id,
+                    "resume_token": session.resume_token,
+                    "consistency": session_snapshot.get("consistency", {}),
+                    "stats": session_snapshot.get("stats", {}),
+                },
+            )
+        )
         event_records.append(
             _query_lifecycle_event(
                 run_id,
@@ -362,9 +735,11 @@ class CodeQueryLoop:
                     "turn_count": executed_turn_count,
                     "context_compaction_count": compaction_count,
                     "stopped_reason": stopped_reason,
+                    "resume_token": session.resume_token,
                 },
             )
         )
+        session_metadata = snapshot_checkpoint_metadata(session_snapshot)
         return CodeQueryLoopResult(
             ok=ok,
             event_records=event_records,
@@ -374,9 +749,14 @@ class CodeQueryLoop:
             tool_call_count=tool_call_count,
             context_compaction_count=compaction_count,
             stopped_reason=stopped_reason,
+            session_snapshot=session_snapshot,
             metadata={
                 "loop": "claude_code_query_engine_contract_loop",
                 "query_session_id": session_id,
+                "query_session_resume_token": session.resume_token,
+                "query_session_snapshot_artifact_id": snapshot_artifact.artifact_id,
+                "query_session_transcript_artifact_id": transcript_artifact.artifact_id,
+                **session_metadata,
                 "max_turns": str(max_turns),
                 "tool_result_budget_chars": str(self.config.max_tool_result_chars),
                 "query_context_budget_chars": str(self.config.max_query_context_chars),
@@ -486,6 +866,22 @@ def query_turns_from_constraints(constraints: dict[str, Any]) -> list[list[dict[
     if isinstance(tool_plan, list):
         return [[dict(item) for item in tool_plan if isinstance(item, dict)]]
     return []
+
+
+def _turn_user_content(turn_index: int, turn: list[dict[str, Any]]) -> str:
+    explicit_prompts = [
+        str(step.get("prompt") or step.get("user_message") or "")
+        for step in turn
+        if isinstance(step, dict) and (step.get("prompt") or step.get("user_message"))
+    ]
+    if explicit_prompts:
+        return "\n".join(explicit_prompts)
+    tool_names = [
+        str(step.get("tool_name") or step.get("tool") or "unknown_tool")
+        for step in turn
+        if isinstance(step, dict)
+    ]
+    return f"Structured CodeWorker query turn {turn_index}: execute {', '.join(tool_names) or 'no tools'}."
 
 
 def _batch_execution_mode(batch: list[_PlannedToolCall]) -> str:

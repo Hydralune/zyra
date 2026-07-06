@@ -181,6 +181,7 @@ from .source_extraction import (
     SourceExtractor,
     claude_code_m1_01b_plan,
     claude_code_m1_02a_plan,
+    claude_code_m1_02b_plan,
     write_productized_runtime_files,
     write_runtime_scaffold_files,
 )
@@ -264,6 +265,7 @@ __all__ = [
     "claude_code_best_snapshot",
     "claude_code_m1_01b_plan",
     "claude_code_m1_02a_plan",
+    "claude_code_m1_02b_plan",
     "build_accounting_report",
     "build_claude_code_reference_crosswalk",
     "build_coverage_report",

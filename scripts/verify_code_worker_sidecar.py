@@ -29,7 +29,25 @@ def main() -> None:
     assert inventory["source"] == "claude-code-best"
     assert inventory["productizedRuntime"]["complete"] is True
     assert inventory["moduleEntrypoints"]["queryEngine"] is True
+    assert inventory["moduleEntrypoints"]["sessionPersistenceRuntime"] is True
+    assert inventory["moduleEntrypoints"]["sessionRestoreRuntime"] is True
+    assert inventory["moduleEntrypoints"]["apiStreamRuntime"] is True
     assert inventory["toolRuntime"]["baseToolCount"] > 5
+    session_contract = client.session_contract()
+    assert session_contract["source"] == "claude-code-best"
+    assert session_contract["ownerUnit"] == "M1-02B"
+    assert session_contract["transcriptPersistence"]["appendOnlyJsonl"] is True
+    assert session_contract["transcriptPersistence"]["parentUuidChain"] is True
+    assert session_contract["resumeRecovery"]["hasChainTraversal"] is True
+    assert session_contract["streamRuntime"]["rawSseStateMachine"] is True
+    assert session_contract["streamRuntime"]["hasApiClient"] is True
+    assert session_contract["streamRuntime"]["hasFilesApi"] is True
+    assert session_contract["streamRuntime"]["hasPromptDumpPipeline"] is True
+    assert session_contract["streamRuntime"]["hasQueryProfiler"] is True
+    assert session_contract["streamRuntime"]["retryMatrix"]["unattendedRetry"] is True
+    assert session_contract["bridgeSessionRuntime"]["hasInboundMessages"] is True
+    assert session_contract["sessionCommands"]["hasClearConversation"] is True
+    assert session_contract["sessionCommands"]["hasRenameSession"] is True
     print("CodeWorker sidecar verification passed")
 
 

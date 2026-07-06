@@ -11,6 +11,7 @@ const VENDOR_ROOT = path.join(PROJECT_ROOT, "vendor", "claude-code-best");
 const RUNTIME_ROOT = path.join(PROJECT_ROOT, "vendor-runtimes", "claude-code-runtime");
 const PRODUCTIZED_ROOT = path.join(RUNTIME_ROOT, "productized", "claude-code-best");
 const PRODUCTIZED_INVENTORY_PATH = path.join(RUNTIME_ROOT, "metadata", "productized_source_inventory.json");
+const QUERY_SESSION_INVENTORY_PATH = path.join(RUNTIME_ROOT, "metadata", "query_session_source_inventory.json");
 const REFERENCE_CROSSWALK_PATH = path.join(RUNTIME_ROOT, "metadata", "reference_crosswalk.json");
 
 const PRIORITY_MODULES = [
@@ -111,6 +112,10 @@ function runtimeInventory() {
       mcpRuntime: runtimeExists("src/services/mcp"),
       skillRuntime: runtimeExists("src/tools/SkillTool"),
       subagentRuntime: runtimeExists("src/tools/AgentTool"),
+      sessionPersistenceRuntime: runtimeExists("src/utils/sessionStorage.ts") && runtimeExists("src/utils/sessionStoragePortable.ts"),
+      sessionRestoreRuntime: runtimeExists("src/utils/sessionRestore.ts") && runtimeExists("src/utils/conversationRecovery.ts"),
+      apiStreamRuntime: runtimeExists("src/services/api/claude.ts") && runtimeExists("src/services/api/withRetry.ts"),
+      bridgeSessionRuntime: runtimeExists("src/bridge/sessionRunner.ts") && runtimeExists("src/bridge/createSession.ts"),
     },
     productizedRuntime,
     toolRuntime: {
@@ -137,6 +142,17 @@ function runtimeInventory() {
       skillRuntimeFiles: listRuntimeFiles("src/tools/SkillTool"),
       subagentRuntimeFiles: listRuntimeFiles("src/tools/AgentTool"),
       mcpRuntimeFiles: listRuntimeFiles("src/services/mcp").slice(0, 80),
+      sessionRuntimeFiles: [
+        ...listRuntimeFiles("src/utils").filter((item) => /\/(session|conversation|transcript|fileHistory|concurrentSessions|crossProjectResume)/.test(`/${item}`)),
+        ...listRuntimeFiles("src/commands/resume"),
+        ...listRuntimeFiles("src/commands/session"),
+      ].slice(0, 80),
+      apiStreamRuntimeFiles: listRuntimeFiles("src/services/api").filter((item) =>
+        /\/(claude|withRetry|errors|logging|promptCacheBreakDetection|sessionIngress)\.ts$/.test(`/${item}`),
+      ),
+      bridgeSessionRuntimeFiles: listRuntimeFiles("src/bridge").filter((item) =>
+        /\/(codeSessionApi|createSession|sessionIdCompat|sessionRunner)\.ts$/.test(`/${item}`),
+      ),
     },
   };
 }
@@ -212,6 +228,8 @@ function queryContract() {
       "session_started",
       "stream_request_start",
       "turn_started",
+      "turn_start",
+      "message_delta",
       "tool_batch_started",
       "tool_call_started",
       "tool_call_completed",
@@ -219,6 +237,10 @@ function queryContract() {
       "tool_use_summary",
       "context_compacted",
       "turn_completed",
+      "turn_end",
+      "error",
+      "continue",
+      "query_session_snapshot",
       "session_completed",
     ],
     toolOrchestration: {
@@ -269,6 +291,157 @@ function queryContract() {
   };
 }
 
+function sessionContract() {
+  const sessionStorageSource = readRuntimeText("src/utils/sessionStorage.ts");
+  const portableSource = readRuntimeText("src/utils/sessionStoragePortable.ts");
+  const restoreSource = readRuntimeText("src/utils/sessionRestore.ts");
+  const recoverySource = readRuntimeText("src/utils/conversationRecovery.ts");
+  const listSessionsSource = readRuntimeText("src/utils/listSessionsImpl.ts");
+  const withRetrySource = readRuntimeText("src/services/api/withRetry.ts");
+  const claudeApiSource = readRuntimeText("src/services/api/claude.ts");
+  const apiClientSource = readRuntimeText("src/services/api/client.ts");
+  const filesApiSource = readRuntimeText("src/services/api/filesApi.ts");
+  const dumpPromptsSource = readRuntimeText("src/services/api/dumpPrompts.ts");
+  const queryProfilerSource = readRuntimeText("src/utils/queryProfiler.ts");
+  const bridgeRunnerSource = readRuntimeText("src/bridge/sessionRunner.ts");
+  const inboundBridgeSource = readRuntimeText("src/bridge/inboundMessages.ts");
+  const clearConversationSource = readRuntimeText("src/commands/clear/conversation.ts");
+  const renameSessionSource = readRuntimeText("src/commands/rename/generateSessionName.ts");
+  const sourceFiles = [
+    "src/assistant/sessionHistory.ts",
+    "src/utils/sessionStorage.ts",
+    "src/utils/sessionStoragePortable.ts",
+    "src/utils/sessionRestore.ts",
+    "src/utils/conversationRecovery.ts",
+    "src/utils/listSessionsImpl.ts",
+    "src/utils/crossProjectResume.ts",
+    "src/utils/transcriptSearch.ts",
+    "src/utils/agenticSessionSearch.ts",
+    "src/utils/fileHistory.ts",
+    "src/utils/queryProfiler.ts",
+    "src/services/api/claude.ts",
+    "src/services/api/bootstrap.ts",
+    "src/services/api/client.ts",
+    "src/services/api/dumpPrompts.ts",
+    "src/services/api/errorUtils.ts",
+    "src/services/api/filesApi.ts",
+    "src/services/api/withRetry.ts",
+    "src/services/api/sessionIngress.ts",
+    "src/bridge/inboundMessages.ts",
+    "src/bridge/sessionRunner.ts",
+    "src/bridge/createSession.ts",
+    "src/bridge/codeSessionApi.ts",
+    "src/commands/clear/conversation.ts",
+    "src/commands/rename/generateSessionName.ts",
+    "src/commands/resume/resume.tsx",
+    "src/commands/session/session.tsx",
+  ].filter(runtimeExists);
+  const transcriptEntryTypes = uniqueStrings([
+    ...quotedTypeLiterals(sessionStorageSource),
+    "user",
+    "assistant",
+    "system",
+    "summary",
+    "last-prompt",
+    "custom-title",
+    "ai-title",
+    "content-replacement",
+  ]).filter((item) =>
+    /^(user|assistant|system|attachment|summary|custom-title|ai-title|last-prompt|tag|agent-|mode|worktree|pr-link|file-history|attribution|content-replacement|marble|queue)/.test(
+      item,
+    ),
+  );
+  const resumePipeline = [
+    "loadConversationForResume",
+    "loadTranscriptFile",
+    "readTranscriptForLoad",
+    "parseJSONL",
+    "applyPreservedSegmentRelinks",
+    "applySnipRemovals",
+    "buildConversationChain",
+    "recoverOrphanedParallelToolResults",
+    "deserializeMessagesWithInterruptDetection",
+  ];
+
+  return {
+    source: "claude-code-best",
+    generatedBy: "zyra-code-worker-sidecar",
+    ownerUnit: "M1-02B",
+    sourceFiles,
+    inventoryPath: QUERY_SESSION_INVENTORY_PATH,
+    inventoryExists: fs.existsSync(QUERY_SESSION_INVENTORY_PATH),
+    transcriptPersistence: {
+      appendOnlyJsonl: /append(File|Entry)|JSONL|jsonl/i.test(sessionStorageSource),
+      projectSingleton: /class\s+Project\b/.test(sessionStorageSource),
+      pendingEntries: /pendingEntries/.test(sessionStorageSource),
+      writeQueue: /enqueueWrite|drainWriteQueue|scheduleDrain/.test(sessionStorageSource),
+      parentUuidChain: /parentUuid/.test(sessionStorageSource) && /uuid/.test(sessionStorageSource),
+      liteReadWindowBytes: /65536|LITE_READ_BUF_SIZE/.test(portableSource) ? 65536 : null,
+      transcriptEntryTypes,
+      sourcePath: "src/utils/sessionStorage.ts",
+      portableSourcePath: "src/utils/sessionStoragePortable.ts",
+    },
+    resumeRecovery: {
+      sourcePath: "src/utils/sessionRestore.ts",
+      conversationRecoverySourcePath: "src/utils/conversationRecovery.ts",
+      pipeline: resumePipeline.filter((symbol) => new RegExp(`\\b${symbol}\\b`).test(restoreSource + recoverySource)),
+      hasChainTraversal: /parentUuid/.test(restoreSource + recoverySource) && /buildConversationChain/.test(restoreSource + recoverySource),
+      hasInterruptionDetection: /detectTurnInterruption|interrupted_turn|interrupted_prompt/.test(recoverySource),
+      hasConsistencyCheck: /checkResumeConsistency|messageCount|consistency/.test(restoreSource + recoverySource),
+      hasOrphanedToolResultRecovery: /recoverOrphanedParallelToolResults|filterUnresolvedToolUses/.test(recoverySource),
+      listSessionsUsesLiteRead: /readSessionLite|readHeadAndTail|LITE_READ_BUF_SIZE/.test(listSessionsSource),
+    },
+    streamRuntime: {
+      sourcePath: "src/services/api/claude.ts",
+      withRetrySourcePath: "src/services/api/withRetry.ts",
+      rawSseStateMachine: /message_start|content_block_start|content_block_delta|message_stop/.test(claudeApiSource),
+      streamIdleWatchdog: /90|idle|watchdog|AbortController/.test(claudeApiSource),
+      apiClientSourcePath: "src/services/api/client.ts",
+      hasApiClient: /class|function|export/.test(apiClientSource) && /request|stream|fetch|retry/i.test(apiClientSource),
+      filesApiSourcePath: "src/services/api/filesApi.ts",
+      hasFilesApi: /file|upload|download|artifact|workspace/i.test(filesApiSource),
+      dumpPromptsSourcePath: "src/services/api/dumpPrompts.ts",
+      hasPromptDumpPipeline: /prompt|dump|message|conversation/i.test(dumpPromptsSource),
+      queryProfilerSourcePath: "src/utils/queryProfiler.ts",
+      hasQueryProfiler: /profile|query|duration|metric/i.test(queryProfilerSource),
+      retryMatrix: {
+        rateLimit429: /429/.test(withRetrySource),
+        overloaded529: /529/.test(withRetrySource),
+        unauthorized401: /401/.test(withRetrySource),
+        revoked403: /403/.test(withRetrySource),
+        connectionReset: /ECONNRESET|EPIPE/.test(withRetrySource),
+        unattendedRetry: /UNATTENDED_RETRY|unattended/i.test(withRetrySource),
+        fallbackTriggered: /FallbackTriggeredError|fallback/i.test(withRetrySource),
+      },
+    },
+    bridgeSessionRuntime: {
+      sourcePath: "src/bridge/sessionRunner.ts",
+      hasSessionRunner: /session|runner|run|abort|message/i.test(bridgeRunnerSource),
+      forwardsQueryEvents: /stream|message|event|query/i.test(bridgeRunnerSource),
+      inboundMessagesSourcePath: "src/bridge/inboundMessages.ts",
+      hasInboundMessages: /message|event|session|request/i.test(inboundBridgeSource),
+      hasCreateSession: runtimeExists("src/bridge/createSession.ts"),
+      hasCodeSessionApi: runtimeExists("src/bridge/codeSessionApi.ts"),
+    },
+    sessionCommands: {
+      clearConversationSourcePath: "src/commands/clear/conversation.ts",
+      hasClearConversation: /clear|conversation|message|session/i.test(clearConversationSource),
+      renameSessionSourcePath: "src/commands/rename/generateSessionName.ts",
+      hasRenameSession: /title|name|session|generate/i.test(renameSessionSource),
+    },
+    zyraRuntimeMapping: {
+      querySession: "packages/runtime/zyra_runtime/query_session.py",
+      codeQueryLoop: "packages/workers/zyra_workers/code_query_loop.py",
+      codeWorkerRuntime: "packages/workers/zyra_workers/code_worker_runtime.py",
+      apiCheckpoint: "apps/api/zyra_api/main.py",
+      tests: [
+        "tests/unit/test_query_session_lifecycle.py",
+        "tests/integration/test_code_worker_query_session_lifecycle.py",
+      ],
+    },
+  };
+}
+
 function health() {
   const productizedRuntime = productizedRuntimeSnapshot();
   return {
@@ -296,6 +469,8 @@ function handleRequest(request) {
       return runtimeInventory();
     case "query_contract":
       return queryContract();
+    case "session_contract":
+      return sessionContract();
     default:
       throw new Error(`unknown method: ${request.method}`);
   }
@@ -335,6 +510,8 @@ if (process.argv.includes("--health")) {
   writeResponse(runtimeInventory());
 } else if (process.argv.includes("--query-contract")) {
   writeResponse(queryContract());
+} else if (process.argv.includes("--session-contract")) {
+  writeResponse(sessionContract());
 } else {
   runLineProtocol();
 }
@@ -403,6 +580,10 @@ function productizedRuntimeSnapshot() {
     mcpRuntime: runtimeExists("src/services/mcp"),
     skillRuntime: runtimeExists("src/tools/SkillTool"),
     subagentRuntime: runtimeExists("src/tools/AgentTool"),
+    sessionPersistenceRuntime: runtimeExists("src/utils/sessionStorage.ts") && runtimeExists("src/utils/sessionStoragePortable.ts"),
+    sessionRestoreRuntime: runtimeExists("src/utils/sessionRestore.ts") && runtimeExists("src/utils/conversationRecovery.ts"),
+    apiStreamRuntime: runtimeExists("src/services/api/claude.ts") && runtimeExists("src/services/api/withRetry.ts"),
+    bridgeSessionRuntime: runtimeExists("src/bridge/sessionRunner.ts") && runtimeExists("src/bridge/createSession.ts"),
   };
   const effectiveLineCount = Number(summary.effective_line_count ?? 0);
   const copiedFileCount = Number(summary.copied_count ?? 0) + Number(summary.skipped_count ?? 0);
@@ -419,6 +600,14 @@ function productizedRuntimeSnapshot() {
     effectiveLineCount,
     copiedFileCount,
     moduleChecks,
+    querySessionRuntime: {
+      inventoryPath: QUERY_SESSION_INVENTORY_PATH,
+      inventoryExists: fs.existsSync(QUERY_SESSION_INVENTORY_PATH),
+      sessionPersistenceRuntime: moduleChecks.sessionPersistenceRuntime,
+      sessionRestoreRuntime: moduleChecks.sessionRestoreRuntime,
+      apiStreamRuntime: moduleChecks.apiStreamRuntime,
+      bridgeSessionRuntime: moduleChecks.bridgeSessionRuntime,
+    },
     referenceCrosswalk: {
       ok: crosswalk.ok === true,
       entryCount: crosswalkSummary.entry_count ?? 0,
@@ -504,6 +693,10 @@ function matches(source, pattern, mapper) {
 
 function uniqueStrings(values) {
   return [...new Set(values)].sort();
+}
+
+function quotedTypeLiterals(source) {
+  return matches(source, /type:\s*['"]([^'"]+)['"]/g, (match) => match[1]);
 }
 
 function extractTypeFields(source, typeName) {

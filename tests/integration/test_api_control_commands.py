@@ -611,14 +611,29 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(executed["worker_result"]["metadata"]["query_contract_write_serial"], "true")
                 self.assertEqual(executed["worker_result"]["metadata"]["query_turns"], "1")
                 self.assertEqual(executed["worker_result"]["metadata"]["context_compactions"], "0")
+                self.assertEqual(executed["worker_result"]["metadata"]["query_session_consistent"], "true")
+                self.assertTrue(executed["worker_result"]["metadata"]["query_session_resume_token"].startswith("codesession_"))
+                self.assertIn("last_code_worker_session", executed["task"]["metadata"])
+                self.assertEqual(
+                    executed["task"]["metadata"]["last_code_worker_session"]["session_id"],
+                    executed["worker_result"]["metadata"]["query_session_id"],
+                )
                 self.assertTrue((Path(tmpdir) / "workspace" / "worker" / "output.txt").exists())
                 self.assertGreaterEqual(len(_get(base_url, f"/tasks/{task_id}/events")["events"]), 4)
 
                 artifacts = _get(base_url, f"/tasks/{task_id}/artifacts")["artifacts"]
-                self.assertEqual(len(artifacts), 1)
-                artifact_id = artifacts[0]["artifact"]["artifact_id"]
-                preview = _get(base_url, f"/artifacts/{artifact_id}")["artifact"]
+                self.assertGreaterEqual(len(artifacts), 3)
+                by_title = {item["artifact"]["title"]: item["artifact"]["artifact_id"] for item in artifacts}
+                trace_id = next(artifact_id for title, artifact_id in by_title.items() if "CodeWorker trace" in title)
+                snapshot_id = executed["worker_result"]["metadata"]["query_session_snapshot_artifact_id"]
+                transcript_id = executed["worker_result"]["metadata"]["query_session_transcript_artifact_id"]
+                preview = _get(base_url, f"/artifacts/{trace_id}")["artifact"]
+                snapshot = _get(base_url, f"/artifacts/{snapshot_id}")["artifact"]
+                transcript = _get(base_url, f"/artifacts/{transcript_id}")["artifact"]
                 self.assertIn("CodeWorker Runtime Trace", preview["content"])
+                self.assertIn("Query Session Contract Sources", preview["content"])
+                self.assertIn('"consistency"', snapshot["content"])
+                self.assertIn('"type": "session_metadata"', transcript["content"])
             finally:
                 server.shutdown()
                 server.server_close()

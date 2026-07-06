@@ -29,6 +29,9 @@ class CodeWorkerSidecarClient:
     def query_contract(self) -> dict[str, Any]:
         return self._run_one_shot("--query-contract")
 
+    def session_contract(self) -> dict[str, Any]:
+        return self._run_one_shot("--session-contract")
+
     def _run_one_shot(self, flag: str) -> dict[str, Any]:
         completed = subprocess.run(
             [self.node_executable, str(self.entrypoint), flag],

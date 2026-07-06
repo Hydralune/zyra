@@ -46,6 +46,7 @@ class CodeWorkerRuntime:
         sidecar_health = self.sidecar_client.health()
         sidecar_inventory = self.sidecar_client.runtime_inventory()
         sidecar_query_contract = self.sidecar_client.query_contract()
+        sidecar_session_contract = self.sidecar_client.session_contract()
         query_turns = query_turns_from_constraints(request.constraints)
         if not query_turns:
             worker_result = WorkerResult(
@@ -57,6 +58,7 @@ class CodeWorkerRuntime:
                     **_sidecar_metadata(sidecar_health),
                     **_inventory_metadata(sidecar_inventory),
                     **_contract_metadata(sidecar_query_contract),
+                    **_session_contract_metadata(sidecar_session_contract),
                 },
             )
             return CodeWorkerRun(
@@ -78,6 +80,7 @@ class CodeWorkerRuntime:
                 ),
                 continue_on_error=request.constraints.get("continue_on_error") is True,
                 query_contract=sidecar_query_contract,
+                session_contract=sidecar_session_contract,
                 max_read_only_concurrency=_positive_int(
                     request.constraints.get("max_read_only_concurrency"),
                     default=_contract_default_concurrency(sidecar_query_contract),
@@ -103,6 +106,7 @@ class CodeWorkerRuntime:
                 sidecar_health,
                 sidecar_inventory,
                 sidecar_query_contract,
+                sidecar_session_contract,
                 step_summaries,
                 loop_result,
             ),
@@ -128,11 +132,13 @@ class CodeWorkerRuntime:
                 **_sidecar_metadata(sidecar_health),
                 **_inventory_metadata(sidecar_inventory),
                 **_contract_metadata(sidecar_query_contract),
+                **_session_contract_metadata(sidecar_session_contract),
                 **loop_result.metadata,
                 "query_turns": str(loop_result.turn_count),
                 "tool_steps": str(loop_result.tool_call_count),
                 "context_compactions": str(loop_result.context_compaction_count),
                 "trace_artifact_id": trace_artifact.artifact_id,
+                "query_session_checkpoint_ready": str(bool(loop_result.session_snapshot)).lower(),
             },
         )
         return CodeWorkerRun(
@@ -187,6 +193,27 @@ def _contract_metadata(contract: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _session_contract_metadata(contract: dict[str, Any]) -> dict[str, str]:
+    persistence = contract.get("transcriptPersistence") if isinstance(contract.get("transcriptPersistence"), dict) else {}
+    recovery = contract.get("resumeRecovery") if isinstance(contract.get("resumeRecovery"), dict) else {}
+    stream = contract.get("streamRuntime") if isinstance(contract.get("streamRuntime"), dict) else {}
+    bridge = contract.get("bridgeSessionRuntime") if isinstance(contract.get("bridgeSessionRuntime"), dict) else {}
+    retry_matrix = stream.get("retryMatrix") if isinstance(stream.get("retryMatrix"), dict) else {}
+    return {
+        "session_contract_source": str(contract.get("source") or ""),
+        "session_contract_owner_unit": str(contract.get("ownerUnit") or ""),
+        "session_contract_inventory_exists": str(contract.get("inventoryExists") is True).lower(),
+        "session_contract_append_only_jsonl": str(persistence.get("appendOnlyJsonl") is True).lower(),
+        "session_contract_parent_uuid_chain": str(persistence.get("parentUuidChain") is True).lower(),
+        "session_contract_lite_read_window": str(persistence.get("liteReadWindowBytes") or ""),
+        "session_contract_resume_chain": str(recovery.get("hasChainTraversal") is True).lower(),
+        "session_contract_interruption_detection": str(recovery.get("hasInterruptionDetection") is True).lower(),
+        "session_contract_raw_sse": str(stream.get("rawSseStateMachine") is True).lower(),
+        "session_contract_unattended_retry": str(retry_matrix.get("unattendedRetry") is True).lower(),
+        "session_contract_bridge_runner": str(bridge.get("hasSessionRunner") is True).lower(),
+    }
+
+
 def _contract_default_concurrency(contract: dict[str, Any]) -> int:
     orchestration = contract.get("toolOrchestration") if isinstance(contract.get("toolOrchestration"), dict) else {}
     return _positive_int(orchestration.get("maxConcurrencyDefault"), default=10)
@@ -213,6 +240,7 @@ def _trace_markdown(
     sidecar_health: dict[str, Any],
     sidecar_inventory: dict[str, Any],
     sidecar_query_contract: dict[str, Any],
+    sidecar_session_contract: dict[str, Any],
     step_summaries: list[str],
     loop_result: CodeQueryLoopResult,
 ) -> str:
@@ -230,6 +258,19 @@ def _trace_markdown(
     source_files = sidecar_query_contract.get("sourceFiles")
     if not isinstance(source_files, list):
         source_files = []
+    session_source_files = sidecar_session_contract.get("sourceFiles")
+    if not isinstance(session_source_files, list):
+        session_source_files = []
+    session_persistence = (
+        sidecar_session_contract.get("transcriptPersistence")
+        if isinstance(sidecar_session_contract.get("transcriptPersistence"), dict)
+        else {}
+    )
+    session_recovery = (
+        sidecar_session_contract.get("resumeRecovery")
+        if isinstance(sidecar_session_contract.get("resumeRecovery"), dict)
+        else {}
+    )
     high_value_commands = command_runtime.get("highValueCommandPaths")
     if not isinstance(high_value_commands, list):
         high_value_commands = []
@@ -258,6 +299,12 @@ def _trace_markdown(
             f"- tool_result_budget_chars: `{loop_result.metadata.get('tool_result_budget_chars', '')}`",
             f"- query_context_budget_chars: `{loop_result.metadata.get('query_context_budget_chars', '')}`",
             f"- query_session_id: `{loop_result.metadata.get('query_session_id', '')}`",
+            f"- query_session_resume_token: `{loop_result.metadata.get('query_session_resume_token', '')}`",
+            f"- query_session_snapshot_artifact_id: `{loop_result.metadata.get('query_session_snapshot_artifact_id', '')}`",
+            f"- query_session_transcript_artifact_id: `{loop_result.metadata.get('query_session_transcript_artifact_id', '')}`",
+            f"- session_append_only_jsonl: `{str(session_persistence.get('appendOnlyJsonl') is True).lower()}`",
+            f"- session_parent_uuid_chain: `{str(session_persistence.get('parentUuidChain') is True).lower()}`",
+            f"- session_resume_chain: `{str(session_recovery.get('hasChainTraversal') is True).lower()}`",
             f"- vendored_runtime_complete: `{str(vendor.get('complete') is True).lower()}`",
             f"- inventory_base_tool_count: `{tool_runtime.get('baseToolCount', 0)}`",
             f"- inventory_command_count: `{command_runtime.get('commandCount', 0)}`",
@@ -273,6 +320,10 @@ def _trace_markdown(
             "## QueryEngine Contract Sources",
             "",
             *(f"- `{source_file}`" for source_file in source_files[:24]),
+            "",
+            "## Query Session Contract Sources",
+            "",
+            *(f"- `{source_file}`" for source_file in session_source_files[:32]),
             "",
             "## Vendored Runtime Modules",
             "",

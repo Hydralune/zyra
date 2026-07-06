@@ -18,6 +18,7 @@ from zyra_integrations.source_extraction import (  # noqa: E402
     SourceExtractor,
     claude_code_m1_01b_plan,
     claude_code_m1_02a_plan,
+    claude_code_m1_02b_plan,
     write_productized_runtime_files,
     write_runtime_scaffold_files,
 )
@@ -49,6 +50,20 @@ def build_parser() -> argparse.ArgumentParser:
     productized.add_argument("--write-scaffold", action="store_true")
     productized.add_argument("--write-crosswalk", action="store_true")
     productized.add_argument("--json", action="store_true")
+
+    query_session = subcommands.add_parser(
+        "productize-claude-query-session",
+        help="Run the M1-02B Claude Code query/session lifecycle extraction",
+    )
+    query_session.add_argument("--dry-run", action="store_true")
+    query_session.add_argument(
+        "--overwrite-policy",
+        choices=[item.value for item in OverwritePolicy],
+        default=OverwritePolicy.IF_CHANGED.value,
+    )
+    query_session.add_argument("--write-ledger", action="store_true")
+    query_session.add_argument("--update-seed", action="store_true")
+    query_session.add_argument("--json", action="store_true")
 
     smoke = subcommands.add_parser("smoke", help="Verify the M1-01B runtime extraction scaffold")
     smoke.add_argument("--json", action="store_true")
@@ -121,6 +136,25 @@ def main(argv: list[str] | None = None) -> int:
         }
         _print_payload(payload, as_json=args.json)
         return 0 if report.ok and (crosswalk_payload is not None or not args.write_crosswalk or args.dry_run) else 1
+
+    if args.command == "productize-claude-query-session":
+        plan = claude_code_m1_02b_plan(
+            project_root=project_root,
+            source_workspace_root=source_workspace_root,
+            dry_run=args.dry_run,
+            overwrite_policy=OverwritePolicy(args.overwrite_policy),
+        )
+        extractor = SourceExtractor(plan)
+        report = extractor.run()
+        ledger_payload = None
+        if args.write_ledger and not args.dry_run and report.ok:
+            ledger_payload = extractor.upsert_ledger_entries(report, project_ledger=True, seed_ledger=args.update_seed)
+        payload = {
+            "report": report.to_dict(),
+            "ledger": ledger_payload,
+        }
+        _print_payload(payload, as_json=args.json)
+        return 0 if report.ok else 1
 
     if args.command == "smoke":
         payload = smoke_payload(project_root)

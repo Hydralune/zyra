@@ -903,6 +903,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
             if run_result.worker_result.artifacts:
                 state.artifacts.extend(run_result.worker_result.artifacts)
+            _record_code_worker_session_metadata(state, run_result)
             state.budget.tool_calls += sum(1 for event in run_result.event_records if "tool_result" in event.payload)
             if run_result.event_records:
                 state.updated_at = run_result.event_records[-1].created_at
@@ -1560,6 +1561,43 @@ def _record_compaction_metadata(state: Any, result: Any, *, source_event_id: str
             "source": "MemoryFabric",
         }
     )
+
+
+def _record_code_worker_session_metadata(state: Any, run_result: Any) -> None:
+    metadata = dict(getattr(run_result.worker_result, "metadata", {}) or {})
+    session_id = metadata.get("query_session_id")
+    if not session_id:
+        return
+    session_events = [
+        event
+        for event in getattr(run_result, "event_records", [])
+        if isinstance(getattr(event, "payload", None), dict) and "query_session" in event.payload
+    ]
+    snapshot_events = [
+        event.payload["query_session"]
+        for event in session_events
+        if event.payload.get("query_session", {}).get("phase") == "query_session_snapshot"
+    ]
+    latest_snapshot = snapshot_events[-1] if snapshot_events else {}
+    record = {
+        "session_id": session_id,
+        "resume_token": metadata.get("query_session_resume_token", ""),
+        "snapshot_artifact_id": metadata.get("query_session_snapshot_artifact_id", ""),
+        "transcript_artifact_id": metadata.get("query_session_transcript_artifact_id", ""),
+        "trace_artifact_id": metadata.get("trace_artifact_id", ""),
+        "turn_count": metadata.get("query_session_turns", metadata.get("query_turns", "0")),
+        "message_count": metadata.get("query_session_messages", "0"),
+        "transcript_entry_count": metadata.get("query_session_transcript_entries", "0"),
+        "consistent": metadata.get("query_session_consistent", "false"),
+        "leaf_uuid": metadata.get("query_session_leaf_uuid", ""),
+        "worker_request_id": run_result.worker_result.request_id,
+        "event_ids": [event.event_id for event in session_events],
+        "snapshot_event": latest_snapshot,
+        "source": "CodeWorkerRuntime",
+    }
+    sessions = state.metadata.setdefault("code_worker_sessions", [])
+    sessions.append(record)
+    state.metadata["last_code_worker_session"] = record
 
 
 def _compact_policy_from_payload(payload: dict[str, Any]) -> CompactPolicy:
