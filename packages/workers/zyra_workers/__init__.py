@@ -21,10 +21,26 @@ from .browser_worker import BrowserWorkerRun, BrowserWorkerRuntime
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_query_loop import CodeQueryLoop, CodeQueryLoopConfig, CodeQueryLoopResult, query_turns_from_constraints
 from .code_worker_runtime import CodeWorkerRun, CodeWorkerRuntime
+from .runtime_scaffold import (
+    BaseWorkerScaffold,
+    BrowserWorkerScaffold,
+    CodeWorkerScaffold,
+    MemoryWorkerScaffold,
+    SandboxWorkerScaffold,
+    SchedulerWorkerScaffold,
+    WorkerScaffoldHealth,
+    WorkerScaffoldKind,
+    WorkerSmokeResult,
+    WorkerSmokeStatus,
+    build_m1_01b_worker_scaffolds,
+    worker_scaffold_events,
+    worker_scaffold_health_payload,
+)
 
 __all__ = [
     "BrowserWorkerRun",
     "BrowserWorkerRuntime",
+    "BaseWorkerScaffold",
     "BrowserActionDescriptor",
     "BrowserActionRegistry",
     "BrowserPlanValidationIssue",
@@ -37,7 +53,16 @@ __all__ = [
     "CodeQueryLoopConfig",
     "CodeQueryLoopResult",
     "CodeWorkerRuntime",
+    "CodeWorkerScaffold",
     "CodeWorkerSidecarClient",
+    "MemoryWorkerScaffold",
+    "SandboxWorkerScaffold",
+    "SchedulerWorkerScaffold",
+    "WorkerScaffoldHealth",
+    "WorkerScaffoldKind",
+    "WorkerSmokeResult",
+    "WorkerSmokeStatus",
+    "build_m1_01b_worker_scaffolds",
     "code_worker_entrypoint",
     "browser_use_health_summary",
     "browser_use_runtime_metadata",
@@ -48,4 +73,6 @@ __all__ = [
     "load_browser_use_action_models",
     "load_browser_use_registered_actions",
     "query_turns_from_constraints",
+    "worker_scaffold_events",
+    "worker_scaffold_health_payload",
 ]

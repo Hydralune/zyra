@@ -1,0 +1,11 @@
+{
+  "description": "Productized Claude Code runtime pilot boundary for Zyra.",
+  "name": "@zyra/claude-code-runtime",
+  "private": true,
+  "scripts": {
+    "health": "node src/zyra-pilot-smoke.mjs",
+    "inventory": "node src/zyra-pilot-smoke.mjs --inventory"
+  },
+  "type": "module",
+  "version": "0.1.0-m1-01b"
+}

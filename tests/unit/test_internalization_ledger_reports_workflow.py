@@ -81,7 +81,7 @@ class LedgerReportsWorkflowTests(unittest.TestCase):
     def test_completion_gate_blocks_migration_unit_without_ledger_records(self) -> None:
         ledger = load_seed_ledger()
 
-        report = build_completion_gate_report(ROOT, ledger, owner_unit="M1-01B")
+        report = build_completion_gate_report(ROOT, ledger, owner_unit="M1-02C")
         missing_codes = {str(finding.code) for finding in report.findings}
 
         self.assertFalse(report.ok)
