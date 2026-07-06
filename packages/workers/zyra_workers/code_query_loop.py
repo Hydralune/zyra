@@ -10,16 +10,18 @@ from zyra_runtime import (
     QuerySession,
     QueryStreamEventType,
     StopReason,
-    ToolCall,
     ToolExecutionContext,
     ToolExecutor,
+    ToolFailureSignal,
+    ToolLoopRequest,
+    ToolLoopScheduler,
     ToolResult,
+    ToolResultBudgeter,
     snapshot_checkpoint_metadata,
+    tool_failure_signal_from_result,
     tool_result_event,
+    watchdog_signal_payload,
 )
-
-
-READ_ONLY_TOOL_NAMES = {"file_read", "web_search", "browser", "trace", "checkpoint"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +32,7 @@ class CodeQueryLoopConfig:
     continue_on_error: bool = False
     query_contract: dict[str, Any] | None = None
     session_contract: dict[str, Any] | None = None
+    tool_loop_contract: dict[str, Any] | None = None
     max_read_only_concurrency: int = 10
     emit_tool_use_summaries: bool = True
 
@@ -46,13 +49,6 @@ class CodeQueryLoopResult:
     stopped_reason: str | None = None
     session_snapshot: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class _PlannedToolCall:
-    step_index: int
-    call: ToolCall
-    read_only: bool
 
 
 class CodeQueryLoop:
@@ -77,6 +73,12 @@ class CodeQueryLoop:
         turns: list[list[dict[str, Any]]],
     ) -> CodeQueryLoopResult:
         executor = ToolExecutor(self.context)
+        scheduler = ToolLoopScheduler(
+            self.context.registry,
+            max_read_only_concurrency=self.config.max_read_only_concurrency,
+            source_contract=self.config.tool_loop_contract or self.config.query_contract or {},
+        )
+        budgeter = ToolResultBudgeter(max_chars=self.config.max_tool_result_chars)
         event_records: list[EventRecord] = []
         artifacts: list[ArtifactRef] = []
         step_summaries: list[str] = []
@@ -84,12 +86,18 @@ class CodeQueryLoop:
         context_chars = 0
         compaction_count = 0
         tool_use_summary_count = 0
+        tool_budget_externalization_count = 0
+        tool_failure_signal_count = 0
+        tool_schema_error_count = 0
+        conflict_protected_count = 0
         executed_turn_count = 0
         ok = True
         stopped_reason: str | None = None
         tool_call_count = 0
+        failure_signals: list[ToolFailureSignal] = []
         contract = self.config.query_contract or {}
         session_contract = self.config.session_contract or {}
+        tool_loop_contract = self.config.tool_loop_contract or {}
         orchestration = contract.get("toolOrchestration") if isinstance(contract.get("toolOrchestration"), dict) else {}
         source_files = contract.get("sourceFiles") if isinstance(contract.get("sourceFiles"), list) else []
         session = QuerySession(
@@ -269,28 +277,57 @@ class CodeQueryLoop:
                     },
                 )
             )
-            planned_calls = [
-                self._planned_tool_call(
-                    run_id=run_id,
-                    task_id=task_id,
-                    node_id=node_id,
-                    worker_request_id=worker_request_id,
-                    turn_index=turn_index,
-                    step_index=step_index,
-                    step=step,
+            tool_loop_plan = scheduler.plan_turn(
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                worker_request_id=worker_request_id,
+                turn_index=turn_index,
+                steps=turn,
+            )
+            tool_schema_error_count += tool_loop_plan.schema_error_count
+            conflict_protected_count += tool_loop_plan.conflict_protected_count
+            session.record_batch_event(
+                QueryStreamEventType.TOOL_LOOP_PLAN,
+                turn_id=turn_state.turn_id,
+                metadata=tool_loop_plan.to_dict(),
+            )
+            event_records.append(
+                _query_lifecycle_event(
+                    run_id,
+                    task_id,
+                    node_id,
+                    worker_request_id,
+                    session_id=session_id,
+                    phase="tool_loop_plan",
+                    payload={
+                        "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
+                        "tool_count": len(tool_loop_plan.requests),
+                        "batch_count": len(tool_loop_plan.batches),
+                        "read_only_count": tool_loop_plan.read_only_count,
+                        "write_count": tool_loop_plan.write_count,
+                        "schema_error_count": tool_loop_plan.schema_error_count,
+                        "conflict_protected_count": tool_loop_plan.conflict_protected_count,
+                        "source_path": "src/services/tools/toolOrchestration.ts",
+                        "resume_token": session.resume_token,
+                    },
                 )
-                for step_index, step in enumerate(turn, start=1)
-            ]
-            for batch_index, batch in enumerate(self._partition_tool_calls(planned_calls), start=1):
-                execution_mode = _batch_execution_mode(batch)
+            )
+            for batch in tool_loop_plan.batches:
+                batch_index = batch.batch_index
+                batch_requests = batch.requests
+                execution_mode = str(batch.execution_mode)
                 session.record_batch_event(
                     QueryStreamEventType.TOOL_BATCH_STARTED,
                     turn_id=turn_state.turn_id,
                     metadata={
                         "turn_index": turn_index,
                         "batch_index": batch_index,
-                        "tool_count": len(batch),
+                        "tool_count": len(batch_requests),
                         "execution_mode": execution_mode,
+                        "conflict_keys": batch.conflict_keys,
+                        "conflict_protected": batch.conflict_protected,
                     },
                 )
                 event_records.append(
@@ -305,15 +342,17 @@ class CodeQueryLoop:
                             "turn_index": turn_index,
                             "turn_id": turn_state.turn_id,
                             "batch_index": batch_index,
-                            "tool_count": len(batch),
+                            "tool_count": len(batch_requests),
                             "execution_mode": execution_mode,
                             "source_path": "src/services/tools/toolOrchestration.ts",
-                            "tool_names": [planned.call.tool_name for planned in batch],
-                            "read_only": str(all(planned.read_only for planned in batch)).lower(),
+                            "tool_names": [planned.call.tool_name for planned in batch_requests],
+                            "read_only": str(all(planned.read_only for planned in batch_requests)).lower(),
+                            "conflict_keys": batch.conflict_keys,
+                            "conflict_protected": str(batch.conflict_protected).lower(),
                         },
                     )
                 )
-                for planned in batch:
+                for planned in batch_requests:
                     session.record_tool_call(
                         tool_call_id=planned.call.tool_call_id,
                         tool_name=planned.call.tool_name,
@@ -341,13 +380,76 @@ class CodeQueryLoop:
                                 "tool_call_id": planned.call.tool_call_id,
                                 "tool_name": planned.call.tool_name,
                                 "read_only": str(planned.read_only).lower(),
+                                "access_mode": str(planned.access_mode),
+                                "conflict_key": planned.conflict_key,
+                                "schema_error_count": len(planned.schema_errors),
                             },
                         )
                     )
-                raw_results = self._execute_batch(executor, batch)
+                raw_results = self._execute_batch(executor, batch_requests, scheduler)
                 batch_summaries: list[dict[str, Any]] = []
-                for planned, result in zip(batch, raw_results, strict=True):
-                    bounded_result = self._apply_tool_result_budget(planned.call, result)
+                for planned, result in zip(batch_requests, raw_results, strict=True):
+                    bounded_result, budget_decision = budgeter.apply(
+                        request=planned,
+                        result=result,
+                        artifact_store=self.context.artifact_store,
+                    )
+                    if budget_decision.applied:
+                        tool_budget_externalization_count += 1
+                        budget_signal = tool_failure_signal_from_result(
+                            planned,
+                            bounded_result,
+                            budget_decision=budget_decision,
+                        )
+                        if budget_signal is not None:
+                            failure_signals.append(budget_signal)
+                            tool_failure_signal_count += 1
+                            _append_tool_signal_events(
+                                event_records,
+                                session,
+                                run_id=run_id,
+                                task_id=task_id,
+                                node_id=node_id,
+                                worker_request_id=worker_request_id,
+                                session_id=session_id,
+                                turn_id=turn_state.turn_id,
+                                turn_index=turn_index,
+                                batch_index=batch_index,
+                                step_index=planned.step_index,
+                                signal=budget_signal,
+                            )
+                        event_records.append(
+                            _query_lifecycle_event(
+                                run_id,
+                                task_id,
+                                node_id,
+                                worker_request_id,
+                                session_id=session_id,
+                                phase="tool_result_budget_exceeded",
+                                payload={
+                                    "turn_index": turn_index,
+                                    "turn_id": turn_state.turn_id,
+                                    "batch_index": batch_index,
+                                    "step_index": planned.step_index,
+                                    "tool_call_id": planned.call.tool_call_id,
+                                    "tool_name": planned.call.tool_name,
+                                    "budget": budget_decision.to_dict(),
+                                    "resume_token": session.resume_token,
+                                },
+                            )
+                        )
+                        session.record_batch_event(
+                            QueryStreamEventType.TOOL_RESULT_BUDGET_EXCEEDED,
+                            turn_id=turn_state.turn_id,
+                            metadata={
+                                "turn_index": turn_index,
+                                "batch_index": batch_index,
+                                "step_index": planned.step_index,
+                                "tool_call_id": planned.call.tool_call_id,
+                                "tool_name": planned.call.tool_name,
+                                "budget": budget_decision.to_dict(),
+                            },
+                        )
                     event_records.append(tool_result_event(planned.call, bounded_result))
                     event_records.append(
                         _query_lifecycle_event(
@@ -367,10 +469,29 @@ class CodeQueryLoop:
                                 "ok": bounded_result.ok,
                                 "error": bounded_result.error,
                                 "artifact_ids": [artifact.artifact_id for artifact in bounded_result.artifacts],
+                                "budget_applied": str(budget_decision.applied).lower(),
                                 "resume_token": session.resume_token,
                             },
                         )
                     )
+                    failure_signal = tool_failure_signal_from_result(planned, bounded_result)
+                    if failure_signal is not None:
+                        failure_signals.append(failure_signal)
+                        tool_failure_signal_count += 1
+                        _append_tool_signal_events(
+                            event_records,
+                            session,
+                            run_id=run_id,
+                            task_id=task_id,
+                            node_id=node_id,
+                            worker_request_id=worker_request_id,
+                            session_id=session_id,
+                            turn_id=turn_state.turn_id,
+                            turn_index=turn_index,
+                            batch_index=batch_index,
+                            step_index=planned.step_index,
+                            signal=failure_signal,
+                        )
                     artifacts.extend(bounded_result.artifacts)
                     tool_call_count += 1
                     step_summary = f"turn {turn_index}.{planned.step_index} {planned.call.tool_name}: {bounded_result.summary}"
@@ -423,6 +544,12 @@ class CodeQueryLoop:
                             "error": bounded_result.error,
                             "result_chars": result_chars,
                             "artifact_ids": [artifact.artifact_id for artifact in bounded_result.artifacts],
+                            "budget_applied": budget_decision.applied,
+                            "failure_signal_ids": [
+                                signal.signal_id
+                                for signal in failure_signals
+                                if signal.tool_call_id == planned.call.tool_call_id
+                            ],
                         }
                     )
                     batch_summaries.append(
@@ -432,6 +559,7 @@ class CodeQueryLoop:
                             "ok": bounded_result.ok,
                             "summary": bounded_result.summary,
                             "error": bounded_result.error,
+                            "budget_applied": budget_decision.applied,
                         }
                     )
                     context_chars += result_chars
@@ -559,7 +687,7 @@ class CodeQueryLoop:
                             "turn_index": turn_index,
                             "batch_index": batch_index,
                             "execution_mode": execution_mode,
-                            "tool_count": len(batch),
+                            "tool_count": len(batch_requests),
                             "summary": batch_summaries,
                         },
                     )
@@ -576,7 +704,7 @@ class CodeQueryLoop:
                                 "turn_id": turn_state.turn_id,
                                 "batch_index": batch_index,
                                 "execution_mode": execution_mode,
-                                "tool_count": len(batch),
+                                "tool_count": len(batch_requests),
                                 "source_path": "src/query.ts",
                                 "summary": batch_summaries,
                                 "resume_token": session.resume_token,
@@ -595,7 +723,7 @@ class CodeQueryLoop:
                             "turn_index": turn_index,
                             "turn_id": turn_state.turn_id,
                             "batch_index": batch_index,
-                            "tool_count": len(batch),
+                            "tool_count": len(batch_requests),
                             "execution_mode": execution_mode,
                             "ok": all(item["ok"] for item in batch_summaries),
                             "stopped_reason": stopped_reason,
@@ -609,7 +737,7 @@ class CodeQueryLoop:
                     metadata={
                         "turn_index": turn_index,
                         "batch_index": batch_index,
-                        "tool_count": len(batch),
+                        "tool_count": len(batch_requests),
                         "execution_mode": execution_mode,
                         "ok": all(item["ok"] for item in batch_summaries),
                         "stopped_reason": stopped_reason,
@@ -673,6 +801,10 @@ class CodeQueryLoop:
                 "tool_call_count": tool_call_count,
                 "turn_count": executed_turn_count,
                 "context_compaction_count": compaction_count,
+                "tool_budget_externalization_count": tool_budget_externalization_count,
+                "tool_failure_signal_count": tool_failure_signal_count,
+                "tool_schema_error_count": tool_schema_error_count,
+                "conflict_protected_count": conflict_protected_count,
                 "stopped_reason": stopped_reason,
             },
         )
@@ -682,6 +814,11 @@ class CodeQueryLoop:
                 "tool_call_count": tool_call_count,
                 "turn_count": executed_turn_count,
                 "context_compaction_count": compaction_count,
+                "tool_budget_externalization_count": tool_budget_externalization_count,
+                "tool_failure_signal_count": tool_failure_signal_count,
+                "tool_schema_error_count": tool_schema_error_count,
+                "conflict_protected_count": conflict_protected_count,
+                "failure_signals": [signal.to_dict() for signal in failure_signals],
                 "stopped_reason": stopped_reason,
             },
         )
@@ -734,6 +871,8 @@ class CodeQueryLoop:
                     "tool_call_count": tool_call_count,
                     "turn_count": executed_turn_count,
                     "context_compaction_count": compaction_count,
+                    "tool_budget_externalization_count": tool_budget_externalization_count,
+                    "tool_failure_signal_count": tool_failure_signal_count,
                     "stopped_reason": stopped_reason,
                     "resume_token": session.resume_token,
                 },
@@ -759,10 +898,17 @@ class CodeQueryLoop:
                 **session_metadata,
                 "max_turns": str(max_turns),
                 "tool_result_budget_chars": str(self.config.max_tool_result_chars),
+                "tool_result_externalizations": str(tool_budget_externalization_count),
+                "tool_failure_signals": str(tool_failure_signal_count),
+                "tool_schema_errors": str(tool_schema_error_count),
+                "tool_conflict_protected": str(conflict_protected_count),
                 "query_context_budget_chars": str(self.config.max_query_context_chars),
                 "context_compactions": str(compaction_count),
                 "query_engine_contract_source": str(contract.get("source") or ""),
                 "query_engine_contract_files": ",".join(str(item) for item in source_files[:12]),
+                "tool_loop_contract_source": str(tool_loop_contract.get("source") or ""),
+                "tool_loop_contract_owner_unit": str(tool_loop_contract.get("ownerUnit") or ""),
+                "tool_loop_contract_inventory_exists": str(tool_loop_contract.get("inventoryExists") is True).lower(),
                 "tool_orchestration_read_only_concurrent": str(orchestration.get("readOnlyConcurrent") is True).lower(),
                 "tool_orchestration_write_serial": str(orchestration.get("writeSerial") is True).lower(),
                 "max_read_only_concurrency": str(self.config.max_read_only_concurrency),
@@ -770,83 +916,22 @@ class CodeQueryLoop:
             },
         )
 
-    def _planned_tool_call(
+    def _execute_batch(
         self,
-        *,
-        run_id: str,
-        task_id: str,
-        node_id: str | None,
-        worker_request_id: str,
-        turn_index: int,
-        step_index: int,
-        step: dict[str, Any],
-    ) -> _PlannedToolCall:
-        tool_name = str(step.get("tool_name") or step.get("tool") or "")
-        arguments = step.get("arguments")
-        if not isinstance(arguments, dict):
-            arguments = {}
-        read_only = tool_name in READ_ONLY_TOOL_NAMES
-        call = ToolCall(
-            run_id=run_id,
-            task_id=task_id,
-            node_id=node_id,
-            tool_name=tool_name,
-            arguments=arguments,
-            metadata={
-                "worker_request_id": worker_request_id,
-                "turn_index": str(turn_index),
-                "step_index": str(step_index),
-                "read_only": str(read_only).lower(),
-            },
-        )
-        return _PlannedToolCall(step_index=step_index, call=call, read_only=read_only)
+        executor: ToolExecutor,
+        batch: list[ToolLoopRequest],
+        scheduler: ToolLoopScheduler,
+    ) -> list[ToolResult]:
+        def execute_one(planned: ToolLoopRequest) -> ToolResult:
+            if not planned.valid:
+                return scheduler.schema_error_result(planned)
+            return executor.execute(planned.call)
 
-    def _partition_tool_calls(self, planned_calls: list[_PlannedToolCall]) -> list[list[_PlannedToolCall]]:
-        batches: list[list[_PlannedToolCall]] = []
-        for planned in planned_calls:
-            if planned.read_only and batches and all(item.read_only for item in batches[-1]):
-                if len(batches[-1]) < max(1, self.config.max_read_only_concurrency):
-                    batches[-1].append(planned)
-                else:
-                    batches.append([planned])
-            else:
-                batches.append([planned])
-        return batches
-
-    def _execute_batch(self, executor: ToolExecutor, batch: list[_PlannedToolCall]) -> list[ToolResult]:
-        if len(batch) > 1 and all(planned.read_only for planned in batch):
+        if len(batch) > 1 and all(planned.read_only and planned.concurrency_safe for planned in batch):
             max_workers = min(max(1, self.config.max_read_only_concurrency), len(batch))
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                return list(pool.map(lambda planned: executor.execute(planned.call), batch))
-        return [executor.execute(planned.call) for planned in batch]
-
-    def _apply_tool_result_budget(self, call: ToolCall, result: ToolResult) -> ToolResult:
-        payload = json.dumps(to_jsonable(result.output), ensure_ascii=False, sort_keys=True)
-        if len(payload) <= self.config.max_tool_result_chars:
-            return result
-        artifact = self.context.artifact_store.write_text(
-            run_id=call.run_id,
-            task_id=call.task_id,
-            content=payload,
-            title=f"tool_result:{call.tool_name}:{call.tool_call_id}",
-            kind=ArtifactKind.STRUCTURED_DATA,
-            extension=".json",
-            producer_node_id=call.node_id,
-        )
-        return ToolResult(
-            tool_call_id=result.tool_call_id,
-            ok=result.ok,
-            summary=f"{result.summary} (tool result output stored as artifact)",
-            output={
-                "truncated": True,
-                "output_preview": payload[: self.config.max_tool_result_chars],
-                "full_output_artifact_id": artifact.artifact_id,
-            },
-            artifacts=[*result.artifacts, artifact],
-            error=result.error,
-            completed_at=result.completed_at,
-            metadata={**result.metadata, "tool_result_budget_applied": "true"},
-        )
+                return list(pool.map(execute_one, batch))
+        return [execute_one(planned) for planned in batch]
 
 
 def query_turns_from_constraints(constraints: dict[str, Any]) -> list[list[dict[str, Any]]]:
@@ -884,10 +969,67 @@ def _turn_user_content(turn_index: int, turn: list[dict[str, Any]]) -> str:
     return f"Structured CodeWorker query turn {turn_index}: execute {', '.join(tool_names) or 'no tools'}."
 
 
-def _batch_execution_mode(batch: list[_PlannedToolCall]) -> str:
-    if all(planned.read_only for planned in batch):
-        return "concurrent_read_only" if len(batch) > 1 else "serial_read_only"
-    return "serial_non_read_only"
+def _append_tool_signal_events(
+    event_records: list[EventRecord],
+    session: QuerySession,
+    *,
+    run_id: str,
+    task_id: str,
+    node_id: str | None,
+    worker_request_id: str,
+    session_id: str,
+    turn_id: str,
+    turn_index: int,
+    batch_index: int,
+    step_index: int,
+    signal: ToolFailureSignal,
+) -> None:
+    payload = {
+        "turn_index": turn_index,
+        "turn_id": turn_id,
+        "batch_index": batch_index,
+        "step_index": step_index,
+        "signal": signal.to_dict(),
+    }
+    session.record_batch_event(
+        QueryStreamEventType.TOOL_FAILURE_SIGNAL,
+        turn_id=turn_id,
+        metadata=payload,
+    )
+    event_records.append(
+        _query_lifecycle_event(
+            run_id,
+            task_id,
+            node_id,
+            worker_request_id,
+            session_id=session_id,
+            phase="tool_failure_signal",
+            payload=payload,
+        )
+    )
+    watchdog_payload = {
+        "turn_index": turn_index,
+        "turn_id": turn_id,
+        "batch_index": batch_index,
+        "step_index": step_index,
+        **watchdog_signal_payload(signal),
+    }
+    session.record_batch_event(
+        QueryStreamEventType.WATCHDOG_SIGNAL,
+        turn_id=turn_id,
+        metadata=watchdog_payload,
+    )
+    event_records.append(
+        _query_lifecycle_event(
+            run_id,
+            task_id,
+            node_id,
+            worker_request_id,
+            session_id=session_id,
+            phase="watchdog_signal",
+            payload=watchdog_payload,
+        )
+    )
 
 
 def _query_lifecycle_event(

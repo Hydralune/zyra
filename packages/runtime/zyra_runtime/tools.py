@@ -59,6 +59,13 @@ def default_tool_registry() -> ToolRegistry:
                 "Read files inside the permitted workspace.",
                 "claude-code-best FileReadTool",
                 input_schema={"type": "object", "required": ["path"], "properties": {"path": {"type": "string"}}},
+                metadata={
+                    "access_mode": "read_only",
+                    "read_only": "true",
+                    "concurrency_safe": "true",
+                    "source_path": "src/tools/FileReadTool",
+                    "budget_source_path": "src/utils/toolResultStorage.ts",
+                },
             ),
             ToolSpec(
                 "file_write",
@@ -68,6 +75,14 @@ def default_tool_registry() -> ToolRegistry:
                     "type": "object",
                     "required": ["path", "content"],
                     "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                },
+                metadata={
+                    "access_mode": "workspace_write",
+                    "read_only": "false",
+                    "concurrency_safe": "false",
+                    "mutates_workspace": "true",
+                    "conflict_argument": "path",
+                    "source_path": "src/tools/FileWriteTool",
                 },
             ),
             ToolSpec(
@@ -84,6 +99,15 @@ def default_tool_registry() -> ToolRegistry:
                         "replace_all": {"type": "boolean"},
                     },
                 },
+                metadata={
+                    "access_mode": "workspace_write",
+                    "read_only": "false",
+                    "concurrency_safe": "false",
+                    "mutates_workspace": "true",
+                    "conflict_argument": "path",
+                    "source_path": "src/tools/FileEditTool",
+                    "stale_write_guard_source_path": "src/utils/fileStateCache.ts",
+                },
             ),
             ToolSpec(
                 "shell",
@@ -97,6 +121,15 @@ def default_tool_registry() -> ToolRegistry:
                         "approved": {"type": "boolean"},
                         "timeout_seconds": {"type": "integer"},
                     },
+                },
+                metadata={
+                    "access_mode": "shell",
+                    "read_only": "false",
+                    "concurrency_safe": "false",
+                    "mutates_workspace": "true",
+                    "source_path": "src/tools/BashTool",
+                    "shell_lifecycle_source_path": "src/utils/ShellCommand.ts",
+                    "sandbox_source_path": "src/utils/sandbox/sandbox-adapter.ts",
                 },
             ),
             ToolSpec(
@@ -113,6 +146,12 @@ def default_tool_registry() -> ToolRegistry:
                         "allowed_domains": {"type": "array", "items": {"type": "string"}},
                         "capture_html": {"type": "boolean"},
                     },
+                },
+                metadata={
+                    "access_mode": "read_only",
+                    "read_only": "true",
+                    "concurrency_safe": "true",
+                    "source_path": "browser_use/tools/registry",
                 },
             ),
             ToolSpec(
@@ -131,6 +170,12 @@ def default_tool_registry() -> ToolRegistry:
                         "max_results": {"type": "integer"},
                     },
                 },
+                metadata={
+                    "access_mode": "read_only",
+                    "read_only": "true",
+                    "concurrency_safe": "true",
+                    "source_path": "src/tools/WebSearchTool",
+                },
             ),
             ToolSpec(
                 "artifact_write",
@@ -146,6 +191,12 @@ def default_tool_registry() -> ToolRegistry:
                         "extension": {"type": "string"},
                     },
                 },
+                metadata={
+                    "access_mode": "artifact_write",
+                    "read_only": "false",
+                    "concurrency_safe": "false",
+                    "source_path": "zyra_runtime.artifacts",
+                },
             ),
             ToolSpec(
                 "checkpoint",
@@ -157,6 +208,12 @@ def default_tool_registry() -> ToolRegistry:
                         "include_state": {"type": "boolean"},
                         "write_artifact": {"type": "boolean"},
                     },
+                },
+                metadata={
+                    "access_mode": "read_only",
+                    "read_only": "true",
+                    "concurrency_safe": "true",
+                    "source_path": "zyra_runtime.session",
                 },
             ),
             ToolSpec(
@@ -170,6 +227,12 @@ def default_tool_registry() -> ToolRegistry:
                         "event_type": {"type": "string"},
                         "write_artifact": {"type": "boolean"},
                     },
+                },
+                metadata={
+                    "access_mode": "read_only",
+                    "read_only": "true",
+                    "concurrency_safe": "true",
+                    "source_path": "zyra_core.event_log",
                 },
             ),
         ]

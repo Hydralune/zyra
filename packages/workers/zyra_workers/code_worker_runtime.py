@@ -47,6 +47,7 @@ class CodeWorkerRuntime:
         sidecar_inventory = self.sidecar_client.runtime_inventory()
         sidecar_query_contract = self.sidecar_client.query_contract()
         sidecar_session_contract = self.sidecar_client.session_contract()
+        sidecar_tool_loop_contract = self.sidecar_client.tool_loop_contract()
         query_turns = query_turns_from_constraints(request.constraints)
         if not query_turns:
             worker_result = WorkerResult(
@@ -59,6 +60,7 @@ class CodeWorkerRuntime:
                     **_inventory_metadata(sidecar_inventory),
                     **_contract_metadata(sidecar_query_contract),
                     **_session_contract_metadata(sidecar_session_contract),
+                    **_tool_loop_contract_metadata(sidecar_tool_loop_contract),
                 },
             )
             return CodeWorkerRun(
@@ -81,6 +83,7 @@ class CodeWorkerRuntime:
                 continue_on_error=request.constraints.get("continue_on_error") is True,
                 query_contract=sidecar_query_contract,
                 session_contract=sidecar_session_contract,
+                tool_loop_contract=sidecar_tool_loop_contract,
                 max_read_only_concurrency=_positive_int(
                     request.constraints.get("max_read_only_concurrency"),
                     default=_contract_default_concurrency(sidecar_query_contract),
@@ -107,6 +110,7 @@ class CodeWorkerRuntime:
                 sidecar_inventory,
                 sidecar_query_contract,
                 sidecar_session_contract,
+                sidecar_tool_loop_contract,
                 step_summaries,
                 loop_result,
             ),
@@ -133,6 +137,7 @@ class CodeWorkerRuntime:
                 **_inventory_metadata(sidecar_inventory),
                 **_contract_metadata(sidecar_query_contract),
                 **_session_contract_metadata(sidecar_session_contract),
+                **_tool_loop_contract_metadata(sidecar_tool_loop_contract),
                 **loop_result.metadata,
                 "query_turns": str(loop_result.turn_count),
                 "tool_steps": str(loop_result.tool_call_count),
@@ -214,6 +219,32 @@ def _session_contract_metadata(contract: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _tool_loop_contract_metadata(contract: dict[str, Any]) -> dict[str, str]:
+    interface = contract.get("toolInterface") if isinstance(contract.get("toolInterface"), dict) else {}
+    execution = contract.get("executionPipeline") if isinstance(contract.get("executionPipeline"), dict) else {}
+    scheduling = contract.get("scheduling") if isinstance(contract.get("scheduling"), dict) else {}
+    budget = contract.get("resultBudget") if isinstance(contract.get("resultBudget"), dict) else {}
+    shell = contract.get("shellRuntime") if isinstance(contract.get("shellRuntime"), dict) else {}
+    sandbox = contract.get("sandboxRuntime") if isinstance(contract.get("sandboxRuntime"), dict) else {}
+    failures = contract.get("failureSignals") if isinstance(contract.get("failureSignals"), dict) else {}
+    source_files = contract.get("sourceFiles") if isinstance(contract.get("sourceFiles"), list) else []
+    return {
+        "tool_loop_contract_source": str(contract.get("source") or ""),
+        "tool_loop_contract_owner_unit": str(contract.get("ownerUnit") or ""),
+        "tool_loop_contract_inventory_exists": str(contract.get("inventoryExists") is True).lower(),
+        "tool_loop_contract_source_count": str(len(source_files)),
+        "tool_loop_contract_has_input_schema": str(interface.get("hasInputSchema") is True).lower(),
+        "tool_loop_contract_permission_gate": str(execution.get("hasPermissionGate") is True).lower(),
+        "tool_loop_contract_result_mapping": str(execution.get("hasToolResultBlockMapping") is True).lower(),
+        "tool_loop_contract_read_only_concurrent": str(scheduling.get("readOnlyConcurrent") is True).lower(),
+        "tool_loop_contract_write_serial": str(scheduling.get("writeSerial") is True).lower(),
+        "tool_loop_contract_budget_externalization": str(budget.get("hasLargeResultExternalization") is True or budget.get("hasPersistedOutputTag") is True).lower(),
+        "tool_loop_contract_shell_lifecycle": str(shell.get("hasProcessLifecycle") is True).lower(),
+        "tool_loop_contract_sandbox_adapter": str(sandbox.get("hasSandboxAdapter") is True).lower(),
+        "tool_loop_contract_denial_limits": str(failures.get("hasDenialLimits") is True).lower(),
+    }
+
+
 def _contract_default_concurrency(contract: dict[str, Any]) -> int:
     orchestration = contract.get("toolOrchestration") if isinstance(contract.get("toolOrchestration"), dict) else {}
     return _positive_int(orchestration.get("maxConcurrencyDefault"), default=10)
@@ -241,6 +272,7 @@ def _trace_markdown(
     sidecar_inventory: dict[str, Any],
     sidecar_query_contract: dict[str, Any],
     sidecar_session_contract: dict[str, Any],
+    sidecar_tool_loop_contract: dict[str, Any],
     step_summaries: list[str],
     loop_result: CodeQueryLoopResult,
 ) -> str:
@@ -271,6 +303,29 @@ def _trace_markdown(
         if isinstance(sidecar_session_contract.get("resumeRecovery"), dict)
         else {}
     )
+    tool_loop_scheduling = (
+        sidecar_tool_loop_contract.get("scheduling")
+        if isinstance(sidecar_tool_loop_contract.get("scheduling"), dict)
+        else {}
+    )
+    tool_loop_budget = (
+        sidecar_tool_loop_contract.get("resultBudget")
+        if isinstance(sidecar_tool_loop_contract.get("resultBudget"), dict)
+        else {}
+    )
+    tool_loop_shell = (
+        sidecar_tool_loop_contract.get("shellRuntime")
+        if isinstance(sidecar_tool_loop_contract.get("shellRuntime"), dict)
+        else {}
+    )
+    tool_loop_sandbox = (
+        sidecar_tool_loop_contract.get("sandboxRuntime")
+        if isinstance(sidecar_tool_loop_contract.get("sandboxRuntime"), dict)
+        else {}
+    )
+    tool_loop_source_files = sidecar_tool_loop_contract.get("sourceFiles")
+    if not isinstance(tool_loop_source_files, list):
+        tool_loop_source_files = []
     high_value_commands = command_runtime.get("highValueCommandPaths")
     if not isinstance(high_value_commands, list):
         high_value_commands = []
@@ -305,6 +360,15 @@ def _trace_markdown(
             f"- session_append_only_jsonl: `{str(session_persistence.get('appendOnlyJsonl') is True).lower()}`",
             f"- session_parent_uuid_chain: `{str(session_persistence.get('parentUuidChain') is True).lower()}`",
             f"- session_resume_chain: `{str(session_recovery.get('hasChainTraversal') is True).lower()}`",
+            f"- tool_loop_contract_source: `{sidecar_tool_loop_contract.get('source', '')}`",
+            f"- tool_loop_contract_owner_unit: `{sidecar_tool_loop_contract.get('ownerUnit', '')}`",
+            f"- tool_loop_inventory_exists: `{str(sidecar_tool_loop_contract.get('inventoryExists') is True).lower()}`",
+            f"- tool_loop_read_only_concurrent: `{str(tool_loop_scheduling.get('readOnlyConcurrent') is True).lower()}`",
+            f"- tool_loop_write_serial: `{str(tool_loop_scheduling.get('writeSerial') is True).lower()}`",
+            f"- tool_loop_budget_externalization: `{str(tool_loop_budget.get('hasPersistedOutputTag') is True or tool_loop_budget.get('hasMaxResultSizeChars') is True).lower()}`",
+            f"- tool_loop_shell_lifecycle: `{str(tool_loop_shell.get('hasProcessLifecycle') is True).lower()}`",
+            f"- tool_loop_sandbox_adapter: `{str(tool_loop_sandbox.get('hasSandboxAdapter') is True).lower()}`",
+            f"- tool_failure_signal_count: `{loop_result.metadata.get('tool_failure_signals', '')}`",
             f"- vendored_runtime_complete: `{str(vendor.get('complete') is True).lower()}`",
             f"- inventory_base_tool_count: `{tool_runtime.get('baseToolCount', 0)}`",
             f"- inventory_command_count: `{command_runtime.get('commandCount', 0)}`",
@@ -324,6 +388,10 @@ def _trace_markdown(
             "## Query Session Contract Sources",
             "",
             *(f"- `{source_file}`" for source_file in session_source_files[:32]),
+            "",
+            "## Tool Loop Budget Contract Sources",
+            "",
+            *(f"- `{source_file}`" for source_file in tool_loop_source_files[:32]),
             "",
             "## Vendored Runtime Modules",
             "",

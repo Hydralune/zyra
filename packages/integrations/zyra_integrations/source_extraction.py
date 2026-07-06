@@ -219,6 +219,21 @@ CLAUDE_CODE_QUERY_SESSION_RUNTIME_SOURCES = [
 ]
 
 
+CLAUDE_CODE_TOOL_LOOP_BUDGET_RUNTIME_SOURCES = [
+    "src/utils/Shell.ts",
+    "src/utils/ShellCommand.ts",
+    "src/utils/bash",
+    "src/utils/shell",
+    "src/utils/sandbox",
+    "src/utils/groupToolUses.ts",
+    "src/utils/toolErrors.ts",
+    "src/utils/truncate.ts",
+    "src/utils/fileStateCache.ts",
+    "src/utils/readEditContext.ts",
+    "src/utils/permissions/denialTracking.ts",
+]
+
+
 class OverwritePolicy(StrEnum):
     NEVER = "never"
     IF_CHANGED = "if_changed"
@@ -959,6 +974,77 @@ def claude_code_m1_02b_plan(
             "M1-02B binds these productized Claude Code query/session sources to Zyra QuerySession, "
             "TurnState, MessageLifecycle, event log metadata, checkpoint snapshots, and replay/resume support. "
             "M1-02C adds tool-loop depth inside the same lifecycle and M1-02D adds compact/restore."
+        ),
+    )
+
+
+def claude_code_m1_02c_plan(
+    *,
+    project_root: Path,
+    source_workspace_root: Path,
+    dry_run: bool = False,
+    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED,
+) -> ExtractionPlan:
+    target_root = project_root / "vendor-runtimes" / "claude-code-runtime"
+    return ExtractionPlan(
+        source_repo="claude-code-best",
+        source_root=source_workspace_root / "claude-code-best",
+        project_root=project_root,
+        target_root=target_root,
+        include_paths=list(CLAUDE_CODE_TOOL_LOOP_BUDGET_RUNTIME_SOURCES),
+        owner_unit="M1-02C",
+        milestone="M1",
+        downstream_units=["M1-02D", "M1-03A", "M1-04D", "M1-07B", "M1-07C", "M2-02B", "M2-04A"],
+        dry_run=dry_run,
+        overwrite_policy=overwrite_policy,
+        report_path=target_root / "metadata" / "tool_loop_budget_source_inventory.json",
+        manifest_module_path=target_root / "src" / "zyra-tool-loop-budget-manifest.mjs",
+        runtime_command="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --tool-loop-contract",
+        runtime_module="@zyra/claude-code-runtime/tool-loop-budget",
+        runtime_function="zyraClaudeCodeToolLoopBudgetHealth",
+        runtime_health_check="python scripts/verify_code_worker_sidecar.py",
+        test_path="tests/integration/test_code_worker_tool_loop_budget.py",
+        test_command="python -m unittest tests.integration.test_code_worker_tool_loop_budget",
+        capability_prefix="claude_code_tool_loop_budget",
+        capability_summary=(
+            "Claude Code tool loop, Bash/shell execution, sandbox, read/write scheduling, "
+            "tool result budget, truncation, and failure signal source boundary for Zyra CodeWorkerRuntime."
+        ),
+        target_mount="productized/claude-code-best",
+        manifest_export_name="zyraClaudeCodeToolLoopBudgetManifest",
+        manifest_health_export_name="zyraClaudeCodeToolLoopBudgetHealth",
+        manifest_kind="tool-loop-budget",
+        lifecycle=LedgerLifecycle.PRODUCTIZED,
+        main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
+        main_path_worker_runtime="CodeWorkerRuntime:claude-code-tool-loop-budget",
+        main_path_event_types=[
+            "tool_batch_started",
+            "tool_call_started",
+            "tool_call_completed",
+            "tool_result_budget_exceeded",
+            "tool_failure_signal",
+            "watchdog_signal",
+        ],
+        main_path_control_commands=[
+            "code-worker:tool-loop-contract",
+            "code-worker:query-contract",
+            "code-worker:health",
+            "ledger:accounting",
+            "ledger:gate",
+        ],
+        main_path_artifact_kinds=[
+            "trace",
+            "structured_data",
+            "source_inventory",
+            "runtime_manifest",
+            "tool_result_externalization",
+        ],
+        tags=["m1-02c", "tool-loop", "tool-budget", "bash-engine", "sandbox", "watchdog-signal"],
+        source_evidence_tags=["m1-02c", "tool-loop-budget", "claude-code-tool-runtime"],
+        replacement_plan=(
+            "M1-02C uses this source boundary to keep Zyra's Python ToolLoopRuntime aligned with Claude Code "
+            "tool orchestration, shell lifecycle, sandbox/read-only validation, and tool result externalization. "
+            "M1-03A will deepen the permission runtime beyond the placeholder denial signal used here."
         ),
     )
 

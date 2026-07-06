@@ -32,6 +32,9 @@ class CodeWorkerSidecarClient:
     def session_contract(self) -> dict[str, Any]:
         return self._run_one_shot("--session-contract")
 
+    def tool_loop_contract(self) -> dict[str, Any]:
+        return self._run_one_shot("--tool-loop-contract")
+
     def _run_one_shot(self, flag: str) -> dict[str, Any]:
         completed = subprocess.run(
             [self.node_executable, str(self.entrypoint), flag],

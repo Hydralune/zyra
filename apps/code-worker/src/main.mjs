@@ -12,6 +12,7 @@ const RUNTIME_ROOT = path.join(PROJECT_ROOT, "vendor-runtimes", "claude-code-run
 const PRODUCTIZED_ROOT = path.join(RUNTIME_ROOT, "productized", "claude-code-best");
 const PRODUCTIZED_INVENTORY_PATH = path.join(RUNTIME_ROOT, "metadata", "productized_source_inventory.json");
 const QUERY_SESSION_INVENTORY_PATH = path.join(RUNTIME_ROOT, "metadata", "query_session_source_inventory.json");
+const TOOL_LOOP_INVENTORY_PATH = path.join(RUNTIME_ROOT, "metadata", "tool_loop_budget_source_inventory.json");
 const REFERENCE_CROSSWALK_PATH = path.join(RUNTIME_ROOT, "metadata", "reference_crosswalk.json");
 
 const PRIORITY_MODULES = [
@@ -116,6 +117,10 @@ function runtimeInventory() {
       sessionRestoreRuntime: runtimeExists("src/utils/sessionRestore.ts") && runtimeExists("src/utils/conversationRecovery.ts"),
       apiStreamRuntime: runtimeExists("src/services/api/claude.ts") && runtimeExists("src/services/api/withRetry.ts"),
       bridgeSessionRuntime: runtimeExists("src/bridge/sessionRunner.ts") && runtimeExists("src/bridge/createSession.ts"),
+      shellRuntime: runtimeExists("src/utils/Shell.ts") && runtimeExists("src/utils/ShellCommand.ts"),
+      bashParserRuntime: runtimeExists("src/utils/bash") && runtimeExists("src/utils/shell/readOnlyCommandValidation.ts"),
+      sandboxRuntime: runtimeExists("src/utils/sandbox/sandbox-adapter.ts"),
+      toolBudgetRuntime: runtimeExists("src/utils/toolResultStorage.ts") && runtimeExists("src/utils/truncate.ts"),
     },
     productizedRuntime,
     toolRuntime: {
@@ -153,6 +158,20 @@ function runtimeInventory() {
       bridgeSessionRuntimeFiles: listRuntimeFiles("src/bridge").filter((item) =>
         /\/(codeSessionApi|createSession|sessionIdCompat|sessionRunner)\.ts$/.test(`/${item}`),
       ),
+      toolLoopBudgetRuntimeFiles: [
+        "src/services/tools/toolExecution.ts",
+        "src/services/tools/toolOrchestration.ts",
+        "src/services/tools/StreamingToolExecutor.ts",
+        "src/utils/toolResultStorage.ts",
+        "src/utils/truncate.ts",
+        "src/utils/groupToolUses.ts",
+        "src/utils/toolErrors.ts",
+        "src/utils/Shell.ts",
+        "src/utils/ShellCommand.ts",
+        ...listRuntimeFiles("src/utils/bash").slice(0, 40),
+        ...listRuntimeFiles("src/utils/shell").slice(0, 20),
+        ...listRuntimeFiles("src/utils/sandbox").slice(0, 20),
+      ].filter(runtimeExists),
     },
   };
 }
@@ -442,6 +461,134 @@ function sessionContract() {
   };
 }
 
+function toolLoopContract() {
+  const toolInterfaceSource = readRuntimeText("src/Tool.ts");
+  const toolsSource = readRuntimeText("src/tools.ts");
+  const toolExecutionSource = readRuntimeText("src/services/tools/toolExecution.ts");
+  const toolOrchestrationSource = readRuntimeText("src/services/tools/toolOrchestration.ts");
+  const streamingExecutorSource = readRuntimeText("src/services/tools/StreamingToolExecutor.ts");
+  const toolResultStorageSource = readRuntimeText("src/utils/toolResultStorage.ts");
+  const shellSource = readRuntimeText("src/utils/Shell.ts");
+  const shellCommandSource = readRuntimeText("src/utils/ShellCommand.ts");
+  const bashParserSource = readRuntimeText("src/utils/bash/bashParser.ts");
+  const readOnlyValidationSource = readRuntimeText("src/utils/shell/readOnlyCommandValidation.ts");
+  const sandboxSource = readRuntimeText("src/utils/sandbox/sandbox-adapter.ts");
+  const denialTrackingSource = readRuntimeText("src/utils/permissions/denialTracking.ts");
+  const sourceFiles = [
+    "src/Tool.ts",
+    "src/tools.ts",
+    "src/services/tools/toolExecution.ts",
+    "src/services/tools/toolOrchestration.ts",
+    "src/services/tools/StreamingToolExecutor.ts",
+    "src/utils/toolResultStorage.ts",
+    "src/utils/truncate.ts",
+    "src/utils/groupToolUses.ts",
+    "src/utils/toolErrors.ts",
+    "src/utils/fileStateCache.ts",
+    "src/utils/readEditContext.ts",
+    "src/utils/Shell.ts",
+    "src/utils/ShellCommand.ts",
+    "src/utils/bash/bashParser.ts",
+    "src/utils/bash/ast.ts",
+    "src/utils/bash/commands.ts",
+    "src/utils/shell/bashProvider.ts",
+    "src/utils/shell/readOnlyCommandValidation.ts",
+    "src/utils/sandbox/sandbox-adapter.ts",
+    "src/utils/permissions/denialTracking.ts",
+  ].filter(runtimeExists);
+
+  return {
+    source: "claude-code-best",
+    generatedBy: "zyra-code-worker-sidecar",
+    ownerUnit: "M1-02C",
+    inventoryPath: TOOL_LOOP_INVENTORY_PATH,
+    inventoryExists: fs.existsSync(TOOL_LOOP_INVENTORY_PATH),
+    sourceFiles,
+    toolInterface: {
+      sourcePath: "src/Tool.ts",
+      hasBuildToolFactory: /buildTool/.test(toolInterfaceSource),
+      hasInputSchema: /inputSchema/.test(toolInterfaceSource),
+      hasReadOnlyFlag: /isReadOnly/.test(toolInterfaceSource),
+      hasConcurrencyFlag: /isConcurrencySafe/.test(toolInterfaceSource),
+      hasContextModifier: /contextModifier/.test(toolInterfaceSource),
+    },
+    toolPool: {
+      sourcePath: "src/tools.ts",
+      hasBaseTools: /getAllBaseTools|getTools/.test(toolsSource),
+      hasAssembleToolPool: /assembleToolPool/.test(toolsSource),
+      denyRulesPreFilter: /filterToolsByDenyRules|deny/i.test(toolsSource),
+      toolSearchAware: /ToolSearchTool|shouldDefer|alwaysLoad/.test(toolsSource + toolInterfaceSource),
+    },
+    executionPipeline: {
+      sourcePath: "src/services/tools/toolExecution.ts",
+      hasRunToolUse: /runToolUse/.test(toolExecutionSource),
+      hasPermissionGate: /streamedCheckPermissionsAndCallTool|canUseTool|checkPermissions/.test(toolExecutionSource),
+      hasSchemaValidation: /safeParse|validateInput|inputSchema/.test(toolExecutionSource),
+      hasToolResultBlockMapping: /mapToolResultToToolResultBlockParam|processToolResultBlock/.test(toolExecutionSource),
+      hasLargeResultExternalization: /processToolResultBlock|maxResultSizeChars|toolResultStorage/.test(toolExecutionSource + toolResultStorageSource),
+      hasPostToolHooks: /PostToolUse|postToolUse/i.test(toolExecutionSource),
+    },
+    scheduling: {
+      orchestrationSourcePath: "src/services/tools/toolOrchestration.ts",
+      readOnlyConcurrent: /Run read-only batch concurrently|read-only batch concurrently/i.test(toolOrchestrationSource),
+      writeSerial: /Run non-read-only batch serially|non-read-only batch serially|serial/i.test(toolOrchestrationSource),
+      streamingExecutorSourcePath: "src/services/tools/StreamingToolExecutor.ts",
+      hasStreamingExecutor: /AsyncGenerator|stream|progress/i.test(streamingExecutorSource),
+      maxConcurrencyDefault: 10,
+      maxConcurrencyEnv: "CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY",
+    },
+    resultBudget: {
+      sourcePath: "src/utils/toolResultStorage.ts",
+      hasPersistedOutputTag: /PERSISTED_OUTPUT_TAG|persist/i.test(toolResultStorageSource),
+      hasMaxResultSizeChars: /maxResultSizeChars/.test(toolExecutionSource + toolResultStorageSource),
+      hasPreviewAndPath: /preview|path|artifact|file/i.test(toolResultStorageSource),
+      truncateSourcePath: "src/utils/truncate.ts",
+      hasTruncateUtility: /truncate/i.test(readRuntimeText("src/utils/truncate.ts")),
+    },
+    shellRuntime: {
+      shellSourcePath: "src/utils/Shell.ts",
+      shellCommandSourcePath: "src/utils/ShellCommand.ts",
+      hasShellDiscovery: /CLAUDE_CODE_SHELL|resolveDefaultShell|bash|zsh/i.test(shellSource),
+      hasProcessLifecycle: /spawn|exit|background|kill|timeout/i.test(shellCommandSource),
+      hasOutputSizeWatchdog: /size|watchdog|SIGKILL|kill/i.test(shellCommandSource),
+      hasCwdTracking: /pwd -P|cwd/i.test(shellSource + shellCommandSource),
+      bashParserSourcePath: "src/utils/bash/bashParser.ts",
+      hasBashAstParser: /parse|heredoc|pipeline|command/i.test(bashParserSource),
+      readOnlyValidationSourcePath: "src/utils/shell/readOnlyCommandValidation.ts",
+      hasReadOnlyCommandValidation: /readOnly|readonly|mutation|write/i.test(readOnlyValidationSource),
+    },
+    sandboxRuntime: {
+      sourcePath: "src/utils/sandbox/sandbox-adapter.ts",
+      hasSandboxAdapter: /sandbox|bubblewrap|sandbox-exec|seatbelt/i.test(sandboxSource),
+      protectsSettings: /settings|denyWrite|denyRead/i.test(sandboxSource),
+      hasNetworkPolicy: /network|domain|deny/i.test(sandboxSource),
+    },
+    failureSignals: {
+      denialTrackingSourcePath: "src/utils/permissions/denialTracking.ts",
+      hasDenialLimits: /maxConsecutive|maxTotal|DENIAL_LIMITS/.test(denialTrackingSource),
+      zyraSignalRuntime: "packages/runtime/zyra_runtime/tool_loop.py",
+      signalKinds: [
+        "schema_error",
+        "permission_denied",
+        "permission_required",
+        "timeout",
+        "runtime_error",
+        "budget_exceeded",
+      ],
+    },
+    zyraRuntimeMapping: {
+      toolLoop: "packages/runtime/zyra_runtime/tool_loop.py",
+      executor: "packages/runtime/zyra_runtime/executor.py",
+      codeQueryLoop: "packages/workers/zyra_workers/code_query_loop.py",
+      codeWorkerRuntime: "packages/workers/zyra_workers/code_worker_runtime.py",
+      tests: [
+        "tests/unit/test_tool_loop_budget_runtime.py",
+        "tests/integration/test_code_worker_tool_loop_budget.py",
+      ],
+    },
+  };
+}
+
 function health() {
   const productizedRuntime = productizedRuntimeSnapshot();
   return {
@@ -471,6 +618,8 @@ function handleRequest(request) {
       return queryContract();
     case "session_contract":
       return sessionContract();
+    case "tool_loop_contract":
+      return toolLoopContract();
     default:
       throw new Error(`unknown method: ${request.method}`);
   }
@@ -512,6 +661,8 @@ if (process.argv.includes("--health")) {
   writeResponse(queryContract());
 } else if (process.argv.includes("--session-contract")) {
   writeResponse(sessionContract());
+} else if (process.argv.includes("--tool-loop-contract")) {
+  writeResponse(toolLoopContract());
 } else {
   runLineProtocol();
 }
@@ -584,6 +735,10 @@ function productizedRuntimeSnapshot() {
     sessionRestoreRuntime: runtimeExists("src/utils/sessionRestore.ts") && runtimeExists("src/utils/conversationRecovery.ts"),
     apiStreamRuntime: runtimeExists("src/services/api/claude.ts") && runtimeExists("src/services/api/withRetry.ts"),
     bridgeSessionRuntime: runtimeExists("src/bridge/sessionRunner.ts") && runtimeExists("src/bridge/createSession.ts"),
+    shellRuntime: runtimeExists("src/utils/Shell.ts") && runtimeExists("src/utils/ShellCommand.ts"),
+    bashParserRuntime: runtimeExists("src/utils/bash") && runtimeExists("src/utils/shell/readOnlyCommandValidation.ts"),
+    sandboxRuntime: runtimeExists("src/utils/sandbox/sandbox-adapter.ts"),
+    toolBudgetRuntime: runtimeExists("src/utils/toolResultStorage.ts") && runtimeExists("src/utils/truncate.ts"),
   };
   const effectiveLineCount = Number(summary.effective_line_count ?? 0);
   const copiedFileCount = Number(summary.copied_count ?? 0) + Number(summary.skipped_count ?? 0);
@@ -607,6 +762,14 @@ function productizedRuntimeSnapshot() {
       sessionRestoreRuntime: moduleChecks.sessionRestoreRuntime,
       apiStreamRuntime: moduleChecks.apiStreamRuntime,
       bridgeSessionRuntime: moduleChecks.bridgeSessionRuntime,
+    },
+    toolLoopRuntime: {
+      inventoryPath: TOOL_LOOP_INVENTORY_PATH,
+      inventoryExists: fs.existsSync(TOOL_LOOP_INVENTORY_PATH),
+      shellRuntime: moduleChecks.shellRuntime,
+      bashParserRuntime: moduleChecks.bashParserRuntime,
+      sandboxRuntime: moduleChecks.sandboxRuntime,
+      toolBudgetRuntime: moduleChecks.toolBudgetRuntime,
     },
     referenceCrosswalk: {
       ok: crosswalk.ok === true,

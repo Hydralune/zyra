@@ -97,6 +97,18 @@ class ToolExecutor:
                 return self._checkpoint(call)
             if call.tool_name == "trace":
                 return self._trace(call)
+        except subprocess.TimeoutExpired as error:
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=False,
+                summary=f"{call.tool_name} timed out after {error.timeout} second(s)",
+                error="tool_timeout",
+                metadata={
+                    "message": str(error),
+                    "timeout_seconds": str(error.timeout),
+                    "failure_kind": "timeout",
+                },
+            )
         except Exception as error:  # noqa: BLE001 - execution errors must become traceable results.
             return ToolResult(
                 tool_call_id=call.tool_call_id,
