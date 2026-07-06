@@ -1,0 +1,682 @@
+{
+  "entries": [
+    {
+      "capability": "QueryEngine session lifecycle and query loop",
+      "crosswalk_id": "query-engine-session-loop",
+      "downstream_units": [
+        "M1-02B",
+        "M1-02C",
+        "M1-02D"
+      ],
+      "missing_reference_count": 0,
+      "missing_source_count": 0,
+      "missing_target_count": 0,
+      "ok": true,
+      "owner_unit": "M1-02A",
+      "primary_sources": [
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/QueryEngine.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/query.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/services/tools/toolOrchestration.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/utils/toolResultStorage.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        }
+      ],
+      "reference_docs": [
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/01-query-engine.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/02-tool-system.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "docs/architecture_zh.md",
+          "repository": "Dive-into-Claude-Code",
+          "role": "reference_only_crosscheck"
+        }
+      ],
+      "reference_only_policy": "reference_only_docs_do_not_count_as_runtime_code",
+      "signals": [
+        "QueryEngine wraps the session-level contract while query.ts owns turn-level iteration.",
+        "Tool batches must preserve read-only concurrency and serial write semantics.",
+        "Tool result budget and reactive compact are part of the runtime loop boundary."
+      ],
+      "targets": [
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/QueryEngine.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/query.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/services/tools/toolOrchestration.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/utils/toolResultStorage.ts",
+          "required_for_runtime": true
+        }
+      ]
+    },
+    {
+      "capability": "Tool registry, ToolUseContext, base tools, and deferred tool discovery",
+      "crosswalk_id": "tool-registry-and-tool-use-context",
+      "downstream_units": [
+        "M1-02C",
+        "M1-03A",
+        "M1-03B"
+      ],
+      "missing_reference_count": 0,
+      "missing_source_count": 0,
+      "missing_target_count": 0,
+      "ok": true,
+      "owner_unit": "M1-02A",
+      "primary_sources": [
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/Tool.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/FileReadTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/FileEditTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/FileWriteTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/GlobTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/GrepTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/TodoWriteTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/ToolSearchTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        }
+      ],
+      "reference_docs": [
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/02-tool-system.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "docs/build-your-own-agent_zh.md",
+          "repository": "Dive-into-Claude-Code",
+          "role": "reference_only_crosscheck"
+        }
+      ],
+      "reference_only_policy": "reference_only_docs_do_not_count_as_runtime_code",
+      "signals": [
+        "Built-in tools should remain a stable prompt-cache prefix before MCP tools.",
+        "ToolSearch and shouldDefer keep large tool catalogs out of the initial context.",
+        "ToolUseContext mutation is a first-class execution result, not ad hoc process state."
+      ],
+      "targets": [
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/Tool.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/FileReadTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/FileEditTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/FileWriteTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/GlobTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/GrepTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/TodoWriteTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/ToolSearchTool",
+          "required_for_runtime": true
+        }
+      ]
+    },
+    {
+      "capability": "Context assembly, session storage, and restore-safe runtime state",
+      "crosswalk_id": "context-assembly-and-session-state",
+      "downstream_units": [
+        "M1-02B",
+        "M1-02D",
+        "M1-06C"
+      ],
+      "missing_reference_count": 0,
+      "missing_source_count": 0,
+      "missing_target_count": 0,
+      "ok": true,
+      "owner_unit": "M1-02A",
+      "primary_sources": [
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/context.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/utils/queryContext.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/utils/sessionState.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/utils/sessionStorage.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/utils/messagePredicates.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/utils/messageQueueManager.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/utils/messages.ts",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        }
+      ],
+      "reference_docs": [
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/09-session-persistence.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/10-context-assembly.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "docs/architecture_zh.md",
+          "repository": "Dive-into-Claude-Code",
+          "role": "reference_only_crosscheck"
+        }
+      ],
+      "reference_only_policy": "reference_only_docs_do_not_count_as_runtime_code",
+      "signals": [
+        "Append-only session transcript and restore boundaries must be audit-friendly.",
+        "Permissions are not silently restored across session boundaries.",
+        "Context assembly is layered before model/tool execution."
+      ],
+      "targets": [
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/context.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/utils/queryContext.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/utils/sessionState.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/utils/sessionStorage.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/utils/messagePredicates.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/utils/messageQueueManager.ts",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/utils/messages.ts",
+          "required_for_runtime": true
+        }
+      ]
+    },
+    {
+      "capability": "Auto compact, reactive compact, micro compact, and post-compact restore",
+      "crosswalk_id": "compact-and-post-compact-restore",
+      "downstream_units": [
+        "M1-02D",
+        "M1-06C"
+      ],
+      "missing_reference_count": 0,
+      "missing_source_count": 0,
+      "missing_target_count": 0,
+      "ok": true,
+      "owner_unit": "M1-02A",
+      "primary_sources": [
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/services/compact",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        }
+      ],
+      "reference_docs": [
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/11-compact-system.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "docs/architecture_zh.md",
+          "repository": "Dive-into-Claude-Code",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "docs/build-your-own-agent_zh.md",
+          "repository": "Dive-into-Claude-Code",
+          "role": "reference_only_crosscheck"
+        }
+      ],
+      "reference_only_policy": "reference_only_docs_do_not_count_as_runtime_code",
+      "signals": [
+        "Compaction should progress from lowest-loss shaping to full summary.",
+        "Reactive compaction is bounded and should not loop without a circuit breaker.",
+        "Post-compact cleanup and restore hooks are runtime behavior, not documentation debt."
+      ],
+      "targets": [
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/services/compact",
+          "required_for_runtime": true
+        }
+      ]
+    },
+    {
+      "capability": "Permission, MCP, SkillTool, and AgentTool productization handoff",
+      "crosswalk_id": "permission-mcp-skill-subagent-handoff",
+      "downstream_units": [
+        "M1-03A",
+        "M1-03B",
+        "M1-03C",
+        "M1-03D"
+      ],
+      "missing_reference_count": 0,
+      "missing_source_count": 0,
+      "missing_target_count": 0,
+      "ok": true,
+      "owner_unit": "M1-02A",
+      "primary_sources": [
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/hooks/toolPermission",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/services/mcp",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/SkillTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/AgentTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/MCPTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/McpAuthTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/ListMcpResourcesTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/ReadMcpResourceTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        }
+      ],
+      "reference_docs": [
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/07-permission-pipeline.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/08-agent-swarms.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/15-services-api-layer.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "docs/architecture_zh.md",
+          "repository": "Dive-into-Claude-Code",
+          "role": "reference_only_crosscheck"
+        }
+      ],
+      "reference_only_policy": "reference_only_docs_do_not_count_as_runtime_code",
+      "signals": [
+        "Permission checks need deny-first ordering and hook/user/classifier handoff.",
+        "MCP is a high-context extension path and should stay separate from low-cost skills.",
+        "AgentTool should isolate subagent context and return summaries/artifacts to the parent."
+      ],
+      "targets": [
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/hooks/toolPermission",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/services/mcp",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/SkillTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/AgentTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/MCPTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/McpAuthTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/ListMcpResourcesTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/ReadMcpResourceTool",
+          "required_for_runtime": true
+        }
+      ]
+    },
+    {
+      "capability": "Bash, filesystem, and workspace action safety boundary",
+      "crosswalk_id": "bash-and-workspace-action-safety",
+      "downstream_units": [
+        "M1-03A",
+        "M1-05A",
+        "M1-05B"
+      ],
+      "missing_reference_count": 0,
+      "missing_source_count": 0,
+      "missing_target_count": 0,
+      "ok": true,
+      "owner_unit": "M1-02A",
+      "primary_sources": [
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/BashTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/WebFetchTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        },
+        {
+          "exists": true,
+          "is_primary_source": true,
+          "path": "src/tools/WebSearchTool",
+          "repository": "claude-code-best",
+          "role": "canonical_runtime_source"
+        }
+      ],
+      "reference_docs": [
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/06-bash-engine.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "architecture/zh-CN/07-permission-pipeline.md",
+          "repository": "claude-reviews-claude",
+          "role": "reference_only_crosscheck"
+        },
+        {
+          "exists": true,
+          "path": "docs/build-your-own-agent_zh.md",
+          "repository": "Dive-into-Claude-Code",
+          "role": "reference_only_crosscheck"
+        }
+      ],
+      "reference_only_policy": "reference_only_docs_do_not_count_as_runtime_code",
+      "signals": [
+        "Command execution safety combines parser checks, sandbox policy, and permissions.",
+        "Approval fatigue should be handled by better boundaries, not by weakening checks.",
+        "Workspace and network actions need separate runtime evidence paths."
+      ],
+      "targets": [
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/BashTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/WebFetchTool",
+          "required_for_runtime": true
+        },
+        {
+          "exists": true,
+          "path": "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/WebSearchTool",
+          "required_for_runtime": true
+        }
+      ]
+    }
+  ],
+  "ok": true,
+  "reference_repositories": [
+    {
+      "exists": true,
+      "name": "Dive-into-Claude-Code",
+      "policy": "reference_only",
+      "role": "design-space-crosscheck",
+      "workspace_root": "claudecode-related/Dive-into-Claude-Code"
+    },
+    {
+      "exists": true,
+      "name": "claude-reviews-claude",
+      "policy": "reference_only",
+      "role": "architecture-chapter-crosscheck",
+      "workspace_root": "claudecode-related/claude-reviews-claude"
+    }
+  ],
+  "summary": {
+    "entry_count": 6,
+    "missing_reference_count": 0,
+    "missing_source_count": 0,
+    "missing_target_count": 0,
+    "ok": true,
+    "primary_repo": "claude-code-best",
+    "reference_only_repos": [
+      "Dive-into-Claude-Code",
+      "claude-reviews-claude"
+    ],
+    "target_mount": "productized/claude-code-best"
+  }
+}

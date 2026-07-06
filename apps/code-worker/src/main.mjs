@@ -8,6 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
 const VENDOR_ROOT = path.join(PROJECT_ROOT, "vendor", "claude-code-best");
+const RUNTIME_ROOT = path.join(PROJECT_ROOT, "vendor-runtimes", "claude-code-runtime");
+const PRODUCTIZED_ROOT = path.join(RUNTIME_ROOT, "productized", "claude-code-best");
+const PRODUCTIZED_INVENTORY_PATH = path.join(RUNTIME_ROOT, "metadata", "productized_source_inventory.json");
+const REFERENCE_CROSSWALK_PATH = path.join(RUNTIME_ROOT, "metadata", "reference_crosswalk.json");
 
 const PRIORITY_MODULES = [
   {
@@ -73,9 +77,10 @@ function vendorSnapshot() {
 }
 
 function runtimeInventory() {
-  const toolsSource = readVendorText("src/tools.ts");
-  const commandsSource = readVendorText("src/commands.ts");
-  const toolDirectories = listVendorDirectories("src/tools").filter((name) => name.endsWith("Tool"));
+  const toolsSource = readRuntimeText("src/tools.ts");
+  const commandsSource = readRuntimeText("src/commands.ts");
+  const productizedRuntime = productizedRuntimeSnapshot();
+  const toolDirectories = listRuntimeDirectories("src/tools").filter((name) => name.endsWith("Tool"));
   const importedTools = uniqueMatches(
     toolsSource,
     /import\s+\{\s*([A-Za-z0-9_]+Tool)\s*\}\s+from\s+['"]\.\/tools\/([^'"]+)['"]/g,
@@ -93,18 +98,21 @@ function runtimeInventory() {
   return {
     source: "claude-code-best",
     vendorRoot: VENDOR_ROOT,
+    runtimeRoot: RUNTIME_ROOT,
+    productizedRoot: PRODUCTIZED_ROOT,
     generatedBy: "zyra-code-worker-sidecar",
     moduleEntrypoints: {
-      queryEngine: exists("src/QueryEngine.ts"),
-      queryLoop: exists("src/query.ts"),
-      toolRuntime: exists("src/tools.ts") && exists("src/Tool.ts"),
-      commandRuntime: exists("src/commands.ts"),
-      permissionRuntime: exists("src/hooks/toolPermission"),
-      compactRuntime: exists("src/services/compact"),
-      mcpRuntime: exists("src/services/mcp"),
-      skillRuntime: exists("src/tools/SkillTool") && exists("src/skills"),
-      subagentRuntime: exists("src/tools/AgentTool"),
+      queryEngine: runtimeExists("src/QueryEngine.ts"),
+      queryLoop: runtimeExists("src/query.ts"),
+      toolRuntime: runtimeExists("src/tools.ts") && runtimeExists("src/Tool.ts"),
+      commandRuntime: runtimeExists("src/commands.ts"),
+      permissionRuntime: runtimeExists("src/hooks/toolPermission"),
+      compactRuntime: runtimeExists("src/services/compact"),
+      mcpRuntime: runtimeExists("src/services/mcp"),
+      skillRuntime: runtimeExists("src/tools/SkillTool"),
+      subagentRuntime: runtimeExists("src/tools/AgentTool"),
     },
+    productizedRuntime,
     toolRuntime: {
       toolsSource: "src/tools.ts",
       toolDirectories,
@@ -124,30 +132,30 @@ function runtimeInventory() {
       ),
     },
     runtimeBoundaries: {
-      permissionRuntimeFiles: listVendorFiles("src/hooks/toolPermission"),
-      compactRuntimeFiles: listVendorFiles("src/services/compact"),
-      skillRuntimeFiles: listVendorFiles("src/tools/SkillTool"),
-      subagentRuntimeFiles: listVendorFiles("src/tools/AgentTool"),
-      mcpRuntimeFiles: listVendorFiles("src/services/mcp").slice(0, 80),
+      permissionRuntimeFiles: listRuntimeFiles("src/hooks/toolPermission"),
+      compactRuntimeFiles: listRuntimeFiles("src/services/compact"),
+      skillRuntimeFiles: listRuntimeFiles("src/tools/SkillTool"),
+      subagentRuntimeFiles: listRuntimeFiles("src/tools/AgentTool"),
+      mcpRuntimeFiles: listRuntimeFiles("src/services/mcp").slice(0, 80),
     },
   };
 }
 
 function queryContract() {
-  const queryEngineSource = readVendorText("src/QueryEngine.ts");
-  const queryLoopSource = readVendorText("src/query.ts");
-  const toolOrchestrationSource = readVendorText("src/services/tools/toolOrchestration.ts");
-  const toolResultStorageSource = readVendorText("src/utils/toolResultStorage.ts");
+  const queryEngineSource = readRuntimeText("src/QueryEngine.ts");
+  const queryLoopSource = readRuntimeText("src/query.ts");
+  const toolOrchestrationSource = readRuntimeText("src/services/tools/toolOrchestration.ts");
+  const toolResultStorageSource = readRuntimeText("src/utils/toolResultStorage.ts");
   const sourceFiles = [
     "src/QueryEngine.ts",
     "src/query.ts",
     "src/services/tools/toolOrchestration.ts",
     "src/utils/toolResultStorage.ts",
-    ...listVendorFiles("src/services/compact").filter((item) =>
+    ...listRuntimeFiles("src/services/compact").filter((item) =>
       /\/(autoCompact|compact|postCompactCleanup|reactiveCompact|sessionMemoryCompact)\.ts$/.test(`/${item}`),
     ),
-    ...listVendorFiles("src/hooks/toolPermission").slice(0, 12),
-  ].filter(exists);
+    ...listRuntimeFiles("src/hooks/toolPermission").slice(0, 12),
+  ].filter(runtimeExists);
 
   const queryEngineConfigFields = extractTypeFields(queryEngineSource, "QueryEngineConfig");
   const loopStateFields = extractTypeFields(queryLoopSource, "State");
@@ -233,18 +241,18 @@ function queryContract() {
     },
     compactRuntime: {
       sourceDir: "src/services/compact",
-      available: exists("src/services/compact"),
-      autoCompact: exists("src/services/compact/autoCompact.ts"),
-      reactiveCompact: exists("src/services/compact/reactiveCompact.ts"),
-      postCompactCleanup: exists("src/services/compact/postCompactCleanup.ts"),
-      sessionMemoryCompact: exists("src/services/compact/sessionMemoryCompact.ts"),
+      available: runtimeExists("src/services/compact"),
+      autoCompact: runtimeExists("src/services/compact/autoCompact.ts"),
+      reactiveCompact: runtimeExists("src/services/compact/reactiveCompact.ts"),
+      postCompactCleanup: runtimeExists("src/services/compact/postCompactCleanup.ts"),
+      sessionMemoryCompact: runtimeExists("src/services/compact/sessionMemoryCompact.ts"),
     },
     permissionRuntime: {
       sourceDir: "src/hooks/toolPermission",
-      available: exists("src/hooks/toolPermission"),
+      available: runtimeExists("src/hooks/toolPermission"),
       canUseTool: /canUseTool/.test(queryEngineSource),
       tracksPermissionDenials: /permission_denials/.test(queryEngineSource),
-      files: listVendorFiles("src/hooks/toolPermission").slice(0, 12),
+      files: listRuntimeFiles("src/hooks/toolPermission").slice(0, 12),
     },
     resultFields: [
       "type",
@@ -262,13 +270,15 @@ function queryContract() {
 }
 
 function health() {
+  const productizedRuntime = productizedRuntimeSnapshot();
   return {
-    ok: true,
+    ok: vendorSnapshot().complete === true && productizedRuntime.complete === true,
     worker: "CodeWorkerRuntime",
     runtime: "node-sidecar",
-    phase: "m2-protocol-boundary",
+    phase: "m1-02a-productized-runtime-boundary",
     node: process.version,
     vendor: vendorSnapshot(),
+    productizedRuntime,
   };
 }
 
@@ -333,6 +343,108 @@ function readVendorText(relativePath) {
   const target = path.join(VENDOR_ROOT, relativePath);
   if (!fs.existsSync(target)) return "";
   return fs.readFileSync(target, "utf8");
+}
+
+function runtimeSourceRoot() {
+  return fs.existsSync(PRODUCTIZED_ROOT) ? PRODUCTIZED_ROOT : VENDOR_ROOT;
+}
+
+function runtimeExists(relativePath) {
+  return fs.existsSync(path.join(runtimeSourceRoot(), relativePath));
+}
+
+function readRuntimeText(relativePath) {
+  const target = path.join(runtimeSourceRoot(), relativePath);
+  if (!fs.existsSync(target)) return "";
+  return fs.readFileSync(target, "utf8");
+}
+
+function listRuntimeDirectories(relativePath) {
+  const target = path.join(runtimeSourceRoot(), relativePath);
+  if (!fs.existsSync(target)) return [];
+  return fs
+    .readdirSync(target, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function listRuntimeFiles(relativePath) {
+  const root = path.join(runtimeSourceRoot(), relativePath);
+  if (!fs.existsSync(root)) return [];
+  const files = [];
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const target = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(target);
+      } else if (entry.isFile()) {
+        files.push(path.relative(runtimeSourceRoot(), target).replaceAll(path.sep, "/"));
+      }
+    }
+  }
+  return files.sort();
+}
+
+function productizedRuntimeSnapshot() {
+  const inventory = readJsonIfExists(PRODUCTIZED_INVENTORY_PATH);
+  const crosswalk = readJsonIfExists(REFERENCE_CROSSWALK_PATH);
+  const summary = inventory.summary ?? {};
+  const crosswalkSummary = crosswalk.summary ?? {};
+  const moduleChecks = {
+    queryEngine: runtimeExists("src/QueryEngine.ts"),
+    queryLoop: runtimeExists("src/query.ts"),
+    toolRuntime: runtimeExists("src/tools.ts") && runtimeExists("src/Tool.ts"),
+    toolOrchestration: runtimeExists("src/services/tools/toolOrchestration.ts"),
+    compactRuntime: runtimeExists("src/services/compact"),
+    permissionRuntime: runtimeExists("src/hooks/toolPermission"),
+    mcpRuntime: runtimeExists("src/services/mcp"),
+    skillRuntime: runtimeExists("src/tools/SkillTool"),
+    subagentRuntime: runtimeExists("src/tools/AgentTool"),
+  };
+  const effectiveLineCount = Number(summary.effective_line_count ?? 0);
+  const copiedFileCount = Number(summary.copied_count ?? 0) + Number(summary.skipped_count ?? 0);
+  return {
+    runtimeRoot: RUNTIME_ROOT,
+    productizedRoot: PRODUCTIZED_ROOT,
+    sourceRoot: runtimeSourceRoot(),
+    manifestPath: path.join(RUNTIME_ROOT, "src", "zyra-productized-manifest.mjs"),
+    inventoryPath: PRODUCTIZED_INVENTORY_PATH,
+    referenceCrosswalkPath: REFERENCE_CROSSWALK_PATH,
+    manifestExists: fs.existsSync(path.join(RUNTIME_ROOT, "src", "zyra-productized-manifest.mjs")),
+    inventoryExists: fs.existsSync(PRODUCTIZED_INVENTORY_PATH),
+    referenceCrosswalkExists: fs.existsSync(REFERENCE_CROSSWALK_PATH),
+    effectiveLineCount,
+    copiedFileCount,
+    moduleChecks,
+    referenceCrosswalk: {
+      ok: crosswalk.ok === true,
+      entryCount: crosswalkSummary.entry_count ?? 0,
+      referenceOnlyRepos: crosswalkSummary.reference_only_repos ?? [],
+      missingSourceCount: crosswalkSummary.missing_source_count ?? 0,
+      missingReferenceCount: crosswalkSummary.missing_reference_count ?? 0,
+      missingTargetCount: crosswalkSummary.missing_target_count ?? 0,
+    },
+    complete:
+      fs.existsSync(PRODUCTIZED_ROOT) &&
+      fs.existsSync(PRODUCTIZED_INVENTORY_PATH) &&
+      fs.existsSync(REFERENCE_CROSSWALK_PATH) &&
+      effectiveLineCount >= 18000 &&
+      copiedFileCount >= 80 &&
+      Object.values(moduleChecks).every((value) => value === true) &&
+      crosswalk.ok === true,
+  };
+}
+
+function readJsonIfExists(target) {
+  if (!fs.existsSync(target)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(target, "utf8"));
+  } catch {
+    return {};
+  }
 }
 
 function listVendorDirectories(relativePath) {

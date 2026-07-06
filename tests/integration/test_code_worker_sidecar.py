@@ -39,6 +39,9 @@ class CodeWorkerSidecarTests(unittest.TestCase):
         self.assertTrue(health["ok"])
         self.assertEqual(health["worker"], "CodeWorkerRuntime")
         self.assertTrue(health["vendor"]["complete"])
+        self.assertTrue(health["productizedRuntime"]["complete"])
+        self.assertGreaterEqual(health["productizedRuntime"]["effectiveLineCount"], 18_000)
+        self.assertTrue(health["productizedRuntime"]["referenceCrosswalk"]["ok"])
         self.assertTrue(str(health["vendor"]["vendorRoot"]).endswith("vendor\\claude-code-best") or str(health["vendor"]["vendorRoot"]).endswith("vendor/claude-code-best"))
 
     def test_sidecar_snapshot_contains_priority_runtime_modules(self) -> None:
@@ -56,6 +59,7 @@ class CodeWorkerSidecarTests(unittest.TestCase):
         inventory = client.runtime_inventory()
 
         self.assertEqual(inventory["source"], "claude-code-best")
+        self.assertTrue(inventory["productizedRuntime"]["complete"])
         self.assertIn("BashTool", inventory["toolRuntime"]["baseToolSymbols"])
         self.assertIn("FileReadTool", inventory["toolRuntime"]["baseToolSymbols"])
         self.assertGreater(inventory["commandRuntime"]["commandCount"], 20)

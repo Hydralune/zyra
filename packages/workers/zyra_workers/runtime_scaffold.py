@@ -147,6 +147,8 @@ class CodeWorkerScaffold(BaseWorkerScaffold):
             "has_permission_contract": any(component.surface == "permission" for component in self.runtime_scaffold.components),
             "has_runtime_root": runtime_root.exists(),
             "has_pilot_manifest": (runtime_root / "src" / "zyra-pilot-manifest.mjs").exists(),
+            "has_productized_manifest": (runtime_root / "src" / "zyra-productized-manifest.mjs").exists(),
+            "has_reference_crosswalk": (runtime_root / "metadata" / "reference_crosswalk.json").exists(),
         }
 
 

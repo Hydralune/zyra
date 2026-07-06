@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "health": "node src/zyra-pilot-smoke.mjs",
-    "inventory": "node src/zyra-pilot-smoke.mjs --inventory"
+    "inventory": "node src/zyra-pilot-smoke.mjs --inventory",
+    "pilot:health": "node src/zyra-pilot-smoke.mjs",
+    "productized:health": "node src/zyra-productized-smoke.mjs",
+    "productized:inventory": "node src/zyra-productized-smoke.mjs --inventory"
   },
   "type": "module",
   "version": "0.1.0-m1-01b"

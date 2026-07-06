@@ -52,6 +52,13 @@ class LedgerPolicyLineCountTests(unittest.TestCase):
         self.assertEqual(classification.surface, "data")
         self.assertIn("seed/inventory/data", classification.reason)
 
+    def test_reference_crosswalk_json_is_excluded_under_vendor_runtime(self) -> None:
+        classification = classify_path("vendor-runtimes/claude-code-runtime/metadata/reference_crosswalk.json")
+
+        self.assertEqual(classification.verdict, CountVerdict.EXCLUDED)
+        self.assertEqual(classification.surface, "data")
+        self.assertTrue(classification.is_generated_data)
+
     def test_parent_source_reference_is_excluded_and_flagged(self) -> None:
         classification = classify_path("../claude-code-best/src/QueryEngine.ts")
 

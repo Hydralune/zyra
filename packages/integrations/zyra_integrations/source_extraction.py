@@ -138,6 +138,44 @@ CLAUDE_CODE_PILOT_SOURCES = [
 ]
 
 
+CLAUDE_CODE_PRODUCTIZED_RUNTIME_SOURCES = [
+    "src/QueryEngine.ts",
+    "src/query.ts",
+    "src/Tool.ts",
+    "src/tools.ts",
+    "src/commands.ts",
+    "src/context.ts",
+    "src/cost-tracker.ts",
+    "src/services/tools",
+    "src/services/compact",
+    "src/hooks/toolPermission",
+    "src/tools/AgentTool",
+    "src/tools/SkillTool",
+    "src/tools/BashTool",
+    "src/tools/FileReadTool",
+    "src/tools/FileEditTool",
+    "src/tools/FileWriteTool",
+    "src/tools/GlobTool",
+    "src/tools/GrepTool",
+    "src/tools/TodoWriteTool",
+    "src/tools/ToolSearchTool",
+    "src/tools/WebFetchTool",
+    "src/tools/WebSearchTool",
+    "src/tools/ListMcpResourcesTool",
+    "src/tools/ReadMcpResourceTool",
+    "src/tools/MCPTool",
+    "src/tools/McpAuthTool",
+    "src/services/mcp",
+    "src/utils/toolResultStorage.ts",
+    "src/utils/queryContext.ts",
+    "src/utils/sessionStorage.ts",
+    "src/utils/sessionState.ts",
+    "src/utils/messagePredicates.ts",
+    "src/utils/messageQueueManager.ts",
+    "src/utils/messages.ts",
+]
+
+
 class OverwritePolicy(StrEnum):
     NEVER = "never"
     IF_CHANGED = "if_changed"
@@ -253,6 +291,24 @@ class ExtractionPlan:
     capability_prefix: str = "claude_code_runtime_pilot"
     capability_summary: str = "Pilot extraction for Claude Code runtime contracts used by M1-02A."
     target_mount: str = "pilot/claude-code-best"
+    manifest_export_name: str = "zyraClaudeCodePilotManifest"
+    manifest_health_export_name: str = "zyraClaudeCodePilotHealth"
+    manifest_kind: str = "pilot"
+    runtime_function: str = "default_m1_01b_runtime_scaffold"
+    lifecycle: LedgerLifecycle = LedgerLifecycle.ACTIVE
+    main_path_status: MainPathStatus = MainPathStatus.WORKER_RUNTIME_CONNECTED
+    main_path_worker_runtime: str = "CodeWorkerRuntime:claude-code-runtime-pilot"
+    main_path_surfaces: list[str] = field(
+        default_factory=lambda: ["vendor-runtimes", "packages/runtime", "packages/workers", "packages/integrations"]
+    )
+    main_path_event_types: list[str] = field(default_factory=lambda: ["runtime_scaffold_health", "source_extraction_completed"])
+    main_path_control_commands: list[str] = field(default_factory=lambda: ["ledger:accounting", "ledger:gate"])
+    main_path_artifact_kinds: list[str] = field(default_factory=lambda: ["source_inventory", "runtime_manifest"])
+    tags: list[str] = field(default_factory=lambda: ["m1-01b", "source-extraction", "claude-code-runtime-pilot"])
+    source_evidence_tags: list[str] = field(default_factory=lambda: ["m1-01b", "pilot-extraction"])
+    replacement_plan: str = (
+        "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary."
+    )
 
     def normalized_target_root(self) -> Path:
         if self.target_root.is_absolute():
@@ -527,11 +583,13 @@ class SourceExtractor:
             if item.source_like
         ]
         text = [
-            "export const zyraClaudeCodePilotManifest = Object.freeze({",
-            '  sourceRepo: "claude-code-best",',
-            '  ownerUnit: "M1-01B",',
+            f"export const {self.plan.manifest_export_name} = Object.freeze({{",
+            f"  sourceRepo: {json.dumps(self.plan.source_repo, ensure_ascii=False)},",
+            f"  ownerUnit: {json.dumps(self.plan.owner_unit, ensure_ascii=False)},",
+            f"  manifestKind: {json.dumps(self.plan.manifest_kind, ensure_ascii=False)},",
             '  targetRuntime: "vendor-runtimes/claude-code-runtime",',
-            '  purpose: "Pilot extraction proving the M1-02A Claude Code runtime migration path.",',
+            f"  targetMount: {json.dumps(self.plan.target_mount, ensure_ascii=False)},",
+            f"  purpose: {json.dumps(self.plan.capability_summary, ensure_ascii=False)},",
             f"  copiedFileCount: {len(files)},",
             f"  effectiveLineCount: {sum(item['effectiveLineCount'] for item in files)},",
             "  files: Object.freeze([",
@@ -547,13 +605,14 @@ class SourceExtractor:
                 "  ]),",
                 "});",
                 "",
-                "export function zyraClaudeCodePilotHealth() {",
+                f"export function {self.plan.manifest_health_export_name}() {{",
                 "  return {",
-                "    ok: zyraClaudeCodePilotManifest.copiedFileCount > 0,",
-                "    sourceRepo: zyraClaudeCodePilotManifest.sourceRepo,",
-                "    ownerUnit: zyraClaudeCodePilotManifest.ownerUnit,",
-                "    effectiveLineCount: zyraClaudeCodePilotManifest.effectiveLineCount,",
-                "    copiedFileCount: zyraClaudeCodePilotManifest.copiedFileCount,",
+                f"    ok: {self.plan.manifest_export_name}.copiedFileCount > 0,",
+                f"    sourceRepo: {self.plan.manifest_export_name}.sourceRepo,",
+                f"    ownerUnit: {self.plan.manifest_export_name}.ownerUnit,",
+                f"    manifestKind: {self.plan.manifest_export_name}.manifestKind,",
+                f"    effectiveLineCount: {self.plan.manifest_export_name}.effectiveLineCount,",
+                f"    copiedFileCount: {self.plan.manifest_export_name}.copiedFileCount,",
                 "  };",
                 "}",
                 "",
@@ -570,17 +629,17 @@ class SourceExtractor:
             capability_summary=f"{self.plan.capability_summary} Source file line_count={item.line_count}.",
             target_paths=[item.target.project_relative_path],
             migration_strategy=MigrationStrategy.VENDORED_RUNTIME,
-            main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
-            lifecycle=LedgerLifecycle.ACTIVE,
+            main_path_status=self.plan.main_path_status,
+            lifecycle=self.plan.lifecycle,
             owner_unit=self.plan.owner_unit,
             milestone=self.plan.milestone,
             runtime_entry=RuntimeEntry(
                 command=self.plan.runtime_command,
                 module=self.plan.runtime_module,
-                function="default_m1_01b_runtime_scaffold",
+                function=self.plan.runtime_function,
                 protocol="zyra-runtime-scaffold-v1",
                 health_check=self.plan.runtime_health_check,
-                config_refs=["vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"],
+                config_refs=[self._project_relative_manifest_path()],
             ),
             test_entries=[
                 TestEntry(
@@ -591,11 +650,11 @@ class SourceExtractor:
                 )
             ],
             main_path=MainPathBinding(
-                surfaces=["vendor-runtimes", "packages/runtime", "packages/workers", "packages/integrations"],
-                event_types=["runtime_scaffold_health", "source_extraction_completed"],
-                control_commands=["ledger:accounting", "ledger:gate"],
-                artifact_kinds=["source_inventory", "runtime_manifest"],
-                worker_runtime="CodeWorkerRuntime:claude-code-runtime-pilot",
+                surfaces=list(self.plan.main_path_surfaces),
+                event_types=list(self.plan.main_path_event_types),
+                control_commands=list(self.plan.main_path_control_commands),
+                artifact_kinds=list(self.plan.main_path_artifact_kinds),
+                worker_runtime=self.plan.main_path_worker_runtime,
             ),
             line_count_policy=LineCountPolicy.COUNTS_AS_RUNTIME,
             license_notice=LicenseNotice(
@@ -614,14 +673,14 @@ class SourceExtractor:
                 source_path=item.source.source_path,
                 exists_in_workspace=True,
                 source_kind="file",
-                reason="pilot extraction source file",
+                reason=f"{self.plan.manifest_kind} extraction source file",
                 symbols=[PurePosixPath(item.source.source_path).stem],
-                tags=["m1-01b", "pilot-extraction"],
+                tags=list(self.plan.source_evidence_tags),
             )
         ]
         entry.downstream_units = list(self.plan.downstream_units)
-        entry.tags = ["m1-01b", "source-extraction", "claude-code-runtime-pilot"]
-        entry.replacement_plan = "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary."
+        entry.tags = list(self.plan.tags)
+        entry.replacement_plan = self.plan.replacement_plan
         return entry
 
     def _ledger_upsert_plan_for_item(self, item: ExtractionItem) -> LedgerUpsertPlan:
@@ -634,8 +693,8 @@ class SourceExtractor:
             owner_unit=self.plan.owner_unit,
             capability_name=capability,
             action="upsert",
-            lifecycle=str(LedgerLifecycle.ACTIVE),
-            main_path_status=str(MainPathStatus.WORKER_RUNTIME_CONNECTED),
+            lifecycle=str(self.plan.lifecycle),
+            main_path_status=str(self.plan.main_path_status),
         )
 
     def _capability_name(self, item: ExtractionItem) -> str:
@@ -664,6 +723,12 @@ class SourceExtractor:
         except ValueError as error:
             raise SourceExtractionError(f"path escapes project root: {path}") from error
 
+    def _project_relative_manifest_path(self) -> str:
+        manifest = self.plan.manifest_module_path or self.target_root / "src" / "zyra-pilot-manifest.mjs"
+        if not manifest.is_absolute():
+            manifest = self.project_root / manifest
+        return manifest.resolve().relative_to(self.project_root).as_posix()
+
 
 def claude_code_m1_01b_plan(
     *,
@@ -686,6 +751,75 @@ def claude_code_m1_01b_plan(
     )
 
 
+def claude_code_m1_02a_plan(
+    *,
+    project_root: Path,
+    source_workspace_root: Path,
+    dry_run: bool = False,
+    overwrite_policy: OverwritePolicy = OverwritePolicy.IF_CHANGED,
+) -> ExtractionPlan:
+    target_root = project_root / "vendor-runtimes" / "claude-code-runtime"
+    return ExtractionPlan(
+        source_repo="claude-code-best",
+        source_root=source_workspace_root / "claude-code-best",
+        project_root=project_root,
+        target_root=target_root,
+        include_paths=list(CLAUDE_CODE_PRODUCTIZED_RUNTIME_SOURCES),
+        owner_unit="M1-02A",
+        milestone="M1",
+        downstream_units=["M1-02B", "M1-02C", "M1-02D", "M1-03A", "M1-03B", "M1-03C", "M1-03D", "M1-08"],
+        dry_run=dry_run,
+        overwrite_policy=overwrite_policy,
+        report_path=target_root / "metadata" / "productized_source_inventory.json",
+        manifest_module_path=target_root / "src" / "zyra-productized-manifest.mjs",
+        runtime_command="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs",
+        runtime_module="@zyra/claude-code-runtime/productized",
+        runtime_function="zyraClaudeCodeProductizedHealth",
+        runtime_health_check="node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs",
+        test_path="tests/integration/test_claude_code_productized_runtime.py",
+        test_command="python -m unittest tests.integration.test_claude_code_productized_runtime",
+        capability_prefix="claude_code_runtime_productized",
+        capability_summary=(
+            "Productized Claude Code runtime source boundary for Zyra CodeWorkerRuntime, QueryEngine, "
+            "tool orchestration, compact, permission, MCP, SkillTool, and AgentTool handoff."
+        ),
+        target_mount="productized/claude-code-best",
+        manifest_export_name="zyraClaudeCodeProductizedManifest",
+        manifest_health_export_name="zyraClaudeCodeProductizedHealth",
+        manifest_kind="productized",
+        lifecycle=LedgerLifecycle.PRODUCTIZED,
+        main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
+        main_path_worker_runtime="CodeWorkerRuntime:claude-code-runtime-productized",
+        main_path_event_types=[
+            "query_session",
+            "tool_result",
+            "runtime_scaffold_health",
+            "source_extraction_completed",
+            "reference_crosswalk_verified",
+        ],
+        main_path_control_commands=[
+            "code-worker:health",
+            "code-worker:inventory",
+            "code-worker:query-contract",
+            "ledger:accounting",
+            "ledger:gate",
+        ],
+        main_path_artifact_kinds=[
+            "trace",
+            "source_inventory",
+            "runtime_manifest",
+            "reference_crosswalk",
+            "structured_data",
+        ],
+        tags=["m1-02a", "source-extraction", "claude-code-runtime-productized", "reference-only-assisted"],
+        source_evidence_tags=["m1-02a", "productized-extraction", "reference-only-assisted"],
+        replacement_plan=(
+            "M1-02B/M1-02C/M1-02D will bind these productized Claude Code runtime sources to Zyra's "
+            "query loop, tool loop, session lifecycle, compact/restore, and CodeWorker API without relying on parent paths."
+        ),
+    )
+
+
 def write_runtime_scaffold_files(project_root: Path) -> list[Path]:
     runtime_root = project_root / "vendor-runtimes" / "claude-code-runtime"
     files: dict[Path, str] = {
@@ -698,7 +832,10 @@ def write_runtime_scaffold_files(project_root: Path) -> list[Path]:
                 "description": "Productized Claude Code runtime pilot boundary for Zyra.",
                 "scripts": {
                     "health": "node src/zyra-pilot-smoke.mjs",
+                    "pilot:health": "node src/zyra-pilot-smoke.mjs",
+                    "productized:health": "node src/zyra-productized-smoke.mjs",
                     "inventory": "node src/zyra-pilot-smoke.mjs --inventory",
+                    "productized:inventory": "node src/zyra-productized-smoke.mjs --inventory",
                 },
             },
             ensure_ascii=False,
@@ -715,6 +852,41 @@ def write_runtime_scaffold_files(project_root: Path) -> list[Path]:
             resolved.relative_to(project_root.resolve())
         except ValueError as error:
             raise SourceExtractionError(f"scaffold path escapes project root: {path}") from error
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        written.append(path)
+    return written
+
+
+def write_productized_runtime_files(project_root: Path) -> list[Path]:
+    runtime_root = project_root / "vendor-runtimes" / "claude-code-runtime"
+    package_path = runtime_root / "package.json"
+    package_payload = {
+        "name": "@zyra/claude-code-runtime",
+        "private": True,
+        "type": "module",
+        "version": "0.1.0-m1-02a",
+        "description": "Productized Claude Code runtime boundary for Zyra.",
+        "scripts": {
+            "health": "node src/zyra-productized-smoke.mjs",
+            "pilot:health": "node src/zyra-pilot-smoke.mjs",
+            "productized:health": "node src/zyra-productized-smoke.mjs",
+            "inventory": "node src/zyra-productized-smoke.mjs --inventory",
+            "pilot:inventory": "node src/zyra-pilot-smoke.mjs --inventory",
+            "productized:inventory": "node src/zyra-productized-smoke.mjs --inventory",
+        },
+    }
+    files: dict[Path, str] = {
+        package_path: json.dumps(package_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        runtime_root / "src" / "zyra-productized-smoke.mjs": _productized_smoke_module(),
+    }
+    written: list[Path] = []
+    for path, text in files.items():
+        resolved = path.resolve()
+        try:
+            resolved.relative_to(project_root.resolve())
+        except ValueError as error:
+            raise SourceExtractionError(f"productized scaffold path escapes project root: {path}") from error
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         written.append(path)
@@ -777,6 +949,59 @@ if (process.argv.includes("--inventory")) {
 }
 
 if (!health.ok || missing.length > 0) {
+  process.exitCode = 1;
+}
+"""
+
+
+def _productized_smoke_module() -> str:
+    return """import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { zyraClaudeCodeProductizedHealth, zyraClaudeCodeProductizedManifest } from "./zyra-productized-manifest.mjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const runtimeRoot = path.resolve(__dirname, "..");
+const projectRoot = path.resolve(runtimeRoot, "..", "..");
+const crosswalkPath = path.resolve(runtimeRoot, "metadata", "reference_crosswalk.json");
+
+function fileExists(projectRelativePath) {
+  return fs.existsSync(path.resolve(projectRoot, projectRelativePath));
+}
+
+function readCrosswalk() {
+  if (!fs.existsSync(crosswalkPath)) {
+    return { ok: false, entryCount: 0, missingTargetCount: 0, referenceOnlyRepos: [] };
+  }
+  const payload = JSON.parse(fs.readFileSync(crosswalkPath, "utf8"));
+  return {
+    ok: payload.ok === true,
+    entryCount: payload.summary?.entry_count ?? 0,
+    missingTargetCount: payload.summary?.missing_target_count ?? 0,
+    referenceOnlyRepos: payload.summary?.reference_only_repos ?? [],
+  };
+}
+
+const missing = zyraClaudeCodeProductizedManifest.files.filter((item) => !fileExists(item.targetPath));
+const crosswalk = readCrosswalk();
+const health = {
+  ...zyraClaudeCodeProductizedHealth(),
+  runtimeRoot,
+  productizedRoot: path.resolve(runtimeRoot, "productized", "claude-code-best"),
+  missingTargetCount: missing.length,
+  missingTargets: missing.map((item) => item.targetPath),
+  referenceCrosswalk: crosswalk,
+};
+
+const ok = health.ok && missing.length === 0 && crosswalk.ok;
+if (process.argv.includes("--inventory")) {
+  process.stdout.write(`${JSON.stringify({ ok, manifest: zyraClaudeCodeProductizedManifest, health })}\\n`);
+} else {
+  process.stdout.write(`${JSON.stringify({ ok, health })}\\n`);
+}
+
+if (!ok) {
   process.exitCode = 1;
 }
 """

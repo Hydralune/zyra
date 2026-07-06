@@ -102,6 +102,7 @@ COUNTED_ROOTS = {
 
 DATA_FILENAMES = {
     "internalization_ledger_seed.json",
+    "reference_crosswalk.json",
     "source_inventory.json",
     "source_inventory.yaml",
     "source_inventory.yml",
@@ -373,6 +374,7 @@ def classify_path(path: str) -> PathClassification:
     structured_data_file = suffix in DATA_SUFFIXES or name in DATA_FILENAMES
     is_generated_data = structured_data_file and (
         "data" in parts
+        or name in DATA_FILENAMES
         or "inventory" in name.lower()
         or "seed" in name.lower()
         or "index" in name.lower()

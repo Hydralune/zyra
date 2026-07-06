@@ -17,7 +17,13 @@ from zyra_integrations.source_extraction import (  # noqa: E402
     OverwritePolicy,
     SourceExtractor,
     claude_code_m1_01b_plan,
+    claude_code_m1_02a_plan,
+    write_productized_runtime_files,
     write_runtime_scaffold_files,
+)
+from zyra_integrations.reference_crosswalk import (  # noqa: E402
+    build_claude_code_reference_crosswalk,
+    write_claude_code_reference_crosswalk,
 )
 
 
@@ -35,8 +41,19 @@ def build_parser() -> argparse.ArgumentParser:
     pilot.add_argument("--write-scaffold", action="store_true")
     pilot.add_argument("--json", action="store_true")
 
+    productized = subcommands.add_parser("productize-claude-code", help="Run the M1-02A Claude Code productized extraction")
+    productized.add_argument("--dry-run", action="store_true")
+    productized.add_argument("--overwrite-policy", choices=[item.value for item in OverwritePolicy], default=OverwritePolicy.IF_CHANGED.value)
+    productized.add_argument("--write-ledger", action="store_true")
+    productized.add_argument("--update-seed", action="store_true")
+    productized.add_argument("--write-scaffold", action="store_true")
+    productized.add_argument("--write-crosswalk", action="store_true")
+    productized.add_argument("--json", action="store_true")
+
     smoke = subcommands.add_parser("smoke", help="Verify the M1-01B runtime extraction scaffold")
     smoke.add_argument("--json", action="store_true")
+    productized_smoke = subcommands.add_parser("productized-smoke", help="Verify the M1-02A productized Claude Code runtime")
+    productized_smoke.add_argument("--json", action="store_true")
     return parser
 
 
@@ -67,8 +84,51 @@ def main(argv: list[str] | None = None) -> int:
         _print_payload(payload, as_json=args.json)
         return 0 if report.ok else 1
 
+    if args.command == "productize-claude-code":
+        if args.write_scaffold and not args.dry_run:
+            write_productized_runtime_files(project_root)
+        plan = claude_code_m1_02a_plan(
+            project_root=project_root,
+            source_workspace_root=source_workspace_root,
+            dry_run=args.dry_run,
+            overwrite_policy=OverwritePolicy(args.overwrite_policy),
+        )
+        extractor = SourceExtractor(plan)
+        report = extractor.run()
+        ledger_payload = None
+        crosswalk_payload = None
+        if args.write_crosswalk and not args.dry_run and report.ok:
+            crosswalk_path = write_claude_code_reference_crosswalk(
+                project_root=project_root,
+                source_workspace_root=source_workspace_root,
+                target_mount=plan.target_mount,
+            )
+            crosswalk_report = build_claude_code_reference_crosswalk(
+                project_root=project_root,
+                source_workspace_root=source_workspace_root,
+                target_mount=plan.target_mount,
+            )
+            crosswalk_payload = {
+                "path": str(crosswalk_path.relative_to(project_root)),
+                "summary": crosswalk_report.summary(),
+            }
+        if args.write_ledger and not args.dry_run and report.ok:
+            ledger_payload = extractor.upsert_ledger_entries(report, project_ledger=True, seed_ledger=args.update_seed)
+        payload = {
+            "report": report.to_dict(),
+            "ledger": ledger_payload,
+            "reference_crosswalk": crosswalk_payload,
+        }
+        _print_payload(payload, as_json=args.json)
+        return 0 if report.ok and (crosswalk_payload is not None or not args.write_crosswalk or args.dry_run) else 1
+
     if args.command == "smoke":
         payload = smoke_payload(project_root)
+        _print_payload(payload, as_json=args.json)
+        return 0 if payload["ok"] else 1
+
+    if args.command == "productized-smoke":
+        payload = productized_smoke_payload(project_root)
         _print_payload(payload, as_json=args.json)
         return 0 if payload["ok"] else 1
 
@@ -90,6 +150,35 @@ def smoke_payload(project_root: Path) -> dict:
         "inventory_exists": inventory.exists(),
         "copied_file_count": len(copied_files),
         "source_file_count": len(source_files),
+    }
+
+
+def productized_smoke_payload(project_root: Path) -> dict:
+    runtime_root = project_root / "vendor-runtimes" / "claude-code-runtime"
+    manifest = runtime_root / "src" / "zyra-productized-manifest.mjs"
+    inventory = runtime_root / "metadata" / "productized_source_inventory.json"
+    crosswalk = runtime_root / "metadata" / "reference_crosswalk.json"
+    copied_root = runtime_root / "productized" / "claude-code-best"
+    copied_files = [path for path in copied_root.rglob("*") if path.is_file()] if copied_root.exists() else []
+    source_files = [path for path in copied_files if path.suffix.lower() in {".ts", ".tsx", ".js", ".mjs"}]
+    crosswalk_payload = {}
+    if crosswalk.exists():
+        crosswalk_payload = json.loads(crosswalk.read_text(encoding="utf-8"))
+    return {
+        "ok": (
+            manifest.exists()
+            and inventory.exists()
+            and crosswalk.exists()
+            and len(source_files) >= 80
+            and bool(crosswalk_payload.get("ok", False))
+        ),
+        "runtime_root": str(runtime_root),
+        "manifest_exists": manifest.exists(),
+        "inventory_exists": inventory.exists(),
+        "crosswalk_exists": crosswalk.exists(),
+        "copied_file_count": len(copied_files),
+        "source_file_count": len(source_files),
+        "crosswalk_summary": crosswalk_payload.get("summary", {}),
     }
 
 
