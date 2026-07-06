@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -77,6 +78,18 @@ class LedgerPolicyLineCountTests(unittest.TestCase):
 
         self.assertEqual(effective, 1370)
         self.assertEqual(excluded, 108161)
+
+    def test_parse_numstat_excludes_upstream_type_stub_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            target = root / "vendor-runtimes/claude-code-runtime/productized/claude-code-best/src/tools/BashTool/src/Tool.ts"
+            target.parent.mkdir(parents=True)
+            target.write_text("// Auto-generated type stub - replace with real implementation\nexport type Tool = any;\n", encoding="utf-8")
+            files = parse_numstat(f"2\t0\t{target.relative_to(root).as_posix()}\n", project_root=root)
+
+        self.assertEqual(files[0].effective_added, 0)
+        self.assertEqual(files[0].excluded_added, 2)
+        self.assertIn("upstream-type-stub", files[0].content_flags)
 
     def test_effective_line_count_gate_fails_shortfall(self) -> None:
         from zyra_integrations.ledger_linecount import EffectiveLineCountReport

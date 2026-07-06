@@ -45,6 +45,8 @@ SOURCE_SUFFIXES = {
     ".cmd",
 }
 
+UPSTREAM_TYPE_STUB_MARKER = "Auto-generated type stub"
+
 DEFAULT_EXCLUDE_PATTERNS = [
     ".git/**",
     ".github/**",
@@ -229,11 +231,12 @@ class ExtractionItem:
     disposition: ExtractionDisposition
     reason: str = ""
     previous_sha256: str = ""
+    is_upstream_type_stub: bool = False
 
     @property
     def effective_line_count(self) -> int:
         if self.disposition in {ExtractionDisposition.COPIED, ExtractionDisposition.SKIPPED_IDENTICAL, ExtractionDisposition.DRY_RUN}:
-            return self.line_count if self.source_like else 0
+            return self.line_count if self.source_like and not self.is_upstream_type_stub else 0
         return 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -247,6 +250,7 @@ class ExtractionItem:
             "sha256": self.sha256,
             "previous_sha256": self.previous_sha256,
             "source_like": self.source_like,
+            "is_upstream_type_stub": self.is_upstream_type_stub,
             "disposition": str(self.disposition),
             "reason": self.reason,
         }
@@ -351,6 +355,14 @@ class ExtractionReport:
         return sum(item.effective_line_count for item in [*self.copied, *self.skipped])
 
     @property
+    def upstream_type_stub_count(self) -> int:
+        return sum(1 for item in [*self.copied, *self.skipped] if item.is_upstream_type_stub)
+
+    @property
+    def upstream_type_stub_line_count(self) -> int:
+        return sum(item.line_count for item in [*self.copied, *self.skipped] if item.is_upstream_type_stub)
+
+    @property
     def raw_line_count(self) -> int:
         return sum(item.line_count for item in [*self.copied, *self.skipped, *self.excluded, *self.missing])
 
@@ -372,6 +384,8 @@ class ExtractionReport:
                 "excluded_count": self.excluded_count,
                 "missing_count": self.missing_count,
                 "effective_line_count": self.effective_line_count,
+                "upstream_type_stub_count": self.upstream_type_stub_count,
+                "upstream_type_stub_line_count": self.upstream_type_stub_line_count,
                 "raw_line_count": self.raw_line_count,
                 "ledger_upsert_count": len(self.ledger_upserts),
             },
@@ -531,6 +545,7 @@ class SourceExtractor:
             disposition=disposition,
             reason=reason,
             previous_sha256=previous_sha,
+            is_upstream_type_stub=UPSTREAM_TYPE_STUB_MARKER in text,
         )
 
     def _empty_item(
@@ -578,6 +593,7 @@ class SourceExtractor:
                 "sha256": item.sha256,
                 "lineCount": item.line_count,
                 "effectiveLineCount": item.effective_line_count,
+                "upstreamTypeStub": item.is_upstream_type_stub,
             }
             for item in [*report.copied, *report.skipped]
             if item.source_like
@@ -592,6 +608,8 @@ class SourceExtractor:
             f"  purpose: {json.dumps(self.plan.capability_summary, ensure_ascii=False)},",
             f"  copiedFileCount: {len(files)},",
             f"  effectiveLineCount: {sum(item['effectiveLineCount'] for item in files)},",
+            f"  upstreamTypeStubCount: {sum(1 for item in files if item['upstreamTypeStub'])},",
+            f"  upstreamTypeStubLineCount: {sum(item['lineCount'] for item in files if item['upstreamTypeStub'])},",
             "  files: Object.freeze([",
         ]
         for item in files:
@@ -613,6 +631,8 @@ class SourceExtractor:
                 f"    manifestKind: {self.plan.manifest_export_name}.manifestKind,",
                 f"    effectiveLineCount: {self.plan.manifest_export_name}.effectiveLineCount,",
                 f"    copiedFileCount: {self.plan.manifest_export_name}.copiedFileCount,",
+                f"    upstreamTypeStubCount: {self.plan.manifest_export_name}.upstreamTypeStubCount,",
+                f"    upstreamTypeStubLineCount: {self.plan.manifest_export_name}.upstreamTypeStubLineCount,",
                 "  };",
                 "}",
                 "",
@@ -666,6 +686,8 @@ class SourceExtractor:
             ),
             extracted_sha256=item.sha256,
             extracted_lines=item.line_count,
+            effective_line_count=item.effective_line_count,
+            upstream_type_stub=item.is_upstream_type_stub,
         )
         entry.source_evidence = [
             SourceEvidence(
@@ -680,6 +702,11 @@ class SourceExtractor:
         ]
         entry.downstream_units = list(self.plan.downstream_units)
         entry.tags = list(self.plan.tags)
+        if item.is_upstream_type_stub:
+            entry.tags.append("upstream-type-stub")
+            entry.risk_notes.append(
+                "Upstream source is an auto-generated type stub; retained for import-boundary evidence and excluded from effective line counts."
+            )
         entry.replacement_plan = self.plan.replacement_plan
         return entry
 
@@ -824,20 +851,21 @@ def write_runtime_scaffold_files(project_root: Path) -> list[Path]:
     runtime_root = project_root / "vendor-runtimes" / "claude-code-runtime"
     files: dict[Path, str] = {
         runtime_root / "package.json": json.dumps(
-            {
-                "name": "@zyra/claude-code-runtime",
-                "private": True,
-                "type": "module",
-                "version": "0.1.0-m1-01b",
-                "description": "Productized Claude Code runtime pilot boundary for Zyra.",
-                "scripts": {
-                    "health": "node src/zyra-pilot-smoke.mjs",
-                    "pilot:health": "node src/zyra-pilot-smoke.mjs",
-                    "productized:health": "node src/zyra-productized-smoke.mjs",
-                    "inventory": "node src/zyra-pilot-smoke.mjs --inventory",
-                    "productized:inventory": "node src/zyra-productized-smoke.mjs --inventory",
+                {
+                    "name": "@zyra/claude-code-runtime",
+                    "private": True,
+                    "type": "module",
+                    "version": "0.1.0-m1-02a",
+                    "description": "Productized Claude Code runtime boundary for Zyra.",
+                    "scripts": {
+                        "health": "node src/zyra-productized-smoke.mjs",
+                        "pilot:health": "node src/zyra-pilot-smoke.mjs",
+                        "productized:health": "node src/zyra-productized-smoke.mjs",
+                        "inventory": "node src/zyra-productized-smoke.mjs --inventory",
+                        "pilot:inventory": "node src/zyra-pilot-smoke.mjs --inventory",
+                        "productized:inventory": "node src/zyra-productized-smoke.mjs --inventory",
+                    },
                 },
-            },
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
@@ -878,6 +906,7 @@ def write_productized_runtime_files(project_root: Path) -> list[Path]:
     }
     files: dict[Path, str] = {
         package_path: json.dumps(package_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        runtime_root / "README.md": _productized_readme(),
         runtime_root / "src" / "zyra-productized-smoke.mjs": _productized_smoke_module(),
     }
     written: list[Path] = []
@@ -1004,4 +1033,55 @@ if (process.argv.includes("--inventory")) {
 if (!ok) {
   process.exitCode = 1;
 }
-"""
+  """.strip() + "\n"
+
+
+def _productized_readme() -> str:
+    return """# Zyra Claude Code Productized Runtime
+
+## Source
+
+- Primary source repository: `claude-code-best`
+- Productized source mount: `vendor-runtimes/claude-code-runtime/productized/claude-code-best`
+- Inventory: `metadata/productized_source_inventory.json`
+- Manifest: `src/zyra-productized-manifest.mjs`
+
+The copied runtime source is selected from `claude-code-best` only. The two auxiliary repositories under
+`claudecode-related` are reference-only inputs used to check boundaries and omissions.
+
+## Purpose
+
+This runtime boundary gives Zyra a local, submission-contained source base for the M1 Claude Code
+productization path: QueryEngine, query/session flow, tool orchestration, context/compact, permission,
+MCP, SkillTool, AgentTool, and core tool implementations. `apps/code-worker` reads this productized
+runtime before falling back to the broader vendor snapshot.
+
+## Entry Points
+
+- Health: `node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs`
+- Inventory: `node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --inventory`
+- Extraction: `python scripts/zyra_source_extract.py productize-claude-code --write-scaffold --write-crosswalk --write-ledger --update-seed`
+- Sidecar verification: `python scripts/verify_code_worker_sidecar.py`
+
+## Auxiliary Reference Repositories
+
+`claudecode-related/claude-reviews-claude` supplies the section-level checklist for QueryEngine,
+tool system, context/compact, startup/bootstrap, services, subagent, and command coverage.
+`claudecode-related/Dive-into-Claude-Code` is used to sanity-check harness and runtime boundaries.
+Neither repository is copied into this runtime, required at runtime, or counted as effective code.
+The reference mapping is recorded in `metadata/reference_crosswalk.json`.
+
+## Effective Code Accounting
+
+Generated inventories, crosswalks, and ledger seeds are data artifacts and are excluded from effective
+line counts. Upstream files that contain `Auto-generated type stub` are retained only when they are
+part of the selected Claude Code import boundary; their lines are reported separately and excluded
+from effective line counts.
+
+## Replacement Plan
+
+M1-02B, M1-02C, and M1-02D bind this productized source to Zyra's query loop, tool loop, session
+lifecycle, compact/restore, and CodeWorker API. M1-03A through M1-03D continue permission, MCP,
+SkillTool, and subagent integration. The runtime must remain inside `zyra`; it must not depend on
+the parent-level Claude Code checkout or the auxiliary repositories at submission time.
+""".strip() + "\n"

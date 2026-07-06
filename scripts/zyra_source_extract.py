@@ -164,6 +164,10 @@ def productized_smoke_payload(project_root: Path) -> dict:
     crosswalk_payload = {}
     if crosswalk.exists():
         crosswalk_payload = json.loads(crosswalk.read_text(encoding="utf-8"))
+    inventory_payload = {}
+    if inventory.exists():
+        inventory_payload = json.loads(inventory.read_text(encoding="utf-8"))
+    inventory_summary = inventory_payload.get("summary", {})
     return {
         "ok": (
             manifest.exists()
@@ -178,6 +182,9 @@ def productized_smoke_payload(project_root: Path) -> dict:
         "crosswalk_exists": crosswalk.exists(),
         "copied_file_count": len(copied_files),
         "source_file_count": len(source_files),
+        "effective_line_count": inventory_summary.get("effective_line_count", 0),
+        "upstream_type_stub_count": inventory_summary.get("upstream_type_stub_count", 0),
+        "upstream_type_stub_line_count": inventory_summary.get("upstream_type_stub_line_count", 0),
         "crosswalk_summary": crosswalk_payload.get("summary", {}),
     }
 

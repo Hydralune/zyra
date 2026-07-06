@@ -42,6 +42,8 @@ class ClaudeCodeProductizedRuntimeTests(unittest.TestCase):
 
         self.assertTrue(report.ok)
         self.assertGreaterEqual(report.effective_line_count, 18_000)
+        self.assertGreater(report.upstream_type_stub_count, 0)
+        self.assertGreater(report.upstream_type_stub_line_count, 0)
         self.assertGreaterEqual(len(report.ledger_upserts), 80)
         self.assertEqual(report.missing_count, 0)
         self.assertTrue(all(item.owner_unit == "M1-02A" for item in report.ledger_upserts))
@@ -102,8 +104,19 @@ class ClaudeCodeProductizedRuntimeTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertGreaterEqual(payload["source_file_count"], 80)
+        self.assertGreaterEqual(payload["effective_line_count"], 18_000)
+        self.assertGreater(payload["upstream_type_stub_count"], 0)
         self.assertEqual(payload["crosswalk_summary"]["primary_repo"], "claude-code-best")
         self.assertEqual(payload["crosswalk_summary"]["missing_target_count"], 0)
+
+    def test_runtime_readme_records_source_entries_and_auxiliary_usage(self) -> None:
+        readme = ROOT / "vendor-runtimes" / "claude-code-runtime" / "README.md"
+        text = readme.read_text(encoding="utf-8")
+
+        self.assertIn("claude-code-best", text)
+        self.assertIn("zyra-productized-smoke.mjs", text)
+        self.assertIn("reference_crosswalk.json", text)
+        self.assertIn("Auto-generated type stub", text)
 
 
 if __name__ == "__main__":

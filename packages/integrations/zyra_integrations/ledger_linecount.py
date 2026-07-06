@@ -10,6 +10,7 @@ from .ledger_models import to_jsonable
 
 
 COUNTED_PATHS = ["apps", "packages", "tests", "scripts", "vendor-runtimes", "skills"]
+UPSTREAM_TYPE_STUB_MARKER = "Auto-generated type stub"
 
 
 @dataclass(slots=True)
@@ -18,14 +19,31 @@ class NumstatFile:
     added: int
     deleted: int
     classification: PathClassification
+    content_flags: list[str] = field(default_factory=list)
+
+    @property
+    def is_content_excluded(self) -> bool:
+        return "upstream-type-stub" in self.content_flags
+
+    @property
+    def effective_verdict(self) -> CountVerdict:
+        if self.is_content_excluded:
+            return CountVerdict.EXCLUDED
+        return self.classification.verdict
+
+    @property
+    def effective_reason(self) -> str:
+        if self.is_content_excluded:
+            return "upstream auto-generated type stubs are excluded from effective code"
+        return self.classification.reason
 
     @property
     def effective_added(self) -> int:
-        return self.added if self.classification.verdict == CountVerdict.EFFECTIVE else 0
+        return self.added if self.effective_verdict == CountVerdict.EFFECTIVE else 0
 
     @property
     def excluded_added(self) -> int:
-        return 0 if self.classification.verdict == CountVerdict.EFFECTIVE else self.added
+        return 0 if self.effective_verdict == CountVerdict.EFFECTIVE else self.added
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -35,6 +53,9 @@ class NumstatFile:
             "effective_added": self.effective_added,
             "excluded_added": self.excluded_added,
             "classification": self.classification.to_dict(),
+            "content_flags": list(self.content_flags),
+            "effective_verdict": str(self.effective_verdict),
+            "effective_reason": self.effective_reason,
         }
 
 
@@ -99,9 +120,9 @@ def build_line_count_report(
     files = diff_numstat(project_root, base=base, head=head, cached=cached, counted_paths=paths)
     raw_added = sum(item.added for item in files)
     raw_deleted = sum(item.deleted for item in files)
-    effective_files = [item for item in files if item.classification.verdict == CountVerdict.EFFECTIVE]
-    excluded_files = [item for item in files if item.classification.verdict == CountVerdict.EXCLUDED]
-    review_files = [item for item in files if item.classification.verdict == CountVerdict.REVIEW]
+    effective_files = [item for item in files if item.effective_added]
+    excluded_files = [item for item in files if item.excluded_added]
+    review_files = [item for item in files if item.effective_verdict == CountVerdict.REVIEW]
     return EffectiveLineCountReport(
         base=base,
         head=head,
@@ -137,10 +158,10 @@ def diff_numstat(
         command.append(head)
     command.extend(["--", *(counted_paths or COUNTED_PATHS)])
     completed = subprocess.run(command, cwd=project_root, check=True, text=True, capture_output=True)
-    return parse_numstat(completed.stdout)
+    return parse_numstat(completed.stdout, project_root=project_root)
 
 
-def parse_numstat(text: str) -> list[NumstatFile]:
+def parse_numstat(text: str, *, project_root: Path | None = None) -> list[NumstatFile]:
     files: list[NumstatFile] = []
     for line in text.splitlines():
         parts = line.split("\t")
@@ -155,6 +176,7 @@ def parse_numstat(text: str) -> list[NumstatFile]:
                 added=added,
                 deleted=deleted,
                 classification=classify_path(path),
+                content_flags=_content_flags(project_root, path),
             )
         )
     return files
@@ -163,7 +185,7 @@ def parse_numstat(text: str) -> list[NumstatFile]:
 def summarize_line_count_by_reason(report: EffectiveLineCountReport) -> dict[str, int]:
     totals: dict[str, int] = {}
     for item in report.files:
-        key = f"{item.classification.verdict}:{item.classification.reason}"
+        key = f"{item.effective_verdict}:{item.effective_reason}"
         totals[key] = totals.get(key, 0) + item.added
     return dict(sorted(totals.items()))
 
@@ -193,5 +215,30 @@ def line_count_payload(report: EffectiveLineCountReport) -> dict[str, Any]:
         for item in report.excluded_files
         if item.classification.is_generated_data
     ]
+    payload["upstream_type_stub_excluded"] = [
+        item.to_dict()
+        for item in report.excluded_files
+        if item.is_content_excluded
+    ]
     payload["review_required"] = [item.to_dict() for item in report.review_files]
     return to_jsonable(payload)
+
+
+def _content_flags(project_root: Path | None, path: str) -> list[str]:
+    if project_root is None:
+        return []
+    classification = classify_path(path)
+    if not classification.is_project_relative:
+        return []
+    candidate = project_root / classification.normalized_path
+    if not candidate.exists() or not candidate.is_file():
+        return []
+    if classification.suffix.lower() not in {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}:
+        return []
+    try:
+        text = candidate.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    if UPSTREAM_TYPE_STUB_MARKER in text:
+        return ["upstream-type-stub"]
+    return []
