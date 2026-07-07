@@ -224,6 +224,9 @@ def build_productized_claude_runtime_contracts(
     state_custody = _state_custody(source_to_target)
     default_path = {
         "workerRuntime": "packages/workers/zyra_workers/code_worker_runtime.py",
+        "queryInputProcessor": "packages/runtime/zyra_runtime/claude_input_processor.py",
+        "contextAssemblyFoundation": "packages/runtime/zyra_runtime/claude_context_assembly_foundation.py",
+        "codeWorkerSessionStore": "packages/runtime/zyra_runtime/claude_session_store.py",
         "queryEngine": "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
         "querySession": "packages/runtime/zyra_runtime/query_session.py",
         "toolLoop": "packages/runtime/zyra_runtime/tool_loop.py",
@@ -260,6 +263,9 @@ def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
             surface=ClaudeRuntimeSurface.QUERY_ENGINE,
             target_paths=(
                 "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
+                "packages/runtime/zyra_runtime/claude_input_processor.py",
+                "packages/runtime/zyra_runtime/claude_context_assembly_foundation.py",
+                "packages/runtime/zyra_runtime/claude_session_store.py",
                 "packages/runtime/zyra_runtime/query_session.py",
                 "packages/workers/zyra_workers/code_worker_runtime.py",
             ),
@@ -274,6 +280,29 @@ def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
             state_owner=ClaudeRuntimeStateOwner.CLAUDE_QUERY_ENGINE,
             rationale="The upstream QueryEngine class is not embedded as a TS black box; its turn/session/budget responsibilities are represented by Zyra runtime primitives and event records.",
             upstream_signals=("QueryEngineConfig", "submitMessage", "mutableMessages", "permissionDenials", "interrupt"),
+        ),
+        ClaudeSourceToTarget(
+            source_repo=PRIMARY_SOURCE_REPO,
+            source_path="src/processUserInput.ts",
+            capability="Text, slash-command, bash and structured turn input classification before QueryEngine dispatch.",
+            surface=ClaudeRuntimeSurface.CONTEXT_ASSEMBLY,
+            target_paths=(
+                "packages/runtime/zyra_runtime/claude_input_processor.py",
+                "packages/runtime/zyra_runtime/claude_session_store.py",
+                "packages/workers/zyra_workers/code_worker_runtime.py",
+            ),
+            decision=ClaudeRuntimeDecision.ZYRA_MODULE_MIGRATED,
+            owner_unit="M1-02B",
+            primary_entrypoint="zyra_runtime.QueryInputProcessor.process_worker_request",
+            test_entrypoints=(
+                "tests.unit.test_query_session_foundation.QueryInputProcessorTests.test_classifies_text_slash_bash_and_structured_turns",
+                "tests.integration.test_code_worker_query_session_foundation.CodeWorkerQuerySessionFoundationTests.test_code_worker_blocks_when_input_processor_is_disabled",
+            ),
+            event_phases=("query_input_processed", "query_session_seed_created"),
+            artifact_kinds=("trace",),
+            state_owner=ClaudeRuntimeStateOwner.QUERY_SESSION,
+            rationale="Zyra classifies and records accepted input before the tool loop, mirroring Claude Code's pre-submit processUserInput boundary without calling upstream code.",
+            upstream_signals=("processUserInput", "slash command routing", "bash input", "pre-submit hooks"),
         ),
         ClaudeSourceToTarget(
             source_repo=PRIMARY_SOURCE_REPO,
@@ -406,6 +435,7 @@ def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
             surface=ClaudeRuntimeSurface.SESSION_LIFECYCLE,
             target_paths=(
                 "packages/runtime/zyra_runtime/query_session.py",
+                "packages/runtime/zyra_runtime/claude_session_store.py",
                 "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
             ),
             decision=ClaudeRuntimeDecision.ZYRA_MODULE_MIGRATED,
@@ -426,6 +456,7 @@ def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
             surface=ClaudeRuntimeSurface.SESSION_RESTORE,
             target_paths=(
                 "packages/runtime/zyra_runtime/query_session.py",
+                "packages/runtime/zyra_runtime/claude_session_store.py",
                 "packages/runtime/zyra_runtime/session.py",
             ),
             decision=ClaudeRuntimeDecision.ZYRA_MODULE_MIGRATED,
@@ -445,6 +476,8 @@ def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
             capability="System/user context assembly, tool list context and cache-safe query prefix boundary.",
             surface=ClaudeRuntimeSurface.CONTEXT_ASSEMBLY,
             target_paths=(
+                "packages/runtime/zyra_runtime/claude_context_assembly_foundation.py",
+                "packages/runtime/zyra_runtime/claude_input_processor.py",
                 "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
                 "packages/runtime/zyra_runtime/session.py",
             ),
@@ -687,7 +720,12 @@ def _session_contract(source_to_target: Iterable[ClaudeSourceToTarget], *, sourc
     source_files = [
         item.source_path
         for item in source_to_target
-        if item.surface in {ClaudeRuntimeSurface.SESSION_LIFECYCLE, ClaudeRuntimeSurface.SESSION_RESTORE}
+        if item.surface
+        in {
+            ClaudeRuntimeSurface.SESSION_LIFECYCLE,
+            ClaudeRuntimeSurface.SESSION_RESTORE,
+            ClaudeRuntimeSurface.CONTEXT_ASSEMBLY,
+        }
     ]
     contract = {
         "source": PRODUCTIZED_CONTRACT_SOURCE,
@@ -696,13 +734,31 @@ def _session_contract(source_to_target: Iterable[ClaudeSourceToTarget], *, sourc
         "runtimeId": PRODUCTIZED_RUNTIME_ID,
         "inventoryExists": True,
         "sourceFiles": sorted(set(source_files)),
-        "targetFiles": _target_paths_for(source_to_target, ClaudeRuntimeSurface.SESSION_LIFECYCLE, ClaudeRuntimeSurface.SESSION_RESTORE),
+        "targetFiles": _target_paths_for(
+            source_to_target,
+            ClaudeRuntimeSurface.SESSION_LIFECYCLE,
+            ClaudeRuntimeSurface.SESSION_RESTORE,
+            ClaudeRuntimeSurface.CONTEXT_ASSEMBLY,
+        ),
+        "preQueryFoundation": {
+            "ownerUnit": "M1-02B",
+            "hasInputProcessor": True,
+            "hasContextAssemblyRuntime": True,
+            "hasCodeWorkerSessionStore": True,
+            "sessionSeedRequiredForDefaultPath": True,
+            "disconnectBlocksBeforeQueryEngine": True,
+            "inputProcessor": "packages/runtime/zyra_runtime/claude_input_processor.py",
+            "contextAssembly": "packages/runtime/zyra_runtime/claude_context_assembly_foundation.py",
+            "sessionStore": "packages/runtime/zyra_runtime/claude_session_store.py",
+        },
         "transcriptPersistence": {
             "appendOnlyJsonl": True,
             "parentUuidChain": True,
             "liteReadWindowBytes": 65536,
             "artifactBackedSnapshot": True,
             "zyraTranscriptEntryType": "SessionTranscriptEntry",
+            "preQueryStore": "CodeWorkerSessionStore",
+            "preQueryStoreAppendRequired": True,
         },
         "resumeRecovery": {
             "hasChainTraversal": True,

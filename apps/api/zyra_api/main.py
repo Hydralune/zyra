@@ -40,6 +40,7 @@ from zyra_scheduler import (
 )
 from zyra_commands import default_command_registry, parse_slash_command
 from zyra_runtime import (
+    ContextAssemblyRuntime,
     ContextSessionRuntime,
     JsonPermissionStore,
     LocalArtifactStore,
@@ -47,6 +48,7 @@ from zyra_runtime import (
     PermissionOperation,
     PermissionRequestStatus,
     PermissionRule,
+    QueryInputProcessor,
     ToolCall,
     ToolExecutionContext,
     ToolExecutor,
@@ -627,6 +629,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = dict(contracts.inventory)
             payload["health"] = contracts.health
             payload["defaultPath"] = contracts.default_path
+            payload["sessionFoundation"] = contracts.session_contract.get("preQueryFoundation", {})
             payload["sourceToTarget"] = [item.to_dict() for item in contracts.source_to_target]
             payload["sourceGraph"] = integration.crosswalk.source_to_target_payload()
             payload["runtimeContext"] = integration.crosswalk.runtime_context_payload()
@@ -644,6 +647,47 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             payload["apiInventoryContract"] = api_inventory_contract.to_dict()
             self._send_json(HTTPStatus.OK, payload)
+            return
+
+        if parts == ["workers", "code", "session-foundation"]:
+            contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
+            tools = default_tool_registry().list()
+            request = WorkerRequest(
+                run_id="inventory",
+                task_id="code-worker-session-foundation",
+                worker_name="CodeWorkerRuntime",
+                constraints={
+                    "raw_input": "Inspect CodeWorker session foundation.",
+                    "query_turns": [[{"tool_name": "trace", "arguments": {"limit": 1}}]],
+                    "permission_mode": "workspace",
+                },
+                metadata={"source": "workers/code/session-foundation"},
+            )
+            input_report = QueryInputProcessor().process_worker_request(request)
+            context_snapshot = ContextAssemblyRuntime().assemble(
+                request=request,
+                session_id="codesession_inventory",
+                input_records=input_report.records,
+                tool_specs=tools,
+                project_root=PROJECT_ROOT,
+                workspace_root=tool_workspace_path(),
+                artifact_root=artifact_root_path(),
+                runtime_contracts=contracts,
+                permission_mode="workspace",
+            )
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "ownerUnit": "M1-02B",
+                    "sessionFoundation": contracts.session_contract.get("preQueryFoundation", {}),
+                    "inputReport": input_report.to_dict(),
+                    "contextSnapshot": context_snapshot.to_dict(include_text=False),
+                    "metadata": {
+                        **input_report.metadata_values(),
+                        **context_snapshot.metadata_values(),
+                    },
+                },
+            )
             return
 
         if parts == ["workers", "browser", "actions"]:

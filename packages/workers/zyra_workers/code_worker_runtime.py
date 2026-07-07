@@ -4,10 +4,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
+from zyra_core import ArtifactKind, EventRecord, EventType, new_id, to_jsonable
 from zyra_runtime import (
+    CodeWorkerSessionFoundationRuntime,
+    CodeWorkerSessionStore,
+    ContextAssemblyBudget,
+    ContextAssemblyRuntime,
     ClaudeQueryEngineConfig,
+    SessionFoundationAuditor,
     JsonPermissionStore,
+    QueryInputProcessor,
     ToolExecutionContext,
     WorkerRequest,
     WorkerResult,
@@ -23,6 +29,11 @@ from zyra_runtime import (
     claude_source_graph_audit_event,
     query_plan_metadata_from_constraints,
     query_turns_from_constraints as productized_query_turns_from_constraints,
+    foundation_audit_event,
+    foundation_audit_metadata,
+    render_foundation_audit_markdown,
+    seed_failure_result_metadata,
+    session_seed_metadata,
     runtime_context_assembly_markdown,
     source_graph_audit_markdown,
     source_graph_crosswalk_markdown,
@@ -243,6 +254,91 @@ class CodeWorkerRuntime:
 
         query_turns = productized_query_turns_from_constraints(request.constraints)
         query_plan_metadata = query_plan_metadata_from_constraints(request.constraints)
+        session_store = CodeWorkerSessionStore(self.execution_context.artifact_store.root)
+        input_processor = QueryInputProcessor(
+            max_input_chars=_positive_int(
+                request.constraints.get("max_query_input_chars"),
+                default=64000,
+            )
+        )
+        input_report = input_processor.process_worker_request(
+            request,
+            disabled=request.constraints.get("disable_query_input_processor") is True,
+        )
+        context_runtime = ContextAssemblyRuntime(
+            budget=ContextAssemblyBudget(
+                max_chars=_positive_int(
+                    request.constraints.get("query_context_budget_chars"),
+                    default=32000,
+                ),
+                reserve_chars=_positive_int(
+                    request.constraints.get("query_context_reserve_chars"),
+                    default=4000,
+                ),
+            )
+        )
+        seed_session_id = str(request.constraints.get("session_id") or new_id("codesession"))
+        context_snapshot = context_runtime.assemble(
+            request=request,
+            session_id=seed_session_id,
+            input_records=input_report.records,
+            tool_specs=tool_specs,
+            project_root=self.project_root,
+            workspace_root=self.execution_context.workspace_root,
+            artifact_root=self.execution_context.artifact_store.root,
+            runtime_contracts=self.runtime_contracts,
+            integration_report=integration_report,
+            runtime_context_report=runtime_context_report,
+            source_graph_audit=source_graph_audit,
+            permission_mode=str(request.constraints.get("permission_mode") or "workspace"),
+            disabled=request.constraints.get("disable_context_assembly") is True,
+        )
+        session_foundation = CodeWorkerSessionFoundationRuntime(store=session_store)
+        session_seed = session_foundation.build_seed(
+            request=request,
+            input_report=input_report,
+            context_snapshot=context_snapshot,
+            session_id=seed_session_id,
+            disabled_store=request.constraints.get("disable_code_worker_session_store") is True,
+        )
+        session_seed_events = session_foundation.seed_events(session_seed)
+        foundation_auditor = SessionFoundationAuditor()
+        foundation_audit = foundation_auditor.audit_seed(
+            session_seed,
+            store=session_store,
+            events=session_seed_events,
+        )
+        foundation_audit_record = foundation_audit_event(foundation_audit)
+        if not session_seed.ok or not foundation_audit.ok:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime stopped before QueryEngine because query session foundation is blocked.",
+                error="code_worker_session_foundation_failed",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    **source_graph_audit.metadata(),
+                    **worker_gate.metadata(),
+                    **query_plan_metadata,
+                    **seed_failure_result_metadata(session_seed, error="code_worker_session_foundation_failed"),
+                    **foundation_audit_metadata(foundation_audit),
+                    "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
+                },
+            )
+            return CodeWorkerRun(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    *source_graph_audit_events,
+                    worker_gate_event,
+                    *session_seed_events,
+                    foundation_audit_record,
+                    _worker_result_event(request, worker_result),
+                ],
+            )
         engine = self.query_engine_factory(
             self.execution_context,
             ClaudeQueryEngineConfig(
@@ -264,6 +360,10 @@ class CodeWorkerRuntime:
                 emit_tool_use_summaries=request.constraints.get("emit_tool_use_summaries") is not False,
                 control_commands=request.constraints.get("control_commands") or (),
                 project_root=self.project_root,
+                session_seed=session_seed.to_dict(include_text=False),
+                context_snapshot=context_snapshot.to_dict(include_text=True),
+                preprocessed_messages=session_seed.request_messages(),
+                session_foundation_metadata=session_seed.metadata_values(),
             ),
         )
         loop_result = engine.run(
@@ -272,9 +372,23 @@ class CodeWorkerRuntime:
             node_id=request.node_id,
             worker_request_id=request.request_id,
             turns=query_turns,
-            request_messages=request.messages,
-            request_metadata=request.metadata,
+            request_messages=[*session_seed.request_messages(), *request.messages],
+            request_metadata={**request.metadata, **session_seed.metadata_values()},
         )
+        session_store.mark_query_engine_attached(
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            query_session_id=str(loop_result.metadata.get("query_session_id") or session_seed.session_id),
+            resume_token=str(loop_result.metadata.get("query_session_resume_token") or ""),
+        )
+        foundation_audit = foundation_auditor.audit_seed(
+            session_seed,
+            store=session_store,
+            events=[*session_seed_events, *loop_result.event_records],
+        )
+        foundation_audit_record = foundation_audit_event(foundation_audit)
         artifacts = list(loop_result.artifacts)
         step_summaries = list(loop_result.step_summaries)
 
@@ -312,7 +426,7 @@ class CodeWorkerRuntime:
             ok=loop_result.ok,
             summary=summary,
             artifacts=artifacts,
-            events=[to_jsonable(event) for event in loop_result.event_records],
+            events=[to_jsonable(event) for event in [*session_seed_events, foundation_audit_record, *loop_result.event_records]],
             error=None if loop_result.ok else loop_result.stopped_reason or "tool_step_failed",
             metadata={
                 **self.runtime_contracts.metadata(),
@@ -326,6 +440,8 @@ class CodeWorkerRuntime:
                 **source_graph_audit.metadata(),
                 **worker_gate.metadata(),
                 **query_plan_metadata,
+                **session_seed_metadata(session_seed),
+                **foundation_audit_metadata(foundation_audit),
                 **loop_result.metadata,
                 "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
                 "query_turns": str(loop_result.turn_count),
@@ -342,6 +458,8 @@ class CodeWorkerRuntime:
                 *runtime_context_events,
                 *source_graph_audit_events,
                 worker_gate_event,
+                *session_seed_events,
+                foundation_audit_record,
                 *loop_result.event_records,
                 _worker_result_event(request, worker_result),
             ],
@@ -400,11 +518,17 @@ def _session_contract_metadata(contract: dict[str, Any]) -> dict[str, str]:
     recovery = contract.get("resumeRecovery") if isinstance(contract.get("resumeRecovery"), dict) else {}
     stream = contract.get("streamRuntime") if isinstance(contract.get("streamRuntime"), dict) else {}
     bridge = contract.get("bridgeSessionRuntime") if isinstance(contract.get("bridgeSessionRuntime"), dict) else {}
+    foundation = contract.get("preQueryFoundation") if isinstance(contract.get("preQueryFoundation"), dict) else {}
     retry_matrix = stream.get("retryMatrix") if isinstance(stream.get("retryMatrix"), dict) else {}
     return {
         "session_contract_source": str(contract.get("source") or ""),
         "session_contract_owner_unit": str(contract.get("ownerUnit") or ""),
         "session_contract_inventory_exists": str(contract.get("inventoryExists") is True).lower(),
+        "session_contract_foundation_owner_unit": str(foundation.get("ownerUnit") or ""),
+        "session_contract_has_input_processor": str(foundation.get("hasInputProcessor") is True).lower(),
+        "session_contract_has_context_assembly": str(foundation.get("hasContextAssemblyRuntime") is True).lower(),
+        "session_contract_has_code_worker_session_store": str(foundation.get("hasCodeWorkerSessionStore") is True).lower(),
+        "session_contract_seed_required": str(foundation.get("sessionSeedRequiredForDefaultPath") is True).lower(),
         "session_contract_append_only_jsonl": str(persistence.get("appendOnlyJsonl") is True).lower(),
         "session_contract_parent_uuid_chain": str(persistence.get("parentUuidChain") is True).lower(),
         "session_contract_lite_read_window": str(persistence.get("liteReadWindowBytes") or ""),
@@ -506,6 +630,11 @@ def _trace_markdown(
         if isinstance(session_contract.get("resumeRecovery"), dict)
         else {}
     )
+    session_foundation = (
+        session_contract.get("preQueryFoundation")
+        if isinstance(session_contract.get("preQueryFoundation"), dict)
+        else {}
+    )
     tool_loop_scheduling = (
         tool_loop_contract.get("scheduling")
         if isinstance(tool_loop_contract.get("scheduling"), dict)
@@ -562,6 +691,10 @@ def _trace_markdown(
             f"- query_session_resume_token: `{loop_result.metadata.get('query_session_resume_token', '')}`",
             f"- query_session_snapshot_artifact_id: `{loop_result.metadata.get('query_session_snapshot_artifact_id', '')}`",
             f"- query_session_transcript_artifact_id: `{loop_result.metadata.get('query_session_transcript_artifact_id', '')}`",
+            f"- code_worker_session_seed_ok: `{loop_result.metadata.get('code_worker_session_seed_ok', '')}`",
+            f"- context_assembly_snapshot_id: `{loop_result.metadata.get('context_assembly_snapshot_id', '')}`",
+            f"- query_input_count: `{loop_result.metadata.get('query_input_count', '')}`",
+            f"- session_seed_required: `{str(session_foundation.get('sessionSeedRequiredForDefaultPath') is True).lower()}`",
             f"- session_append_only_jsonl: `{str(session_persistence.get('appendOnlyJsonl') is True).lower()}`",
             f"- session_parent_uuid_chain: `{str(session_persistence.get('parentUuidChain') is True).lower()}`",
             f"- session_resume_chain: `{str(session_recovery.get('hasChainTraversal') is True).lower()}`",

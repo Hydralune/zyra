@@ -54,6 +54,10 @@ class ClaudeQueryEngineConfig:
     allow_empty_turns: bool = False
     control_commands: Sequence[Any] = field(default_factory=tuple)
     project_root: str | Path | None = None
+    session_seed: Mapping[str, Any] | None = None
+    context_snapshot: Mapping[str, Any] | None = None
+    preprocessed_messages: Sequence[Any] = field(default_factory=tuple)
+    session_foundation_metadata: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def contracts(self) -> ClaudeRuntimeContractBundle:
@@ -134,21 +138,27 @@ class ZyraClaudeQueryEngine:
             source_contract=self.contracts.tool_loop_contract,
         )
         budgeter = ToolResultBudgeter(max_chars=max(1, self.config.max_tool_result_chars))
+        session_seed = dict(self.config.session_seed or {})
+        seed_session_id = str(session_seed.get("session_id") or "")
         session = QuerySession(
             run_id=run_id,
             task_id=task_id,
             node_id=node_id,
             worker_request_id=worker_request_id,
+            session_id=seed_session_id or None,
             source_contract={
                 "runtime_id": self.contracts.runtime_id,
                 "contract_source": self.contracts.contract_source,
                 "query_contract": self.contracts.query_contract,
                 "session_contract": self.contracts.session_contract,
                 "tool_loop_contract": self.contracts.tool_loop_contract,
+                "session_seed": session_seed,
+                "context_snapshot": dict(self.config.context_snapshot or {}),
             },
             metadata={
                 "contract_source": self.contracts.contract_source,
                 "runtime_id": self.contracts.runtime_id,
+                **{str(k): str(v) for k, v in dict(self.config.session_foundation_metadata or {}).items()},
                 **dict(request_metadata or {}),
             },
         )
@@ -217,6 +227,54 @@ class ZyraClaudeQueryEngine:
                 "resume_token": session.resume_token,
             },
         )
+        if session_seed:
+            self._append_lifecycle(
+                event_records,
+                session,
+                run_id,
+                task_id,
+                node_id,
+                worker_request_id,
+                "query_session_seed_attached",
+                {
+                    "seed_session_id": str(session_seed.get("session_id") or ""),
+                    "seed_status": str(session_seed.get("status") or ""),
+                    "seed_ok": bool(session_seed.get("ok")),
+                    "input_count": len(
+                        (
+                            session_seed.get("input_report", {}).get("records", [])
+                            if isinstance(session_seed.get("input_report"), Mapping)
+                            else []
+                        )
+                    ),
+                    "store_path": str(
+                        (
+                            session_seed.get("store_receipt", {}).get("path", "")
+                            if isinstance(session_seed.get("store_receipt"), Mapping)
+                            else ""
+                        )
+                    ),
+                    "resume_token": session.resume_token,
+                },
+            )
+        if self.config.context_snapshot:
+            context_snapshot = dict(self.config.context_snapshot)
+            self._append_lifecycle(
+                event_records,
+                session,
+                run_id,
+                task_id,
+                node_id,
+                worker_request_id,
+                "context_snapshot_attached",
+                {
+                    "context_snapshot_id": str(context_snapshot.get("snapshot_id") or ""),
+                    "context_fingerprint": str(context_snapshot.get("fingerprint") or ""),
+                    "selected_block_count": len(context_snapshot.get("selected_blocks") or []),
+                    "active_chars": str(context_snapshot.get("active_chars") or ""),
+                    "resume_token": session.resume_token,
+                },
+            )
         self._append_lifecycle(
             event_records,
             session,
@@ -1019,6 +1077,7 @@ class ZyraClaudeQueryEngine:
             compaction_count=compaction_count,
             tool_use_summary_count=tool_use_summary_count,
         )
+        metadata.update({str(k): str(v) for k, v in dict(self.config.session_foundation_metadata or {}).items()})
         metadata.update(session_artifact_metadata(artifact_set))
         metadata.update(context_window.metadata())
         metadata.update(tool_runtime.metadata())
