@@ -43,6 +43,33 @@
 - 不要把新的 M0 基础接入实现误解为后续阶段的执行策略。从新的 M1 开始必须明显转向成熟代码迁移、大模块复用和 sidecar/adapter 接入；不能用小规模手写闭环、mock 或占位模块替代第一阶段完整系统目标。
 - `../` 下的其它仓库只是来源仓库，`zyra` 才是最终提交项目。凡是最终运行依赖的复用代码、skills、配置、前端组件或 sidecar runtime，都必须迁移、vendor、subtree/submodule 或封装进 `zyra` 内部，不能让 `zyra` 在提交后依赖 `../claude-code-best`、`../browser-use`、`../OpenHands` 等相对路径。
 
+## 严格内化定义
+
+- 内化不是把外部代码搬进项目里运行，而是把外部成熟能力拆解、裁剪、改造并融入 Zyra 自身模块体系，使其以 Zyra 的数据结构、事件、权限、状态、错误处理和测试方式工作。
+- 如果某项能力的主要实现仍保持上游仓库原始目录结构，并通过单一 adapter/sidecar 作为黑箱调用，则不得计为深度内化；只能计为 vendored dependency、source pool 或 reference runtime。无论目录名是 `vendor`、`vendor-runtimes`、`third_party`、`runtime-sources`、`productized` 或其它名字，原样源码池、inventory、manifest、source map、seed、JSON/YAML/CSV、文档和只扫描源码得到的 contract 都不得计入有效新增代码。
+- 真正的内化必须同时满足结构内化、语义内化、裁剪内化、改造内化和维护内化：上游机制要被拆入 `zyra/packages`、`zyra/apps`、`zyra/skills`、`zyra/scripts` 等 Zyra 模块边界，转化为 Zyra schema、event log、artifact、permission、memory、scheduler、recovery、control command、API 或 UI 的一等能力，而不是保留为上游目录形状的黑箱。
+- “能被调用”不是充分条件。即使 vendored runtime 能启动、能被 adapter 调用、能通过 smoke test，只要主要实现仍是上游原样目录加薄封装，就不能把其物理行数计为深度内化；最多只能把 Zyra 侧 adapter、port、schema 转换、错误处理、状态接入、观测接入和行为测试计入有效实现。
+- 每个执行单元自审必须回答：外部成熟机制被拆成了哪些 Zyra 模块；哪些上游代码被裁剪或重写；哪些 Zyra 数据结构、事件、权限、状态、错误处理和测试边界承担了该能力；如果删除或断开对应 Zyra 模块，哪条真实行为测试会失败。只能证明文件存在、源码被扫描、manifest 可读或 sidecar 返回固定 contract 的，不算内化。
+
+## 反伪内化对抗验收
+
+- 目录位置不能证明内化。把上游整仓、上游主要目录或保持上游模块边界的源码改名放入 `packages/**`、`apps/**`、`runtime/**`、`productized/**`、`third_party/**`、`runtime-sources/**`、`source-pool/**` 等任何目录，只要仍保留上游目录结构、入口、依赖图、状态模型或核心控制流，就只能计为 migration pool/source pool/reference runtime，不得计为深度内化有效代码。
+- 多个薄 adapter 不能拆散黑箱。多个 adapter、manager、service、bridge、gateway、panel 或 API route 如果最终都委托同一个上游 CLI、sidecar、Docker 镜像、npm/pip package、外部进程或原样 runtime 执行核心决策，应整体视为一个黑箱依赖；只有 Zyra 侧协议转换、状态接管、错误处理、事件写入、权限裁决、预算控制、测试和主路径接入代码可以计入有效实现。
+- 机械改写不是内化。批量改名、改 import、格式化、语言转换、生成式 port、bundle/minify、wheel/tarball 打包、把 JSON/YAML 伪装成 `.py`/`.ts` 常量、把上游示例或品牌 UI 搬入正式目录，都不能证明内化；只要语义边界和运行责任没有被 Zyra 接管，应按原样迁移池或生成物排除。
+- 必须做干净目录验证。执行单元验收时应能在不包含根目录来源仓库的干净 `zyra` 副本中运行本单元核心测试；任何运行期依赖 `../claude-code-best`、`../browser-use`、`../OpenHands` 或其它根目录来源仓库、环境变量、npm link、pip editable path、Docker build context 的能力，都不能判定完成。
+- 必须做动态可达性验证。声称内化的模块必须能从真实任务流、API route、CLI command、worker runtime、event type、artifact kind、control command 或 UI panel 触发；只被 import smoke、ledger 查询、source map、health 固定返回、示例脚本或 fixture replay 触发的代码，不得计入主路径内化。
+- 必须做断开即失败验证。对每个声称完成的核心能力，应有测试或审计说明证明：禁用、删除或断开对应 Zyra 模块后，相关真实行为会失败或明显改变。只证明禁用 vendor/sidecar 后失败，不能证明 Zyra 已经完成深度内化。
+- 必须做语义效果验证。permission 必须真实阻断或放行工具，scheduler 必须真实改变 worker/route，memory/compact 必须真实影响后续上下文或决策，watchdog/fault recovery 必须真实中止、恢复、重试或改路由，MCP/SkillTool/AgentTool 必须真实执行调用和边界约束，UI command/approval 必须真实改变后端 session；只写日志、event、ACK、建议值、静态面板或回放流，一律不算完成。
+- 必须做有效行数分桶审查。每个执行单元自审必须把新增内容分为 production、test、generated、data、docs、vendor-like/source-pool、adapter-only、mock/fixture 等桶；generated、data-as-code、fixture-only、mock-only、source pool、vendor-like、ledger/source map/manifest 记录、薄 adapter 和未接入样板不得计入有效新增源码。
+- 账本不能替代行为。ledger、manifest、inventory、source map、contract 和设计说明只能证明来源与计划，不能作为完成证据；没有真实 API/CLI/runtime/UI 行为测试、动态可达性证据和语义效果证据的来源项，不得标记为完成。
+
+## 运行责任与验证分层
+
+- M1/M2 当前执行单元必须把第二轮对抗发现的问题作为红线自证，而不是等到 M3 才判断：默认主路径必须使用新能力；新增 `pip/npm` 依赖、MCP server、插件、子进程、本地端口服务、Docker 镜像、动态 import 不能承担核心决策；session、permission、memory、scheduler、recovery、artifact 等状态必须说明由哪个 Zyra schema/store 持久化和恢复；event log/trace 必须能追溯到真实 span、tool call、artifact、worker route 或 state mutation；核心测试不得依赖 `.cache`、SQLite、artifact 残留、构建产物或预录轨迹；LLM 只能参与建议、分类和解释，不能替代 permission、scheduler、fault recovery、compact restore 的 Zyra-owned 约束、状态机或可审计规则；fallback 不能掩盖被验收模块失效。
+- 上述红线在 M1/M2 中主要通过自审、针对性测试和证据说明落实；不要求每个执行单元都实现完整自动化审计系统。但只要当前单元已经违反这些红线，就不得以“后续 M3 工具化”作为通过理由。
+- M3 负责把这些红线工具化和收束：依赖/进程审计、默认配置主路径 trace、干净缓存/干净目录场景、state custody map、event 因果校验、有效行数分桶报告、opaque bundle/binary 检查、source similarity 或 semantic port 风险提示，都应在 M3 source map、测试评测、打包健康检查和冻结报告中落地。
+- 第二阶段再强化为 CI 级质量门禁：更严格的 AST/call graph 相似度审查、mutation/disable 测试、长期依赖治理、鲁棒性矩阵、安全边界和性能回归。第二阶段强化不能替代第一阶段对明显伪内化的即时失败判定。
+
 ## 重型内化目标
 
 - 第一阶段完成时，`zyra` 应是完整、可运行、可演示、可继续优化的重型 Agent 系统，而不是轻量控制壳、接口样例或单路径 demo。
@@ -59,9 +86,9 @@
 - 当前执行单元已经细拆为 `39` 个，M1/M2/M3 分别为 25/9/5 个；单个执行单元的最低有效新增代码通常为 9,000-18,000 行，最高 20,000 行。不要把多个执行单元合并成一次执行，也不要恢复成单次六七万行的大任务。
 - 代码行数下限是失败线，不是完成线。即使超过目标行数，只要执行单元目标、详细任务、主路径接入、验证或批判式审查没有完成，仍然视为失败。
 - 低于执行单元行数下限默认失败，除非能给出非常强的工程理由，例如目标上游模块已经完整内化、裁剪、重构并强化，再增加只会制造废代码。
-- 文档、注释、mock、死代码、未接入 vendor 堆放、无关上游外壳不得计入有效新增代码。
-- 大型 seed、索引、清单、source-to-target 账本记录、JSON/YAML/CSV 数据文件或生成型 inventory 不能计入“有效新增代码”来证明重型内化；只能单独报告为数据规模或账本覆盖规模。可计入的只限真正让这些数据参与运行时加载、审计、更新、API/CLI 查询、event log 或测试验证的实现代码。
-- 后续执行单元必须以真实源码迁移、封装接入、裁剪产品化和主路径集成为主体。不得用大型数据文件、清单、schema 堆叠、测试体量、薄 wrapper 或胶水代码来凑行数；如果新增行数主要来自这些内容，应判定为任务缩水或失败。
+- 文档、注释、mock、死代码、未接入 vendor 堆放、无关上游外壳、原样 vendor/source pool 不得计入有效新增代码。
+- 大型 seed、索引、清单、source-to-target 账本记录、JSON/YAML/CSV 数据文件、生成型 inventory、manifest、source map 或原样 vendor/source pool 不能计入“有效新增代码”来证明重型内化；只能单独报告为数据规模、账本覆盖规模或依赖规模。可计入的只限真正让这些数据或依赖参与运行时加载、审计、更新、API/CLI 查询、event log 或测试验证的 Zyra 实现代码。
+- 后续执行单元必须以真实源码迁移、封装接入、裁剪产品化和主路径集成为主体。不得用大型数据文件、清单、schema 堆叠、测试体量、薄 wrapper、胶水代码、整仓 vendor 或原样 source pool 来凑行数；如果新增行数主要来自这些内容，应判定为任务缩水或失败。
 
 ## 工程执行约定
 
