@@ -20,6 +20,7 @@ from zyra_integrations import (
     LedgerLifecycle,
     LedgerWorkflow,
     MainPathStatus,
+    MigrationStrategy,
     build_coverage_report,
     build_snapshot,
     build_unit_matrix,
@@ -69,14 +70,24 @@ class LedgerReportsWorkflowTests(unittest.TestCase):
         self.assertTrue(rows["M1-01B"].requires_source_migration)
         self.assertFalse(rows["M1-01B"].coverage_ok)
 
-    def test_completion_gate_allows_infrastructure_unit_without_ledger_records(self) -> None:
-        ledger = load_seed_ledger()
+    def test_completion_gate_does_not_require_01a_source_coverage(self) -> None:
+        ledger = InternalizationLedger([])
 
         report = build_completion_gate_report(ROOT, ledger, owner_unit="M1-01A")
         missing_codes = {str(finding.code) for finding in report.findings}
 
-        self.assertTrue(report.ok)
+        self.assertFalse(report.ok)
+        self.assertIn("AUDIT_FAILED", missing_codes)
         self.assertNotIn("UNIT_LEDGER_COVERAGE_MISSING", missing_codes)
+
+    def test_completion_gate_accepts_seeded_01b_adapter_runtime_claims(self) -> None:
+        ledger = load_seed_ledger()
+
+        report = build_completion_gate_report(ROOT, ledger, owner_unit="M1-01B")
+        codes = {str(finding.code) for finding in report.findings}
+
+        self.assertTrue(report.ok)
+        self.assertNotIn("POLICY_MATRIX_FAILED", codes)
 
     def test_completion_gate_blocks_migration_unit_without_ledger_records(self) -> None:
         ledger = load_seed_ledger()
@@ -86,6 +97,19 @@ class LedgerReportsWorkflowTests(unittest.TestCase):
 
         self.assertFalse(report.ok)
         self.assertIn("UNIT_LEDGER_COVERAGE_MISSING", missing_codes)
+
+    def test_completion_gate_blocks_connected_vendor_runtime_claim(self) -> None:
+        entry = sample_entry()
+        entry.owner_unit = "M1-01B"
+        entry.migration_strategy = MigrationStrategy.VENDORED_RUNTIME
+        entry.main_path_status = MainPathStatus.WORKER_RUNTIME_CONNECTED
+        ledger = InternalizationLedger([entry])
+
+        report = build_completion_gate_report(ROOT, ledger, owner_unit="M1-01B")
+        codes = {str(finding.code) for finding in report.findings}
+
+        self.assertFalse(report.ok)
+        self.assertIn("POLICY_MATRIX_FAILED", codes)
 
     def test_readiness_report_uses_line_count_gate(self) -> None:
         ledger = InternalizationLedger([sample_entry()])

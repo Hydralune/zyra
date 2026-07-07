@@ -722,7 +722,15 @@ def _print_payload(payload: dict[str, Any], *, as_json: bool) -> None:
         print(f"total={payload['summary']['total_entries']}")
         return
     if "findings" in payload:
-        print(f"ok={payload['ok']} disposition={payload['disposition']} findings={payload['finding_count']} errors={payload['error_count']} blockers={payload['blocker_count']}")
+        finding_count = payload.get("finding_count", len(payload.get("findings", [])))
+        error_count = payload.get("error_count", 0)
+        blocker_count = payload.get("blocker_count", 0)
+        owner_unit = payload.get("owner_unit", "")
+        prefix = f"unit={owner_unit} " if owner_unit else ""
+        print(
+            f"{prefix}ok={payload.get('ok')} disposition={payload.get('disposition')} "
+            f"findings={finding_count} errors={error_count} blockers={blocker_count}"
+        )
         for finding in payload["findings"][:50]:
             print(f"{finding['severity']} {finding['code']} {finding.get('ledger_id', '')}: {finding['message']}")
         return

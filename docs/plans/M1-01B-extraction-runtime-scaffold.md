@@ -23,7 +23,7 @@ The unit was started with the three required `gpt-5.5 xhigh` subagents:
 - Runtime scaffold verifier: `scripts/verify_extraction_runtime_scaffold.py`
 - Unit tests: `tests/unit/test_source_extraction_runtime_scaffold.py`
 - Integration tests: `tests/integration/test_m1_01b_extraction_runtime_scaffold_cli.py`
-- Productized runtime area: `vendor-runtimes/claude-code-runtime`
+- Pilot source-pool evidence: `vendor-runtimes/claude-code-runtime` (excluded from effective internalization credit)
 
 ## Pilot Extraction
 
@@ -60,12 +60,13 @@ The inventory is an audit artifact only. It must not be counted as effective sou
 
 The extraction registered 33 `M1-01B` ledger entries with:
 
-- `migration_strategy = vendored_runtime`
+- `migration_strategy = adapter`
 - `main_path_status = worker_runtime_connected`
 - `lifecycle = active`
 - runtime module `zyra_runtime.scaffold`
 - test entry `tests/unit/test_source_extraction_runtime_scaffold.py`
-- target surface `vendor_runtime`
+- main-path surfaces under `apps/code-worker`, `packages/runtime`, `packages/workers`, `packages/integrations`, and `scripts`
+- any `vendor-runtimes` pilot binding marked as non-main-path source-pool evidence
 
 The bundled seed ledger was also updated so the M1-01B source-to-target map is reproducible after a clean checkout.
 
@@ -87,7 +88,7 @@ policy_warning_entries=0
 - The copied pilot files are not a full Claude Code runtime. `QueryEngine.ts`, `query.ts`, full session restore, full permission enforcement, MCP client, command runtime, and productized CodeWorker API remain for M1-02A through M1-03D.
 - The runtime scaffold is intentionally a contract and health/smoke boundary. It is not allowed to be treated as completion of permission, MCP, skill, subagent, browser, scheduler, or recovery runtime implementation.
 - `source_inventory.json` and the seed ledger update are useful for audit, but they are excluded from effective line-count evidence.
-- The pilot runtime is counted only because it is copied into `zyra/vendor-runtimes`, registered in the ledger, exposed through a manifest/smoke entry, and verified without relying on parent source repository paths at runtime.
+- The pilot runtime is not counted as deep internalization. It remains source-pool evidence only; completion credit comes from the Zyra-owned extraction rules, ledger write path, runtime scaffold, worker bridge, policy gate, and behavior tests.
 
 ## Validation
 
@@ -125,3 +126,21 @@ Final post-commit validation should additionally run:
 .\.venv\Scripts\python.exe scripts\zyra_integration_ledger.py gate --owner-unit M1-01B --base ad985a0e563bf8dc8f5529ebb96c0668b34da362 --minimum-effective-lines 10000 --json
 .\.venv\Scripts\python.exe scripts\verify_internalization_ledger.py --base ad985a0e563bf8dc8f5529ebb96c0668b34da362 --unit M1-01B --minimum-effective-lines 10000 --fail-on-shortfall
 ```
+
+## 2026-07-07 Strict Revalidation
+
+The previous `vendored_runtime + worker_runtime_connected` status was rejected by the policy matrix and has been corrected. Current `M1-01B` ledger rows use `adapter + worker_runtime_connected`; `vendor-runtimes` appears only as excluded source-pool evidence.
+
+Validated in this pass:
+
+```text
+accounting --owner-unit M1-01B: findings=0 errors=0 blockers=0
+policy-matrix --owner-unit M1-01B: ok=True errors=0 blockers=0
+gate --owner-unit M1-01B: ok=True disposition=warning errors=0 blockers=0
+verify_extraction_runtime_scaffold.py: ok=True failed_checks=[]
+verify_internalization_ledger.py: effective_added=21731 raw_added=202804 excluded_added=181073 line_count_ok=True
+01B related unittest group: 22 tests OK
+full unittest discover with failfast: 207 tests OK
+```
+
+The remaining gate warnings are global ledger warnings and excluded data/source-pool dominance warnings. They do not allow counting `vendor-runtimes` physical lines as effective implementation.

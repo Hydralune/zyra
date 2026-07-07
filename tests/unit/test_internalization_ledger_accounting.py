@@ -18,6 +18,7 @@ from zyra_integrations import (
     LedgerLifecycle,
     MainPathBinding,
     MainPathStatus,
+    MigrationStrategy,
     TargetBinding,
     accounting_markdown,
     accounting_summary,
@@ -125,6 +126,28 @@ class InternalizationLedgerAccountingTests(unittest.TestCase):
             self.assertIn("CONNECTED_WITHOUT_MAIN_PATH", codes)
             self.assertIn("ENTRY_POLICY_ERRORS", codes)
             self.assertFalse(report.ok)
+
+    def test_accounting_rejects_connected_vendor_runtime_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write(root / "packages/integrations/zyra_integrations/ledger_models.py", "class Ledger: pass\n")
+            entry = sample_entry()
+            entry.owner_unit = "M1-01B"
+            entry.migration_strategy = MigrationStrategy.VENDORED_RUNTIME
+            entry.main_path_status = MainPathStatus.WORKER_RUNTIME_CONNECTED
+            entry.main_path = MainPathBinding(
+                surfaces=["worker-runtime"],
+                worker_runtime="zyra_runtime.query.QueryEngine",
+            )
+            ledger = InternalizationLedger([entry])
+
+            report = build_accounting_report(root, ledger, owner_unit="M1-01B")
+            codes = {finding.code for finding in report.findings}
+
+            self.assertFalse(report.ok)
+            self.assertIn("CONNECTED_SOURCE_POOL_NOT_DEEP_INTERNALIZED", codes)
+            self.assertEqual(report.unit_accounts["M1-01B"].policy_error_entries, 1)
+            self.assertEqual(report.source_accounts["claude-code-best"].policy_error_entries, 1)
 
     def test_completion_profiles_and_debt_queue_rank_missing_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

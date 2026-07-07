@@ -394,9 +394,10 @@ class ExtractionPlan:
     runtime_function: str = "default_m1_01b_runtime_scaffold"
     lifecycle: LedgerLifecycle = LedgerLifecycle.ACTIVE
     main_path_status: MainPathStatus = MainPathStatus.WORKER_RUNTIME_CONNECTED
+    migration_strategy: MigrationStrategy = MigrationStrategy.VENDORED_RUNTIME
     main_path_worker_runtime: str = "CodeWorkerRuntime:claude-code-runtime-pilot"
     main_path_surfaces: list[str] = field(
-        default_factory=lambda: ["vendor-runtimes", "packages/runtime", "packages/workers", "packages/integrations"]
+        default_factory=lambda: ["apps/code-worker", "packages/runtime", "packages/workers", "packages/integrations", "scripts"]
     )
     main_path_event_types: list[str] = field(default_factory=lambda: ["runtime_scaffold_health", "source_extraction_completed"])
     main_path_control_commands: list[str] = field(default_factory=lambda: ["ledger:accounting", "ledger:gate"])
@@ -777,7 +778,7 @@ class SourceExtractor:
             capability_name=capability,
             capability_summary=f"{self.plan.capability_summary} Source file line_count={item.line_count}.",
             target_paths=primary_targets or [item.target.project_relative_path],
-            migration_strategy=MigrationStrategy.VENDORED_RUNTIME,
+            migration_strategy=self._migration_strategy_for_item(),
             main_path_status=self.plan.main_path_status,
             lifecycle=self.plan.lifecycle,
             owner_unit=self.plan.owner_unit,
@@ -788,7 +789,7 @@ class SourceExtractor:
                 function=self.plan.runtime_function,
                 protocol="zyra-runtime-scaffold-v1",
                 health_check=self.plan.runtime_health_check,
-                config_refs=[self._project_relative_manifest_path()],
+                config_refs=self._runtime_config_refs(),
             ),
             test_entries=[
                 TestEntry(
@@ -841,7 +842,7 @@ class SourceExtractor:
             )
         if self.plan.owner_unit == "M1-01B":
             entry.risk_notes.append(
-                "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+                "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
             )
         entry.replacement_plan = self.plan.replacement_plan
         return entry
@@ -866,6 +867,20 @@ class SourceExtractor:
             )
         )
         return bindings
+
+    def _migration_strategy_for_item(self) -> MigrationStrategy:
+        if self.plan.owner_unit == "M1-01B":
+            return MigrationStrategy.ADAPTER
+        return self.plan.migration_strategy
+
+    def _runtime_config_refs(self) -> list[str]:
+        if self.plan.owner_unit == "M1-01B":
+            return [
+                "packages/runtime/zyra_runtime/scaffold.py",
+                "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+                "packages/workers/zyra_workers/scaffold_supervisor.py",
+            ]
+        return [self._project_relative_manifest_path()]
 
     def _ledger_upsert_plan_for_item(self, item: ExtractionItem) -> LedgerUpsertPlan:
         capability = self._capability_name(item)

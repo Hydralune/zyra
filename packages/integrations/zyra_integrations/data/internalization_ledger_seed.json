@@ -2182,7 +2182,7 @@
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_context_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=189.",
-      "created_at": "2026-07-06T16:50:45.795Z",
+      "created_at": "2026-07-07T04:37:57.103Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2216,10 +2216,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -2233,17 +2234,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/context.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -2669,13 +2672,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.795Z"
+      "updated_at": "2026-07-07T04:37:57.103Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_cost_tracker_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=323.",
-      "created_at": "2026-07-06T16:50:45.795Z",
+      "created_at": "2026-07-07T04:37:57.103Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -2709,10 +2712,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -2726,17 +2730,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/cost-tracker.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -3162,13 +3168,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.795Z"
+      "updated_at": "2026-07-07T04:37:57.103Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_config_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=46.",
-      "created_at": "2026-07-06T16:50:45.796Z",
+      "created_at": "2026-07-07T04:37:57.103Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3202,10 +3208,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -3219,17 +3226,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/query/config.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -3655,13 +3664,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.796Z"
+      "updated_at": "2026-07-07T04:37:57.103Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_deps_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=40.",
-      "created_at": "2026-07-06T16:50:45.796Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -3695,10 +3704,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -3712,17 +3722,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/query/deps.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -4148,13 +4160,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.796Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_stopHooks_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=473.",
-      "created_at": "2026-07-06T16:50:45.797Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -4188,10 +4200,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -4205,17 +4218,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/query/stopHooks.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -4641,13 +4656,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.797Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_query_tokenBudget_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=93.",
-      "created_at": "2026-07-06T16:50:45.797Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -4681,10 +4696,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -4698,17 +4714,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/query/tokenBudget.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -5134,13 +5152,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.797Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_services_tools_StreamingToolExecutor_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=530.",
-      "created_at": "2026-07-06T16:50:45.798Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -5174,10 +5192,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -5191,17 +5210,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/services/tools/StreamingToolExecutor.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -5627,13 +5648,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.798Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_services_tools_toolOrchestration_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=188.",
-      "created_at": "2026-07-06T16:50:45.798Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -5667,10 +5688,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -5684,17 +5706,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/services/tools/toolOrchestration.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -6120,13 +6144,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.798Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_Tool_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=792.",
-      "created_at": "2026-07-06T16:50:45.795Z",
+      "created_at": "2026-07-07T04:37:57.103Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -6160,10 +6184,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -6177,17 +6202,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/Tool.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -6613,13 +6640,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.795Z"
+      "updated_at": "2026-07-07T04:37:57.103Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_agentMemory_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=177.",
-      "created_at": "2026-07-06T16:50:45.799Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -6653,10 +6680,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -6670,17 +6698,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/AgentTool/agentMemory.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -7106,13 +7136,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.799Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_agentMemorySnapshot_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=197.",
-      "created_at": "2026-07-06T16:50:45.799Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -7146,10 +7176,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -7163,17 +7194,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/AgentTool/agentMemorySnapshot.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -7599,13 +7632,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.799Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_agentToolUtils_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=687.",
-      "created_at": "2026-07-06T16:50:45.799Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -7639,10 +7672,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -7656,17 +7690,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/AgentTool/agentToolUtils.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -8092,13 +8128,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.799Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_forkSubagent_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=210.",
-      "created_at": "2026-07-06T16:50:45.800Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -8132,10 +8168,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -8149,17 +8186,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/AgentTool/forkSubagent.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -8585,13 +8624,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.800Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_AgentTool_prompt_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=287.",
-      "created_at": "2026-07-06T16:50:45.800Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -8625,10 +8664,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -8642,17 +8682,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/AgentTool/prompt.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -9078,13 +9120,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.800Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_bashCommandHelpers_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=265.",
-      "created_at": "2026-07-06T16:50:45.801Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -9118,10 +9160,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -9135,17 +9178,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/bashCommandHelpers.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -9571,13 +9616,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.801Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_bashPermissions_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=2621.",
-      "created_at": "2026-07-06T16:50:45.801Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -9611,10 +9656,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -9628,17 +9674,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/bashPermissions.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -10064,13 +10112,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.801Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_bashSecurity_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=2592.",
-      "created_at": "2026-07-06T16:50:45.801Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -10104,10 +10152,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -10121,17 +10170,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/bashSecurity.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -10557,13 +10608,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.801Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_commandSemantics_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=140.",
-      "created_at": "2026-07-06T16:50:45.802Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -10597,10 +10648,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -10614,17 +10666,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/commandSemantics.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -11050,13 +11104,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.802Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_destructiveCommandWarning_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=102.",
-      "created_at": "2026-07-06T16:50:45.802Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -11090,10 +11144,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -11107,17 +11162,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/destructiveCommandWarning.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -11543,13 +11600,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.802Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_modeValidation_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=115.",
-      "created_at": "2026-07-06T16:50:45.802Z",
+      "created_at": "2026-07-07T04:37:57.105Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -11583,10 +11640,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -11600,17 +11658,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/modeValidation.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -12036,13 +12096,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.802Z"
+      "updated_at": "2026-07-07T04:37:57.105Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_pathValidation_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=1303.",
-      "created_at": "2026-07-06T16:50:45.803Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -12076,10 +12136,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -12093,17 +12154,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/pathValidation.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -12529,13 +12592,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.803Z"
+      "updated_at": "2026-07-07T04:37:57.106Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_readOnlyValidation_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=1990.",
-      "created_at": "2026-07-06T16:50:45.803Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -12569,10 +12632,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -12586,17 +12650,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/readOnlyValidation.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -13022,13 +13088,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.803Z"
+      "updated_at": "2026-07-07T04:37:57.106Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_BashTool_shouldUseSandbox_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=153.",
-      "created_at": "2026-07-06T16:50:45.803Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -13062,10 +13128,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -13079,17 +13146,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/BashTool/shouldUseSandbox.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -13515,13 +13584,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.803Z"
+      "updated_at": "2026-07-07T04:37:57.106Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_SkillTool_prompt_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=241.",
-      "created_at": "2026-07-06T16:50:45.804Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -13555,10 +13624,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -13572,17 +13642,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools/SkillTool/prompt.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -14008,13 +14080,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.804Z"
+      "updated_at": "2026-07-07T04:37:57.106Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_tools_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=389.",
-      "created_at": "2026-07-06T16:50:45.798Z",
+      "created_at": "2026-07-07T04:37:57.104Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -14048,10 +14120,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -14065,17 +14138,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/tools.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -14501,13 +14576,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.798Z"
+      "updated_at": "2026-07-07T04:37:57.104Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_ids_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=44.",
-      "created_at": "2026-07-06T16:50:45.804Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -14541,10 +14616,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -14558,17 +14634,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/types/ids.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -14994,13 +15072,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.804Z"
+      "updated_at": "2026-07-07T04:37:57.106Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_message_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=167.",
-      "created_at": "2026-07-06T16:50:45.804Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -15034,10 +15112,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -15051,17 +15130,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/types/message.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -15487,13 +15568,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.804Z"
+      "updated_at": "2026-07-07T04:37:57.106Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_permissions_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=441.",
-      "created_at": "2026-07-06T16:50:45.805Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -15527,10 +15608,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -15544,17 +15626,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/types/permissions.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -15980,13 +16064,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.805Z"
+      "updated_at": "2026-07-07T04:37:57.106Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_types_tools_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=12.",
-      "created_at": "2026-07-06T16:50:45.805Z",
+      "created_at": "2026-07-07T04:37:57.106Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -16020,10 +16104,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -16037,17 +16122,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/types/tools.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -16473,13 +16560,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.805Z"
+      "updated_at": "2026-07-07T04:37:57.107Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_abortController_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=99.",
-      "created_at": "2026-07-06T16:50:45.805Z",
+      "created_at": "2026-07-07T04:37:57.107Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -16513,10 +16600,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -16530,17 +16618,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/utils/abortController.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -16966,13 +17056,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.805Z"
+      "updated_at": "2026-07-07T04:37:57.107Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_generators_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=88.",
-      "created_at": "2026-07-06T16:50:45.806Z",
+      "created_at": "2026-07-07T04:37:57.107Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -17006,10 +17096,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -17023,17 +17114,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/utils/generators.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -17459,13 +17552,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.806Z"
+      "updated_at": "2026-07-07T04:37:57.107Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_sessionState_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=150.",
-      "created_at": "2026-07-06T16:50:45.806Z",
+      "created_at": "2026-07-07T04:37:57.107Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -17499,10 +17592,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -17516,17 +17610,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/utils/sessionState.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -17952,13 +18048,13 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.806Z"
+      "updated_at": "2026-07-07T04:37:57.107Z"
     },
     {
       "blockers": [],
       "capability_name": "claude_code_runtime_pilot_src_utils_systemPromptType_ts",
       "capability_summary": "Pilot extraction for Claude Code runtime contracts used by M1-02A. Source file line_count=14.",
-      "created_at": "2026-07-06T16:50:45.806Z",
+      "created_at": "2026-07-07T04:37:57.107Z",
       "dependencies": [],
       "downstream_units": [
         "M1-02A",
@@ -17992,10 +18088,11 @@
           "source_extraction_completed"
         ],
         "surfaces": [
-          "vendor-runtimes",
+          "apps/code-worker",
           "packages/runtime",
           "packages/workers",
-          "packages/integrations"
+          "packages/integrations",
+          "scripts"
         ],
         "ui_panels": [],
         "worker_runtime": "CodeWorkerRuntime:claude-code-runtime-pilot"
@@ -18009,17 +18106,19 @@
         "source_pool_target": "vendor-runtimes/claude-code-runtime/pilot/claude-code-best/src/utils/systemPromptType.ts",
         "upstream_type_stub": false
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-01B",
       "replacement_plan": "M1-02A will promote the selected Claude Code runtime files from pilot scope into the productized runtime boundary.",
       "risk_notes": [
-        "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+        "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
       ],
       "runtime_entry": {
         "command": "python scripts/verify_extraction_runtime_scaffold.py",
         "config_refs": [
-          "vendor-runtimes/claude-code-runtime/src/zyra-pilot-manifest.mjs"
+          "packages/runtime/zyra_runtime/scaffold.py",
+          "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+          "packages/workers/zyra_workers/scaffold_supervisor.py"
         ],
         "environment_refs": [],
         "function": "default_m1_01b_runtime_scaffold",
@@ -18445,7 +18544,7 @@
           "required": true
         }
       ],
-      "updated_at": "2026-07-06T16:50:45.806Z"
+      "updated_at": "2026-07-07T04:37:57.107Z"
     },
     {
       "blockers": [],
@@ -159020,9 +159119,10 @@
       "openclaw": 83
     },
     "by_strategy": {
+      "adapter": 33,
       "planned_adapter": 377,
       "reimplemented_pattern": 138,
-      "vendored_runtime": 574
+      "vendored_runtime": 541
     },
     "planned_or_candidate": 794,
     "primary_target_prefixes": {

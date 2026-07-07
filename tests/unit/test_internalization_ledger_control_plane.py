@@ -254,6 +254,23 @@ class InternalizationLedgerControlPlaneTests(unittest.TestCase):
         self.assertEqual(mutation.summary["passing_probes"], mutation.summary["probe_count"])
         self.assertTrue(policy.decisions)
 
+    def test_policy_matrix_accepts_worker_connected_owned_runtime_evidence(self) -> None:
+        entry = sample_entry()
+        entry.main_path_status = MainPathStatus.WORKER_RUNTIME_CONNECTED
+        entry.migration_strategy = MigrationStrategy.ADAPTER
+        entry.main_path = MainPathBinding(
+            surfaces=["worker-runtime"],
+            event_types=["runtime.worker.started"],
+            worker_runtime="zyra_runtime.query.QueryEngine",
+        )
+        ledger = InternalizationLedger([entry])
+
+        report = build_policy_matrix_report(ledger, owner_unit="M1-01A", include_decisions=True)
+
+        self.assertTrue(report.ok)
+        self.assertEqual(report.error_count, 0)
+        self.assertEqual(report.decisions[0].missing_required_fields, [])
+
     def test_unit_review_composes_control_plane_evidence(self) -> None:
         ledger = InternalizationLedger([sample_entry()])
 

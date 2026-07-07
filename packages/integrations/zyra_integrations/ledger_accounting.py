@@ -20,6 +20,7 @@ from .ledger_policy import (
     minimum_effective_lines_for_unit,
     validate_entry_policy,
 )
+from .ledger_policy_matrix import evaluate_policy_matrix_entry
 from .ledger_store import InternalizationLedger
 
 
@@ -315,9 +316,7 @@ def build_entry_account(project_root: Path, entry: InternalizationLedgerEntry) -
     effective_count = sum(1 for item in classifications if str(item.verdict) == "effective")
     excluded_count = sum(1 for item in classifications if str(item.verdict) == "excluded")
     existing_count = sum(1 for exists in existing_targets.values() if exists)
-    policy_findings = validate_entry_policy(entry)
-    policy_errors = sum(1 for finding in policy_findings if str(finding.severity) in {"error", "blocker"})
-    policy_warnings = sum(1 for finding in policy_findings if str(finding.severity) == "warning")
+    policy_errors, policy_warnings = _entry_policy_counts(entry)
     missing = []
     if entry.runtime_entry.is_empty():
         missing.append("runtime")
@@ -580,6 +579,20 @@ def accounting_findings(
                     source_repo=account.source_repo,
                     ledger_id=account.ledger_id,
                     remediation="Run ledger audit and fix the policy violations before advancement.",
+                )
+            )
+        matrix_decision = evaluate_policy_matrix_entry(source_entry)
+        if matrix_decision.blocking:
+            findings.append(
+                AccountingFinding(
+                    code=str(matrix_decision.code),
+                    severity=str(matrix_decision.severity),
+                    message=matrix_decision.rationale,
+                    owner_unit=account.owner_unit,
+                    source_repo=account.source_repo,
+                    ledger_id=account.ledger_id,
+                    remediation="Downgrade the ledger status or convert the capability into Zyra-owned runtime/main-path code.",
+                    metadata=matrix_decision.to_dict(),
                 )
             )
         if not source_entry.source_evidence:
@@ -880,11 +893,23 @@ def _count_entry_metrics(project_root: Path, entry: InternalizationLedgerEntry, 
         metrics["productized_entries"] += 1
     if not entry.source_evidence:
         metrics["missing_source_evidence_entries"] += 1
-    policy_findings = validate_entry_policy(entry)
-    if any(str(finding.severity) in {"error", "blocker"} for finding in policy_findings):
+    policy_errors, policy_warnings = _entry_policy_counts(entry)
+    if policy_errors:
         metrics["policy_error_entries"] += 1
-    if any(str(finding.severity) == "warning" for finding in policy_findings):
+    if policy_warnings:
         metrics["policy_warning_entries"] += 1
+
+
+def _entry_policy_counts(entry: InternalizationLedgerEntry) -> tuple[int, int]:
+    policy_findings = validate_entry_policy(entry)
+    policy_errors = sum(1 for finding in policy_findings if str(finding.severity) in {"error", "blocker"})
+    policy_warnings = sum(1 for finding in policy_findings if str(finding.severity) == "warning")
+    matrix_decision = evaluate_policy_matrix_entry(entry)
+    if matrix_decision.blocking:
+        policy_errors += 1
+    elif str(matrix_decision.severity) == "warning":
+        policy_warnings += 1
+    return policy_errors, policy_warnings
 
 
 def _target_prefix(path: str) -> str:

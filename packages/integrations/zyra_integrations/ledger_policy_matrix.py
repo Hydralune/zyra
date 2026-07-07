@@ -21,6 +21,7 @@ class MatrixCode(StrEnum):
     COMBINATION_REVIEW = "COMBINATION_REVIEW"
     COMBINATION_REJECTED = "COMBINATION_REJECTED"
     CONNECTED_REQUIRES_MATERIALIZED = "CONNECTED_REQUIRES_MATERIALIZED"
+    CONNECTED_SOURCE_POOL_NOT_DEEP_INTERNALIZED = "CONNECTED_SOURCE_POOL_NOT_DEEP_INTERNALIZED"
     PRODUCTIZED_REQUIRES_STRONG_STRATEGY = "PRODUCTIZED_REQUIRES_STRONG_STRATEGY"
     VENDORED_RUNTIME_NOT_DEEP_INTERNALIZED = "VENDORED_RUNTIME_NOT_DEEP_INTERNALIZED"
     TESTED_STATUS_REQUIRES_TEST = "TESTED_STATUS_REQUIRES_TEST"
@@ -197,6 +198,25 @@ def default_policy_matrix_rules() -> list[PolicyMatrixRule]:
                 code=MatrixCode.COMBINATION_ALLOWED,
             )
         )
+    for status in CONNECTED_STATUSES:
+        for strategy in SOURCE_POOL_STRATEGIES:
+            rules.append(
+                PolicyMatrixRule(
+                    rule_id=f"connected-{status}-{strategy}-source-pool-rejected",
+                    lifecycle=None,
+                    status=status,
+                    strategy=strategy,
+                    allowed=False,
+                    severity=MatrixSeverity.ERROR,
+                    rationale=(
+                        "Connected main-path status cannot be claimed by a source-pool, "
+                        "vendored, sidecar, planned, or candidate strategy; the runtime "
+                        "boundary must be Zyra-owned before it counts as internalized."
+                    ),
+                    required_fields=required_fields_for_status(status),
+                    code=MatrixCode.CONNECTED_SOURCE_POOL_NOT_DEEP_INTERNALIZED,
+                )
+            )
     for lifecycle in [LedgerLifecycle.CANDIDATE, LedgerLifecycle.PLANNED, LedgerLifecycle.DEFERRED, LedgerLifecycle.REJECTED]:
         for status in CONNECTED_STATUSES:
             rules.append(
@@ -310,8 +330,10 @@ def evaluate_policy_matrix_entry(entry: InternalizationLedgerEntry, rules: list[
         allowed = False if entry.main_path_status in CONNECTED_STATUSES else allowed
     line_code, line_severity, line_rationale = line_policy_decision(entry)
     if line_code is not None:
-        code = line_code
-        severity = max_matrix_severity(severity, line_severity)
+        stronger = max_matrix_severity(severity, line_severity)
+        if stronger == line_severity and stronger != severity:
+            code = line_code
+        severity = stronger
         rationale = f"{rationale} {line_rationale}".strip()
         metadata["line_policy_rationale"] = line_rationale
     return PolicyDecision(
@@ -363,7 +385,6 @@ def line_policy_decision(entry: InternalizationLedgerEntry) -> tuple[MatrixCode 
 def missing_required_fields(entry: InternalizationLedgerEntry, names: Iterable[str]) -> list[str]:
     missing: list[str] = []
     for name in names:
-        value = getattr(entry, name, None)
         if name == "runtime_entry":
             if entry.runtime_entry.is_empty():
                 missing.append(name)
@@ -372,6 +393,7 @@ def missing_required_fields(entry: InternalizationLedgerEntry, names: Iterable[s
             if entry.main_path.is_empty():
                 missing.append(name)
             continue
+        value = _resolve_required_field(entry, name)
         if value is None:
             missing.append(name)
         elif isinstance(value, str) and not value.strip():
@@ -379,6 +401,18 @@ def missing_required_fields(entry: InternalizationLedgerEntry, names: Iterable[s
         elif isinstance(value, (list, dict, tuple, set)) and not value:
             missing.append(name)
     return missing
+
+
+def _resolve_required_field(entry: InternalizationLedgerEntry, name: str) -> Any:
+    current: Any = entry
+    for part in name.split("."):
+        if isinstance(current, dict):
+            current = current.get(part)
+        else:
+            current = getattr(current, part, None)
+        if current is None:
+            return None
+    return current
 
 
 def required_fields_for_status(status: MainPathStatus) -> list[str]:
@@ -431,6 +465,8 @@ def build_policy_matrix_findings(decisions: Iterable[PolicyDecision]) -> list[Po
 def remediation_for_decision(decision: PolicyDecision) -> str:
     if decision.code == MatrixCode.CONNECTED_REQUIRES_MATERIALIZED:
         return "Advance lifecycle only after target/runtime/test/main-path evidence exists, or downgrade main_path_status."
+    if decision.code == MatrixCode.CONNECTED_SOURCE_POOL_NOT_DEEP_INTERNALIZED:
+        return "Downgrade main_path_status or convert the source-pool runtime into Zyra-owned adapter/direct-port code with behavior tests."
     if decision.code == MatrixCode.PRODUCTIZED_REQUIRES_STRONG_STRATEGY:
         return "Convert vendor/source-pool strategy into Zyra-owned adapter/direct port, or keep lifecycle below productized."
     if decision.code == MatrixCode.LINE_POLICY_MISMATCH:

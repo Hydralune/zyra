@@ -114,9 +114,11 @@ class SourceExtractionRuntimeScaffoldTests(unittest.TestCase):
             self.assertTrue((project_root / "vendor-runtimes" / "test-runtime" / "src" / "zyra-pilot-manifest.mjs").exists())
             inventory = project_root / "vendor-runtimes" / "test-runtime" / "metadata" / "source_inventory.json"
             self.assertIn('"ledger_upsert_count": 1', inventory.read_text(encoding="utf-8"))
-            self.assertEqual(entries[0].migration_strategy, MigrationStrategy.VENDORED_RUNTIME)
+            self.assertEqual(entries[0].migration_strategy, MigrationStrategy.ADAPTER)
             self.assertEqual(entries[0].main_path_status, MainPathStatus.WORKER_RUNTIME_CONNECTED)
             self.assertEqual(entries[0].source_evidence[0].source_path, "runtime.ts")
+            self.assertNotIn("vendor-runtimes", entries[0].main_path.surfaces)
+            self.assertTrue(all("vendor-runtimes" not in ref for ref in entries[0].runtime_entry.config_refs))
             self.assertNotIn("source_evidence", entries[0].metadata)
 
             always_plan = ExtractionPlan(

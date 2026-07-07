@@ -19,20 +19,29 @@ if str(ROOT) not in sys.path:
 
 class InternalizationLedgerApiTests(unittest.TestCase):
     def test_ledger_query_audit_and_event_log_api(self) -> None:
+        env_keys = [
+            "ZYRA_SQLITE_PATH",
+            "ZYRA_EVENT_LOG",
+            "ZYRA_INTEGRATION_LEDGER",
+            "ZYRA_TOOL_WORKSPACE",
+            "ZYRA_ARTIFACT_ROOT",
+        ]
+        previous_env = {key: os.environ.get(key) for key in env_keys}
         with tempfile.TemporaryDirectory() as tmpdir:
-            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
-            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
-            os.environ["ZYRA_INTEGRATION_LEDGER"] = str(Path(tmpdir) / "internalization_ledger.json")
-            os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
-            os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
-
-            from apps.api.zyra_api.main import ZyraRequestHandler
-
-            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            base_url = f"http://127.0.0.1:{server.server_address[1]}"
             try:
+                os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
+                os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
+                os.environ["ZYRA_INTEGRATION_LEDGER"] = str(Path(tmpdir) / "internalization_ledger.json")
+                os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
+                os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
+
+                from apps.api.zyra_api.main import ZyraRequestHandler
+
+                server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                base_url = f"http://127.0.0.1:{server.server_address[1]}"
+
                 listed = _get(base_url, "/ledger", {"source_repo": "claude-code-best", "limit": "2"})
                 self.assertEqual(len(listed["entries"]), 2)
                 self.assertGreaterEqual(listed["summary"]["total_entries"], 800)
@@ -176,9 +185,16 @@ class InternalizationLedgerApiTests(unittest.TestCase):
                 self.assertIn("objectives", review)
                 self.assertIn("evidence", review)
             finally:
-                server.shutdown()
-                server.server_close()
-                thread.join(timeout=5)
+                if "server" in locals():
+                    server.shutdown()
+                    server.server_close()
+                if "thread" in locals():
+                    thread.join(timeout=5)
+                for key, value in previous_env.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
 
 
 def _get(base_url: str, path: str, query: dict[str, str] | None = None) -> dict[str, Any]:

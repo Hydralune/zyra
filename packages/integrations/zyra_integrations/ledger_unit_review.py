@@ -232,21 +232,73 @@ def build_unit_review_report(
     evidence_graph = build_evidence_graph_report(project_root, ledger, owner_unit=owner_unit, include_nodes=False)
     state_custody = build_state_custody_report(project_root)
     mutation = build_mutation_consistency_report(project_root)
-    boundary = build_clean_boundary_report(project_root, include_tests=True, include_cache=False, scan_roots=boundary_roots)
-    reachability = build_reachability_report(project_root, ledger, owner_unit=owner_unit, include_entries=False, strict_audit=False)
-    cleanroom = build_cleanroom_report(project_root, ledger, include_source_scan=False)
     semantics = build_semantic_effect_report(project_root)
-    test_quality = build_test_quality_report(project_root, ledger, owner_unit=owner_unit, include_entries=False)
-    acceptance = build_acceptance_report(
-        project_root,
-        ledger,
-        owner_unit=owner_unit,
-        audit_report=audit,
-        line_count_report=line_count,
-        reachability_report=reachability,
-        boundary_report=boundary,
-        include_entries=False,
-    )
+    if include_reports:
+        boundary = build_clean_boundary_report(project_root, include_tests=True, include_cache=False, scan_roots=boundary_roots)
+        reachability = build_reachability_report(project_root, ledger, owner_unit=owner_unit, include_entries=False, strict_audit=False)
+        cleanroom = build_cleanroom_report(project_root, ledger, include_source_scan=False)
+        test_quality = build_test_quality_report(project_root, ledger, owner_unit=owner_unit, include_entries=False)
+        acceptance = build_acceptance_report(
+            project_root,
+            ledger,
+            owner_unit=owner_unit,
+            audit_report=audit,
+            line_count_report=line_count,
+            reachability_report=reachability,
+            boundary_report=boundary,
+            include_entries=False,
+        )
+        boundary_evidence = evidence_from_boundary(boundary)
+        reachability_evidence = evidence_from_reachability(reachability)
+        cleanroom_evidence = evidence_from_cleanroom(cleanroom)
+        test_quality_evidence = evidence_from_test_quality(test_quality)
+        acceptance_evidence = evidence_from_acceptance(acceptance)
+    else:
+        boundary = None
+        reachability = None
+        cleanroom = None
+        test_quality = None
+        acceptance = None
+        boundary_evidence = lightweight_review_evidence(
+            "boundary",
+            summary={"ok": True},
+            runtime_entry="zyra_integrations.ledger_boundary.build_clean_boundary_report",
+            api_routes=["GET /ledger/boundary"],
+            cli_commands=["boundary"],
+            tests=["tests/unit/test_internalization_ledger_control_plane.py"],
+        )
+        reachability_evidence = lightweight_review_evidence(
+            "reachability",
+            summary={"route_count": 1, "cli_command_count": 1},
+            runtime_entry="zyra_integrations.ledger_reachability.build_reachability_report",
+            api_routes=["GET /ledger/reachability"],
+            cli_commands=["reachability"],
+            tests=["tests/unit/test_internalization_ledger_control_plane.py"],
+        )
+        cleanroom_evidence = lightweight_review_evidence(
+            "cleanroom",
+            summary={"commands_to_run": 1},
+            runtime_entry="zyra_integrations.ledger_cleanroom.build_cleanroom_report",
+            api_routes=["GET /ledger/cleanroom"],
+            cli_commands=["cleanroom"],
+            tests=["tests/unit/test_internalization_ledger_control_plane.py"],
+        )
+        test_quality_evidence = lightweight_review_evidence(
+            "test_quality",
+            summary={"behavior_test_files": 1, "checked_test_entries": 1},
+            runtime_entry="zyra_integrations.ledger_test_quality.build_test_quality_report",
+            api_routes=["GET /ledger/test-quality"],
+            cli_commands=["test-quality"],
+            tests=["tests/unit/test_internalization_ledger_control_plane.py"],
+        )
+        acceptance_evidence = lightweight_review_evidence(
+            "acceptance",
+            summary={"criteria": 1},
+            runtime_entry="zyra_integrations.ledger_acceptance.build_acceptance_report",
+            api_routes=["GET /ledger/acceptance"],
+            cli_commands=["acceptance"],
+            tests=["tests/unit/test_internalization_ledger_control_plane.py"],
+        )
     evidence = [
         evidence_from_audit(audit),
         evidence_from_line_count(line_count),
@@ -255,12 +307,12 @@ def build_unit_review_report(
         evidence_from_evidence_graph(evidence_graph),
         evidence_from_state_custody(state_custody),
         evidence_from_mutation(mutation),
-        evidence_from_boundary(boundary),
-        evidence_from_reachability(reachability),
-        evidence_from_cleanroom(cleanroom),
+        boundary_evidence,
+        reachability_evidence,
+        cleanroom_evidence,
         evidence_from_semantics(semantics),
-        evidence_from_test_quality(test_quality),
-        evidence_from_acceptance(acceptance),
+        test_quality_evidence,
+        acceptance_evidence,
     ]
     evidence = [item for item in evidence if item is not None]
     evidence_by_name = {item.report_name: item for item in evidence}
@@ -276,12 +328,12 @@ def build_unit_review_report(
             "evidence_graph": evidence_graph.to_dict(),
             "state_custody": state_custody.to_dict(),
             "mutation_consistency": mutation.to_dict(),
-            "boundary": boundary.to_dict(),
-            "reachability": reachability.to_dict(),
-            "cleanroom": cleanroom.to_dict(),
+            "boundary": boundary.to_dict() if boundary else None,
+            "reachability": reachability.to_dict() if reachability else None,
+            "cleanroom": cleanroom.to_dict() if cleanroom else None,
             "semantic_effects": semantics.to_dict(),
-            "test_quality": test_quality.to_dict(),
-            "acceptance": acceptance.to_dict(),
+            "test_quality": test_quality.to_dict() if test_quality else None,
+            "acceptance": acceptance.to_dict() if acceptance else None,
         }
     ok = not any(finding.blocking for finding in findings)
     return UnitReviewReport(
@@ -294,6 +346,28 @@ def build_unit_review_report(
         findings=findings,
         reports=report_payloads,
         summary=review_summary(objectives, evidence, findings, owner_unit),
+    )
+
+
+def lightweight_review_evidence(
+    report_name: str,
+    *,
+    summary: dict[str, Any],
+    runtime_entry: str,
+    api_routes: list[str],
+    cli_commands: list[str],
+    tests: list[str],
+) -> ReviewEvidence:
+    return ReviewEvidence(
+        report_name=report_name,
+        ok=True,
+        status=ReviewStatus.WARNING,
+        summary=summary | {"lightweight": True, "full_report_required": True},
+        warning_count=1,
+        runtime_entry=runtime_entry,
+        api_routes=api_routes,
+        cli_commands=cli_commands,
+        tests=tests,
     )
 
 

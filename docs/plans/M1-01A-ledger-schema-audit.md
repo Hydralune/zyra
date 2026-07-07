@@ -45,6 +45,7 @@ Strict supplement modules added after the initial 01A review:
 - `ledger_health.py`
 - `ledger_contracts.py`
 - `ledger_accounting.py`
+- `ledger_policy_matrix.py`
 
 ## Internalization Ledger
 
@@ -99,3 +100,22 @@ Strict line-count status after supplement: `effective_added=10049`, `raw_added=1
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_internalization_ledger.py --base 68587549447cacfdbf7992387823b5af6f7f9cf3 --unit M1-01A --minimum-effective-lines 10000 --fail-on-shortfall
 ```
+
+## 2026-07-07 Strict Revalidation
+
+This pass added the policy matrix to accounting and the completion gate, so connected main-path claims backed by `vendor-runtimes`, source-pool, sidecar, planned, or candidate strategies are rejected before a unit can close.
+
+Validated in this pass:
+
+```text
+accounting --owner-unit M1-01A: findings=0 errors=0 blockers=0
+gate --owner-unit M1-01A: ok=True disposition=warning errors=0 blockers=0
+verify_internalization_ledger.py: effective_added=31765 raw_added=320986 excluded_added=289221 line_count_ok=True
+01A related unittest group: 40 tests OK
+full unittest discover with failfast: 207 tests OK
+verify_submission_boundary.py: passed
+```
+
+The remaining gate warnings are global ledger warnings and excluded data/source-pool dominance warnings. Seed, inventory, source-pool, and vendor-like physical lines remain excluded from effective implementation credit.
+
+The `unit-review` API now treats `no_reports=1` as a lightweight evidence summary and avoids running full boundary/reachability/cleanroom/test-quality scans on the request path. Full strict report generation remains available through `--include-reports`.

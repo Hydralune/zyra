@@ -103,6 +103,34 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
             snapshots = _run(["snapshots", "--json"], env)
             self.assertTrue(any(item["snapshot_id"] == snapshot["snapshot"]["identity"]["snapshot_id"] for item in snapshots["snapshots"]))
 
+    def test_cli_gate_text_output_handles_gate_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env = os.environ.copy()
+            ledger_path = Path(tmpdir) / "ledger.json"
+            env["ZYRA_INTEGRATION_LEDGER"] = str(ledger_path)
+            InternalizationLedger([sample_entry()]).save(ledger_path)
+
+            completed = subprocess.run(
+                [
+                    str(ROOT / ".venv" / "Scripts" / "python.exe"),
+                    "scripts/zyra_integration_ledger.py",
+                    "gate",
+                    "--owner-unit",
+                    "M1-01A",
+                    "--minimum-effective-lines",
+                    "10000",
+                ],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        self.assertIn("unit=M1-01A", completed.stdout)
+        self.assertIn("findings=", completed.stdout)
+        self.assertIn("LINE_COUNT_BASE_MISSING", completed.stdout)
+
     def test_cli_linecount_reports_seed_exclusion_and_shortfall(self) -> None:
         completed = subprocess.run(
             [

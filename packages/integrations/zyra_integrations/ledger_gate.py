@@ -10,6 +10,7 @@ from .ledger_linecount import EffectiveLineCountReport, build_line_count_report
 from .ledger_line_buckets import LineBucketReport, bucket_line_count_report
 from .ledger_matrix import UnitMatrixReport, build_unit_matrix
 from .ledger_models import to_jsonable
+from .ledger_policy_matrix import PolicyMatrixReport, build_policy_matrix_report
 from .ledger_reports import UnitReadinessReport, build_unit_readiness_report
 from .ledger_source_scan import SourceScanReport, build_source_scan_report
 from .ledger_store import InternalizationLedger
@@ -30,6 +31,7 @@ class GateCode(StrEnum):
     EXCLUDED_DATA_DOMINATES_DIFF = "EXCLUDED_DATA_DOMINATES_DIFF"
     LINE_BUCKET_FAILED = "LINE_BUCKET_FAILED"
     READINESS_BLOCKED = "READINESS_BLOCKED"
+    POLICY_MATRIX_FAILED = "POLICY_MATRIX_FAILED"
     UNIT_LEDGER_COVERAGE_MISSING = "UNIT_LEDGER_COVERAGE_MISSING"
     SOURCE_DEPENDENCY_FORBIDDEN = "SOURCE_DEPENDENCY_FORBIDDEN"
     SOURCE_EVIDENCE_MISSING = "SOURCE_EVIDENCE_MISSING"
@@ -60,6 +62,7 @@ class CompletionGateReport:
     line_buckets: dict[str, Any] | None
     readiness: dict[str, Any]
     matrix: dict[str, Any]
+    policy_matrix: dict[str, Any]
     source_scan: dict[str, Any] | None = None
 
     @property
@@ -114,6 +117,7 @@ def build_completion_gate_report(
         line_count_report=line_count,
     )
     matrix = build_unit_matrix(ledger)
+    policy_matrix = build_policy_matrix_report(ledger, owner_unit=owner_unit)
     source_scan = (
         build_source_scan_report(project_root, source_root or project_root.parent, ledger)
         if include_source_scan
@@ -136,6 +140,7 @@ def build_completion_gate_report(
             )
         )
     findings.extend(_readiness_gate_findings(readiness))
+    findings.extend(_policy_matrix_gate_findings(policy_matrix))
     findings.extend(_matrix_gate_findings(matrix, owner_unit))
     if source_scan is not None:
         findings.extend(_source_scan_gate_findings(source_scan))
@@ -160,6 +165,7 @@ def build_completion_gate_report(
         line_buckets=line_buckets.to_dict() if line_buckets else None,
         readiness=readiness.to_dict(),
         matrix=matrix.to_dict(),
+        policy_matrix=policy_matrix.to_dict(),
         source_scan=source_scan.to_dict() if source_scan else None,
     )
 
@@ -275,6 +281,32 @@ def _readiness_gate_findings(report: UnitReadinessReport) -> list[GateFinding]:
             )
         )
     return findings
+
+
+def _policy_matrix_gate_findings(report: PolicyMatrixReport) -> list[GateFinding]:
+    if report.ok:
+        return []
+    blocking = [finding.to_dict() for finding in report.findings if finding.blocking]
+    return [
+        GateFinding(
+            code=GateCode.POLICY_MATRIX_FAILED,
+            severity=GateSeverity.BLOCKER if report.blocker_count else GateSeverity.ERROR,
+            message=(
+                f"Policy matrix rejected {len(blocking)} ledger status/strategy combinations "
+                f"for {report.owner_unit}."
+            ),
+            remediation=(
+                "Downgrade source-pool/vendor entries or add concrete Zyra-owned runtime, "
+                "main-path, test, and line-count evidence before closing the unit."
+            ),
+            metadata={
+                "owner_unit": report.owner_unit,
+                "error_count": report.error_count,
+                "blocker_count": report.blocker_count,
+                "blocking_findings": blocking[:20],
+            },
+        )
+    ]
 
 
 def _matrix_gate_findings(report: UnitMatrixReport, owner_unit: str) -> list[GateFinding]:
