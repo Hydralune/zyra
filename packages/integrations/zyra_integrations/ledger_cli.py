@@ -11,10 +11,22 @@ from .ledger_accounting import accounting_markdown, build_accounting_report
 from .ledger_events import append_jsonl_event, audit_event_payload
 from .ledger_gate import build_completion_gate_report
 from .ledger_linecount import build_line_count_report, line_count_payload
+from .ledger_line_buckets import build_line_bucket_report, line_bucket_payload
 from .ledger_matrix import build_unit_matrix
 from .ledger_models import InternalizationLedgerEntry, to_jsonable
+from .ledger_acceptance import acceptance_payload, build_acceptance_report
+from .ledger_boundary import boundary_payload, build_clean_boundary_report
+from .ledger_cleanroom import build_cleanroom_report, cleanroom_payload
+from .ledger_evidence_graph import build_evidence_graph_report, evidence_graph_payload
+from .ledger_mutation_consistency import build_mutation_consistency_report, mutation_consistency_payload
+from .ledger_persistence import AtomicLedgerStore, persistence_payload
+from .ledger_policy_matrix import build_policy_matrix_report, policy_matrix_payload
 from .ledger_policy import classify_path, minimum_effective_lines_for_unit
 from .ledger_reports import build_full_ledger_report, build_unit_readiness_report
+from .ledger_reachability import build_reachability_report, reachability_payload
+from .ledger_schema_contract import build_schema_contract_report, schema_contract_payload
+from .ledger_semantics import build_semantic_effect_report, semantic_payload
+from .ledger_state_custody import build_state_custody_report, state_custody_payload
 from .ledger_source_scan import build_source_scan_report
 from .ledger_snapshots import (
     build_snapshot,
@@ -32,6 +44,8 @@ from .ledger_store import (
     project_ledger_path,
     save_project_ledger,
 )
+from .ledger_test_quality import build_test_quality_report, test_quality_payload
+from .ledger_unit_review import build_unit_review_report, unit_review_markdown, unit_review_payload
 from .ledger_workflow import LedgerAdvanceRequest, LedgerWorkflow
 
 
@@ -118,6 +132,95 @@ def build_parser() -> argparse.ArgumentParser:
     linecount_parser.add_argument("--minimum-effective-lines", type=int, default=0)
     linecount_parser.add_argument("--fail-on-shortfall", action="store_true", default=False)
     linecount_parser.add_argument("--json", action="store_true")
+
+    buckets_parser = subcommands.add_parser("buckets", help="Run strict production/test/data/vendor/mock line-count buckets")
+    buckets_parser.add_argument("--base", required=True)
+    buckets_parser.add_argument("--head", default="HEAD")
+    buckets_parser.add_argument("--cached", action="store_true", default=False)
+    buckets_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="")
+    buckets_parser.add_argument("--minimum-effective-lines", type=int, default=0)
+    buckets_parser.add_argument("--fail-on-shortfall", action="store_true", default=False)
+    buckets_parser.add_argument("--json", action="store_true")
+
+    boundary_parser = subcommands.add_parser("boundary", help="Audit clean-submission boundary and parent source repo dependencies")
+    boundary_parser.add_argument("--no-tests", action="store_true", default=False)
+    boundary_parser.add_argument("--include-cache", action="store_true", default=False)
+    boundary_parser.add_argument("--roots", default="")
+    boundary_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    boundary_parser.add_argument("--json", action="store_true")
+
+    reachability_parser = subcommands.add_parser("reachability", help="Verify ledger main-path API/CLI/event/runtime/test reachability")
+    reachability_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="")
+    reachability_parser.add_argument("--no-entries", action="store_true", default=False)
+    reachability_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    reachability_parser.add_argument("--json", action="store_true")
+
+    acceptance_parser = subcommands.add_parser("acceptance", help="Build the M1-01A anti-fake-internalization acceptance report")
+    acceptance_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="M1-01A")
+    acceptance_parser.add_argument("--base", default="")
+    acceptance_parser.add_argument("--cached", action="store_true", default=False)
+    acceptance_parser.add_argument("--include-entries", action="store_true", default=False)
+    acceptance_parser.add_argument("--strict-audit", action="store_true", default=False)
+    acceptance_parser.add_argument("--boundary-roots", default="")
+    acceptance_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    acceptance_parser.add_argument("--json", action="store_true")
+
+    persistence_parser = subcommands.add_parser("persistence", help="Show atomic ledger revision and mutation journal state")
+    persistence_parser.add_argument("--json", action="store_true")
+
+    cleanroom_parser = subcommands.add_parser("cleanroom", help="Build clean-directory verification plan and blockers")
+    cleanroom_parser.add_argument("--source-root", default="")
+    cleanroom_parser.add_argument("--no-source-scan", action="store_true", default=False)
+    cleanroom_parser.add_argument("--roots", default="")
+    cleanroom_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    cleanroom_parser.add_argument("--json", action="store_true")
+
+    semantics_parser = subcommands.add_parser("semantic-effects", help="Run semantic effect probes for anti-fake internalization")
+    semantics_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    semantics_parser.add_argument("--json", action="store_true")
+
+    test_quality_parser = subcommands.add_parser("test-quality", help="Audit ledger test entries for behavior coverage")
+    test_quality_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="")
+    test_quality_parser.add_argument("--include-entries", action="store_true", default=False)
+    test_quality_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    test_quality_parser.add_argument("--json", action="store_true")
+
+    schema_parser = subcommands.add_parser("schema-contract", help="Audit ledger schema contract and roundtrip behavior")
+    schema_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="")
+    schema_parser.add_argument("--include-entries", action="store_true", default=False)
+    schema_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    schema_parser.add_argument("--json", action="store_true")
+
+    graph_parser = subcommands.add_parser("evidence-graph", help="Build source-to-target evidence graph")
+    graph_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="")
+    graph_parser.add_argument("--include-nodes", action="store_true", default=False)
+    graph_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    graph_parser.add_argument("--json", action="store_true")
+
+    custody_parser = subcommands.add_parser("state-custody", help="Audit Zyra-owned state custody map")
+    custody_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    custody_parser.add_argument("--json", action="store_true")
+
+    mutation_parser = subcommands.add_parser("mutation-consistency", help="Run mutation, journal, and event causality probes")
+    mutation_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    mutation_parser.add_argument("--json", action="store_true")
+
+    policy_matrix_parser = subcommands.add_parser("policy-matrix", help="Audit lifecycle/status/strategy policy matrix")
+    policy_matrix_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="")
+    policy_matrix_parser.add_argument("--include-decisions", action="store_true", default=False)
+    policy_matrix_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    policy_matrix_parser.add_argument("--json", action="store_true")
+
+    unit_review_parser = subcommands.add_parser("unit-review", help="Build M1-01A execution-unit self-review matrix")
+    unit_review_parser.add_argument("--owner-unit", "--unit", dest="owner_unit", default="M1-01A")
+    unit_review_parser.add_argument("--base", default="")
+    unit_review_parser.add_argument("--cached", action="store_true", default=False)
+    unit_review_parser.add_argument("--minimum-effective-lines", type=int, default=10000)
+    unit_review_parser.add_argument("--include-reports", action="store_true", default=False)
+    unit_review_parser.add_argument("--boundary-roots", default="")
+    unit_review_parser.add_argument("--markdown", action="store_true", default=False)
+    unit_review_parser.add_argument("--fail-on-error", action="store_true", default=False)
+    unit_review_parser.add_argument("--json", action="store_true")
 
     classify_parser = subcommands.add_parser("classify-path", help="Classify paths for effective line-count policy")
     classify_parser.add_argument("paths", nargs="+")
@@ -334,6 +437,192 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
+    if args.command == "buckets":
+        minimum = args.minimum_effective_lines or minimum_effective_lines_for_unit(args.owner_unit)
+        report = build_line_bucket_report(
+            project_root,
+            base=args.base,
+            head=args.head,
+            cached=args.cached,
+            minimum_effective_lines=minimum,
+        )
+        payload = line_bucket_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_shortfall and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "boundary":
+        report = build_clean_boundary_report(
+            project_root,
+            include_tests=not args.no_tests,
+            include_cache=args.include_cache,
+            scan_roots=_csv_list(args.roots),
+        )
+        payload = boundary_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "reachability":
+        report = build_reachability_report(
+            project_root,
+            ledger,
+            owner_unit=args.owner_unit,
+            include_entries=not args.no_entries,
+        )
+        payload = reachability_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "acceptance":
+        line_count = _line_count_for_optional_base(project_root, args.base, args.cached, args.owner_unit)
+        audit = InternalizationLedgerAuditor(project_root, strict=args.strict_audit).audit(ledger)
+        boundary = build_clean_boundary_report(
+            project_root,
+            include_tests=True,
+            include_cache=False,
+            scan_roots=_csv_list(args.boundary_roots),
+        )
+        reachability = build_reachability_report(
+            project_root,
+            ledger,
+            owner_unit=args.owner_unit,
+            include_entries=args.include_entries,
+            strict_audit=args.strict_audit,
+        )
+        report = build_acceptance_report(
+            project_root,
+            ledger,
+            owner_unit=args.owner_unit,
+            audit_report=audit,
+            line_count_report=line_count,
+            reachability_report=reachability,
+            boundary_report=boundary,
+            include_entries=args.include_entries,
+        )
+        payload = acceptance_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "persistence":
+        payload = persistence_payload(AtomicLedgerStore(project_root, ledger_path=ledger_path))
+        _print_payload(payload, as_json=args.json)
+        return 0
+
+    if args.command == "cleanroom":
+        source_root = Path(args.source_root).resolve() if args.source_root else None
+        report = build_cleanroom_report(
+            project_root,
+            ledger,
+            source_root=source_root,
+            include_source_scan=not args.no_source_scan,
+            scan_roots=_csv_list(args.roots),
+        )
+        payload = cleanroom_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "semantic-effects":
+        report = build_semantic_effect_report(project_root)
+        payload = semantic_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "test-quality":
+        report = build_test_quality_report(
+            project_root,
+            ledger,
+            owner_unit=args.owner_unit,
+            include_entries=args.include_entries,
+        )
+        payload = test_quality_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "schema-contract":
+        report = build_schema_contract_report(
+            ledger,
+            owner_unit=args.owner_unit,
+            include_entries=args.include_entries,
+        )
+        payload = schema_contract_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "evidence-graph":
+        report = build_evidence_graph_report(
+            project_root,
+            ledger,
+            owner_unit=args.owner_unit,
+            include_nodes=args.include_nodes,
+        )
+        payload = evidence_graph_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "state-custody":
+        report = build_state_custody_report(project_root)
+        payload = state_custody_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "mutation-consistency":
+        report = build_mutation_consistency_report(project_root)
+        payload = mutation_consistency_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "policy-matrix":
+        report = build_policy_matrix_report(
+            ledger,
+            owner_unit=args.owner_unit,
+            include_decisions=args.include_decisions,
+        )
+        payload = policy_matrix_payload(report)
+        _print_payload(payload, as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
+    if args.command == "unit-review":
+        report = build_unit_review_report(
+            project_root,
+            ledger,
+            owner_unit=args.owner_unit,
+            base_commit=args.base,
+            cached=args.cached,
+            minimum_effective_lines=args.minimum_effective_lines,
+            include_reports=args.include_reports,
+            boundary_roots=_csv_list(args.boundary_roots) or None,
+        )
+        if args.markdown:
+            print(unit_review_markdown(report))
+        else:
+            _print_payload(unit_review_payload(report), as_json=args.json)
+        if args.fail_on_error and not report.ok:
+            return 1
+        return 0
+
     if args.command == "classify-path":
         payload = {"paths": [classify_path(path).to_dict() for path in args.paths]}
         _print_payload(payload, as_json=args.json)
@@ -483,6 +772,11 @@ def _line_count_for_optional_base(project_root: Path, base: str, cached: bool, o
         cached=cached,
         minimum_effective_lines=minimum_effective_lines_for_unit(owner_unit),
     )
+
+
+def _csv_list(value: str) -> list[str] | None:
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    return items or None
 
 
 if __name__ == "__main__":

@@ -85,6 +85,96 @@ class InternalizationLedgerApiTests(unittest.TestCase):
                 ]
                 self.assertTrue(audit_events)
                 self.assertEqual(audit_events[-1]["event_type"], "system_notice")
+
+                invalid = _post_error(
+                    base_url,
+                    "/ledger/entries",
+                    {
+                        "ledger_id": "invalid-entry",
+                        "source_repo": "claude-code-best",
+                        "source_path": "src/QueryEngine.ts",
+                        "capability_name": "invalid",
+                        "capability_summary": "missing target and tests",
+                        "target_bindings": [],
+                        "migration_strategy": "adapter",
+                        "main_path_status": "api_connected",
+                        "lifecycle": "active",
+                    },
+                )
+                self.assertEqual(invalid["error"], "invalid_ledger_entry")
+                self.assertFalse(invalid["validation"]["ok"])
+
+                updated_list = _get(base_url, "/ledger", {"q": "invalid", "limit": "10"})
+                self.assertFalse(any(entry["ledger_id"] == "invalid-entry" for entry in updated_list["entries"]))
+
+                advance_target = listed["entries"][0]["ledger_id"]
+                advanced = _post(
+                    base_url,
+                    f"/ledger/{advance_target}/advance",
+                    {
+                        "lifecycle": "in_progress",
+                        "reason": "api integration test moves planned entry",
+                        "actor": "api-test",
+                    },
+                )
+                self.assertTrue(advanced["ok"])
+                self.assertIsNotNone(advanced["event"])
+                events_after_advance = _get(base_url, "/events", {"limit": "20"})
+                mutation_events = [
+                    event
+                    for event in events_after_advance["events"]
+                    if "integration_ledger_update" in event.get("payload", {})
+                ]
+                self.assertTrue(mutation_events)
+                self.assertEqual(mutation_events[-1]["payload"]["integration_ledger_update"]["ledger_id"], advance_target)
+
+                reachability = _get(base_url, "/ledger/reachability", {"unit": "M1-01A", "no_entries": "1"})
+                self.assertIn("route_count", reachability)
+
+                boundary = _get(base_url, "/ledger/boundary", {"no_tests": "1", "roots": "packages"})
+                self.assertIn("summary", boundary)
+
+                acceptance = _get(base_url, "/ledger/acceptance", {"unit": "M1-01A", "no_entries": "1", "roots": "packages"})
+                self.assertEqual(acceptance["owner_unit"], "M1-01A")
+
+                persistence = _get(base_url, "/ledger/persistence")
+                self.assertIn("revision", persistence)
+
+                cleanroom = _get(base_url, "/ledger/cleanroom", {"no_source_scan": "1", "roots": "packages"})
+                self.assertIn("commands_to_run", cleanroom)
+                self.assertIn("copy_plan", cleanroom)
+
+                semantic = _get(base_url, "/ledger/semantic-effects")
+                self.assertEqual(semantic["total_probes"], 4)
+                self.assertTrue(semantic["ok"])
+
+                test_quality = _get(base_url, "/ledger/test-quality", {"unit": "M1-01A", "no_entries": "1"})
+                self.assertIn("checked_test_entries", test_quality)
+                self.assertIn("warning_findings", test_quality)
+
+                schema = _get(base_url, "/ledger/schema-contract", {"unit": "M1-01A", "no_entries": "1"})
+                self.assertIn("contract_version", schema)
+                self.assertIn("field_contracts", schema)
+
+                graph = _get(base_url, "/ledger/evidence-graph", {"unit": "M1-01A", "no_nodes": "1"})
+                self.assertIn("target_impacts", graph)
+                self.assertIn("summary", graph)
+
+                custody = _get(base_url, "/ledger/state-custody")
+                self.assertIn("claims", custody)
+                self.assertIn("module_signals", custody)
+
+                mutation = _get(base_url, "/ledger/mutation-consistency")
+                self.assertTrue(mutation["ok"])
+                self.assertIn("probes", mutation)
+
+                policy = _get(base_url, "/ledger/policy-matrix", {"unit": "M1-01A", "no_decisions": "1"})
+                self.assertIn("coverage", policy)
+                self.assertIn("summary", policy)
+
+                review = _get(base_url, "/ledger/unit-review", {"unit": "M1-01A", "minimum_effective_lines": "0", "no_reports": "1"})
+                self.assertIn("objectives", review)
+                self.assertIn("evidence", review)
             finally:
                 server.shutdown()
                 server.server_close()
@@ -108,6 +198,23 @@ def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _post_error(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(request, timeout=30)
+    except Exception as error:
+        response = getattr(error, "fp", None)
+        if response is None:
+            raise
+        return json.loads(response.read().decode("utf-8"))
+    raise AssertionError("expected HTTP error")
 
 
 def _get_error(base_url: str, path: str, query: dict[str, str] | None = None) -> dict[str, Any]:

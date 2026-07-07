@@ -7,6 +7,7 @@ from typing import Any
 
 from .ledger_audit import InternalizationLedgerAuditor, LedgerAuditReport
 from .ledger_linecount import EffectiveLineCountReport, build_line_count_report
+from .ledger_line_buckets import LineBucketReport, bucket_line_count_report
 from .ledger_matrix import UnitMatrixReport, build_unit_matrix
 from .ledger_models import to_jsonable
 from .ledger_reports import UnitReadinessReport, build_unit_readiness_report
@@ -27,10 +28,12 @@ class GateCode(StrEnum):
     LINE_COUNT_SHORTFALL = "LINE_COUNT_SHORTFALL"
     LINE_COUNT_BASE_MISSING = "LINE_COUNT_BASE_MISSING"
     EXCLUDED_DATA_DOMINATES_DIFF = "EXCLUDED_DATA_DOMINATES_DIFF"
+    LINE_BUCKET_FAILED = "LINE_BUCKET_FAILED"
     READINESS_BLOCKED = "READINESS_BLOCKED"
     UNIT_LEDGER_COVERAGE_MISSING = "UNIT_LEDGER_COVERAGE_MISSING"
     SOURCE_DEPENDENCY_FORBIDDEN = "SOURCE_DEPENDENCY_FORBIDDEN"
     SOURCE_EVIDENCE_MISSING = "SOURCE_EVIDENCE_MISSING"
+    SOURCE_TARGET_MISSING = "SOURCE_TARGET_MISSING"
     SNAPSHOT_REQUIRED = "SNAPSHOT_REQUIRED"
 
 
@@ -54,6 +57,7 @@ class CompletionGateReport:
     findings: list[GateFinding]
     audit: dict[str, Any]
     line_count: dict[str, Any] | None
+    line_buckets: dict[str, Any] | None
     readiness: dict[str, Any]
     matrix: dict[str, Any]
     source_scan: dict[str, Any] | None = None
@@ -101,6 +105,7 @@ def build_completion_gate_report(
         if base_commit
         else None
     )
+    line_buckets = bucket_line_count_report(project_root, line_count) if line_count else None
     readiness = build_unit_readiness_report(
         project_root,
         ledger,
@@ -118,6 +123,8 @@ def build_completion_gate_report(
     findings.extend(_audit_gate_findings(audit))
     if line_count is not None:
         findings.extend(_line_count_gate_findings(line_count))
+    if line_buckets is not None:
+        findings.extend(_line_bucket_gate_findings(line_buckets))
     elif minimum_effective_lines > 0:
         findings.append(
             GateFinding(
@@ -150,6 +157,7 @@ def build_completion_gate_report(
         findings=findings,
         audit=audit.to_dict(),
         line_count=line_count.to_dict() if line_count else None,
+        line_buckets=line_buckets.to_dict() if line_buckets else None,
         readiness=readiness.to_dict(),
         matrix=matrix.to_dict(),
         source_scan=source_scan.to_dict() if source_scan else None,
@@ -225,6 +233,35 @@ def _line_count_gate_findings(report: EffectiveLineCountReport) -> list[GateFind
     return findings
 
 
+def _line_bucket_gate_findings(report: LineBucketReport) -> list[GateFinding]:
+    findings: list[GateFinding] = []
+    if not report.ok:
+        findings.append(
+            GateFinding(
+                code=GateCode.LINE_BUCKET_FAILED,
+                severity=GateSeverity.BLOCKER,
+                message=(
+                    f"Bucketed effective line count {report.bucket_effective_added} is below minimum "
+                    f"{report.minimum_effective_lines} or has blocking bucket findings."
+                ),
+                remediation="Use production/script/test behavior code; report data/vendor/mock/generated buckets separately.",
+                metadata={
+                    "bucket_effective_added": report.bucket_effective_added,
+                    "minimum_effective_lines": report.minimum_effective_lines,
+                    "shortfall": report.shortfall,
+                    "production_added": report.production_added,
+                    "test_added": report.test_added,
+                    "script_added": report.script_added,
+                    "vendor_like_added": report.vendor_like_added,
+                    "mock_fixture_added": report.mock_fixture_added,
+                    "data_added": report.data_added,
+                    "generated_added": report.generated_added,
+                },
+            )
+        )
+    return findings
+
+
 def _readiness_gate_findings(report: UnitReadinessReport) -> list[GateFinding]:
     findings: list[GateFinding] = []
     if report.blocked_entries:
@@ -275,6 +312,16 @@ def _source_scan_gate_findings(report: SourceScanReport) -> list[GateFinding]:
                 message=f"{report.missing_source_count} source evidence paths were not found under source_root.",
                 remediation="Refresh source evidence with the source mapper, or explain why the source path is conceptual.",
                 metadata={"missing_source_count": report.missing_source_count},
+            )
+        )
+    if report.missing_target_count:
+        findings.append(
+            GateFinding(
+                code=GateCode.SOURCE_TARGET_MISSING,
+                severity=GateSeverity.ERROR,
+                message=f"{report.missing_target_count} materialized or connected target paths are missing.",
+                remediation="Create the target path or downgrade the ledger lifecycle/status before closing the unit.",
+                metadata={"missing_target_count": report.missing_target_count},
             )
         )
     return findings

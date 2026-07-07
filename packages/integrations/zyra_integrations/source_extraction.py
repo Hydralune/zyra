@@ -9,6 +9,8 @@ from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
+from zyra_core import EventRecord, EventType
+
 from .ledger_models import (
     InternalizationLedgerEntry,
     LedgerLifecycle,
@@ -20,11 +22,13 @@ from .ledger_models import (
     NoticeStatus,
     RuntimeEntry,
     SourceEvidence,
+    TargetBinding,
     TestEntry,
     stable_ledger_id,
     to_jsonable,
 )
 from .ledger_store import InternalizationLedger, load_project_ledger, load_seed_ledger, package_seed_path, save_project_ledger
+from .ledger_policy import CountVerdict, classify_path
 
 
 SOURCE_SUFFIXES = {
@@ -137,6 +141,36 @@ CLAUDE_CODE_PILOT_SOURCES = [
     "src/tools/AgentTool/agentMemorySnapshot.ts",
     "src/tools/AgentTool/agentToolUtils.ts",
     "src/tools/SkillTool/prompt.ts",
+]
+
+M1_01B_EFFECTIVE_TARGETS = [
+    "apps/code-worker/src/main.mjs",
+    "packages/integrations/zyra_integrations/source_extraction.py",
+    "packages/integrations/zyra_integrations/extraction_rules.py",
+    "packages/integrations/zyra_integrations/extraction_acceptance.py",
+    "packages/integrations/zyra_integrations/extraction_lineage.py",
+    "packages/runtime/zyra_runtime/extraction_runtime.py",
+    "packages/runtime/zyra_runtime/executor.py",
+    "packages/runtime/zyra_runtime/query_session.py",
+    "packages/runtime/zyra_runtime/scaffold.py",
+    "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
+    "packages/runtime/zyra_runtime/tool_loop.py",
+    "packages/runtime/zyra_runtime/tools.py",
+    "packages/workers/zyra_workers/code_query_loop.py",
+    "packages/workers/zyra_workers/code_worker_bridge.py",
+    "packages/workers/zyra_workers/code_worker_runtime.py",
+    "packages/workers/zyra_workers/runtime_scaffold.py",
+    "packages/workers/zyra_workers/scaffold_bridge_runtime.py",
+    "packages/workers/zyra_workers/scaffold_supervisor.py",
+    "scripts/verify_code_worker_sidecar.py",
+    "scripts/zyra_source_extract.py",
+    "scripts/verify_extraction_runtime_scaffold.py",
+    "tests/unit/test_source_extraction_runtime_scaffold.py",
+    "tests/unit/test_m1_01b_runtime_scaffold_acceptance.py",
+    "tests/unit/test_query_session_lifecycle.py",
+    "tests/unit/test_tool_loop_budget_runtime.py",
+    "tests/integration/test_claude_code_productized_runtime.py",
+    "tests/integration/test_m1_01b_extraction_runtime_scaffold_cli.py",
 ]
 
 
@@ -292,6 +326,9 @@ class ExtractionItem:
     @property
     def effective_line_count(self) -> int:
         if self.disposition in {ExtractionDisposition.COPIED, ExtractionDisposition.SKIPPED_IDENTICAL, ExtractionDisposition.DRY_RUN}:
+            classification = classify_path(self.target.project_relative_path)
+            if classification.verdict != CountVerdict.EFFECTIVE:
+                return 0
             return self.line_count if self.source_like and not self.is_upstream_type_stub else 0
         return 0
 
@@ -452,6 +489,35 @@ class ExtractionReport:
             "ledger_upserts": [item.to_dict() for item in self.ledger_upserts],
             "errors": list(self.errors),
         }
+
+    def completion_event(self, *, run_id: str = "m1-01b", task_id: str = "source-extraction") -> EventRecord:
+        return source_extraction_completed_event(self, run_id=run_id, task_id=task_id)
+
+
+def source_extraction_completed_event(
+    report: ExtractionReport,
+    *,
+    run_id: str = "m1-01b",
+    task_id: str = "source-extraction",
+) -> EventRecord:
+    return EventRecord(
+        run_id=run_id,
+        task_id=task_id,
+        node_id="source-extraction",
+        event_type=EventType.AGENT_MESSAGE,
+        payload={
+            "source_extraction_completed": {
+                "ok": report.ok,
+                "source_repo": report.plan.source_repo,
+                "owner_unit": report.plan.owner_unit,
+                "copied": len(report.copied),
+                "skipped": len(report.skipped),
+                "excluded": len(report.excluded),
+                "missing": len(report.missing),
+                "target_paths": report.target_paths,
+            }
+        },
+    )
 
 
 class SourceExtractionError(RuntimeError):
@@ -698,12 +764,19 @@ class SourceExtractor:
 
     def _entry_for_item(self, item: ExtractionItem) -> InternalizationLedgerEntry:
         capability = self._capability_name(item)
+        target_bindings = self._target_bindings_for_item(item)
+        primary_targets = [binding.target_path for binding in target_bindings if binding.role == "primary"]
+        line_count_policy = (
+            LineCountPolicy.COUNTS_WHEN_PRODUCTIZED
+            if self.plan.owner_unit == "M1-01B"
+            else LineCountPolicy.COUNTS_AS_RUNTIME
+        )
         entry = InternalizationLedgerEntry.new(
             source_repo=item.source.source_repo,
             source_path=item.source.source_path,
             capability_name=capability,
             capability_summary=f"{self.plan.capability_summary} Source file line_count={item.line_count}.",
-            target_paths=[item.target.project_relative_path],
+            target_paths=primary_targets or [item.target.project_relative_path],
             migration_strategy=MigrationStrategy.VENDORED_RUNTIME,
             main_path_status=self.plan.main_path_status,
             lifecycle=self.plan.lifecycle,
@@ -732,7 +805,7 @@ class SourceExtractor:
                 artifact_kinds=list(self.plan.main_path_artifact_kinds),
                 worker_runtime=self.plan.main_path_worker_runtime,
             ),
-            line_count_policy=LineCountPolicy.COUNTS_AS_RUNTIME,
+            line_count_policy=line_count_policy,
             license_notice=LicenseNotice(
                 source_repo=item.source.source_repo,
                 status=NoticeStatus.RECORDED,
@@ -742,9 +815,12 @@ class SourceExtractor:
             ),
             extracted_sha256=item.sha256,
             extracted_lines=item.line_count,
-            effective_line_count=item.effective_line_count,
+            effective_line_count=0 if self.plan.owner_unit == "M1-01B" else item.effective_line_count,
+            source_pool_target=item.target.project_relative_path,
+            effective_target_count=len(primary_targets),
             upstream_type_stub=item.is_upstream_type_stub,
         )
+        entry.target_bindings = target_bindings
         entry.source_evidence = [
             SourceEvidence(
                 source_repo=item.source.source_repo,
@@ -763,8 +839,33 @@ class SourceExtractor:
             entry.risk_notes.append(
                 "Upstream source is an auto-generated type stub; retained for import-boundary evidence and excluded from effective line counts."
             )
+        if self.plan.owner_unit == "M1-01B":
+            entry.risk_notes.append(
+                "Vendor pilot target is source_pool evidence only; effective implementation is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
+            )
         entry.replacement_plan = self.plan.replacement_plan
         return entry
+
+    def _target_bindings_for_item(self, item: ExtractionItem) -> list[TargetBinding]:
+        if self.plan.owner_unit != "M1-01B":
+            return [TargetBinding(item.target.project_relative_path)]
+        bindings = [
+            TargetBinding(
+                target,
+                role="primary",
+                required_for_main_path=True,
+            )
+            for target in M1_01B_EFFECTIVE_TARGETS
+        ]
+        bindings.append(
+            TargetBinding(
+                item.target.project_relative_path,
+                role="source_pool",
+                required_for_main_path=False,
+                must_exist_for_statuses=[],
+            )
+        )
+        return bindings
 
     def _ledger_upsert_plan_for_item(self, item: ExtractionItem) -> LedgerUpsertPlan:
         capability = self._capability_name(item)

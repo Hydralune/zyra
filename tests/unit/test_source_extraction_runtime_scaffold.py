@@ -39,7 +39,7 @@ from zyra_workers.runtime_scaffold import (  # noqa: E402
 
 
 class SourceExtractionRuntimeScaffoldTests(unittest.TestCase):
-    def test_claude_pilot_dry_run_reports_effective_runtime_sources(self) -> None:
+    def test_claude_pilot_dry_run_reports_vendor_runtime_source_scale_without_effective_credit(self) -> None:
         plan = claude_code_m1_01b_plan(
             project_root=ROOT,
             source_workspace_root=ROOT.parent,
@@ -50,7 +50,8 @@ class SourceExtractionRuntimeScaffoldTests(unittest.TestCase):
         report = SourceExtractor(plan).run()
 
         self.assertTrue(report.ok)
-        self.assertGreaterEqual(report.effective_line_count, 10_000)
+        self.assertGreaterEqual(report.raw_line_count, 10_000)
+        self.assertEqual(report.effective_line_count, 0)
         self.assertEqual(report.missing_count, 0)
         self.assertEqual(report.excluded_count, 0)
         self.assertGreaterEqual(len(report.ledger_upserts), 30)

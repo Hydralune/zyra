@@ -45,6 +45,58 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
             self.assertIn("forbidden_hits", scan)
             self.assertIn("target_verifications", scan)
 
+            boundary = _run(["boundary", "--roots", "packages", "--json"], env)
+            self.assertIn("summary", boundary)
+            self.assertIn("runtime_boundary_summary", boundary)
+
+            reachability = _run(["reachability", "--owner-unit", "M1-01A", "--no-entries", "--json"], env)
+            self.assertEqual(reachability["total_entries"], 1)
+            self.assertIn("route_count", reachability)
+
+            acceptance = _run(["acceptance", "--owner-unit", "M1-01A", "--boundary-roots", "packages", "--json"], env)
+            self.assertEqual(acceptance["owner_unit"], "M1-01A")
+            self.assertIn("criteria", acceptance)
+
+            persistence = _run(["persistence", "--json"], env)
+            self.assertIn("revision", persistence)
+            self.assertEqual(Path(persistence["ledger_path"]), ledger_path)
+
+            cleanroom = _run(["cleanroom", "--no-source-scan", "--roots", "packages", "--json"], env)
+            self.assertIn("commands_to_run", cleanroom)
+            self.assertIn("copy_plan", cleanroom)
+
+            semantic = _run(["semantic-effects", "--json"], env)
+            self.assertTrue(semantic["ok"])
+            self.assertEqual(semantic["total_probes"], 4)
+
+            test_quality = _run(["test-quality", "--owner-unit", "M1-01A", "--json"], env)
+            self.assertIn("checked_test_entries", test_quality)
+            self.assertIn("warning_findings", test_quality)
+
+            schema = _run(["schema-contract", "--owner-unit", "M1-01A", "--json"], env)
+            self.assertIn("contract_version", schema)
+            self.assertIn("field_contracts", schema)
+
+            graph = _run(["evidence-graph", "--owner-unit", "M1-01A", "--json"], env)
+            self.assertIn("target_impacts", graph)
+            self.assertIn("summary", graph)
+
+            custody = _run(["state-custody", "--json"], env)
+            self.assertIn("claims", custody)
+            self.assertIn("module_signals", custody)
+
+            mutation = _run(["mutation-consistency", "--json"], env)
+            self.assertTrue(mutation["ok"])
+            self.assertIn("probes", mutation)
+
+            policy = _run(["policy-matrix", "--owner-unit", "M1-01A", "--json"], env)
+            self.assertIn("coverage", policy)
+            self.assertIn("summary", policy)
+
+            review = _run(["unit-review", "--owner-unit", "M1-01A", "--minimum-effective-lines", "0", "--json"], env)
+            self.assertIn("objectives", review)
+            self.assertIn("evidence", review)
+
             snapshot = _run(["snapshot", "--label", "cli-test", "--owner-unit", "M1-01A", "--json"], env)
             self.assertTrue(Path(snapshot["path"]).exists())
 
@@ -74,6 +126,30 @@ class InternalizationLedgerGateCliTests(unittest.TestCase):
 
         self.assertGreater(payload["raw_added"], payload["effective_added"])
         self.assertTrue(payload["seed_or_inventory_excluded"])
+
+    def test_cli_buckets_reports_vendor_like_separately(self) -> None:
+        completed = subprocess.run(
+            [
+                str(ROOT / ".venv" / "Scripts" / "python.exe"),
+                "scripts/zyra_integration_ledger.py",
+                "buckets",
+                "--base",
+                "68587549447cacfdbf7992387823b5af6f7f9cf3",
+                "--owner-unit",
+                "M1-01A",
+                "--minimum-effective-lines",
+                "10000",
+                "--json",
+            ],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        payload = json.loads(completed.stdout)
+
+        self.assertIn("by_bucket", payload)
+        self.assertIn("vendor_like", payload["by_bucket"])
 
     def test_cli_advance_rejects_unknown_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -41,7 +41,8 @@ class ClaudeCodeProductizedRuntimeTests(unittest.TestCase):
         report = SourceExtractor(plan).run()
 
         self.assertTrue(report.ok)
-        self.assertGreaterEqual(report.effective_line_count, 18_000)
+        self.assertGreaterEqual(report.raw_line_count, 18_000)
+        self.assertEqual(report.effective_line_count, 0)
         self.assertGreater(report.upstream_type_stub_count, 0)
         self.assertGreater(report.upstream_type_stub_line_count, 0)
         self.assertGreaterEqual(len(report.ledger_upserts), 80)
@@ -104,7 +105,9 @@ class ClaudeCodeProductizedRuntimeTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertGreaterEqual(payload["source_file_count"], 80)
-        self.assertGreaterEqual(payload["effective_line_count"], 18_000)
+        self.assertEqual(payload["effective_line_count"], 0)
+        self.assertGreaterEqual(payload["vendor_like_line_count"], 18_000)
+        self.assertGreaterEqual(payload["legacy_inventory_effective_line_count"], 18_000)
         self.assertGreater(payload["upstream_type_stub_count"], 0)
         self.assertEqual(payload["crosswalk_summary"]["primary_repo"], "claude-code-best")
         self.assertEqual(payload["crosswalk_summary"]["missing_target_count"], 0)

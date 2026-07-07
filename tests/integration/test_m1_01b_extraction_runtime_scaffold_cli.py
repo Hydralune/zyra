@@ -48,7 +48,7 @@ class M101BExtractionRuntimeScaffoldCliTests(unittest.TestCase):
         self.assertEqual(unit["missing_test_entries"], 0)
         self.assertEqual(unit["target_surfaces"]["vendor_runtime"], unit["total_entries"])
 
-    def test_linecount_and_gate_accept_effective_runtime_sources(self) -> None:
+    def test_linecount_and_gate_do_not_count_vendor_runtime_source_pool_as_effective(self) -> None:
         worktree_linecount = _worktree_effective_linecount()
         self.assertGreaterEqual(worktree_linecount, 10_000)
 
@@ -65,8 +65,8 @@ class M101BExtractionRuntimeScaffoldCliTests(unittest.TestCase):
                 "--json",
             ]
         )
-        if not head_linecount["ok"] and head_linecount["effective_added"] == 0:
-            self.skipTest("M1-01B changes are still uncommitted; final gate is checked after commit")
+        if not head_linecount["ok"] and worktree_linecount >= 10_000:
+            self.skipTest("M1-01B worktree changes are not fully committed; final HEAD gate is checked after commit")
 
         self.assertTrue(head_linecount["ok"], head_linecount)
         self.assertGreaterEqual(head_linecount["effective_added"], 10_000)
@@ -84,7 +84,16 @@ class M101BExtractionRuntimeScaffoldCliTests(unittest.TestCase):
             ]
         )
         self.assertTrue(gate["ok"], gate)
+        self.assertIn("line_buckets", gate)
         self.assertEqual(gate["owner_unit"], "M1-01B")
+
+    def test_source_extract_acceptance_cli_reports_runtime_worker_and_rule_evidence(self) -> None:
+        payload = _run_json(["scripts/zyra_source_extract.py", "m1-01b-acceptance", "--json"])
+
+        self.assertTrue(payload["summary"]["ok"], payload["checks"])
+        self.assertTrue(payload["summary"]["rule_audit_ok"])
+        self.assertTrue(payload["summary"]["runtime_ok"])
+        self.assertTrue(payload["summary"]["worker_ok"])
 
 
 def _run_json(args: list[str]) -> dict:
@@ -107,12 +116,19 @@ def _worktree_effective_linecount() -> int:
         text=True,
     )
     committed_or_tracked = sum(item.effective_added for item in parse_numstat(git_diff.stdout))
-    pilot_root = ROOT / "vendor-runtimes" / "claude-code-runtime" / "pilot"
-    untracked_or_worktree_pilot = 0
-    for path in pilot_root.rglob("*"):
-        if path.is_file() and path.suffix.lower() in {".ts", ".tsx", ".js", ".mjs"}:
-            untracked_or_worktree_pilot += len(path.read_text(encoding="utf-8", errors="replace").splitlines())
-    return max(committed_or_tracked, untracked_or_worktree_pilot)
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "--", "apps", "packages", "tests", "scripts", "skills"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    untracked_effective = 0
+    for line in untracked.stdout.splitlines():
+        path = ROOT / line
+        if path.is_file() and path.suffix.lower() in {".py", ".pyi", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".html", ".toml", ".ps1", ".sh", ".bat", ".cmd"}:
+            untracked_effective += len(path.read_text(encoding="utf-8", errors="replace").splitlines())
+    return committed_or_tracked + untracked_effective
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 for package_path in [
     ROOT / "packages" / "core",
     ROOT / "packages" / "integrations",
+    ROOT / "packages" / "runtime",
+    ROOT / "packages" / "workers",
 ]:
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
@@ -23,6 +25,8 @@ from zyra_integrations.source_extraction import (  # noqa: E402
     write_productized_runtime_files,
     write_runtime_scaffold_files,
 )
+from zyra_integrations.extraction_acceptance import build_m1_01b_acceptance_report, m1_01b_acceptance_payload  # noqa: E402
+from zyra_integrations.extraction_rules import build_rule_report_for_plan  # noqa: E402
 from zyra_integrations.reference_crosswalk import (  # noqa: E402
     build_claude_code_reference_crosswalk,
     write_claude_code_reference_crosswalk,
@@ -82,6 +86,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     smoke = subcommands.add_parser("smoke", help="Verify the M1-01B runtime extraction scaffold")
     smoke.add_argument("--json", action="store_true")
+    rules = subcommands.add_parser("audit-rules", help="Audit the M1-01B extraction allowlist/exclude rules")
+    rules.add_argument("--json", action="store_true")
+    acceptance = subcommands.add_parser("m1-01b-acceptance", help="Run the M1-01B extraction/runtime scaffold acceptance probe")
+    acceptance.add_argument("--base", default="")
+    acceptance.add_argument("--json", action="store_true")
     productized_smoke = subcommands.add_parser("productized-smoke", help="Verify the M1-02A productized Claude Code runtime")
     productized_smoke.add_argument("--json", action="store_true")
     return parser
@@ -195,6 +204,22 @@ def main(argv: list[str] | None = None) -> int:
         _print_payload(payload, as_json=args.json)
         return 0 if payload["ok"] else 1
 
+    if args.command == "audit-rules":
+        plan = claude_code_m1_01b_plan(project_root=project_root, source_workspace_root=source_workspace_root, dry_run=True)
+        payload = build_rule_report_for_plan(plan)
+        _print_payload(payload, as_json=args.json)
+        return 0 if payload["summary"]["ok"] else 1
+
+    if args.command == "m1-01b-acceptance":
+        report = build_m1_01b_acceptance_report(
+            project_root,
+            source_workspace_root=source_workspace_root,
+            base_commit=args.base,
+        )
+        payload = m1_01b_acceptance_payload(report)
+        _print_payload(payload, as_json=args.json)
+        return 0 if report.ok else 1
+
     if args.command == "productized-smoke":
         payload = productized_smoke_payload(project_root)
         _print_payload(payload, as_json=args.json)
@@ -236,6 +261,8 @@ def productized_smoke_payload(project_root: Path) -> dict:
     if inventory.exists():
         inventory_payload = json.loads(inventory.read_text(encoding="utf-8"))
     inventory_summary = inventory_payload.get("summary", {})
+    vendor_like_line_count = _count_source_lines(source_files)
+    legacy_inventory_effective = inventory_summary.get("effective_line_count", 0)
     return {
         "ok": (
             manifest.exists()
@@ -250,11 +277,24 @@ def productized_smoke_payload(project_root: Path) -> dict:
         "crosswalk_exists": crosswalk.exists(),
         "copied_file_count": len(copied_files),
         "source_file_count": len(source_files),
-        "effective_line_count": inventory_summary.get("effective_line_count", 0),
+        "effective_line_count": 0,
+        "legacy_inventory_effective_line_count": legacy_inventory_effective,
+        "vendor_like_line_count": vendor_like_line_count,
+        "line_count_policy": "vendor-runtime source pool is vendor_like/review until Zyra-owned adapter glue is bucketed separately",
         "upstream_type_stub_count": inventory_summary.get("upstream_type_stub_count", 0),
         "upstream_type_stub_line_count": inventory_summary.get("upstream_type_stub_line_count", 0),
         "crosswalk_summary": crosswalk_payload.get("summary", {}),
     }
+
+
+def _count_source_lines(paths: list[Path]) -> int:
+    total = 0
+    for path in paths:
+        try:
+            total += len(path.read_text(encoding="utf-8", errors="replace").splitlines())
+        except OSError:
+            continue
+    return total
 
 
 def _print_payload(payload: dict, *, as_json: bool) -> None:

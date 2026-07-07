@@ -425,7 +425,10 @@ def classify_path(path: str) -> PathClassification:
     elif root not in COUNTED_ROOTS:
         verdict = CountVerdict.EXCLUDED
         reason = "target root is not part of counted source surfaces"
-    elif is_source_like or is_test_like or is_vendor_runtime:
+    elif is_vendor_runtime:
+        verdict = CountVerdict.REVIEW
+        reason = "vendor-runtime files require Zyra-owned adapter/launcher/protocol evidence before counting"
+    elif is_source_like or is_test_like:
         verdict = CountVerdict.EFFECTIVE
         reason = "source/test/runtime file may count when connected and verified"
     else:
