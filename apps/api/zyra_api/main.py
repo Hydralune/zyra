@@ -51,6 +51,10 @@ from zyra_runtime import (
     ToolExecutionContext,
     ToolExecutor,
     WorkerRequest,
+    assemble_claude_runtime_context,
+    build_api_inventory_contract_report,
+    build_claude_productization_integration_report,
+    build_claude_source_graph_audit,
     build_productized_claude_runtime_contracts,
     control_event_from_command,
     default_tool_registry,
@@ -588,10 +592,58 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
         if parts == ["workers", "code", "inventory"]:
             contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
+            integration = build_claude_productization_integration_report(
+                project_root=PROJECT_ROOT,
+                runtime_contracts=contracts,
+            )
+            inventory_tools = default_tool_registry().list()
+            inventory_runtime_context = assemble_claude_runtime_context(
+                request=WorkerRequest(
+                    run_id="inventory",
+                    task_id="code-worker-runtime-inventory",
+                    worker_name="CodeWorkerRuntime",
+                    constraints={"permission_mode": "workspace"},
+                    metadata={"source": "workers/code/inventory"},
+                ),
+                integration_report=integration,
+                runtime_contracts=contracts,
+                project_root=PROJECT_ROOT,
+                workspace_root=tool_workspace_path(),
+                artifact_root=artifact_root_path(),
+                tool_names=tuple(tool.name for tool in inventory_tools),
+                read_only_tool_names=tuple(
+                    tool.name for tool in inventory_tools if tool.metadata.get("read_only") == "true"
+                ),
+                mutating_tool_names=tuple(
+                    tool.name for tool in inventory_tools if tool.metadata.get("read_only") != "true"
+                ),
+                permission_mode="workspace",
+            )
+            source_graph_audit = build_claude_source_graph_audit(
+                project_root=PROJECT_ROOT,
+                integration_report=integration,
+                runtime_contracts=contracts,
+                runtime_context_report=inventory_runtime_context,
+            )
             payload = dict(contracts.inventory)
             payload["health"] = contracts.health
             payload["defaultPath"] = contracts.default_path
             payload["sourceToTarget"] = [item.to_dict() for item in contracts.source_to_target]
+            payload["sourceGraph"] = integration.crosswalk.source_to_target_payload()
+            payload["runtimeContext"] = integration.crosswalk.runtime_context_payload()
+            payload["eventContracts"] = integration.crosswalk.event_contract_payload()
+            payload["downstreamContracts"] = integration.crosswalk.downstream_payload()
+            payload["integration"] = integration.to_dict()
+            payload["sourceGraphAudit"] = source_graph_audit.to_dict()
+            payload["stateCustodyRuntime"] = source_graph_audit.state_custody_runtime_report.to_dict()
+            api_inventory_contract = build_api_inventory_contract_report(
+                project_root=PROJECT_ROOT,
+                contracts=contracts,
+                integration_report=integration,
+                runtime_context_report=inventory_runtime_context,
+                payload=payload,
+            )
+            payload["apiInventoryContract"] = api_inventory_contract.to_dict()
             self._send_json(HTTPStatus.OK, payload)
             return
 

@@ -501,6 +501,27 @@ def default_claude_source_to_target() -> tuple[ClaudeSourceToTarget, ...]:
             rationale="Permission decisions are deterministic Zyra decisions and affect ToolExecutor output; they are not frontend-only approvals.",
             upstream_signals=("allow", "deny", "ask", "PermissionResult", "useCanUseTool", "denialTracking"),
         ),
+        ClaudeSourceToTarget(
+            source_repo=PRIMARY_SOURCE_REPO,
+            source_path="src/commands/worker-entry-and-query-dispatch",
+            capability="Code worker entrypoint, request-to-query-engine dispatch, default clean runtime selection, and worker result/event bridge.",
+            surface=ClaudeRuntimeSurface.WORKER_ENTRY,
+            target_paths=(
+                "packages/workers/zyra_workers/code_worker_runtime.py",
+                "packages/runtime/zyra_runtime/claude_source_graph_crosswalk.py",
+            ),
+            decision=ClaudeRuntimeDecision.ZYRA_MODULE_MIGRATED,
+            primary_entrypoint="zyra_workers.CodeWorkerRuntime.run",
+            test_entrypoints=(
+                "tests.integration.test_code_worker_clean_productized_runtime.CodeWorkerCleanProductizedRuntimeTests.test_default_runtime_runs_without_source_workspace_or_sidecar",
+                "tests.integration.test_claude_productization_integration.ClaudeProductizationIntegrationTests.test_code_worker_default_path_emits_source_graph_events_and_metadata",
+            ),
+            event_phases=("source_graph_crosswalk_ready", "runtime_context_ready", "downstream_contracts_ready", "integration_gate_passed"),
+            artifact_kinds=("trace",),
+            state_owner=ClaudeRuntimeStateOwner.CODE_WORKER_RUNTIME,
+            rationale="The worker entry is a Zyra-owned runtime boundary: it selects the sidecar-free contract path by default, validates source graph handoff, runs QueryEngine and persists WorkerResult/EventRecord state.",
+            upstream_signals=("QueryEngine", "ToolUseContext", "session lifecycle", "control command"),
+        ),
     )
 
 

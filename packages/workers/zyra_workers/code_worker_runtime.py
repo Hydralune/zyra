@@ -12,9 +12,22 @@ from zyra_runtime import (
     WorkerRequest,
     WorkerResult,
     ZyraClaudeQueryEngine,
+    assemble_claude_runtime_context,
+    build_worker_execution_gate_inputs,
+    build_worker_execution_gate_report,
+    build_claude_productization_integration_report,
+    build_claude_source_graph_audit,
     build_productized_claude_runtime_contracts,
+    claude_productization_integration_events,
+    claude_runtime_context_assembly_events,
+    claude_source_graph_audit_event,
     query_plan_metadata_from_constraints,
     query_turns_from_constraints as productized_query_turns_from_constraints,
+    runtime_context_assembly_markdown,
+    source_graph_audit_markdown,
+    source_graph_crosswalk_markdown,
+    worker_execution_gate_event,
+    worker_execution_gate_markdown,
 )
 
 from .code_worker_bridge import CodeWorkerSidecarClient
@@ -69,6 +82,152 @@ class CodeWorkerRuntime:
             )
 
         use_sidecar_contracts = request.constraints.get("use_sidecar_contracts") is True
+        integration_report = build_claude_productization_integration_report(
+            project_root=self.project_root,
+            runtime_contracts=self.runtime_contracts,
+            request_constraints=request.constraints,
+            sidecar_contracts_used=use_sidecar_contracts,
+        )
+        integration_events = claude_productization_integration_events(request, integration_report)
+        if not integration_report.ok:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime stopped before tool execution because Claude source graph integration is blocked.",
+                error=integration_report.blocking_error or "claude_productization_integration_failed",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            return CodeWorkerRun(
+                worker_result=worker_result,
+                event_records=[*integration_events, _worker_result_event(request, worker_result)],
+            )
+        tool_specs = self.execution_context.registry.list()
+        tool_names = tuple(tool.name for tool in tool_specs)
+        read_only_tool_names = tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") == "true")
+        mutating_tool_names = tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") != "true")
+        runtime_context_report = assemble_claude_runtime_context(
+            request=request,
+            integration_report=integration_report,
+            runtime_contracts=self.runtime_contracts,
+            project_root=self.project_root,
+            workspace_root=self.execution_context.workspace_root,
+            artifact_root=self.execution_context.artifact_store.root,
+            tool_names=tool_names,
+            read_only_tool_names=read_only_tool_names,
+            mutating_tool_names=mutating_tool_names,
+            permission_mode=str(request.constraints.get("permission_mode") or "workspace"),
+        )
+        runtime_context_events = claude_runtime_context_assembly_events(request, runtime_context_report)
+        if not runtime_context_report.ok:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime stopped before tool execution because RuntimeContext assembly is blocked.",
+                error=runtime_context_report.first_blocker_code or "claude_runtime_context_assembly_failed",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            return CodeWorkerRun(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    _worker_result_event(request, worker_result),
+                ],
+            )
+        source_graph_audit = build_claude_source_graph_audit(
+            project_root=self.project_root,
+            integration_report=integration_report,
+            runtime_contracts=self.runtime_contracts,
+            runtime_context_report=runtime_context_report,
+        )
+        source_graph_audit_events = [claude_source_graph_audit_event(request, source_graph_audit)]
+        if not source_graph_audit.ok:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime stopped before tool execution because source graph audit is blocked.",
+                error=source_graph_audit.first_blocker_code or "claude_source_graph_audit_failed",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    **source_graph_audit.metadata(),
+                    "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            return CodeWorkerRun(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    *source_graph_audit_events,
+                    _worker_result_event(request, worker_result),
+                ],
+            )
+
+        worker_gate = build_worker_execution_gate_report(
+            build_worker_execution_gate_inputs(
+                request=request,
+                project_root=self.project_root,
+                workspace_root=self.execution_context.workspace_root,
+                artifact_root=self.execution_context.artifact_store.root,
+                runtime_contracts=self.runtime_contracts,
+                integration_report=integration_report,
+                runtime_context_report=runtime_context_report,
+                source_graph_audit=source_graph_audit,
+                tool_specs=tool_specs,
+                query_engine_available=self.query_engine_factory is not None,
+                sidecar_contracts_used=use_sidecar_contracts,
+            )
+        )
+        worker_gate_event = worker_execution_gate_event(request, worker_gate)
+        if not worker_gate.ok:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime stopped before QueryEngine because worker execution gate is blocked.",
+                error=worker_gate.first_blocker_code or "claude_worker_execution_gate_failed",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    **source_graph_audit.metadata(),
+                    **worker_gate.metadata(),
+                    "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            return CodeWorkerRun(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    *source_graph_audit_events,
+                    worker_gate_event,
+                    _worker_result_event(request, worker_result),
+                ],
+            )
+
         if use_sidecar_contracts:
             runtime_health = self.sidecar_client.health()
             runtime_inventory = self.sidecar_client.runtime_inventory()
@@ -129,6 +288,10 @@ class CodeWorkerRuntime:
                 query_contract,
                 session_contract,
                 tool_loop_contract,
+                integration_report,
+                runtime_context_report,
+                source_graph_audit,
+                worker_gate,
                 step_summaries,
                 loop_result,
                 sidecar_contracts_used=use_sidecar_contracts,
@@ -158,6 +321,10 @@ class CodeWorkerRuntime:
                 **_contract_metadata(query_contract),
                 **_session_contract_metadata(session_contract),
                 **_tool_loop_contract_metadata(tool_loop_contract),
+                **integration_report.metadata(),
+                **runtime_context_report.metadata(),
+                **source_graph_audit.metadata(),
+                **worker_gate.metadata(),
                 **query_plan_metadata,
                 **loop_result.metadata,
                 "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
@@ -170,7 +337,14 @@ class CodeWorkerRuntime:
         )
         return CodeWorkerRun(
             worker_result=worker_result,
-            event_records=[*loop_result.event_records, _worker_result_event(request, worker_result)],
+            event_records=[
+                *integration_events,
+                *runtime_context_events,
+                *source_graph_audit_events,
+                worker_gate_event,
+                *loop_result.event_records,
+                _worker_result_event(request, worker_result),
+            ],
         )
 
 
@@ -296,6 +470,10 @@ def _trace_markdown(
     query_contract: dict[str, Any],
     session_contract: dict[str, Any],
     tool_loop_contract: dict[str, Any],
+    integration_report: Any,
+    runtime_context_report: Any,
+    source_graph_audit: Any,
+    worker_gate: Any,
     step_summaries: list[str],
     loop_result: Any,
     *,
@@ -419,6 +597,14 @@ def _trace_markdown(
             "## Tool Loop Budget Contract Sources",
             "",
             *(f"- `{source_file}`" for source_file in tool_loop_source_files[:32]),
+            "",
+            source_graph_crosswalk_markdown(integration_report).rstrip(),
+            "",
+            runtime_context_assembly_markdown(runtime_context_report).rstrip(),
+            "",
+            source_graph_audit_markdown(source_graph_audit).rstrip(),
+            "",
+            worker_execution_gate_markdown(worker_gate).rstrip(),
             "",
             "## Vendored Runtime Modules",
             "",
