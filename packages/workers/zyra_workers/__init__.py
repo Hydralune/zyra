@@ -21,6 +21,7 @@ from .browser_worker import BrowserWorkerRun, BrowserWorkerRuntime
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_query_loop import CodeQueryLoop, CodeQueryLoopConfig, CodeQueryLoopResult, query_turns_from_constraints
 from .code_worker_runtime import CodeWorkerRun, CodeWorkerRuntime
+from .claude_foundation_worker import ClaudeFoundationWorkerRun, ClaudeProductizationFoundationWorker
 from .runtime_scaffold import (
     BaseWorkerScaffold,
     BrowserWorkerScaffold,
@@ -79,6 +80,8 @@ __all__ = [
     "BrowserUseRuntimeHealth",
     "BrowserUseRuntimePaths",
     "CodeWorkerRun",
+    "ClaudeFoundationWorkerRun",
+    "ClaudeProductizationFoundationWorker",
     "CodeQueryLoop",
     "CodeQueryLoopConfig",
     "CodeQueryLoopResult",

@@ -767,11 +767,7 @@ class SourceExtractor:
         capability = self._capability_name(item)
         target_bindings = self._target_bindings_for_item(item)
         primary_targets = [binding.target_path for binding in target_bindings if binding.role == "primary"]
-        line_count_policy = (
-            LineCountPolicy.COUNTS_WHEN_PRODUCTIZED
-            if self.plan.owner_unit == "M1-01B"
-            else LineCountPolicy.COUNTS_AS_RUNTIME
-        )
+        line_count_policy = self._line_count_policy_for_item()
         entry = InternalizationLedgerEntry.new(
             source_repo=item.source.source_repo,
             source_path=item.source.source_path,
@@ -779,8 +775,8 @@ class SourceExtractor:
             capability_summary=f"{self.plan.capability_summary} Source file line_count={item.line_count}.",
             target_paths=primary_targets or [item.target.project_relative_path],
             migration_strategy=self._migration_strategy_for_item(),
-            main_path_status=self.plan.main_path_status,
-            lifecycle=self.plan.lifecycle,
+            main_path_status=self._main_path_status_for_item(),
+            lifecycle=self._lifecycle_for_item(),
             owner_unit=self.plan.owner_unit,
             milestone=self.plan.milestone,
             runtime_entry=RuntimeEntry(
@@ -816,7 +812,7 @@ class SourceExtractor:
             ),
             extracted_sha256=item.sha256,
             extracted_lines=item.line_count,
-            effective_line_count=0 if self.plan.owner_unit == "M1-01B" else item.effective_line_count,
+            effective_line_count=0 if self.plan.owner_unit in {"M1-01B", "M1-02A"} else item.effective_line_count,
             source_pool_target=item.target.project_relative_path,
             effective_target_count=len(primary_targets),
             upstream_type_stub=item.is_upstream_type_stub,
@@ -844,10 +840,23 @@ class SourceExtractor:
             entry.risk_notes.append(
                 "Pilot copy target is source_pool evidence only; the connected runtime claim is carried by Zyra-owned extraction, rule, runtime lifecycle, worker bridge, CLI, and behavior-test targets."
             )
+        if self.plan.owner_unit == "M1-02A":
+            entry.risk_notes.append(
+                "M1-02A productized copy target is source-pool evidence only; connected foundation claims are carried by Zyra-owned runtime, worker, ledger migration, CLI, and behavior-test targets."
+            )
         entry.replacement_plan = self.plan.replacement_plan
         return entry
 
     def _target_bindings_for_item(self, item: ExtractionItem) -> list[TargetBinding]:
+        if self.plan.owner_unit == "M1-02A":
+            return [
+                TargetBinding(
+                    item.target.project_relative_path,
+                    role="source_pool",
+                    required_for_main_path=False,
+                    must_exist_for_statuses=[],
+                )
+            ]
         if self.plan.owner_unit != "M1-01B":
             return [TargetBinding(item.target.project_relative_path)]
         bindings = [
@@ -871,7 +880,26 @@ class SourceExtractor:
     def _migration_strategy_for_item(self) -> MigrationStrategy:
         if self.plan.owner_unit == "M1-01B":
             return MigrationStrategy.ADAPTER
+        if self.plan.owner_unit == "M1-02A":
+            return MigrationStrategy.CANDIDATE_REVIEW
         return self.plan.migration_strategy
+
+    def _main_path_status_for_item(self) -> MainPathStatus:
+        if self.plan.owner_unit == "M1-02A":
+            return MainPathStatus.INVENTORIED
+        return self.plan.main_path_status
+
+    def _lifecycle_for_item(self) -> LedgerLifecycle:
+        if self.plan.owner_unit == "M1-02A":
+            return LedgerLifecycle.CANDIDATE
+        return self.plan.lifecycle
+
+    def _line_count_policy_for_item(self) -> LineCountPolicy:
+        if self.plan.owner_unit == "M1-01B":
+            return LineCountPolicy.COUNTS_WHEN_PRODUCTIZED
+        if self.plan.owner_unit == "M1-02A":
+            return LineCountPolicy.EXCLUDED_INVENTORY_ONLY
+        return LineCountPolicy.COUNTS_AS_RUNTIME
 
     def _runtime_config_refs(self) -> list[str]:
         if self.plan.owner_unit == "M1-01B":
@@ -879,6 +907,12 @@ class SourceExtractor:
                 "packages/runtime/zyra_runtime/scaffold.py",
                 "packages/runtime/zyra_runtime/scaffold_lifecycle.py",
                 "packages/workers/zyra_workers/scaffold_supervisor.py",
+            ]
+        if self.plan.owner_unit == "M1-02A":
+            return [
+                self._project_relative_manifest_path(),
+                "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+                "packages/workers/zyra_workers/claude_foundation_worker.py",
             ]
         return [self._project_relative_manifest_path()]
 

@@ -21,7 +21,7 @@ from zyra_runtime import WorkerRequest
 from zyra_workers import CodeWorkerRuntime, CodeWorkerSidecarClient, code_worker_entrypoint
 
 
-QUERY_ENGINE_CONTRACT_LOOP = "claude_code_query_engine_contract_loop"
+QUERY_ENGINE_CONTRACT_LOOP = "zyra_claude_query_engine_runtime"
 
 
 @unittest.skipIf(shutil.which("node") is None, "node is required for code-worker sidecar")
@@ -122,9 +122,10 @@ class CodeWorkerSidecarTests(unittest.TestCase):
             self.assertIn("tool_call_started", phases)
             self.assertIn("tool_call_completed", phases)
             self.assertIn("tool_use_summary", phases)
-            self.assertEqual(run.worker_result.metadata["inventory_source"], "claude-code-best")
+            self.assertEqual(run.worker_result.metadata["inventory_source"], "zyra-claude-productized")
             self.assertEqual(run.worker_result.metadata["loop"], QUERY_ENGINE_CONTRACT_LOOP)
-            self.assertEqual(run.worker_result.metadata["query_contract_source"], "claude-code-best")
+            self.assertEqual(run.worker_result.metadata["query_contract_source"], "zyra-claude-productized")
+            self.assertEqual(run.worker_result.metadata["sidecar_contracts_used"], "false")
             self.assertEqual(run.worker_result.metadata["query_contract_read_only_concurrent"], "true")
             self.assertEqual(run.worker_result.metadata["query_contract_write_serial"], "true")
             self.assertEqual(run.worker_result.metadata["tool_orchestration_write_serial"], "true")

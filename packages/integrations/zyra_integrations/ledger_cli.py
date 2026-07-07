@@ -268,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "seed":
         seed = load_seed_ledger()
         if args.merge and ledger_path.exists():
-            current = InternalizationLedger.load(ledger_path)
+            current = InternalizationLedger.load(ledger_path, normalize_current_policy=True)
             for entry in seed.entries():
                 current.upsert(entry)
             current.save(ledger_path)
@@ -279,7 +279,11 @@ def main(argv: list[str] | None = None) -> int:
         _print_payload(payload, as_json=args.json)
         return 0
 
-    ledger = InternalizationLedger.load(ledger_path) if ledger_path.exists() else load_project_ledger(project_root, bootstrap=True)
+    ledger = (
+        InternalizationLedger.load(ledger_path, normalize_current_policy=True)
+        if ledger_path.exists()
+        else load_project_ledger(project_root, bootstrap=True)
+    )
 
     if args.command == "list":
         query = parse_query(_args_to_query_params(args))

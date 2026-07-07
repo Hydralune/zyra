@@ -92,9 +92,10 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             self.assertEqual(batches[0]["tool_count"], 2)
             self.assertEqual(batches[2]["conflict_protected"], "true")
             self.assertEqual(run.worker_result.metadata["tool_conflict_protected"], "1")
-            self.assertEqual(run.worker_result.metadata["tool_loop_contract_owner_unit"], "M1-02C")
+            self.assertEqual(run.worker_result.metadata["tool_loop_contract_owner_unit"], "M1-02A")
             self.assertEqual(run.worker_result.metadata["tool_loop_contract_read_only_concurrent"], "true")
             self.assertEqual(run.worker_result.metadata["tool_loop_contract_write_serial"], "true")
+            self.assertEqual(run.worker_result.metadata["sidecar_contracts_used"], "false")
             self.assertEqual((workspace / "same.txt").read_text(encoding="utf-8"), "two")
 
     def test_runtime_externalizes_large_tool_result_and_emits_budget_watchdog_signal(self) -> None:

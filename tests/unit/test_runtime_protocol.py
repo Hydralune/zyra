@@ -37,10 +37,12 @@ class RuntimeProtocolTests(unittest.TestCase):
 
         self.assertTrue({"file_read", "file_edit", "shell", "browser", "artifact_write"}.issubset(names))
 
-    def test_default_worker_descriptors_point_to_vendored_sources(self) -> None:
+    def test_default_worker_descriptors_identify_internalized_and_vendored_sources(self) -> None:
         descriptors = {worker.name: worker for worker in default_worker_descriptors()}
 
-        self.assertEqual(descriptors["CodeWorkerRuntime"].source, "vendor/claude-code-best")
+        self.assertEqual(descriptors["CodeWorkerRuntime"].source, "zyra-claude-productized")
+        self.assertEqual(descriptors["CodeWorkerRuntime"].metadata["upstream_source"], "claude-code-best")
+        self.assertEqual(descriptors["CodeWorkerRuntime"].metadata["sidecar_required_for_default_path"], "false")
         self.assertEqual(descriptors["BrowserWorker"].source, "vendor/browser-use")
 
     def test_context_session_clear_and_rewind_preserve_trace(self) -> None:

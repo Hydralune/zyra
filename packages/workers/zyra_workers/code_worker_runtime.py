@@ -6,14 +6,18 @@ from typing import Any
 
 from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
 from zyra_runtime import (
+    ClaudeQueryEngineConfig,
     JsonPermissionStore,
     ToolExecutionContext,
     WorkerRequest,
     WorkerResult,
+    ZyraClaudeQueryEngine,
+    build_productized_claude_runtime_contracts,
+    query_plan_metadata_from_constraints,
+    query_turns_from_constraints as productized_query_turns_from_constraints,
 )
 
 from .code_worker_bridge import CodeWorkerSidecarClient
-from .code_query_loop import CodeQueryLoop, CodeQueryLoopConfig, CodeQueryLoopResult, query_turns_from_constraints
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +27,7 @@ class CodeWorkerRun:
 
 
 class CodeWorkerRuntime:
-    """Code worker loop boundary backed by the vendored Claude Code sidecar and Zyra tools."""
+    """Code worker loop boundary backed by Zyra-owned Claude Code runtime ports."""
 
     def __init__(
         self,
@@ -33,9 +37,12 @@ class CodeWorkerRuntime:
         artifact_root: str | Path,
         sidecar_client: CodeWorkerSidecarClient | None = None,
         permission_store: JsonPermissionStore | None = None,
+        query_engine_factory: Any | None = ZyraClaudeQueryEngine,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.sidecar_client = sidecar_client or CodeWorkerSidecarClient(self.project_root)
+        self.runtime_contracts = build_productized_claude_runtime_contracts(project_root=self.project_root)
+        self.query_engine_factory = query_engine_factory
         self.execution_context = ToolExecutionContext.for_workspace(
             workspace_root=workspace_root,
             artifact_root=artifact_root,
@@ -43,24 +50,17 @@ class CodeWorkerRuntime:
         )
 
     def run(self, request: WorkerRequest) -> CodeWorkerRun:
-        sidecar_health = self.sidecar_client.health()
-        sidecar_inventory = self.sidecar_client.runtime_inventory()
-        sidecar_query_contract = self.sidecar_client.query_contract()
-        sidecar_session_contract = self.sidecar_client.session_contract()
-        sidecar_tool_loop_contract = self.sidecar_client.tool_loop_contract()
-        query_turns = query_turns_from_constraints(request.constraints)
-        if not query_turns:
+        if request.constraints.get("disable_productized_runtime") is True or self.query_engine_factory is None:
             worker_result = WorkerResult(
                 request_id=request.request_id,
                 ok=False,
-                summary="CodeWorkerRuntime requires structured tool_plan or query_turns.",
-                error="missing_tool_plan",
+                summary="CodeWorkerRuntime productized QueryEngine runtime is disconnected.",
+                error="productized_query_engine_runtime_disabled",
                 metadata={
-                    **_sidecar_metadata(sidecar_health),
-                    **_inventory_metadata(sidecar_inventory),
-                    **_contract_metadata(sidecar_query_contract),
-                    **_session_contract_metadata(sidecar_session_contract),
-                    **_tool_loop_contract_metadata(sidecar_tool_loop_contract),
+                    **self.runtime_contracts.metadata(),
+                    "sidecar_contracts_used": "false",
+                    "query_turns": "0",
+                    "tool_steps": "0",
                 },
             )
             return CodeWorkerRun(
@@ -68,9 +68,25 @@ class CodeWorkerRuntime:
                 event_records=[_worker_result_event(request, worker_result)],
             )
 
-        loop = CodeQueryLoop(
+        use_sidecar_contracts = request.constraints.get("use_sidecar_contracts") is True
+        if use_sidecar_contracts:
+            runtime_health = self.sidecar_client.health()
+            runtime_inventory = self.sidecar_client.runtime_inventory()
+            query_contract = self.sidecar_client.query_contract()
+            session_contract = self.sidecar_client.session_contract()
+            tool_loop_contract = self.sidecar_client.tool_loop_contract()
+        else:
+            runtime_health = self.runtime_contracts.health
+            runtime_inventory = self.runtime_contracts.inventory
+            query_contract = self.runtime_contracts.query_contract
+            session_contract = self.runtime_contracts.session_contract
+            tool_loop_contract = self.runtime_contracts.tool_loop_contract
+
+        query_turns = productized_query_turns_from_constraints(request.constraints)
+        query_plan_metadata = query_plan_metadata_from_constraints(request.constraints)
+        engine = self.query_engine_factory(
             self.execution_context,
-            CodeQueryLoopConfig(
+            ClaudeQueryEngineConfig(
                 max_turns=_optional_int(request.constraints.get("max_turns")),
                 max_tool_result_chars=_positive_int(
                     request.constraints.get("tool_result_budget_chars"),
@@ -81,22 +97,24 @@ class CodeWorkerRuntime:
                     default=32000,
                 ),
                 continue_on_error=request.constraints.get("continue_on_error") is True,
-                query_contract=sidecar_query_contract,
-                session_contract=sidecar_session_contract,
-                tool_loop_contract=sidecar_tool_loop_contract,
+                runtime_contracts=self.runtime_contracts,
                 max_read_only_concurrency=_positive_int(
                     request.constraints.get("max_read_only_concurrency"),
-                    default=_contract_default_concurrency(sidecar_query_contract),
+                    default=_contract_default_concurrency(query_contract),
                 ),
                 emit_tool_use_summaries=request.constraints.get("emit_tool_use_summaries") is not False,
+                control_commands=request.constraints.get("control_commands") or (),
+                project_root=self.project_root,
             ),
         )
-        loop_result = loop.run(
+        loop_result = engine.run(
             run_id=request.run_id,
             task_id=request.task_id,
             node_id=request.node_id,
             worker_request_id=request.request_id,
             turns=query_turns,
+            request_messages=request.messages,
+            request_metadata=request.metadata,
         )
         artifacts = list(loop_result.artifacts)
         step_summaries = list(loop_result.step_summaries)
@@ -106,13 +124,14 @@ class CodeWorkerRuntime:
             task_id=request.task_id,
             content=_trace_markdown(
                 request,
-                sidecar_health,
-                sidecar_inventory,
-                sidecar_query_contract,
-                sidecar_session_contract,
-                sidecar_tool_loop_contract,
+                runtime_health,
+                runtime_inventory,
+                query_contract,
+                session_contract,
+                tool_loop_contract,
                 step_summaries,
                 loop_result,
+                sidecar_contracts_used=use_sidecar_contracts,
             ),
             title=f"CodeWorker trace {request.request_id}",
             kind=ArtifactKind.TRACE,
@@ -133,12 +152,15 @@ class CodeWorkerRuntime:
             events=[to_jsonable(event) for event in loop_result.event_records],
             error=None if loop_result.ok else loop_result.stopped_reason or "tool_step_failed",
             metadata={
-                **_sidecar_metadata(sidecar_health),
-                **_inventory_metadata(sidecar_inventory),
-                **_contract_metadata(sidecar_query_contract),
-                **_session_contract_metadata(sidecar_session_contract),
-                **_tool_loop_contract_metadata(sidecar_tool_loop_contract),
+                **self.runtime_contracts.metadata(),
+                **_sidecar_metadata(runtime_health, used=use_sidecar_contracts),
+                **_inventory_metadata(runtime_inventory),
+                **_contract_metadata(query_contract),
+                **_session_contract_metadata(session_contract),
+                **_tool_loop_contract_metadata(tool_loop_contract),
+                **query_plan_metadata,
                 **loop_result.metadata,
+                "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
                 "query_turns": str(loop_result.turn_count),
                 "tool_steps": str(loop_result.tool_call_count),
                 "context_compactions": str(loop_result.context_compaction_count),
@@ -165,11 +187,12 @@ def _worker_result_event(request: WorkerRequest, result: WorkerResult) -> EventR
     )
 
 
-def _sidecar_metadata(health: dict[str, Any]) -> dict[str, str]:
+def _sidecar_metadata(health: dict[str, Any], *, used: bool) -> dict[str, str]:
     vendor = health.get("vendor") if isinstance(health.get("vendor"), dict) else {}
     return {
-        "sidecar_runtime": str(health.get("runtime") or ""),
-        "sidecar_worker": str(health.get("worker") or ""),
+        "sidecar_runtime": str(health.get("runtime") or "") if used else "",
+        "sidecar_worker": str(health.get("worker") or "") if used else "",
+        "sidecar_contracts_used": str(used).lower(),
         "vendor_complete": str(vendor.get("complete") is True).lower(),
     }
 
@@ -268,62 +291,64 @@ def _positive_int(value: Any, *, default: int) -> int:
 
 def _trace_markdown(
     request: WorkerRequest,
-    sidecar_health: dict[str, Any],
-    sidecar_inventory: dict[str, Any],
-    sidecar_query_contract: dict[str, Any],
-    sidecar_session_contract: dict[str, Any],
-    sidecar_tool_loop_contract: dict[str, Any],
+    runtime_health: dict[str, Any],
+    runtime_inventory: dict[str, Any],
+    query_contract: dict[str, Any],
+    session_contract: dict[str, Any],
+    tool_loop_contract: dict[str, Any],
     step_summaries: list[str],
-    loop_result: CodeQueryLoopResult,
+    loop_result: Any,
+    *,
+    sidecar_contracts_used: bool,
 ) -> str:
-    vendor = sidecar_health.get("vendor") if isinstance(sidecar_health.get("vendor"), dict) else {}
+    vendor = runtime_health.get("vendor") if isinstance(runtime_health.get("vendor"), dict) else {}
     modules = vendor.get("modules") if isinstance(vendor.get("modules"), list) else []
-    tool_runtime = sidecar_inventory.get("toolRuntime") if isinstance(sidecar_inventory.get("toolRuntime"), dict) else {}
+    tool_runtime = runtime_inventory.get("toolRuntime") if isinstance(runtime_inventory.get("toolRuntime"), dict) else {}
     command_runtime = (
-        sidecar_inventory.get("commandRuntime") if isinstance(sidecar_inventory.get("commandRuntime"), dict) else {}
+        runtime_inventory.get("commandRuntime") if isinstance(runtime_inventory.get("commandRuntime"), dict) else {}
     )
     orchestration = (
-        sidecar_query_contract.get("toolOrchestration")
-        if isinstance(sidecar_query_contract.get("toolOrchestration"), dict)
+        query_contract.get("toolOrchestration")
+        if isinstance(query_contract.get("toolOrchestration"), dict)
         else {}
     )
-    source_files = sidecar_query_contract.get("sourceFiles")
+    source_files = query_contract.get("sourceFiles")
     if not isinstance(source_files, list):
         source_files = []
-    session_source_files = sidecar_session_contract.get("sourceFiles")
+    session_source_files = session_contract.get("sourceFiles")
     if not isinstance(session_source_files, list):
         session_source_files = []
     session_persistence = (
-        sidecar_session_contract.get("transcriptPersistence")
-        if isinstance(sidecar_session_contract.get("transcriptPersistence"), dict)
+        session_contract.get("transcriptPersistence")
+        if isinstance(session_contract.get("transcriptPersistence"), dict)
         else {}
     )
     session_recovery = (
-        sidecar_session_contract.get("resumeRecovery")
-        if isinstance(sidecar_session_contract.get("resumeRecovery"), dict)
+        session_contract.get("resumeRecovery")
+        if isinstance(session_contract.get("resumeRecovery"), dict)
         else {}
     )
     tool_loop_scheduling = (
-        sidecar_tool_loop_contract.get("scheduling")
-        if isinstance(sidecar_tool_loop_contract.get("scheduling"), dict)
+        tool_loop_contract.get("scheduling")
+        if isinstance(tool_loop_contract.get("scheduling"), dict)
         else {}
     )
     tool_loop_budget = (
-        sidecar_tool_loop_contract.get("resultBudget")
-        if isinstance(sidecar_tool_loop_contract.get("resultBudget"), dict)
+        tool_loop_contract.get("resultBudget")
+        if isinstance(tool_loop_contract.get("resultBudget"), dict)
         else {}
     )
     tool_loop_shell = (
-        sidecar_tool_loop_contract.get("shellRuntime")
-        if isinstance(sidecar_tool_loop_contract.get("shellRuntime"), dict)
+        tool_loop_contract.get("shellRuntime")
+        if isinstance(tool_loop_contract.get("shellRuntime"), dict)
         else {}
     )
     tool_loop_sandbox = (
-        sidecar_tool_loop_contract.get("sandboxRuntime")
-        if isinstance(sidecar_tool_loop_contract.get("sandboxRuntime"), dict)
+        tool_loop_contract.get("sandboxRuntime")
+        if isinstance(tool_loop_contract.get("sandboxRuntime"), dict)
         else {}
     )
-    tool_loop_source_files = sidecar_tool_loop_contract.get("sourceFiles")
+    tool_loop_source_files = tool_loop_contract.get("sourceFiles")
     if not isinstance(tool_loop_source_files, list):
         tool_loop_source_files = []
     high_value_commands = command_runtime.get("highValueCommandPaths")
@@ -342,7 +367,9 @@ def _trace_markdown(
             f"- worker_name: `{request.worker_name}`",
             f"- ok: `{str(loop_result.ok).lower()}`",
             f"- query_loop: `{loop_result.metadata.get('loop', '')}`",
-            f"- query_contract_source: `{sidecar_query_contract.get('source', '')}`",
+            f"- runtime_source: `{runtime_health.get('source', '')}`",
+            f"- sidecar_contracts_used: `{str(sidecar_contracts_used).lower()}`",
+            f"- query_contract_source: `{query_contract.get('source', '')}`",
             f"- tool_orchestration_source: `{orchestration.get('sourcePath', '')}`",
             f"- read_only_concurrent: `{str(orchestration.get('readOnlyConcurrent') is True).lower()}`",
             f"- write_serial: `{str(orchestration.get('writeSerial') is True).lower()}`",
@@ -360,9 +387,9 @@ def _trace_markdown(
             f"- session_append_only_jsonl: `{str(session_persistence.get('appendOnlyJsonl') is True).lower()}`",
             f"- session_parent_uuid_chain: `{str(session_persistence.get('parentUuidChain') is True).lower()}`",
             f"- session_resume_chain: `{str(session_recovery.get('hasChainTraversal') is True).lower()}`",
-            f"- tool_loop_contract_source: `{sidecar_tool_loop_contract.get('source', '')}`",
-            f"- tool_loop_contract_owner_unit: `{sidecar_tool_loop_contract.get('ownerUnit', '')}`",
-            f"- tool_loop_inventory_exists: `{str(sidecar_tool_loop_contract.get('inventoryExists') is True).lower()}`",
+            f"- tool_loop_contract_source: `{tool_loop_contract.get('source', '')}`",
+            f"- tool_loop_contract_owner_unit: `{tool_loop_contract.get('ownerUnit', '')}`",
+            f"- tool_loop_inventory_exists: `{str(tool_loop_contract.get('inventoryExists') is True).lower()}`",
             f"- tool_loop_read_only_concurrent: `{str(tool_loop_scheduling.get('readOnlyConcurrent') is True).lower()}`",
             f"- tool_loop_write_serial: `{str(tool_loop_scheduling.get('writeSerial') is True).lower()}`",
             f"- tool_loop_budget_externalization: `{str(tool_loop_budget.get('hasPersistedOutputTag') is True or tool_loop_budget.get('hasMaxResultSizeChars') is True).lower()}`",

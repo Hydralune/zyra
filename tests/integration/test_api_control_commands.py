@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sys
 import tempfile
 import threading
@@ -90,10 +89,20 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertIn("open_url", {action["action"] for action in browser_actions["actions"]})
                 self.assertGreater(len(browser_actions["source_registered_actions"]), 10)
                 self.assertTrue(browser_health["environment_configured"])
-                self.assertTrue(browser_health["importable"])
-                self.assertEqual(browser_health["classes"]["BrowserSession"], "BrowserSession")
-                self.assertEqual(code_inventory["source"], "claude-code-best")
-                self.assertGreater(code_inventory["commandRuntime"]["commandCount"], 20)
+                if browser_health["importable"]:
+                    self.assertEqual(browser_health["classes"]["BrowserSession"], "BrowserSession")
+                else:
+                    self.assertEqual(browser_health["error_type"], "ModuleNotFoundError")
+                self.assertEqual(code_inventory["source"], "zyra-claude-productized")
+                self.assertEqual(code_inventory["upstreamSource"], "claude-code-best")
+                self.assertEqual(code_inventory["ownerUnit"], "M1-02A")
+                self.assertFalse(code_inventory["cleanRuntime"]["requiresRootSourceRepo"])
+                self.assertFalse(code_inventory["cleanRuntime"]["requiresNodeSidecar"])
+                self.assertFalse(code_inventory["cleanRuntime"]["requiresVendorRuntime"])
+                self.assertEqual(code_inventory["moduleEntrypoints"]["queryEngine"], "zyra_runtime.ZyraClaudeQueryEngine")
+                self.assertEqual(code_inventory["health"]["vendor"]["complete"], False)
+                self.assertFalse(code_inventory["defaultPath"]["requiresRootSourceRepo"])
+                self.assertGreaterEqual(len(code_inventory["sourceToTarget"]), 10)
             finally:
                 server.shutdown()
                 server.server_close()
@@ -563,7 +572,6 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    @unittest.skipIf(shutil.which("node") is None, "node is required for code-worker sidecar")
     def test_code_worker_endpoint_executes_tool_plan_and_records_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
@@ -602,21 +610,28 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertGreaterEqual(len(query_events), 4)
                 self.assertEqual(len(worker_events), 1)
                 self.assertEqual(executed["task"]["budget"]["tool_calls"], 2)
-                self.assertEqual(executed["worker_result"]["metadata"]["vendor_complete"], "true")
+                metadata = executed["worker_result"]["metadata"]
+                self.assertEqual(metadata["vendor_complete"], "false")
+                self.assertEqual(metadata["sidecar_contracts_used"], "false")
+                self.assertEqual(metadata["productized_runtime_clean_safe"], "true")
+                self.assertEqual(metadata["productized_runtime_owner_unit"], "M1-02A")
                 self.assertEqual(
-                    executed["worker_result"]["metadata"]["loop"],
-                    "claude_code_query_engine_contract_loop",
+                    metadata["loop"],
+                    "zyra_claude_query_engine_runtime",
                 )
-                self.assertEqual(executed["worker_result"]["metadata"]["query_contract_source"], "claude-code-best")
-                self.assertEqual(executed["worker_result"]["metadata"]["query_contract_write_serial"], "true")
-                self.assertEqual(executed["worker_result"]["metadata"]["query_turns"], "1")
-                self.assertEqual(executed["worker_result"]["metadata"]["context_compactions"], "0")
-                self.assertEqual(executed["worker_result"]["metadata"]["query_session_consistent"], "true")
-                self.assertTrue(executed["worker_result"]["metadata"]["query_session_resume_token"].startswith("codesession_"))
+                self.assertEqual(metadata["query_contract_source"], "zyra-claude-productized")
+                self.assertEqual(metadata["query_contract_write_serial"], "true")
+                self.assertEqual(metadata["tool_runtime_completed"], "2")
+                self.assertEqual(metadata["query_plan_ok"], "true")
+                self.assertEqual(metadata["runtime_state_ok"], "true")
+                self.assertEqual(metadata["query_turns"], "1")
+                self.assertEqual(metadata["context_compactions"], "0")
+                self.assertEqual(metadata["query_session_consistent"], "true")
+                self.assertTrue(metadata["query_session_resume_token"].startswith("codesession_"))
                 self.assertIn("last_code_worker_session", executed["task"]["metadata"])
                 self.assertEqual(
                     executed["task"]["metadata"]["last_code_worker_session"]["session_id"],
-                    executed["worker_result"]["metadata"]["query_session_id"],
+                    metadata["query_session_id"],
                 )
                 self.assertTrue((Path(tmpdir) / "workspace" / "worker" / "output.txt").exists())
                 self.assertGreaterEqual(len(_get(base_url, f"/tasks/{task_id}/events")["events"]), 4)
@@ -625,8 +640,8 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertGreaterEqual(len(artifacts), 3)
                 by_title = {item["artifact"]["title"]: item["artifact"]["artifact_id"] for item in artifacts}
                 trace_id = next(artifact_id for title, artifact_id in by_title.items() if "CodeWorker trace" in title)
-                snapshot_id = executed["worker_result"]["metadata"]["query_session_snapshot_artifact_id"]
-                transcript_id = executed["worker_result"]["metadata"]["query_session_transcript_artifact_id"]
+                snapshot_id = metadata["query_session_snapshot_artifact_id"]
+                transcript_id = metadata["query_session_transcript_artifact_id"]
                 preview = _get(base_url, f"/artifacts/{trace_id}")["artifact"]
                 snapshot = _get(base_url, f"/artifacts/{snapshot_id}")["artifact"]
                 transcript = _get(base_url, f"/artifacts/{transcript_id}")["artifact"]

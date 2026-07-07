@@ -52,10 +52,15 @@ def default_worker_descriptors() -> list[WorkerRuntimeDescriptor]:
     return [
         WorkerRuntimeDescriptor(
             name="CodeWorkerRuntime",
-            kind=WorkerRuntimeKind.TYPESCRIPT_SIDECAR,
-            source="vendor/claude-code-best",
+            kind=WorkerRuntimeKind.PYTHON,
+            source="zyra-claude-productized",
             capabilities=("codebase-analysis", "code-change", "verification", "tool-permission", "compact", "mcp", "subagent"),
-            entrypoint="apps/code-worker",
+            entrypoint="packages/workers/zyra_workers/code_worker_runtime.py",
+            metadata={
+                "upstream_source": "claude-code-best",
+                "runtime_id": "zyra-claude-code-productized-runtime",
+                "sidecar_required_for_default_path": "false",
+            },
         ),
         WorkerRuntimeDescriptor(
             name="BrowserWorker",

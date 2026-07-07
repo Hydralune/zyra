@@ -403,6 +403,7 @@ class QuerySession:
         self._sequence = 0
         self._active_turn: TurnState | None = None
         self._active_assistant_message: MessageLifecycle | None = None
+        contract_source = _contract_source(self.source_contract, self.metadata)
         self._append_transcript(
             TranscriptEntryType.SESSION_METADATA,
             uuid=self.session_id,
@@ -413,7 +414,7 @@ class QuerySession:
                 "task_id": self.task_id,
                 "node_id": self.node_id,
                 "worker_request_id": self.worker_request_id,
-                "source": "claude-code-best",
+                "source": contract_source,
             },
         )
         self._append_stream_event(
@@ -421,7 +422,7 @@ class QuerySession:
             metadata={
                 "worker_request_id": worker_request_id,
                 "node_id": node_id,
-                "source": "claude-code-best",
+                "source": contract_source,
             },
         )
 
@@ -973,3 +974,13 @@ def _as_list(value: Any) -> list[Any]:
 
 def _as_mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _contract_source(source_contract: Mapping[str, Any], metadata: Mapping[str, Any]) -> str:
+    explicit = metadata.get("contract_source") or source_contract.get("contract_source")
+    if explicit:
+        return str(explicit)
+    query_contract = source_contract.get("query_contract")
+    if isinstance(query_contract, Mapping) and query_contract.get("source"):
+        return str(query_contract["source"])
+    return "zyra-runtime"

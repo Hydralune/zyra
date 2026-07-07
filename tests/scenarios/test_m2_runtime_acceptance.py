@@ -61,8 +61,9 @@ class M2RuntimeAcceptanceScenario(unittest.TestCase):
                 )
             )
             self.assertTrue(code_run.worker_result.ok)
-            self.assertEqual(code_run.worker_result.metadata["loop"], "claude_code_query_engine_contract_loop")
-            self.assertEqual(code_run.worker_result.metadata["query_contract_source"], "claude-code-best")
+            self.assertEqual(code_run.worker_result.metadata["loop"], "zyra_claude_query_engine_runtime")
+            self.assertEqual(code_run.worker_result.metadata["query_contract_source"], "zyra-claude-productized")
+            self.assertEqual(code_run.worker_result.metadata["sidecar_contracts_used"], "false")
             self.assertEqual(code_run.worker_result.metadata["tool_steps"], "3")
             self.assertIn("hello zyra", (code_workspace / "app.py").read_text(encoding="utf-8"))
 

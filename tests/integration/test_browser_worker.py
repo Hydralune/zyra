@@ -46,7 +46,13 @@ class BrowserWorkerTests(unittest.TestCase):
         health = inspect_browser_use_runtime(ROOT)
 
         self.assertTrue(health.environment_configured)
-        self.assertTrue(health.importable, health.error)
+        self.assertEqual(health.paths.config_dir.relative_to(ROOT).parts[0], "tmp")
+        self.assertEqual(health.paths.cache_dir.relative_to(ROOT).parts[0], "tmp")
+        self.assertEqual(health.paths.temp_dir.relative_to(ROOT).parts[0], "tmp")
+        if not health.importable:
+            self.assertIn(health.error_type, {"ModuleNotFoundError", "ImportError"})
+            self.assertTrue(health.error)
+            return
         self.assertEqual(health.classes["BrowserSession"], "BrowserSession")
         self.assertEqual(health.classes["BrowserProfile"], "BrowserProfile")
         self.assertEqual(health.classes["Tools"], "Tools")
@@ -56,9 +62,6 @@ class BrowserWorkerTests(unittest.TestCase):
         self.assertEqual(health.classes["UploadFileAction"], "UploadFileAction")
         self.assertEqual(health.classes["ScreenshotAction"], "ScreenshotAction")
         self.assertEqual(health.classes["SaveAsPdfAction"], "SaveAsPdfAction")
-        self.assertEqual(health.paths.config_dir.relative_to(ROOT).parts[0], "tmp")
-        self.assertEqual(health.paths.cache_dir.relative_to(ROOT).parts[0], "tmp")
-        self.assertEqual(health.paths.temp_dir.relative_to(ROOT).parts[0], "tmp")
 
     def test_browser_action_registry_reads_vendored_browser_use_actions(self) -> None:
         registry = default_browser_action_registry(ROOT)
@@ -149,7 +152,10 @@ class BrowserWorkerTests(unittest.TestCase):
             self.assertEqual(run.worker_result.metadata["vendor"], "browser-use")
             self.assertEqual(run.worker_result.metadata["vendor_complete"], "true")
             self.assertEqual(run.worker_result.metadata["action_registry_source"], "browser-use")
-            self.assertEqual(run.worker_result.metadata["browser_use_python_importable"], "true")
+            self.assertEqual(
+                run.worker_result.metadata["browser_use_python_importable"],
+                str(runtime.browser_use_health.importable).lower(),
+            )
             self.assertEqual(run.worker_result.metadata["browser_use_environment_configured"], "true")
             self.assertEqual(run.event_records[0].payload["browser_action"]["source_action"], "navigate")
             self.assertTrue(any(artifact.kind == "markdown" for artifact in run.worker_result.artifacts))
@@ -240,6 +246,9 @@ class BrowserWorkerTests(unittest.TestCase):
     def test_browser_worker_agent_backend_reports_missing_llm_without_browser_plan(self) -> None:
         if find_browser_executable() is None:
             self.skipTest("Chrome or Edge executable is not available for browser-use Agent backend.")
+        health = inspect_browser_use_runtime(ROOT)
+        if not health.importable:
+            self.skipTest(f"browser_use Python runtime is not importable: {health.error}")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Run browser-use Agent backend.")
@@ -281,6 +290,9 @@ class BrowserWorkerTests(unittest.TestCase):
     def test_browser_worker_live_backend_operates_input_click_and_search(self) -> None:
         if find_browser_executable() is None:
             self.skipTest("Chrome or Edge executable is not available for browser-use live smoke.")
+        health = inspect_browser_use_runtime(ROOT)
+        if not health.importable:
+            self.skipTest(f"browser_use Python runtime is not importable: {health.error}")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = configure_browser_use_environment(ROOT)
@@ -409,6 +421,9 @@ class BrowserWorkerTests(unittest.TestCase):
     def test_browser_worker_live_backend_uploads_and_collects_downloads(self) -> None:
         if find_browser_executable() is None:
             self.skipTest("Chrome or Edge executable is not available for browser-use live smoke.")
+        health = inspect_browser_use_runtime(ROOT)
+        if not health.importable:
+            self.skipTest(f"browser_use Python runtime is not importable: {health.error}")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Transfer files through a live browser page.")

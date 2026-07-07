@@ -191,20 +191,24 @@ class InternalizationLedger:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "InternalizationLedger":
+    def from_dict(cls, data: dict[str, Any], *, normalize_current_policy: bool = False) -> "InternalizationLedger":
         entries = [
             InternalizationLedgerEntry.from_dict(item)
             for item in _entry_payloads(data)
         ]
+        if normalize_current_policy:
+            from .ledger_migrations import normalize_ledger_for_current_policy
+
+            entries = normalize_ledger_for_current_policy(entries)
         ledger = cls(entries)
         ledger._mutations.clear()
         return ledger
 
     @classmethod
-    def load(cls, path: str | Path) -> "InternalizationLedger":
+    def load(cls, path: str | Path, *, normalize_current_policy: bool = False) -> "InternalizationLedger":
         target = Path(path)
         data = _read_structured_file(target)
-        return cls.from_dict(data)
+        return cls.from_dict(data, normalize_current_policy=normalize_current_policy)
 
     def save(self, path: str | Path) -> Path:
         target = Path(path)
@@ -237,13 +241,13 @@ def package_seed_path() -> Path:
 
 
 def load_seed_ledger() -> InternalizationLedger:
-    return InternalizationLedger.load(package_seed_path())
+    return InternalizationLedger.load(package_seed_path(), normalize_current_policy=True)
 
 
 def load_project_ledger(project_root: Path, *, bootstrap: bool = True) -> InternalizationLedger:
     path = project_ledger_path(project_root)
     if path.exists():
-        return InternalizationLedger.load(path)
+        return InternalizationLedger.load(path, normalize_current_policy=True)
     ledger = load_seed_ledger()
     if bootstrap:
         ledger.save(path)

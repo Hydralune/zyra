@@ -129,6 +129,27 @@ class CodeQueryLoop:
                 },
             )
         )
+        permission_runtime = {
+            "permission_policy": type(self.context.permission_policy).__name__,
+            "permission_store": type(self.context.permission_store).__name__ if self.context.permission_store else "",
+            "default_effect": str(getattr(self.context.permission_policy, "default_effect", "")),
+            "workspace_root": str(self.context.workspace_root),
+        }
+        event_records.append(
+            _query_lifecycle_event(
+                run_id,
+                task_id,
+                node_id,
+                worker_request_id,
+                session_id=session_id,
+                phase="permission_runtime_attached",
+                payload={
+                    "permission": permission_runtime,
+                    "source_path": "src/hooks/toolPermission",
+                    "resume_token": session.resume_token,
+                },
+            )
+        )
         for turn_index, turn in enumerate(turns, start=1):
             if turn_index > max_turns:
                 ok = False
@@ -906,6 +927,9 @@ class CodeQueryLoop:
                 "context_compactions": str(compaction_count),
                 "query_engine_contract_source": str(contract.get("source") or ""),
                 "query_engine_contract_files": ",".join(str(item) for item in source_files[:12]),
+                "permission_policy": permission_runtime["permission_policy"],
+                "permission_store": permission_runtime["permission_store"],
+                "permission_default_effect": permission_runtime["default_effect"],
                 "tool_loop_contract_source": str(tool_loop_contract.get("source") or ""),
                 "tool_loop_contract_owner_unit": str(tool_loop_contract.get("ownerUnit") or ""),
                 "tool_loop_contract_inventory_exists": str(tool_loop_contract.get("inventoryExists") is True).lower(),

@@ -51,6 +51,7 @@ from zyra_runtime import (
     ToolExecutionContext,
     ToolExecutor,
     WorkerRequest,
+    build_productized_claude_runtime_contracts,
     control_event_from_command,
     default_tool_registry,
     default_worker_descriptors,
@@ -586,7 +587,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["workers", "code", "inventory"]:
-            self._send_json(HTTPStatus.OK, CodeWorkerSidecarClient(PROJECT_ROOT).runtime_inventory())
+            contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
+            payload = dict(contracts.inventory)
+            payload["health"] = contracts.health
+            payload["defaultPath"] = contracts.default_path
+            payload["sourceToTarget"] = [item.to_dict() for item in contracts.source_to_target]
+            self._send_json(HTTPStatus.OK, payload)
             return
 
         if parts == ["workers", "browser", "actions"]:
