@@ -65,7 +65,6 @@ from zyra_skills import default_skill_registry
 from zyra_workers import (
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
-    CodeWorkerSidecarClient,
     browser_use_health_summary,
     default_browser_action_registry,
     inspect_browser_use_runtime,
@@ -1800,8 +1799,33 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
         result["summary"] = "M5 resource scheduler, worker manifests, and recovery state."
         result["data"] = _scheduler_task_view(state, store)
     elif name == "/mcp":
-        result["summary"] = "MCP runtime inventory from CodeWorker sidecar."
-        result["data"] = {"mcp_runtime_files": CodeWorkerSidecarClient(PROJECT_ROOT).runtime_inventory()["runtimeBoundaries"]["mcpRuntimeFiles"]}
+        contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
+        integration = build_claude_productization_integration_report(
+            project_root=PROJECT_ROOT,
+            runtime_contracts=contracts,
+        )
+        mcp_batches = [
+            batch.to_dict()
+            for batch in integration.crosswalk.batches
+            if "M1-03B" in batch.downstream_slices or "mcp" in str(batch.batch).lower()
+        ]
+        mcp_contracts = [
+            contract.to_dict()
+            for contract in integration.crosswalk.downstream_contracts
+            if contract.owner_slice == "M1-03B" or "mcp" in contract.contract_id.lower()
+        ]
+        result["summary"] = "MCP runtime handoff contract from Zyra source graph crosswalk."
+        result["data"] = {
+            "runtime_status": "downstream_handoff",
+            "owner_slice": "M1-03B",
+            "source_repo": integration.crosswalk.source_repo,
+            "source_graph_contract_id": integration.crosswalk.contract_id,
+            "source_graph_ok": integration.ok,
+            "requires_node_sidecar": False,
+            "sidecar_contracts_used": False,
+            "contracts": mcp_contracts,
+            "source_batches": mcp_batches,
+        }
     elif name == "/skills":
         result["summary"] = "Registered skills and recent skill invocations."
         result["data"] = {

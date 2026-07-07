@@ -394,7 +394,7 @@ def _clean_boundary_rules(
         ),
         CleanBoundaryRule(
             rule_id="clean.parent_claude_code_best",
-            path="../claude-code-best",
+            path=_parent_repo_marker("claude-code-best"),
             boundary="forbidden_parent_source_repo",
             allowed=False,
             required=False,
@@ -652,3 +652,7 @@ def _source_pool_like(path: Path) -> bool:
             "/runtime-sources/",
         )
     )
+
+
+def _parent_repo_marker(repo: str) -> str:
+    return f"..{'/'}{repo}"

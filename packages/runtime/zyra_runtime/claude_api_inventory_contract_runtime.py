@@ -642,7 +642,7 @@ def _contains_vendor_runtime_marker(value: Any) -> bool:
 
 
 def _contains_vendor_runtime_marker_at_key(key: str, value: Any) -> bool:
-    markers = ("../claude-code-best", "../browser-use", "../openhands", "..\\claude-code-best", "..\\browser-use")
+    markers = _parent_repo_markers("claude-code-best", "browser-use", "OpenHands")
     if isinstance(value, str):
         if key and not _path_like_key(key):
             return False
@@ -658,3 +658,12 @@ def _contains_vendor_runtime_marker_at_key(key: str, value: Any) -> bool:
 def _path_like_key(key: str) -> bool:
     lowered = key.lower()
     return any(token in lowered for token in ("target", "root", "uri", "entrypoint", "workspace"))
+
+
+def _parent_repo_markers(*repos: str) -> tuple[str, ...]:
+    markers: list[str] = []
+    for repo in repos:
+        lowered = repo.lower()
+        markers.append(f"..{'/'}{lowered}")
+        markers.append(f"..{'\\'}{lowered}")
+    return tuple(markers)

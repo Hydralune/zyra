@@ -196,11 +196,22 @@ class ApiControlCommandTests(unittest.TestCase):
                 task_id = created["task"]["task_id"]
                 helped = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/help"})
                 context = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/context"})
+                mcp = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/mcp"})
 
                 self.assertIn("context_session", helped["command_result"]["data"]["groups"])
                 self.assertIn("/team-onboarding", helped["command_result"]["data"]["groups"]["extension_team"])
                 self.assertEqual(context["command_result"]["data"]["control_commands"], 2)
                 self.assertEqual(context["command_result"]["name"], "/context")
+                self.assertEqual(
+                    mcp["command_result"]["summary"],
+                    "MCP runtime handoff contract from Zyra source graph crosswalk.",
+                )
+                self.assertEqual(mcp["command_result"]["data"]["owner_slice"], "M1-03B")
+                self.assertFalse(mcp["command_result"]["data"]["requires_node_sidecar"])
+                self.assertFalse(mcp["command_result"]["data"]["sidecar_contracts_used"])
+                self.assertTrue(mcp["command_result"]["data"]["source_graph_ok"])
+                self.assertTrue(mcp["command_result"]["data"]["contracts"])
+                self.assertTrue(mcp["command_result"]["data"]["source_batches"])
             finally:
                 server.shutdown()
                 server.server_close()
