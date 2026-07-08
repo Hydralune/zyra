@@ -92,7 +92,7 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             self.assertEqual(batches[0]["tool_count"], 2)
             self.assertEqual(batches[2]["conflict_protected"], "true")
             self.assertEqual(run.worker_result.metadata["tool_conflict_protected"], "1")
-            self.assertEqual(run.worker_result.metadata["tool_loop_contract_owner_unit"], "M1-02A")
+            self.assertEqual(run.worker_result.metadata["tool_loop_contract_owner_unit"], "M1-02C")
             self.assertEqual(run.worker_result.metadata["tool_loop_contract_read_only_concurrent"], "true")
             self.assertEqual(run.worker_result.metadata["tool_loop_contract_write_serial"], "true")
             self.assertEqual(run.worker_result.metadata["sidecar_contracts_used"], "false")
@@ -203,6 +203,123 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             tool_result = next(event.payload["tool_result"] for event in run.event_records if "tool_result" in event.payload)
             self.assertFalse(tool_result["ok"])
             self.assertEqual(tool_result["error"], "permission_denied")
+
+
+class CodeWorkerToolLoopFoundationRuntimeTests(unittest.TestCase):
+    def test_default_worker_path_emits_tool_foundation_context_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Exercise tool foundation events.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "readme.txt").write_text("hello", encoding="utf-8")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=workspace,
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints={
+                    "tool_plan": [
+                        {"tool_name": "file_read", "arguments": {"path": "readme.txt"}},
+                        {"tool_name": "file_write", "arguments": {"path": "done.txt", "content": "ok"}},
+                    ],
+                },
+            )
+
+            run = runtime.run(request)
+
+            self.assertTrue(run.worker_result.ok)
+            self.assertEqual(run.worker_result.metadata["tool_foundation_owner_unit"], "M1-02C")
+            self.assertEqual(run.worker_result.metadata["tool_foundation_audit_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_foundation_audit_status"], "pass")
+            self.assertEqual(run.worker_result.metadata["tool_foundation_replay_artifact_written"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_permission_handoff_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_permission_handoff_questions"], "0")
+            self.assertEqual(run.worker_result.metadata["tool_budget_policy_ok"], "true")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_budget_policy_entries"]), 2)
+            self.assertEqual(run.worker_result.metadata["tool_streaming_ok"], "true")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_streaming_frames"]), 6)
+            self.assertEqual(run.worker_result.metadata["tool_continuation_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_continuation_missing_messages"], "0")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_continuation_pairs"]), 2)
+            self.assertEqual(run.worker_result.metadata["tool_concurrency_ok"], "true")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_concurrency_batches"]), 1)
+            self.assertEqual(run.worker_result.metadata["tool_failure_policy_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_failure_policy_status"], "clean")
+            self.assertEqual(run.worker_result.metadata["tool_output_store_status"], "ready")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_output_store_entries"]), 2)
+            self.assertEqual(run.worker_result.metadata["tool_output_store_artifact_written"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_source_coverage_ok"], "true")
+            self.assertIn("opencode", run.worker_result.metadata["tool_source_coverage_repos"])
+            self.assertEqual(run.worker_result.metadata["tool_cleanroom_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_cleanroom_status"], "pass")
+            self.assertEqual(run.worker_result.metadata["tool_contract_gate_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_contract_gate_status"], "pass")
+            self.assertEqual(run.worker_result.metadata["tool_settlement_all_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_settlement_reports"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_registry_active_count"], "9")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_use_context_modifiers"]), 4)
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_foundation_persisted_artifacts"]), 5)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_registry_materialized")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_foundation_audit")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_foundation_persisted")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_permission_handoff")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_budget_policy")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_streaming_report")), 1)
+            self.assertGreaterEqual(len(_query_phases(run.event_records, "tool_stream_frame")), 6)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_continuation_report")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_concurrency_report")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_failure_policy")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_output_store_persisted")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_source_coverage")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_cleanroom_report")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_contract_gate")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_registry_settled")), 2)
+            self.assertGreaterEqual(len(_query_phases(run.event_records, "tool_context_modifier_applied")), 4)
+            self.assertTrue(run.worker_result.metadata["tool_foundation_receipt_log_artifact_id"])
+            self.assertTrue(run.worker_result.metadata["tool_foundation_context_snapshot_artifact_id"])
+            self.assertTrue(run.worker_result.metadata["tool_output_store_artifact_id"])
+            self.assertEqual((workspace / "done.txt").read_text(encoding="utf-8"), "ok")
+
+    def test_default_worker_path_fails_when_core_tool_foundation_runtime_is_disabled(self) -> None:
+        cases = (
+            ("disable_tool_registry_runtime", "ToolRegistryRuntime"),
+            ("disable_tool_execution_runtime", "ToolExecutionRuntime"),
+            ("disable_tool_result_budget_runtime", "ToolResultBudgetRuntime"),
+        )
+        for constraint_name, component in cases:
+            with self.subTest(component=component), tempfile.TemporaryDirectory() as tmpdir:
+                state = create_task_state(f"Disable {component}.")
+                workspace = Path(tmpdir) / "workspace"
+                workspace.mkdir()
+                runtime = CodeWorkerRuntime(
+                    project_root=ROOT,
+                    workspace_root=workspace,
+                    artifact_root=Path(tmpdir) / "artifacts",
+                )
+                request = WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
+                        constraint_name: True,
+                        "tool_plan": [{"tool_name": "file_write", "arguments": {"path": "nope.txt", "content": "no"}}],
+                    },
+                )
+
+                run = runtime.run(request)
+
+                self.assertFalse(run.worker_result.ok)
+                self.assertEqual(run.worker_result.error, "tool_loop_foundation_disabled")
+                self.assertEqual(run.worker_result.metadata["tool_foundation_disabled_component"], component)
+                self.assertFalse((workspace / "nope.txt").exists())
+                disabled_events = _query_phases(run.event_records, "tool_loop_foundation_disabled")
+                self.assertEqual(len(disabled_events), 1)
 
 
 def _query_phases(event_records, phase: str) -> list[dict]:

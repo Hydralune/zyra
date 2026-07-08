@@ -651,6 +651,10 @@ class CodeWorkerRuntime:
                 context_snapshot=context_snapshot.to_dict(include_text=True),
                 preprocessed_messages=query_entry_messages,
                 session_foundation_metadata={**session_seed.metadata_values(), **query_entry_metadata},
+                max_turn_tool_result_chars=_optional_int(request.constraints.get("turn_tool_result_budget_chars")),
+                disable_tool_registry_runtime=request.constraints.get("disable_tool_registry_runtime") is True,
+                disable_tool_execution_runtime=request.constraints.get("disable_tool_execution_runtime") is True,
+                disable_tool_result_budget_runtime=request.constraints.get("disable_tool_result_budget_runtime") is True,
             ),
         )
         loop_result = engine.run(

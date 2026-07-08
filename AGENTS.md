@@ -13,6 +13,8 @@
 - 赛题分析：`../docs/比赛项目开源Agent架构借鉴分析.md`
 - 第一阶段权威执行计划：`../docs/第一阶段总工程计划.md`
 - 执行单元目录：`../docs/milestones/`
+- Source graph 总目录：`../source-graphs/`
+- 2026-07-08 source graph 重排文档：`../docs/milestones/source-graph-realignment-2026-07-08.md`
 - 旧版工程计划背景：`../docs/第一阶段工程计划（旧版，仅作背景参考）.md`
 - 根目录约定：`../AGENTS.md`
 
@@ -21,6 +23,7 @@
 - `../docs/第一阶段总工程计划.md`。
 - 当前被用户指定的 `../docs/milestones/**/unit-*.md`。
 - `../docs/比赛项目开源Agent架构借鉴分析.md` 的 `0.4 里程碑内化索引`。
+- `../docs/milestones/source-graph-realignment-2026-07-08.md`，用于同步逐仓 source graph 后的 M1/M2/M3 重排口径。
 
 凡是被要求读取的项目文档，都必须从开头到结尾完整阅读整个文件；不允许只看摘要、目录、搜索命中、片段或局部上下文。如果文件较长，应分段读取直到 EOF，再开始执行、判断或引用该文档。
 
@@ -42,13 +45,14 @@
 
 ## 代码复用约定
 
-- 本项目建议优先复用、代码级迁移、裁剪改造或封装接入 `../claude-code-best`、`../browser-use`、`../langgraph`、`../agentscope`、`../OpenHands`、`../openclaw`、`../hermes-agent`、`../agent-framework` 中成熟的代码、模块和架构。主来源仓库不是“仅供参考”的资料库；默认应先判断哪些源码可以进入 Zyra 正式模块。
+- 本项目建议优先复用、代码级迁移、裁剪改造或封装接入 `../claude-code-best`、`../browser-use`、`../langgraph`、`../agentscope`、`../OpenHands`、`../openclaw`、`../hermes-agent`、`../agent-framework`、`../opencode` 中成熟的代码、模块和架构。主来源仓库不是“仅供参考”的资料库；默认应先判断哪些源码可以进入 Zyra 正式模块。
 - 不要替用户做“是否复用代码”的保守决策；默认先评估直接复用、大模块接入或 adapter 封装，再判断是否需要重写。
 - 只有在接口冲突、运行环境不适配、耦合成本过高、维护成本明显高于重写，或与赛题目标明显不匹配时，才应选择重写；选择重写时需要说明原因。
 - 代码级复用和大模块级接入都应作为优先选项；接入时应说明来源、用途、边界和替换方式。
 - 对 `claude-code-best` 要按高价值编码 Agent 运行时重点复用来源对待，尤其关注 QueryEngine、tool loop、permission runtime、context/compact、MCP、plugins、SkillTool、AgentTool、TUI/session commands。
+- 2026-07-08 逐仓 source graph 后，`opencode` 也应纳入高价值来源仓库，尤其用于 durable session/event、provider catalog/credential/AISDK、tool/permission/MCP/skill/command/plugin、typed protocol、app/session UI/TUI/terminal/review/diff 等链路补强；它不是 `claude-code-best` 的替代，而是 M1/M2/M3 的重要补充来源。
 - 不要把新的 M0 基础接入实现误解为后续阶段的执行策略。从新的 M1 开始必须明显转向成熟代码迁移、大模块复用和 sidecar/adapter 接入；不能用小规模手写闭环、mock 或占位模块替代第一阶段完整系统目标。
-- `../` 下的其它仓库只是来源仓库，`zyra` 才是最终提交项目。凡是最终运行依赖的复用代码、skills、配置、前端组件或 sidecar runtime，都必须迁移、裁剪、改造或封装进 `zyra/packages/**`、`zyra/apps/**`、`zyra/skills/**`、`zyra/scripts/**` 等正式模块，不能让 `zyra` 在提交后依赖 `../claude-code-best`、`../browser-use`、`../OpenHands` 等相对路径。`vendor`、`vendor-runtimes`、`source-pool`、`runtime-sources` 等目录只能作为历史债务或临时抽取材料，不能作为第一阶段完成落位或有效行数来源。
+- `../` 下的其它仓库只是来源仓库，`zyra` 才是最终提交项目。凡是最终运行依赖的复用代码、skills、配置、前端组件或 sidecar runtime，都必须迁移、裁剪、改造或封装进 `zyra/packages/**`、`zyra/apps/**`、`zyra/skills/**`、`zyra/scripts/**` 等正式模块，不能让 `zyra` 在提交后依赖 `../claude-code-best`、`../browser-use`、`../OpenHands`、`../opencode` 等相对路径。`vendor`、`vendor-runtimes`、`source-pool`、`runtime-sources` 等目录只能作为历史债务或临时抽取材料，不能作为第一阶段完成落位或有效行数来源。
 
 ## 严格内化定义
 
@@ -86,11 +90,11 @@
 - 后续每个里程碑计划和自检都应列出本阶段内化的来源仓库模块、目标路径、运行入口、测试或验证命令，以及仍保留为历史 vendor/source-pool 债务或外部依赖的原因。不要只写“参考了某仓库”，必须说明它如何成为 `zyra` 的可运行组成部分。
 - 不允许把真正的代码内化继续后移。原 M0-M5 已经建立主路径，但不能被解释成 runtime、browser、memory、skills、permission、MCP、watchdog、scheduler 和 UI 的深度内化已经足够；新 M1 必须从清算这些债务开始，而不是再做轻量 glue。
 - 新 M1 的最低完成形态是后端重型集成：QueryEngine/tool loop、permission/MCP/SkillTool/AgentTool、browser message/watchdog、worker pool/lifecycle、resource scheduler、local/docker/cloud 或 simulated backend、sandbox/gateway、fault injection、recovery planner、scheduler-to-symbolic、scheduler-to-memory、control command/API 接入都必须进入真实运行路径。
-- 新 M2 的最低完成形态是正式控制台：event stream、任务图/拓扑、agent 状态、artifact/diff/terminal/browser viewer、permission/session/context/memory panels、command palette、故障注入和运行中需求变更输入都必须连接真实 API 和 event log。
+- 新 M2 的最低完成形态是正式控制台：event stream、任务图/拓扑、agent 状态、artifact/diff/terminal/browser viewer、permission/session/context/memory panels、command palette、故障注入和运行中需求变更输入都必须连接真实 API 和 event log；OpenHands、`claude-code-best`、browser-use、opencode 等来源中的交互模式都应进入 source-to-target 裁决。
 - 如果一个里程碑只新增少量 schema、简单 if/else、薄 wrapper、mock 数据或静态页面，即使测试通过，也不能视为完成重型目标。阶段自检必须先补齐，或者明确把里程碑保持为未完成。
 - 新 M3 只能做冻结、产品化整合、历史 vendor/source-pool 债务清理和来源映射；不能把第一次大规模迁移 runtime/scheduler/UI 推迟到新 M3。
-- 第一阶段剩余执行单元的最低有效新增代码总量为 `550,000` 行，具体分配见 `../docs/第一阶段总工程计划.md` 和当前执行单元文档。
-- 当前 `39` 个 `unit-*.md` 是父级验收单元，M1/M2/M3 分别为 25/9/5 个；它们的 9,000-20,000 行下限是父级预算和失败线，不再表示一次实现应吞下整个单元。正式执行前应继续拆成更小 `slice-*.md`，通常每片 3,000-6,000 行生产内化代码，最高不超过 8,000 行；每片只承接一个语义能力、一个主要 source-to-target 迁移链、一个 Zyra 目标模块和一组真实行为测试。
+- 第一阶段父级执行单元的最低有效新增代码总量为 `550,000` 行，具体分配见 `../docs/第一阶段总工程计划.md` 和当前执行单元文档。该口径已经吸收 `../docs/milestones/M1-runtime-memory-scheduler-fault/slice-02b-02-query-session-lifecycle-integration.md` 从 9,000 行下调为 6,000 行后的预算重算。
+- 当前 `39` 个 `unit-*.md` 是父级验收单元，M1/M2/M3 分别为 25/9/5 个；大多数父级单元的 9,000-20,000 行下限是父级预算和失败线，`M1-08` 因 `slice-02b-02` 下调后的总量校准提高到 23,000 行。父级单元不再表示一次实现应吞下整个单元。正式执行前应继续拆成更小 `slice-*.md`，通常每片 3,000-6,000 行生产内化代码；已规划的大切片如 M1-08 11,000/12,000 行属于来源链较完整的例外，应优先按文档边界拆解和验收，不能再机械套用 8,000 行上限。每片只承接一个语义能力、一个主要 source-to-target 迁移链、一个 Zyra 目标模块和一组真实行为测试。
 - 例外：`M1-01A` 和 `M1-01B` 用户已明确不要拆分。后续不得回头把这两个文档拆成 slice；如复审发现问题，应在原单元文档、`docs/plans/M1-01A-ledger-schema-audit.md` 或 `docs/plans/M1-01B-extraction-runtime-scaffold.md` 中回补记录、代码和验证。
 - 当前 `M1-01B` 的 `vendor-runtimes/claude-code-runtime/pilot` 只能视为 source-pool 证据，`required_for_main_path=false`，不得计入有效内化代码。`M1-02A` 以后必须继续把 QueryEngine/tool loop/session lifecycle 等主体迁入正式 Zyra 模块，不能把该 pilot 当作产品化 runtime。
 - 代码行数下限是失败线，不是完成线。即使超过目标行数，只要执行单元目标、详细任务、主路径接入、验证或批判式审查没有完成，仍然视为失败。
