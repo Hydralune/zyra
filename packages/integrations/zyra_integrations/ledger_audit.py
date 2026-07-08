@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -512,17 +514,51 @@ class InternalizationLedgerAuditor:
     def _iter_scanned_project_files(self) -> list[Path]:
         suffixes = {".bat", ".cmd", ".css", ".html", ".js", ".json", ".jsx", ".mjs", ".ps1", ".py", ".sh", ".toml", ".ts", ".tsx", ".yaml", ".yml"}
         ignored_dirs = {".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", "__pycache__", "docs", "tests", "tmp"}
+        git_files = self._git_scanned_project_files(suffixes, ignored_dirs)
+        if git_files is not None:
+            return git_files
+        return self._walk_scanned_project_files(suffixes, ignored_dirs)
+
+    def _git_scanned_project_files(self, suffixes: set[str], ignored_dirs: set[str]) -> list[Path] | None:
+        try:
+            completed = subprocess.run(
+                ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+                cwd=self.project_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return None
+
         files: list[Path] = []
-        for path in self.project_root.rglob("*"):
-            if not path.is_file() or path.suffix not in suffixes:
+        for raw_path in completed.stdout.splitlines():
+            if not raw_path:
                 continue
+            relative = Path(raw_path)
+            if relative.suffix.lower() not in suffixes or set(relative.parts) & ignored_dirs:
+                continue
+            candidate = self.project_root / relative
+            if candidate.is_file():
+                files.append(candidate)
+        return files
+
+    def _walk_scanned_project_files(self, suffixes: set[str], ignored_dirs: set[str]) -> list[Path]:
+        files: list[Path] = []
+        for root, dirnames, filenames in os.walk(self.project_root):
+            root_path = Path(root)
             try:
-                relative_parts = set(path.relative_to(self.project_root).parts)
+                relative_parts = set(root_path.relative_to(self.project_root).parts)
             except ValueError:
                 continue
             if relative_parts & ignored_dirs:
+                dirnames[:] = []
                 continue
-            files.append(path)
+            dirnames[:] = [dirname for dirname in dirnames if dirname not in ignored_dirs]
+            for filename in filenames:
+                path = root_path / filename
+                if path.suffix.lower() in suffixes:
+                    files.append(path)
         return files
 
     def _entry_finding(

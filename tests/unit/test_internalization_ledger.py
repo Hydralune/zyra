@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 for package_path in [
@@ -166,6 +168,24 @@ class InternalizationLedgerTests(unittest.TestCase):
         self.assertEqual(decoded.ledger_id, entry.ledger_id)
         self.assertEqual(decoded.runtime_entry.module, entry.runtime_entry.module)
         self.assertEqual(decoded.test_entries[0].path, entry.test_entries[0].path)
+
+    def test_strict_audit_scanner_uses_git_file_list_and_filters_ignored_dirs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "packages" / "runtime" / "live.py"
+            ignored = root / ".git" / "config"
+            source.parent.mkdir(parents=True)
+            ignored.parent.mkdir(parents=True)
+            source.write_text("RUNTIME_SOURCE = '../claude-code-best'\n", encoding="utf-8")
+            ignored.write_text("ignored ../claude-code-best\n", encoding="utf-8")
+
+            with patch(
+                "zyra_integrations.ledger_audit.subprocess.run",
+                return_value=SimpleNamespace(stdout="packages/runtime/live.py\n.git/config\n"),
+            ):
+                scanned = InternalizationLedgerAuditor(root, strict=True)._iter_scanned_project_files()
+
+        self.assertEqual([path.as_posix() for path in scanned], [source.as_posix()])
 
 
 def sample_entry() -> InternalizationLedgerEntry:
