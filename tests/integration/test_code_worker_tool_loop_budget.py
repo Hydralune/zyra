@@ -18,7 +18,7 @@ for package_path in [
         sys.path.insert(0, str(package_path))
 
 from zyra_core import create_task_state  # noqa: E402
-from zyra_runtime import WorkerRequest  # noqa: E402
+from zyra_runtime import JsonPermissionStore, WorkerRequest  # noqa: E402
 from zyra_workers import CodeWorkerRuntime, CodeWorkerSidecarClient  # noqa: E402
 
 
@@ -98,6 +98,91 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             self.assertEqual(run.worker_result.metadata["sidecar_contracts_used"], "false")
             self.assertEqual((workspace / "same.txt").read_text(encoding="utf-8"), "two")
 
+    def test_session_assistant_tool_use_and_opencode_part_enter_real_tool_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Session assistant tool_use drives QueryEngine.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "alpha.txt").write_text("alpha-session", encoding="utf-8")
+            (workspace / "beta.txt").write_text("beta-opencode", encoding="utf-8")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=workspace,
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints={
+                    "session_messages": [
+                        {"role": "user", "content": "Read the two files from the active session."},
+                        {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": "session-tu-alpha",
+                                    "name": "file_read",
+                                    "input": {"path": "alpha.txt"},
+                                }
+                            ],
+                        },
+                    ],
+                    "opencode_tool_parts": [
+                        {
+                            "type": "tool-call",
+                            "callID": "opencode-tu-beta",
+                            "name": "file_read",
+                            "input": {"path": "beta.txt"},
+                        }
+                    ],
+                },
+            )
+
+            run = runtime.run(request)
+
+            self.assertTrue(run.worker_result.ok)
+            self.assertEqual(run.worker_result.metadata["tool_session_bridge_valid_tool_uses"], "2")
+            self.assertEqual(run.worker_result.metadata["tool_session_bridge_assistant_message_tool_uses"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_session_bridge_opencode_tool_uses"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_steps"], "2")
+            accepted = _query_phases(run.event_records, "assistant_tool_use_accepted")
+            self.assertEqual(len(accepted), 2)
+            self.assertTrue(all(item["through_runtime"] == "ToolExecutionRuntime" for item in accepted))
+            self.assertIn("session-tu-alpha", {item["assistant_tool_use_id"] for item in accepted})
+            self.assertIn("opencode-tu-beta", {item["assistant_tool_use_id"] for item in accepted})
+            tool_results = [event.payload["tool_result"] for event in run.event_records if "tool_result" in event.payload]
+            self.assertEqual(len(tool_results), 2)
+            self.assertEqual(run.worker_result.metadata["tool_result_context_projections"], "2")
+            self.assertEqual(run.worker_result.metadata["tool_result_context_appended_messages"], "2")
+            self.assertEqual(run.worker_result.metadata["tool_execution_timeline_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_result_replay_index_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_result_replay_index_tool_calls"], "2")
+            self.assertEqual(run.worker_result.metadata["tool_readiness_matrix_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_effect_fingerprint_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_integration_ok"], "true")
+            self.assertEqual(
+                run.worker_result.metadata["tool_integration_requirement_session_tool_use_to_runtime"],
+                "pass",
+            )
+            self.assertEqual(
+                run.worker_result.metadata["tool_integration_requirement_tool_result_session_append"],
+                "pass",
+            )
+            self.assertEqual(
+                run.worker_result.metadata["tool_integration_requirement_opencode_or_hermes_effect"],
+                "pass",
+            )
+            self.assertEqual(len(_query_phases(run.event_records, "tool_result_session_appended")), 2)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_result_context_projected")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_execution_timeline")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_result_replay_index")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_readiness_matrix")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_effect_fingerprint")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_integration_audit")), 1)
+
     def test_runtime_externalizes_large_tool_result_and_emits_budget_watchdog_signal(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Externalize large tool result.")
@@ -133,6 +218,18 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             self.assertEqual(len(watchdog_events), 1)
             self.assertEqual(failure_events[0]["signal"]["kind"], "budget_exceeded")
             self.assertEqual(watchdog_events[0]["watchdog_signal"]["route"], "artifact_externalized")
+            self.assertEqual(run.worker_result.metadata["tool_result_context_budgeted"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_result_context_raw_output_blocked"], "1")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_result_context_artifact_refs"]), 1)
+            self.assertEqual(run.worker_result.metadata["tool_budget_chain_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_budget_chain_budgeted"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_result_replay_index_ok"], "true")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_result_replay_index_externalized"]), 1)
+            self.assertEqual(run.worker_result.metadata["tool_effect_fingerprint_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_integration_requirement_budgeted_result_context"], "pass")
+            projected = _query_phases(run.event_records, "tool_result_context_projected")[0]["tool_result_context"]
+            self.assertEqual(projected["budgeted_count"], 1)
+            self.assertEqual(projected["raw_output_blocked_count"], 1)
             tool_result = next(event.payload["tool_result"] for event in run.event_records if "tool_result" in event.payload)
             self.assertTrue(tool_result["output"]["truncated"])
             artifact_id = tool_result["output"]["full_output_artifact_id"]
@@ -257,6 +354,15 @@ class CodeWorkerToolLoopFoundationRuntimeTests(unittest.TestCase):
             self.assertIn("opencode", run.worker_result.metadata["tool_source_coverage_repos"])
             self.assertEqual(run.worker_result.metadata["tool_cleanroom_ok"], "true")
             self.assertEqual(run.worker_result.metadata["tool_cleanroom_status"], "pass")
+            self.assertEqual(run.worker_result.metadata["tool_execution_timeline_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_budget_chain_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_continuation_packet_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_replay_state_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_semantic_effect_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_result_replay_index_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_source_effects_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_readiness_matrix_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_effect_fingerprint_ok"], "true")
             self.assertEqual(run.worker_result.metadata["tool_contract_gate_ok"], "true")
             self.assertEqual(run.worker_result.metadata["tool_contract_gate_status"], "pass")
             self.assertEqual(run.worker_result.metadata["tool_settlement_all_ok"], "true")
@@ -277,6 +383,15 @@ class CodeWorkerToolLoopFoundationRuntimeTests(unittest.TestCase):
             self.assertEqual(len(_query_phases(run.event_records, "tool_output_store_persisted")), 1)
             self.assertEqual(len(_query_phases(run.event_records, "tool_source_coverage")), 1)
             self.assertEqual(len(_query_phases(run.event_records, "tool_cleanroom_report")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_execution_timeline")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_budget_chain")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_continuation_packet")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_replay_state")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_semantic_effects")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_result_replay_index")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_source_effects")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_readiness_matrix")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_effect_fingerprint")), 1)
             self.assertEqual(len(_query_phases(run.event_records, "tool_contract_gate")), 1)
             self.assertEqual(len(_query_phases(run.event_records, "tool_registry_settled")), 2)
             self.assertGreaterEqual(len(_query_phases(run.event_records, "tool_context_modifier_applied")), 4)
@@ -314,12 +429,112 @@ class CodeWorkerToolLoopFoundationRuntimeTests(unittest.TestCase):
 
                 run = runtime.run(request)
 
-                self.assertFalse(run.worker_result.ok)
-                self.assertEqual(run.worker_result.error, "tool_loop_foundation_disabled")
-                self.assertEqual(run.worker_result.metadata["tool_foundation_disabled_component"], component)
-                self.assertFalse((workspace / "nope.txt").exists())
-                disabled_events = _query_phases(run.event_records, "tool_loop_foundation_disabled")
-                self.assertEqual(len(disabled_events), 1)
+            self.assertFalse(run.worker_result.ok)
+            self.assertEqual(run.worker_result.error, "tool_loop_foundation_disabled")
+            self.assertEqual(run.worker_result.metadata["tool_foundation_disabled_component"], component)
+            self.assertFalse((workspace / "nope.txt").exists())
+            disabled_events = _query_phases(run.event_records, "tool_loop_foundation_disabled")
+            self.assertEqual(len(disabled_events), 1)
+
+    def test_permission_handoff_pending_appends_question_and_blocks_shell_side_effect(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Permission pending session bridge.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            permission_store = JsonPermissionStore(Path(tmpdir) / "permissions.json")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=workspace,
+                artifact_root=Path(tmpdir) / "artifacts",
+                permission_store=permission_store,
+            )
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints={
+                    "continue_on_error": True,
+                    "session_messages": [
+                        {"role": "user", "content": "Try the shell command after asking permission."},
+                        {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": "session-tu-shell",
+                                    "name": "shell",
+                                    "input": {
+                                        "command": "cmd.exe /c echo blocked > should_not_exist.txt",
+                                        "timeout_seconds": 5,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            run = runtime.run(request)
+
+            self.assertTrue(run.worker_result.ok)
+            self.assertFalse((workspace / "should_not_exist.txt").exists())
+            self.assertEqual(run.worker_result.metadata["tool_permission_handoff_questions"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_permission_session_questions"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_permission_session_pending"], "1")
+            self.assertGreaterEqual(int(run.worker_result.metadata["tool_permission_checkpoint_pending"]), 1)
+            self.assertEqual(run.worker_result.metadata["tool_permission_checkpoint_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_semantic_effect_ok"], "true")
+            self.assertEqual(run.worker_result.metadata["tool_result_context_permission_required"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_integration_requirement_permission_pending_handoff"], "pass")
+            self.assertEqual(len(permission_store.list_requests()), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_permission_question_appended")), 1)
+            self.assertEqual(len(_query_phases(run.event_records, "tool_permission_pending_blocker")), 1)
+            tool_result = next(event.payload["tool_result"] for event in run.event_records if "tool_result" in event.payload)
+            self.assertFalse(tool_result["ok"])
+            self.assertEqual(tool_result["error"], "permission_required")
+
+    def test_permission_handoff_disconnect_changes_default_tool_loop_behavior(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Disable permission handoff.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=workspace,
+                artifact_root=Path(tmpdir) / "artifacts",
+                permission_store=JsonPermissionStore(Path(tmpdir) / "permissions.json"),
+            )
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints={
+                    "disable_tool_permission_handoff_runtime": True,
+                    "session_messages": [
+                        {"role": "user", "content": "Read the file."},
+                        {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": "session-tu-disabled",
+                                    "name": "file_read",
+                                    "input": {"path": "missing.txt"},
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            run = runtime.run(request)
+
+            self.assertFalse(run.worker_result.ok)
+            self.assertEqual(run.worker_result.error, "tool_loop_foundation_disabled")
+            self.assertEqual(run.worker_result.metadata["tool_foundation_disabled_component"], "ToolPermissionHandoffRuntime")
+            self.assertEqual(len(_query_phases(run.event_records, "tool_loop_foundation_disabled")), 1)
 
 
 def _query_phases(event_records, phase: str) -> list[dict]:

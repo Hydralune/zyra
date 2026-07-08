@@ -276,6 +276,7 @@ class ToolLoopScheduler:
         concurrency_safe = read_only and _metadata_bool(spec, "concurrency_safe", default=True)
         mutates_workspace = access_mode in {ToolAccessMode.WORKSPACE_WRITE, ToolAccessMode.SHELL}
         conflict_key = _conflict_key(tool_name, arguments, access_mode)
+        step_metadata = step.get("metadata") if isinstance(step.get("metadata"), Mapping) else {}
         metadata = {
             "worker_request_id": worker_request_id,
             "turn_index": str(turn_index),
@@ -284,6 +285,7 @@ class ToolLoopScheduler:
             "access_mode": str(access_mode),
             "concurrency_safe": str(concurrency_safe).lower(),
             "conflict_key": conflict_key,
+            **{str(key): str(value) for key, value in step_metadata.items()},
         }
         if spec is not None:
             metadata["tool_source"] = spec.source
@@ -294,6 +296,7 @@ class ToolLoopScheduler:
             node_id=node_id,
             tool_name=tool_name,
             arguments=arguments,
+            tool_call_id=str(step.get("tool_call_id") or step.get("id") or new_id("toolcall")),
             metadata=metadata,
         )
         return ToolLoopRequest(

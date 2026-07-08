@@ -26,6 +26,7 @@ from zyra_runtime import (
     JsonPermissionStore,
     QueryInputProcessor,
     ToolExecutionContext,
+    ToolSessionBridgeRuntime,
     WorkerRequest,
     WorkerResult,
     ZyraClaudeQueryEngine,
@@ -60,6 +61,7 @@ from zyra_runtime import (
     session_replay_metadata,
     seed_failure_result_metadata,
     session_seed_metadata,
+    tool_session_bridge_metadata,
     transcript_mapping_metadata,
     turn_lifecycle_metadata,
     runtime_context_assembly_markdown,
@@ -330,6 +332,34 @@ class CodeWorkerRuntime:
             disabled_store=request.constraints.get("disable_code_worker_session_store") is True,
         )
         session_seed_events = session_foundation.seed_events(session_seed)
+        tool_session_bridge_runtime = ToolSessionBridgeRuntime()
+        tool_session_bridge = tool_session_bridge_runtime.build_report(
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            request_messages=[to_jsonable(message) for message in request.messages],
+            constraints=request.constraints,
+            fallback_turns=query_turns,
+        )
+        bridged_query_turns = tool_session_bridge.to_tool_turns()
+        if bridged_query_turns:
+            query_turns = bridged_query_turns
+            query_plan_metadata = {
+                **query_plan_metadata,
+                **tool_session_bridge_metadata(tool_session_bridge),
+                "query_plan_source": str(tool_session_bridge.origin),
+                "query_plan_tool_steps": str(tool_session_bridge.valid_tool_use_count),
+                "query_plan_turns": str(tool_session_bridge.generated_turn_count),
+                "query_plan_valid_turns": str(tool_session_bridge.generated_turn_count),
+            }
+        else:
+            query_plan_metadata = {**query_plan_metadata, **tool_session_bridge_metadata(tool_session_bridge)}
+        tool_session_bridge_events = tool_session_bridge_runtime.events_for_report(
+            tool_session_bridge,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        session_seed_events = [*session_seed_events, *tool_session_bridge_events]
         replay_runtime = CodeWorkerSessionReplayRuntime(session_store)
         replay_plan = replay_runtime.build_plan_from_constraints(request.constraints)
         replay_events = []
@@ -655,6 +685,8 @@ class CodeWorkerRuntime:
                 disable_tool_registry_runtime=request.constraints.get("disable_tool_registry_runtime") is True,
                 disable_tool_execution_runtime=request.constraints.get("disable_tool_execution_runtime") is True,
                 disable_tool_result_budget_runtime=request.constraints.get("disable_tool_result_budget_runtime") is True,
+                disable_tool_permission_handoff_runtime=request.constraints.get("disable_tool_permission_handoff_runtime") is True,
+                session_bridge_report=tool_session_bridge,
             ),
         )
         loop_result = engine.run(

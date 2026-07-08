@@ -55,12 +55,44 @@ from .tool_runtime_cleanroom import ToolCleanroomRuntime, tool_cleanroom_metadat
 from .tool_runtime_concurrency import ToolConcurrencyRuntime, tool_concurrency_metadata
 from .tool_runtime_contract_gate import ToolContractGateRuntime, tool_contract_gate_metadata
 from .tool_runtime_continuation import ToolContinuationRuntime, tool_continuation_metadata
+from .tool_runtime_continuation_packet import (
+    ToolContinuationPacketRuntime,
+    tool_continuation_packet_metadata,
+)
+from .tool_runtime_effect_fingerprint import (
+    ToolEffectFingerprintRuntime,
+    tool_effect_fingerprint_metadata,
+)
+from .tool_runtime_budget_chain import ToolBudgetChainRuntime, tool_budget_chain_metadata
+from .tool_runtime_execution_timeline import (
+    ToolExecutionTimelineRuntime,
+    tool_execution_timeline_metadata,
+)
 from .tool_runtime_failure_policy import ToolFailurePolicyRuntime, tool_failure_policy_metadata
+from .tool_runtime_integration_audit import ToolIntegrationAuditRuntime, tool_integration_metadata
 from .tool_runtime_output_store import ToolOutputStoreRuntime, tool_output_store_metadata
+from .tool_runtime_permission_checkpoint import (
+    ToolPermissionCheckpointRuntime,
+    tool_permission_checkpoint_metadata,
+)
 from .tool_runtime_permission_handoff import (
     ToolPermissionHandoffRuntime,
     tool_permission_handoff_metadata,
 )
+from .tool_runtime_permission_session import (
+    ToolPermissionSessionRuntime,
+    tool_permission_session_metadata,
+)
+from .tool_runtime_readiness_matrix import ToolReadinessMatrixRuntime, tool_readiness_matrix_metadata
+from .tool_runtime_replay_state import ToolReplayStateRuntime, tool_replay_state_metadata
+from .tool_runtime_result_context import ToolResultContextRuntime, tool_result_context_metadata
+from .tool_runtime_result_replay_index import (
+    ToolResultReplayIndexRuntime,
+    tool_result_replay_index_metadata,
+)
+from .tool_runtime_semantic_effects import ToolSemanticEffectRuntime, tool_semantic_effect_metadata
+from .tool_runtime_session_bridge import ToolSessionBridgeReport, tool_session_bridge_metadata
+from .tool_runtime_source_effects import ToolSourceEffectRuntime, tool_source_effects_metadata
 from .tool_runtime_source_decisions import ToolSourceCoverageRuntime, tool_source_coverage_metadata
 from .tool_runtime_budget_policy import ToolBudgetPolicyRuntime, tool_budget_policy_metadata
 from .tool_runtime_settlement import ToolSettlementRuntime, tool_settlement_metadata
@@ -90,6 +122,8 @@ class ClaudeQueryEngineConfig:
     disable_tool_registry_runtime: bool = False
     disable_tool_execution_runtime: bool = False
     disable_tool_result_budget_runtime: bool = False
+    disable_tool_permission_handoff_runtime: bool = False
+    session_bridge_report: ToolSessionBridgeReport | None = None
 
     @property
     def contracts(self) -> ClaudeRuntimeContractBundle:
@@ -229,9 +263,22 @@ class ZyraClaudeQueryEngine:
         cleanroom_runtime = ToolCleanroomRuntime()
         concurrency_runtime = ToolConcurrencyRuntime()
         contract_gate_runtime = ToolContractGateRuntime()
+        continuation_packet_runtime = ToolContinuationPacketRuntime()
+        effect_fingerprint_runtime = ToolEffectFingerprintRuntime()
+        budget_chain_runtime = ToolBudgetChainRuntime()
+        execution_timeline_runtime = ToolExecutionTimelineRuntime()
         failure_policy_runtime = ToolFailurePolicyRuntime()
+        integration_audit_runtime = ToolIntegrationAuditRuntime()
         output_store_runtime = ToolOutputStoreRuntime()
+        permission_checkpoint_runtime = ToolPermissionCheckpointRuntime()
+        readiness_matrix_runtime = ToolReadinessMatrixRuntime()
+        result_context_runtime = ToolResultContextRuntime()
+        result_replay_index_runtime = ToolResultReplayIndexRuntime()
+        replay_state_runtime = ToolReplayStateRuntime()
+        semantic_effect_runtime = ToolSemanticEffectRuntime()
+        permission_session_runtime = ToolPermissionSessionRuntime()
         source_coverage_runtime = ToolSourceCoverageRuntime()
+        source_effect_runtime = ToolSourceEffectRuntime()
         budget_policy_runtime = ToolBudgetPolicyRuntime(
             tool_result_limit=max(1, self.config.max_tool_result_chars),
             turn_limit=self.config.max_turn_tool_result_chars,
@@ -397,6 +444,24 @@ class ZyraClaudeQueryEngine:
                 "resume_token": session.resume_token,
             },
         )
+        if self.config.session_bridge_report is not None:
+            self._append_lifecycle(
+                event_records,
+                session,
+                run_id,
+                task_id,
+                node_id,
+                worker_request_id,
+                "tool_session_bridge_attached",
+                {
+                    "bridge_report_id": self.config.session_bridge_report.report_id,
+                    "origin": str(self.config.session_bridge_report.origin),
+                    "assistant_tool_use_count": self.config.session_bridge_report.valid_tool_use_count,
+                    "opencode_tool_use_count": self.config.session_bridge_report.opencode_tool_use_count,
+                    "fallback_used": str(self.config.session_bridge_report.fallback_used).lower(),
+                    "resume_token": session.resume_token,
+                },
+            )
 
         for turn_index, turn in enumerate(normalized_turns, start=1):
             if turn_index > max_turns:
@@ -691,6 +756,28 @@ class ZyraClaudeQueryEngine:
                     },
                 )
                 for planned in batch_requests:
+                    self._append_lifecycle(
+                        event_records,
+                        session,
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        "assistant_tool_use_accepted",
+                        {
+                            "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
+                            "batch_index": batch_index,
+                            "step_index": planned.step_index,
+                            "tool_call_id": planned.call.tool_call_id,
+                            "tool_name": planned.call.tool_name,
+                            "assistant_tool_use_id": planned.call.metadata.get("assistant_tool_use_id", ""),
+                            "tool_session_bridge_origin": planned.call.metadata.get("tool_session_bridge_origin", ""),
+                            "tool_session_bridge_format": planned.call.metadata.get("tool_session_bridge_format", ""),
+                            "through_runtime": "ToolExecutionRuntime",
+                            "resume_token": session.resume_token,
+                        },
+                    )
                     tool_runtime.mark_started(planned, batch_index=batch_index)
                     session.record_tool_call(
                         tool_call_id=planned.call.tool_call_id,
@@ -1259,6 +1346,30 @@ class ZyraClaudeQueryEngine:
             snapshot=tool_output_store_snapshot,
         )
         artifacts.append(tool_output_store_artifact.artifact)
+        tool_result_context_report = result_context_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            receipts=tool_execution_receipts,
+            context_snapshots=tool_use_context_snapshots,
+            output_store_snapshot=tool_output_store_snapshot,
+            session_bridge_report=self.config.session_bridge_report,
+        )
+        event_records.extend(
+            result_context_runtime.message_events(
+                tool_result_context_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        event_records.append(
+            result_context_runtime.event_for_report(
+                tool_result_context_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
         tool_source_coverage_report = source_coverage_runtime.build_report(
             session_id=session.session_id,
             worker_request_id=worker_request_id,
@@ -1296,8 +1407,12 @@ class ZyraClaudeQueryEngine:
                 "tool_concurrency_report": tool_concurrency_report.to_dict(),
                 "tool_failure_policy_report": tool_failure_policy_report.to_dict(),
                 "tool_output_store": tool_output_store_artifact.to_dict(),
+                "tool_result_context_report": tool_result_context_report.to_dict(),
                 "tool_source_coverage_report": tool_source_coverage_report.to_dict(),
                 "tool_cleanroom_report": tool_cleanroom_report.to_dict(),
+                "tool_session_bridge_report": self.config.session_bridge_report.to_dict()
+                if self.config.session_bridge_report is not None
+                else None,
             },
         )
         artifact_set = session_lifecycle.materialize_session_artifacts(
@@ -1327,8 +1442,12 @@ class ZyraClaudeQueryEngine:
                 "tool_concurrency_report": tool_concurrency_report.to_dict(),
                 "tool_failure_policy_report": tool_failure_policy_report.to_dict(),
                 "tool_output_store": tool_output_store_artifact.to_dict(),
+                "tool_result_context_report": tool_result_context_report.to_dict(),
                 "tool_source_coverage_report": tool_source_coverage_report.to_dict(),
                 "tool_cleanroom_report": tool_cleanroom_report.to_dict(),
+                "tool_session_bridge_report": self.config.session_bridge_report.to_dict()
+                if self.config.session_bridge_report is not None
+                else None,
             },
         )
         snapshot_artifact = artifact_set.snapshot_artifact
@@ -1401,6 +1520,242 @@ class ZyraClaudeQueryEngine:
         event_records.append(
             ToolPermissionHandoffRuntime(permission_store=self.context.permission_store).event_for_report(
                 permission_handoff,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_permission_session_report = permission_session_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            handoff_report=permission_handoff,
+            require_store_link=self.context.permission_store is not None,
+        )
+        event_records.extend(
+            permission_session_runtime.record_events(
+                tool_permission_session_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        event_records.append(
+            permission_session_runtime.event_for_report(
+                tool_permission_session_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_execution_timeline_report = execution_timeline_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            traces=tool_streaming_traces,
+            receipts=tool_execution_receipts,
+            event_records=event_records,
+            session_bridge_report=self.config.session_bridge_report,
+        )
+        event_records.append(
+            execution_timeline_runtime.event_for_report(
+                tool_execution_timeline_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_budget_chain_report = budget_chain_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            receipts=tool_execution_receipts,
+            context_snapshots=tool_use_context_snapshots,
+            output_store_snapshot=tool_output_store_snapshot,
+            result_context_report=tool_result_context_report,
+        )
+        event_records.append(
+            budget_chain_runtime.event_for_report(
+                tool_budget_chain_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_permission_checkpoint_report = permission_checkpoint_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            permission_store=self.context.permission_store,
+            handoff_report=permission_handoff,
+            permission_session_report=tool_permission_session_report,
+            receipts=tool_execution_receipts,
+        )
+        event_records.append(
+            permission_checkpoint_runtime.event_for_report(
+                tool_permission_checkpoint_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_continuation_packet_report = continuation_packet_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            result_context_report=tool_result_context_report,
+            budget_chain_report=tool_budget_chain_report,
+            permission_checkpoint_report=tool_permission_checkpoint_report,
+            timeline_report=tool_execution_timeline_report,
+            session_bridge_report=self.config.session_bridge_report,
+        )
+        event_records.append(
+            continuation_packet_runtime.event_for_report(
+                tool_continuation_packet_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_replay_state_report = replay_state_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            materialization=materialization.to_dict(),
+            settlement_reports=settlement_reports,
+            receipts=tool_execution_receipts,
+            event_records=event_records,
+            timeline_report=tool_execution_timeline_report,
+            result_context_report=tool_result_context_report,
+        )
+        event_records.append(
+            replay_state_runtime.event_for_report(
+                tool_replay_state_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_semantic_effect_report = semantic_effect_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            workspace_root=self.context.workspace_root,
+            receipts=tool_execution_receipts,
+            context_snapshots=tool_use_context_snapshots,
+            result_context_report=tool_result_context_report,
+            permission_session_report=tool_permission_session_report,
+            session_bridge_report=self.config.session_bridge_report,
+            timeline_report=tool_execution_timeline_report,
+        )
+        event_records.append(
+            semantic_effect_runtime.event_for_report(
+                tool_semantic_effect_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_result_replay_index_report = result_replay_index_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            receipts=tool_execution_receipts,
+            output_store_snapshot=tool_output_store_snapshot,
+            result_context_report=tool_result_context_report,
+            budget_chain_report=tool_budget_chain_report,
+            continuation_packet_report=tool_continuation_packet_report,
+        )
+        event_records.append(
+            result_replay_index_runtime.event_for_report(
+                tool_result_replay_index_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_source_effect_report = source_effect_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            materialization=materialization.to_dict(),
+            receipts=tool_execution_receipts,
+            session_bridge_report=self.config.session_bridge_report,
+            timeline_report=tool_execution_timeline_report,
+            budget_chain_report=tool_budget_chain_report,
+            permission_checkpoint_report=tool_permission_checkpoint_report,
+            result_replay_index_report=tool_result_replay_index_report,
+            semantic_effect_report=tool_semantic_effect_report,
+        )
+        event_records.append(
+            source_effect_runtime.event_for_report(
+                tool_source_effect_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_readiness_matrix_report = readiness_matrix_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            disabled_components=(),
+            reports={
+                "registry": materialization.to_dict(),
+                "execution": {
+                    "ok": bool(tool_execution_receipts) or tool_call_count == 0,
+                    "status": "ready" if bool(tool_execution_receipts) or tool_call_count == 0 else "empty",
+                    "tool_call_count": len(tool_execution_receipts),
+                },
+                "result_budget": budget_policy_report,
+                "permission_handoff": permission_handoff,
+                "session_bridge": self.config.session_bridge_report,
+                "result_context": tool_result_context_report,
+                "execution_timeline": tool_execution_timeline_report,
+                "budget_chain": tool_budget_chain_report,
+                "permission_checkpoint": tool_permission_checkpoint_report,
+                "continuation_packet": tool_continuation_packet_report,
+                "result_replay_index": tool_result_replay_index_report,
+                "source_effects": tool_source_effect_report,
+                "semantic_effects": tool_semantic_effect_report,
+            },
+        )
+        event_records.append(
+            readiness_matrix_runtime.event_for_report(
+                tool_readiness_matrix_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_effect_fingerprint_report = effect_fingerprint_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            receipts=tool_execution_receipts,
+            reports={
+                "result_context": tool_result_context_report,
+                "budget_chain": tool_budget_chain_report,
+                "permission_checkpoint": tool_permission_checkpoint_report,
+                "continuation_packet": tool_continuation_packet_report,
+                "replay_index": tool_result_replay_index_report,
+                "source_effects": tool_source_effect_report,
+                "readiness_matrix": tool_readiness_matrix_report,
+                "semantic_effects": tool_semantic_effect_report,
+            },
+        )
+        event_records.append(
+            effect_fingerprint_runtime.event_for_report(
+                tool_effect_fingerprint_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        tool_integration_report = integration_audit_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            session_bridge_report=self.config.session_bridge_report,
+            result_context_report=tool_result_context_report,
+            permission_session_report=tool_permission_session_report,
+            receipts=tool_execution_receipts,
+            streaming_report=tool_streaming_report,
+            concurrency_report=tool_concurrency_report,
+            event_records=event_records,
+            disabled_components=(),
+        )
+        event_records.append(
+            integration_audit_runtime.event_for_report(
+                tool_integration_report,
                 run_id=run_id,
                 task_id=task_id,
                 node_id=node_id,
@@ -1498,14 +1853,27 @@ class ZyraClaudeQueryEngine:
                 "audit": tool_foundation_audit,
                 "persistence": tool_foundation_artifacts,
                 "permission_handoff": permission_handoff,
+                "permission_session": tool_permission_session_report,
+                "execution_timeline": tool_execution_timeline_report,
                 "budget_policy": budget_policy_report,
+                "budget_chain": tool_budget_chain_report,
+                "permission_checkpoint": tool_permission_checkpoint_report,
+                "continuation_packet": tool_continuation_packet_report,
+                "replay_state": tool_replay_state_report,
+                "semantic_effect": tool_semantic_effect_report,
+                "result_replay_index": tool_result_replay_index_report,
+                "source_effects": tool_source_effect_report,
+                "readiness_matrix": tool_readiness_matrix_report,
+                "effect_fingerprint": tool_effect_fingerprint_report,
                 "streaming": tool_streaming_report,
                 "continuation": tool_continuation_report,
                 "concurrency": tool_concurrency_report,
                 "failure_policy": tool_failure_policy_report,
                 "output_store": tool_output_store_artifact,
+                "result_context": tool_result_context_report,
                 "source_coverage": tool_source_coverage_report,
                 "cleanroom": tool_cleanroom_report,
+                "integration": tool_integration_report,
                 "settlement": {
                     "ok": all(report.ok for report in settlement_reports),
                     "status": "pass" if all(report.ok for report in settlement_reports) else "blocked",
@@ -1538,15 +1906,29 @@ class ZyraClaudeQueryEngine:
         metadata.update(materialization.metadata())
         metadata.update(_tool_use_context_metadata(tool_use_context_snapshots))
         metadata.update(tool_foundation_audit_metadata(tool_foundation_audit))
+        metadata.update(tool_session_bridge_metadata(self.config.session_bridge_report))
         metadata.update(tool_permission_handoff_metadata(permission_handoff))
+        metadata.update(tool_permission_session_metadata(tool_permission_session_report))
+        metadata.update(tool_execution_timeline_metadata(tool_execution_timeline_report))
         metadata.update(tool_budget_policy_metadata(budget_policy_report))
+        metadata.update(tool_budget_chain_metadata(tool_budget_chain_report))
+        metadata.update(tool_permission_checkpoint_metadata(tool_permission_checkpoint_report))
+        metadata.update(tool_continuation_packet_metadata(tool_continuation_packet_report))
+        metadata.update(tool_replay_state_metadata(tool_replay_state_report))
+        metadata.update(tool_semantic_effect_metadata(tool_semantic_effect_report))
+        metadata.update(tool_result_replay_index_metadata(tool_result_replay_index_report))
+        metadata.update(tool_source_effects_metadata(tool_source_effect_report))
+        metadata.update(tool_readiness_matrix_metadata(tool_readiness_matrix_report))
+        metadata.update(tool_effect_fingerprint_metadata(tool_effect_fingerprint_report))
         metadata.update(tool_streaming_metadata(tool_streaming_report))
         metadata.update(tool_continuation_metadata(tool_continuation_report))
         metadata.update(tool_concurrency_metadata(tool_concurrency_report))
         metadata.update(tool_failure_policy_metadata(tool_failure_policy_report))
         metadata.update(tool_output_store_metadata(tool_output_store_artifact))
+        metadata.update(tool_result_context_metadata(tool_result_context_report))
         metadata.update(tool_source_coverage_metadata(tool_source_coverage_report))
         metadata.update(tool_cleanroom_metadata(tool_cleanroom_report))
+        metadata.update(tool_integration_metadata(tool_integration_report))
         metadata.update(tool_contract_gate_metadata(tool_contract_gate_report))
         metadata.update(tool_foundation_persistence_metadata(tool_foundation_artifacts))
         metadata.update(tool_settlement_metadata(settlement_reports))
@@ -1671,6 +2053,8 @@ class ZyraClaudeQueryEngine:
             return "ToolExecutionRuntime"
         if self.config.disable_tool_result_budget_runtime:
             return "ToolResultBudgetRuntime"
+        if self.config.disable_tool_permission_handoff_runtime:
+            return "ToolPermissionHandoffRuntime"
         return ""
 
     def _tool_foundation_disabled_result(

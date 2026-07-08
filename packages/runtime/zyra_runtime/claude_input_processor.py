@@ -465,6 +465,30 @@ class QueryInputProcessor:
                     yield item
                 else:
                     yield {"text": str(item), "role": "user", "metadata": {"source": "constraints.query_inputs"}}
+        session_messages = constraints.get("session_messages")
+        if isinstance(session_messages, Sequence) and not isinstance(session_messages, (str, bytes)):
+            for index, item in enumerate(session_messages, start=1):
+                if isinstance(item, Mapping):
+                    payload = dict(item)
+                else:
+                    payload = {"content": item, "role": "assistant"}
+                payload.setdefault("metadata", {})
+                if isinstance(payload["metadata"], dict):
+                    payload["metadata"].setdefault("source", f"constraints.session_messages[{index}]")
+                if payload.get("text") in (None, "") and payload.get("content") not in (None, ""):
+                    payload["text"] = _coerce_text(payload.get("content"))
+                yield payload
+        assistant_tool_uses = constraints.get("assistant_tool_uses")
+        if isinstance(assistant_tool_uses, Sequence) and not isinstance(assistant_tool_uses, (str, bytes)):
+            yield {
+                "text": _coerce_text(list(assistant_tool_uses)),
+                "role": "assistant",
+                "metadata": {
+                    "source": "constraints.assistant_tool_uses",
+                    "assistant_tool_use_count": len(assistant_tool_uses),
+                },
+                "kind": str(QueryInputKind.STRUCTURED_TURN),
+            }
         for key in ("raw_input", "input", "prompt", "text", "bash_command", "slash_command"):
             if constraints.get(key) not in (None, ""):
                 yield {
