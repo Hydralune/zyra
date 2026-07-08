@@ -114,9 +114,14 @@ class CodeWorkerSidecarTests(unittest.TestCase):
             query_events = [event for event in run.event_records if "query_session" in event.payload]
             self.assertEqual(len(tool_events), 2)
             self.assertGreaterEqual(len(query_events), 4)
-            self.assertEqual(query_events[0].payload["query_session"]["phase"], "session_started")
-            self.assertEqual(query_events[-1].payload["query_session"]["phase"], "session_completed")
             phases = [event.payload["query_session"]["phase"] for event in query_events]
+            self.assertIn("query_session_seed_created", phases)
+            self.assertIn("turn_lifecycle_projection", phases)
+            self.assertIn("session_started", phases)
+            self.assertIn("session_completed", phases)
+            self.assertIn("session_lifecycle_state", phases)
+            self.assertLess(phases.index("query_session_seed_created"), phases.index("session_started"))
+            self.assertLess(phases.index("session_completed"), phases.index("session_lifecycle_state"))
             self.assertIn("stream_request_start", phases)
             self.assertIn("tool_batch_started", phases)
             self.assertIn("tool_call_started", phases)

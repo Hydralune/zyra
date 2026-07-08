@@ -11,7 +11,12 @@ from zyra_runtime import (
     ContextAssemblyBudget,
     ContextAssemblyRuntime,
     ClaudeQueryEngineConfig,
+    CodeWorkerSessionReplayRuntime,
     SessionFoundationAuditor,
+    SessionAcceptanceRuntime,
+    SessionLifecycleRuntime,
+    TranscriptEventMapper,
+    TurnLifecycleRuntime,
     JsonPermissionStore,
     QueryInputProcessor,
     ToolExecutionContext,
@@ -32,8 +37,13 @@ from zyra_runtime import (
     foundation_audit_event,
     foundation_audit_metadata,
     render_foundation_audit_markdown,
+    session_acceptance_metadata,
+    session_lifecycle_metadata,
+    session_replay_metadata,
     seed_failure_result_metadata,
     session_seed_metadata,
+    transcript_mapping_metadata,
+    turn_lifecycle_metadata,
     runtime_context_assembly_markdown,
     source_graph_audit_markdown,
     source_graph_crosswalk_markdown,
@@ -302,14 +312,70 @@ class CodeWorkerRuntime:
             disabled_store=request.constraints.get("disable_code_worker_session_store") is True,
         )
         session_seed_events = session_foundation.seed_events(session_seed)
+        replay_runtime = CodeWorkerSessionReplayRuntime(session_store)
+        replay_plan = replay_runtime.build_plan_from_constraints(request.constraints)
+        replay_events = []
+        if replay_plan is not None:
+            replay_events.append(
+                replay_runtime.event_for_plan(
+                    replay_plan,
+                    run_id=request.run_id,
+                    task_id=request.task_id,
+                    node_id=request.node_id,
+                )
+            )
+        turn_lifecycle_runtime = TurnLifecycleRuntime()
+        turn_lifecycle_projection = turn_lifecycle_runtime.project(
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            input_records=input_report.records,
+            query_turns=query_turns,
+            context_snapshot=context_snapshot,
+            replay_plan=replay_plan,
+        )
+        turn_lifecycle_event = turn_lifecycle_runtime.event_for_projection(
+            turn_lifecycle_projection,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
         foundation_auditor = SessionFoundationAuditor()
         foundation_audit = foundation_auditor.audit_seed(
             session_seed,
             store=session_store,
-            events=session_seed_events,
+            events=[*session_seed_events, *replay_events, turn_lifecycle_event],
         )
         foundation_audit_record = foundation_audit_event(foundation_audit)
-        if not session_seed.ok or not foundation_audit.ok:
+        acceptance_runtime = SessionAcceptanceRuntime()
+        pre_query_acceptance = acceptance_runtime.evaluate(
+            seed=session_seed,
+            foundation_audit=foundation_audit,
+            turn_lifecycle=turn_lifecycle_projection,
+            replay_plan=replay_plan,
+            transcript_mapping=None,
+            require_transcript=False,
+        )
+        pre_query_acceptance_event = acceptance_runtime.event_for_report(
+            pre_query_acceptance,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        lifecycle_runtime = SessionLifecycleRuntime()
+        pre_query_lifecycle_report = lifecycle_runtime.build_report(
+            [*session_seed_events, *replay_events, turn_lifecycle_event, foundation_audit_record, pre_query_acceptance_event],
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            require_query_engine=False,
+            require_transcript=False,
+        )
+        pre_query_lifecycle_event = lifecycle_runtime.event_for_report(
+            pre_query_lifecycle_report,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        if not session_seed.ok or not foundation_audit.ok or not turn_lifecycle_projection.ok or not pre_query_acceptance.ok:
             worker_result = WorkerResult(
                 request_id=request.request_id,
                 ok=False,
@@ -324,6 +390,10 @@ class CodeWorkerRuntime:
                     **query_plan_metadata,
                     **seed_failure_result_metadata(session_seed, error="code_worker_session_foundation_failed"),
                     **foundation_audit_metadata(foundation_audit),
+                    **session_replay_metadata(replay_plan),
+                    **turn_lifecycle_metadata(turn_lifecycle_projection),
+                    **session_acceptance_metadata(pre_query_acceptance),
+                    **session_lifecycle_metadata(pre_query_lifecycle_report),
                     "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
                 },
             )
@@ -335,7 +405,11 @@ class CodeWorkerRuntime:
                     *source_graph_audit_events,
                     worker_gate_event,
                     *session_seed_events,
+                    *replay_events,
+                    turn_lifecycle_event,
                     foundation_audit_record,
+                    pre_query_acceptance_event,
+                    pre_query_lifecycle_event,
                     _worker_result_event(request, worker_result),
                 ],
             )
@@ -386,9 +460,47 @@ class CodeWorkerRuntime:
         foundation_audit = foundation_auditor.audit_seed(
             session_seed,
             store=session_store,
-            events=[*session_seed_events, *loop_result.event_records],
+            events=[*session_seed_events, *replay_events, turn_lifecycle_event, *loop_result.event_records],
         )
         foundation_audit_record = foundation_audit_event(foundation_audit)
+        transcript_mapping = TranscriptEventMapper().map_snapshot(loop_result.session_snapshot)
+        transcript_mapping_event = TranscriptEventMapper().event_for_report(transcript_mapping)
+        final_acceptance = acceptance_runtime.evaluate(
+            seed=session_seed,
+            foundation_audit=foundation_audit,
+            turn_lifecycle=turn_lifecycle_projection,
+            replay_plan=replay_plan,
+            transcript_mapping=transcript_mapping,
+            require_transcript=True,
+        )
+        final_acceptance_event = acceptance_runtime.event_for_report(
+            final_acceptance,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        lifecycle_events = [
+            *session_seed_events,
+            *replay_events,
+            turn_lifecycle_event,
+            foundation_audit_record,
+            *loop_result.event_records,
+            transcript_mapping_event,
+            final_acceptance_event,
+        ]
+        lifecycle_report = lifecycle_runtime.build_report(
+            lifecycle_events,
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            require_query_engine=True,
+            require_transcript=True,
+        )
+        lifecycle_event = lifecycle_runtime.event_for_report(
+            lifecycle_report,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
         artifacts = list(loop_result.artifacts)
         step_summaries = list(loop_result.step_summaries)
 
@@ -420,14 +532,30 @@ class CodeWorkerRuntime:
         summary = "CodeWorkerRuntime completed structured tool plan."
         if not loop_result.ok:
             summary = "CodeWorkerRuntime stopped on a failed tool step."
+        elif not final_acceptance.ok or not lifecycle_report.ok:
+            summary = "CodeWorkerRuntime completed the tool loop but failed the session lifecycle gate."
 
         worker_result = WorkerResult(
             request_id=request.request_id,
-            ok=loop_result.ok,
+            ok=loop_result.ok and final_acceptance.ok and lifecycle_report.ok,
             summary=summary,
             artifacts=artifacts,
-            events=[to_jsonable(event) for event in [*session_seed_events, foundation_audit_record, *loop_result.event_records]],
-            error=None if loop_result.ok else loop_result.stopped_reason or "tool_step_failed",
+            events=[
+                to_jsonable(event)
+                for event in [
+                    *session_seed_events,
+                    *replay_events,
+                    turn_lifecycle_event,
+                    foundation_audit_record,
+                    *loop_result.event_records,
+                    transcript_mapping_event,
+                    final_acceptance_event,
+                    lifecycle_event,
+                ]
+            ],
+            error=None
+            if loop_result.ok and final_acceptance.ok and lifecycle_report.ok
+            else loop_result.stopped_reason or "code_worker_session_lifecycle_failed",
             metadata={
                 **self.runtime_contracts.metadata(),
                 **_sidecar_metadata(runtime_health, used=use_sidecar_contracts),
@@ -442,6 +570,11 @@ class CodeWorkerRuntime:
                 **query_plan_metadata,
                 **session_seed_metadata(session_seed),
                 **foundation_audit_metadata(foundation_audit),
+                **session_replay_metadata(replay_plan),
+                **turn_lifecycle_metadata(turn_lifecycle_projection),
+                **transcript_mapping_metadata(transcript_mapping),
+                **session_acceptance_metadata(final_acceptance),
+                **session_lifecycle_metadata(lifecycle_report),
                 **loop_result.metadata,
                 "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
                 "query_turns": str(loop_result.turn_count),
@@ -459,8 +592,13 @@ class CodeWorkerRuntime:
                 *source_graph_audit_events,
                 worker_gate_event,
                 *session_seed_events,
+                *replay_events,
+                turn_lifecycle_event,
                 foundation_audit_record,
                 *loop_result.event_records,
+                transcript_mapping_event,
+                final_acceptance_event,
+                lifecycle_event,
                 _worker_result_event(request, worker_result),
             ],
         )
