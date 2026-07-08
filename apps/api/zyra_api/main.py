@@ -52,6 +52,7 @@ from zyra_runtime import (
     PermissionRequestStatus,
     PermissionRule,
     QueryInputProcessor,
+    QuerySessionIntegrationRuntime,
     SessionAcceptanceRuntime,
     SessionApiProjectionBuilder,
     SessionFoundationAuditor,
@@ -773,6 +774,156 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 lineage_report=lineage_report,
             )
             self._send_json(HTTPStatus.OK, projection.to_dict())
+            return
+
+        if parts == ["workers", "code", "session-integration"]:
+            contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
+            tools = default_tool_registry().list()
+            query = parse_qs(parsed.query)
+            api_session_id = str(query.get("session_id", [""])[0] or "")
+            query_turns = [[{"tool_name": "trace", "arguments": {"limit": 1}}]]
+            constraints = {
+                "raw_input": str(query.get("q", ["Inspect CodeWorker query session integration."])[0]),
+                "query_turns": query_turns,
+                "permission_mode": str(query.get("permission_mode", ["workspace"])[0] or "workspace"),
+            }
+            if api_session_id:
+                constraints["session_id"] = api_session_id
+            for key in (
+                "resume_session_id",
+                "resume_code_worker_session_id",
+                "resume_worker_request_id",
+                "resume_after_sequence",
+                "resume_limit",
+                "cancel_session",
+                "cancel_reason",
+                "interrupt_session",
+                "interrupt_reason",
+                "checkpoint_session",
+                "checkpoint_query_entry",
+                "expected_context_fingerprint",
+                "disable_query_entry_packet",
+                "disable_query_entry_store",
+                "disable_query_session_checkpoint",
+            ):
+                if query.get(key):
+                    constraints[key] = query[key][0]
+            request = WorkerRequest(
+                run_id="inventory",
+                task_id="code-worker-session-integration",
+                worker_name="CodeWorkerRuntime",
+                constraints=constraints,
+                metadata={"source": "workers/code/session-integration"},
+            )
+            api_session_id = str(constraints.get("session_id") or f"codesession_integration_{request.request_id}")
+            input_report = QueryInputProcessor().process_worker_request(request)
+            context_snapshot = ContextAssemblyRuntime().assemble(
+                request=request,
+                session_id=api_session_id,
+                input_records=input_report.records,
+                tool_specs=tools,
+                project_root=PROJECT_ROOT,
+                workspace_root=tool_workspace_path(),
+                artifact_root=artifact_root_path(),
+                runtime_contracts=contracts,
+                permission_mode=str(constraints.get("permission_mode") or "workspace"),
+            )
+            session_store = CodeWorkerSessionStore(artifact_root_path() / "code-worker-session-integration-api")
+            session_foundation = CodeWorkerSessionFoundationRuntime(store=session_store)
+            session_seed = session_foundation.build_seed(
+                request=request,
+                input_report=input_report,
+                context_snapshot=context_snapshot,
+                session_id=api_session_id,
+            )
+            session_seed_events = session_foundation.seed_events(session_seed)
+            replay_plan = CodeWorkerSessionReplayRuntime(session_store).build_plan_from_constraints(constraints)
+            replay_events = []
+            if replay_plan is not None:
+                replay_events.append(
+                    CodeWorkerSessionReplayRuntime(session_store).event_for_plan(
+                        replay_plan,
+                        run_id=request.run_id,
+                        task_id=request.task_id,
+                        node_id=request.node_id,
+                    )
+                )
+            turn_lifecycle_runtime = TurnLifecycleRuntime()
+            turn_lifecycle = turn_lifecycle_runtime.project(
+                session_id=session_seed.session_id,
+                worker_request_id=request.request_id,
+                input_records=input_report.records,
+                query_turns=query_turns,
+                context_snapshot=context_snapshot,
+                replay_plan=replay_plan,
+            )
+            turn_lifecycle_event = turn_lifecycle_runtime.event_for_projection(
+                turn_lifecycle,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+            )
+            foundation_audit = SessionFoundationAuditor().audit_seed(
+                session_seed,
+                store=session_store,
+                events=[*session_seed_events, *replay_events, turn_lifecycle_event],
+            )
+            foundation_audit_record = foundation_audit_event(foundation_audit)
+            acceptance_runtime = SessionAcceptanceRuntime()
+            acceptance_report = acceptance_runtime.evaluate(
+                seed=session_seed,
+                foundation_audit=foundation_audit,
+                turn_lifecycle=turn_lifecycle,
+                replay_plan=replay_plan,
+                transcript_mapping=None,
+                require_transcript=False,
+            )
+            acceptance_event = acceptance_runtime.event_for_report(
+                acceptance_report,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+            )
+            lifecycle_report = SessionLifecycleRuntime().build_report(
+                [*session_seed_events, *replay_events, turn_lifecycle_event, foundation_audit_record, acceptance_event],
+                session_id=session_seed.session_id,
+                worker_request_id=request.request_id,
+                require_query_engine=False,
+                require_transcript=False,
+            )
+            integration_runtime = QuerySessionIntegrationRuntime(
+                store=session_store,
+                artifact_store=LocalArtifactStore(artifact_root_path()),
+            )
+            integration_report = integration_runtime.prepare(
+                request=request,
+                seed=session_seed,
+                input_report=input_report,
+                context_snapshot=context_snapshot,
+                tool_specs=tools,
+                query_turns=query_turns,
+                turn_lifecycle=turn_lifecycle,
+                foundation_audit=foundation_audit,
+                acceptance_report=acceptance_report,
+                lifecycle_report=lifecycle_report,
+                replay_plan=replay_plan,
+            )
+            integration_events = integration_runtime.events_for_report(
+                integration_report,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+            )
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": integration_report.ok,
+                    "report": integration_report.to_dict(include_text=False),
+                    "packet": integration_report.packet.to_dict(include_text=False),
+                    "events": [to_jsonable(event) for event in integration_events],
+                    "messagePreview": [message.to_model_message() for message in integration_report.packet.messages[:4]],
+                },
+            )
             return
 
         if parts == ["workers", "browser", "actions"]:

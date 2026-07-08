@@ -15,6 +15,12 @@ from zyra_runtime import (
     SessionFoundationAuditor,
     SessionAcceptanceRuntime,
     SessionLifecycleRuntime,
+    QuerySessionIntegrationRuntime,
+    QuerySessionEventFlowRuntime,
+    QuerySessionHandoffContractRuntime,
+    QuerySessionResumeCustodyRuntime,
+    QuerySessionStateGraphRuntime,
+    QuerySessionDisconnectAuditRuntime,
     TranscriptEventMapper,
     TurnLifecycleRuntime,
     JsonPermissionStore,
@@ -39,6 +45,18 @@ from zyra_runtime import (
     render_foundation_audit_markdown,
     session_acceptance_metadata,
     session_lifecycle_metadata,
+    query_session_integration_metadata,
+    render_query_session_integration_markdown,
+    query_event_flow_metadata,
+    query_handoff_metadata,
+    query_resume_custody_metadata,
+    query_state_graph_metadata,
+    query_disconnect_metadata,
+    render_query_event_flow_markdown,
+    render_query_disconnect_markdown,
+    render_query_handoff_markdown,
+    render_query_resume_custody_markdown,
+    render_query_state_graph_markdown,
     session_replay_metadata,
     seed_failure_result_metadata,
     session_seed_metadata,
@@ -413,6 +431,201 @@ class CodeWorkerRuntime:
                     _worker_result_event(request, worker_result),
                 ],
             )
+        query_session_runtime = QuerySessionIntegrationRuntime(
+            store=session_store,
+            artifact_store=self.execution_context.artifact_store,
+        )
+        query_session_integration = query_session_runtime.prepare(
+            request=request,
+            seed=session_seed,
+            input_report=input_report,
+            context_snapshot=context_snapshot,
+            tool_specs=tool_specs,
+            query_turns=query_turns,
+            turn_lifecycle=turn_lifecycle_projection,
+            foundation_audit=foundation_audit,
+            acceptance_report=pre_query_acceptance,
+            lifecycle_report=pre_query_lifecycle_report,
+            replay_plan=replay_plan,
+        )
+        query_session_integration_events = query_session_runtime.events_for_report(
+            query_session_integration,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        handoff_runtime = QuerySessionHandoffContractRuntime()
+        query_handoff = handoff_runtime.build_report(query_session_integration.packet.to_dict(include_text=True))
+        query_handoff_event = handoff_runtime.event_for_report(
+            query_handoff,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        custody_runtime = QuerySessionResumeCustodyRuntime()
+        pre_engine_custody = custody_runtime.build_report(
+            session_replay=session_store.replay_session(session_seed.session_id),
+            packet=query_session_integration.packet.to_dict(include_text=False),
+            integration_report=query_session_integration.to_dict(include_text=False),
+            after_engine=False,
+        )
+        pre_engine_custody_event = custody_runtime.event_for_report(
+            pre_engine_custody,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        event_flow_runtime = QuerySessionEventFlowRuntime()
+        pre_engine_event_flow = event_flow_runtime.build_report(
+            [
+                *session_seed_events,
+                *replay_events,
+                turn_lifecycle_event,
+                foundation_audit_record,
+                pre_query_acceptance_event,
+                pre_query_lifecycle_event,
+                *query_session_integration_events,
+                query_handoff_event,
+                pre_engine_custody_event,
+            ],
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            expected_engine_stream=False,
+            blocked_before_engine=not query_session_integration.ok or not query_handoff.ok or not pre_engine_custody.ok,
+        )
+        pre_engine_event_flow_event = event_flow_runtime.event_for_report(
+            pre_engine_event_flow,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        state_graph_runtime = QuerySessionStateGraphRuntime()
+        pre_engine_state_graph = state_graph_runtime.build_report(
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            store_records=[record.to_dict() for record in session_store.replay_session(session_seed.session_id).records],
+            packet=query_session_integration.packet.to_dict(include_text=False),
+            integration_report=query_session_integration.to_dict(include_text=False),
+            handoff_report=query_handoff.to_dict(),
+            custody_report=pre_engine_custody.to_dict(),
+            event_flow_report=pre_engine_event_flow.to_dict(),
+            events=[
+                *session_seed_events,
+                *replay_events,
+                turn_lifecycle_event,
+                foundation_audit_record,
+                pre_query_acceptance_event,
+                pre_query_lifecycle_event,
+                *query_session_integration_events,
+                query_handoff_event,
+                pre_engine_custody_event,
+                pre_engine_event_flow_event,
+            ],
+            blocked_before_engine=not query_session_integration.ok or not query_handoff.ok or not pre_engine_custody.ok,
+            engine_stream_expected=False,
+        )
+        pre_engine_state_graph_event = state_graph_runtime.event_for_report(
+            pre_engine_state_graph,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        if (
+            not query_session_integration.ok
+            or not query_handoff.ok
+            or not pre_engine_custody.ok
+            or not pre_engine_state_graph.ok
+        ):
+            disconnect_runtime = QuerySessionDisconnectAuditRuntime()
+            pre_engine_disconnect = disconnect_runtime.build_report(
+                session_id=session_seed.session_id,
+                worker_request_id=request.request_id,
+                constraints=request.constraints,
+                packet=query_session_integration.packet.to_dict(include_text=False),
+                integration_report=query_session_integration.to_dict(include_text=False),
+                handoff_report=query_handoff.to_dict(),
+                custody_report=pre_engine_custody.to_dict(),
+                event_flow_report=pre_engine_event_flow.to_dict(),
+                state_graph_report=pre_engine_state_graph.to_dict(),
+                events=[
+                    *session_seed_events,
+                    *replay_events,
+                    turn_lifecycle_event,
+                    foundation_audit_record,
+                    pre_query_acceptance_event,
+                    pre_query_lifecycle_event,
+                    *query_session_integration_events,
+                    query_handoff_event,
+                    pre_engine_custody_event,
+                    pre_engine_event_flow_event,
+                    pre_engine_state_graph_event,
+                ],
+            )
+            pre_engine_disconnect_event = disconnect_runtime.event_for_report(
+                pre_engine_disconnect,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+            )
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime stopped before QueryEngine because query session integration is blocked.",
+                error=query_session_integration.first_blocker_code
+                or query_handoff.first_blocker_code
+                or pre_engine_custody.first_blocker_code
+                or pre_engine_state_graph.first_blocker_code
+                or pre_engine_disconnect.first_blocker_code
+                or "code_worker_query_session_integration_failed",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    **source_graph_audit.metadata(),
+                    **worker_gate.metadata(),
+                    **query_plan_metadata,
+                    **session_seed_metadata(session_seed),
+                    **foundation_audit_metadata(foundation_audit),
+                    **session_replay_metadata(replay_plan),
+                    **turn_lifecycle_metadata(turn_lifecycle_projection),
+                    **session_acceptance_metadata(pre_query_acceptance),
+                    **session_lifecycle_metadata(pre_query_lifecycle_report),
+                    **query_session_integration_metadata(query_session_integration),
+                    **query_handoff_metadata(query_handoff),
+                    **query_resume_custody_metadata(pre_engine_custody),
+                    **query_event_flow_metadata(pre_engine_event_flow),
+                    **query_state_graph_metadata(pre_engine_state_graph),
+                    **query_disconnect_metadata(pre_engine_disconnect),
+                    "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            return CodeWorkerRun(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    *source_graph_audit_events,
+                    worker_gate_event,
+                    *session_seed_events,
+                    *replay_events,
+                    turn_lifecycle_event,
+                    foundation_audit_record,
+                    pre_query_acceptance_event,
+                    pre_query_lifecycle_event,
+                    *query_session_integration_events,
+                    query_handoff_event,
+                    pre_engine_custody_event,
+                    pre_engine_event_flow_event,
+                    pre_engine_state_graph_event,
+                    pre_engine_disconnect_event,
+                    _worker_result_event(request, worker_result),
+                ],
+            )
+        query_entry_messages = query_session_integration.packet.request_messages()
+        query_entry_metadata = query_session_integration.metadata_values()
         engine = self.query_engine_factory(
             self.execution_context,
             ClaudeQueryEngineConfig(
@@ -436,8 +649,8 @@ class CodeWorkerRuntime:
                 project_root=self.project_root,
                 session_seed=session_seed.to_dict(include_text=False),
                 context_snapshot=context_snapshot.to_dict(include_text=True),
-                preprocessed_messages=session_seed.request_messages(),
-                session_foundation_metadata=session_seed.metadata_values(),
+                preprocessed_messages=query_entry_messages,
+                session_foundation_metadata={**session_seed.metadata_values(), **query_entry_metadata},
             ),
         )
         loop_result = engine.run(
@@ -446,8 +659,8 @@ class CodeWorkerRuntime:
             node_id=request.node_id,
             worker_request_id=request.request_id,
             turns=query_turns,
-            request_messages=[*session_seed.request_messages(), *request.messages],
-            request_metadata={**request.metadata, **session_seed.metadata_values()},
+            request_messages=query_entry_messages,
+            request_metadata={**request.metadata, **session_seed.metadata_values(), **query_entry_metadata},
         )
         session_store.mark_query_engine_attached(
             session_id=session_seed.session_id,
@@ -457,10 +670,30 @@ class CodeWorkerRuntime:
             query_session_id=str(loop_result.metadata.get("query_session_id") or session_seed.session_id),
             resume_token=str(loop_result.metadata.get("query_session_resume_token") or ""),
         )
+        final_custody = custody_runtime.build_report(
+            session_replay=session_store.replay_session(session_seed.session_id),
+            packet=query_session_integration.packet.to_dict(include_text=False),
+            integration_report=query_session_integration.to_dict(include_text=False),
+            after_engine=True,
+        )
+        final_custody_event = custody_runtime.event_for_report(
+            final_custody,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
         foundation_audit = foundation_auditor.audit_seed(
             session_seed,
             store=session_store,
-            events=[*session_seed_events, *replay_events, turn_lifecycle_event, *loop_result.event_records],
+            events=[
+                *session_seed_events,
+                *replay_events,
+                turn_lifecycle_event,
+                *query_session_integration_events,
+                query_handoff_event,
+                final_custody_event,
+                *loop_result.event_records,
+            ],
         )
         foundation_audit_record = foundation_audit_event(foundation_audit)
         transcript_mapping = TranscriptEventMapper().map_snapshot(loop_result.session_snapshot)
@@ -484,6 +717,9 @@ class CodeWorkerRuntime:
             *replay_events,
             turn_lifecycle_event,
             foundation_audit_record,
+            *query_session_integration_events,
+            query_handoff_event,
+            final_custody_event,
             *loop_result.event_records,
             transcript_mapping_event,
             final_acceptance_event,
@@ -497,6 +733,57 @@ class CodeWorkerRuntime:
         )
         lifecycle_event = lifecycle_runtime.event_for_report(
             lifecycle_report,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        final_event_flow = event_flow_runtime.build_report(
+            [*lifecycle_events, lifecycle_event],
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            expected_engine_stream=True,
+            blocked_before_engine=False,
+        )
+        final_event_flow_event = event_flow_runtime.event_for_report(
+            final_event_flow,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        final_state_graph = state_graph_runtime.build_report(
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            store_records=[record.to_dict() for record in session_store.replay_session(session_seed.session_id).records],
+            packet=query_session_integration.packet.to_dict(include_text=False),
+            integration_report=query_session_integration.to_dict(include_text=False),
+            handoff_report=query_handoff.to_dict(),
+            custody_report=final_custody.to_dict(),
+            event_flow_report=final_event_flow.to_dict(),
+            events=[*lifecycle_events, lifecycle_event, final_event_flow_event],
+            blocked_before_engine=False,
+            engine_stream_expected=True,
+        )
+        final_state_graph_event = state_graph_runtime.event_for_report(
+            final_state_graph,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+        )
+        disconnect_runtime = QuerySessionDisconnectAuditRuntime()
+        final_disconnect = disconnect_runtime.build_report(
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            constraints=request.constraints,
+            packet=query_session_integration.packet.to_dict(include_text=False),
+            integration_report=query_session_integration.to_dict(include_text=False),
+            handoff_report=query_handoff.to_dict(),
+            custody_report=final_custody.to_dict(),
+            event_flow_report=final_event_flow.to_dict(),
+            state_graph_report=final_state_graph.to_dict(),
+            events=[*lifecycle_events, lifecycle_event, final_event_flow_event, final_state_graph_event],
+        )
+        final_disconnect_event = disconnect_runtime.event_for_report(
+            final_disconnect,
             run_id=request.run_id,
             task_id=request.task_id,
             node_id=request.node_id,
@@ -518,6 +805,12 @@ class CodeWorkerRuntime:
                 runtime_context_report,
                 source_graph_audit,
                 worker_gate,
+                query_session_integration,
+                query_handoff,
+                final_custody,
+                final_event_flow,
+                final_state_graph,
+                final_disconnect,
                 step_summaries,
                 loop_result,
                 sidecar_contracts_used=use_sidecar_contracts,
@@ -534,10 +827,24 @@ class CodeWorkerRuntime:
             summary = "CodeWorkerRuntime stopped on a failed tool step."
         elif not final_acceptance.ok or not lifecycle_report.ok:
             summary = "CodeWorkerRuntime completed the tool loop but failed the session lifecycle gate."
+        elif not final_event_flow.ok:
+            summary = "CodeWorkerRuntime completed the tool loop but failed the query event-flow gate."
+        elif not final_custody.ok:
+            summary = "CodeWorkerRuntime completed the tool loop but failed the query custody gate."
+        elif not final_state_graph.ok:
+            summary = "CodeWorkerRuntime completed the tool loop but failed the query state graph gate."
+        elif not final_disconnect.ok:
+            summary = "CodeWorkerRuntime completed the tool loop but failed the query disconnect audit gate."
 
         worker_result = WorkerResult(
             request_id=request.request_id,
-            ok=loop_result.ok and final_acceptance.ok and lifecycle_report.ok,
+            ok=loop_result.ok
+            and final_acceptance.ok
+            and lifecycle_report.ok
+            and final_event_flow.ok
+            and final_custody.ok
+            and final_state_graph.ok
+            and final_disconnect.ok,
             summary=summary,
             artifacts=artifacts,
             events=[
@@ -547,15 +854,32 @@ class CodeWorkerRuntime:
                     *replay_events,
                     turn_lifecycle_event,
                     foundation_audit_record,
+                    *query_session_integration_events,
+                    query_handoff_event,
+                    final_custody_event,
                     *loop_result.event_records,
                     transcript_mapping_event,
                     final_acceptance_event,
                     lifecycle_event,
+                    final_event_flow_event,
+                    final_state_graph_event,
+                    final_disconnect_event,
                 ]
             ],
             error=None
-            if loop_result.ok and final_acceptance.ok and lifecycle_report.ok
-            else loop_result.stopped_reason or "code_worker_session_lifecycle_failed",
+            if loop_result.ok
+            and final_acceptance.ok
+            and lifecycle_report.ok
+            and final_event_flow.ok
+            and final_custody.ok
+            and final_state_graph.ok
+            and final_disconnect.ok
+            else loop_result.stopped_reason
+            or (final_event_flow.first_blocker_code if not final_event_flow.ok else "")
+            or (final_custody.first_blocker_code if not final_custody.ok else "")
+            or (final_state_graph.first_blocker_code if not final_state_graph.ok else "")
+            or (final_disconnect.first_blocker_code if not final_disconnect.ok else "")
+            or "code_worker_session_lifecycle_failed",
             metadata={
                 **self.runtime_contracts.metadata(),
                 **_sidecar_metadata(runtime_health, used=use_sidecar_contracts),
@@ -572,6 +896,12 @@ class CodeWorkerRuntime:
                 **foundation_audit_metadata(foundation_audit),
                 **session_replay_metadata(replay_plan),
                 **turn_lifecycle_metadata(turn_lifecycle_projection),
+                **query_session_integration_metadata(query_session_integration),
+                **query_handoff_metadata(query_handoff),
+                **query_resume_custody_metadata(final_custody),
+                **query_event_flow_metadata(final_event_flow),
+                **query_state_graph_metadata(final_state_graph),
+                **query_disconnect_metadata(final_disconnect),
                 **transcript_mapping_metadata(transcript_mapping),
                 **session_acceptance_metadata(final_acceptance),
                 **session_lifecycle_metadata(lifecycle_report),
@@ -595,10 +925,16 @@ class CodeWorkerRuntime:
                 *replay_events,
                 turn_lifecycle_event,
                 foundation_audit_record,
+                *query_session_integration_events,
+                query_handoff_event,
+                final_custody_event,
                 *loop_result.event_records,
                 transcript_mapping_event,
                 final_acceptance_event,
                 lifecycle_event,
+                final_event_flow_event,
+                final_state_graph_event,
+                final_disconnect_event,
                 _worker_result_event(request, worker_result),
             ],
         )
@@ -736,6 +1072,12 @@ def _trace_markdown(
     runtime_context_report: Any,
     source_graph_audit: Any,
     worker_gate: Any,
+    query_session_integration: Any,
+    query_handoff: Any,
+    query_custody: Any,
+    query_event_flow: Any,
+    query_state_graph: Any,
+    query_disconnect: Any,
     step_summaries: list[str],
     loop_result: Any,
     *,
@@ -830,6 +1172,23 @@ def _trace_markdown(
             f"- query_session_snapshot_artifact_id: `{loop_result.metadata.get('query_session_snapshot_artifact_id', '')}`",
             f"- query_session_transcript_artifact_id: `{loop_result.metadata.get('query_session_transcript_artifact_id', '')}`",
             f"- code_worker_session_seed_ok: `{loop_result.metadata.get('code_worker_session_seed_ok', '')}`",
+            f"- query_session_integration_ok: `{loop_result.metadata.get('query_session_integration_ok', '')}`",
+            f"- query_entry_packet_id: `{loop_result.metadata.get('query_entry_packet_id', '')}`",
+            f"- query_entry_route: `{loop_result.metadata.get('query_entry_route', '')}`",
+            f"- query_entry_block_reason: `{loop_result.metadata.get('query_entry_block_reason', '')}`",
+            f"- query_entry_message_count: `{loop_result.metadata.get('query_entry_message_count', '')}`",
+            f"- query_entry_handoff_ok: `{loop_result.metadata.get('query_entry_handoff_ok', '')}`",
+            f"- query_handoff_ok: `{loop_result.metadata.get('query_handoff_ok', '')}`",
+            f"- query_handoff_ready_port_count: `{loop_result.metadata.get('query_handoff_ready_port_count', '')}`",
+            f"- query_custody_ok: `{loop_result.metadata.get('query_custody_ok', '')}`",
+            f"- query_custody_engine_attached: `{loop_result.metadata.get('query_custody_engine_attached', '')}`",
+            f"- query_event_flow_ok: `{loop_result.metadata.get('query_event_flow_ok', '')}`",
+            f"- query_event_flow_has_query_started: `{loop_result.metadata.get('query_event_flow_has_query_started', '')}`",
+            f"- query_event_flow_has_stream_request_start: `{loop_result.metadata.get('query_event_flow_has_stream_request_start', '')}`",
+            f"- query_state_graph_ok: `{loop_result.metadata.get('query_state_graph_ok', '')}`",
+            f"- query_state_graph_ready_edge_count: `{loop_result.metadata.get('query_state_graph_ready_edge_count', '')}`",
+            f"- query_disconnect_ok: `{loop_result.metadata.get('query_disconnect_ok', '')}`",
+            f"- query_disconnect_active_scenario_count: `{loop_result.metadata.get('query_disconnect_active_scenario_count', '')}`",
             f"- context_assembly_snapshot_id: `{loop_result.metadata.get('context_assembly_snapshot_id', '')}`",
             f"- query_input_count: `{loop_result.metadata.get('query_input_count', '')}`",
             f"- session_seed_required: `{str(session_foundation.get('sessionSeedRequiredForDefaultPath') is True).lower()}`",
@@ -876,6 +1235,18 @@ def _trace_markdown(
             source_graph_audit_markdown(source_graph_audit).rstrip(),
             "",
             worker_execution_gate_markdown(worker_gate).rstrip(),
+            "",
+            render_query_session_integration_markdown(query_session_integration).rstrip(),
+            "",
+            render_query_handoff_markdown(query_handoff).rstrip(),
+            "",
+            render_query_resume_custody_markdown(query_custody).rstrip(),
+            "",
+            render_query_event_flow_markdown(query_event_flow).rstrip(),
+            "",
+            render_query_state_graph_markdown(query_state_graph).rstrip(),
+            "",
+            render_query_disconnect_markdown(query_disconnect).rstrip(),
             "",
             "## Vendored Runtime Modules",
             "",

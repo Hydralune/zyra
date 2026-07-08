@@ -496,7 +496,12 @@ def validate_lifecycle_events(
                 event_index=event.index,
                 metadata={"status": event.status, "recovered": recovered_tool_failure},
             )
-        if session_id and event.session_id and event.session_id != session_id:
+        if (
+            session_id
+            and event.session_id
+            and event.session_id != session_id
+            and not allows_replay_source_identity(event)
+        ):
             yield SessionLifecycleFinding(
                 code="session_id_mismatch",
                 severity=SessionLifecycleSeverity.BLOCKER,
@@ -507,7 +512,12 @@ def validate_lifecycle_events(
                 event_index=event.index,
                 metadata={"expected": session_id, "actual": event.session_id},
             )
-        if worker_request_id and event.worker_request_id and event.worker_request_id != worker_request_id:
+        if (
+            worker_request_id
+            and event.worker_request_id
+            and event.worker_request_id != worker_request_id
+            and not allows_replay_source_identity(event)
+        ):
             yield SessionLifecycleFinding(
                 code="worker_request_id_mismatch",
                 severity=SessionLifecycleSeverity.BLOCKER,
@@ -554,6 +564,10 @@ def validate_lifecycle_events(
                 metadata={"count": count},
             )
     yield from validate_lifecycle_order(events)
+
+
+def allows_replay_source_identity(event: SessionLifecycleEventView) -> bool:
+    return event.phase == "session_replay_plan" and event.stage == SessionLifecycleStage.REPLAY
 
 
 def validate_lifecycle_order(events: Sequence[SessionLifecycleEventView]) -> Iterable[SessionLifecycleFinding]:

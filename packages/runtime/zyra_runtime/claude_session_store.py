@@ -28,6 +28,10 @@ class CodeWorkerSessionStoreRecordType(StrEnum):
     SESSION_SEED = "session_seed"
     INPUT_ACCEPTED = "input_accepted"
     CONTEXT_SNAPSHOT = "context_snapshot"
+    QUERY_CONTROL_STATE = "query_control_state"
+    QUERY_CHECKPOINT = "query_checkpoint"
+    QUERY_ENTRY_PACKET = "query_entry_packet"
+    QUERY_ENTRY_BLOCKED = "query_entry_blocked"
     QUERY_ENGINE_ATTACHED = "query_engine_attached"
     SNAPSHOT_MATERIALIZED = "snapshot_materialized"
     FAILURE = "failure"
@@ -383,6 +387,95 @@ class CodeWorkerSessionStore:
             },
         )
         return self.append_records((record,))
+
+    def append_query_entry_report(
+        self,
+        *,
+        session_id: str,
+        worker_request_id: str,
+        run_id: str,
+        task_id: str,
+        control: Mapping[str, Any],
+        checkpoint: Mapping[str, Any],
+        packet: Mapping[str, Any],
+        report: Mapping[str, Any],
+        disabled: bool = False,
+    ) -> CodeWorkerSessionStoreReceipt:
+        replay = self.replay_session(session_id)
+        sequence = replay.last_sequence + 1
+        records = [
+            self._record(
+                record_type=CodeWorkerSessionStoreRecordType.QUERY_CONTROL_STATE,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                run_id=run_id,
+                task_id=task_id,
+                sequence=sequence,
+                payload=control,
+                metadata={
+                    "ok": control.get("ok"),
+                    "status": control.get("status"),
+                    "blocks_query": control.get("blocks_query"),
+                },
+            )
+        ]
+        checkpoint_status = str(checkpoint.get("status") or "")
+        if checkpoint_status and checkpoint_status != "not_requested":
+            sequence += 1
+            records.append(
+                self._record(
+                    record_type=CodeWorkerSessionStoreRecordType.QUERY_CHECKPOINT,
+                    session_id=session_id,
+                    worker_request_id=worker_request_id,
+                    run_id=run_id,
+                    task_id=task_id,
+                    sequence=sequence,
+                    payload=checkpoint,
+                    metadata={
+                        "ok": checkpoint.get("ok"),
+                        "status": checkpoint.get("status"),
+                        "artifact_id": checkpoint.get("artifact_id"),
+                    },
+                )
+            )
+        sequence += 1
+        records.append(
+            self._record(
+                record_type=CodeWorkerSessionStoreRecordType.QUERY_ENTRY_PACKET,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                run_id=run_id,
+                task_id=task_id,
+                sequence=sequence,
+                payload=packet,
+                metadata={
+                    "ok": packet.get("ok"),
+                    "status": packet.get("status"),
+                    "route": packet.get("route"),
+                    "block_reason": packet.get("block_reason"),
+                    "message_count": packet.get("message_count"),
+                },
+            )
+        )
+        if report.get("ok") is not True:
+            sequence += 1
+            records.append(
+                self._record(
+                    record_type=CodeWorkerSessionStoreRecordType.QUERY_ENTRY_BLOCKED,
+                    session_id=session_id,
+                    worker_request_id=worker_request_id,
+                    run_id=run_id,
+                    task_id=task_id,
+                    sequence=sequence,
+                    payload=report,
+                    metadata={
+                        "status": report.get("status"),
+                        "first_blocker_code": report.get("first_blocker_code"),
+                        "blocker_count": report.get("blocker_count"),
+                    },
+                )
+            )
+        return self.append_records(tuple(records), disabled=disabled)
 
     def replay_session(self, session_id: str) -> CodeWorkerSessionStoreReplay:
         path = self.session_path(session_id)
