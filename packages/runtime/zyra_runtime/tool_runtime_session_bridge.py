@@ -101,11 +101,12 @@ class ToolSessionToolUse:
         return self.source_format == ToolSessionBridgeFormat.HERMES_PERMISSION_TOOL_USE
 
     def to_tool_step(self) -> dict[str, Any]:
+        stable_tool_call_id = self.upstream_tool_use_id or self.bridge_tool_use_id
         metadata = {
             "tool_session_bridge_tool_use_id": self.bridge_tool_use_id,
             "tool_session_bridge_origin": str(self.origin),
             "tool_session_bridge_format": str(self.source_format),
-            "assistant_tool_use_id": self.upstream_tool_use_id,
+            "assistant_tool_use_id": stable_tool_call_id,
             "source_message_id": self.source_message_id,
             "message_index": str(self.message_index),
             "block_index": str(self.block_index),
@@ -117,8 +118,7 @@ class ToolSessionToolUse:
             "arguments": dict(self.arguments),
             "metadata": metadata,
         }
-        if self.upstream_tool_use_id:
-            payload["tool_call_id"] = self.upstream_tool_use_id
+        payload["tool_call_id"] = stable_tool_call_id
         if self.prompt:
             payload["prompt"] = self.prompt
         return payload

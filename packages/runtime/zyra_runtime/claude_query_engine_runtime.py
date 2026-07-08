@@ -1889,6 +1889,52 @@ class ZyraClaudeQueryEngine:
                 node_id=node_id,
             )
         )
+        tool_runtime_gate_failures = _runtime_gate_failures(
+            {
+                "tool_foundation_audit": tool_foundation_audit,
+                "tool_permission_handoff": permission_handoff,
+                "tool_permission_session": tool_permission_session_report,
+                "tool_execution_timeline": tool_execution_timeline_report,
+                "tool_budget_chain": tool_budget_chain_report,
+                "tool_permission_checkpoint": tool_permission_checkpoint_report,
+                "tool_continuation_packet": tool_continuation_packet_report,
+                "tool_replay_state": tool_replay_state_report,
+                "tool_semantic_effects": tool_semantic_effect_report,
+                "tool_result_replay_index": tool_result_replay_index_report,
+                "tool_source_effects": tool_source_effect_report,
+                "tool_readiness_matrix": tool_readiness_matrix_report,
+                "tool_effect_fingerprint": tool_effect_fingerprint_report,
+                "tool_integration": tool_integration_report,
+                "tool_contract_gate": tool_contract_gate_report,
+            }
+        )
+        if tool_runtime_gate_failures:
+            ok = False
+            stopped_reason = stopped_reason or "tool_runtime_gate_failed"
+            gate_payload = {
+                "error": stopped_reason,
+                "blocking_reports": list(tool_runtime_gate_failures),
+                "blocking_report_count": len(tool_runtime_gate_failures),
+                "resume_token": session.resume_token,
+            }
+            session.status = "failed"
+            session.metadata["tool_runtime_gate_failed"] = True
+            session.metadata["tool_runtime_gate_failures"] = list(tool_runtime_gate_failures)
+            session.record_error(
+                error=stopped_reason,
+                stop_reason=StopReason.TOOL_ERROR,
+                metadata=gate_payload,
+            )
+            self._append_lifecycle(
+                event_records,
+                session,
+                run_id,
+                task_id,
+                node_id,
+                worker_request_id,
+                "tool_runtime_gate_failed",
+                gate_payload,
+            )
         metadata = self._metadata(
             session_snapshot=session_snapshot,
             max_turns=max_turns,
@@ -1933,6 +1979,9 @@ class ZyraClaudeQueryEngine:
         metadata.update(tool_foundation_persistence_metadata(tool_foundation_artifacts))
         metadata.update(tool_settlement_metadata(settlement_reports))
         metadata.update(session_lifecycle.metadata())
+        metadata["tool_runtime_gate_ok"] = str(not tool_runtime_gate_failures).lower()
+        metadata["tool_runtime_gate_failures"] = ",".join(tool_runtime_gate_failures)
+        metadata["tool_runtime_gate_failure_count"] = str(len(tool_runtime_gate_failures))
         control_report = None
         if self.config.control_commands:
             control_runtime = ClaudeControlCommandRuntime(
@@ -2353,6 +2402,30 @@ def _tool_use_context_metadata(snapshots: Sequence[Mapping[str, Any]]) -> dict[s
         "tool_use_context_artifact_refs": str(artifact_count),
         "tool_use_context_result_chars": str(result_chars),
     }
+
+
+def _runtime_gate_failures(reports: Mapping[str, Any]) -> list[str]:
+    failures: list[str] = []
+    for name, report in reports.items():
+        if report is None:
+            failures.append(name)
+            continue
+        ok_value = getattr(report, "ok", None)
+        if ok_value is None and isinstance(report, Mapping):
+            ok_value = report.get("ok")
+        if ok_value is None and hasattr(report, "to_dict"):
+            payload = report.to_dict()
+            ok_value = payload.get("ok") if isinstance(payload, Mapping) else None
+        if ok_value is False:
+            failures.append(name)
+            continue
+        status = getattr(report, "status", None)
+        if status is None and isinstance(report, Mapping):
+            status = report.get("status")
+        status_text = str(status or "").split(".")[-1].lower()
+        if ok_value is None and status_text in {"blocked", "fail", "failed"}:
+            failures.append(name)
+    return failures
 
 
 def _format_step_summary(summary: Mapping[str, Any], execution_mode: str) -> str:

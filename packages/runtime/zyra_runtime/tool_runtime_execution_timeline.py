@@ -397,6 +397,22 @@ class ToolExecutionTimelineRuntime:
                 frame_kind = _frame_kind(frame)
                 if frame_kind is None:
                     continue
+                payload = frame.get("payload") if isinstance(frame.get("payload"), Mapping) else {}
+                runtime_metadata = {
+                    "trace_id": str(frame.get("trace_id") or payload.get("trace_id") or payload.get("traceId") or payload.get("id") or ""),
+                    "status": str(frame.get("status") or ""),
+                    "execution_mode": str(payload.get("execution_mode") or payload.get("executionMode") or payload.get("mode") or ""),
+                }
+                for key in (
+                    "read_only",
+                    "access_mode",
+                    "concurrency_safe",
+                    "schema_valid",
+                    "conflict_key",
+                    "conflict_protected",
+                ):
+                    if key in payload:
+                        runtime_metadata[key] = str(payload[key]).lower() if isinstance(payload[key], bool) else str(payload[key])
                 events.append(
                     ToolTimelineEvent(
                         event_id=str(frame.get("frame_id") or new_id("tooltimeev")),
@@ -409,11 +425,7 @@ class ToolExecutionTimelineRuntime:
                         step_index=_int(frame.get("step_index")),
                         source="ToolStreamingRuntime",
                         timestamp=str(frame.get("created_at") or ""),
-                        metadata={
-                            "trace_id": str(frame.get("trace_id") or payload.get("trace_id") or ""),
-                            "status": str(frame.get("status") or ""),
-                            "execution_mode": str(payload.get("execution_mode") or ""),
-                        },
+                        metadata=runtime_metadata,
                     )
                 )
         return events

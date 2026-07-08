@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 for package_path in [
@@ -18,7 +19,14 @@ for package_path in [
         sys.path.insert(0, str(package_path))
 
 from zyra_core import create_task_state  # noqa: E402
-from zyra_runtime import JsonPermissionStore, WorkerRequest  # noqa: E402
+from zyra_runtime import (  # noqa: E402
+    JsonPermissionStore,
+    ToolSemanticEffectReport,
+    ToolSemanticFinding,
+    ToolSemanticSeverity,
+    ToolSemanticSurface,
+    WorkerRequest,
+)
 from zyra_workers import CodeWorkerRuntime, CodeWorkerSidecarClient  # noqa: E402
 
 
@@ -182,6 +190,56 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
             self.assertEqual(len(_query_phases(run.event_records, "tool_readiness_matrix")), 1)
             self.assertEqual(len(_query_phases(run.event_records, "tool_effect_fingerprint")), 1)
             self.assertEqual(len(_query_phases(run.event_records, "tool_integration_audit")), 1)
+
+    def test_session_tool_use_without_upstream_id_keeps_stable_result_pairing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Session assistant tool_use without upstream id.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "alpha.txt").write_text("alpha-no-id", encoding="utf-8")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=workspace,
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints={
+                    "session_messages": [
+                        {"role": "user", "content": "Read alpha from the active session."},
+                        {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "name": "file_read",
+                                    "input": {"path": "alpha.txt"},
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            run = runtime.run(request)
+
+            self.assertTrue(run.worker_result.ok)
+            accepted = _query_phases(run.event_records, "assistant_tool_use_accepted")
+            self.assertEqual(len(accepted), 1)
+            self.assertTrue(accepted[0]["assistant_tool_use_id"])
+            self.assertEqual(accepted[0]["tool_call_id"], accepted[0]["assistant_tool_use_id"])
+            tool_result = next(event.payload["tool_result"] for event in run.event_records if "tool_result" in event.payload)
+            self.assertEqual(tool_result["tool_call_id"], accepted[0]["tool_call_id"])
+            projected = _query_phases(run.event_records, "tool_result_context_projected")[0]["tool_result_context"]
+            self.assertEqual(projected["projections"][0]["tool_call_id"], accepted[0]["tool_call_id"])
+            self.assertEqual(run.worker_result.metadata["tool_semantic_effect_ok"], "true")
+            self.assertEqual(
+                run.worker_result.metadata["tool_integration_requirement_session_tool_use_to_runtime"],
+                "pass",
+            )
 
     def test_runtime_externalizes_large_tool_result_and_emits_budget_watchdog_signal(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -535,6 +593,57 @@ class CodeWorkerToolLoopFoundationRuntimeTests(unittest.TestCase):
             self.assertEqual(run.worker_result.error, "tool_loop_foundation_disabled")
             self.assertEqual(run.worker_result.metadata["tool_foundation_disabled_component"], "ToolPermissionHandoffRuntime")
             self.assertEqual(len(_query_phases(run.event_records, "tool_loop_foundation_disabled")), 1)
+
+    def test_runtime_gate_failure_changes_worker_result_not_only_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Runtime gate failure should fail worker result.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "readme.txt").write_text("hello", encoding="utf-8")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=workspace,
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints={"tool_plan": [{"tool_name": "file_read", "arguments": {"path": "readme.txt"}}]},
+            )
+
+            def blocked_semantic_report(self, **kwargs):
+                return ToolSemanticEffectReport(
+                    report_id="semantic-blocked",
+                    owner_unit="M1-02C",
+                    runtime_id="test-runtime",
+                    session_id=str(kwargs["session_id"]),
+                    worker_request_id=str(kwargs["worker_request_id"]),
+                    workspace_root=str(kwargs["workspace_root"]),
+                    effects=(),
+                    findings=(
+                        ToolSemanticFinding(
+                            code="FORCED_SEMANTIC_BLOCK",
+                            severity=ToolSemanticSeverity.BLOCKER,
+                            surface=ToolSemanticSurface.RESULT_CONTEXT,
+                            message="forced semantic blocker",
+                        ),
+                    ),
+                )
+
+            with patch(
+                "zyra_runtime.claude_query_engine_runtime.ToolSemanticEffectRuntime.build_report",
+                blocked_semantic_report,
+            ):
+                run = runtime.run(request)
+
+            self.assertFalse(run.worker_result.ok)
+            self.assertEqual(run.worker_result.error, "tool_runtime_gate_failed")
+            self.assertEqual(run.worker_result.metadata["tool_semantic_effect_ok"], "false")
+            self.assertEqual(run.worker_result.metadata["tool_runtime_gate_ok"], "false")
+            self.assertIn("tool_semantic_effects", run.worker_result.metadata["tool_runtime_gate_failures"])
+            self.assertEqual(len(_query_phases(run.event_records, "tool_runtime_gate_failed")), 1)
 
 
 def _query_phases(event_records, phase: str) -> list[dict]:

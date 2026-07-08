@@ -402,16 +402,17 @@ class ToolSemanticEffectRuntime:
         output: list[ToolSemanticEffect] = []
         for turn in session_bridge_report.turns:
             for tool_use in turn.valid_tool_uses:
-                tool_call_id = tool_use.upstream_tool_use_id
+                tool_call_id = tool_use.upstream_tool_use_id or tool_use.bridge_tool_use_id
+                matched = tool_call_id in receipt_ids
                 output.append(
                     ToolSemanticEffect(
                         effect_id=new_id("toolsemeffect"),
                         kind=ToolSemanticEffectKind.SESSION_TOOL_USE_EXECUTED,
-                        status=ToolSemanticEffectStatus.PASS if tool_call_id in receipt_ids or not tool_call_id and receipts else ToolSemanticEffectStatus.FAIL,
+                        status=ToolSemanticEffectStatus.PASS if matched else ToolSemanticEffectStatus.FAIL,
                         tool_call_id=tool_call_id,
                         tool_name=tool_use.tool_name,
                         expected="assistant tool_use reaches ToolExecutionRuntime receipt",
-                        observed="receipt found" if tool_call_id in receipt_ids or receipts else "receipt missing",
+                        observed="receipt found" if matched else "receipt missing",
                         metadata={"bridge_tool_use_id": tool_use.bridge_tool_use_id, "origin": str(tool_use.origin)},
                     )
                 )

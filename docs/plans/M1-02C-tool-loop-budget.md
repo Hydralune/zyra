@@ -39,7 +39,7 @@ The CodeWorker path now converts planned tool steps into a typed `ToolLoopPlan` 
 
 Tool results are passed through `ToolResultBudgeter`. Oversized outputs are written to structured artifacts, inline output is replaced by a preview plus artifact id, and the query session records `tool_result_budget_exceeded`, `tool_failure_signal`, and `watchdog_signal` events. Schema errors are produced before executor dispatch, permission denials and timeouts are normalized by the executor, and all failure classes enter the same watchdog signal route.
 
-The M1-02C source extraction internalizes 49 Claude Code tool-loop budget files with 18,218 effective upstream lines. The generated JSON inventory is audit data; effective implementation is the productized runtime source, scheduler/budget runtime code, worker integration, sidecar protocol, verification script, and tests.
+The M1-02C source extraction tracks 49 Claude Code tool-loop budget files with 18,218 upstream source-pool lines. Those files under `vendor-runtimes/**` and the generated JSON inventory are audit/source-custody evidence only and are excluded from effective implementation counts. Effective implementation is limited to Zyra-owned runtime code under `packages/**`, main-path worker integration, productized sidecar protocol code outside the vendor/source-pool bucket, repeatable verification scripts, and behavior tests; tests remain verification evidence and do not count toward the production line minimum.
 
 ## Self-Check
 
@@ -48,6 +48,14 @@ The M1-02C source extraction internalizes 49 Claude Code tool-loop budget files 
 - Externalization: large `ToolResult.output` payloads become structured artifacts with inline preview, original size, budget size, and `full_output_artifact_id`.
 - Failure signal path: schema, permission, timeout, runtime, non-zero exit, and budget signals become `tool_failure_signal` and `watchdog_signal` query-session events, then remain in snapshots and WorkerResult metadata.
 - Boundary discipline: `zyra` reads productized sources under `vendor-runtimes/claude-code-runtime`; no runtime path depends on `../claude-code-best` or `../claudecode-related`.
+
+## Post-Review Fixes
+
+- Review base: `e1fbe5bb245acc432bcfceee5c51f3a68e470a9f`.
+- Fixed stable result pairing for assistant `tool_use` blocks that do not provide an upstream id. `ToolSessionBridgeRuntime` now uses its bridge id as the executable `tool_call_id`, and `ToolSemanticEffectRuntime` requires the same id to appear in real `ToolExecutionRuntime` receipts.
+- Fixed `ToolExecutionTimelineRuntime` to carry `read_only`, `access_mode`, `concurrency_safe`, `schema_valid`, `conflict_key`, and `conflict_protected` from streaming frames into timeline events. Without this, concurrent read-only batches could be misclassified as mutating batches.
+- Added a runtime gate in `ZyraClaudeQueryEngine`: blocking reports from semantic effects, result context, budget chain, permission checkpoint, replay/source effects, readiness, integration audit, or contract gate now change the final `WorkerResult` to `ok=false` with `tool_runtime_gate_failed` instead of only writing metadata.
+- Added regression tests proving no-id assistant tool_use/result pairing and proving a forced semantic blocker changes the worker result, not just event metadata.
 
 ## Validation
 
@@ -59,6 +67,13 @@ python -m unittest tests.unit.test_tool_loop_budget_runtime
 python -m unittest tests.integration.test_code_worker_tool_loop_budget
 python -m unittest tests.integration.test_code_worker_sidecar tests.integration.test_code_worker_query_session_lifecycle
 python scripts\verify_code_worker_sidecar.py
+```
+
+Post-review commands run:
+
+```powershell
+python -m unittest tests.integration.test_code_worker_tool_loop_budget
+python -m unittest tests.unit.test_tool_loop_budget_runtime
 ```
 
 Additional full-suite and boundary validation should remain part of final commit review:
