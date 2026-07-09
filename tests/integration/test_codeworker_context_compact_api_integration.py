@@ -105,6 +105,18 @@ class CodeWorkerContextCompactApiIntegrationTests(unittest.TestCase):
             self.assertTrue(untrusted)
             self.assertTrue(untrusted[0]["content"].startswith("[UNTRUSTED_CONTEXT"))
             self.assertIn("[REDACTED_SECRET]", untrusted[0]["content"])
+            workspace_file_messages = [
+                message
+                for message in restored_messages
+                if message.get("metadata", {}).get("source_provenance") == "workspace_file"
+            ]
+            self.assertTrue(workspace_file_messages)
+            workspace_file = workspace_file_messages[0]
+            self.assertIn("sha256:", workspace_file["content"])
+            self.assertIn("preview:", workspace_file["content"])
+            self.assertIn("[REDACTED_SECRET]", workspace_file["content"])
+            self.assertEqual(workspace_file["metadata"].get("restore_file_status"), "available")
+            self.assertTrue(workspace_file["metadata"].get("restore_file_sha256"))
 
     def test_task_codeworker_routes_return_live_contract_checked_projection(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

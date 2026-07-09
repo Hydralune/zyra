@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from zyra_core import ArtifactRef, EventRecord, EventType, new_id, now_iso, to_jsonable
@@ -649,6 +651,7 @@ class CompactRestoreRuntime:
         budget_chain_report: Any = None,
         constraints: Mapping[str, Any] | None = None,
         resume_token: str = "",
+        workspace_root: str | Path | None = None,
     ) -> CompactRestoreReport:
         constraints = dict(constraints or {})
         force_compact = _truthy(constraints.get("force_compact_restore")) or _truthy(constraints.get("force_context_compact"))
@@ -686,6 +689,7 @@ class CompactRestoreRuntime:
             constraints=constraints,
             boundary=boundary,
             budget_state=budget_state,
+            workspace_root=workspace_root,
         )
         restore_contract: NextTurnRestoreContract | None = None
         if boundary is not None or context_budget.candidate is not None or restore_segments:
@@ -915,6 +919,7 @@ class CompactRestoreRuntime:
         constraints: Mapping[str, Any],
         boundary: CompactBoundary | None,
         budget_state: RuntimeBudgetState,
+        workspace_root: str | Path | None,
     ) -> list[RestoreSegment]:
         segments: list[RestoreSegment] = []
         if boundary and boundary.artifact_id:
@@ -981,15 +986,16 @@ class CompactRestoreRuntime:
                 )
             )
         for path in _string_list(constraints.get("restore_files") or constraints.get("file_restore_paths")):
+            file_restore = _workspace_file_restore_payload(path, workspace_root=workspace_root)
             segments.append(
                 RestoreSegment(
                     segment_id=new_id("restore"),
                     kind=RestoreSegmentKind.FILE_ATTACHMENT,
                     label=path,
-                    content=f"Restore file attachment path: {path}",
+                    content=file_restore["content"],
                     source_id=path,
                     required=True,
-                    budget_chars=len(path),
+                    budget_chars=_safe_int(file_restore["metadata"].get("retrieval_budget"), len(path)),
                     metadata={
                         "source_provenance": "workspace_file",
                         "trust_level": "workspace",
@@ -997,7 +1003,7 @@ class CompactRestoreRuntime:
                         "source_ref": path,
                         "retrieval_query": path,
                         "retrieval_scope": "workspace_file_restore",
-                        "retrieval_budget": str(len(path)),
+                        **file_restore["metadata"],
                         "code_index_source": "true",
                         "source_path": path,
                         "upstream_source_path": "src/services/compact/sessionMemoryCompact.ts",
@@ -1331,3 +1337,74 @@ def _clip(text: str, max_chars: int) -> str:
     if len(value) <= max_chars:
         return value
     return value[: max(0, max_chars - 3)] + "..."
+
+
+def _workspace_file_restore_payload(path: str, *, workspace_root: str | Path | None) -> dict[str, Any]:
+    metadata: dict[str, str] = {
+        "restore_file_path": path,
+        "restore_file_status": "path_only",
+        "restore_file_sha256": "",
+        "restore_file_size_bytes": "0",
+        "restore_file_preview_chars": "0",
+        "retrieval_budget": str(len(path)),
+    }
+    if workspace_root is None or str(workspace_root) == "":
+        return {
+            "content": f"Restore file attachment path: {path}",
+            "metadata": metadata,
+        }
+    try:
+        root = Path(workspace_root).resolve()
+        candidate = (root / path).resolve()
+        candidate.relative_to(root)
+    except (OSError, ValueError):
+        metadata["restore_file_status"] = "outside_workspace"
+        return {
+            "content": f"Restore file attachment rejected outside workspace: {path}",
+            "metadata": metadata,
+        }
+    if not candidate.is_file():
+        metadata["restore_file_status"] = "missing"
+        return {
+            "content": f"Restore file attachment missing in workspace: {path}",
+            "metadata": metadata,
+        }
+    digest = hashlib.sha256()
+    size_bytes = 0
+    preview = b""
+    try:
+        with candidate.open("rb") as handle:
+            while True:
+                chunk = handle.read(8192)
+                if not chunk:
+                    break
+                if len(preview) < 4096:
+                    preview += chunk[: max(0, 4096 - len(preview))]
+                size_bytes += len(chunk)
+                digest.update(chunk)
+    except OSError:
+        metadata["restore_file_status"] = "unreadable"
+        return {
+            "content": f"Restore file attachment unreadable in workspace: {path}",
+            "metadata": metadata,
+        }
+    preview_text = _clip(preview.decode("utf-8", errors="replace"), 1600)
+    metadata.update(
+        {
+            "restore_file_status": "available",
+            "restore_file_sha256": digest.hexdigest(),
+            "restore_file_size_bytes": str(size_bytes),
+            "restore_file_preview_chars": str(len(preview_text)),
+            "retrieval_budget": str(len(preview_text) + 160),
+        }
+    )
+    return {
+        "content": (
+            f"Workspace file restore: {path}\n"
+            f"size_bytes: {size_bytes}\n"
+            f"sha256: {digest.hexdigest()}\n"
+            "preview:\n"
+            f"{preview_text}"
+        ),
+        "metadata": metadata,
+    }

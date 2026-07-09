@@ -1466,6 +1466,7 @@ class ZyraClaudeQueryEngine:
                                 budget_chain_report=None,
                                 constraints=self.config.runtime_constraints,
                                 resume_token=session.resume_token,
+                                workspace_root=self.context.workspace_root,
                             )
                             pending_restore_contract = interim_compact_restore_report.restore_contract
                             event_records.append(
@@ -1872,6 +1873,7 @@ class ZyraClaudeQueryEngine:
             budget_chain_report=None,
             constraints=self.config.runtime_constraints,
             resume_token=session.resume_token,
+            workspace_root=self.context.workspace_root,
         )
         event_records.append(
             compact_restore_runtime.event_for_report(
