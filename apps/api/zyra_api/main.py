@@ -67,6 +67,7 @@ from zyra_runtime import (
     build_claude_productization_integration_report,
     build_claude_source_graph_audit,
     build_productized_claude_runtime_contracts,
+    compact_state_projection_from_metadata,
     control_event_from_command,
     default_tool_registry,
     default_worker_descriptors,
@@ -662,6 +663,119 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             payload["apiInventoryContract"] = api_inventory_contract.to_dict()
             self._send_json(HTTPStatus.OK, payload)
+            return
+
+        if parts == ["workers", "code", "compact-state"]:
+            query = parse_qs(parsed.query)
+            sample_state = create_task_state("Inspect CodeWorker context compact and API foundation.")
+            constraints: dict[str, Any] = {
+                "raw_input": str(query.get("q", ["Inspect compact restore and model API state."])[0]),
+                "query_context_budget_chars": _int_or_default(query.get("query_context_budget_chars", ["1200"])[0], 1200),
+                "force_compact_restore": _truthy(query.get("force_compact_restore", ["true"])[0], default=True),
+                "query_turns": [
+                    [{"tool_name": "file_write", "arguments": {"path": "compact-state-probe.txt", "content": "compact state probe"}}],
+                    [{"tool_name": "file_read", "arguments": {"path": "compact-state-probe.txt"}}],
+                ],
+                "restore_files": _split_csv(query.get("restore_files", ["README.md"])[0] or "README.md") or ["README.md"],
+                "invoked_skills": _split_csv(query.get("invoked_skills", ["codeworker-api-foundation"])[0] or "codeworker-api-foundation")
+                or ["codeworker-api-foundation"],
+                "mcp_instruction_deltas": {
+                    "codeworker-api": "Preserve compact restore and API retry instructions across next turn."
+                },
+            }
+            if query.get("model_stream_error_kind"):
+                constraints["model_stream_error_kind"] = query["model_stream_error_kind"][0]
+            if query.get("api_retry_fallback_models"):
+                constraints["api_retry_fallback_models"] = query["api_retry_fallback_models"][0]
+            request = WorkerRequest(
+                run_id=sample_state.run_id,
+                task_id=sample_state.task_id,
+                node_id=sample_state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints=constraints,
+                metadata={"source": "workers/code/compact-state"},
+            )
+            run_result = CodeWorkerRuntime(
+                project_root=PROJECT_ROOT,
+                workspace_root=tool_workspace_path(),
+                artifact_root=artifact_root_path(),
+                permission_store=get_permission_store(),
+            ).run(request)
+            phases = [
+                event.payload.get("query_session", {}).get("phase")
+                for event in run_result.event_records
+                if isinstance(event.payload.get("query_session"), dict)
+            ]
+            interesting_events = [
+                to_jsonable(event)
+                for event in run_result.event_records
+                if event.payload.get("query_session", {}).get("phase")
+                in {
+                    "compact_restore_report",
+                    "compact_restore_policy",
+                    "compact_boundary_created",
+                    "compact_needed",
+                    "next_turn_restore_contract",
+                    "context_epoch_report",
+                    "model_stream_frame",
+                    "model_stream_report",
+                    "model_provider_catalog",
+                    "model_stream_watchdog",
+                    "model_stream_watchdog_signal",
+                    "api_retry_report",
+                    "api_retry_playbook",
+                    "runtime_budget_updated",
+                    "runtime_budget_replay",
+                    "codeworker_api_foundation",
+                    "codeworker_api_foundation_audit",
+                    "compact_state_projection",
+                }
+            ]
+            metadata = run_result.worker_result.metadata
+            compact_state_projection = compact_state_projection_from_metadata(
+                metadata,
+                [to_jsonable(event) for event in run_result.event_records],
+            )
+            self._send_json(
+                HTTPStatus.OK if run_result.worker_result.ok else HTTPStatus.CONFLICT,
+                {
+                    "worker_request": to_jsonable(request),
+                    "worker_result": to_jsonable(run_result.worker_result),
+                    "compact_state": {
+                        "ok": metadata.get("codeworker_api_foundation_ok"),
+                        "foundation_status": metadata.get("codeworker_api_foundation_status"),
+                        "compact_restore_status": metadata.get("compact_restore_status"),
+                        "compact_restore_boundary_id": metadata.get("compact_restore_boundary_id"),
+                        "next_turn_restore_contract_id": metadata.get("compact_restore_contract_id"),
+                        "runtime_budget_status": metadata.get("runtime_budget_state_status"),
+                        "runtime_budget_pressure": metadata.get("runtime_budget_state_highest_pressure"),
+                        "runtime_budget_replay_status": metadata.get("runtime_budget_replay_status"),
+                        "runtime_budget_replay_blocking_count": metadata.get("runtime_budget_replay_blocking_count"),
+                        "context_epoch_status": metadata.get("context_epoch_status"),
+                        "context_epoch_restore_epochs": metadata.get("context_epoch_restore_epochs"),
+                        "compact_restore_policy_status": metadata.get("compact_restore_policy_status"),
+                        "compact_restore_policy_blocked_rules": metadata.get("compact_restore_policy_blocked_rules"),
+                        "model_provider_status": metadata.get("model_provider_status"),
+                        "model_provider_selected_model": metadata.get("model_provider_selected_model"),
+                        "model_stream_status": metadata.get("model_stream_status"),
+                        "model_stream_watchdog_status": metadata.get("model_stream_watchdog_status"),
+                        "model_stream_watchdog_signals": metadata.get("model_stream_watchdog_signals"),
+                        "api_retry_status": metadata.get("api_retry_status"),
+                        "api_retry_fallback_used": metadata.get("api_retry_fallback_used"),
+                        "api_retry_playbook_status": metadata.get("api_retry_playbook_status"),
+                        "api_retry_playbook_retry_budget_required": metadata.get("api_retry_playbook_retry_budget_required"),
+                        "codeworker_api_audit_status": metadata.get("codeworker_api_audit_status"),
+                        "codeworker_api_audit_blocking_count": metadata.get("codeworker_api_audit_blocking_count"),
+                        "compact_state_projection_status": metadata.get("compact_state_projection_status"),
+                        "compact_state_projection_blocking_count": metadata.get("compact_state_projection_blocking_count"),
+                    },
+                    "compact_state_projection": compact_state_projection,
+                    "phase_counts": _event_counts(
+                        [{"event_type": str(phase)} for phase in phases if phase]
+                    ),
+                    "events": interesting_events,
+                },
+            )
             return
 
         if parts == ["workers", "code", "session-foundation"]:

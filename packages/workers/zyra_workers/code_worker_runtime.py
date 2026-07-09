@@ -686,6 +686,34 @@ class CodeWorkerRuntime:
                 disable_tool_execution_runtime=request.constraints.get("disable_tool_execution_runtime") is True,
                 disable_tool_result_budget_runtime=request.constraints.get("disable_tool_result_budget_runtime") is True,
                 disable_tool_permission_handoff_runtime=request.constraints.get("disable_tool_permission_handoff_runtime") is True,
+                disable_runtime_budget_state=request.constraints.get("disable_runtime_budget_state") is True,
+                disable_compact_restore_runtime=request.constraints.get("disable_compact_restore_runtime") is True,
+                disable_model_stream_runtime=request.constraints.get("disable_model_stream_runtime") is True,
+                disable_api_retry_runtime=request.constraints.get("disable_api_retry_runtime") is True,
+                disable_codeworker_api_foundation_runtime=request.constraints.get("disable_codeworker_api_foundation_runtime") is True,
+                model_name=str(request.constraints.get("model_name") or "zyra-local-code-model"),
+                model_input_token_limit=_positive_int(
+                    request.constraints.get("model_input_token_limit"),
+                    default=200000,
+                ),
+                model_output_token_limit=_positive_int(
+                    request.constraints.get("model_output_token_limit"),
+                    default=8192,
+                ),
+                api_retry_max_attempts=_positive_int(
+                    request.constraints.get("api_retry_max_attempts"),
+                    default=3,
+                ),
+                api_retry_fallback_models=tuple(
+                    str(item).strip()
+                    for item in (
+                        request.constraints.get("api_retry_fallback_models")
+                        if isinstance(request.constraints.get("api_retry_fallback_models"), list)
+                        else str(request.constraints.get("api_retry_fallback_models") or "zyra-local-fallback").split(",")
+                    )
+                    if str(item).strip()
+                ),
+                runtime_constraints=request.constraints,
                 session_bridge_report=tool_session_bridge,
             ),
         )

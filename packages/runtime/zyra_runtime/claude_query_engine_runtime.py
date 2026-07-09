@@ -17,6 +17,30 @@ from .claude_context_window import (
     ClaudeContextCompactionReason,
     ClaudeContextWindowManager,
 )
+from .codeworker_api_foundation import (
+    CodeWorkerApiFoundationRuntime,
+    codeworker_api_foundation_metadata,
+)
+from .codeworker_api_foundation_audit import (
+    CodeWorkerApiFoundationAuditRuntime,
+    codeworker_api_audit_metadata,
+)
+from .codeworker_compact_state_projection import (
+    CodeWorkerCompactStateProjectionRuntime,
+    compact_state_projection_metadata,
+)
+from .api_retry_playbook_runtime import (
+    ApiRetryPlaybookRuntime,
+    api_retry_playbook_metadata,
+    default_api_retry_playbook_source_decisions,
+)
+from .compact_restore_policy_runtime import (
+    CompactRestorePolicyRuntime,
+    compact_restore_policy_metadata,
+    default_compact_restore_policy_source_decisions,
+)
+from .compact_restore_runtime import CompactRestoreRuntime, compact_restore_metadata
+from .context_epoch_runtime import ContextEpochRuntime, context_epoch_metadata
 from .claude_query_plan import query_turns_from_constraints as planned_query_turns_from_constraints
 from .claude_runtime_contracts import (
     PRODUCTIZED_CONTRACT_SOURCE,
@@ -27,7 +51,22 @@ from .claude_runtime_state import ClaudeRuntimeStateLedger
 from .claude_session_lifecycle import ClaudeSessionLifecycleRuntime, session_artifact_metadata
 from .claude_tool_use_runtime import ClaudeToolUseRuntime
 from .executor import ToolExecutionContext, tool_result_event
+from .model_api_runtime import (
+    ApiRetryPolicy,
+    ApiRetryRuntime,
+    ModelStreamRuntime,
+    api_retry_metadata,
+    model_stream_metadata,
+)
+from .model_provider_runtime import ModelProviderCatalogRuntime, model_provider_metadata
+from .model_stream_watchdog_runtime import ModelStreamWatchdogRuntime, model_stream_watchdog_metadata
 from .query_session import QuerySession, QueryStreamEventType, StopReason, snapshot_checkpoint_metadata
+from .runtime_budget_replay_runtime import (
+    RuntimeBudgetReplayRuntime,
+    default_runtime_budget_replay_source_decisions,
+    runtime_budget_replay_metadata,
+)
+from .runtime_budget_state import RuntimeBudgetState, runtime_budget_metadata
 from .tool_loop import (
     ToolFailureSignal,
     ToolLoopScheduler,
@@ -123,6 +162,17 @@ class ClaudeQueryEngineConfig:
     disable_tool_execution_runtime: bool = False
     disable_tool_result_budget_runtime: bool = False
     disable_tool_permission_handoff_runtime: bool = False
+    disable_runtime_budget_state: bool = False
+    disable_compact_restore_runtime: bool = False
+    disable_model_stream_runtime: bool = False
+    disable_api_retry_runtime: bool = False
+    disable_codeworker_api_foundation_runtime: bool = False
+    model_name: str = "zyra-local-code-model"
+    model_input_token_limit: int = 200000
+    model_output_token_limit: int = 8192
+    api_retry_max_attempts: int = 3
+    api_retry_fallback_models: Sequence[str] = field(default_factory=lambda: ("zyra-local-fallback",))
+    runtime_constraints: Mapping[str, Any] = field(default_factory=dict)
     session_bridge_report: ToolSessionBridgeReport | None = None
 
     @property
@@ -284,6 +334,40 @@ class ZyraClaudeQueryEngine:
             turn_limit=self.config.max_turn_tool_result_chars,
             session_limit=self.config.max_query_context_chars,
         )
+        runtime_budget_state = RuntimeBudgetState(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            context_limit_chars=max(1, self.config.max_query_context_chars),
+            tool_result_limit_chars=max(1, self.config.max_tool_result_chars),
+            model_input_token_limit=max(1, self.config.model_input_token_limit),
+            model_output_token_limit=max(1, self.config.model_output_token_limit),
+            retry_limit=max(0, self.config.api_retry_max_attempts),
+            disabled=self.config.disable_runtime_budget_state,
+            metadata={
+                "source_path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+                "upstream_source_path": "opencode/packages/opencode/src/session",
+            },
+        )
+        compact_restore_runtime = CompactRestoreRuntime(disabled=self.config.disable_compact_restore_runtime)
+        compact_restore_policy_runtime = CompactRestorePolicyRuntime()
+        model_provider_catalog_runtime = ModelProviderCatalogRuntime()
+        model_stream_runtime = ModelStreamRuntime(disabled=self.config.disable_model_stream_runtime)
+        api_retry_runtime = ApiRetryRuntime(
+            disabled=self.config.disable_api_retry_runtime,
+            policy=ApiRetryPolicy(
+                max_attempts=max(1, self.config.api_retry_max_attempts),
+                fallback_models=tuple(self.config.api_retry_fallback_models),
+            ),
+        )
+        api_retry_playbook_runtime = ApiRetryPlaybookRuntime()
+        codeworker_api_foundation_runtime = CodeWorkerApiFoundationRuntime(
+            disabled=self.config.disable_codeworker_api_foundation_runtime
+        )
+        context_epoch_runtime = ContextEpochRuntime()
+        model_stream_watchdog_runtime = ModelStreamWatchdogRuntime()
+        runtime_budget_replay_runtime = RuntimeBudgetReplayRuntime()
+        codeworker_api_audit_runtime = CodeWorkerApiFoundationAuditRuntime()
+        compact_state_projection_runtime = CodeWorkerCompactStateProjectionRuntime()
 
         event_records: list[EventRecord] = []
         artifacts: list[ArtifactRef] = []
@@ -294,6 +378,9 @@ class ZyraClaudeQueryEngine:
         tool_execution_receipts: list[dict[str, Any]] = []
         settlement_reports: list[Any] = []
         tool_streaming_traces: list[Any] = []
+        model_provider_reports: list[Any] = []
+        model_stream_reports: list[Any] = []
+        api_retry_reports: list[Any] = []
         context_window = ClaudeContextWindowManager(
             budget=ClaudeContextBudget(
                 max_chars=self.config.max_query_context_chars,
@@ -462,6 +549,28 @@ class ZyraClaudeQueryEngine:
                     "resume_token": session.resume_token,
                 },
             )
+        runtime_budget_state.record_context_usage(
+            active_chars=context_window.active_chars,
+            source="query_engine_initial_context",
+            metadata={"phase": "runtime_budget_attached"},
+        )
+        initial_budget_snapshot = runtime_budget_state.snapshot()
+        event_records.append(
+            runtime_budget_state.event_for_snapshot(
+                initial_budget_snapshot,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                phase="runtime_budget_attached",
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.RUNTIME_BUDGET_UPDATED,
+            metadata={
+                "phase": "runtime_budget_attached",
+                "runtime_budget_state": initial_budget_snapshot.to_dict(),
+            },
+        )
 
         for turn_index, turn in enumerate(normalized_turns, start=1):
             if turn_index > max_turns:
@@ -589,6 +698,111 @@ class ZyraClaudeQueryEngine:
                     "resume_token": session.resume_token,
                 },
             )
+            model_provider_report = model_provider_catalog_runtime.build_report(
+                requested_model=self.config.model_name,
+                fallback_models=tuple(self.config.api_retry_fallback_models),
+                constraints=self.config.runtime_constraints,
+            )
+            model_provider_reports.append(model_provider_report)
+            event_records.append(
+                model_provider_catalog_runtime.event_for_report(
+                    model_provider_report,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    session_id=session.session_id,
+                    worker_request_id=worker_request_id,
+                )
+            )
+            session.record_batch_event(
+                QueryStreamEventType.MODEL_PROVIDER_CATALOG,
+                turn_id=turn_state.turn_id,
+                metadata=model_provider_report.to_dict(),
+            )
+            model_envelope = model_stream_runtime.build_envelope(
+                session_id=session.session_id,
+                worker_request_id=worker_request_id,
+                turn_id=turn_state.turn_id,
+                turn_index=turn_index,
+                model=model_provider_report.route.selected_model.model_id,
+                messages=[
+                    *[item for item in request_messages if isinstance(item, Mapping)],
+                    {"role": "user", "content": user_content},
+                ],
+                context_chars=context_window.active_chars,
+                context_limit_chars=self.config.max_query_context_chars,
+                tool_call_count=len(turn),
+                metadata={
+                    "source_path": "packages/runtime/zyra_runtime/model_api_runtime.py",
+                    "upstream_source_path": "src/services/api/claude.ts",
+                },
+            )
+            model_stream_report = model_stream_runtime.stream(
+                envelope=model_envelope,
+                budget_state=runtime_budget_state,
+                constraints=self.config.runtime_constraints,
+            )
+            model_stream_reports.append(model_stream_report)
+            event_records.extend(
+                model_stream_runtime.events_for_report(
+                    model_stream_report,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                )
+            )
+            for frame in model_stream_report.frames:
+                session.record_batch_event(
+                    QueryStreamEventType.MODEL_STREAM_FRAME,
+                    turn_id=turn_state.turn_id,
+                    metadata={
+                        "turn_index": turn_index,
+                        "model_stream_report_id": model_stream_report.report_id,
+                        "frame": frame.to_dict(),
+                    },
+                )
+            session.record_batch_event(
+                QueryStreamEventType.MODEL_STREAM_REPORT,
+                turn_id=turn_state.turn_id,
+                metadata=model_stream_report.to_dict(),
+            )
+            api_retry_report = api_retry_runtime.build_report(
+                stream_report=model_stream_report,
+                budget_state=runtime_budget_state,
+                constraints=self.config.runtime_constraints,
+            )
+            api_retry_reports.append(api_retry_report)
+            event_records.append(
+                api_retry_runtime.event_for_report(
+                    api_retry_report,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                )
+            )
+            session.record_batch_event(
+                QueryStreamEventType.API_RETRY_REPORT,
+                turn_id=turn_state.turn_id,
+                metadata=api_retry_report.to_dict(),
+            )
+            budget_snapshot = runtime_budget_state.snapshot()
+            event_records.append(
+                runtime_budget_state.event_for_snapshot(
+                    budget_snapshot,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    phase="runtime_budget_updated",
+                )
+            )
+            session.record_batch_event(
+                QueryStreamEventType.RUNTIME_BUDGET_UPDATED,
+                turn_id=turn_state.turn_id,
+                metadata={
+                    "turn_index": turn_index,
+                    "runtime_budget_state": budget_snapshot.to_dict(),
+                },
+            )
             session.start_assistant_message(
                 turn_id=turn_state.turn_id,
                 metadata={
@@ -596,15 +810,31 @@ class ZyraClaudeQueryEngine:
                     "source_path": "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
                 },
             )
-            assistant_delta = f"Executing Zyra-owned Claude Code turn {turn_index} with {len(turn)} planned tool call(s)."
+            assistant_delta = model_stream_report.assistant_message or (
+                f"Executing Zyra-owned Claude Code turn {turn_index} with {len(turn)} planned tool call(s)."
+            )
+            if not model_stream_report.ok and api_retry_report.recovered:
+                assistant_delta = (
+                    f"Recovered {model_stream_report.error_kind} through {api_retry_report.status}; "
+                    f"executing turn {turn_index} with {len(turn)} planned tool call(s)."
+                )
             context_window.record_assistant_delta(
                 turn_index=turn_index,
                 text=assistant_delta,
-                metadata={"planned_tool_calls": len(turn)},
+                metadata={
+                    "planned_tool_calls": len(turn),
+                    "model_stream_report_id": model_stream_report.report_id,
+                    "api_retry_report_id": api_retry_report.report_id,
+                },
             )
             session.append_assistant_delta(
                 assistant_delta,
-                metadata={"turn_index": turn_index, "planned_tool_calls": len(turn)},
+                metadata={
+                    "turn_index": turn_index,
+                    "planned_tool_calls": len(turn),
+                    "model_stream_report_id": model_stream_report.report_id,
+                    "api_retry_report_id": api_retry_report.report_id,
+                },
             )
             self._append_lifecycle(
                 event_records,
@@ -1370,6 +1600,316 @@ class ZyraClaudeQueryEngine:
                 node_id=node_id,
             )
         )
+        runtime_budget_state.ingest_tool_result_context_report(tool_result_context_report)
+        force_final_compact = (
+            self.config.runtime_constraints.get("force_compact_restore") is True
+            or self.config.runtime_constraints.get("force_context_compact") is True
+        )
+        if force_final_compact or context_window.active_chars > self.config.max_query_context_chars:
+            final_compaction = context_window.maybe_compact(
+                artifact_store=self.context.artifact_store,
+                run_id=run_id,
+                task_id=task_id,
+                producer_node_id=node_id,
+                reason=ClaudeContextCompactionReason.MANUAL_COMPACT
+                if force_final_compact
+                else ClaudeContextCompactionReason.BUDGET_EXCEEDED,
+                force=force_final_compact,
+            )
+            if final_compaction.applied and final_compaction.artifact is not None:
+                artifacts.append(final_compaction.artifact)
+                compaction_count += 1
+                session.record_context_compaction(
+                    artifact_id=final_compaction.artifact.artifact_id,
+                    metadata={
+                        "context_chars": final_compaction.before_chars,
+                        "after_chars": final_compaction.after_chars,
+                        "budget_chars": self.config.max_query_context_chars,
+                        "runtime_source": PRODUCTIZED_CONTRACT_SOURCE,
+                        "compacted_block_ids": final_compaction.compacted_block_ids,
+                        "final_compact_restore_pass": True,
+                    },
+                )
+                self._append_lifecycle(
+                    event_records,
+                    session,
+                    run_id,
+                    task_id,
+                    node_id,
+                    worker_request_id,
+                    "context_compacted",
+                    {
+                        "artifact_id": final_compaction.artifact.artifact_id,
+                        "context_chars": final_compaction.before_chars,
+                        "after_chars": final_compaction.after_chars,
+                        "budget_chars": self.config.max_query_context_chars,
+                        "final_compact_restore_pass": "true",
+                        "resume_token": session.resume_token,
+                    },
+                )
+                state_ledger.record_context_compaction(
+                    artifact=final_compaction.artifact,
+                    before_chars=final_compaction.before_chars,
+                    after_chars=final_compaction.after_chars,
+                )
+        compact_restore_report = compact_restore_runtime.build_report(
+            context_window_snapshot=context_window.snapshot(include_text=False),
+            budget_state=runtime_budget_state,
+            tool_result_context_report=tool_result_context_report,
+            budget_chain_report=None,
+            constraints=self.config.runtime_constraints,
+            resume_token=session.resume_token,
+        )
+        event_records.append(
+            compact_restore_runtime.event_for_report(
+                compact_restore_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        boundary_event = compact_restore_runtime.boundary_event(
+            compact_restore_report,
+            run_id=run_id,
+            task_id=task_id,
+            node_id=node_id,
+        )
+        if boundary_event is not None:
+            event_records.append(boundary_event)
+            session.record_batch_event(
+                QueryStreamEventType.COMPACT_BOUNDARY,
+                metadata={
+                    "compact_restore_report_id": compact_restore_report.report_id,
+                    "compact_boundary": compact_restore_report.boundary.to_dict()
+                    if compact_restore_report.boundary is not None
+                    else {},
+                    "compact_needed": compact_restore_report.compact_needed,
+                },
+            )
+        restore_event = compact_restore_runtime.restore_event(
+            compact_restore_report,
+            run_id=run_id,
+            task_id=task_id,
+            node_id=node_id,
+        )
+        if restore_event is not None:
+            event_records.append(restore_event)
+            session.record_batch_event(
+                QueryStreamEventType.CONTEXT_RESTORED,
+                metadata={
+                    "compact_restore_report_id": compact_restore_report.report_id,
+                    "next_turn_restore_contract": compact_restore_report.restore_contract.to_dict()
+                    if compact_restore_report.restore_contract is not None
+                    else {},
+                },
+            )
+        compact_restore_policy_report = compact_restore_policy_runtime.build_report(
+            compact_restore=compact_restore_report,
+            budget_snapshot=runtime_budget_state.snapshot(),
+        )
+        event_records.append(
+            compact_restore_policy_runtime.event_for_report(
+                compact_restore_policy_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.COMPACT_RESTORE_POLICY,
+            metadata=compact_restore_policy_report.to_dict(),
+        )
+        latest_model_stream_report = model_stream_reports[-1] if model_stream_reports else model_stream_runtime.stream(
+            envelope=model_stream_runtime.build_envelope(
+                session_id=session.session_id,
+                worker_request_id=worker_request_id,
+                turn_id="no-turn",
+                turn_index=0,
+                model=self.config.model_name,
+                messages=[{"role": "user", "content": ""}],
+                context_chars=context_window.active_chars,
+                context_limit_chars=self.config.max_query_context_chars,
+                tool_call_count=0,
+            ),
+            budget_state=runtime_budget_state,
+            constraints=self.config.runtime_constraints,
+        )
+        latest_api_retry_report = api_retry_reports[-1] if api_retry_reports else api_retry_runtime.build_report(
+            stream_report=latest_model_stream_report,
+            budget_state=runtime_budget_state,
+            constraints=self.config.runtime_constraints,
+        )
+        codeworker_api_foundation_report = codeworker_api_foundation_runtime.build_report(
+            budget_state=runtime_budget_state,
+            compact_restore=compact_restore_report,
+            model_stream=latest_model_stream_report,
+            api_retry=latest_api_retry_report,
+            tool_result_context_report=tool_result_context_report,
+            session_snapshot=None,
+        )
+        event_records.append(
+            codeworker_api_foundation_runtime.event_for_report(
+                codeworker_api_foundation_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.CODEWORKER_API_FOUNDATION,
+            metadata=codeworker_api_foundation_report.to_dict(),
+        )
+        model_stream_watchdog_report = model_stream_watchdog_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            stream_reports=model_stream_reports,
+            retry_reports=api_retry_reports,
+        )
+        event_records.append(
+            model_stream_watchdog_runtime.event_for_report(
+                model_stream_watchdog_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        event_records.extend(
+            model_stream_watchdog_runtime.signal_events(
+                model_stream_watchdog_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.MODEL_STREAM_WATCHDOG,
+            metadata=model_stream_watchdog_report.to_dict(),
+        )
+        api_retry_playbook_report = api_retry_playbook_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            stream_reports=model_stream_reports,
+            retry_reports=api_retry_reports,
+            budget_snapshot=runtime_budget_state.snapshot(),
+            provider_report=model_provider_reports[-1] if model_provider_reports else None,
+        )
+        event_records.append(
+            api_retry_playbook_runtime.event_for_report(
+                api_retry_playbook_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.API_RETRY_PLAYBOOK,
+            metadata=api_retry_playbook_report.to_dict(),
+        )
+        context_epoch_report = context_epoch_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            event_records=event_records,
+            budget_snapshot=runtime_budget_state.snapshot(),
+            compact_restore=compact_restore_report,
+            model_stream_reports=model_stream_reports,
+            api_retry_reports=api_retry_reports,
+            provider_report=model_provider_reports[-1] if model_provider_reports else None,
+            foundation_report=codeworker_api_foundation_report,
+        )
+        event_records.append(
+            context_epoch_runtime.event_for_report(
+                context_epoch_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.CONTEXT_EPOCH_REPORT,
+            metadata=context_epoch_report.to_dict(),
+        )
+        runtime_budget_replay_report = runtime_budget_replay_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            budget_snapshot=runtime_budget_state.snapshot(),
+            compact_restore=compact_restore_report,
+            compact_policy=compact_restore_policy_report,
+            api_retry_playbook=api_retry_playbook_report,
+            event_records=event_records,
+            source_decisions=(
+                *default_runtime_budget_replay_source_decisions(),
+                *default_compact_restore_policy_source_decisions(),
+                *default_api_retry_playbook_source_decisions(),
+            ),
+        )
+        event_records.append(
+            runtime_budget_replay_runtime.event_for_report(
+                runtime_budget_replay_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.RUNTIME_BUDGET_REPLAY,
+            metadata=runtime_budget_replay_report.to_dict(),
+        )
+        codeworker_api_audit_report = codeworker_api_audit_runtime.build_report(
+            foundation_report=codeworker_api_foundation_report,
+            event_records=event_records,
+            metadata={
+                **runtime_budget_metadata(runtime_budget_state),
+                **runtime_budget_replay_metadata(runtime_budget_replay_report),
+                **compact_restore_metadata(compact_restore_report),
+                **compact_restore_policy_metadata(compact_restore_policy_report),
+                **context_epoch_metadata(context_epoch_report),
+                **model_provider_metadata(model_provider_reports[-1] if model_provider_reports else None),
+                **model_stream_metadata(model_stream_reports[-1] if model_stream_reports else None),
+                **model_stream_watchdog_metadata(model_stream_watchdog_report),
+                **api_retry_metadata(api_retry_reports[-1] if api_retry_reports else None),
+                **api_retry_playbook_metadata(api_retry_playbook_report),
+                **codeworker_api_foundation_metadata(codeworker_api_foundation_report),
+            },
+        )
+        event_records.append(
+            codeworker_api_audit_runtime.event_for_report(
+                codeworker_api_audit_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        compact_state_projection_report = compact_state_projection_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            metadata={
+                **runtime_budget_metadata(runtime_budget_state),
+                **runtime_budget_replay_metadata(runtime_budget_replay_report),
+                **compact_restore_metadata(compact_restore_report),
+                **compact_restore_policy_metadata(compact_restore_policy_report),
+                **context_epoch_metadata(context_epoch_report),
+                **model_provider_metadata(model_provider_reports[-1] if model_provider_reports else None),
+                **model_stream_metadata(model_stream_reports[-1] if model_stream_reports else None),
+                **model_stream_watchdog_metadata(model_stream_watchdog_report),
+                **api_retry_metadata(api_retry_reports[-1] if api_retry_reports else None),
+                **api_retry_playbook_metadata(api_retry_playbook_report),
+                **codeworker_api_foundation_metadata(codeworker_api_foundation_report),
+                **codeworker_api_audit_metadata(codeworker_api_audit_report),
+            },
+            event_records=event_records,
+        )
+        event_records.append(
+            compact_state_projection_runtime.event_for_report(
+                compact_state_projection_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.COMPACT_STATE_PROJECTION,
+            metadata=compact_state_projection_report.to_dict(),
+        )
         tool_source_coverage_report = source_coverage_runtime.build_report(
             session_id=session.session_id,
             worker_request_id=worker_request_id,
@@ -1408,6 +1948,19 @@ class ZyraClaudeQueryEngine:
                 "tool_failure_policy_report": tool_failure_policy_report.to_dict(),
                 "tool_output_store": tool_output_store_artifact.to_dict(),
                 "tool_result_context_report": tool_result_context_report.to_dict(),
+                "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+                "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
+                "compact_restore_report": compact_restore_report.to_dict(),
+                "compact_restore_policy_report": compact_restore_policy_report.to_dict(),
+                "context_epoch_report": context_epoch_report.to_dict(),
+                "model_provider_reports": [report.to_dict() for report in model_provider_reports],
+                "model_stream_reports": [report.to_dict() for report in model_stream_reports],
+                "model_stream_watchdog_report": model_stream_watchdog_report.to_dict(),
+                "api_retry_reports": [report.to_dict() for report in api_retry_reports],
+                "api_retry_playbook_report": api_retry_playbook_report.to_dict(),
+                "codeworker_api_foundation_report": codeworker_api_foundation_report.to_dict(),
+                "codeworker_api_audit_report": codeworker_api_audit_report.to_dict(),
+                "compact_state_projection_report": compact_state_projection_report.to_dict(),
                 "tool_source_coverage_report": tool_source_coverage_report.to_dict(),
                 "tool_cleanroom_report": tool_cleanroom_report.to_dict(),
                 "tool_session_bridge_report": self.config.session_bridge_report.to_dict()
@@ -1443,6 +1996,19 @@ class ZyraClaudeQueryEngine:
                 "tool_failure_policy_report": tool_failure_policy_report.to_dict(),
                 "tool_output_store": tool_output_store_artifact.to_dict(),
                 "tool_result_context_report": tool_result_context_report.to_dict(),
+                "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+                "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
+                "compact_restore_report": compact_restore_report.to_dict(),
+                "compact_restore_policy_report": compact_restore_policy_report.to_dict(),
+                "context_epoch_report": context_epoch_report.to_dict(),
+                "model_provider_reports": [report.to_dict() for report in model_provider_reports],
+                "model_stream_reports": [report.to_dict() for report in model_stream_reports],
+                "model_stream_watchdog_report": model_stream_watchdog_report.to_dict(),
+                "api_retry_reports": [report.to_dict() for report in api_retry_reports],
+                "api_retry_playbook_report": api_retry_playbook_report.to_dict(),
+                "codeworker_api_foundation_report": codeworker_api_foundation_report.to_dict(),
+                "codeworker_api_audit_report": codeworker_api_audit_report.to_dict(),
+                "compact_state_projection_report": compact_state_projection_report.to_dict(),
                 "tool_source_coverage_report": tool_source_coverage_report.to_dict(),
                 "tool_cleanroom_report": tool_cleanroom_report.to_dict(),
                 "tool_session_bridge_report": self.config.session_bridge_report.to_dict()
@@ -1906,6 +2472,14 @@ class ZyraClaudeQueryEngine:
                 "tool_effect_fingerprint": tool_effect_fingerprint_report,
                 "tool_integration": tool_integration_report,
                 "tool_contract_gate": tool_contract_gate_report,
+                "codeworker_api_foundation": codeworker_api_foundation_report,
+                "context_epoch": context_epoch_report,
+                "runtime_budget_replay": runtime_budget_replay_report,
+                "compact_restore_policy": compact_restore_policy_report,
+                "model_stream_watchdog": model_stream_watchdog_report,
+                "api_retry_playbook": api_retry_playbook_report,
+                "codeworker_api_audit": codeworker_api_audit_report,
+                "compact_state_projection": compact_state_projection_report,
             }
         )
         if tool_runtime_gate_failures:
@@ -1972,6 +2546,19 @@ class ZyraClaudeQueryEngine:
         metadata.update(tool_failure_policy_metadata(tool_failure_policy_report))
         metadata.update(tool_output_store_metadata(tool_output_store_artifact))
         metadata.update(tool_result_context_metadata(tool_result_context_report))
+        metadata.update(runtime_budget_metadata(runtime_budget_state))
+        metadata.update(runtime_budget_replay_metadata(runtime_budget_replay_report))
+        metadata.update(compact_restore_metadata(compact_restore_report))
+        metadata.update(compact_restore_policy_metadata(compact_restore_policy_report))
+        metadata.update(context_epoch_metadata(context_epoch_report))
+        metadata.update(model_provider_metadata(model_provider_reports[-1] if model_provider_reports else None))
+        metadata.update(model_stream_metadata(model_stream_reports[-1] if model_stream_reports else None))
+        metadata.update(model_stream_watchdog_metadata(model_stream_watchdog_report))
+        metadata.update(api_retry_metadata(api_retry_reports[-1] if api_retry_reports else None))
+        metadata.update(api_retry_playbook_metadata(api_retry_playbook_report))
+        metadata.update(codeworker_api_foundation_metadata(codeworker_api_foundation_report))
+        metadata.update(codeworker_api_audit_metadata(codeworker_api_audit_report))
+        metadata.update(compact_state_projection_metadata(compact_state_projection_report))
         metadata.update(tool_source_coverage_metadata(tool_source_coverage_report))
         metadata.update(tool_cleanroom_metadata(tool_cleanroom_report))
         metadata.update(tool_integration_metadata(tool_integration_report))

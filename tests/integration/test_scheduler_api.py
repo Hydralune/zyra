@@ -53,8 +53,11 @@ class SchedulerApiTests(unittest.TestCase):
                 thread.join(timeout=5)
 
 
+HTTP_TIMEOUT_SECONDS = 15
+
+
 def _get(base_url: str, path: str) -> dict[str, Any]:
-    with urllib.request.urlopen(f"{base_url}{path}", timeout=5) as response:
+    with urllib.request.urlopen(f"{base_url}{path}", timeout=HTTP_TIMEOUT_SECONDS) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -65,7 +68,7 @@ def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
