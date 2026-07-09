@@ -691,6 +691,8 @@ class CodeWorkerRuntime:
                 disable_model_stream_runtime=request.constraints.get("disable_model_stream_runtime") is True,
                 disable_api_retry_runtime=request.constraints.get("disable_api_retry_runtime") is True,
                 disable_codeworker_api_foundation_runtime=request.constraints.get("disable_codeworker_api_foundation_runtime") is True,
+                disable_context_security_runtime=request.constraints.get("disable_context_security_runtime") is True,
+                disable_restore_integration_runtime=request.constraints.get("disable_restore_integration_runtime") is True,
                 model_name=str(request.constraints.get("model_name") or "zyra-local-code-model"),
                 model_input_token_limit=_positive_int(
                     request.constraints.get("model_input_token_limit"),

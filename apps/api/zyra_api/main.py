@@ -42,6 +42,8 @@ from zyra_commands import default_command_registry, parse_slash_command
 from zyra_runtime import (
     ContextAssemblyRuntime,
     ContextSessionRuntime,
+    CodeWorkerTaskApiContractRuntime,
+    CodeWorkerTaskApiProjectionRuntime,
     CodeWorkerSessionFoundationRuntime,
     CodeWorkerSessionReplayRuntime,
     CodeWorkerSessionStore,
@@ -61,6 +63,7 @@ from zyra_runtime import (
     ToolCall,
     ToolExecutionContext,
     ToolExecutor,
+    TaskApiRouteKind,
     WorkerRequest,
     assemble_claude_runtime_context,
     build_api_inventory_contract_report,
@@ -1113,6 +1116,64 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, {"events": store.task_events(parts[1])})
             return
 
+        if len(parts) == 5 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "code":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            task_events = store.task_events(parts[1])
+            projection = CodeWorkerTaskApiProjectionRuntime().build_session_projection(
+                task_id=parts[1],
+                state=to_jsonable(state),
+                events=task_events,
+            )
+            contract_runtime = CodeWorkerTaskApiContractRuntime()
+            if parts[4] == "session":
+                payload = projection.to_dict()
+                route_contract = contract_runtime.build_report(
+                    route_kind=TaskApiRouteKind.SESSION,
+                    task_id=parts[1],
+                    payload=payload,
+                    events=task_events,
+                    projection=projection,
+                )
+                payload["route_contract"] = route_contract.to_dict()
+                self._send_json(HTTPStatus.OK, payload)
+                return
+            if parts[4] == "tool-trace":
+                payload = projection.tool_trace.to_dict()
+                route_contract = contract_runtime.build_report(
+                    route_kind=TaskApiRouteKind.TOOL_TRACE,
+                    task_id=parts[1],
+                    payload=payload,
+                    events=task_events,
+                    projection=projection,
+                )
+                payload["route_contract"] = route_contract.to_dict()
+                self._send_json(HTTPStatus.OK, payload)
+                return
+            if parts[4] == "compact-state":
+                payload = {
+                    "task_id": parts[1],
+                    "run_id": state.run_id,
+                    "session": projection.session.to_dict(),
+                    "compact_state": projection.compact_state.to_dict(),
+                    "restore_state": projection.restore_state.to_dict(),
+                    "model_api": projection.model_api.to_dict(),
+                    "phase_counts": projection.phase_counts,
+                    "projection": projection.to_dict(),
+                }
+                route_contract = contract_runtime.build_report(
+                    route_kind=TaskApiRouteKind.COMPACT_STATE,
+                    task_id=parts[1],
+                    payload=payload,
+                    events=task_events,
+                    projection=projection,
+                )
+                payload["route_contract"] = route_contract.to_dict()
+                self._send_json(HTTPStatus.OK, payload)
+                return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "memory":
             state = store.load_task(parts[1])
             if state is None:
@@ -1583,8 +1644,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             constraints = payload.get("constraints")
             if not isinstance(constraints, dict):
                 constraints = {}
-            if "tool_plan" in payload and "tool_plan" not in constraints:
-                constraints["tool_plan"] = payload["tool_plan"]
+            else:
+                constraints = dict(constraints)
+            for key, value in payload.items():
+                if key in {"constraints", "node_id"}:
+                    continue
+                constraints.setdefault(key, value)
             request = WorkerRequest(
                 run_id=state.run_id,
                 task_id=state.task_id,
@@ -1608,22 +1673,39 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
             if run_result.worker_result.artifacts:
                 state.artifacts.extend(run_result.worker_result.artifacts)
-            _record_code_worker_session_metadata(state, run_result)
             state.budget.tool_calls += sum(1 for event in run_result.event_records if "tool_result" in event.payload)
             if run_result.event_records:
                 state.updated_at = run_result.event_records[-1].created_at
+            _record_code_worker_session_metadata(state, run_result)
+            codeworker_api_projection = CodeWorkerTaskApiProjectionRuntime().build_session_projection(
+                task_id=state.task_id,
+                state=to_jsonable(state),
+                events=[to_jsonable(event) for event in run_result.event_records],
+            )
+            state.metadata["last_code_worker_api_projection"] = codeworker_api_projection.to_dict()
+            response_payload = {
+                "task": to_jsonable(state),
+                "worker_request": to_jsonable(request),
+                "worker_result": to_jsonable(run_result.worker_result),
+                "codeworker_session": codeworker_api_projection.to_dict(),
+                "compact_state": codeworker_api_projection.compact_state.to_dict(),
+                "tool_trace": codeworker_api_projection.tool_trace.to_dict(),
+                "events": [to_jsonable(event) for event in run_result.event_records],
+            }
+            route_contract = CodeWorkerTaskApiContractRuntime().build_report(
+                route_kind=TaskApiRouteKind.POST_CODE_WORKER,
+                task_id=state.task_id,
+                payload=response_payload,
+                events=response_payload["events"],
+                projection=codeworker_api_projection,
+            )
+            response_payload["route_contract"] = route_contract.to_dict()
+            state.metadata["last_code_worker_api_route_contract"] = route_contract.to_dict()
+            response_payload["task"] = to_jsonable(state)
             persist_events(store, run_result.event_records)
             store.save_checkpoint(state)
             status = HTTPStatus.CREATED if run_result.worker_result.ok else HTTPStatus.CONFLICT
-            self._send_json(
-                status,
-                {
-                    "task": to_jsonable(state),
-                    "worker_request": to_jsonable(request),
-                    "worker_result": to_jsonable(run_result.worker_result),
-                    "events": [to_jsonable(event) for event in run_result.event_records],
-                },
-            )
+            self._send_json(status, response_payload)
             return
 
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "browser":
@@ -2406,6 +2488,40 @@ def _record_code_worker_session_metadata(state: Any, run_result: Any) -> None:
         "worker_request_id": run_result.worker_result.request_id,
         "event_ids": [event.event_id for event in session_events],
         "snapshot_event": latest_snapshot,
+        "compact_restore": {
+            "ok": metadata.get("compact_restore_ok", ""),
+            "status": metadata.get("compact_restore_status", ""),
+            "boundary_id": metadata.get("compact_restore_boundary_id", ""),
+            "restore_contract_id": metadata.get("compact_restore_contract_id", ""),
+            "segments": metadata.get("compact_restore_segments", ""),
+            "preserved_segments": metadata.get("compact_restore_preserved_segments", ""),
+        },
+        "restore_integration": {
+            "ok": metadata.get("restore_integration_ok", ""),
+            "status": metadata.get("restore_integration_status", ""),
+            "applications": metadata.get("restore_integration_applications", ""),
+            "model_messages": metadata.get("restore_integration_model_messages", ""),
+            "context_blocks": metadata.get("restore_integration_context_blocks", ""),
+            "latest_contract_id": metadata.get("restore_integration_latest_contract_id", ""),
+            "untrusted_messages": metadata.get("restore_integration_untrusted_messages", ""),
+            "redacted_messages": metadata.get("restore_integration_redacted_messages", ""),
+        },
+        "context_security": {
+            "ok": metadata.get("context_security_ok", ""),
+            "status": metadata.get("context_security_status", ""),
+            "snapshot_id": metadata.get("context_security_snapshot_id", ""),
+            "verdicts": metadata.get("context_security_verdicts", ""),
+            "redactions": metadata.get("context_security_redactions", ""),
+            "untrusted": metadata.get("context_security_untrusted", ""),
+        },
+        "model_api": {
+            "model_stream_status": metadata.get("model_stream_status", ""),
+            "model_stream_error_kind": metadata.get("model_stream_error_kind", ""),
+            "api_retry_status": metadata.get("api_retry_status", ""),
+            "api_retry_fallback_used": metadata.get("api_retry_fallback_used", ""),
+            "api_retry_final_model": metadata.get("api_retry_final_model", ""),
+            "model_stream_watchdog_status": metadata.get("model_stream_watchdog_status", ""),
+        },
         "source": "CodeWorkerRuntime",
     }
     sessions = state.metadata.setdefault("code_worker_sessions", [])

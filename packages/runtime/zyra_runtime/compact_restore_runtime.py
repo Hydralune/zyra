@@ -927,7 +927,19 @@ class CompactRestoreRuntime:
                     artifact_id=boundary.artifact_id,
                     source_id=boundary.boundary_id,
                     budget_chars=280,
-                    metadata={"applied": str(boundary.applied).lower()},
+                    metadata={
+                        "applied": str(boundary.applied).lower(),
+                        "source_provenance": "compact_summary",
+                        "trust_level": "workspace",
+                        "secret_redaction_state": "clean",
+                        "source_ref": boundary.artifact_id,
+                        "retrieval_query": "compact boundary summary",
+                        "retrieval_scope": "query_session_context_window",
+                        "retrieval_budget": "280",
+                        "code_index_source": "false",
+                        "source_path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+                        "upstream_source_path": "src/services/compact/compact.ts",
+                    },
                 )
             )
         for projection in getattr(tool_result_context_report, "projections", ()) or ():
@@ -955,6 +967,16 @@ class CompactRestoreRuntime:
                     metadata={
                         "projection_id": str(getattr(projection, "projection_id", "") or ""),
                         "budget_applied": str(bool(getattr(projection, "budget_applied", False))).lower(),
+                        "source_provenance": "tool_result",
+                        "trust_level": "tool_output",
+                        "secret_redaction_state": "clean",
+                        "source_ref": str(getattr(projection, "tool_call_id", "") or artifact_id),
+                        "retrieval_query": str(getattr(projection, "tool_name", "") or "tool_result"),
+                        "retrieval_scope": "tool_result_context_report",
+                        "retrieval_budget": str(_safe_int(getattr(projection, "inline_chars", 0))),
+                        "code_index_source": "false",
+                        "source_path": "packages/runtime/zyra_runtime/tool_runtime_result_context.py",
+                        "upstream_source_path": "src/utils/toolResultStorage.ts",
                     },
                 )
             )
@@ -968,6 +990,18 @@ class CompactRestoreRuntime:
                     source_id=path,
                     required=True,
                     budget_chars=len(path),
+                    metadata={
+                        "source_provenance": "workspace_file",
+                        "trust_level": "workspace",
+                        "secret_redaction_state": "clean",
+                        "source_ref": path,
+                        "retrieval_query": path,
+                        "retrieval_scope": "workspace_file_restore",
+                        "retrieval_budget": str(len(path)),
+                        "code_index_source": "true",
+                        "source_path": path,
+                        "upstream_source_path": "src/services/compact/sessionMemoryCompact.ts",
+                    },
                 )
             )
         plan = constraints.get("active_plan") or constraints.get("restore_plan")
@@ -981,6 +1015,18 @@ class CompactRestoreRuntime:
                     source_id="constraints.active_plan",
                     required=True,
                     budget_chars=len(str(plan)),
+                    metadata={
+                        "source_provenance": "active_plan",
+                        "trust_level": "workspace",
+                        "secret_redaction_state": "clean",
+                        "source_ref": "constraints.active_plan",
+                        "retrieval_query": "active_plan",
+                        "retrieval_scope": "worker_request_constraints",
+                        "retrieval_budget": str(len(str(plan))),
+                        "code_index_source": "false",
+                        "source_path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+                        "upstream_source_path": "src/QueryEngine.ts",
+                    },
                 )
             )
         for skill in _string_list(constraints.get("invoked_skills") or constraints.get("restore_skills")):
@@ -993,6 +1039,18 @@ class CompactRestoreRuntime:
                     source_id=skill,
                     required=False,
                     budget_chars=len(skill),
+                    metadata={
+                        "source_provenance": "invoked_skill",
+                        "trust_level": "workspace",
+                        "secret_redaction_state": "clean",
+                        "source_ref": skill,
+                        "retrieval_query": skill,
+                        "retrieval_scope": "skill_memory",
+                        "retrieval_budget": str(len(skill)),
+                        "code_index_source": "false",
+                        "source_path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+                        "upstream_source_path": "src/tools/SkillTool",
+                    },
                 )
             )
         for delta in _mcp_deltas(constraints):
@@ -1005,7 +1063,20 @@ class CompactRestoreRuntime:
                     source_id=str(delta.get("server") or ""),
                     required=False,
                     budget_chars=len(str(delta.get("instructions") or "")),
-                    metadata={"delta_id": str(delta.get("id") or "")},
+                    metadata={
+                        "delta_id": str(delta.get("id") or ""),
+                        "source_provenance": "mcp_instruction",
+                        "trust_level": "external_untrusted",
+                        "secret_redaction_state": "clean",
+                        "source_ref": str(delta.get("server") or "mcp"),
+                        "retrieval_query": str(delta.get("server") or "mcp"),
+                        "retrieval_scope": "mcp_instruction_delta",
+                        "retrieval_budget": str(len(str(delta.get("instructions") or ""))),
+                        "code_index_source": "false",
+                        "external": "true",
+                        "source_path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+                        "upstream_source_path": "src/services/mcpClient.ts",
+                    },
                 )
             )
         for tool in _string_list(constraints.get("deferred_tools")):
@@ -1018,6 +1089,18 @@ class CompactRestoreRuntime:
                     source_id=tool,
                     required=False,
                     budget_chars=len(tool),
+                    metadata={
+                        "source_provenance": "deferred_tool",
+                        "trust_level": "trusted_system",
+                        "secret_redaction_state": "clean",
+                        "source_ref": tool,
+                        "retrieval_query": tool,
+                        "retrieval_scope": "deferred_tool_state",
+                        "retrieval_budget": str(len(tool)),
+                        "code_index_source": "false",
+                        "source_path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+                        "upstream_source_path": "src/services/tools/toolOrchestration.ts",
+                    },
                 )
             )
         budget_snapshot = budget_state.snapshot()
@@ -1033,6 +1116,16 @@ class CompactRestoreRuntime:
                 metadata={
                     "status": str(budget_snapshot.status),
                     "highest_pressure": str(budget_snapshot.highest_pressure),
+                    "source_provenance": "runtime_budget",
+                    "trust_level": "trusted_system",
+                    "secret_redaction_state": "clean",
+                    "source_ref": budget_snapshot.snapshot_id,
+                    "retrieval_query": "runtime_budget_state",
+                    "retrieval_scope": "RuntimeBudgetState",
+                    "retrieval_budget": "320",
+                    "code_index_source": "false",
+                    "source_path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+                    "upstream_source_path": "opencode/packages/opencode/src/session",
                 },
             )
         )

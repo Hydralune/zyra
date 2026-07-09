@@ -29,6 +29,23 @@ from .codeworker_compact_state_projection import (
     CodeWorkerCompactStateProjectionRuntime,
     compact_state_projection_metadata,
 )
+from .codeworker_context_compact_recovery_audit import (
+    CodeWorkerContextCompactRecoveryAuditRuntime,
+    compact_recovery_audit_metadata,
+)
+from .codeworker_context_restore_api_state import (
+    CodeWorkerContextRestoreApiStateRuntime,
+    context_restore_api_state_metadata,
+)
+from .codeworker_model_recovery_matrix import (
+    CodeWorkerModelRecoveryMatrixRuntime,
+    model_recovery_matrix_metadata,
+)
+from .codeworker_restore_causality import (
+    CodeWorkerRestoreCausalityRuntime,
+    restore_causality_metadata,
+)
+from .codeworker_disable_semantics import CodeWorkerDisableSemanticsRuntime, disable_semantics_metadata
 from .api_retry_playbook_runtime import (
     ApiRetryPlaybookRuntime,
     api_retry_playbook_metadata,
@@ -41,6 +58,12 @@ from .compact_restore_policy_runtime import (
 )
 from .compact_restore_runtime import CompactRestoreRuntime, compact_restore_metadata
 from .context_epoch_runtime import ContextEpochRuntime, context_epoch_metadata
+from .codeworker_context_security_runtime import CodeWorkerContextSecurityRuntime, context_security_metadata
+from .codeworker_restore_integration import (
+    CodeWorkerRestoreIntegrationRuntime,
+    RestoreContractApplication,
+    restore_integration_metadata,
+)
 from .claude_query_plan import query_turns_from_constraints as planned_query_turns_from_constraints
 from .claude_runtime_contracts import (
     PRODUCTIZED_CONTRACT_SOURCE,
@@ -167,6 +190,8 @@ class ClaudeQueryEngineConfig:
     disable_model_stream_runtime: bool = False
     disable_api_retry_runtime: bool = False
     disable_codeworker_api_foundation_runtime: bool = False
+    disable_context_security_runtime: bool = False
+    disable_restore_integration_runtime: bool = False
     model_name: str = "zyra-local-code-model"
     model_input_token_limit: int = 200000
     model_output_token_limit: int = 8192
@@ -368,6 +393,18 @@ class ZyraClaudeQueryEngine:
         runtime_budget_replay_runtime = RuntimeBudgetReplayRuntime()
         codeworker_api_audit_runtime = CodeWorkerApiFoundationAuditRuntime()
         compact_state_projection_runtime = CodeWorkerCompactStateProjectionRuntime()
+        compact_recovery_audit_runtime = CodeWorkerContextCompactRecoveryAuditRuntime()
+        context_restore_api_state_runtime = CodeWorkerContextRestoreApiStateRuntime()
+        model_recovery_matrix_runtime = CodeWorkerModelRecoveryMatrixRuntime()
+        restore_causality_runtime = CodeWorkerRestoreCausalityRuntime()
+        disable_semantics_runtime = CodeWorkerDisableSemanticsRuntime()
+        context_security_runtime = CodeWorkerContextSecurityRuntime(
+            disabled=self.config.disable_context_security_runtime
+        )
+        restore_integration_runtime = CodeWorkerRestoreIntegrationRuntime(
+            security_runtime=context_security_runtime,
+            disabled=self.config.disable_restore_integration_runtime,
+        )
 
         event_records: list[EventRecord] = []
         artifacts: list[ArtifactRef] = []
@@ -381,6 +418,8 @@ class ZyraClaudeQueryEngine:
         model_provider_reports: list[Any] = []
         model_stream_reports: list[Any] = []
         api_retry_reports: list[Any] = []
+        restore_applications: list[RestoreContractApplication] = []
+        pending_restore_contract: Any = None
         context_window = ClaudeContextWindowManager(
             budget=ClaudeContextBudget(
                 max_chars=self.config.max_query_context_chars,
@@ -672,6 +711,105 @@ class ZyraClaudeQueryEngine:
                     "resume_token": session.resume_token,
                 },
             )
+            turn_restore_model_messages: list[Mapping[str, Any]] = []
+            if pending_restore_contract is not None:
+                restore_application = restore_integration_runtime.apply_contract(
+                    pending_restore_contract,
+                    context_window=context_window,
+                    budget_state=runtime_budget_state,
+                    turn_index=turn_index,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    metadata={
+                        "turn_id": turn_state.turn_id,
+                        "resume_token": session.resume_token,
+                    },
+                )
+                pending_restore_contract = None
+                if restore_application is not None:
+                    restore_applications.append(restore_application)
+                    event_records.append(
+                        restore_integration_runtime.event_for_application(
+                            restore_application,
+                            run_id=run_id,
+                            task_id=task_id,
+                            node_id=node_id,
+                        )
+                    )
+                    if restore_application.security_snapshot is not None:
+                        event_records.append(
+                            context_security_runtime.event_for_snapshot(
+                                restore_application.security_snapshot,
+                                run_id=run_id,
+                                task_id=task_id,
+                                node_id=node_id,
+                                session_id=session.session_id,
+                                worker_request_id=worker_request_id,
+                                phase="codeworker_restore_context_security",
+                            )
+                        )
+                    session.record_batch_event(
+                        QueryStreamEventType.CONTEXT_RESTORED,
+                        turn_id=turn_state.turn_id,
+                        metadata={
+                            "turn_index": turn_index,
+                            "restore_application": restore_application.to_dict(),
+                            "restore_contract_id": restore_application.contract_id,
+                            "restore_model_message_count": len(restore_application.model_messages),
+                            "restore_context_block_count": len(restore_application.blocks),
+                        },
+                    )
+                    self._append_lifecycle(
+                        event_records,
+                        session,
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        "codeworker_restore_context_applied",
+                        {
+                            "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
+                            "restore_application_id": restore_application.application_id,
+                            "restore_contract_id": restore_application.contract_id,
+                            "restore_model_message_count": len(restore_application.model_messages),
+                            "restore_context_block_count": len(restore_application.blocks),
+                            "ok": restore_application.ok,
+                            "resume_token": session.resume_token,
+                        },
+                    )
+                    turn_restore_model_messages = [
+                        message for message in restore_application.model_messages if isinstance(message, Mapping)
+                    ]
+                    if not restore_application.ok and stopped_reason is None:
+                        ok = False
+                        stopped_reason = "restore_integration_failed"
+                        session.record_error(
+                            error=stopped_reason,
+                            stop_reason=StopReason.TOOL_ERROR,
+                            metadata={
+                                "turn_index": turn_index,
+                                "restore_application": restore_application.to_dict(),
+                            },
+                        )
+                        self._append_lifecycle(
+                            event_records,
+                            session,
+                            run_id,
+                            task_id,
+                            node_id,
+                            worker_request_id,
+                            "error",
+                            {
+                                "turn_index": turn_index,
+                                "turn_id": turn_state.turn_id,
+                                "error": stopped_reason,
+                                "stop_reason": str(StopReason.TOOL_ERROR),
+                                "restore_application_id": restore_application.application_id,
+                                "resume_token": session.resume_token,
+                            },
+                        )
             session.start_stream_request(
                 turn_id=turn_state.turn_id,
                 metadata={
@@ -727,6 +865,7 @@ class ZyraClaudeQueryEngine:
                 model=model_provider_report.route.selected_model.model_id,
                 messages=[
                     *[item for item in request_messages if isinstance(item, Mapping)],
+                    *turn_restore_model_messages,
                     {"role": "user", "content": user_content},
                 ],
                 context_chars=context_window.active_chars,
@@ -735,6 +874,18 @@ class ZyraClaudeQueryEngine:
                 metadata={
                     "source_path": "packages/runtime/zyra_runtime/model_api_runtime.py",
                     "upstream_source_path": "src/services/api/claude.ts",
+                    "restore_model_message_count": str(len(turn_restore_model_messages)),
+                    "restore_application_id": restore_applications[-1].application_id
+                    if restore_applications and restore_applications[-1].turn_index == turn_index
+                    else "",
+                    "restore_contract_id": restore_applications[-1].contract_id
+                    if restore_applications and restore_applications[-1].turn_index == turn_index
+                    else "",
+                    "restore_context_block_count": str(
+                        len(restore_applications[-1].blocks)
+                        if restore_applications and restore_applications[-1].turn_index == turn_index
+                        else 0
+                    ),
                 },
             )
             model_stream_report = model_stream_runtime.stream(
@@ -1297,6 +1448,68 @@ class ZyraClaudeQueryEngine:
                                 before_chars=compaction.before_chars,
                                 after_chars=compaction.after_chars,
                             )
+                            interim_tool_result_context = result_context_runtime.build_report(
+                                session_id=session.session_id,
+                                worker_request_id=worker_request_id,
+                                receipts=tool_execution_receipts,
+                                context_snapshots=[
+                                    *tool_use_context_snapshots,
+                                    tool_use_context.to_dict(include_messages=False),
+                                ],
+                                output_store_snapshot=None,
+                                session_bridge_report=self.config.session_bridge_report,
+                            )
+                            interim_compact_restore_report = compact_restore_runtime.build_report(
+                                context_window_snapshot=context_window.snapshot(include_text=False),
+                                budget_state=runtime_budget_state,
+                                tool_result_context_report=interim_tool_result_context,
+                                budget_chain_report=None,
+                                constraints=self.config.runtime_constraints,
+                                resume_token=session.resume_token,
+                            )
+                            pending_restore_contract = interim_compact_restore_report.restore_contract
+                            event_records.append(
+                                compact_restore_runtime.event_for_report(
+                                    interim_compact_restore_report,
+                                    run_id=run_id,
+                                    task_id=task_id,
+                                    node_id=node_id,
+                                    phase="compact_restore_contract_pending",
+                                )
+                            )
+                            session.record_batch_event(
+                                QueryStreamEventType.CONTEXT_RESTORED,
+                                turn_id=turn_state.turn_id,
+                                metadata={
+                                    "turn_index": turn_index,
+                                    "phase": "compact_restore_contract_pending",
+                                    "compact_restore_report_id": interim_compact_restore_report.report_id,
+                                    "next_turn_restore_contract": interim_compact_restore_report.restore_contract.to_dict()
+                                    if interim_compact_restore_report.restore_contract is not None
+                                    else {},
+                                },
+                            )
+                            self._append_lifecycle(
+                                event_records,
+                                session,
+                                run_id,
+                                task_id,
+                                node_id,
+                                worker_request_id,
+                                "compact_restore_contract_pending",
+                                {
+                                    "turn_index": turn_index,
+                                    "turn_id": turn_state.turn_id,
+                                    "compact_restore_report_id": interim_compact_restore_report.report_id,
+                                    "restore_contract_id": interim_compact_restore_report.restore_contract_id,
+                                    "restore_segment_count": str(
+                                        interim_compact_restore_report.restore_contract.restore_segment_count
+                                        if interim_compact_restore_report.restore_contract is not None
+                                        else 0
+                                    ),
+                                    "resume_token": session.resume_token,
+                                },
+                            )
 
                     if not bounded_result.ok and not self.config.continue_on_error and stopped_reason is None:
                         ok = False
@@ -1703,6 +1916,39 @@ class ZyraClaudeQueryEngine:
                     else {},
                 },
             )
+        restore_integration_report = restore_integration_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            applications=restore_applications,
+            pending_contracts=[
+                pending_restore_contract,
+                compact_restore_report.restore_contract
+                if compact_restore_report.restore_contract is not None
+                and not any(
+                    application.contract_id == compact_restore_report.restore_contract.contract_id
+                    for application in restore_applications
+                )
+                else None,
+            ],
+        )
+        event_records.append(
+            restore_integration_runtime.event_for_report(
+                restore_integration_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.CONTEXT_RESTORED,
+            metadata={
+                "phase": "codeworker_restore_integration",
+                "restore_integration": restore_integration_report.to_dict(),
+            },
+        )
+        latest_context_security_snapshot = (
+            restore_applications[-1].security_snapshot if restore_applications else None
+        )
         compact_restore_policy_report = compact_restore_policy_runtime.build_report(
             compact_restore=compact_restore_report,
             budget_snapshot=runtime_budget_state.snapshot(),
@@ -1861,6 +2107,8 @@ class ZyraClaudeQueryEngine:
                 **runtime_budget_metadata(runtime_budget_state),
                 **runtime_budget_replay_metadata(runtime_budget_replay_report),
                 **compact_restore_metadata(compact_restore_report),
+                **restore_integration_metadata(restore_integration_report),
+                **context_security_metadata(latest_context_security_snapshot),
                 **compact_restore_policy_metadata(compact_restore_policy_report),
                 **context_epoch_metadata(context_epoch_report),
                 **model_provider_metadata(model_provider_reports[-1] if model_provider_reports else None),
@@ -1886,6 +2134,8 @@ class ZyraClaudeQueryEngine:
                 **runtime_budget_metadata(runtime_budget_state),
                 **runtime_budget_replay_metadata(runtime_budget_replay_report),
                 **compact_restore_metadata(compact_restore_report),
+                **restore_integration_metadata(restore_integration_report),
+                **context_security_metadata(latest_context_security_snapshot),
                 **compact_restore_policy_metadata(compact_restore_policy_report),
                 **context_epoch_metadata(context_epoch_report),
                 **model_provider_metadata(model_provider_reports[-1] if model_provider_reports else None),
@@ -1909,6 +2159,138 @@ class ZyraClaudeQueryEngine:
         session.record_batch_event(
             QueryStreamEventType.COMPACT_STATE_PROJECTION,
             metadata=compact_state_projection_report.to_dict(),
+        )
+        compact_recovery_audit_report = compact_recovery_audit_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            compact_restore_report=compact_restore_report,
+            restore_integration_report=restore_integration_report,
+            model_stream_reports=model_stream_reports,
+            api_retry_reports=api_retry_reports,
+            event_records=event_records,
+            metadata={
+                **runtime_budget_metadata(runtime_budget_state),
+                **compact_restore_metadata(compact_restore_report),
+                **restore_integration_metadata(restore_integration_report),
+                **context_security_metadata(latest_context_security_snapshot),
+                **model_stream_metadata(model_stream_reports[-1] if model_stream_reports else None),
+                **api_retry_metadata(api_retry_reports[-1] if api_retry_reports else None),
+            },
+        )
+        event_records.append(
+            compact_recovery_audit_runtime.event_for_report(
+                compact_recovery_audit_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.COMPACT_STATE_PROJECTION,
+            metadata={
+                "phase": "codeworker_compact_recovery_audit",
+                "compact_recovery_audit": compact_recovery_audit_report.to_dict(),
+            },
+        )
+        model_recovery_matrix_report = model_recovery_matrix_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            model_stream_reports=model_stream_reports,
+            api_retry_reports=api_retry_reports,
+        )
+        event_records.append(
+            model_recovery_matrix_runtime.event_for_report(
+                model_recovery_matrix_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.MODEL_STREAM_WATCHDOG,
+            metadata={
+                "phase": "codeworker_model_recovery_matrix",
+                "model_recovery_matrix": model_recovery_matrix_report.to_dict(),
+            },
+        )
+        restore_causality_report = restore_causality_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            event_records=event_records,
+        )
+        event_records.append(
+            restore_causality_runtime.event_for_report(
+                restore_causality_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.COMPACT_STATE_PROJECTION,
+            metadata={
+                "phase": "codeworker_restore_causality",
+                "restore_causality": restore_causality_report.to_dict(),
+            },
+        )
+        context_restore_api_state_report = context_restore_api_state_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            compact_restore_report=compact_restore_report,
+            restore_integration_report=restore_integration_report,
+            context_security_snapshot=latest_context_security_snapshot,
+            model_stream_reports=model_stream_reports,
+            event_records=event_records,
+        )
+        event_records.append(
+            context_restore_api_state_runtime.event_for_report(
+                context_restore_api_state_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.COMPACT_STATE_PROJECTION,
+            metadata={
+                "phase": "codeworker_context_restore_api_state",
+                "context_restore_api_state": context_restore_api_state_report.to_dict(),
+            },
+        )
+        disable_semantics_report = disable_semantics_runtime.build_report(
+            session_id=session.session_id,
+            worker_request_id=worker_request_id,
+            constraints=self.config.runtime_constraints,
+            metadata={
+                **runtime_budget_metadata(runtime_budget_state),
+                **compact_restore_metadata(compact_restore_report),
+                **restore_integration_metadata(restore_integration_report),
+                **context_security_metadata(latest_context_security_snapshot),
+                **model_stream_metadata(model_stream_reports[-1] if model_stream_reports else None),
+                **api_retry_metadata(api_retry_reports[-1] if api_retry_reports else None),
+                **codeworker_api_foundation_metadata(codeworker_api_foundation_report),
+                **compact_recovery_audit_metadata(compact_recovery_audit_report),
+                **model_recovery_matrix_metadata(model_recovery_matrix_report),
+                **restore_causality_metadata(restore_causality_report),
+                **context_restore_api_state_metadata(context_restore_api_state_report),
+            },
+            event_records=event_records,
+            worker_ok=ok,
+        )
+        event_records.append(
+            disable_semantics_runtime.event_for_report(
+                disable_semantics_report,
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+            )
+        )
+        session.record_batch_event(
+            QueryStreamEventType.COMPACT_STATE_PROJECTION,
+            metadata={
+                "phase": "codeworker_disable_semantics",
+                "disable_semantics": disable_semantics_report.to_dict(),
+            },
         )
         tool_source_coverage_report = source_coverage_runtime.build_report(
             session_id=session.session_id,
@@ -1951,6 +2333,11 @@ class ZyraClaudeQueryEngine:
                 "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
                 "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
                 "compact_restore_report": compact_restore_report.to_dict(),
+                "restore_integration_report": restore_integration_report.to_dict(),
+                "context_security_snapshot": latest_context_security_snapshot.to_dict()
+                if latest_context_security_snapshot is not None
+                else None,
+                "restore_applications": [application.to_dict() for application in restore_applications],
                 "compact_restore_policy_report": compact_restore_policy_report.to_dict(),
                 "context_epoch_report": context_epoch_report.to_dict(),
                 "model_provider_reports": [report.to_dict() for report in model_provider_reports],
@@ -1961,6 +2348,11 @@ class ZyraClaudeQueryEngine:
                 "codeworker_api_foundation_report": codeworker_api_foundation_report.to_dict(),
                 "codeworker_api_audit_report": codeworker_api_audit_report.to_dict(),
                 "compact_state_projection_report": compact_state_projection_report.to_dict(),
+                "compact_recovery_audit_report": compact_recovery_audit_report.to_dict(),
+                "model_recovery_matrix_report": model_recovery_matrix_report.to_dict(),
+                "restore_causality_report": restore_causality_report.to_dict(),
+                "context_restore_api_state_report": context_restore_api_state_report.to_dict(),
+                "disable_semantics_report": disable_semantics_report.to_dict(),
                 "tool_source_coverage_report": tool_source_coverage_report.to_dict(),
                 "tool_cleanroom_report": tool_cleanroom_report.to_dict(),
                 "tool_session_bridge_report": self.config.session_bridge_report.to_dict()
@@ -1999,6 +2391,11 @@ class ZyraClaudeQueryEngine:
                 "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
                 "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
                 "compact_restore_report": compact_restore_report.to_dict(),
+                "restore_integration_report": restore_integration_report.to_dict(),
+                "context_security_snapshot": latest_context_security_snapshot.to_dict()
+                if latest_context_security_snapshot is not None
+                else None,
+                "restore_applications": [application.to_dict() for application in restore_applications],
                 "compact_restore_policy_report": compact_restore_policy_report.to_dict(),
                 "context_epoch_report": context_epoch_report.to_dict(),
                 "model_provider_reports": [report.to_dict() for report in model_provider_reports],
@@ -2009,6 +2406,11 @@ class ZyraClaudeQueryEngine:
                 "codeworker_api_foundation_report": codeworker_api_foundation_report.to_dict(),
                 "codeworker_api_audit_report": codeworker_api_audit_report.to_dict(),
                 "compact_state_projection_report": compact_state_projection_report.to_dict(),
+                "compact_recovery_audit_report": compact_recovery_audit_report.to_dict(),
+                "model_recovery_matrix_report": model_recovery_matrix_report.to_dict(),
+                "restore_causality_report": restore_causality_report.to_dict(),
+                "context_restore_api_state_report": context_restore_api_state_report.to_dict(),
+                "disable_semantics_report": disable_semantics_report.to_dict(),
                 "tool_source_coverage_report": tool_source_coverage_report.to_dict(),
                 "tool_cleanroom_report": tool_cleanroom_report.to_dict(),
                 "tool_session_bridge_report": self.config.session_bridge_report.to_dict()
@@ -2549,6 +2951,8 @@ class ZyraClaudeQueryEngine:
         metadata.update(runtime_budget_metadata(runtime_budget_state))
         metadata.update(runtime_budget_replay_metadata(runtime_budget_replay_report))
         metadata.update(compact_restore_metadata(compact_restore_report))
+        metadata.update(restore_integration_metadata(restore_integration_report))
+        metadata.update(context_security_metadata(latest_context_security_snapshot))
         metadata.update(compact_restore_policy_metadata(compact_restore_policy_report))
         metadata.update(context_epoch_metadata(context_epoch_report))
         metadata.update(model_provider_metadata(model_provider_reports[-1] if model_provider_reports else None))
@@ -2559,6 +2963,11 @@ class ZyraClaudeQueryEngine:
         metadata.update(codeworker_api_foundation_metadata(codeworker_api_foundation_report))
         metadata.update(codeworker_api_audit_metadata(codeworker_api_audit_report))
         metadata.update(compact_state_projection_metadata(compact_state_projection_report))
+        metadata.update(compact_recovery_audit_metadata(compact_recovery_audit_report))
+        metadata.update(model_recovery_matrix_metadata(model_recovery_matrix_report))
+        metadata.update(restore_causality_metadata(restore_causality_report))
+        metadata.update(context_restore_api_state_metadata(context_restore_api_state_report))
+        metadata.update(disable_semantics_metadata(disable_semantics_report))
         metadata.update(tool_source_coverage_metadata(tool_source_coverage_report))
         metadata.update(tool_cleanroom_metadata(tool_cleanroom_report))
         metadata.update(tool_integration_metadata(tool_integration_report))
