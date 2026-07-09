@@ -8,6 +8,13 @@
 - 系统应覆盖赛题要求：超长程上下文连续性、动态异构拓扑、低熵通信、神经符号协同推理、端-边-云资源调度、动态异常/需求变更/节点失效注入、可视化中间决策与推理轨迹。
 - 第二阶段再围绕赛题评分点做定向重写、优化、鲁棒性增强和前端完善。
 
+## 赛题退出门禁
+
+- 赛题 requirement ID、100 分评分 owner 和证据定义以 `../docs/比赛要求追踪矩阵.md` 为准；当前进度只以 `../docs/milestones/execution-state.yaml` 为准。
+- 第一阶段同时通过赛题证据、工程内化、交付排期三类门禁。`550,000` 行是内部重型内化失败线，不是 PDF 分值，不能替代双跨领域、数千有效 step、零人工、动态稀疏拓扑、低熵、真实端边云、多模型、故障恢复、材料与截止日期证据。
+- 正式 benchmark 使用 sealed autonomous policy：低风险 allowlist 自动放行，高风险或未知动作确定性拒绝并进入 recovery/replan，`human_intervention_count=0`。交互式审批模式不能成为正式场景依赖。
+- 开发期模拟端边云只能用于测试；冻结前必须验证 local/terminal、隔离 edge runtime、cloud provider/model 三类真实 dispatch 和模型/子任务切分。
+
 ## 参考文档
 
 - 赛题分析：`../docs/比赛项目开源Agent架构借鉴分析.md`
@@ -15,12 +22,15 @@
 - 执行单元目录：`../docs/milestones/`
 - Source graph 总目录：`../source-graphs/`
 - 2026-07-08 source graph 重排文档：`../docs/milestones/source-graph-realignment-2026-07-08.md`
+- 赛题要求追踪矩阵：`../docs/比赛要求追踪矩阵.md`
+- 唯一执行状态源：`../docs/milestones/execution-state.yaml`
 - 旧版工程计划背景：`../docs/第一阶段工程计划（旧版，仅作背景参考）.md`
 - 根目录约定：`../AGENTS.md`
 
 正式开发前应优先阅读上述文档，尤其是：
 
 - `../docs/第一阶段总工程计划.md`。
+- `../docs/milestones/execution-state.yaml` 与 `../docs/比赛要求追踪矩阵.md`。
 - 当前被用户指定的 `../docs/milestones/**/unit-*.md`。
 - `../docs/比赛项目开源Agent架构借鉴分析.md` 的 `0.4 里程碑内化索引`。
 - `../docs/milestones/source-graph-realignment-2026-07-08.md`，用于同步逐仓 source graph 后的 M1/M2/M3 重排口径。
@@ -94,13 +104,14 @@
 - 如果一个里程碑只新增少量 schema、简单 if/else、薄 wrapper、mock 数据或静态页面，即使测试通过，也不能视为完成重型目标。阶段自检必须先补齐，或者明确把里程碑保持为未完成。
 - 新 M3 只能做冻结、产品化整合、历史 vendor/source-pool 债务清理和来源映射；不能把第一次大规模迁移 runtime/scheduler/UI 推迟到新 M3。
 - 第一阶段父级执行单元的最低有效新增代码总量为 `550,000` 行，具体分配见 `../docs/第一阶段总工程计划.md` 和当前执行单元文档。该口径已经吸收 `../docs/milestones/M1-runtime-memory-scheduler-fault/slice-02b-02-query-session-lifecycle-integration.md` 从 9,000 行下调为 6,000 行后的预算重算。
-- 当前 `39` 个 `unit-*.md` 是父级验收单元，M1/M2/M3 分别为 25/9/5 个；大多数父级单元的 9,000-20,000 行下限是父级预算和失败线，`M1-08` 因 `slice-02b-02` 下调后的总量校准提高到 23,000 行。父级单元不再表示一次实现应吞下整个单元。正式执行前应继续拆成更小 `slice-*.md`，通常每片 3,000-6,000 行生产内化代码；已规划的大切片如 M1-08 11,000/12,000 行属于来源链较完整的例外，应优先按文档边界拆解和验收，不能再机械套用 8,000 行上限。每片只承接一个语义能力、一个主要 source-to-target 迁移链、一个 Zyra 目标模块和一组真实行为测试。
+- 当前 `39` 个 `unit-*.md` 是父级验收单元。M1 现有 `foundation/integration` 文档是阶段容器；未完成切片若仍跨多个状态 owner 或无法独立验证，应继续拆成通常 3,000-6,000 行的单语义前向切片。M1-01A/01B 和已完成到 02D 的文档不回头拆分。
 - 例外：`M1-01A` 和 `M1-01B` 用户已明确不要拆分。后续不得回头把这两个文档拆成 slice；如复审发现问题，应在原单元文档、`docs/plans/M1-01A-ledger-schema-audit.md` 或 `docs/plans/M1-01B-extraction-runtime-scaffold.md` 中回补记录、代码和验证。
 - 当前 `M1-01B` 的 `vendor-runtimes/claude-code-runtime/pilot` 只能视为 source-pool 证据，`required_for_main_path=false`，不得计入有效内化代码。`M1-02A` 以后必须继续把 QueryEngine/tool loop/session lifecycle 等主体迁入正式 Zyra 模块，不能把该 pilot 当作产品化 runtime。
 - 代码行数下限是失败线，不是完成线。即使超过目标行数，只要执行单元目标、详细任务、主路径接入、验证或批判式审查没有完成，仍然视为失败。
 - 低于执行单元行数下限默认失败，除非能给出非常强的工程理由，例如目标上游模块已经完整内化、裁剪、重构并强化，再增加只会制造废代码。
 - 文档、注释、mock、死代码、未接入 vendor 堆放、无关上游外壳、原样 vendor/source pool 不得计入有效新增代码。
 - 大型 seed、索引、清单、source-to-target 账本记录、JSON/YAML/CSV 数据文件、生成型 inventory、manifest、source map 或原样 vendor/source pool 不能计入“有效新增代码”来证明重型内化；只能单独报告为数据规模、账本覆盖规模或依赖规模。可计入的只限真正让这些数据或依赖参与运行时加载、审计、更新、API/CLI 查询、event log 或测试验证的 Zyra 实现代码。
+- Markdown skill body、prompt template、frontmatter、metadata 和资源索引归入 `runtime-assets` 桶，不计 production 源码最低线；loader/parser/policy/invocation/versioning/restore/event 实现按源码审查。
 - 后续执行单元必须以真实源码迁移、封装接入、裁剪产品化和主路径集成为主体。不得用大型数据文件、清单、schema 堆叠、测试体量、薄 wrapper、胶水代码、整仓 vendor 或原样 source pool 来凑行数；如果新增行数主要来自这些内容，应判定为任务缩水或失败。
 
 ## 工程执行约定
