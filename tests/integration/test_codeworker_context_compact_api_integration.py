@@ -244,6 +244,7 @@ class CodeWorkerContextCompactApiIntegrationTests(unittest.TestCase):
 
             second_constraints = _restore_constraints()
             second_constraints["session_id"] = session_id
+            second_constraints["session_custody_token"] = first_run.session_custody_token
             second_constraints["force_compact_restore"] = False
             second_constraints["query_turns"] = [second_constraints["query_turns"][0]]
             second_runtime = CodeWorkerRuntime(
@@ -313,7 +314,8 @@ class CodeWorkerContextCompactApiIntegrationTests(unittest.TestCase):
             self.assertTrue(first_run.worker_result.ok, first_run.worker_result.error)
 
             second_constraints = _restore_constraints()
-            second_constraints["session_id"] = session_id
+            second_constraints["session_id"] = "scope-guard-branch-session"
+            second_constraints["resume_session_id"] = session_id
             second_runtime = CodeWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,

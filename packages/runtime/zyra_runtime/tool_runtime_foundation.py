@@ -2,17 +2,31 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from threading import RLock
 from typing import Any, Iterable, Mapping, Sequence
 
-from zyra_core import ArtifactKind, ArtifactRef, new_id, now_iso, to_jsonable
+from zyra_core import ArtifactKind, ArtifactRef, EventRecord, new_id, now_iso, to_jsonable
 
 from .artifacts import LocalArtifactStore
 from .executor import ToolExecutionContext, ToolExecutor
-from .permissions import PermissionEffect, ToolPermissionPolicy
+from .permissions import (
+    PermissionEffect,
+    PermissionOperation as LegacyPermissionOperation,
+    PermissionRequest as LegacyPermissionRequest,
+    ToolPermissionPolicy,
+)
+from .permission.canonical import build_tool_identity
+from .permission.models import PermissionEffect as RuntimePermissionEffect
+from .permission.models import PermissionEvaluationRequest
+from .permission.runtime import (
+    PERMISSION_RUNTIME_ID,
+    PERMISSION_RUNTIME_OWNER_UNIT,
+    PermissionGuardResult,
+    ToolPermissionRuntime,
+)
 from .tool_loop import (
     ToolAccessMode,
     ToolBudgetDecision,
@@ -23,7 +37,7 @@ from .tool_loop import (
     ToolResultBudgeter,
     tool_failure_signal_from_result,
 )
-from .tools import ToolRegistry, ToolResult, ToolSpec
+from .tools import ToolCall, ToolRegistry, ToolResult, ToolSpec
 
 
 TOOL_LOOP_FOUNDATION_OWNER_UNIT = "M1-02C"
@@ -611,6 +625,8 @@ class ToolExecutionReceipt:
     started_at: str
     completed_at: str
     executor_name: str
+    permission: dict[str, Any] = field(default_factory=dict)
+    permission_events: tuple[EventRecord, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -625,6 +641,8 @@ class ToolExecutionReceipt:
             "started_at": self.started_at,
             "completed_at": self.completed_at,
             "executor_name": self.executor_name,
+            "permission": to_jsonable(self.permission),
+            "permission_event_ids": [event.event_id for event in self.permission_events],
         }
 
 
@@ -637,39 +655,124 @@ class ToolExecutionRuntime:
     runtime_id: str = TOOL_LOOP_FOUNDATION_RUNTIME_ID
     disabled: bool = False
     executor: ToolExecutor | None = None
+    permission_runtime: ToolPermissionRuntime | None = None
+    require_permission_runtime: bool = True
+    _permission_attach_lock: RLock = field(default_factory=RLock, init=False, repr=False)
 
     def execute_request(self, request: ToolLoopRequest, tool_context: ToolUseContext) -> ToolExecutionReceipt:
         if self.disabled:
             raise ToolRuntimeDisabledError("ToolExecutionRuntime")
-        executor = self.executor or ToolExecutor(self.context)
+        if self.budget_runtime.disabled:
+            # Budget shaping is part of the execution transaction.  Detect a
+            # disconnected dependency before permission evaluation or any
+            # handler can observe/mutate external state.
+            raise ToolRuntimeDisabledError("ToolResultBudgetRuntime")
+        self._attach_permission_authority(tool_context)
+        executor = self.executor
+        if (
+            executor is None
+            or getattr(executor, "_permission_authority", None) is not self.permission_runtime
+        ):
+            # The dispatcher, not a caller/model/plugin, binds the executor to
+            # the session-owned authority.  Unbound injected executors cannot
+            # become a permission bypass.
+            executor = ToolExecutor(
+                self.context,
+                permission_authority=self.permission_runtime,
+            )
         started_at = now_iso()
-        tool_context.start_tool(request)
-        try:
-            raw_result = self.scheduler.schema_error_result(request) if not request.valid else executor.execute(request.call)
-        finally:
-            tool_context.finish_tool(request)
+        permission_result: PermissionGuardResult | None = None
+        permission_events: tuple[EventRecord, ...] = ()
+        effective_request = request
+        if not request.valid:
+            raw_result = self.scheduler.schema_error_result(request)
+        else:
+            if self.permission_runtime is not None:
+                evaluation_request = _permission_evaluation_request(request, tool_context, self.context)
+                permission_result = self.permission_runtime.guard(
+                    evaluation_request,
+                    workspace_state=_permission_workspace_state(request, tool_context, self.context),
+                    workspace_state_resolver=lambda effective: _permission_workspace_state(
+                        request,
+                        tool_context,
+                        self.context,
+                        arguments=effective.arguments,
+                    ),
+                    messages=tool_context.messages,
+                )
+                effective_request = _request_with_permission_arguments(request, permission_result)
+                permission_events = permission_result.events
+                post_hook_errors = self.scheduler.validate_arguments(
+                    effective_request.tool_name,
+                    effective_request.arguments,
+                )
+                if post_hook_errors:
+                    effective_request = replace(effective_request, schema_errors=list(post_hook_errors))
+                    if permission_result.execution_grant is not None:
+                        # Consume the now-invalid binding so a hook-produced
+                        # malformed request cannot reuse its grant later.
+                        self.permission_runtime.validate_and_consume(
+                            effective_request.call,
+                            permission_result.execution_grant,
+                            self.context,
+                        )
+                    raw_result = self.scheduler.schema_error_result(effective_request)
+                elif permission_result.allowed:
+                    tool_context.start_tool(effective_request)
+                    try:
+                        try:
+                            raw_result = executor.execute(
+                                effective_request.call,
+                                permission_grant=permission_result.execution_grant,
+                            )
+                        except Exception as error:  # noqa: BLE001 - preserve authorization audit after handler failure.
+                            raw_result = ToolResult(
+                                tool_call_id=effective_request.call.tool_call_id,
+                                ok=False,
+                                summary="Tool executor failed after authorization.",
+                                error="tool_executor_failure",
+                                metadata={
+                                    "exception_type": type(error).__name__,
+                                    "message": str(error),
+                                    "permission_effect": "allow",
+                                },
+                            )
+                    finally:
+                        tool_context.finish_tool(effective_request)
+                else:
+                    raw_result = _permission_blocked_result(effective_request, permission_result)
+                    _mirror_legacy_permission_request(self.context, effective_request, permission_result)
+                permission_events = (
+                    *permission_events,
+                    *self.permission_runtime.drain_execution_events(effective_request.call.tool_call_id),
+                )
+            else:
+                # Production execution is fail-closed when the permission
+                # authority is absent.  ``require_permission_runtime`` remains
+                # as a compatibility field but can no longer enable a bypass.
+                raise ToolRuntimeDisabledError("ToolPermissionRuntime")
         budget_receipt = self.budget_runtime.apply(
-            request=request,
+            request=effective_request,
             result=raw_result,
             context=tool_context,
             artifact_store=self.context.artifact_store,
         )
         bounded_result = budget_receipt.bounded_result
         failure_signal = tool_failure_signal_from_result(
-            request,
+            effective_request,
             bounded_result,
             budget_decision=budget_receipt.decision if budget_receipt.decision.applied else None,
         )
         modifiers = tuple(
             _modifiers_for_result(
-                request=request,
+                request=effective_request,
                 raw_result=raw_result,
                 bounded_result=bounded_result,
                 budget_receipt=budget_receipt,
             )
         )
         return ToolExecutionReceipt(
-            request=request,
+            request=effective_request,
             raw_result=raw_result,
             bounded_result=bounded_result,
             budget_decision=budget_receipt.decision,
@@ -680,7 +783,21 @@ class ToolExecutionRuntime:
             started_at=started_at,
             completed_at=now_iso(),
             executor_name=type(executor).__name__,
+            permission=permission_result.to_dict() if permission_result else {},
+            permission_events=permission_events,
         )
+
+    def _attach_permission_authority(self, tool_context: ToolUseContext) -> None:
+        if self.permission_runtime is not None:
+            return
+        with self._permission_attach_lock:
+            if self.permission_runtime is not None:
+                return
+            self.permission_runtime = ToolPermissionRuntime.for_session(
+                session_id=tool_context.session_id,
+                state_path=self.context.artifact_store.root / ".permission" / "state.json",
+                workspace_root=self.context.workspace_root,
+            )
 
     def execute_batch(
         self,
@@ -853,6 +970,346 @@ def _mapping_value(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {"value": to_jsonable(value)}
 
 
+def _permission_evaluation_request(
+    request: ToolLoopRequest,
+    tool_context: ToolUseContext,
+    execution_context: ToolExecutionContext,
+) -> PermissionEvaluationRequest:
+    spec = execution_context.registry.get(request.tool_name)
+    metadata = dict(request.call.metadata)
+    namespace, server_id, version = _trusted_permission_identity(spec, metadata)
+    identity = build_tool_identity(
+        request.tool_name,
+        namespace=namespace,
+        server_id=server_id,
+        version=version,
+        schema=spec.input_schema if spec is not None else None,
+    )
+    capabilities = list(_trusted_tool_capabilities(spec))
+    if request.read_only:
+        capabilities.append("read_only")
+    if request.mutates_workspace:
+        capabilities.append("workspace_edit" if request.tool_name in {"file_write", "file_edit"} else "mutation")
+    if request.access_mode == ToolAccessMode.SHELL:
+        capabilities.append("shell")
+    external_egress = request.tool_name in {"browser", "web_search"} and bool(
+        request.arguments.get("url") or request.arguments.get("allow_network")
+    )
+    if namespace in {"mcp", "remote", "cloud"} or server_id or external_egress:
+        capabilities.append("network")
+    path = str(request.arguments.get("path") or request.arguments.get("file_path") or "")
+    domain = str(request.arguments.get("domain") or request.arguments.get("host") or "")
+    return PermissionEvaluationRequest(
+        run_id=request.run_id,
+        task_id=request.task_id,
+        session_id=tool_context.session_id,
+        worker_request_id=request.worker_request_id,
+        turn_id=tool_context.turn_id,
+        node_id=request.node_id,
+        tool_use_id=request.call.tool_call_id,
+        tool_identity=identity,
+        arguments=dict(request.arguments),
+        workspace_root=str(execution_context.workspace_root),
+        interactive=True,
+        headless=False,
+        requires_interaction=str(metadata.get("requires_interaction") or "").lower() == "true",
+        safety_flags=tuple(
+            item
+            for item in str(metadata.get("safety_flags") or "").split(",")
+            if item
+        ),
+        risk_tags=tuple(
+            item
+            for item in str(metadata.get("risk_tags") or "").split(",")
+            if item
+        ),
+        attributes={
+            "path": path,
+            "domain": domain,
+            "capabilities": list(dict.fromkeys(capabilities)),
+            "access_mode": str(request.access_mode),
+            "read_only": request.read_only,
+            "mutates_workspace": request.mutates_workspace,
+            "source_path": request.source_path,
+        },
+        metadata={
+            "owner_unit": PERMISSION_RUNTIME_OWNER_UNIT,
+            "tool_step_index": request.step_index,
+            "tool_turn_index": request.turn_index,
+            "raw_approved_argument_ignored": request.arguments.get("approved") is True,
+            "registered_tool_source": str(spec.source if spec is not None else ""),
+        },
+    )
+
+
+def _permission_workspace_state(
+    request: ToolLoopRequest,
+    tool_context: ToolUseContext,
+    execution_context: ToolExecutionContext,
+    *,
+    arguments: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    effective_arguments = dict(arguments if arguments is not None else request.arguments)
+    root = execution_context.workspace_root.resolve()
+    raw_path = effective_arguments.get("path") or effective_arguments.get("file_path")
+    target: Path | None = None
+    path_safe = True
+    relative_path = ""
+    if raw_path:
+        try:
+            candidate = Path(str(raw_path))
+            target = (root / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+            relative_path = target.relative_to(root).as_posix()
+        except (OSError, ValueError):
+            path_safe = False
+    read_observed = False
+    baseline_current = False
+    bounded_change = True
+    if target is not None and path_safe:
+        keys = {
+            str(raw_path),
+            relative_path,
+            str(target),
+            relative_path.replace("/", "\\"),
+        }
+        read_observed = any(
+            key in tool_context.read_file_state or key in tool_context.content_replacements
+            for key in keys
+            if key
+        )
+        if request.tool_name == "file_write":
+            # Creating a new file has an empty known baseline.  Overwriting an
+            # existing file still requires a prior read observation.
+            exists = target.exists()
+            read_observed = read_observed or not exists
+            baseline_current = not exists or read_observed
+            bounded_change = len(str(effective_arguments.get("content") or "")) <= 2_000_000
+        elif request.tool_name == "file_edit":
+            try:
+                # Permission checks must not perform an unbounded sensitive
+                # read before the decision.  Large files leave the fast-edit
+                # path and require an explicit approval/recovery path.
+                stat = target.stat() if target.is_file() else None
+                current = target.read_text(encoding="utf-8") if stat is not None and stat.st_size <= 2_000_000 else ""
+            except OSError:
+                current = ""
+            old = str(effective_arguments.get("old") or "")
+            baseline_current = read_observed and bool(old) and old in current
+            bounded_change = (
+                len(str(effective_arguments.get("new") or "")) <= 1_000_000
+                and (effective_arguments.get("replace_all") is not True or current.count(old) <= 1000)
+            )
+        else:
+            baseline_current = read_observed
+    external_egress = request.tool_name in {"browser", "web_search"} and bool(
+        effective_arguments.get("url") or effective_arguments.get("allow_network")
+    )
+    return {
+        "workspace_root": str(root),
+        "workspace_scoped": path_safe,
+        "path_validated": path_safe,
+        "read_before_write": read_observed,
+        "baseline_current": baseline_current,
+        "bounded_change": bounded_change,
+        "trusted_remote": False,
+        "production": bool(effective_arguments.get("production") or effective_arguments.get("environment") == "production"),
+        "contains_secrets": bool(effective_arguments.get("contains_secrets") or effective_arguments.get("secret_material")),
+        "external_egress": external_egress,
+        "cross_repository": bool(effective_arguments.get("cross_repository") or effective_arguments.get("cross_repo")),
+        "outside_workspace": not path_safe,
+        "workspace_precondition": _workspace_precondition(target) if target is not None and path_safe else {},
+    }
+
+
+def _trusted_permission_identity(
+    spec: ToolSpec | None,
+    call_metadata: Mapping[str, Any],
+) -> tuple[str, str, str]:
+    """Resolve identity from the registered ToolSpec without caller downgrade."""
+
+    spec_metadata = dict(spec.metadata) if spec is not None else {}
+    source = str(spec.source if spec is not None else "").strip()
+    source_lower = source.casefold()
+    trusted_namespace = str(spec_metadata.get("tool_namespace") or spec_metadata.get("namespace") or "")
+    trusted_server = str(spec_metadata.get("server_id") or spec_metadata.get("server_name") or "")
+    if not trusted_namespace:
+        if source_lower.startswith(("mcp:", "mcp/", "mcp::")):
+            trusted_namespace = "mcp"
+        elif source_lower.startswith(("remote:", "remote/")):
+            trusted_namespace = "remote"
+        elif source_lower.startswith(("cloud:", "cloud/")):
+            trusted_namespace = "cloud"
+    if not trusted_server and trusted_namespace in {"mcp", "remote", "cloud"}:
+        for separator in ("::", ":", "/"):
+            if separator in source:
+                trusted_server = source.split(separator, 1)[1].split()[0].strip("/:")
+                break
+    caller_namespace = str(call_metadata.get("tool_namespace") or call_metadata.get("namespace") or "")
+    # A caller may conservatively identify a dynamic tool, but it may never
+    # relabel an immutable remote spec as builtin.
+    namespace = trusted_namespace or caller_namespace or "builtin"
+    caller_server = str(call_metadata.get("server_id") or call_metadata.get("server_name") or "")
+    server_id = trusted_server or caller_server
+    version = str(spec_metadata.get("tool_version") or spec_metadata.get("version") or call_metadata.get("tool_version") or "")
+    return namespace, server_id, version
+
+
+def _trusted_tool_capabilities(spec: ToolSpec | None) -> tuple[str, ...]:
+    if spec is None:
+        return ()
+    metadata = dict(spec.metadata)
+    raw = metadata.get("capabilities") or ""
+    values = [item.strip() for item in str(raw).split(",") if item.strip()]
+    source = str(spec.source).casefold()
+    if source.startswith(("mcp:", "mcp/", "remote:", "remote/", "cloud:", "cloud/")):
+        values.append("network")
+    return tuple(dict.fromkeys(values))
+
+
+def _workspace_precondition(target: Path | None) -> dict[str, Any]:
+    if target is None:
+        return {}
+    try:
+        stat = target.stat()
+    except FileNotFoundError:
+        return {"exists": False}
+    except OSError as error:
+        return {"exists": None, "error": type(error).__name__}
+    return {
+        "exists": True,
+        "device": int(getattr(stat, "st_dev", 0)),
+        "inode": int(getattr(stat, "st_ino", 0)),
+        "mode": int(stat.st_mode),
+        "size": int(stat.st_size),
+        "mtime_ns": int(stat.st_mtime_ns),
+    }
+
+
+def _request_with_permission_arguments(
+    request: ToolLoopRequest,
+    result: PermissionGuardResult,
+) -> ToolLoopRequest:
+    arguments = dict(result.request.arguments)
+    if arguments == request.arguments:
+        return request
+    metadata = {
+        **request.call.metadata,
+        "permission_hook_arguments_rewritten": "true",
+        "permission_arguments_digest": result.request.arguments_digest,
+    }
+    call = ToolCall(
+        run_id=request.call.run_id,
+        task_id=request.call.task_id,
+        node_id=request.call.node_id,
+        tool_name=request.call.tool_name,
+        arguments=arguments,
+        tool_call_id=request.call.tool_call_id,
+        created_at=request.call.created_at,
+        metadata=metadata,
+    )
+    path = str(arguments.get("path") or arguments.get("file_path") or "")
+    conflict_key = request.conflict_key
+    if path and not request.read_only:
+        conflict_key = f"workspace:{path}"
+    return replace(
+        request,
+        arguments=arguments,
+        call=call,
+        conflict_key=conflict_key,
+        metadata={**request.metadata, **metadata},
+    )
+
+
+def _permission_blocked_result(
+    request: ToolLoopRequest,
+    permission: PermissionGuardResult,
+) -> ToolResult:
+    decision = permission.decision
+    ask = decision.effect is RuntimePermissionEffect.ASK
+    recovery = decision.recovery_input.to_dict() if decision.recovery_input else None
+    return ToolResult(
+        tool_call_id=request.call.tool_call_id,
+        ok=False,
+        summary=(
+            f"Permission approval required: {decision.reason}"
+            if ask
+            else f"Permission denied: {decision.reason}"
+        ),
+        output={
+            "permission_decision": decision.to_dict(),
+            "pending_request": permission.pending_request.to_dict() if permission.pending_request else None,
+            "recovery_input": recovery,
+            "alternatives": list(permission.trace.recovery_alternatives),
+        },
+        error="permission_required" if ask else "permission_denied",
+        metadata={
+            "permission_effect": str(decision.effect),
+            "permission_decision_id": decision.decision_id,
+            "permission_request_id": decision.request_id,
+            "permission_reason_code": decision.reason_code,
+            "permission_arguments_digest": decision.arguments_digest,
+            "permission_runtime_id": PERMISSION_RUNTIME_ID,
+            "permission_abort_loop": str(permission.abort_loop).lower(),
+            "human_intervention_count": "0",
+            "raw_approved_argument_ignored": str(request.arguments.get("approved") is True).lower(),
+        },
+    )
+
+
+def _mirror_legacy_permission_request(
+    context: ToolExecutionContext,
+    request: ToolLoopRequest,
+    permission: PermissionGuardResult,
+) -> None:
+    """Project new pending state for M0 reports without granting authority.
+
+    The legacy JsonPermissionStore remains a compatibility/read-model input for
+    02C checkpoint reports.  ToolPermissionRuntime and PermissionStateStore are
+    the sole guard and resolution authority.
+    """
+
+    if context.permission_store is None or permission.pending_request is None:
+        return
+    operation = (
+        LegacyPermissionOperation.SHELL
+        if request.tool_name == "shell"
+        else LegacyPermissionOperation.READ
+        if request.read_only
+        else LegacyPermissionOperation.WRITE
+    )
+    subject = str(
+        request.arguments.get("command")
+        or request.arguments.get("path")
+        or request.arguments.get("url")
+        or request.tool_name
+    )
+    existing = {
+        item.request_id
+        for item in context.permission_store.list_requests()
+    }
+    pending = permission.pending_request
+    if pending.request_id in existing:
+        return
+    context.permission_store.create_request(
+        LegacyPermissionRequest(
+            run_id=request.run_id,
+            task_id=request.task_id,
+            tool_call_id=request.call.tool_call_id,
+            operation=operation,
+            subject=subject,
+            reason=permission.decision.reason,
+            request_id=pending.request_id,
+            metadata={
+                "projection_only": "true",
+                "authority": "PermissionStateStore",
+                "session_id": pending.session_id,
+                "arguments_digest": pending.arguments_digest,
+                "request_fingerprint": pending.request_fingerprint,
+            },
+        )
+    )
+
+
 def _result_chars(result: ToolResult) -> int:
     return len(json.dumps(to_jsonable(result.output), ensure_ascii=False, sort_keys=True))
 
@@ -886,6 +1343,8 @@ def _with_receipt_applications(
         started_at=receipt.started_at,
         completed_at=receipt.completed_at,
         executor_name=receipt.executor_name,
+        permission=receipt.permission,
+        permission_events=receipt.permission_events,
     )
 
 

@@ -1034,6 +1034,27 @@ from .codeworker_disable_semantics import (
     default_disable_semantics_source_decisions,
     disable_semantics_metadata,
 )
+from .permission.runtime import (
+    PERMISSION_RUNTIME_ID,
+    PERMISSION_RUNTIME_OWNER_UNIT,
+    PermissionGrantConsumption,
+    PermissionGuardResult,
+    PermissionRuntimeConfig,
+    ToolPermissionRuntime,
+    ToolPermissionRuntimeDisabledError,
+)
+from .permission.store import PermissionRuleStore, PermissionStateStore
+from .permission.custody import (
+    PermissionSessionCustodyBinding,
+    PermissionSessionCustodyError,
+    PermissionSessionCustodyReceipt,
+    PermissionSessionCustodyStore,
+)
+from .permission.request_queue import PermissionRequestQueue
+from .permission.decision_log import PermissionDecisionLog
+from .permission.modes import PermissionModeRuntime
+from .permission.hooks import PermissionHookAdapter
+from .permission.classifier import PermissionClassifierAdapter
 from .codeworker_api_foundation import (
     CodeWorkerApiFoundationFinding,
     CodeWorkerApiFoundationPathEdge,
@@ -2304,5 +2325,23 @@ __all__ = [
     "DisableSemanticsSurface",
     "default_disable_semantics_source_decisions",
     "disable_semantics_metadata",
+    "PERMISSION_RUNTIME_ID",
+    "PERMISSION_RUNTIME_OWNER_UNIT",
+    "PermissionClassifierAdapter",
+    "PermissionDecisionLog",
+    "PermissionGrantConsumption",
+    "PermissionGuardResult",
+    "PermissionHookAdapter",
+    "PermissionModeRuntime",
+    "PermissionRequestQueue",
+    "PermissionRuleStore",
+    "PermissionRuntimeConfig",
+    "PermissionStateStore",
+    "PermissionSessionCustodyBinding",
+    "PermissionSessionCustodyError",
+    "PermissionSessionCustodyReceipt",
+    "PermissionSessionCustodyStore",
+    "ToolPermissionRuntime",
+    "ToolPermissionRuntimeDisabledError",
     "stable_foundation_id",
 ]

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
@@ -63,12 +64,57 @@ class ToolExecutionContext:
         )
 
 
-class ToolExecutor:
-    def __init__(self, context: ToolExecutionContext) -> None:
-        self.context = context
+@dataclass(frozen=True, slots=True)
+class _PermissionExecutionView:
+    """Immutable subset presented to the permission authority.
 
-    def execute(self, call: ToolCall) -> ToolResult:
-        spec = self.context.registry.get(call.tool_name)
+    Tool handlers use the same workspace/registry snapshot after validation.
+    A caller cannot swap the mutable public context between grant validation
+    and the side-effect boundary.
+    """
+
+    workspace_root: Path
+    registry: ToolRegistry
+
+
+class ToolExecutor:
+    def __init__(
+        self,
+        context: ToolExecutionContext,
+        *,
+        permission_authority: Any | None = None,
+    ) -> None:
+        self.context = context
+        self._permission_authority = permission_authority
+        self._workspace_root = Path(context.workspace_root).resolve()
+        self._artifact_store = context.artifact_store
+        self._permission_policy = context.permission_policy
+        self._registry = context.registry
+        self._permission_store = context.permission_store
+        self._event_reader = context.event_reader
+        self._checkpoint_reader = context.checkpoint_reader
+        self._max_inline_chars = int(context.max_inline_chars)
+        self._shell_timeout_seconds = int(context.shell_timeout_seconds)
+        self._permission_execution_view = _PermissionExecutionView(
+            workspace_root=self._workspace_root,
+            registry=self._registry,
+        )
+
+    def execute(
+        self,
+        call: ToolCall,
+        *,
+        permission_grant: Any | None = None,
+    ) -> ToolResult:
+        # ``ToolCall`` is frozen but its mapping fields are not.  Detach them
+        # before permission validation and execute only this private copy.
+        # This closes argument mutation between validation and handler use.
+        call = replace(
+            call,
+            arguments=copy.deepcopy(dict(call.arguments)),
+            metadata=copy.deepcopy(dict(call.metadata)),
+        )
+        spec = self._registry.get(call.tool_name)
         if spec is None:
             return ToolResult(
                 tool_call_id=call.tool_call_id,
@@ -78,25 +124,66 @@ class ToolExecutor:
                 metadata={"tool_name": call.tool_name},
             )
 
+        authorized = False
+        if permission_grant is not None:
+            # The executor owns its authority binding.  A model/plugin/caller
+            # cannot provide an arbitrary ``lambda: True`` validator.
+            try:
+                from .permission.runtime import ToolPermissionRuntime
+            except ImportError:
+                return self._invalid_grant_result(call, "permission authority is unavailable")
+            if not isinstance(self._permission_authority, ToolPermissionRuntime):
+                return self._invalid_grant_result(call, "permission authority is missing or untrusted")
+            try:
+                authorized = bool(
+                    self._permission_authority.validate_and_consume(
+                        call,
+                        permission_grant,
+                        self._permission_execution_view,
+                    )
+                )
+            except Exception as error:  # noqa: BLE001 - grant failures must fail closed.
+                return self._invalid_grant_result(
+                    call,
+                    f"permission grant validation failed: {type(error).__name__}",
+                )
+            if not authorized:
+                return self._invalid_grant_result(call, "permission grant was rejected or already consumed")
+
+        # The legacy workspace policy is a useful path/shell classifier, but it
+        # is not an execution capability.  Every operation that can mutate
+        # state or cross an external boundary must arrive with a one-use grant
+        # minted by ToolPermissionRuntime.  This check deliberately lives at
+        # the last side-effect boundary so direct ToolExecutor callers cannot
+        # bypass the runtime by relying on an old ALLOW decision.
         try:
             if call.tool_name == "file_read":
-                return self._file_read(call)
+                result = self._file_read(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "file_write":
-                return self._file_write(call)
+                result = self._file_write(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "file_edit":
-                return self._file_edit(call)
+                result = self._file_edit(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "shell":
-                return self._shell(call)
+                result = self._shell(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "browser":
-                return self._browser(call)
+                result = self._browser(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "web_search":
-                return self._web_search(call)
+                result = self._web_search(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "artifact_write":
-                return self._artifact_write(call)
+                result = self._artifact_write(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "checkpoint":
-                return self._checkpoint(call)
+                result = self._checkpoint(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "trace":
-                return self._trace(call)
+                result = self._trace(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
         except subprocess.TimeoutExpired as error:
             return ToolResult(
                 tool_call_id=call.tool_call_id,
@@ -126,10 +213,10 @@ class ToolExecutor:
             metadata={"tool_name": call.tool_name},
         )
 
-    def _file_read(self, call: ToolCall) -> ToolResult:
+    def _file_read(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
         target = self._resolve_path(call.arguments.get("path"))
-        permission = self.context.permission_policy.decide_read(target)
-        blocked = self._blocked_result(call, permission, PermissionOperation.READ, str(target))
+        permission = self._permission_policy.decide_read(target)
+        blocked = None if authorized else self._blocked_result(call, permission, PermissionOperation.READ, str(target))
         if blocked is not None:
             return blocked
 
@@ -140,8 +227,8 @@ class ToolExecutor:
             "chars": len(content),
         }
         artifacts = []
-        if len(content) > self.context.max_inline_chars:
-            artifact = self.context.artifact_store.write_text(
+        if len(content) > self._max_inline_chars:
+            artifact = self._artifact_store.write_text(
                 run_id=call.run_id,
                 task_id=call.task_id,
                 content=content,
@@ -151,7 +238,7 @@ class ToolExecutor:
                 producer_node_id=call.node_id,
             )
             artifacts.append(artifact)
-            output["content_preview"] = content[: self.context.max_inline_chars]
+            output["content_preview"] = content[: self._max_inline_chars]
             output["truncated"] = True
         else:
             output["content"] = content
@@ -166,12 +253,14 @@ class ToolExecutor:
             metadata={"permission_effect": str(permission.effect)},
         )
 
-    def _file_write(self, call: ToolCall) -> ToolResult:
+    def _file_write(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
         target = self._resolve_path(call.arguments.get("path"))
-        permission = self.context.permission_policy.decide_write(target)
-        blocked = self._blocked_result(call, permission, PermissionOperation.WRITE, str(target))
+        permission = self._permission_policy.decide_write(target)
+        blocked = None if authorized else self._blocked_result(call, permission, PermissionOperation.WRITE, str(target))
         if blocked is not None:
             return blocked
+        if not authorized:
+            return self._missing_grant_result(call)
 
         content = str(call.arguments.get("content") or "")
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -188,16 +277,18 @@ class ToolExecutor:
             metadata={"permission_effect": str(permission.effect)},
         )
 
-    def _file_edit(self, call: ToolCall) -> ToolResult:
+    def _file_edit(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
         target = self._resolve_path(call.arguments.get("path"))
-        read_permission = self.context.permission_policy.decide_read(target)
-        blocked = self._blocked_result(call, read_permission, PermissionOperation.READ, str(target))
+        read_permission = self._permission_policy.decide_read(target)
+        blocked = None if authorized else self._blocked_result(call, read_permission, PermissionOperation.READ, str(target))
         if blocked is not None:
             return blocked
-        write_permission = self.context.permission_policy.decide_write(target)
-        blocked = self._blocked_result(call, write_permission, PermissionOperation.WRITE, str(target))
+        write_permission = self._permission_policy.decide_write(target)
+        blocked = None if authorized else self._blocked_result(call, write_permission, PermissionOperation.WRITE, str(target))
         if blocked is not None:
             return blocked
+        if not authorized:
+            return self._missing_grant_result(call)
 
         old = call.arguments.get("old")
         if old is None:
@@ -243,7 +334,7 @@ class ToolExecutor:
             metadata={"permission_effect": str(write_permission.effect)},
         )
 
-    def _shell(self, call: ToolCall) -> ToolResult:
+    def _shell(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
         command = str(call.arguments.get("command") or "")
         if not command.strip():
             return ToolResult(
@@ -253,20 +344,23 @@ class ToolExecutor:
                 error="missing_command",
             )
 
-        permission = self.context.permission_policy.decide_shell(command)
-        approved = call.arguments.get("approved") is True
-        blocked = self._blocked_result(call, permission, PermissionOperation.SHELL, command, approved=approved)
+        permission = self._permission_policy.decide_shell(command)
+        # A model-supplied ``approved`` argument is data, not authorization.
+        # Only a one-time grant consumed by this executor may bypass ASK.
+        blocked = None if authorized else self._blocked_result(call, permission, PermissionOperation.SHELL, command)
         if blocked is not None:
             return blocked
+        if not authorized:
+            return self._missing_grant_result(call)
 
         completed = subprocess.run(
             command,
-            cwd=self.context.workspace_root,
+            cwd=self._workspace_root,
             shell=True,
             check=False,
             capture_output=True,
             text=True,
-            timeout=int(call.arguments.get("timeout_seconds") or self.context.shell_timeout_seconds),
+            timeout=int(call.arguments.get("timeout_seconds") or self._shell_timeout_seconds),
         )
         stdout_artifact = self._large_output_artifact(call, "stdout", completed.stdout)
         stderr_artifact = self._large_output_artifact(call, "stderr", completed.stderr)
@@ -284,17 +378,23 @@ class ToolExecutor:
             },
             artifacts=[item for item in [stdout_artifact, stderr_artifact] if item is not None],
             error=None if completed.returncode == 0 else "non_zero_exit",
-            metadata={"permission_effect": str(permission.effect), "approved": str(approved).lower()},
+            metadata={
+                "permission_effect": str(permission.effect),
+                "permission_execution_grant_present": str(authorized).lower(),
+                "raw_approved_argument_ignored": str(call.arguments.get("approved") is True).lower(),
+            },
         )
 
-    def _artifact_write(self, call: ToolCall) -> ToolResult:
+    def _artifact_write(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
+        if not authorized:
+            return self._missing_grant_result(call)
         kind_value = str(call.arguments.get("kind") or ArtifactKind.TEXT)
         try:
             kind = ArtifactKind(kind_value)
         except ValueError:
             kind = ArtifactKind.TEXT
         content = str(call.arguments.get("content") or "")
-        artifact = self.context.artifact_store.write_text(
+        artifact = self._artifact_store.write_text(
             run_id=call.run_id,
             task_id=call.task_id,
             content=content,
@@ -311,7 +411,7 @@ class ToolExecutor:
             artifacts=[artifact],
         )
 
-    def _browser(self, call: ToolCall) -> ToolResult:
+    def _browser(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
         action = str(call.arguments.get("action") or "snapshot_state")
         if action not in {"open_url", "extract_text", "snapshot_state", "navigate", "extract", "find_elements"}:
             return ToolResult(
@@ -324,6 +424,15 @@ class ToolExecutor:
         html_content = str(call.arguments.get("html") or "")
         source = "inline_html"
         url = str(call.arguments.get("url") or "")
+        if url and call.arguments.get("allow_network") is not True and not authorized:
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=False,
+                summary="Network access is not allowed for this browser call.",
+                error="network_not_allowed",
+            )
+        if not authorized:
+            return self._missing_grant_result(call)
         if not html_content:
             if not url:
                 return ToolResult(
@@ -332,14 +441,14 @@ class ToolExecutor:
                     summary="browser requires html or url",
                     error="missing_browser_source",
                 )
-            fetched = self._fetch_search_source(call, url)
+            fetched = self._fetch_search_source(call, url, authorized=authorized)
             if isinstance(fetched, ToolResult):
                 return fetched
             source, html_content = fetched
         state = _browser_state(source if source != "inline_html" else url, html_content)
         artifacts = []
         if call.arguments.get("capture_html") is True or action in {"open_url", "navigate"}:
-            html_artifact = self.context.artifact_store.write_text(
+            html_artifact = self._artifact_store.write_text(
                 run_id=call.run_id,
                 task_id=call.task_id,
                 content=html_content,
@@ -349,7 +458,7 @@ class ToolExecutor:
                 producer_node_id=call.node_id,
             )
             artifacts.append(html_artifact)
-        state_artifact = self.context.artifact_store.write_text(
+        state_artifact = self._artifact_store.write_text(
             run_id=call.run_id,
             task_id=call.task_id,
             content=json.dumps(state, ensure_ascii=False, indent=2),
@@ -360,7 +469,7 @@ class ToolExecutor:
         )
         artifacts.append(state_artifact)
         if action in {"extract_text", "extract"}:
-            text_artifact = self.context.artifact_store.write_text(
+            text_artifact = self._artifact_store.write_text(
                 run_id=call.run_id,
                 task_id=call.task_id,
                 content=str(state["text"]),
@@ -390,15 +499,15 @@ class ToolExecutor:
             metadata={"mode": "inline_html" if source == "inline_html" else "url"},
         )
 
-    def _checkpoint(self, call: ToolCall) -> ToolResult:
-        if self.context.checkpoint_reader is None:
+    def _checkpoint(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
+        if self._checkpoint_reader is None:
             return ToolResult(
                 tool_call_id=call.tool_call_id,
                 ok=False,
                 summary="checkpoint requires a checkpoint reader in the execution context",
                 error="checkpoint_reader_missing",
             )
-        checkpoint = self.context.checkpoint_reader(call.task_id)
+        checkpoint = self._checkpoint_reader(call.task_id)
         if checkpoint is None:
             return ToolResult(
                 tool_call_id=call.tool_call_id,
@@ -409,7 +518,12 @@ class ToolExecutor:
         summary = _checkpoint_summary(checkpoint)
         artifacts = []
         if call.arguments.get("write_artifact") is True:
-            artifact = self.context.artifact_store.write_text(
+            if not authorized:
+                return self._missing_grant_result(call)
+            # Reading a checkpoint is safe; materializing a new artifact is a
+            # distinct mutation and requires the grant already consumed by the
+            # dispatcher.
+            artifact = self._artifact_store.write_text(
                 run_id=call.run_id,
                 task_id=call.task_id,
                 content=json.dumps(checkpoint, ensure_ascii=False, indent=2),
@@ -430,7 +544,7 @@ class ToolExecutor:
             artifacts=artifacts,
         )
 
-    def _web_search(self, call: ToolCall) -> ToolResult:
+    def _web_search(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
         query = str(call.arguments.get("query") or "").strip()
         if not query:
             return ToolResult(
@@ -444,8 +558,17 @@ class ToolExecutor:
         results: list[dict[str, Any]] = []
         skipped: list[dict[str, str]] = []
         source_url = str(call.arguments.get("url") or "").strip()
+        if source_url and call.arguments.get("allow_network") is not True and not authorized:
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=False,
+                summary="Network access is not allowed for this search call.",
+                error="network_not_allowed",
+            )
+        if not authorized:
+            return self._missing_grant_result(call)
         if source_url:
-            fetched = self._fetch_search_source(call, source_url)
+            fetched = self._fetch_search_source(call, source_url, authorized=authorized)
             if isinstance(fetched, ToolResult):
                 return fetched
             source_name, content = fetched
@@ -454,13 +577,13 @@ class ToolExecutor:
             paths = call.arguments.get("paths")
             search_paths = paths if isinstance(paths, list) and paths else ["."]
             for raw_path in search_paths:
-                for file_path in self._iter_search_files(raw_path, skipped):
+                for file_path in self._iter_search_files(raw_path, skipped, authorized=authorized):
                     if len(results) >= max_results:
                         break
                     content = file_path.read_text(encoding=str(call.arguments.get("encoding") or "utf-8"), errors="ignore")
                     results.extend(_search_text(query, content, self._relative_path(file_path), max_results - len(results)))
 
-        artifact = self.context.artifact_store.write_text(
+        artifact = self._artifact_store.write_text(
             run_id=call.run_id,
             task_id=call.task_id,
             content=_format_search_results(query, results, skipped),
@@ -484,8 +607,8 @@ class ToolExecutor:
             metadata={"mode": "url" if source_url else "workspace"},
         )
 
-    def _trace(self, call: ToolCall) -> ToolResult:
-        if self.context.event_reader is None:
+    def _trace(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
+        if self._event_reader is None:
             return ToolResult(
                 tool_call_id=call.tool_call_id,
                 ok=False,
@@ -494,13 +617,15 @@ class ToolExecutor:
             )
         limit = _bounded_int(call.arguments.get("limit"), default=20, minimum=1, maximum=500)
         event_type = str(call.arguments.get("event_type") or "").strip()
-        events = self.context.event_reader(call.task_id)
+        events = self._event_reader(call.task_id)
         if event_type:
             events = [event for event in events if str(event.get("event_type") or "") == event_type]
         selected = events[-limit:]
         artifacts = []
         if call.arguments.get("write_artifact") is True:
-            artifact = self.context.artifact_store.write_text(
+            if not authorized:
+                return self._missing_grant_result(call)
+            artifact = self._artifact_store.write_text(
                 run_id=call.run_id,
                 task_id=call.task_id,
                 content=json.dumps(selected, ensure_ascii=False, indent=2),
@@ -524,9 +649,9 @@ class ToolExecutor:
         )
 
     def _large_output_artifact(self, call: ToolCall, stream_name: str, content: str):
-        if len(content) <= self.context.max_inline_chars:
+        if len(content) <= self._max_inline_chars:
             return None
-        return self.context.artifact_store.write_text(
+        return self._artifact_store.write_text(
             run_id=call.run_id,
             task_id=call.task_id,
             content=content,
@@ -537,28 +662,34 @@ class ToolExecutor:
         )
 
     def _inline_text(self, content: str) -> str:
-        if len(content) <= self.context.max_inline_chars:
+        if len(content) <= self._max_inline_chars:
             return content
-        return content[: self.context.max_inline_chars]
+        return content[: self._max_inline_chars]
 
     def _resolve_path(self, value: Any) -> Path:
         if value is None:
             raise ValueError("path is required")
         path = Path(str(value))
         if not path.is_absolute():
-            path = self.context.workspace_root / path
+            path = self._workspace_root / path
         return path.resolve()
 
     def _relative_path(self, path: Path) -> str:
         try:
-            return str(path.relative_to(self.context.workspace_root))
+            return str(path.relative_to(self._workspace_root))
         except ValueError:
             return str(path)
 
-    def _iter_search_files(self, raw_path: Any, skipped: list[dict[str, str]]) -> list[Path]:
+    def _iter_search_files(
+        self,
+        raw_path: Any,
+        skipped: list[dict[str, str]],
+        *,
+        authorized: bool = False,
+    ) -> list[Path]:
         target = self._resolve_path(raw_path)
-        permission = self.context.permission_policy.decide_read(target)
-        if permission.effect == PermissionEffect.DENY:
+        permission = self._permission_policy.decide_read(target)
+        if not authorized and permission.effect == PermissionEffect.DENY:
             skipped.append({"path": str(raw_path), "reason": permission.reason})
             return []
         if target.is_file():
@@ -576,22 +707,28 @@ class ToolExecutor:
                 break
             if not file_path.is_file() or not _looks_textual(file_path):
                 continue
-            file_permission = self.context.permission_policy.decide_read(file_path)
-            if file_permission.effect == PermissionEffect.DENY:
+            file_permission = self._permission_policy.decide_read(file_path)
+            if not authorized and file_permission.effect == PermissionEffect.DENY:
                 skipped.append({"path": self._relative_path(file_path), "reason": file_permission.reason})
                 continue
             files.append(file_path)
         return files
 
-    def _fetch_search_source(self, call: ToolCall, url: str) -> tuple[str, str] | ToolResult:
+    def _fetch_search_source(
+        self,
+        call: ToolCall,
+        url: str,
+        *,
+        authorized: bool = False,
+    ) -> tuple[str, str] | ToolResult:
         parsed = urlparse(url)
         if parsed.scheme == "file":
             path = Path(url2pathname(unquote(parsed.path)))
             if parsed.netloc:
                 path = Path(f"//{parsed.netloc}{url2pathname(unquote(parsed.path))}")
             target = path.resolve()
-            permission = self.context.permission_policy.decide_read(target)
-            blocked = self._blocked_result(call, permission, PermissionOperation.READ, str(target))
+            permission = self._permission_policy.decide_read(target)
+            blocked = None if authorized else self._blocked_result(call, permission, PermissionOperation.READ, str(target))
             if blocked is not None:
                 return blocked
             return str(target), target.read_text(encoding=str(call.arguments.get("encoding") or "utf-8"), errors="ignore")
@@ -625,7 +762,7 @@ class ToolExecutor:
             )
         request = Request(url, headers={"User-Agent": "ZyraResearchTool/0.1"})
         with urlopen(request, timeout=_bounded_int(call.arguments.get("timeout_seconds"), default=10, minimum=1, maximum=30)) as response:
-            raw = response.read(self.context.max_inline_chars * 4)
+            raw = response.read(self._max_inline_chars * 4)
         return url, raw.decode(str(call.arguments.get("encoding") or "utf-8"), errors="ignore")
 
     def _blocked_result(
@@ -634,20 +771,17 @@ class ToolExecutor:
         permission: PermissionDecision,
         operation: PermissionOperation,
         subject: str,
-        *,
-        approved: bool = False,
     ) -> ToolResult | None:
         if permission.effect == PermissionEffect.ALLOW:
-            return None
-        if permission.effect == PermissionEffect.ASK and approved:
             return None
         metadata = {
             "permission_effect": str(permission.effect),
             "permission_reason": permission.reason,
             "operation": str(operation),
+            "raw_approved_argument_ignored": str(call.arguments.get("approved") is True).lower(),
         }
-        if permission.effect == PermissionEffect.ASK and self.context.permission_store is not None:
-            request = self.context.permission_store.create_request(
+        if permission.effect == PermissionEffect.ASK and self._permission_store is not None:
+            request = self._permission_store.create_request(
                 PermissionRequest(
                     run_id=call.run_id,
                     task_id=call.task_id,
@@ -665,6 +799,78 @@ class ToolExecutor:
             summary=f"{operation} permission {permission.effect}",
             error="permission_required" if permission.effect == PermissionEffect.ASK else "permission_denied",
             metadata=metadata,
+        )
+
+    def _invalid_grant_result(self, call: ToolCall, reason: str) -> ToolResult:
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=False,
+            summary="Permission execution grant is invalid.",
+            error="permission_grant_invalid",
+            metadata={
+                "permission_effect": str(PermissionEffect.DENY),
+                "permission_reason": reason,
+                "tool_name": call.tool_name,
+                "raw_approved_argument_ignored": str(call.arguments.get("approved") is True).lower(),
+            },
+        )
+
+    def _missing_grant_result(self, call: ToolCall) -> ToolResult:
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=False,
+            summary="Permission approval is required before this side effect.",
+            error="permission_required",
+            metadata={
+                "permission_effect": str(PermissionEffect.ASK),
+                "permission_reason": "a one-use execution grant is required before side effects",
+                "tool_name": call.tool_name,
+                "raw_approved_argument_ignored": str(call.arguments.get("approved") is True).lower(),
+            },
+        )
+
+    @staticmethod
+    def _requires_execution_grant(call: ToolCall, spec: Any) -> bool:
+        metadata = dict(getattr(spec, "metadata", {}) or {})
+        if str(metadata.get("read_only") or "").lower() != "true":
+            return True
+        if str(metadata.get("mutates_workspace") or "").lower() == "true":
+            return True
+        if call.tool_name in {"browser", "web_search"}:
+            return bool(call.arguments.get("url") or call.arguments.get("allow_network"))
+        if call.tool_name in {"checkpoint", "trace"}:
+            return bool(call.arguments.get("write_artifact"))
+        return False
+
+    def _stamp_grant(self, result: ToolResult, grant: Any, call: ToolCall) -> ToolResult:
+        def value(name: str) -> str:
+            if isinstance(grant, dict):
+                direct = grant.get(name)
+                binding = grant.get("binding")
+                nested = binding.get(name) if isinstance(binding, dict) else None
+                return str(direct or nested or "")
+            direct = getattr(grant, name, "")
+            binding = getattr(grant, "binding", None)
+            nested = getattr(binding, name, "") if binding is not None else ""
+            return str(direct or nested or "")
+
+        return ToolResult(
+            tool_call_id=result.tool_call_id,
+            ok=result.ok,
+            summary=result.summary,
+            output=result.output,
+            artifacts=result.artifacts,
+            error=result.error,
+            completed_at=result.completed_at,
+            metadata={
+                **result.metadata,
+                "permission_effect": str(PermissionEffect.ALLOW),
+                "permission_decision_id": value("decision_id"),
+                "permission_request_id": value("request_id"),
+                "permission_arguments_digest": value("arguments_digest"),
+                "permission_execution_grant_consumed": "true",
+                "raw_approved_argument_ignored": str(call.arguments.get("approved") is True).lower(),
+            },
         )
 
 

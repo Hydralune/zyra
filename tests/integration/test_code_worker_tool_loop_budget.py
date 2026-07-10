@@ -315,7 +315,7 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
 
             run = runtime.run(request)
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertFalse(run.worker_result.ok)
             self.assertEqual(run.worker_result.metadata["tool_schema_errors"], "1")
             self.assertEqual(run.worker_result.metadata["tool_failure_signals"], "1")
             failures = _query_phases(run.event_records, "tool_failure_signal")
@@ -349,7 +349,7 @@ class CodeWorkerToolLoopBudgetTests(unittest.TestCase):
 
             run = runtime.run(request)
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertFalse(run.worker_result.ok)
             self.assertEqual(run.worker_result.metadata["tool_failure_signals"], "1")
             failures = _query_phases(run.event_records, "tool_failure_signal")
             watchdogs = _query_phases(run.event_records, "watchdog_signal")
@@ -535,7 +535,7 @@ class CodeWorkerToolLoopFoundationRuntimeTests(unittest.TestCase):
 
             run = runtime.run(request)
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertFalse(run.worker_result.ok)
             self.assertFalse((workspace / "should_not_exist.txt").exists())
             self.assertEqual(run.worker_result.metadata["tool_permission_handoff_questions"], "1")
             self.assertEqual(run.worker_result.metadata["tool_permission_session_questions"], "1")

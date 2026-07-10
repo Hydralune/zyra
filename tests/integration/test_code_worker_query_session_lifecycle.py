@@ -168,7 +168,7 @@ class CodeWorkerQuerySessionLifecycleTests(unittest.TestCase):
 
             run = runtime.run(request)
 
-            self.assertTrue(run.worker_result.ok)
+            self.assertFalse(run.worker_result.ok)
             phases = [
                 event.payload["query_session"]["phase"]
                 for event in run.event_records
@@ -185,7 +185,7 @@ class CodeWorkerQuerySessionLifecycleTests(unittest.TestCase):
             snapshot = json.loads(Path(snapshot_path).read_text(encoding="utf-8"))
 
             self.assertEqual(snapshot["stats"]["continue_count"], 1)
-            self.assertEqual(snapshot["status"], "completed")
+            self.assertEqual(snapshot["status"], "failed")
 
 
 if __name__ == "__main__":

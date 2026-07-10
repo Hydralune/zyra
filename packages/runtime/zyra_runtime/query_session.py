@@ -61,6 +61,7 @@ class QueryStreamEventType(StrEnum):
     TOOL_LOOP_PLAN = "tool_loop_plan"
     TOOL_RESULT_BUDGET_EXCEEDED = "tool_result_budget_exceeded"
     TOOL_FAILURE_SIGNAL = "tool_failure_signal"
+    PERMISSION_EVENT = "permission_event"
     WATCHDOG_SIGNAL = "watchdog_signal"
     CONTEXT_COMPACTED = "context_compacted"
     COMPACT_BOUNDARY = "compact_boundary"

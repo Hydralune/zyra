@@ -15,9 +15,20 @@ from zyra_runtime import (
     ToolCall,
     ToolExecutionContext,
     ToolExecutor,
+    ToolPermissionRuntime,
     ToolPermissionPolicy,
     WorkerBridgeContract,
     default_m1_01b_runtime_scaffold,
+)
+from zyra_runtime.permission.canonical import arguments_digest
+from zyra_runtime.permission.models import (
+    PermissionEffect,
+    PermissionEvaluationRequest,
+    PermissionRuleRecord,
+    PermissionRuleSource,
+    PermissionScope,
+    PermissionScopeKind,
+    ToolIdentity,
 )
 from zyra_runtime.scaffold_lifecycle import RuntimeScaffoldLifecycle, build_default_lifecycle
 
@@ -169,7 +180,8 @@ class WorkerBridgeRuntime:
 
     def _probe_browser(self) -> list[BridgeProbeStep]:
         context = _tool_context(self.project_root, self.artifact_root)
-        result = ToolExecutor(context).execute(
+        result = self._execute_guarded_probe(
+            context,
             ToolCall(
                 run_id="m1-01b",
                 task_id="browser-probe",
@@ -180,7 +192,8 @@ class WorkerBridgeRuntime:
                     "html": "<html><title>Zyra Browser Probe</title><body><a href='/ok'>ok</a><p>browser scaffold</p></body></html>",
                     "capture_html": True,
                 },
-            )
+            ),
+            explicit_low_risk=True,
         )
         state = result.output.get("state") if isinstance(result.output, dict) else {}
         return [
@@ -197,16 +210,17 @@ class WorkerBridgeRuntime:
                 artifact_root=self.artifact_root,
                 permission_policy=ToolPermissionPolicy.for_workspace(sandbox_root),
             )
-            executor = ToolExecutor(context)
-            write = executor.execute(
+            write = self._execute_guarded_probe(
+                context,
                 ToolCall(
                     run_id="m1-01b",
                     task_id="sandbox-probe",
                     node_id=self.contract.worker_id,
                     tool_name="file_write",
                     arguments={"path": "probe.txt", "content": "sandbox scaffold"},
-                )
+                ),
             )
+            executor = ToolExecutor(context)
             read = executor.execute(
                 ToolCall(
                     run_id="m1-01b",
@@ -230,6 +244,84 @@ class WorkerBridgeRuntime:
             _step("sandbox_read", read.ok and "sandbox scaffold" in json.dumps(read.output), read.summary, read.output),
             _step("sandbox_blocks_parent_read", not outside.ok and outside.error == "permission_denied", outside.summary, outside.metadata),
         ]
+
+    def _execute_guarded_probe(
+        self,
+        context: ToolExecutionContext,
+        call: ToolCall,
+        *,
+        explicit_low_risk: bool = False,
+    ):
+        session_id = f"scaffold-probe:{call.task_id}"
+        runtime = ToolPermissionRuntime.for_session(
+            session_id=session_id,
+            state_path=self.artifact_root / ".permission" / "state.json",
+            workspace_root=context.workspace_root,
+        )
+        digest = arguments_digest(call.arguments)
+        if explicit_low_risk:
+            runtime.rule_store.add(
+                PermissionRuleRecord(
+                    rule_id=f"scaffold-exact-{call.tool_call_id}",
+                    effect=PermissionEffect.ALLOW,
+                    source=PermissionRuleSource.COMMAND,
+                    scope=PermissionScope(
+                        PermissionScopeKind.ACTION,
+                        session_id=session_id,
+                        task_id=call.task_id,
+                        run_id=call.run_id,
+                        workspace_root=str(context.workspace_root),
+                        tool_namespace="builtin",
+                        tool_name=call.tool_name,
+                        argument_digest=digest,
+                    ),
+                    namespace_pattern="builtin",
+                    tool_pattern=call.tool_name,
+                    max_uses=1,
+                    reason="exact low-risk scaffold behavior probe",
+                )
+            )
+        raw_path = call.arguments.get("path")
+        target = (context.workspace_root / str(raw_path)).resolve() if raw_path else None
+        path_safe = False
+        if target is not None:
+            try:
+                target.relative_to(context.workspace_root)
+                path_safe = True
+            except ValueError:
+                path_safe = False
+        request = PermissionEvaluationRequest(
+            run_id=call.run_id,
+            task_id=call.task_id,
+            session_id=session_id,
+            worker_request_id=f"scaffold-worker:{self.contract.worker_id}",
+            node_id=call.node_id,
+            tool_use_id=call.tool_call_id,
+            tool_identity=ToolIdentity(namespace="builtin", name=call.tool_name),
+            arguments=dict(call.arguments),
+            workspace_root=str(context.workspace_root),
+            attributes={
+                "path": str(raw_path or ""),
+                "capabilities": ["workspace_edit"] if call.tool_name == "file_write" else [],
+            },
+        )
+        guarded = runtime.guard(
+            request,
+            workspace_state={
+                "workspace_scoped": path_safe if raw_path else True,
+                "path_validated": path_safe if raw_path else True,
+                "read_before_write": bool(target is not None and not target.exists()),
+                "baseline_current": bool(target is not None and not target.exists()),
+                "bounded_change": len(str(call.arguments.get("content") or "")) <= 2_000_000,
+            },
+        )
+        return ToolExecutor(
+            context,
+            permission_authority=runtime,
+        ).execute(
+            call,
+            permission_grant=guarded.execution_grant,
+        )
 
     def _probe_memory(self) -> list[BridgeProbeStep]:
         memory_root = self.project_root / "packages" / "memory" / "zyra_memory"

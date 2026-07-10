@@ -11,6 +11,15 @@ from zyra_commands import parse_slash_command
 from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType, create_task_state, now_iso, to_jsonable
 from zyra_orchestration import ensure_default_graph
 from zyra_runtime import WorkerRequest, control_event_from_command
+from zyra_runtime.permission.canonical import arguments_digest
+from zyra_runtime.permission.models import (
+    PermissionEffect,
+    PermissionRuleRecord,
+    PermissionRuleSource,
+    PermissionScope,
+    PermissionScopeKind,
+)
+from zyra_runtime.permission.store import PermissionStateStore
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
 from zyra_workers import BrowserWorkerRuntime, CodeWorkerRuntime
 
@@ -71,15 +80,45 @@ def _software_engineering_scenario(root: Path, out: Path) -> ScenarioRunRecord:
         notes.append("node is not available; CodeWorker sidecar scenario skipped.")
         return _record("software_engineering", False, state, events, artifacts, notes)
 
+    scenario_root = out / state.task_id
+    scenario_workspace = scenario_root / "workspace"
+    scenario_artifacts = scenario_root / "artifacts"
     runtime = CodeWorkerRuntime(
         project_root=root,
-        workspace_root=out / "workspace",
-        artifact_root=out / "artifacts",
+        workspace_root=scenario_workspace,
+        artifact_root=scenario_artifacts,
     )
     command = (
         f'"{sys.executable}" -c '
         '"from pathlib import Path; text=Path(\'src/app.py\').read_text(); '
         'assert \'Zyra scenario\' in text; print(\'scenario ok\')"'
+    )
+    session_id = f"m2-software:{state.task_id}"
+    tool_steps = [
+        {
+            "tool_name": "file_write",
+            "arguments": {
+                "path": "src/app.py",
+                "content": "def message():\n    return 'draft'\n",
+            },
+        },
+        {
+            "tool_name": "file_edit",
+            "arguments": {
+                "path": "src/app.py",
+                "old": "draft",
+                "new": "Zyra scenario",
+            },
+        },
+        {"tool_name": "shell", "arguments": {"command": command}},
+    ]
+    _seed_exact_scenario_permissions(
+        state_path=scenario_artifacts / ".permission" / "state.json",
+        session_id=session_id,
+        run_id=state.run_id,
+        task_id=state.task_id,
+        workspace_root=scenario_workspace,
+        steps=tool_steps,
     )
     run = runtime.run(
         WorkerRequest(
@@ -88,25 +127,10 @@ def _software_engineering_scenario(root: Path, out: Path) -> ScenarioRunRecord:
             node_id=state.root_node_id,
             worker_name="CodeWorkerRuntime",
             constraints={
+                "session_id": session_id,
                 "query_turns": [
-                    [
-                        {
-                            "tool_name": "file_write",
-                            "arguments": {
-                                "path": "src/app.py",
-                                "content": "def message():\n    return 'draft'\n",
-                            },
-                        },
-                        {
-                            "tool_name": "file_edit",
-                            "arguments": {
-                                "path": "src/app.py",
-                                "old": "draft",
-                                "new": "Zyra scenario",
-                            },
-                        },
-                    ],
-                    [{"tool_name": "shell", "arguments": {"command": command, "approved": True}}],
+                    tool_steps[:2],
+                    [tool_steps[2]],
                 ],
                 "max_turns": 3,
             },
@@ -117,6 +141,45 @@ def _software_engineering_scenario(root: Path, out: Path) -> ScenarioRunRecord:
     state.artifacts.extend(run.worker_result.artifacts)
     state.budget.tool_calls += int(run.worker_result.metadata.get("tool_steps") or 0)
     return _record("software_engineering", run.worker_result.ok, state, events, artifacts, notes)
+
+
+def _seed_exact_scenario_permissions(
+    *,
+    state_path: Path,
+    session_id: str,
+    run_id: str,
+    task_id: str,
+    workspace_root: Path,
+    steps: list[dict[str, Any]],
+) -> None:
+    """Install narrow test-policy capabilities for the non-benchmark M2 demo."""
+
+    store = PermissionStateStore(state_path)
+    for index, step in enumerate(steps, start=1):
+        tool_name = str(step["tool_name"])
+        arguments = dict(step["arguments"])
+        store.add_global_rule(
+            PermissionRuleRecord(
+                rule_id=f"m2-scenario-{task_id}-{index}",
+                effect=PermissionEffect.ALLOW,
+                source=PermissionRuleSource.POLICY,
+                scope=PermissionScope(
+                    PermissionScopeKind.ACTION,
+                    session_id=session_id,
+                    task_id=task_id,
+                    run_id=run_id,
+                    workspace_root=str(workspace_root.resolve()),
+                    tool_namespace="builtin",
+                    tool_name=tool_name,
+                    argument_digest=arguments_digest(arguments),
+                ),
+                namespace_pattern="builtin",
+                tool_pattern=tool_name,
+                max_uses=1,
+                reason="sealed test harness exact allowlist for the legacy M2 demo",
+                metadata={"formal_benchmark": False, "human_intervention_count": 0},
+            )
+        )
 
 
 def _browser_research_scenario(root: Path, out: Path) -> ScenarioRunRecord:

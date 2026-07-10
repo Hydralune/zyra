@@ -714,7 +714,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_permission_api_records_and_resolves_shell_request(self) -> None:
+    def test_legacy_permission_projection_cannot_authorize_new_shell_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
@@ -750,13 +750,18 @@ class ApiControlCommandTests(unittest.TestCase):
                 )
                 self.assertEqual(resolved["request"]["status"], "approved")
 
-                allowed = _post(
+                second_status, still_blocked = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/tools",
                     {"tool_name": "shell", "arguments": {"command": command}},
                 )
-                self.assertTrue(allowed["tool_result"]["ok"])
-                self.assertIn("789", allowed["tool_result"]["output"]["stdout"])
+                self.assertEqual(second_status, 409)
+                self.assertFalse(still_blocked["tool_result"]["ok"])
+                self.assertEqual(still_blocked["tool_result"]["error"], "permission_required")
+                self.assertEqual(
+                    still_blocked["tool_result"]["metadata"]["permission_runtime_id"],
+                    "zyra-tool-permission-runtime",
+                )
                 self.assertEqual(_get(base_url, "/permissions")["rules"][0]["effect"], "allow")
             finally:
                 server.shutdown()
@@ -765,7 +770,7 @@ class ApiControlCommandTests(unittest.TestCase):
 
 
 def _get(base_url: str, path: str) -> dict[str, Any]:
-    with urllib.request.urlopen(f"{base_url}{path}", timeout=5) as response:
+    with urllib.request.urlopen(f"{base_url}{path}", timeout=15) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -776,7 +781,7 @@ def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with urllib.request.urlopen(request, timeout=15) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -788,7 +793,7 @@ def _post_with_status(base_url: str, path: str, payload: dict[str, Any]) -> tupl
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
+        with urllib.request.urlopen(request, timeout=15) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))

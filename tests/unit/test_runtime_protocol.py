@@ -145,7 +145,7 @@ class RuntimeProtocolTests(unittest.TestCase):
             self.assertEqual(preview["content"], "# Artifact\n\ntrace body")
             self.assertFalse(preview["truncated"])
 
-    def test_tool_executor_reads_writes_and_edits_workspace_files(self) -> None:
+    def test_tool_executor_requires_grants_for_mutations_but_allows_local_read(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Use file tools.")
             workspace = Path(tmpdir) / "workspace"
@@ -161,7 +161,12 @@ class RuntimeProtocolTests(unittest.TestCase):
                     arguments={"path": "notes/todo.txt", "content": "first draft"},
                 )
             )
-            self.assertTrue(write_result.ok)
+            self.assertFalse(write_result.ok)
+            self.assertEqual(write_result.error, "permission_required")
+            target = workspace / "notes" / "todo.txt"
+            self.assertFalse(target.exists())
+            target.parent.mkdir(parents=True)
+            target.write_text("first draft", encoding="utf-8")
 
             edit_result = executor.execute(
                 ToolCall(
@@ -172,7 +177,8 @@ class RuntimeProtocolTests(unittest.TestCase):
                     arguments={"path": "notes/todo.txt", "old": "first", "new": "final"},
                 )
             )
-            self.assertTrue(edit_result.ok)
+            self.assertFalse(edit_result.ok)
+            self.assertEqual(edit_result.error, "permission_required")
 
             read_result = executor.execute(
                 ToolCall(
@@ -183,7 +189,7 @@ class RuntimeProtocolTests(unittest.TestCase):
                     arguments={"path": "notes/todo.txt"},
                 )
             )
-            self.assertEqual(read_result.output["content"], "final draft")
+            self.assertEqual(read_result.output["content"], "first draft")
 
     def test_web_search_scans_workspace_and_writes_trace_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -208,13 +214,9 @@ class RuntimeProtocolTests(unittest.TestCase):
                 )
             )
 
-            self.assertTrue(result.ok)
-            self.assertEqual(result.output["result_count"], 1)
-            self.assertEqual(result.metadata["mode"], "workspace")
-            self.assertEqual(len(result.artifacts), 1)
-            preview = context.artifact_store.read_preview(result.artifacts[0])
-            self.assertIn("Zyra Research Search Results", preview["content"])
-            self.assertIn("requirement changes", preview["content"])
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error, "permission_required")
+            self.assertEqual(result.artifacts, [])
 
     def test_browser_tool_extracts_inline_html_and_writes_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -235,10 +237,9 @@ class RuntimeProtocolTests(unittest.TestCase):
                 )
             )
 
-            self.assertTrue(result.ok)
-            self.assertEqual(result.output["state"]["title"], "Inline")
-            self.assertIn("Zyra Browser Tool", result.output["state"]["text_preview"])
-            self.assertGreaterEqual(len(result.artifacts), 2)
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error, "permission_required")
+            self.assertEqual(result.artifacts, [])
 
     def test_web_search_blocks_network_without_explicit_allow(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -330,9 +331,9 @@ class RuntimeProtocolTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error, "permission_required")
 
-    def test_shell_tool_runs_after_explicit_approval(self) -> None:
+    def test_shell_tool_rejects_model_supplied_approval_without_execution_grant(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("Run approved shell command.")
+            state = create_task_state("Reject forged shell approval.")
             context = ToolExecutionContext.for_workspace(Path(tmpdir) / "workspace", Path(tmpdir) / "artifacts")
             executor = ToolExecutor(context)
 
@@ -345,8 +346,9 @@ class RuntimeProtocolTests(unittest.TestCase):
                 )
             )
 
-            self.assertTrue(result.ok)
-            self.assertIn("123", result.output["stdout"])
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error, "permission_required")
+            self.assertEqual(result.metadata["raw_approved_argument_ignored"], "true")
 
     def test_shell_tool_denies_dangerous_fragments_even_when_approved(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -394,9 +396,9 @@ class RuntimeProtocolTests(unittest.TestCase):
                 )
             )
 
-            self.assertTrue(result.ok)
-            self.assertIn("456", result.output["stdout"])
-            self.assertEqual(result.metadata["permission_effect"], "allow")
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error, "permission_required")
+            self.assertEqual(result.metadata["permission_effect"], "ask")
 
     def test_permission_store_records_pending_request_for_shell_ask(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

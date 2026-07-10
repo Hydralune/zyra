@@ -89,6 +89,7 @@ from .model_api_runtime import (
 )
 from .model_provider_runtime import ModelProviderCatalogRuntime, model_provider_metadata
 from .model_stream_watchdog_runtime import ModelStreamWatchdogRuntime, model_stream_watchdog_metadata
+from .permission.runtime import PermissionRuntimeConfig, ToolPermissionRuntime
 from .query_session import QuerySession, QueryStreamEventType, StopReason, snapshot_checkpoint_metadata
 from .runtime_budget_replay_runtime import (
     RuntimeBudgetReplayRuntime,
@@ -191,6 +192,17 @@ class ClaudeQueryEngineConfig:
     disable_tool_execution_runtime: bool = False
     disable_tool_result_budget_runtime: bool = False
     disable_tool_permission_handoff_runtime: bool = False
+    disable_tool_permission_runtime: bool = False
+    disable_permission_rule_store: bool = False
+    disable_permission_request_queue: bool = False
+    disable_permission_decision_log: bool = False
+    permission_mode: str = "default"
+    permission_approval_ttl_seconds: float = 300.0
+    permission_execution_grant_ttl_seconds: float = 30.0
+    permission_interactive: bool = True
+    permission_headless: bool = False
+    permission_bypass_available: bool = False
+    permission_auto_available: bool = True
     disable_runtime_budget_state: bool = False
     disable_compact_restore_runtime: bool = False
     disable_model_stream_runtime: bool = False
@@ -333,11 +345,41 @@ class ZyraClaudeQueryEngine:
             max_turn_chars=self.config.max_turn_tool_result_chars,
             disabled=self.config.disable_tool_result_budget_runtime,
         )
+        restored_runtime_state = dict(self.config.restored_runtime_state or {})
+        restored_permission = restored_runtime_state.get("permission_runtime")
+        permission_runtime = ToolPermissionRuntime.for_session(
+            session_id=session.session_id,
+            state_path=self.context.artifact_store.root / ".permission" / "state.json",
+            config=PermissionRuntimeConfig(
+                mode=self.config.permission_mode,
+                approval_ttl_seconds=self.config.permission_approval_ttl_seconds,
+                execution_grant_ttl_seconds=self.config.permission_execution_grant_ttl_seconds,
+                bypass_available=self.config.permission_bypass_available,
+                auto_available=self.config.permission_auto_available,
+                interactive=self.config.permission_interactive,
+                headless=self.config.permission_headless,
+                disabled=self.config.disable_tool_permission_runtime,
+                disable_rule_store=self.config.disable_permission_rule_store,
+                disable_request_queue=self.config.disable_permission_request_queue,
+                disable_decision_log=self.config.disable_permission_decision_log,
+                metadata={
+                    "source": "claude_query_engine_runtime",
+                    "worker_request_id": worker_request_id,
+                },
+            ),
+            restored_snapshot=restored_permission if isinstance(restored_permission, Mapping) else None,
+            workspace_root=self.context.workspace_root,
+            custody_fingerprint=str(
+                self.config.session_foundation_metadata.get("permission_session_custody_fingerprint") or ""
+            ),
+        )
         execution_runtime = ToolExecutionRuntime(
             self.context,
             scheduler=scheduler,
             budget_runtime=budget_runtime,
             disabled=self.config.disable_tool_execution_runtime,
+            permission_runtime=permission_runtime,
+            require_permission_runtime=True,
         )
         persistence_runtime = ToolFoundationPersistenceRuntime(self.context.artifact_store)
         settlement_runtime = ToolSettlementRuntime()
@@ -367,7 +409,6 @@ class ZyraClaudeQueryEngine:
             turn_limit=self.config.max_turn_tool_result_chars,
             session_limit=self.config.max_query_context_chars,
         )
-        restored_runtime_state = dict(self.config.restored_runtime_state or {})
         restored_budget = restored_runtime_state.get("runtime_budget_state")
         if isinstance(restored_budget, Mapping) and restored_budget:
             runtime_budget_state = RuntimeBudgetState.from_snapshot(
@@ -492,6 +533,9 @@ class ZyraClaudeQueryEngine:
         tool_call_count = 0
         ok = True
         stopped_reason: str | None = None
+        permission_failure_seen = False
+        permission_terminal_failure = False
+        permission_failure_reason = ""
         max_turns = self.config.max_turns or len(normalized_turns)
         materialization_artifact = persistence_runtime.persist_materialization(
             run_id=run_id,
@@ -1132,6 +1176,23 @@ class ZyraClaudeQueryEngine:
                 materialization=materialization,
                 source_contract=self.contracts.tool_loop_contract,
                 seed_messages=[
+                    *[
+                        projected
+                        for item in request_messages
+                        if (projected := _permission_context_message(item)) is not None
+                    ],
+                    *[
+                        projected
+                        for item in self.config.preprocessed_messages
+                        if (projected := _permission_context_message(item)) is not None
+                    ],
+                    *[
+                        {
+                            "role": "system",
+                            "content": f"queued control command: {str(command)[:2000]}",
+                        }
+                        for command in self.config.control_commands
+                    ],
                     {"role": "user", "content": user_content},
                     {"role": "assistant", "content": assistant_delta},
                 ],
@@ -1286,16 +1347,59 @@ class ZyraClaudeQueryEngine:
                             "resume_token": session.resume_token,
                         },
                     )
-                    tool_runtime.mark_started(planned, batch_index=batch_index)
+                streaming_trace = streaming_runtime.execute_batch(
+                    execution_runtime,
+                    batch,
+                    tool_context=tool_use_context,
+                    max_workers=max(1, self.config.max_read_only_concurrency),
+                )
+                tool_streaming_traces.append(streaming_trace)
+                streaming_events = streaming_runtime.events_for_trace(
+                    streaming_trace,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                )
+                receipts = list(streaming_trace.receipts)
+                # Permission decisions are committed before ToolExecutor is
+                # entered.  Preserve that causal order in the aggregate event
+                # stream even though streaming frames are projected after the
+                # synchronous batch returns.
+                for receipt in receipts:
+                    event_records.extend(receipt.permission_events)
+                    for permission_event in receipt.permission_events:
+                        permission_payload = permission_event.payload.get("query_session", {}).get(
+                            "permission_runtime", {}
+                        )
+                        session.record_batch_event(
+                            QueryStreamEventType.PERMISSION_EVENT,
+                            turn_id=turn_state.turn_id,
+                            metadata={
+                                "turn_index": turn_index,
+                                "batch_index": batch_index,
+                                "tool_call_id": receipt.request.call.tool_call_id,
+                                "tool_name": receipt.request.call.tool_name,
+                                "permission_event_id": permission_event.event_id,
+                                "permission_runtime": permission_payload,
+                            },
+                        )
+                for planned, receipt in zip(batch_requests, receipts, strict=True):
+                    if not bool(receipt.permission.get("allowed")):
+                        continue
+                    effective = receipt.request
+                    tool_runtime.mark_started(effective, batch_index=batch_index)
                     session.record_tool_call(
-                        tool_call_id=planned.call.tool_call_id,
-                        tool_name=planned.call.tool_name,
+                        tool_call_id=effective.call.tool_call_id,
+                        tool_name=effective.call.tool_name,
                         turn_id=turn_state.turn_id,
                         metadata={
                             "turn_index": turn_index,
                             "batch_index": batch_index,
-                            "step_index": planned.step_index,
-                            "read_only": planned.read_only,
+                            "step_index": effective.step_index,
+                            "read_only": effective.read_only,
+                            "permission_decision_id": str(
+                                receipt.permission.get("decision", {}).get("decision_id") or ""
+                            ),
                         },
                     )
                     self._append_lifecycle(
@@ -1310,32 +1414,18 @@ class ZyraClaudeQueryEngine:
                             "turn_index": turn_index,
                             "turn_id": turn_state.turn_id,
                             "batch_index": batch_index,
-                            "step_index": planned.step_index,
-                            "tool_call_id": planned.call.tool_call_id,
-                            "tool_name": planned.call.tool_name,
-                            "read_only": str(planned.read_only).lower(),
-                            "access_mode": str(planned.access_mode),
-                            "conflict_key": planned.conflict_key,
-                            "schema_error_count": len(planned.schema_errors),
+                            "step_index": effective.step_index,
+                            "tool_call_id": effective.call.tool_call_id,
+                            "tool_name": effective.call.tool_name,
+                            "read_only": str(effective.read_only).lower(),
+                            "access_mode": str(effective.access_mode),
+                            "conflict_key": effective.conflict_key,
+                            "schema_error_count": len(effective.schema_errors),
+                            "authorized_before_start": "true",
+                            "execution_started_at": receipt.started_at,
                         },
                     )
-
-                streaming_trace = streaming_runtime.execute_batch(
-                    execution_runtime,
-                    batch,
-                    tool_context=tool_use_context,
-                    max_workers=max(1, self.config.max_read_only_concurrency),
-                )
-                tool_streaming_traces.append(streaming_trace)
-                event_records.extend(
-                    streaming_runtime.events_for_trace(
-                        streaming_trace,
-                        run_id=run_id,
-                        task_id=task_id,
-                        node_id=node_id,
-                    )
-                )
-                receipts = list(streaming_trace.receipts)
+                event_records.extend(streaming_events)
                 batch_summaries: list[dict[str, Any]] = []
                 bounded_results_for_batch: list[ToolResult] = []
                 budget_decisions_for_batch: list[Any] = []
@@ -1639,7 +1729,20 @@ class ZyraClaudeQueryEngine:
                                 },
                             )
 
-                    if not bounded_result.ok and not self.config.continue_on_error and stopped_reason is None:
+                    permission_blocked = bool(receipt.permission.get("blocked"))
+                    permission_abort = bool(receipt.permission.get("abort_loop"))
+                    if permission_blocked:
+                        permission_failure_seen = True
+                        permission_failure_reason = bounded_result.error or "permission_denied"
+                        ok = False
+                        if permission_abort:
+                            permission_terminal_failure = True
+
+                    if (
+                        not bounded_result.ok
+                        and (permission_abort or not self.config.continue_on_error)
+                        and stopped_reason is None
+                    ):
                         ok = False
                         stopped_reason = bounded_result.error or "tool_step_failed"
                         session.record_error(
@@ -1672,6 +1775,7 @@ class ZyraClaudeQueryEngine:
                             },
                         )
                     elif not bounded_result.ok and self.config.continue_on_error:
+                        ok = False
                         session.record_continue(
                             reason=StopReason.CONTINUE_REQUESTED,
                             error=bounded_result.error or "tool_step_failed",
@@ -1780,7 +1884,7 @@ class ZyraClaudeQueryEngine:
                         "stopped_reason": stopped_reason,
                     },
                 )
-                if not ok and not self.config.continue_on_error:
+                if permission_terminal_failure or (not ok and not self.config.continue_on_error):
                     break
 
             expected_receipt_ids = {request.call.tool_call_id for request in tool_loop_plan.requests}
@@ -1812,9 +1916,10 @@ class ZyraClaudeQueryEngine:
                         node_id=node_id,
                     )
                 )
+            allow_turn_continue = self.config.continue_on_error and not permission_terminal_failure
             session.end_turn(
-                ok=ok or self.config.continue_on_error,
-                stop_reason=StopReason.END_TURN if ok or self.config.continue_on_error else StopReason.TOOL_ERROR,
+                ok=ok,
+                stop_reason=StopReason.END_TURN if ok else StopReason.TOOL_ERROR,
                 error=stopped_reason,
                 metadata={
                     "turn_index": turn_index,
@@ -1850,7 +1955,7 @@ class ZyraClaudeQueryEngine:
                 {
                     "turn_index": turn_index,
                     "turn_id": turn_state.turn_id,
-                    "ok": ok or self.config.continue_on_error,
+                    "ok": ok,
                     "tool_calls": tool_call_count - turn_started_at_count,
                     "stopped_reason": stopped_reason,
                     "resume_token": session.resume_token,
@@ -1858,9 +1963,11 @@ class ZyraClaudeQueryEngine:
             )
             state_ledger.record_turn(turn_state.turn_id, turn_index=turn_index, completed=True, ok=ok)
             tool_use_context_snapshots.append(tool_use_context.to_dict(include_messages=False))
-            if not ok and not self.config.continue_on_error:
+            if permission_terminal_failure or (not ok and not allow_turn_continue):
                 break
 
+        if permission_failure_seen and not ok and stopped_reason is None:
+            stopped_reason = permission_failure_reason or "permission_denied"
         session.complete_session(
             ok=ok,
             stop_reason=StopReason.SESSION_COMPLETED if ok else StopReason.TOOL_ERROR,
@@ -2435,6 +2542,7 @@ class ZyraClaudeQueryEngine:
                 "packages/runtime/zyra_runtime/tool_runtime_output_store.py",
             ],
         )
+        permission_runtime_snapshot = permission_runtime.snapshot()
         session_snapshot = session.snapshot_payload(
             include_transcript=True,
             metadata={
@@ -2460,6 +2568,7 @@ class ZyraClaudeQueryEngine:
                 "tool_output_store": tool_output_store_artifact.to_dict(),
                 "tool_result_context_report": tool_result_context_report.to_dict(),
                 "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+                "permission_runtime": permission_runtime_snapshot,
                 "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
                 "compact_restore_report": compact_restore_report.to_dict(),
                 "restore_integration_report": restore_integration_report.to_dict(),
@@ -2500,6 +2609,7 @@ class ZyraClaudeQueryEngine:
             "worker_request_id": worker_request_id,
             "context_window": context_window.snapshot(include_text=True),
             "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+            "permission_runtime": permission_runtime_snapshot,
             "pending_restore_contract": persisted_pending_restore_contract.to_dict()
             if persisted_pending_restore_contract is not None
             else None,
@@ -2539,6 +2649,7 @@ class ZyraClaudeQueryEngine:
                 "tool_output_store": tool_output_store_artifact.to_dict(),
                 "tool_result_context_report": tool_result_context_report.to_dict(),
                 "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+                "permission_runtime": permission_runtime_snapshot,
                 "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
                 "compact_restore_report": compact_restore_report.to_dict(),
                 "restore_integration_report": restore_integration_report.to_dict(),
@@ -2587,6 +2698,7 @@ class ZyraClaudeQueryEngine:
             "worker_request_id": worker_request_id,
             "context_window": context_window.snapshot(include_text=True),
             "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+            "permission_runtime": permission_runtime_snapshot,
             "pending_restore_contract": final_pending_restore_contract.to_dict()
             if final_pending_restore_contract is not None
             else None,
@@ -3130,6 +3242,7 @@ class ZyraClaudeQueryEngine:
         metadata.update(session_artifact_metadata(artifact_set))
         metadata.update(context_window.metadata())
         metadata.update(tool_runtime.metadata())
+        metadata.update(permission_runtime.metadata())
         metadata.update(materialization.metadata())
         metadata.update(_tool_use_context_metadata(tool_use_context_snapshots))
         metadata.update(tool_foundation_audit_metadata(tool_foundation_audit))
@@ -3242,6 +3355,36 @@ class ZyraClaudeQueryEngine:
                 )
         metadata.update(control_metadata(control_report))
         metadata.update(state_ledger.metadata())
+        # The authoritative return/checkpoint snapshot is captured only after
+        # permission handoff, checkpoint/contract audit and control events have
+        # mutated the session.  Earlier artifacts remain historical evidence,
+        # while this snapshot owns resume state.
+        final_snapshot_metadata = dict(session_snapshot.get("metadata") or {})
+        final_runtime_state = dict(session_snapshot.get("runtime_state") or {})
+        final_permission_snapshot = permission_runtime.snapshot()
+        final_snapshot_metadata.update(
+            {
+                "permission_runtime": final_permission_snapshot,
+                "final_event_count": len(event_records),
+                "finalized_after_control": True,
+                "stopped_reason": stopped_reason,
+            }
+        )
+        session_snapshot = session.snapshot_payload(
+            include_transcript=True,
+            metadata=final_snapshot_metadata,
+        )
+        final_runtime_state.update(
+            {
+                "schema_version": 1,
+                "task_id": task_id,
+                "run_id": run_id,
+                "session_id": session.session_id,
+                "worker_request_id": worker_request_id,
+                "permission_runtime": final_permission_snapshot,
+            }
+        )
+        session_snapshot["runtime_state"] = final_runtime_state
         return ClaudeQueryEngineResult(
             ok=ok,
             event_records=event_records,
@@ -3305,6 +3448,14 @@ class ZyraClaudeQueryEngine:
             return "ToolResultBudgetRuntime"
         if self.config.disable_tool_permission_handoff_runtime:
             return "ToolPermissionHandoffRuntime"
+        if self.config.disable_tool_permission_runtime:
+            return "ToolPermissionRuntime"
+        if self.config.disable_permission_rule_store:
+            return "PermissionRuleStore"
+        if self.config.disable_permission_request_queue:
+            return "PermissionRequestQueue"
+        if self.config.disable_permission_decision_log:
+            return "PermissionDecisionLog"
         return ""
 
     def _tool_foundation_disabled_result(
@@ -3773,6 +3924,20 @@ def _truncate_restore_message_content(content: str, budget: int) -> str:
     return f"{header}\n{preview[:preview_budget]}"
 
 
+def _permission_context_message(value: Any) -> dict[str, Any] | None:
+    projected = to_jsonable(value)
+    if isinstance(projected, Mapping):
+        role = str(projected.get("role") or projected.get("kind") or "user")
+        content = projected.get("content", projected.get("text", projected.get("payload", "")))
+        return {
+            "role": role,
+            "content": content if isinstance(content, (str, list, dict)) else str(content),
+        }
+    if projected is None:
+        return None
+    return {"role": "user", "content": str(projected)}
+
+
 def _provider_tool_steps(
     tool_calls: Sequence[Mapping[str, Any]],
     *,
@@ -3781,6 +3946,9 @@ def _provider_tool_steps(
 ) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = []
     bridge_steps: list[Mapping[str, Any]] = []
+    used_bridge_indexes: set[int] = set()
+    seen_provider_ids: set[str] = set()
+    seen_tool_use_ids: set[str] = set()
     if session_bridge_report is not None:
         try:
             bridge_turns = session_bridge_report.to_tool_turns()
@@ -3807,14 +3975,34 @@ def _provider_tool_steps(
         else:
             arguments = {}
         provider_tool_call_id = str(tool_call.get("id") or tool_call.get("tool_call_id") or new_id("provider_toolcall"))
-        bridge_match = next(
+        if provider_tool_call_id in seen_provider_ids:
+            raise ValueError(f"duplicate provider tool_call identity: {provider_tool_call_id}")
+        seen_provider_ids.add(provider_tool_call_id)
+        bridge_index = next(
             (
-                item
-                for item in bridge_steps
-                if str(item.get("tool_name") or item.get("name") or item.get("tool") or "") == name
+                candidate_index
+                for candidate_index, item in enumerate(bridge_steps)
+                if candidate_index not in used_bridge_indexes
+                and str(item.get("provider_tool_call_id") or item.get("provider_id") or "")
+                == provider_tool_call_id
             ),
-            bridge_steps[index - 1] if index - 1 < len(bridge_steps) else None,
+            None,
         )
+        if bridge_index is None:
+            bridge_index = next(
+                (
+                    candidate_index
+                    for candidate_index, item in enumerate(bridge_steps)
+                    if candidate_index not in used_bridge_indexes
+                    and str(item.get("tool_name") or item.get("name") or item.get("tool") or "") == name
+                ),
+                None,
+            )
+        if bridge_index is None and index - 1 < len(bridge_steps) and index - 1 not in used_bridge_indexes:
+            bridge_index = index - 1
+        bridge_match = bridge_steps[bridge_index] if bridge_index is not None else None
+        if bridge_index is not None:
+            used_bridge_indexes.add(bridge_index)
         bridge_tool_use_id = ""
         if bridge_match is not None:
             bridge_tool_use_id = str(
@@ -3825,6 +4013,9 @@ def _provider_tool_steps(
                 or ""
             )
         bridge_tool_use_id = bridge_tool_use_id or new_id("bridge_tool_use")
+        if bridge_tool_use_id in seen_tool_use_ids:
+            raise ValueError(f"duplicate bridge tool_use identity: {bridge_tool_use_id}")
+        seen_tool_use_ids.add(bridge_tool_use_id)
         custody_metadata = {
             "provider_tool_call_id": provider_tool_call_id,
             "bridge_tool_use_id": bridge_tool_use_id,

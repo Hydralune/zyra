@@ -63,7 +63,12 @@ from zyra_runtime import (
     SessionLineageRuntime,
     ToolCall,
     ToolExecutionContext,
-    ToolExecutor,
+    ToolExecutionRuntime,
+    ToolLoopScheduler,
+    ToolPermissionRuntime,
+    ToolRegistryRuntime,
+    ToolResultBudgetRuntime,
+    ToolUseContext,
     TaskApiRouteKind,
     WorkerRequest,
     assemble_claude_runtime_context,
@@ -78,6 +83,14 @@ from zyra_runtime import (
     foundation_audit_event,
     tool_result_event,
     TurnLifecycleRuntime,
+)
+from zyra_runtime.permission.canonical import arguments_digest
+from zyra_runtime.permission.models import (
+    PermissionEffect as RuntimePermissionEffect,
+    PermissionRuleRecord,
+    PermissionRuleSource,
+    PermissionScope,
+    PermissionScopeKind,
 )
 from zyra_skills import default_skill_registry
 from zyra_workers import (
@@ -176,6 +189,140 @@ def permission_store_path() -> Path:
     if configured.is_absolute():
         return configured
     return PROJECT_ROOT / configured
+
+
+def _execute_guarded_api_tool(
+    *,
+    state: Any,
+    node_id: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+    context: ToolExecutionContext,
+) -> tuple[ToolCall, Any, tuple[EventRecord, ...]]:
+    """Execute one API tool through the same deterministic permission guard.
+
+    The legacy permission JSON remains a projection until M1-S03A-02 wires
+    structured resolve/retry.  It is never accepted as execution authority.
+    Exact, one-use rules below represent only low-risk actions explicitly
+    initiated through this interactive API route; shell/network stay on ASK.
+    """
+
+    session_id = f"api-tool:{state.task_id}"
+    worker_request_id = f"api-tool-request:{state.task_id}"
+    materialization = ToolRegistryRuntime(context.registry).materialize(
+        worker_request_id=worker_request_id,
+        session_id=session_id,
+        workspace_root=context.workspace_root,
+    )
+    scheduler = ToolLoopScheduler(materialization.to_registry())
+    plan = scheduler.plan_turn(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=node_id,
+        worker_request_id=worker_request_id,
+        turn_index=1,
+        steps=[{"tool_name": tool_name, "arguments": dict(arguments)}],
+    )
+    scheduled = plan.requests[0]
+    permission_runtime = ToolPermissionRuntime.for_session(
+        session_id=session_id,
+        state_path=context.artifact_store.root / ".permission" / "state.json",
+        workspace_root=context.workspace_root,
+    )
+    if _api_low_risk_explicit_action(context, scheduled.call):
+        permission_runtime.rule_store.add(
+            PermissionRuleRecord(
+                rule_id=f"api-exact-{scheduled.call.tool_call_id}",
+                effect=RuntimePermissionEffect.ALLOW,
+                source=PermissionRuleSource.COMMAND,
+                scope=PermissionScope(
+                    PermissionScopeKind.ACTION,
+                    session_id=session_id,
+                    task_id=state.task_id,
+                    run_id=state.run_id,
+                    workspace_root=str(context.workspace_root),
+                    tool_namespace="builtin",
+                    tool_name=scheduled.tool_name,
+                    argument_digest=arguments_digest(scheduled.arguments),
+                ),
+                namespace_pattern="builtin",
+                tool_pattern=scheduled.tool_name,
+                reason="exact low-risk action explicitly invoked through the task API",
+                max_uses=1,
+                metadata={
+                    "authority": "interactive_task_api",
+                    "projection_only_legacy_store": True,
+                },
+            )
+        )
+    tool_context = ToolUseContext.for_turn(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=node_id,
+        worker_request_id=worker_request_id,
+        session_id=session_id,
+        turn_id=f"api-turn:{scheduled.call.tool_call_id}",
+        turn_index=1,
+        materialization=materialization,
+    )
+    receipt = ToolExecutionRuntime(
+        context,
+        scheduler=scheduler,
+        budget_runtime=ToolResultBudgetRuntime(max_result_chars=context.max_inline_chars),
+        permission_runtime=permission_runtime,
+    ).execute_batch(
+        plan.batches[0],
+        tool_context=tool_context,
+        max_workers=1,
+    )[0]
+    return receipt.request.call, receipt.bounded_result, receipt.permission_events
+
+
+def _api_low_risk_explicit_action(context: ToolExecutionContext, call: ToolCall) -> bool:
+    arguments = call.arguments
+    tool_name = call.tool_name
+    root = context.workspace_root.resolve()
+
+    def workspace_path(value: Any) -> Path | None:
+        if value is None:
+            return None
+        candidate = Path(str(value))
+        target = (root / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
+        try:
+            target.relative_to(root)
+        except (OSError, ValueError):
+            return None
+        return target
+
+    if tool_name == "file_write":
+        target = workspace_path(arguments.get("path"))
+        return bool(
+            target is not None
+            and len(str(arguments.get("content") or "")) <= 2_000_000
+            and context.permission_policy.decide_write(target).effect is PermissionEffect.ALLOW
+        )
+    if tool_name == "file_edit":
+        target = workspace_path(arguments.get("path"))
+        return bool(
+            target is not None
+            and target.is_file()
+            and arguments.get("old") is not None
+            and context.permission_policy.decide_read(target).effect is PermissionEffect.ALLOW
+            and context.permission_policy.decide_write(target).effect is PermissionEffect.ALLOW
+        )
+    if tool_name == "browser":
+        return bool(arguments.get("html")) and not bool(
+            arguments.get("url") or arguments.get("allow_network")
+        )
+    if tool_name == "web_search":
+        if arguments.get("url") or arguments.get("allow_network"):
+            return False
+        paths = arguments.get("paths")
+        values = paths if isinstance(paths, list) and paths else ["."]
+        return all(workspace_path(value) is not None for value in values)
+    if tool_name in {"trace", "checkpoint", "artifact_write"}:
+        return True
+    return False
 
 
 def get_store() -> SQLiteStore:
@@ -1585,13 +1732,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             arguments = payload.get("arguments")
             if not isinstance(arguments, dict):
                 arguments = {}
-            call = ToolCall(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=str(payload.get("node_id") or state.root_node_id),
-                tool_name=tool_name,
-                arguments=arguments,
-            )
+            node_id = str(payload.get("node_id") or state.root_node_id)
             context = ToolExecutionContext.for_workspace(
                 workspace_root=tool_workspace_path(),
                 artifact_root=artifact_root_path(),
@@ -1599,13 +1740,19 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 event_reader=store.task_events,
                 checkpoint_reader=lambda task_id: _checkpoint_json(store, task_id),
             )
-            result = ToolExecutor(context).execute(call)
+            call, result, permission_events = _execute_guarded_api_tool(
+                state=state,
+                node_id=node_id,
+                tool_name=tool_name,
+                arguments=arguments,
+                context=context,
+            )
             event = tool_result_event(call, result)
             if result.artifacts:
                 state.artifacts.extend(result.artifacts)
             state.budget.tool_calls += 1
             state.updated_at = event.created_at
-            persist_events(store, [event])
+            persist_events(store, [*permission_events, event])
             store.save_checkpoint(state)
             status = HTTPStatus.CREATED if result.ok else HTTPStatus.CONFLICT
             self._send_json(
@@ -1615,6 +1762,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "tool_call": to_jsonable(call),
                     "tool_result": to_jsonable(result),
                     "event": to_jsonable(event),
+                    "permission_events": [to_jsonable(item) for item in permission_events],
                 },
             )
             return

@@ -255,6 +255,11 @@ class ToolLoopScheduler:
             },
         )
 
+    def validate_arguments(self, tool_name: str, arguments: Any) -> tuple[ToolSchemaViolation, ...]:
+        """Revalidate post-hook arguments before an execution grant is used."""
+
+        return tuple(self._validate_step(tool_name, arguments, self.registry.get(tool_name)))
+
     def _request_from_step(
         self,
         *,
