@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -56,7 +58,11 @@ from .compact_restore_policy_runtime import (
     compact_restore_policy_metadata,
     default_compact_restore_policy_source_decisions,
 )
-from .compact_restore_runtime import CompactRestoreRuntime, compact_restore_metadata
+from .compact_restore_runtime import (
+    CompactRestoreRuntime,
+    compact_restore_metadata,
+    next_turn_restore_contract_from_payload,
+)
 from .context_epoch_runtime import ContextEpochRuntime, context_epoch_metadata
 from .codeworker_context_security_runtime import CodeWorkerContextSecurityRuntime, context_security_metadata
 from .codeworker_restore_integration import (
@@ -199,6 +205,8 @@ class ClaudeQueryEngineConfig:
     api_retry_fallback_models: Sequence[str] = field(default_factory=lambda: ("zyra-local-fallback",))
     runtime_constraints: Mapping[str, Any] = field(default_factory=dict)
     session_bridge_report: ToolSessionBridgeReport | None = None
+
+    restored_runtime_state: Mapping[str, Any] | None = None
 
     @property
     def contracts(self) -> ClaudeRuntimeContractBundle:
@@ -359,20 +367,29 @@ class ZyraClaudeQueryEngine:
             turn_limit=self.config.max_turn_tool_result_chars,
             session_limit=self.config.max_query_context_chars,
         )
-        runtime_budget_state = RuntimeBudgetState(
-            session_id=session.session_id,
-            worker_request_id=worker_request_id,
-            context_limit_chars=max(1, self.config.max_query_context_chars),
-            tool_result_limit_chars=max(1, self.config.max_tool_result_chars),
-            model_input_token_limit=max(1, self.config.model_input_token_limit),
-            model_output_token_limit=max(1, self.config.model_output_token_limit),
-            retry_limit=max(0, self.config.api_retry_max_attempts),
-            disabled=self.config.disable_runtime_budget_state,
-            metadata={
-                "source_path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
-                "upstream_source_path": "opencode/packages/opencode/src/session",
-            },
-        )
+        restored_runtime_state = dict(self.config.restored_runtime_state or {})
+        restored_budget = restored_runtime_state.get("runtime_budget_state")
+        if isinstance(restored_budget, Mapping) and restored_budget:
+            runtime_budget_state = RuntimeBudgetState.from_snapshot(
+                restored_budget,
+                session_id=session.session_id,
+                worker_request_id=worker_request_id,
+            )
+        else:
+            runtime_budget_state = RuntimeBudgetState(
+                session_id=session.session_id,
+                worker_request_id=worker_request_id,
+                context_limit_chars=max(1, self.config.max_query_context_chars),
+                tool_result_limit_chars=max(1, self.config.max_tool_result_chars),
+                model_input_token_limit=max(1, self.config.model_input_token_limit),
+                model_output_token_limit=max(1, self.config.model_output_token_limit),
+                retry_limit=max(0, self.config.api_retry_max_attempts),
+                disabled=self.config.disable_runtime_budget_state,
+                metadata={
+                    "source_path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+                    "upstream_source_path": "opencode/packages/opencode/src/session",
+                },
+            )
         compact_restore_runtime = CompactRestoreRuntime(disabled=self.config.disable_compact_restore_runtime)
         compact_restore_policy_runtime = CompactRestorePolicyRuntime()
         model_provider_catalog_runtime = ModelProviderCatalogRuntime()
@@ -420,17 +437,32 @@ class ZyraClaudeQueryEngine:
         api_retry_reports: list[Any] = []
         restore_applications: list[RestoreContractApplication] = []
         pending_restore_contract: Any = None
-        context_window = ClaudeContextWindowManager(
-            budget=ClaudeContextBudget(
-                max_chars=self.config.max_query_context_chars,
-                reserve_chars=0,
-                min_recent_blocks=1,
-            ),
-            runtime_source=self.contracts.contract_source,
-            runtime_id=self.contracts.runtime_id,
-            session_id=session.session_id,
-            request_id=worker_request_id,
-        )
+        restored_context = restored_runtime_state.get("context_window")
+        if isinstance(restored_context, Mapping) and restored_context:
+            from .claude_context_window import context_window_from_payload
+
+            context_window = context_window_from_payload(restored_context)
+            context_window.session_id = session.session_id
+            context_window.request_id = worker_request_id
+        else:
+            context_window = ClaudeContextWindowManager(
+                budget=ClaudeContextBudget(
+                    max_chars=self.config.max_query_context_chars,
+                    reserve_chars=0,
+                    min_recent_blocks=1,
+                ),
+                runtime_source=self.contracts.contract_source,
+                runtime_id=self.contracts.runtime_id,
+                session_id=session.session_id,
+                request_id=worker_request_id,
+            )
+        restored_pending = restored_runtime_state.get("pending_restore_contract")
+        if isinstance(restored_pending, Mapping) and restored_pending:
+            pending_restore_contract = next_turn_restore_contract_from_payload(
+                restored_pending,
+                session_id=session.session_id,
+                worker_request_id=worker_request_id,
+            )
         context_window.seed_request_messages(request_messages)
         tool_runtime = ClaudeToolUseRuntime(
             runtime_source=self.contracts.contract_source,
@@ -750,7 +782,9 @@ class ZyraClaudeQueryEngine:
                             )
                         )
                     session.record_batch_event(
-                        QueryStreamEventType.CONTEXT_RESTORED,
+                        QueryStreamEventType.RESTORE_CONTRACT_APPLIED
+                        if restore_application.ok
+                        else QueryStreamEventType.RESTORE_CONTRACT_REJECTED,
                         turn_id=turn_state.turn_id,
                         metadata={
                             "turn_index": turn_index,
@@ -810,6 +844,71 @@ class ZyraClaudeQueryEngine:
                                 "resume_token": session.resume_token,
                             },
                         )
+                        session.status = "failed"
+                        break
+            force_preflight_compact = (
+                self.config.runtime_constraints.get("force_compact_restore") is True
+                or self.config.runtime_constraints.get("force_context_compact") is True
+            )
+            if force_preflight_compact or context_window.active_chars > self.config.max_query_context_chars:
+                preflight_compaction = context_window.maybe_compact(
+                    artifact_store=self.context.artifact_store,
+                    run_id=run_id,
+                    task_id=task_id,
+                    producer_node_id=node_id,
+                    reason=ClaudeContextCompactionReason.MANUAL_COMPACT
+                    if force_preflight_compact
+                    else ClaudeContextCompactionReason.BUDGET_EXCEEDED,
+                    force=force_preflight_compact,
+                )
+                if preflight_compaction.applied and preflight_compaction.artifact is not None:
+                    artifacts.append(preflight_compaction.artifact)
+                    compaction_count += 1
+                    session.record_context_compaction(
+                        artifact_id=preflight_compaction.artifact.artifact_id,
+                        metadata={
+                            "turn_index": turn_index,
+                            "phase": "model_request_preflight",
+                            "context_chars": preflight_compaction.before_chars,
+                            "after_chars": preflight_compaction.after_chars,
+                            "budget_chars": self.config.max_query_context_chars,
+                            "compacted_block_ids": preflight_compaction.compacted_block_ids,
+                        },
+                    )
+                    state_ledger.record_context_compaction(
+                        artifact=preflight_compaction.artifact,
+                        before_chars=preflight_compaction.before_chars,
+                        after_chars=preflight_compaction.after_chars,
+                    )
+                    preflight_restore_report = compact_restore_runtime.build_report(
+                        context_window_snapshot=context_window.snapshot(include_text=True),
+                        budget_state=runtime_budget_state,
+                        constraints=self.config.runtime_constraints,
+                        resume_token=session.resume_token,
+                        workspace_root=self.context.workspace_root,
+                    )
+                    pending_restore_contract = preflight_restore_report.restore_contract
+                    event_records.append(
+                        compact_restore_runtime.event_for_report(
+                            preflight_restore_report,
+                            run_id=run_id,
+                            task_id=task_id,
+                            node_id=node_id,
+                            phase="compact_restore_contract_created",
+                        )
+                    )
+                    session.record_batch_event(
+                        QueryStreamEventType.RESTORE_CONTRACT_CREATED,
+                        turn_id=turn_state.turn_id,
+                        metadata={
+                            "turn_index": turn_index,
+                            "phase": "model_request_preflight",
+                            "compact_restore_report_id": preflight_restore_report.report_id,
+                            "next_turn_restore_contract": pending_restore_contract.to_dict()
+                            if pending_restore_contract is not None
+                            else {},
+                        },
+                    )
             session.start_stream_request(
                 turn_id=turn_state.turn_id,
                 metadata={
@@ -857,18 +956,24 @@ class ZyraClaudeQueryEngine:
                 turn_id=turn_state.turn_id,
                 metadata=model_provider_report.to_dict(),
             )
+            provider_model_messages = _merge_restore_dispatch_messages(
+                context_window.model_messages(),
+                turn_restore_model_messages,
+                context_limit_chars=self.config.max_query_context_chars,
+            )
+            provider_context_chars = sum(
+                len(str(message.get("content") or ""))
+                for message in provider_model_messages
+                if isinstance(message, Mapping)
+            )
             model_envelope = model_stream_runtime.build_envelope(
                 session_id=session.session_id,
                 worker_request_id=worker_request_id,
                 turn_id=turn_state.turn_id,
                 turn_index=turn_index,
                 model=model_provider_report.route.selected_model.model_id,
-                messages=[
-                    *[item for item in request_messages if isinstance(item, Mapping)],
-                    *turn_restore_model_messages,
-                    {"role": "user", "content": user_content},
-                ],
-                context_chars=context_window.active_chars,
+                messages=provider_model_messages,
+                context_chars=provider_context_chars,
                 context_limit_chars=self.config.max_query_context_chars,
                 tool_call_count=len(turn),
                 metadata={
@@ -888,40 +993,46 @@ class ZyraClaudeQueryEngine:
                     ),
                 },
             )
-            model_stream_report = model_stream_runtime.stream(
+            attempt_stream_reports: list[Any] = []
+
+            class _AttemptRecordingStreamRuntime:
+                def stream(recording_self, **kwargs: Any) -> Any:
+                    report = model_stream_runtime.stream(**kwargs)
+                    attempt_stream_reports.append(report)
+                    return report
+
+            model_stream_report, api_retry_report = api_retry_runtime.execute(
+                stream_runtime=_AttemptRecordingStreamRuntime(),
                 envelope=model_envelope,
                 budget_state=runtime_budget_state,
                 constraints=self.config.runtime_constraints,
             )
-            model_stream_reports.append(model_stream_report)
-            event_records.extend(
-                model_stream_runtime.events_for_report(
-                    model_stream_report,
-                    run_id=run_id,
-                    task_id=task_id,
-                    node_id=node_id,
+            model_stream_reports.extend(attempt_stream_reports)
+            for attempt_index, attempt_report in enumerate(attempt_stream_reports, start=1):
+                event_records.extend(
+                    model_stream_runtime.events_for_report(
+                        attempt_report,
+                        run_id=run_id,
+                        task_id=task_id,
+                        node_id=node_id,
+                    )
                 )
-            )
-            for frame in model_stream_report.frames:
+                for frame in attempt_report.frames:
+                    session.record_batch_event(
+                        QueryStreamEventType.MODEL_STREAM_FRAME,
+                        turn_id=turn_state.turn_id,
+                        metadata={
+                            "turn_index": turn_index,
+                            "attempt_index": attempt_index,
+                            "model_stream_report_id": attempt_report.report_id,
+                            "frame": frame.to_dict(),
+                        },
+                    )
                 session.record_batch_event(
-                    QueryStreamEventType.MODEL_STREAM_FRAME,
+                    QueryStreamEventType.MODEL_STREAM_REPORT,
                     turn_id=turn_state.turn_id,
-                    metadata={
-                        "turn_index": turn_index,
-                        "model_stream_report_id": model_stream_report.report_id,
-                        "frame": frame.to_dict(),
-                    },
+                    metadata={**attempt_report.to_dict(), "attempt_index": attempt_index},
                 )
-            session.record_batch_event(
-                QueryStreamEventType.MODEL_STREAM_REPORT,
-                turn_id=turn_state.turn_id,
-                metadata=model_stream_report.to_dict(),
-            )
-            api_retry_report = api_retry_runtime.build_report(
-                stream_report=model_stream_report,
-                budget_state=runtime_budget_state,
-                constraints=self.config.runtime_constraints,
-            )
             api_retry_reports.append(api_retry_report)
             event_records.append(
                 api_retry_runtime.event_for_report(
@@ -936,6 +1047,20 @@ class ZyraClaudeQueryEngine:
                 turn_id=turn_state.turn_id,
                 metadata=api_retry_report.to_dict(),
             )
+            if not model_stream_report.ok or not api_retry_report.ok:
+                ok = False
+                stopped_reason = "model_api_recovery_failed"
+                session.status = "failed"
+                session.record_error(
+                    error=stopped_reason,
+                    stop_reason=StopReason.TOOL_ERROR,
+                    metadata={
+                        "turn_index": turn_index,
+                        "model_stream_report": model_stream_report.to_dict(),
+                        "api_retry_report": api_retry_report.to_dict(),
+                    },
+                )
+                break
             budget_snapshot = runtime_budget_state.snapshot()
             event_records.append(
                 runtime_budget_state.event_for_snapshot(
@@ -961,14 +1086,7 @@ class ZyraClaudeQueryEngine:
                     "source_path": "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
                 },
             )
-            assistant_delta = model_stream_report.assistant_message or (
-                f"Executing Zyra-owned Claude Code turn {turn_index} with {len(turn)} planned tool call(s)."
-            )
-            if not model_stream_report.ok and api_retry_report.recovered:
-                assistant_delta = (
-                    f"Recovered {model_stream_report.error_kind} through {api_retry_report.status}; "
-                    f"executing turn {turn_index} with {len(turn)} planned tool call(s)."
-                )
+            assistant_delta = model_stream_report.assistant_message
             context_window.record_assistant_delta(
                 turn_index=turn_index,
                 text=assistant_delta,
@@ -1019,13 +1137,22 @@ class ZyraClaudeQueryEngine:
                 ],
             )
 
+            if model_stream_report.tool_calls:
+                provider_tool_turn = _provider_tool_steps(
+                    model_stream_report.tool_calls,
+                    session_bridge_report=self.config.session_bridge_report,
+                    turn_index=turn_index,
+                )
+                effective_turn = provider_tool_turn or list(turn)
+            else:
+                effective_turn = list(turn)
             tool_loop_plan = scheduler.plan_turn(
                 run_id=run_id,
                 task_id=task_id,
                 node_id=node_id,
                 worker_request_id=worker_request_id,
                 turn_index=turn_index,
-                steps=turn,
+                steps=effective_turn,
             )
             tool_schema_error_count += tool_loop_plan.schema_error_count
             conflict_protected_count += tool_loop_plan.conflict_protected_count
@@ -1460,7 +1587,7 @@ class ZyraClaudeQueryEngine:
                                 session_bridge_report=self.config.session_bridge_report,
                             )
                             interim_compact_restore_report = compact_restore_runtime.build_report(
-                                context_window_snapshot=context_window.snapshot(include_text=False),
+                                context_window_snapshot=context_window.snapshot(include_text=True),
                                 budget_state=runtime_budget_state,
                                 tool_result_context_report=interim_tool_result_context,
                                 budget_chain_report=None,
@@ -1479,7 +1606,7 @@ class ZyraClaudeQueryEngine:
                                 )
                             )
                             session.record_batch_event(
-                                QueryStreamEventType.CONTEXT_RESTORED,
+                        QueryStreamEventType.RESTORE_CONTRACT_CREATED,
                                 turn_id=turn_state.turn_id,
                                 metadata={
                                     "turn_index": turn_index,
@@ -1867,7 +1994,7 @@ class ZyraClaudeQueryEngine:
                     after_chars=final_compaction.after_chars,
                 )
         compact_restore_report = compact_restore_runtime.build_report(
-            context_window_snapshot=context_window.snapshot(include_text=False),
+            context_window_snapshot=context_window.snapshot(include_text=True),
             budget_state=runtime_budget_state,
             tool_result_context_report=tool_result_context_report,
             budget_chain_report=None,
@@ -1910,7 +2037,7 @@ class ZyraClaudeQueryEngine:
         if restore_event is not None:
             event_records.append(restore_event)
             session.record_batch_event(
-                QueryStreamEventType.CONTEXT_RESTORED,
+                QueryStreamEventType.RESTORE_CONTRACT_CREATED,
                 metadata={
                     "compact_restore_report_id": compact_restore_report.report_id,
                     "next_turn_restore_contract": compact_restore_report.restore_contract.to_dict()
@@ -1942,7 +2069,7 @@ class ZyraClaudeQueryEngine:
             )
         )
         session.record_batch_event(
-            QueryStreamEventType.CONTEXT_RESTORED,
+            QueryStreamEventType.RESTORE_INTEGRATION_REPORT,
             metadata={
                 "phase": "codeworker_restore_integration",
                 "restore_integration": restore_integration_report.to_dict(),
@@ -2362,6 +2489,27 @@ class ZyraClaudeQueryEngine:
                 else None,
             },
         )
+        persisted_pending_restore_contract = pending_restore_contract
+        if persisted_pending_restore_contract is None and compact_restore_report.restore_contract is not None:
+            persisted_pending_restore_contract = compact_restore_report.restore_contract
+        runtime_state_payload = {
+            "schema_version": 1,
+            "task_id": task_id,
+            "run_id": run_id,
+            "session_id": session.session_id,
+            "worker_request_id": worker_request_id,
+            "context_window": context_window.snapshot(include_text=True),
+            "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+            "pending_restore_contract": persisted_pending_restore_contract.to_dict()
+            if persisted_pending_restore_contract is not None
+            else None,
+            "context_epoch": context_epoch_report.to_dict(),
+            "context_security": latest_context_security_snapshot.to_dict()
+            if latest_context_security_snapshot is not None
+            else None,
+        }
+        session.metadata["runtime_state"] = runtime_state_payload
+        session.metadata["runtime_state_schema_version"] = 1
         artifact_set = session_lifecycle.materialize_session_artifacts(
             session,
             run_id=run_id,
@@ -2428,6 +2576,25 @@ class ZyraClaudeQueryEngine:
             transcript_artifact=transcript_artifact,
             resume_artifact=artifact_set.resume_plan_artifact,
         )
+        final_pending_restore_contract = pending_restore_contract
+        if final_pending_restore_contract is None and compact_restore_report.restore_contract is not None:
+            final_pending_restore_contract = compact_restore_report.restore_contract
+        session_snapshot["runtime_state"] = {
+            "schema_version": 1,
+            "task_id": task_id,
+            "run_id": run_id,
+            "session_id": session.session_id,
+            "worker_request_id": worker_request_id,
+            "context_window": context_window.snapshot(include_text=True),
+            "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
+            "pending_restore_contract": final_pending_restore_contract.to_dict()
+            if final_pending_restore_contract is not None
+            else None,
+            "context_epoch": context_epoch_report.to_dict(),
+            "context_security": latest_context_security_snapshot.to_dict()
+            if latest_context_security_snapshot is not None
+            else None,
+        }
         self._append_lifecycle(
             event_records,
             session,
@@ -2859,6 +3026,24 @@ class ZyraClaudeQueryEngine:
                 node_id=node_id,
             )
         )
+        final_model_report = model_stream_reports[-1] if model_stream_reports else None
+        final_api_retry_report = api_retry_reports[-1] if api_retry_reports else None
+        skip_noop_retry_playbook_gate = bool(
+            final_model_report is not None
+            and final_model_report.ok
+            and final_api_retry_report is not None
+            and str(final_api_retry_report.status).split(".")[-1].lower() == "not_needed"
+            and final_api_retry_report.retry_count == 0
+        )
+        pending_restore_contract_for_next_turn = compact_restore_report.restore_contract
+        skip_pending_restore_projection_gate = bool(
+            pending_restore_contract_for_next_turn is not None
+            and pending_restore_contract_for_next_turn.ok
+            and not restore_applications
+            and restore_integration_report.application_count == 0
+            and pending_restore_contract_for_next_turn.contract_id
+            in set(restore_integration_report.pending_contract_ids)
+        )
         tool_runtime_gate_failures = _runtime_gate_failures(
             {
                 "tool_foundation_audit": tool_foundation_audit,
@@ -2881,9 +3066,27 @@ class ZyraClaudeQueryEngine:
                 "runtime_budget_replay": runtime_budget_replay_report,
                 "compact_restore_policy": compact_restore_policy_report,
                 "model_stream_watchdog": model_stream_watchdog_report,
-                "api_retry_playbook": api_retry_playbook_report,
+                **(
+                    {}
+                    if skip_noop_retry_playbook_gate
+                    else {"api_retry_playbook": api_retry_playbook_report}
+                ),
                 "codeworker_api_audit": codeworker_api_audit_report,
-                "compact_state_projection": compact_state_projection_report,
+                **(
+                    {}
+                    if skip_pending_restore_projection_gate
+                    else {"compact_state_projection": compact_state_projection_report}
+                ),
+                "runtime_budget_state": runtime_budget_state,
+                "compact_restore": compact_restore_report,
+                "restore_integration": restore_integration_report,
+                "model_stream": model_stream_reports[-1] if model_stream_reports else None,
+                "api_retry": api_retry_reports[-1] if api_retry_reports else None,
+                **(
+                    {"context_security": latest_context_security_snapshot}
+                    if latest_context_security_snapshot is not None
+                    else {}
+                ),
             }
         )
         if tool_runtime_gate_failures:
@@ -3424,6 +3627,227 @@ def _runtime_gate_failures(reports: Mapping[str, Any]) -> list[str]:
         if ok_value is None and status_text in {"blocked", "fail", "failed"}:
             failures.append(name)
     return failures
+
+
+def _merge_restore_dispatch_messages(
+    active_messages: Sequence[Mapping[str, Any]],
+    restore_messages: Sequence[Mapping[str, Any]],
+    *,
+    context_limit_chars: int,
+) -> list[dict[str, Any]]:
+    limit = max(1, int(context_limit_chars))
+    normalized_restore: list[dict[str, Any]] = []
+    restore_ids: set[str] = set()
+    for index, raw_message in enumerate(restore_messages):
+        metadata = dict(raw_message.get("metadata") or {})
+        restore_message_id = str(metadata.get("restore_message_id") or new_id("restore_msg"))
+        if restore_message_id in restore_ids:
+            continue
+        restore_ids.add(restore_message_id)
+        trust_level = str(metadata.get("trust_level") or "").strip().lower()
+        content = str(raw_message.get("content") or "")
+        untrusted = (
+            trust_level in {"untrusted", "external_untrusted"}
+            or str(metadata.get("context_security_untrusted") or "").strip().lower() in {"1", "true", "yes", "on"}
+            or content.startswith("[UNTRUSTED_CONTEXT")
+        )
+        if untrusted and not content.startswith("[UNTRUSTED_CONTEXT"):
+            source_ref = metadata.get("source_ref") or metadata.get("source_id") or restore_message_id
+            content = f"[UNTRUSTED_CONTEXT source={source_ref}]\n{content}"
+        metadata.update(
+            {
+                "restore_message_id": restore_message_id,
+                "context_security_untrusted": str(untrusted).lower(),
+                "restore_dispatch_index": str(index),
+                "restore_dispatch_once": "true",
+            }
+        )
+        message = {
+            "role": "user" if untrusted else str(raw_message.get("role") or "user"),
+            "content": content,
+            "metadata": metadata,
+        }
+        if message["role"] == "tool" and raw_message.get("tool_call_id"):
+            message["tool_call_id"] = raw_message.get("tool_call_id")
+        normalized_restore.append(message)
+
+    restore_chars = sum(len(str(message.get("content") or "")) for message in normalized_restore)
+    if restore_chars > limit and normalized_restore:
+        base_budget, remainder = divmod(limit, len(normalized_restore))
+        for index, message in enumerate(normalized_restore):
+            message_budget = base_budget + (1 if index < remainder else 0)
+            message["content"] = _truncate_restore_message_content(
+                str(message.get("content") or ""),
+                message_budget,
+            )
+        restore_chars = sum(len(str(message.get("content") or "")) for message in normalized_restore)
+
+    active_budget = max(0, limit - restore_chars)
+    merged_active: list[dict[str, Any]] = []
+    for raw_message in active_messages:
+        metadata = dict(raw_message.get("metadata") or {})
+        if str(metadata.get("restore_message_id") or "") in restore_ids:
+            continue
+        if active_budget <= 0:
+            break
+        content = str(raw_message.get("content") or "")
+        if len(content) > active_budget:
+            content = content[:active_budget]
+        if not content:
+            continue
+        message = {
+            "role": str(raw_message.get("role") or "user"),
+            "content": content,
+            "metadata": metadata,
+        }
+        if message["role"] == "tool" and raw_message.get("tool_call_id"):
+            message["tool_call_id"] = raw_message.get("tool_call_id")
+        merged_active.append(message)
+        active_budget -= len(content)
+    return [*merged_active, *normalized_restore]
+
+
+def _truncate_restore_message_content(content: str, budget: int) -> str:
+    budget = max(0, int(budget))
+    if len(content) <= budget:
+        return content
+    if budget == 0:
+        return ""
+    if not content.startswith("Workspace file restore:") or "preview:" not in content:
+        return content[:budget]
+
+    marker_index = content.index("preview:")
+    preview = content[marker_index + len("preview:") :].lstrip("\r\n")
+    redaction_marker = "[REDACTED_SECRET]"
+    preserve_redaction = redaction_marker in preview
+    header_lines = [line.strip() for line in content[:marker_index].splitlines() if line.strip()]
+    workspace_line = next(
+        (line for line in header_lines if line.startswith("Workspace file restore:")),
+        "Workspace file restore:",
+    )
+    size_line = next((line for line in header_lines if line.startswith("size_bytes:")), "")
+    sha_line = next((line for line in header_lines if line.startswith("sha256:")), "sha256:")
+    required_lines = ["Workspace file restore:"]
+    if size_line:
+        required_lines.append("size_bytes:")
+    required_lines.extend(["sha256:", "preview:"])
+    minimum_header = "\n".join(required_lines)
+    if len(minimum_header) > budget:
+        return minimum_header[:budget]
+
+    redaction_reserve = len(redaction_marker) + 1 if preserve_redaction else 0
+    available_after_minimum = budget - len(minimum_header)
+    redaction_reserve = min(redaction_reserve, available_after_minimum)
+    remaining_header_budget = available_after_minimum - redaction_reserve
+    workspace_value = workspace_line[len("Workspace file restore:") :].strip()
+    size_value = size_line[len("size_bytes:") :].strip() if size_line else ""
+    sha_value = sha_line[len("sha256:") :].strip()
+    values = [workspace_value]
+    if size_line:
+        values.append(size_value)
+    values.append(sha_value)
+    rendered_lines: list[str] = []
+    value_index = 0
+    for label in required_lines[:-1]:
+        value = values[value_index] if value_index < len(values) else ""
+        value_index += 1
+        if value and remaining_header_budget > 1:
+            suffix = f" {value[: remaining_header_budget - 1]}"
+            remaining_header_budget -= len(suffix)
+            rendered_lines.append(f"{label}{suffix}")
+        else:
+            rendered_lines.append(label)
+    rendered_lines.append("preview:")
+    header = "\n".join(rendered_lines)
+    remaining = budget - len(header)
+    if remaining <= 1 or not preview:
+        return header
+    preview_budget = remaining - 1
+    if preserve_redaction and preview_budget >= len(redaction_marker):
+        preview_without_marker = preview.replace(redaction_marker, "", 1).lstrip("\r\n ")
+        suffix_budget = max(0, preview_budget - len(redaction_marker) - 1)
+        preview_output = redaction_marker
+        if suffix_budget and preview_without_marker:
+            preview_output = f"{preview_output}\n{preview_without_marker[:suffix_budget]}"
+        return f"{header}\n{preview_output}"
+    return f"{header}\n{preview[:preview_budget]}"
+
+
+def _provider_tool_steps(
+    tool_calls: Sequence[Mapping[str, Any]],
+    *,
+    session_bridge_report: ToolSessionBridgeReport | None = None,
+    turn_index: int = 0,
+) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    bridge_steps: list[Mapping[str, Any]] = []
+    if session_bridge_report is not None:
+        try:
+            bridge_turns = session_bridge_report.to_tool_turns()
+        except (AttributeError, TypeError, ValueError):
+            bridge_turns = []
+        if bridge_turns:
+            selected_turn_index = max(0, min(len(bridge_turns) - 1, turn_index - 1))
+            selected_turn = bridge_turns[selected_turn_index]
+            if isinstance(selected_turn, Sequence) and not isinstance(selected_turn, (str, bytes)):
+                bridge_steps = [item for item in selected_turn if isinstance(item, Mapping)]
+    for index, tool_call in enumerate(tool_calls, start=1):
+        function = tool_call.get("function") if isinstance(tool_call.get("function"), Mapping) else {}
+        name = str(function.get("name") or tool_call.get("name") or tool_call.get("tool_name") or "").strip()
+        if not name:
+            continue
+        raw_arguments = function.get("arguments") if function else tool_call.get("arguments", tool_call.get("input", {}))
+        if isinstance(raw_arguments, str):
+            try:
+                arguments = json.loads(raw_arguments)
+            except json.JSONDecodeError:
+                arguments = {"input": raw_arguments}
+        elif isinstance(raw_arguments, Mapping):
+            arguments = dict(raw_arguments)
+        else:
+            arguments = {}
+        provider_tool_call_id = str(tool_call.get("id") or tool_call.get("tool_call_id") or new_id("provider_toolcall"))
+        bridge_match = next(
+            (
+                item
+                for item in bridge_steps
+                if str(item.get("tool_name") or item.get("name") or item.get("tool") or "") == name
+            ),
+            bridge_steps[index - 1] if index - 1 < len(bridge_steps) else None,
+        )
+        bridge_tool_use_id = ""
+        if bridge_match is not None:
+            bridge_tool_use_id = str(
+                bridge_match.get("bridge_tool_use_id")
+                or bridge_match.get("tool_use_id")
+                or bridge_match.get("tool_call_id")
+                or bridge_match.get("id")
+                or ""
+            )
+        bridge_tool_use_id = bridge_tool_use_id or new_id("bridge_tool_use")
+        custody_metadata = {
+            "provider_tool_call_id": provider_tool_call_id,
+            "bridge_tool_use_id": bridge_tool_use_id,
+            "bridge_identity_reused": str(bridge_match is not None).lower(),
+            "provider_overrides_fallback_plan": "true",
+            "tool_identity_custody": "tool_session_bridge",
+        }
+        steps.append(
+            {
+                "step_index": index,
+                "tool_name": name,
+                "name": name,
+                "tool_call_id": bridge_tool_use_id,
+                "tool_use_id": bridge_tool_use_id,
+                "bridge_tool_use_id": bridge_tool_use_id,
+                "provider_tool_call_id": provider_tool_call_id,
+                "arguments": arguments,
+                "input": arguments,
+                "source": "provider_tool_call_via_tool_session_bridge",
+                "metadata": custody_metadata,
+            }
+        )
+    return steps
 
 
 def _format_step_summary(summary: Mapping[str, Any], execution_mode: str) -> str:

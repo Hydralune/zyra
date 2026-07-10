@@ -302,6 +302,36 @@ class NextTurnRestoreContract:
     def missing_required_segments(self) -> int:
         return sum(1 for segment in self.restore_segments if segment.required and not segment.available)
 
+    @classmethod
+    def from_payload(
+        cls,
+        payload: Mapping[str, Any],
+        *,
+        session_id: str = "",
+        worker_request_id: str = "",
+    ) -> "NextTurnRestoreContract":
+        restore_segments = tuple(
+            _restore_segment_from_payload(item)
+            for item in _as_list(payload.get("restore_segments"))
+            if isinstance(item, Mapping)
+        )
+        preserved_segments = tuple(
+            _preserved_segment_from_payload(item)
+            for item in _as_list(payload.get("preserved_segments"))
+            if isinstance(item, Mapping)
+        )
+        return cls(
+            contract_id=str(payload.get("contract_id") or new_id("restore_contract")),
+            session_id=str(session_id or payload.get("session_id") or ""),
+            worker_request_id=str(worker_request_id or payload.get("worker_request_id") or ""),
+            boundary_id=str(payload.get("boundary_id") or ""),
+            restore_segments=restore_segments,
+            preserved_segments=preserved_segments,
+            compact_artifact_id=str(payload.get("compact_artifact_id") or ""),
+            resume_token=str(payload.get("resume_token") or ""),
+            created_at=str(payload.get("created_at") or now_iso()),
+        )
+
     def messages(self) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
         if self.boundary_id:
@@ -319,9 +349,12 @@ class NextTurnRestoreContract:
         for segment in self.restore_segments:
             if not segment.available:
                 continue
+            role = "tool" if segment.kind == RestoreSegmentKind.TOOL_RESULT else "system"
+            if _restore_segment_untrusted(segment):
+                role = "user"
             messages.append(
                 {
-                    "role": "system" if segment.kind != RestoreSegmentKind.TOOL_RESULT else "tool",
+                    "role": role,
                     "content": segment.content or f"Restore artifact {segment.artifact_id}",
                     "metadata": {
                         "kind": str(segment.kind),
@@ -923,12 +956,13 @@ class CompactRestoreRuntime:
     ) -> list[RestoreSegment]:
         segments: list[RestoreSegment] = []
         if boundary and boundary.artifact_id:
+            summary_content = _compact_summary_content(context_window_snapshot, boundary)
             segments.append(
                 RestoreSegment(
                     segment_id=new_id("restore"),
                     kind=RestoreSegmentKind.CONTEXT_SUMMARY,
                     label="compact-summary",
-                    content=f"Compact summary artifact {boundary.artifact_id} preserves {len(boundary.compacted_block_ids)} block(s).",
+                    content=summary_content,
                     artifact_id=boundary.artifact_id,
                     source_id=boundary.boundary_id,
                     budget_chars=280,
@@ -1408,3 +1442,82 @@ def _workspace_file_restore_payload(path: str, *, workspace_root: str | Path | N
         ),
         "metadata": metadata,
     }
+
+
+def next_turn_restore_contract_from_payload(
+    payload: Mapping[str, Any],
+    *,
+    session_id: str = "",
+    worker_request_id: str = "",
+) -> NextTurnRestoreContract:
+    """Hydrate a persisted restore contract and rebind it to current custody."""
+
+    return NextTurnRestoreContract.from_payload(
+        payload,
+        session_id=session_id,
+        worker_request_id=worker_request_id,
+    )
+
+
+def _restore_segment_from_payload(payload: Mapping[str, Any]) -> RestoreSegment:
+    kwargs = {
+        name: payload[name]
+        for name in RestoreSegment.__dataclass_fields__
+        if name in payload
+    }
+    kind_value = payload.get("kind")
+    try:
+        kwargs["kind"] = RestoreSegmentKind(str(kind_value))
+    except ValueError:
+        normalized = str(kind_value or "").split(".")[-1].lower()
+        kwargs["kind"] = next(
+            (member for member in RestoreSegmentKind if member.name.lower() == normalized),
+            RestoreSegmentKind.CONTEXT_SUMMARY,
+        )
+    kwargs["metadata"] = dict(_as_mapping(payload.get("metadata")))
+    return RestoreSegment(**kwargs)
+
+
+def _preserved_segment_from_payload(payload: Mapping[str, Any]) -> PreservedContextSegment:
+    kwargs = {
+        name: payload[name]
+        for name in PreservedContextSegment.__dataclass_fields__
+        if name in payload
+    }
+    for name, value in tuple(kwargs.items()):
+        if isinstance(value, list):
+            kwargs[name] = tuple(value)
+    if "metadata" in PreservedContextSegment.__dataclass_fields__:
+        kwargs["metadata"] = dict(_as_mapping(payload.get("metadata")))
+    return PreservedContextSegment(**kwargs)
+
+
+def _restore_segment_untrusted(segment: RestoreSegment) -> bool:
+    trust = str(segment.metadata.get("trust_level") or "").strip().lower()
+    external = str(segment.metadata.get("external") or "").strip().lower()
+    provenance = str(segment.metadata.get("source_provenance") or "").strip().lower()
+    return (
+        trust in {"untrusted", "external_untrusted"}
+        or external in {"1", "true", "yes", "on"}
+        or any(marker in provenance for marker in ("external", "mcp", "browser", "web"))
+    )
+
+
+def _compact_summary_content(
+    context_window_snapshot: Mapping[str, Any],
+    boundary: CompactBoundary,
+) -> str:
+    for block in reversed(_blocks(context_window_snapshot)):
+        role = str(block.get("role") or "").split(".")[-1].lower()
+        artifact_ids = _string_list(block.get("artifact_ids"))
+        source = _as_mapping(block.get("source"))
+        source_id = str(source.get("source_id") or "")
+        if role != "summary" and boundary.artifact_id not in artifact_ids and source_id != boundary.artifact_id:
+            continue
+        text = str(block.get("text") or "").strip()
+        if text:
+            return text
+    return (
+        f"Compact summary artifact {boundary.artifact_id} preserves "
+        f"{len(boundary.compacted_block_ids)} block(s); hydrate the artifact before model dispatch."
+    )

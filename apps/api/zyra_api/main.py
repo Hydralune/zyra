@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -216,6 +217,56 @@ def persist_events(store: SQLiteStore, events: list[EventRecord]) -> None:
     for event in events:
         append_jsonl_event(event, event_log_path())
     store.append_events(events)
+
+
+class JsonRequestError(ValueError):
+    def __init__(self, status: HTTPStatus, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.code = code
+        self.message = message
+
+
+_TASK_LOCKS_GUARD = threading.Lock()
+_TASK_LOCKS: dict[str, threading.RLock] = {}
+
+
+def _task_lock(task_id: str) -> threading.RLock:
+    with _TASK_LOCKS_GUARD:
+        return _TASK_LOCKS.setdefault(task_id, threading.RLock())
+
+
+def _task_node_ids(state: Any) -> set[str]:
+    node_ids: set[str] = set()
+    root_node_id = str(getattr(state, "root_node_id", "") or "").strip()
+    if root_node_id:
+        node_ids.add(root_node_id)
+
+    def collect(value: Any, *, node_map: bool = False) -> None:
+        if isinstance(value, dict):
+            if node_map:
+                for key in value:
+                    candidate = str(key or "").strip()
+                    if candidate:
+                        node_ids.add(candidate)
+            for key, item in value.items():
+                if key in {"node_id", "root_node_id"} and not isinstance(item, (dict, list, tuple, set)):
+                    candidate = str(item or "").strip()
+                    if candidate:
+                        node_ids.add(candidate)
+                if key in {"nodes", "node_map"}:
+                    collect(item, node_map=isinstance(item, dict))
+                elif isinstance(item, (dict, list, tuple, set)):
+                    collect(item)
+            return
+        if isinstance(value, (list, tuple, set)):
+            for item in value:
+                collect(item)
+
+    serialized = to_jsonable(state)
+    if isinstance(serialized, dict):
+        collect(serialized)
+    return node_ids
 
 
 class ZyraRequestHandler(BaseHTTPRequestHandler):
@@ -670,115 +721,43 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
         if parts == ["workers", "code", "compact-state"]:
             query = parse_qs(parsed.query)
-            sample_state = create_task_state("Inspect CodeWorker context compact and API foundation.")
-            constraints: dict[str, Any] = {
-                "raw_input": str(query.get("q", ["Inspect compact restore and model API state."])[0]),
-                "query_context_budget_chars": _int_or_default(query.get("query_context_budget_chars", ["1200"])[0], 1200),
-                "force_compact_restore": _truthy(query.get("force_compact_restore", ["true"])[0], default=True),
-                "query_turns": [
-                    [{"tool_name": "file_write", "arguments": {"path": "compact-state-probe.txt", "content": "compact state probe"}}],
-                    [{"tool_name": "file_read", "arguments": {"path": "compact-state-probe.txt"}}],
-                ],
-                "restore_files": _split_csv(query.get("restore_files", ["README.md"])[0] or "README.md") or ["README.md"],
-                "invoked_skills": _split_csv(query.get("invoked_skills", ["codeworker-api-foundation"])[0] or "codeworker-api-foundation")
-                or ["codeworker-api-foundation"],
-                "mcp_instruction_deltas": {
-                    "codeworker-api": "Preserve compact restore and API retry instructions across next turn."
-                },
-            }
-            if query.get("model_stream_error_kind"):
-                constraints["model_stream_error_kind"] = query["model_stream_error_kind"][0]
-            if query.get("api_retry_fallback_models"):
-                constraints["api_retry_fallback_models"] = query["api_retry_fallback_models"][0]
-            request = WorkerRequest(
-                run_id=sample_state.run_id,
-                task_id=sample_state.task_id,
-                node_id=sample_state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints=constraints,
-                metadata={"source": "workers/code/compact-state"},
-            )
-            run_result = CodeWorkerRuntime(
-                project_root=PROJECT_ROOT,
-                workspace_root=tool_workspace_path(),
-                artifact_root=artifact_root_path(),
-                permission_store=get_permission_store(),
-            ).run(request)
-            phases = [
-                event.payload.get("query_session", {}).get("phase")
-                for event in run_result.event_records
-                if isinstance(event.payload.get("query_session"), dict)
-            ]
-            interesting_events = [
-                to_jsonable(event)
-                for event in run_result.event_records
-                if event.payload.get("query_session", {}).get("phase")
-                in {
-                    "compact_restore_report",
-                    "compact_restore_policy",
-                    "compact_boundary_created",
-                    "compact_needed",
-                    "next_turn_restore_contract",
-                    "context_epoch_report",
-                    "model_stream_frame",
-                    "model_stream_report",
-                    "model_provider_catalog",
-                    "model_stream_watchdog",
-                    "model_stream_watchdog_signal",
-                    "api_retry_report",
-                    "api_retry_playbook",
-                    "runtime_budget_updated",
-                    "runtime_budget_replay",
-                    "codeworker_api_foundation",
-                    "codeworker_api_foundation_audit",
-                    "compact_state_projection",
+            task_id = str(query.get("task_id", [""])[0]).strip()
+            if not task_id:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "task_id_required", "message": "task_id is required for compact-state projection."},
+                )
+                return
+            with _task_lock(task_id):
+                state = store.load_task(task_id)
+                if state is None:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                    return
+                task_events = store.task_events(task_id)
+                projection = CodeWorkerTaskApiProjectionRuntime().build_session_projection(
+                    task_id=task_id,
+                    state=to_jsonable(state),
+                    events=task_events,
+                )
+                payload = {
+                    "task_id": task_id,
+                    "run_id": state.run_id,
+                    "session": projection.session.to_dict(),
+                    "compact_state": projection.compact_state.to_dict(),
+                    "restore_state": projection.restore_state.to_dict(),
+                    "model_api": projection.model_api.to_dict(),
+                    "phase_counts": projection.phase_counts,
+                    "projection": projection.to_dict(),
                 }
-            ]
-            metadata = run_result.worker_result.metadata
-            compact_state_projection = compact_state_projection_from_metadata(
-                metadata,
-                [to_jsonable(event) for event in run_result.event_records],
-            )
-            self._send_json(
-                HTTPStatus.OK if run_result.worker_result.ok else HTTPStatus.CONFLICT,
-                {
-                    "worker_request": to_jsonable(request),
-                    "worker_result": to_jsonable(run_result.worker_result),
-                    "compact_state": {
-                        "ok": metadata.get("codeworker_api_foundation_ok"),
-                        "foundation_status": metadata.get("codeworker_api_foundation_status"),
-                        "compact_restore_status": metadata.get("compact_restore_status"),
-                        "compact_restore_boundary_id": metadata.get("compact_restore_boundary_id"),
-                        "next_turn_restore_contract_id": metadata.get("compact_restore_contract_id"),
-                        "runtime_budget_status": metadata.get("runtime_budget_state_status"),
-                        "runtime_budget_pressure": metadata.get("runtime_budget_state_highest_pressure"),
-                        "runtime_budget_replay_status": metadata.get("runtime_budget_replay_status"),
-                        "runtime_budget_replay_blocking_count": metadata.get("runtime_budget_replay_blocking_count"),
-                        "context_epoch_status": metadata.get("context_epoch_status"),
-                        "context_epoch_restore_epochs": metadata.get("context_epoch_restore_epochs"),
-                        "compact_restore_policy_status": metadata.get("compact_restore_policy_status"),
-                        "compact_restore_policy_blocked_rules": metadata.get("compact_restore_policy_blocked_rules"),
-                        "model_provider_status": metadata.get("model_provider_status"),
-                        "model_provider_selected_model": metadata.get("model_provider_selected_model"),
-                        "model_stream_status": metadata.get("model_stream_status"),
-                        "model_stream_watchdog_status": metadata.get("model_stream_watchdog_status"),
-                        "model_stream_watchdog_signals": metadata.get("model_stream_watchdog_signals"),
-                        "api_retry_status": metadata.get("api_retry_status"),
-                        "api_retry_fallback_used": metadata.get("api_retry_fallback_used"),
-                        "api_retry_playbook_status": metadata.get("api_retry_playbook_status"),
-                        "api_retry_playbook_retry_budget_required": metadata.get("api_retry_playbook_retry_budget_required"),
-                        "codeworker_api_audit_status": metadata.get("codeworker_api_audit_status"),
-                        "codeworker_api_audit_blocking_count": metadata.get("codeworker_api_audit_blocking_count"),
-                        "compact_state_projection_status": metadata.get("compact_state_projection_status"),
-                        "compact_state_projection_blocking_count": metadata.get("compact_state_projection_blocking_count"),
-                    },
-                    "compact_state_projection": compact_state_projection,
-                    "phase_counts": _event_counts(
-                        [{"event_type": str(phase)} for phase in phases if phase]
-                    ),
-                    "events": interesting_events,
-                },
-            )
+                route_contract = CodeWorkerTaskApiContractRuntime().build_report(
+                    route_kind=TaskApiRouteKind.COMPACT_STATE,
+                    task_id=task_id,
+                    payload=payload,
+                    events=task_events,
+                    projection=projection,
+                )
+                payload["route_contract"] = route_contract.to_dict()
+                self._send_json(HTTPStatus.OK if route_contract.ok else HTTPStatus.CONFLICT, payload)
             return
 
         if parts == ["workers", "code", "session-foundation"]:
@@ -1138,7 +1117,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     projection=projection,
                 )
                 payload["route_contract"] = route_contract.to_dict()
-                self._send_json(HTTPStatus.OK, payload)
+                self._send_json(HTTPStatus.OK if route_contract.ok else HTTPStatus.CONFLICT, payload)
                 return
             if parts[4] == "tool-trace":
                 payload = projection.tool_trace.to_dict()
@@ -1150,7 +1129,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     projection=projection,
                 )
                 payload["route_contract"] = route_contract.to_dict()
-                self._send_json(HTTPStatus.OK, payload)
+                self._send_json(HTTPStatus.OK if route_contract.ok else HTTPStatus.CONFLICT, payload)
                 return
             if parts[4] == "compact-state":
                 payload = {
@@ -1171,7 +1150,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     projection=projection,
                 )
                 payload["route_contract"] = route_contract.to_dict()
-                self._send_json(HTTPStatus.OK, payload)
+                self._send_json(HTTPStatus.OK if route_contract.ok else HTTPStatus.CONFLICT, payload)
                 return
 
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "memory":
@@ -1259,7 +1238,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         parts = _path_parts(parsed.path)
         store = get_store()
-        payload = self._read_json_body()
+        try:
+            payload = self._read_json_body()
+        except JsonRequestError as error:
+            self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
 
         if parts == ["tasks"]:
             user_goal = str(payload.get("goal") or "Unspecified long-horizon task")
@@ -1637,75 +1620,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "code":
-            state = store.load_task(parts[1])
-            if state is None:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
-                return
-            constraints = payload.get("constraints")
-            if not isinstance(constraints, dict):
-                constraints = {}
-            else:
-                constraints = dict(constraints)
-            for key, value in payload.items():
-                if key in {"constraints", "node_id"}:
-                    continue
-                constraints.setdefault(key, value)
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=str(payload.get("node_id") or state.root_node_id),
-                worker_name="CodeWorkerRuntime",
-                constraints=constraints,
-            )
-            try:
-                run_result = CodeWorkerRuntime(
-                    project_root=PROJECT_ROOT,
-                    workspace_root=tool_workspace_path(),
-                    artifact_root=artifact_root_path(),
-                    permission_store=get_permission_store(),
-                ).run(request)
-            except Exception as error:  # noqa: BLE001 - API must report worker startup/runtime failures.
-                self._send_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"error": "code_worker_failed", "message": str(error)},
-                )
-                return
-
-            if run_result.worker_result.artifacts:
-                state.artifacts.extend(run_result.worker_result.artifacts)
-            state.budget.tool_calls += sum(1 for event in run_result.event_records if "tool_result" in event.payload)
-            if run_result.event_records:
-                state.updated_at = run_result.event_records[-1].created_at
-            _record_code_worker_session_metadata(state, run_result)
-            codeworker_api_projection = CodeWorkerTaskApiProjectionRuntime().build_session_projection(
-                task_id=state.task_id,
-                state=to_jsonable(state),
-                events=[to_jsonable(event) for event in run_result.event_records],
-            )
-            state.metadata["last_code_worker_api_projection"] = codeworker_api_projection.to_dict()
-            response_payload = {
-                "task": to_jsonable(state),
-                "worker_request": to_jsonable(request),
-                "worker_result": to_jsonable(run_result.worker_result),
-                "codeworker_session": codeworker_api_projection.to_dict(),
-                "compact_state": codeworker_api_projection.compact_state.to_dict(),
-                "tool_trace": codeworker_api_projection.tool_trace.to_dict(),
-                "events": [to_jsonable(event) for event in run_result.event_records],
-            }
-            route_contract = CodeWorkerTaskApiContractRuntime().build_report(
-                route_kind=TaskApiRouteKind.POST_CODE_WORKER,
-                task_id=state.task_id,
-                payload=response_payload,
-                events=response_payload["events"],
-                projection=codeworker_api_projection,
-            )
-            response_payload["route_contract"] = route_contract.to_dict()
-            state.metadata["last_code_worker_api_route_contract"] = route_contract.to_dict()
-            response_payload["task"] = to_jsonable(state)
-            persist_events(store, run_result.event_records)
-            store.save_checkpoint(state)
-            status = HTTPStatus.CREATED if run_result.worker_result.ok else HTTPStatus.CONFLICT
-            self._send_json(status, response_payload)
+            self._execute_code_worker_post(store, parts[1], payload)
             return
 
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "browser":
@@ -1794,21 +1709,162 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
 
+    def _execute_code_worker_post(self, store: SQLiteStore, task_id: str, payload: dict[str, Any]) -> None:
+        with _task_lock(task_id):
+            state = store.load_task(task_id)
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            idempotency_key = str(self.headers.get("Idempotency-Key") or payload.get("idempotency_key") or "").strip()
+            if len(idempotency_key) > 200:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "invalid_idempotency_key", "message": "Idempotency-Key exceeds 200 characters."},
+                )
+                return
+            used_keys = state.metadata.setdefault("code_worker_idempotency_keys", [])
+            if idempotency_key and idempotency_key in used_keys:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "duplicate_idempotency_key", "idempotency_key": idempotency_key},
+                )
+                return
+            node_id = str(payload.get("node_id") or state.root_node_id)
+            if node_id not in _task_node_ids(state):
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "invalid_task_node", "task_id": task_id, "node_id": node_id},
+                )
+                return
+            constraints = payload.get("constraints")
+            if not isinstance(constraints, dict):
+                constraints = {}
+            else:
+                constraints = dict(constraints)
+            for key, value in payload.items():
+                if key in {"constraints", "node_id", "idempotency_key"}:
+                    continue
+                constraints.setdefault(key, value)
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints=constraints,
+            )
+            try:
+                run_result = CodeWorkerRuntime(
+                    project_root=PROJECT_ROOT,
+                    workspace_root=tool_workspace_path(),
+                    artifact_root=artifact_root_path(),
+                    permission_store=get_permission_store(),
+                ).run(request)
+            except Exception:  # noqa: BLE001 - keep internal exception details out of API responses.
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "code_worker_failed", "message": "CodeWorker execution failed."},
+                )
+                return
+
+            _attach_artifacts(state, list(run_result.worker_result.artifacts))
+            state.budget.tool_calls += sum(1 for event in run_result.event_records if "tool_result" in event.payload)
+            if run_result.event_records:
+                state.updated_at = run_result.event_records[-1].created_at
+            _record_code_worker_session_metadata(state, run_result)
+            projection_runtime = CodeWorkerTaskApiProjectionRuntime()
+            codeworker_api_projection = projection_runtime.build_session_projection(
+                task_id=state.task_id,
+                state=to_jsonable(state),
+                events=[to_jsonable(event) for event in run_result.event_records],
+            )
+            projection_event = projection_runtime.event_for_projection(
+                codeworker_api_projection,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=node_id,
+            )
+            projected_events = [*run_result.event_records, projection_event]
+            state.metadata["last_code_worker_api_projection"] = codeworker_api_projection.to_dict()
+            response_payload = {
+                "task": to_jsonable(state),
+                "worker_request": to_jsonable(request),
+                "worker_result": to_jsonable(run_result.worker_result),
+                "codeworker_session": codeworker_api_projection.to_dict(),
+                "compact_state": codeworker_api_projection.compact_state.to_dict(),
+                "tool_trace": codeworker_api_projection.tool_trace.to_dict(),
+                "events": [to_jsonable(event) for event in projected_events],
+            }
+            contract_runtime = CodeWorkerTaskApiContractRuntime()
+            route_contract = contract_runtime.build_report(
+                route_kind=TaskApiRouteKind.POST_CODE_WORKER,
+                task_id=state.task_id,
+                payload=response_payload,
+                events=response_payload["events"],
+                projection=codeworker_api_projection,
+            )
+            contract_event = contract_runtime.event_for_report(
+                route_contract,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=node_id,
+                session_id=codeworker_api_projection.session.session_id,
+                worker_request_id=codeworker_api_projection.session.worker_request_id,
+            )
+            persisted_events = [*projected_events, contract_event]
+            response_payload["events"] = [to_jsonable(event) for event in persisted_events]
+            response_payload["route_contract"] = route_contract.to_dict()
+            state.metadata["last_code_worker_api_route_contract"] = route_contract.to_dict()
+            if idempotency_key:
+                used_keys.append(idempotency_key)
+                del used_keys[:-128]
+            state.updated_at = contract_event.created_at
+            response_payload["task"] = to_jsonable(state)
+            persist_events(store, persisted_events)
+            store.save_checkpoint(state)
+            status = (
+                HTTPStatus.CREATED
+                if run_result.worker_result.ok and route_contract.ok
+                else HTTPStatus.CONFLICT
+            )
+            self._send_json(status, response_payload)
+
     def log_message(self, format: str, *args: Any) -> None:
         return
 
     def _read_json_body(self) -> dict[str, Any]:
-        length = int(self.headers.get("Content-Length", "0"))
+        if self.headers.get("Transfer-Encoding"):
+            raise JsonRequestError(HTTPStatus.BAD_REQUEST, "unsupported_transfer_encoding", "Chunked request bodies are not supported.")
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except (TypeError, ValueError) as error:
+            raise JsonRequestError(HTTPStatus.BAD_REQUEST, "invalid_content_length", "Content-Length must be an integer.") from error
+        if length < 0:
+            raise JsonRequestError(HTTPStatus.BAD_REQUEST, "invalid_content_length", "Content-Length cannot be negative.")
         if length <= 0:
             return {}
-        raw = self.rfile.read(length)
-        if not raw:
-            return {}
+        content_type = str(self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if content_type != "application/json" and not content_type.endswith("+json"):
+            raise JsonRequestError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "unsupported_media_type", "Content-Type must be application/json.")
         try:
-            body = json.loads(raw.decode("utf-8"))
-        except json.JSONDecodeError:
-            return {}
-        return body if isinstance(body, dict) else {}
+            max_bytes = max(1024, int(os.environ.get("ZYRA_MAX_JSON_BODY_BYTES", "2097152")))
+        except ValueError:
+            max_bytes = 2097152
+        if length > max_bytes:
+            raise JsonRequestError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "request_body_too_large", f"JSON body exceeds {max_bytes} bytes.")
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            raise JsonRequestError(HTTPStatus.BAD_REQUEST, "incomplete_request_body", "Request body ended before Content-Length bytes were read.")
+        try:
+            text = raw.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as error:
+            raise JsonRequestError(HTTPStatus.BAD_REQUEST, "invalid_utf8", "JSON body must be valid UTF-8.") from error
+        try:
+            body = json.loads(text)
+        except json.JSONDecodeError as error:
+            raise JsonRequestError(HTTPStatus.BAD_REQUEST, "invalid_json", "Request body is not valid JSON.") from error
+        if not isinstance(body, dict):
+            raise JsonRequestError(HTTPStatus.BAD_REQUEST, "json_object_required", "JSON body must be an object.")
+        return body
 
     def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -1820,8 +1876,19 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_cors_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        origin = str(self.headers.get("Origin") or "").strip()
+        allowed_origins = {
+            item.strip()
+            for item in os.environ.get(
+                "ZYRA_CORS_ORIGINS",
+                "http://127.0.0.1:5173,http://localhost:5173",
+            ).split(",")
+            if item.strip() and item.strip() != "*"
+        }
+        if origin and origin in allowed_origins:
+            self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Vary", "Origin")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
 

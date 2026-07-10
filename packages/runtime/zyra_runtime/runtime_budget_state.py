@@ -338,6 +338,164 @@ class RuntimeBudgetState:
                 )
             )
 
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: RuntimeBudgetSnapshot | Mapping[str, Any],
+        *,
+        session_id: str,
+        worker_request_id: str,
+        context_limit_chars: int | None = None,
+        tool_result_limit_chars: int | None = None,
+        model_input_token_limit: int | None = None,
+        model_output_token_limit: int | None = None,
+        retry_limit: int | None = None,
+        owner_unit: str | None = None,
+        runtime_id: str | None = None,
+        disabled: bool | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> "RuntimeBudgetState":
+        raw = snapshot.to_dict() if isinstance(snapshot, RuntimeBudgetSnapshot) else dict(_as_mapping(snapshot))
+        nested = _as_mapping(raw.get("runtime_budget_state"))
+        if nested and not raw.get("limits"):
+            raw = dict(nested)
+        parsed_limits: dict[RuntimeBudgetScope, Mapping[str, Any]] = {}
+        for item in _mapping_items(raw.get("limits")):
+            scope = _enum_or_default(RuntimeBudgetScope, item.get("scope"), None)
+            if scope is not None:
+                parsed_limits[scope] = item
+
+        def current_limit(
+            explicit: int | None,
+            scope: RuntimeBudgetScope,
+            fallback: int,
+            *,
+            allow_zero: bool = False,
+        ) -> int:
+            if explicit is not None:
+                value = _safe_int(explicit, fallback)
+            else:
+                value = _safe_int(_as_mapping(parsed_limits.get(scope)).get("limit"), fallback)
+            return max(0 if allow_zero else 1, value)
+
+        source_session_id = str(raw.get("session_id") or "")
+        source_worker_request_id = str(raw.get("worker_request_id") or "")
+        source_snapshot_id = str(raw.get("snapshot_id") or "")
+        restored_metadata = {
+            **_str_map(raw.get("metadata") if isinstance(raw.get("metadata"), Mapping) else None),
+            **_str_map(metadata),
+            "runtime_budget_restored": "true",
+            "runtime_budget_restored_source_snapshot_id": source_snapshot_id,
+            "runtime_budget_restored_source_session_id": source_session_id,
+            "runtime_budget_restored_source_worker_request_id": source_worker_request_id,
+            "runtime_budget_restored_current_session_id": str(session_id),
+            "runtime_budget_restored_current_worker_request_id": str(worker_request_id),
+        }
+        state = cls(
+            session_id=str(session_id),
+            worker_request_id=str(worker_request_id),
+            context_limit_chars=current_limit(context_limit_chars, RuntimeBudgetScope.CONTEXT_WINDOW, 1),
+            tool_result_limit_chars=current_limit(tool_result_limit_chars, RuntimeBudgetScope.TOOL_RESULTS, 1),
+            model_input_token_limit=current_limit(model_input_token_limit, RuntimeBudgetScope.MODEL_INPUT, 200000),
+            model_output_token_limit=current_limit(model_output_token_limit, RuntimeBudgetScope.MODEL_OUTPUT, 8192),
+            retry_limit=current_limit(retry_limit, RuntimeBudgetScope.RETRY, 3, allow_zero=True),
+            owner_unit=str(owner_unit or raw.get("owner_unit") or M1_02D_OWNER_UNIT),
+            runtime_id=str(runtime_id or raw.get("runtime_id") or CODEWORKER_API_FOUNDATION_RUNTIME_ID),
+            disabled=_safe_bool(raw.get("disabled"), default=False) if disabled is None else bool(disabled),
+            metadata=restored_metadata,
+        )
+        state.context_used_chars = max(
+            0,
+            _safe_int(_as_mapping(parsed_limits.get(RuntimeBudgetScope.CONTEXT_WINDOW)).get("used"), 0),
+        )
+        state.tool_result_chars = max(
+            0,
+            _safe_int(_as_mapping(parsed_limits.get(RuntimeBudgetScope.TOOL_RESULTS)).get("used"), 0),
+        )
+        state.model_input_tokens = max(
+            0,
+            _safe_int(
+                raw.get("input_tokens"),
+                _safe_int(_as_mapping(parsed_limits.get(RuntimeBudgetScope.MODEL_INPUT)).get("used"), 0),
+            ),
+        )
+        state.model_output_tokens = max(
+            0,
+            _safe_int(
+                raw.get("output_tokens"),
+                _safe_int(_as_mapping(parsed_limits.get(RuntimeBudgetScope.MODEL_OUTPUT)).get("used"), 0),
+            ),
+        )
+        state.retry_count = max(
+            0,
+            _safe_int(
+                raw.get("retry_count"),
+                _safe_int(_as_mapping(parsed_limits.get(RuntimeBudgetScope.RETRY)).get("used"), 0),
+            ),
+        )
+        state.compact_count = max(0, _safe_int(raw.get("compact_count"), 0))
+        state.estimated_cost_usd = max(0.0, _safe_float(raw.get("estimated_cost_usd"), 0.0))
+        state._mutations = []
+        for item in _mapping_items(raw.get("mutations")):
+            kind = _enum_or_default(RuntimeBudgetEventKind, item.get("kind"), RuntimeBudgetEventKind.VALIDATION)
+            scope = _enum_or_default(RuntimeBudgetScope, item.get("scope"), RuntimeBudgetScope.SESSION)
+            state._mutations.append(
+                RuntimeBudgetMutation(
+                    mutation_id=str(item.get("mutation_id") or new_id("budget_mut")),
+                    kind=kind,
+                    scope=scope,
+                    used_delta=_safe_int(item.get("used_delta"), 0),
+                    input_tokens_delta=_safe_int(item.get("input_tokens_delta"), 0),
+                    output_tokens_delta=_safe_int(item.get("output_tokens_delta"), 0),
+                    cost_delta_usd=_safe_float(item.get("cost_delta_usd"), 0.0),
+                    retry_delta=_safe_int(item.get("retry_delta"), 0),
+                    compact_delta=_safe_int(item.get("compact_delta"), 0),
+                    reason=str(item.get("reason") or "restored_runtime_budget_mutation"),
+                    turn_index=max(0, _safe_int(item.get("turn_index"), 0)),
+                    tool_call_id=str(item.get("tool_call_id") or ""),
+                    artifact_id=str(item.get("artifact_id") or ""),
+                    metadata={**_str_map(item.get("metadata") if isinstance(item.get("metadata"), Mapping) else None), "restored": "true"},
+                    created_at=str(item.get("created_at") or now_iso()),
+                )
+            )
+        state._findings = []
+        for item in _mapping_items(raw.get("findings")):
+            scope_value = item.get("scope")
+            state._findings.append(
+                RuntimeBudgetFinding(
+                    code=str(item.get("code") or "RESTORED_RUNTIME_BUDGET_FINDING"),
+                    severity=_enum_or_default(
+                        RuntimeBudgetSeverity,
+                        item.get("severity"),
+                        RuntimeBudgetSeverity.WARNING,
+                    ),
+                    surface=_enum_or_default(
+                        RuntimeBudgetSurface,
+                        item.get("surface"),
+                        RuntimeBudgetSurface.STATE,
+                    ),
+                    message=str(item.get("message") or "Restored runtime budget finding."),
+                    scope=(
+                        _enum_or_default(RuntimeBudgetScope, scope_value, None)
+                        if scope_value not in {None, "", "None"}
+                        else None
+                    ),
+                    metadata={**_str_map(item.get("metadata") if isinstance(item.get("metadata"), Mapping) else None), "restored": "true"},
+                )
+            )
+        if state.disabled and not any(finding.code == "RUNTIME_BUDGET_STATE_DISABLED" for finding in state._findings):
+            state._findings.append(
+                RuntimeBudgetFinding(
+                    code="RUNTIME_BUDGET_STATE_DISABLED",
+                    severity=RuntimeBudgetSeverity.BLOCKER,
+                    surface=RuntimeBudgetSurface.STATE,
+                    scope=RuntimeBudgetScope.SESSION,
+                    message="Restored RuntimeBudgetState remains disabled in the current scope.",
+                    metadata={"restored": "true"},
+                )
+            )
+        return state
+
     @property
     def mutations(self) -> tuple[RuntimeBudgetMutation, ...]:
         return tuple(self._mutations)
@@ -863,6 +1021,44 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+        return parsed if parsed == parsed and parsed not in {float("inf"), float("-inf")} else default
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _safe_bool(value: Any, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    normalized = str(value or "").strip().lower()
+    if normalized in {"true", "1", "yes", "on", "enabled"}:
+        return True
+    if normalized in {"false", "0", "no", "off", "disabled"}:
+        return False
+    return default
+
+
+def _enum_or_default(enum_type: type[StrEnum], value: Any, default: Any) -> Any:
+    try:
+        return enum_type(str(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _mapping_items(value: Any) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        return ()
+    return tuple(item for item in value if isinstance(item, Mapping))
 
 
 def _str_map(values: Mapping[str, Any] | None) -> dict[str, str]:

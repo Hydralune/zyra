@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import json
+import os
+from dataclasses import replace
+from typing import Protocol, runtime_checkable
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Mapping, Sequence
@@ -224,6 +231,8 @@ class ModelStreamReport:
     stop_reason: str = ""
     error_kind: ApiErrorKind = ApiErrorKind.NONE
     disabled: bool = False
+    tool_calls: tuple[dict[str, Any], ...] = ()
+    transport_id: str = ""
     fallback_used: bool = False
     created_at: str = field(default_factory=now_iso)
 
@@ -264,6 +273,8 @@ class ModelStreamReport:
             "fallback_used": self.fallback_used,
             "envelope": self.envelope.to_dict(),
             "frames": [frame.to_dict() for frame in self.frames],
+            "tool_calls": [dict(tool_call) for tool_call in self.tool_calls],
+            "transport_id": self.transport_id,
             "frame_count": self.frame_count,
             "error_frame_count": self.error_frame_count,
             "usage": self.usage.to_dict(),
@@ -429,6 +440,123 @@ class ApiRetryReport:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ModelTransportResponse:
+    assistant_message: str = ""
+    tool_calls: tuple[dict[str, Any], ...] = ()
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    stop_reason: str = "end_turn"
+    raw_events: tuple[dict[str, Any], ...] = ()
+
+
+class ModelTransportError(RuntimeError):
+    def __init__(self, message: str, *, error_kind: ApiErrorKind = ApiErrorKind.UNKNOWN) -> None:
+        super().__init__(message)
+        self.error_kind = error_kind
+
+
+@runtime_checkable
+class ModelTransport(Protocol):
+    @property
+    def transport_id(self) -> str: ...
+
+    def invoke(
+        self,
+        envelope: ModelRequestEnvelope,
+        *,
+        constraints: Mapping[str, Any],
+    ) -> ModelTransportResponse: ...
+
+
+class InProcessHermeticModelTransport:
+    """Explicit deterministic transport for hermetic tests and offline runs."""
+
+    transport_id = "in_process_hermetic"
+
+    def invoke(
+        self,
+        envelope: ModelRequestEnvelope,
+        *,
+        constraints: Mapping[str, Any],
+    ) -> ModelTransportResponse:
+        assistant_message = str(constraints.get("hermetic_assistant_message") or _assistant_message(envelope))
+        tool_calls = tuple(
+            dict(item)
+            for item in _as_mapping_sequence(constraints.get("hermetic_tool_calls"))
+        )
+        return ModelTransportResponse(
+            assistant_message=assistant_message,
+            tool_calls=tool_calls,
+            input_tokens=envelope.input_tokens_estimate,
+            output_tokens=max(1, len(assistant_message) // 4) if assistant_message else 0,
+            stop_reason="tool_use" if tool_calls else "end_turn",
+        )
+
+
+InProcessModelTransport = InProcessHermeticModelTransport
+
+
+class HttpSseModelTransport:
+    """OpenAI-compatible HTTP/SSE transport backed only by the standard library."""
+
+    transport_id = "http_sse"
+
+    def __init__(self, *, base_url: str, token: str = "", timeout_seconds: float = 60.0) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+        self.timeout_seconds = max(0.1, float(timeout_seconds))
+
+    def invoke(
+        self,
+        envelope: ModelRequestEnvelope,
+        *,
+        constraints: Mapping[str, Any],
+    ) -> ModelTransportResponse:
+        endpoint = self.base_url
+        if not endpoint.endswith("/chat/completions") and not endpoint.endswith("/messages"):
+            endpoint = f"{endpoint}/v1/chat/completions"
+        payload = {
+            "model": envelope.model,
+            "messages": [_transport_message(message) for message in envelope.messages],
+            "stream": True,
+        }
+        headers = {
+            "Accept": "text/event-stream, application/json",
+            "Content-Type": "application/json",
+        }
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+            headers["x-api-key"] = self.token
+        request = Request(
+            endpoint,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                content_type = str(response.headers.get("Content-Type") or "").lower()
+                if "text/event-stream" in content_type:
+                    events = _read_sse_events(response)
+                else:
+                    raw = response.read().decode("utf-8", errors="replace")
+                    events = [json.loads(raw)] if raw.strip() else []
+        except HTTPError as error:
+            raise ModelTransportError(
+                f"model HTTP request failed with status {error.code}",
+                error_kind=_http_error_kind(error.code),
+            ) from error
+        except (URLError, TimeoutError, OSError, json.JSONDecodeError) as error:
+            raise ModelTransportError(
+                f"model transport failed: {type(error).__name__}: {error}",
+                error_kind=_enum_error_kind("network_error"),
+            ) from error
+        return _transport_response_from_events(events, envelope=envelope)
+
+
 class ModelStreamRuntime:
     def __init__(
         self,
@@ -587,25 +715,74 @@ class ModelStreamRuntime:
                 stop_reason=str(requested_error),
                 error_kind=requested_error,
             )
-        assistant = _assistant_message(envelope)
+        try:
+            transport = _resolve_model_transport(constraints)
+            transport_response = transport.invoke(envelope, constraints=constraints)
+        except ModelTransportError as error:
+            frames.append(
+                _frame(
+                    ModelStreamFrameKind.STREAM_ERROR,
+                    seq,
+                    envelope,
+                    error_kind=error.error_kind,
+                    metadata={"transport_error": str(error)},
+                )
+            )
+            usage = ModelUsagePatch(
+                input_tokens=envelope.input_tokens_estimate,
+                output_tokens=0,
+                estimated_cost_usd=_estimate_cost(envelope.input_tokens_estimate, 0),
+                metadata={"partial": "true", "transport_failed": "true"},
+            )
+            budget_state.record_model_usage(
+                input_tokens=usage.input_tokens,
+                output_tokens=0,
+                cost_usd=usage.estimated_cost_usd,
+                turn_index=envelope.turn_index,
+                model=envelope.model,
+                request_id=envelope.request_id,
+                metadata={"transport_error": str(error)},
+            )
+            return ModelStreamReport(
+                report_id=new_id("model_stream"),
+                owner_unit=self.owner_unit,
+                runtime_id=self.runtime_id,
+                envelope=envelope,
+                status=ModelStreamStatus.ERRORED,
+                frames=tuple(frames),
+                usage=usage,
+                findings=tuple(findings),
+                stop_reason=str(error.error_kind),
+                error_kind=error.error_kind,
+                transport_id="unconfigured_or_failed",
+            )
+        assistant = transport_response.assistant_message
+        tool_calls = tuple(dict(item) for item in transport_response.tool_calls)
         for chunk in _chunks(assistant, 80):
             frames.append(_frame(ModelStreamFrameKind.CONTENT_DELTA, seq, envelope, delta=chunk))
             seq += 1
-        output_tokens = max(1, len(assistant) // 4)
+        output_tokens = max(0, transport_response.output_tokens)
+        if not output_tokens and assistant:
+            output_tokens = max(1, len(assistant) // 4)
         usage = ModelUsagePatch(
-            input_tokens=envelope.input_tokens_estimate,
+            input_tokens=max(0, transport_response.input_tokens) or envelope.input_tokens_estimate,
             output_tokens=output_tokens,
-            cache_read_tokens=max(0, envelope.input_tokens_estimate // 10),
-            cache_write_tokens=max(0, envelope.input_tokens_estimate // 20),
+            cache_read_tokens=max(0, transport_response.cache_read_tokens),
+            cache_write_tokens=max(0, transport_response.cache_write_tokens),
             estimated_cost_usd=_estimate_cost(envelope.input_tokens_estimate, output_tokens),
-            metadata={"prompt_cache": "deterministic"},
+            metadata={"transport_id": transport.transport_id},
         )
         frames.append(
             _frame(
                 ModelStreamFrameKind.MESSAGE_DELTA_PATCH,
                 seq,
                 envelope,
-                metadata={"patch": "assistant_message_content", "chars": str(len(assistant))},
+                metadata={
+                    "patch": "assistant_message_content",
+                    "chars": str(len(assistant)),
+                    "transport_id": transport.transport_id,
+                    "tool_calls": [dict(item) for item in tool_calls],
+                },
             )
         )
         seq += 1
@@ -623,7 +800,15 @@ class ModelStreamRuntime:
             )
         )
         seq += 1
-        frames.append(_frame(ModelStreamFrameKind.MESSAGE_STOP, seq, envelope, stop_reason="end_turn"))
+        frames.append(
+            _frame(
+                ModelStreamFrameKind.MESSAGE_STOP,
+                seq,
+                envelope,
+                stop_reason=transport_response.stop_reason or ("tool_use" if tool_calls else "end_turn"),
+                metadata={"transport_id": transport.transport_id},
+            )
+        )
         budget_state.record_model_usage(
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
@@ -643,7 +828,9 @@ class ModelStreamRuntime:
             usage=usage,
             findings=tuple(findings),
             assistant_message=assistant,
-            stop_reason="end_turn",
+            stop_reason=transport_response.stop_reason or ("tool_use" if tool_calls else "end_turn"),
+            tool_calls=tool_calls,
+            transport_id=transport.transport_id,
         )
 
     def events_for_report(
@@ -705,6 +892,134 @@ class ApiRetryRuntime:
         self.runtime_id = runtime_id
         self.disabled = disabled
         self.policy = policy or ApiRetryPolicy()
+
+    def execute(
+        self,
+        *,
+        stream_runtime: ModelStreamRuntime,
+        envelope: ModelRequestEnvelope,
+        budget_state: RuntimeBudgetState,
+        constraints: Mapping[str, Any] | None = None,
+    ) -> tuple[ModelStreamReport, ApiRetryReport]:
+        constraints = dict(constraints or {})
+        policy = self._policy_from_constraints(constraints)
+        attempts: list[ApiRetryAttempt] = []
+        findings: list[ModelApiFinding] = []
+        current_envelope = envelope
+        final_report: ModelStreamReport | None = None
+        used_fallback = False
+        # Policy max_attempts is the retry allowance after the initial request.
+        max_attempts = 1 + max(0, policy.max_attempts)
+        for attempt_index in range(1, max_attempts + 1):
+            final_report = stream_runtime.stream(
+                envelope=current_envelope,
+                budget_state=budget_state,
+                constraints=constraints,
+            )
+            if final_report.ok:
+                attempts.append(
+                    ApiRetryAttempt(
+                        attempt_id=new_id("api_attempt"),
+                        attempt_index=attempt_index,
+                        model=current_envelope.model,
+                        decision=ApiRetryDecisionKind.NO_RETRY,
+                        error_kind=ApiErrorKind.NONE,
+                        retryable=False,
+                        metadata={"stream_report_id": final_report.report_id, "executed": "true"},
+                    )
+                )
+                status = ApiRetryStatus.NOT_NEEDED if attempt_index == 1 else ApiRetryStatus.RETRIED
+                if used_fallback:
+                    status = ApiRetryStatus.FALLBACK_SELECTED
+                return final_report, ApiRetryReport(
+                    report_id=new_id("api_retry"),
+                    owner_unit=self.owner_unit,
+                    runtime_id=self.runtime_id,
+                    session_id=envelope.session_id,
+                    worker_request_id=envelope.worker_request_id,
+                    status=status,
+                    policy=policy,
+                    attempts=tuple(attempts),
+                    findings=tuple(findings),
+                    final_model=current_envelope.model,
+                    recovered=attempt_index > 1,
+                )
+            decision = self._decision_for_error(final_report.error_kind, policy)
+            error_token = str(final_report.error_kind).split(".")[-1].lower()
+            if error_token in {"model_unavailable", "service_unavailable", "server_error"}:
+                decision = (
+                    ApiRetryDecisionKind.RETRY_FALLBACK_MODEL
+                    if policy.fallback_models
+                    else ApiRetryDecisionKind.RETRY_SAME_MODEL
+                )
+            retryable = decision in {
+                ApiRetryDecisionKind.RETRY_SAME_MODEL,
+                ApiRetryDecisionKind.RETRY_FALLBACK_MODEL,
+                ApiRetryDecisionKind.REDUCE_PROMPT_AND_RETRY,
+            }
+            fallback_model = ""
+            if decision == ApiRetryDecisionKind.RETRY_FALLBACK_MODEL and policy.fallback_models:
+                fallback_model = policy.fallback_models[min(attempt_index - 1, len(policy.fallback_models) - 1)]
+            attempt = ApiRetryAttempt(
+                attempt_id=new_id("api_attempt"),
+                attempt_index=attempt_index,
+                model=current_envelope.model,
+                decision=decision,
+                error_kind=final_report.error_kind,
+                retryable=retryable,
+                fallback_model=fallback_model,
+                delay_ms=_retry_delay_ms(final_report.error_kind),
+                metadata={"stream_report_id": final_report.report_id, "executed": "true"},
+            )
+            attempts.append(attempt)
+            if not retryable or attempt_index >= max_attempts:
+                break
+            budget_state.record_retry(
+                reason=str(final_report.error_kind),
+                turn_index=envelope.turn_index,
+                attempt_id=attempt.attempt_id,
+                retryable=True,
+                metadata={"decision": str(decision), "fallback_model": fallback_model, "executed": "true"},
+            )
+            next_messages = current_envelope.messages
+            if decision == ApiRetryDecisionKind.REDUCE_PROMPT_AND_RETRY and len(next_messages) > 1:
+                next_messages = next_messages[len(next_messages) // 2 :]
+            if fallback_model:
+                used_fallback = True
+            current_envelope = replace(
+                current_envelope,
+                request_id=new_id("model_req"),
+                model=fallback_model or current_envelope.model,
+                messages=next_messages,
+                metadata={
+                    **dict(current_envelope.metadata),
+                    "retry_attempt": str(attempt_index + 1),
+                    "retry_parent_request_id": current_envelope.request_id,
+                },
+            )
+        assert final_report is not None
+        findings.append(
+            ModelApiFinding(
+                code="API_RETRY_EXHAUSTED",
+                severity=ModelApiSeverity.BLOCKER,
+                surface=ModelApiSurface.RETRY,
+                message="All executed model API attempts failed.",
+                metadata={"attempt_count": str(len(attempts))},
+            )
+        )
+        return final_report, ApiRetryReport(
+            report_id=new_id("api_retry"),
+            owner_unit=self.owner_unit,
+            runtime_id=self.runtime_id,
+            session_id=envelope.session_id,
+            worker_request_id=envelope.worker_request_id,
+            status=ApiRetryStatus.EXHAUSTED,
+            policy=policy,
+            attempts=tuple(attempts),
+            findings=tuple(findings),
+            final_model=current_envelope.model,
+            recovered=False,
+        )
 
     def build_report(
         self,
@@ -794,25 +1109,19 @@ class ApiRetryRuntime:
                 metadata={"stream_report_id": stream_report.report_id},
             )
         )
-        if retryable:
-            budget_state.record_retry(
-                reason=str(stream_report.error_kind),
-                turn_index=stream_report.envelope.turn_index,
-                attempt_id=attempts[-1].attempt_id,
-                retryable=True,
-                metadata={"decision": str(decision), "fallback_model": fallback_model},
+        recovered = False
+        findings.append(
+            ModelApiFinding(
+                code="API_RETRY_NOT_EXECUTED",
+                severity=ModelApiSeverity.BLOCKER,
+                surface=ModelApiSurface.RETRY,
+                message=(
+                    "build_report only describes the retry decision; use ApiRetryRuntime.execute "
+                    "to perform attempts before reporting recovery."
+                ),
+                metadata={"decision": str(decision), "retryable": str(retryable).lower()},
             )
-        recovered = retryable and (decision != ApiRetryDecisionKind.FAIL_FAST)
-        if not recovered:
-            findings.append(
-                ModelApiFinding(
-                    code="API_ERROR_NOT_RECOVERED",
-                    severity=ModelApiSeverity.BLOCKER,
-                    surface=ModelApiSurface.RETRY,
-                    message=f"API error {stream_report.error_kind} was not recoverable by retry policy.",
-                    metadata={"decision": str(decision)},
-                )
-            )
+        )
         status = ApiRetryStatus.RETRIED if retryable else ApiRetryStatus.EXHAUSTED
         if fallback_model:
             status = ApiRetryStatus.FALLBACK_SELECTED
@@ -1012,6 +1321,158 @@ def _assistant_message(envelope: ModelRequestEnvelope) -> str:
         f"CodeWorker model stream turn {envelope.turn_index} accepted "
         f"{envelope.tool_call_count} planned tool call(s) with {envelope.context_chars} context char(s)."
     )
+
+
+def model_transport_from_environment(constraints: Mapping[str, Any] | None = None) -> ModelTransport:
+    constraints = dict(constraints or {})
+    configured = constraints.get("model_transport")
+    if isinstance(configured, ModelTransport):
+        return configured
+    transport_name = str(configured or constraints.get("model_transport_kind") or os.environ.get("ZYRA_MODEL_TRANSPORT") or "").strip().lower()
+    if transport_name in {"in_process", "in-process", "hermetic", "in_process_hermetic"} or _truthy(
+        constraints.get("hermetic_model_transport"), default=False
+    ):
+        return InProcessModelTransport()
+    base_url = str(
+        constraints.get("model_api_base_url")
+        or constraints.get("model_api_url")
+        or os.environ.get("ZYRA_MODEL_API_URL")
+        or ""
+    ).strip()
+    if transport_name in {"http", "http_sse", "sse"} or base_url:
+        if not base_url:
+            raise ModelTransportError("HTTP/SSE model transport requires model_api_base_url or ZYRA_MODEL_API_URL")
+        token = str(constraints.get("model_api_token") or os.environ.get("ZYRA_MODEL_API_TOKEN") or "")
+        timeout_value = constraints.get("model_api_timeout_seconds") or os.environ.get("ZYRA_MODEL_API_TIMEOUT_SECONDS") or 60
+        try:
+            timeout_seconds = float(timeout_value)
+        except (TypeError, ValueError):
+            timeout_seconds = 60.0
+        return HttpSseModelTransport(base_url=base_url, token=token, timeout_seconds=timeout_seconds)
+    # The default is explicit in its identity and remains hermetic; configuring
+    # an external endpoint always selects the HTTP/SSE transport above.
+    return InProcessModelTransport()
+
+
+def _resolve_model_transport(constraints: Mapping[str, Any]) -> ModelTransport:
+    return model_transport_from_environment(constraints)
+
+
+def _transport_message(message: Any) -> dict[str, Any]:
+    if isinstance(message, Mapping):
+        return {
+            "role": str(message.get("role") or "user"),
+            "content": message.get("content") if message.get("content") is not None else "",
+            **({"tool_call_id": message.get("tool_call_id")} if message.get("tool_call_id") else {}),
+        }
+    return {"role": "user", "content": str(message)}
+
+
+def _read_sse_events(response: Any) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for raw_line in response:
+        line = raw_line.decode("utf-8", errors="replace").strip()
+        if not line or line.startswith(":") or not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        payload = json.loads(data)
+        if isinstance(payload, Mapping):
+            events.append(dict(payload))
+    return events
+
+
+def _transport_response_from_events(
+    events: Sequence[Mapping[str, Any]],
+    *,
+    envelope: ModelRequestEnvelope,
+) -> ModelTransportResponse:
+    content_parts: list[str] = []
+    tool_calls: list[dict[str, Any]] = []
+    usage: dict[str, int] = {}
+    stop_reason = ""
+    for event in events:
+        choices = event.get("choices")
+        if isinstance(choices, Sequence) and not isinstance(choices, (str, bytes)):
+            for choice in choices:
+                if not isinstance(choice, Mapping):
+                    continue
+                delta = choice.get("delta") if isinstance(choice.get("delta"), Mapping) else choice.get("message")
+                if isinstance(delta, Mapping):
+                    content = delta.get("content")
+                    if isinstance(content, str):
+                        content_parts.append(content)
+                    calls = delta.get("tool_calls")
+                    if isinstance(calls, Sequence) and not isinstance(calls, (str, bytes)):
+                        tool_calls.extend(dict(item) for item in calls if isinstance(item, Mapping))
+                stop_reason = str(choice.get("finish_reason") or stop_reason)
+        event_type = str(event.get("type") or "")
+        delta_payload = event.get("delta")
+        if event_type == "content_block_delta" and isinstance(delta_payload, Mapping):
+            text = delta_payload.get("text")
+            if isinstance(text, str):
+                content_parts.append(text)
+        content_block = event.get("content_block")
+        if isinstance(content_block, Mapping) and str(content_block.get("type") or "") == "tool_use":
+            tool_calls.append(dict(content_block))
+        event_usage = event.get("usage")
+        if isinstance(event_usage, Mapping):
+            for key, value in event_usage.items():
+                try:
+                    usage[str(key)] = int(value)
+                except (TypeError, ValueError):
+                    continue
+        message = event.get("message")
+        if isinstance(message, Mapping) and isinstance(message.get("usage"), Mapping):
+            for key, value in message["usage"].items():
+                try:
+                    usage[str(key)] = int(value)
+                except (TypeError, ValueError):
+                    continue
+        stop_reason = str(event.get("stop_reason") or stop_reason)
+    assistant_message = "".join(content_parts)
+    return ModelTransportResponse(
+        assistant_message=assistant_message,
+        tool_calls=tuple(tool_calls),
+        input_tokens=usage.get("input_tokens", usage.get("prompt_tokens", envelope.input_tokens_estimate)),
+        output_tokens=usage.get("output_tokens", usage.get("completion_tokens", max(0, len(assistant_message) // 4))),
+        cache_read_tokens=usage.get("cache_read_input_tokens", usage.get("cache_read_tokens", 0)),
+        cache_write_tokens=usage.get("cache_creation_input_tokens", usage.get("cache_write_tokens", 0)),
+        stop_reason=stop_reason or ("tool_use" if tool_calls else "end_turn"),
+        raw_events=tuple(dict(event) for event in events),
+    )
+
+
+def _as_mapping_sequence(value: Any) -> list[Mapping[str, Any]]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    return [item for item in value if isinstance(item, Mapping)]
+
+
+def _enum_error_kind(value: str) -> ApiErrorKind:
+    normalized = value.strip().lower()
+    for member in ApiErrorKind:
+        if member.name.lower() == normalized or str(member).split(".")[-1].lower() == normalized or str(member.value).lower() == normalized:
+            return member
+    return ApiErrorKind.UNKNOWN
+
+
+def _http_error_kind(status_code: int) -> ApiErrorKind:
+    if status_code == 429:
+        return _enum_error_kind("rate_limit")
+    if status_code in {408, 504}:
+        return _enum_error_kind("timeout")
+    if status_code in {401, 403}:
+        return _enum_error_kind("authentication")
+    if status_code == 503:
+        unavailable = _enum_error_kind("model_unavailable")
+        if unavailable != ApiErrorKind.UNKNOWN:
+            return unavailable
+        return _enum_error_kind("server_error")
+    if status_code >= 500:
+        return _enum_error_kind("server_error")
+    return ApiErrorKind.UNKNOWN
 
 
 def _chunks(text: str, size: int) -> list[str]:

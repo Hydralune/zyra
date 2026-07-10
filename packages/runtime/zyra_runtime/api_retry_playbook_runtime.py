@@ -73,12 +73,13 @@ class ApiRetryPlaybookDecision:
     fallback_used: bool
     budget_retry_count: int
     recovered: bool
+    stream_succeeded: bool = False
     metadata: dict[str, str] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
         if self.expected_decision == ApiRetryDecisionKind.NO_RETRY:
-            return self.actual_decision == str(ApiRetryDecisionKind.NO_RETRY) and self.recovered
+            return self.actual_decision == str(ApiRetryDecisionKind.NO_RETRY) and self.stream_succeeded
         decision_ok = self.actual_decision == str(self.expected_decision)
         retryable_ok = self.expected_retryable == self.actual_retryable
         fallback_ok = (not self.fallback_required) or self.fallback_used
@@ -100,6 +101,7 @@ class ApiRetryPlaybookDecision:
             "fallback_used": self.fallback_used,
             "budget_retry_count": self.budget_retry_count,
             "recovered": self.recovered,
+            "stream_succeeded": self.stream_succeeded,
             "ok": self.ok,
             "metadata": dict(self.metadata),
         }
@@ -251,9 +253,22 @@ class ApiRetryPlaybookRuntime:
                     )
                 )
                 continue
-            actual_attempt = retry_report.attempts[0] if retry_report.attempts else None
+            actual_attempt = next(
+                (
+                    attempt
+                    for attempt in retry_report.attempts
+                    if attempt.metadata.get("stream_report_id") == stream_report.report_id
+                ),
+                None,
+            )
             actual_decision = str(actual_attempt.decision) if actual_attempt else ""
             actual_retryable = bool(actual_attempt.retryable) if actual_attempt else False
+            no_retry_success = bool(
+                stream_report.ok
+                and stream_report.error_kind == ApiErrorKind.NONE
+                and actual_decision == str(ApiRetryDecisionKind.NO_RETRY)
+                and not actual_retryable
+            )
             decision = ApiRetryPlaybookDecision(
                 decision_id=new_id("retry_playbook_decision"),
                 stream_report_id=stream_report.report_id,
@@ -264,9 +279,10 @@ class ApiRetryPlaybookRuntime:
                 expected_retryable=rule.retryable,
                 actual_retryable=actual_retryable,
                 fallback_required=rule.fallback_required,
-                fallback_used=retry_report.fallback_used,
+                fallback_used=bool(actual_attempt.fallback_selected) if actual_attempt else False,
                 budget_retry_count=budget_snapshot.retry_count,
                 recovered=retry_report.recovered,
+                stream_succeeded=no_retry_success,
                 metadata={
                     "route": rule.route,
                     "provider_selected_model": str(getattr(getattr(provider_report, "route", None), "selected_model", "")),

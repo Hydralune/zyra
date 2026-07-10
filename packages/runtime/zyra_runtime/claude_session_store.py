@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import dataclass, field
+import os
+import threading
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -34,6 +37,7 @@ class CodeWorkerSessionStoreRecordType(StrEnum):
     QUERY_ENTRY_BLOCKED = "query_entry_blocked"
     QUERY_ENGINE_ATTACHED = "query_engine_attached"
     SNAPSHOT_MATERIALIZED = "snapshot_materialized"
+    RUNTIME_STATE_CHECKPOINT = "runtime_state_checkpoint"
     FAILURE = "failure"
 
 
@@ -231,6 +235,51 @@ class CodeWorkerSessionStoreReplay:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class CodeWorkerRuntimeStateLoad:
+    ok: bool
+    found: bool
+    session_id: str
+    run_id: str
+    task_id: str
+    worker_request_id: str
+    path: str
+    runtime_state: dict[str, Any] = field(default_factory=dict)
+    causal_receipt: dict[str, Any] = field(default_factory=dict)
+    sequence: int = 0
+    error: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def metadata_values(self) -> dict[str, str]:
+        return {
+            "runtime_state_load_ok": str(self.ok).lower(),
+            "runtime_state_load_found": str(self.found).lower(),
+            "runtime_state_load_session_id": self.session_id,
+            "runtime_state_load_run_id": self.run_id,
+            "runtime_state_load_task_id": self.task_id,
+            "runtime_state_load_worker_request_id": self.worker_request_id,
+            "runtime_state_load_sequence": str(self.sequence),
+            "runtime_state_load_path": self.path,
+            "runtime_state_load_error": self.error,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "found": self.found,
+            "session_id": self.session_id,
+            "run_id": self.run_id,
+            "task_id": self.task_id,
+            "worker_request_id": self.worker_request_id,
+            "path": self.path,
+            "runtime_state": to_jsonable(self.runtime_state),
+            "causal_receipt": to_jsonable(self.causal_receipt),
+            "sequence": self.sequence,
+            "error": self.error,
+            "metadata": to_jsonable(self.metadata),
+        }
+
+
 class CodeWorkerSessionStore:
     """Append-only store for the pre-query CodeWorker session seed.
 
@@ -313,6 +362,7 @@ class CodeWorkerSessionStore:
         records: Sequence[CodeWorkerSessionStoreRecord],
         *,
         disabled: bool = False,
+        expected_previous_sequence: int | None = None,
     ) -> CodeWorkerSessionStoreReceipt:
         session_id = records[0].session_id if records else ""
         worker_request_id = records[0].worker_request_id if records else ""
@@ -335,14 +385,54 @@ class CodeWorkerSessionStore:
                 appended_records=(),
                 error="no_session_records_to_append",
             )
+        if any(record.session_id != session_id for record in records):
+            return CodeWorkerSessionStoreReceipt(
+                ok=False,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                path=str(path),
+                appended_records=(),
+                error="session_record_identity_mismatch",
+            )
+        if any(record.worker_request_id != worker_request_id for record in records):
+            return CodeWorkerSessionStoreReceipt(
+                ok=False,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                path=str(path),
+                appended_records=(),
+                error="request_record_identity_mismatch",
+            )
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("a", encoding="utf-8") as handle:
-                for record in records:
-                    handle.write(json.dumps(record.to_dict(), ensure_ascii=False, sort_keys=True))
-                    handle.write("\n")
-            self._write_request_index(records)
-        except OSError as error:
+            with _path_lock(path):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                existing_records = _read_store_records_unlocked(path)
+                previous_sequence = max((record.sequence for record in existing_records), default=0)
+                if expected_previous_sequence is not None and previous_sequence != expected_previous_sequence:
+                    return CodeWorkerSessionStoreReceipt(
+                        ok=False,
+                        session_id=session_id,
+                        worker_request_id=worker_request_id,
+                        path=str(path),
+                        appended_records=(),
+                        error="session_sequence_conflict",
+                        metadata={
+                            "expected_previous_sequence": expected_previous_sequence,
+                            "actual_previous_sequence": previous_sequence,
+                        },
+                    )
+                normalized_records = tuple(
+                    replace(record, sequence=previous_sequence + offset)
+                    for offset, record in enumerate(records, start=1)
+                )
+                with path.open("a", encoding="utf-8") as handle:
+                    for record in normalized_records:
+                        handle.write(json.dumps(record.to_dict(), ensure_ascii=False, sort_keys=True))
+                        handle.write("\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                self._write_request_index(normalized_records)
+        except (OSError, json.JSONDecodeError, ValueError) as error:
             return CodeWorkerSessionStoreReceipt(
                 ok=False,
                 session_id=session_id,
@@ -357,8 +447,182 @@ class CodeWorkerSessionStore:
             session_id=session_id,
             worker_request_id=worker_request_id,
             path=str(path),
-            appended_records=tuple(records),
+            appended_records=normalized_records,
             metadata={"source": self.source.to_dict()},
+        )
+
+    def append_runtime_state(
+        self,
+        *,
+        session_id: str,
+        worker_request_id: str,
+        run_id: str,
+        task_id: str,
+        runtime_state: Mapping[str, Any],
+        causal_receipt: Mapping[str, Any] | None = None,
+        expected_previous_sequence: int | None = None,
+        disabled: bool = False,
+    ) -> CodeWorkerSessionStoreReceipt:
+        path = self.session_path(session_id) if session_id else self.root / "missing-session.jsonl"
+        if not session_id or not worker_request_id or not run_id or not task_id:
+            return CodeWorkerSessionStoreReceipt(
+                ok=False,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                path=str(path),
+                appended_records=(),
+                error="runtime_state_identity_missing",
+            )
+        record = self._record(
+            record_type=CodeWorkerSessionStoreRecordType.RUNTIME_STATE_CHECKPOINT,
+            session_id=session_id,
+            worker_request_id=worker_request_id,
+            run_id=run_id,
+            task_id=task_id,
+            sequence=0,
+            payload={
+                "schema_version": 1,
+                "session_id": session_id,
+                "worker_request_id": worker_request_id,
+                "run_id": run_id,
+                "task_id": task_id,
+                "runtime_state": dict(runtime_state),
+                "causal_receipt": dict(causal_receipt or {}),
+                "checkpointed_at": now_iso(),
+            },
+            metadata={
+                "runtime_state_checkpoint": True,
+                "causal_receipt_present": bool(causal_receipt),
+            },
+        )
+        return self.append_records(
+            (record,),
+            disabled=disabled,
+            expected_previous_sequence=expected_previous_sequence,
+        )
+
+    def load_runtime_state(
+        self,
+        *,
+        session_id: str,
+        run_id: str,
+        task_id: str,
+    ) -> CodeWorkerRuntimeStateLoad:
+        path = self.session_path(session_id) if session_id else self.root / "missing-session.jsonl"
+        if not session_id or not run_id or not task_id:
+            return CodeWorkerRuntimeStateLoad(
+                ok=False,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id="",
+                path=str(path),
+                error="runtime_state_identity_missing",
+            )
+        if not path.exists():
+            return CodeWorkerRuntimeStateLoad(
+                ok=True,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id="",
+                path=str(path),
+                metadata={"reason": "new_session"},
+            )
+        replay = self.replay_session(session_id)
+        if not replay.ok:
+            return CodeWorkerRuntimeStateLoad(
+                ok=False,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id="",
+                path=replay.path,
+                sequence=replay.last_sequence,
+                error=replay.error or "runtime_state_store_read_failed",
+            )
+        stored_task_ids = {record.task_id for record in replay.records if record.task_id}
+        stored_run_ids = {record.run_id for record in replay.records if record.run_id}
+        if (stored_task_ids and stored_task_ids != {task_id}) or (stored_run_ids and stored_run_ids != {run_id}):
+            return CodeWorkerRuntimeStateLoad(
+                ok=False,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id="",
+                path=replay.path,
+                sequence=replay.last_sequence,
+                error="runtime_state_task_run_mismatch",
+                metadata={
+                    "stored_task_ids": sorted(stored_task_ids),
+                    "stored_run_ids": sorted(stored_run_ids),
+                },
+            )
+        checkpoints = [
+            record
+            for record in replay.records
+            if record.record_type == CodeWorkerSessionStoreRecordType.RUNTIME_STATE_CHECKPOINT
+        ]
+        if not checkpoints:
+            return CodeWorkerRuntimeStateLoad(
+                ok=True,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id=replay.worker_request_id,
+                path=replay.path,
+                sequence=replay.last_sequence,
+                metadata={"reason": "checkpoint_not_found"},
+            )
+        checkpoint = max(checkpoints, key=lambda record: record.sequence)
+        payload = _as_mapping(checkpoint.payload)
+        payload_task_id = str(payload.get("task_id") or checkpoint.task_id)
+        payload_run_id = str(payload.get("run_id") or checkpoint.run_id)
+        runtime_state = _as_mapping(payload.get("runtime_state"))
+        if payload_task_id != task_id or payload_run_id != run_id:
+            return CodeWorkerRuntimeStateLoad(
+                ok=False,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id=checkpoint.worker_request_id,
+                path=replay.path,
+                sequence=checkpoint.sequence,
+                error="runtime_state_checkpoint_identity_mismatch",
+            )
+        if not runtime_state:
+            return CodeWorkerRuntimeStateLoad(
+                ok=False,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id=checkpoint.worker_request_id,
+                path=replay.path,
+                sequence=checkpoint.sequence,
+                error="runtime_state_checkpoint_empty",
+            )
+        return CodeWorkerRuntimeStateLoad(
+            ok=True,
+            found=True,
+            session_id=session_id,
+            run_id=run_id,
+            task_id=task_id,
+            worker_request_id=checkpoint.worker_request_id,
+            path=replay.path,
+            runtime_state=dict(runtime_state),
+            causal_receipt=dict(_as_mapping(payload.get("causal_receipt"))),
+            sequence=checkpoint.sequence,
+            metadata={
+                "record_id": checkpoint.record_id,
+                "store_last_sequence": replay.last_sequence,
+            },
         )
 
     def mark_query_engine_attached(
@@ -489,10 +753,8 @@ class CodeWorkerSessionStore:
                 error="session_store_file_missing",
             )
         try:
-            records = []
-            for line in path.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    records.append(CodeWorkerSessionStoreRecord.from_dict(json.loads(line)))
+            with _path_lock(path):
+                records = _read_store_records_unlocked(path)
         except (OSError, json.JSONDecodeError) as error:
             return CodeWorkerSessionStoreReplay(
                 ok=False,
@@ -523,7 +785,8 @@ class CodeWorkerSessionStore:
                 error="request_index_missing",
             )
         try:
-            data = json.loads(index_path.read_text(encoding="utf-8"))
+            with _path_lock(index_path):
+                data = json.loads(index_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as error:
             return CodeWorkerSessionStoreReplay(
                 ok=False,
@@ -556,7 +819,6 @@ class CodeWorkerSessionStore:
     def _write_request_index(self, records: Sequence[CodeWorkerSessionStoreRecord]) -> None:
         first = records[0]
         index_path = self.request_index_path(first.worker_request_id)
-        index_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "session_id": first.session_id,
             "worker_request_id": first.worker_request_id,
@@ -566,7 +828,19 @@ class CodeWorkerSessionStore:
             "updated_at": now_iso(),
             "last_sequence": max(record.sequence for record in records),
         }
-        index_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+        with _path_lock(index_path):
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = index_path.with_name(f".{index_path.name}.{new_id('tmp')}.tmp")
+            try:
+                with temp_path.open("x", encoding="utf-8") as handle:
+                    handle.write(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+                    handle.write("\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temp_path, index_path)
+            finally:
+                if temp_path.exists():
+                    temp_path.unlink()
 
     def _record(
         self,
@@ -810,13 +1084,32 @@ def seed_failure_result_metadata(seed: CodeWorkerSessionSeed | None, *, error: s
 
 
 def _safe_name(value: str) -> str:
-    safe = []
-    for char in value:
-        if char.isalnum() or char in {"-", "_", "."}:
-            safe.append(char)
-        else:
-            safe.append("_")
-    return "".join(safe)[:180] or "missing"
+    normalized = str(value or "missing")
+    return hashlib.sha256(normalized.encode("utf-8", errors="surrogatepass")).hexdigest()
+
+
+_PATH_LOCKS_GUARD = threading.Lock()
+_PATH_LOCKS: dict[str, Any] = {}
+
+
+def _path_lock(path: Path) -> Any:
+    key = str(path.resolve())
+    with _PATH_LOCKS_GUARD:
+        lock = _PATH_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _PATH_LOCKS[key] = lock
+        return lock
+
+
+def _read_store_records_unlocked(path: Path) -> list[CodeWorkerSessionStoreRecord]:
+    if not path.exists():
+        return []
+    records: list[CodeWorkerSessionStoreRecord] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            records.append(CodeWorkerSessionStoreRecord.from_dict(json.loads(line)))
+    return records
 
 
 def _enum_or_default(enum_type: type[StrEnum], value: Any, default: Any) -> Any:

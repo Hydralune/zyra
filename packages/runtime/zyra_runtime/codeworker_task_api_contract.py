@@ -201,7 +201,10 @@ class TaskApiContractFinding:
 
     @property
     def blocking(self) -> bool:
-        return self.severity == TaskApiContractSeverity.BLOCKER
+        return self.severity in {
+            TaskApiContractSeverity.ERROR,
+            TaskApiContractSeverity.BLOCKER,
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -427,6 +430,8 @@ class CodeWorkerTaskApiContractRuntime:
         run_id: str,
         task_id: str,
         node_id: str | None,
+        session_id: str = "",
+        worker_request_id: str = "",
         phase: str = "codeworker_task_api_contract",
     ) -> EventRecord:
         return EventRecord(
@@ -436,8 +441,8 @@ class CodeWorkerTaskApiContractRuntime:
             event_type=EventType.AGENT_MESSAGE,
             payload={
                 "query_session": {
-                    "session_id": "",
-                    "worker_request_id": "",
+                    "session_id": session_id,
+                    "worker_request_id": worker_request_id,
                     "phase": phase,
                     "task_api_contract": report.to_dict(),
                 }

@@ -169,23 +169,45 @@ class CodeWorkerQuerySessionIntegrationTests(unittest.TestCase):
 
     def test_resume_restores_parent_context_and_uses_replay_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            first = _run_worker(
-                tmpdir,
-                {
+            state = create_task_state("query session integration branch resume")
+            first_runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=Path(tmpdir) / "workspace",
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            first = first_runtime.run(
+                WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
                     "raw_input": "Create state for resume.",
                     "query_turns": [[{"tool_name": "file_write", "arguments": {"path": "resume.txt", "content": "ok"}}]],
-                },
+                    },
+                )
             )
             self.assertTrue(first.worker_result.ok)
             session_id = first.worker_result.metadata["code_worker_session_seed_session_id"]
 
-            second = _run_worker(
-                tmpdir,
-                {
-                    "resume_session_id": session_id,
-                    "raw_input": "Continue from previous session state.",
-                    "query_turns": [[{"tool_name": "file_read", "arguments": {"path": "resume.txt"}}]],
-                },
+            second_runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=Path(tmpdir) / "workspace",
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            second = second_runtime.run(
+                WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
+                        "session_id": "branch-resume-current-session",
+                        "resume_session_id": session_id,
+                        "raw_input": "Continue from previous session state.",
+                        "query_turns": [[{"tool_name": "file_read", "arguments": {"path": "resume.txt"}}]],
+                    },
+                )
             )
 
             self.assertTrue(second.worker_result.ok)

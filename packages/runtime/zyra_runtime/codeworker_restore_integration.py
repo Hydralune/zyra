@@ -470,6 +470,20 @@ class CodeWorkerRestoreIntegrationRuntime:
                     metadata={"context_security_snapshot_id": security_snapshot.snapshot_id},
                 )
             )
+        if any(finding.blocking for finding in findings):
+            return RestoreContractApplication(
+                application_id=new_id("restore_app"),
+                session_id=contract.session_id,
+                worker_request_id=contract.worker_request_id,
+                turn_index=turn_index,
+                contract_id=contract.contract_id,
+                boundary_id=contract.boundary_id,
+                status=RestoreIntegrationStatus.BLOCKED,
+                messages=(),
+                blocks=(),
+                security_snapshot=security_snapshot,
+                findings=tuple(findings),
+            )
         messages: list[RestoreContextMessage] = []
         blocks: list[RestoreContextBlockProjection] = []
         verdict_by_source = {verdict.source_id: verdict for verdict in security_snapshot.verdicts}
@@ -691,6 +705,8 @@ class CodeWorkerRestoreIntegrationRuntime:
         if verdict is not None:
             content = verdict.sanitized_text or content
             message_metadata.update(verdict.metadata())
+        message_id = new_id("restore_msg")
+        message_metadata["restore_message_id"] = message_id
         block = self._add_context_block(
             context_window,
             role=ClaudeContextBlockRole.SYSTEM,
@@ -704,7 +720,7 @@ class CodeWorkerRestoreIntegrationRuntime:
             artifact_ids=[contract.compact_artifact_id] if contract.compact_artifact_id else [],
         )
         message = RestoreContextMessage(
-            message_id=new_id("restore_msg"),
+            message_id=message_id,
             role="system",
             content=content,
             kind=RestoreMessageKind.BOUNDARY,
@@ -764,6 +780,8 @@ class CodeWorkerRestoreIntegrationRuntime:
             message_metadata.update(verdict.metadata())
         if message_metadata.get("trust_level") == "external_untrusted" and not content.startswith("[UNTRUSTED_CONTEXT]"):
             content = f"[UNTRUSTED_CONTEXT source={message_metadata.get('source_ref') or segment.source_id}]\n{content}"
+        message_id = new_id("restore_msg")
+        message_metadata["restore_message_id"] = message_id
         block = self._add_context_block(
             context_window,
             role=block_role,
@@ -779,7 +797,7 @@ class CodeWorkerRestoreIntegrationRuntime:
             tool_name=segment.label if segment.kind == RestoreSegmentKind.TOOL_RESULT else "",
         )
         message = RestoreContextMessage(
-            message_id=new_id("restore_msg"),
+            message_id=message_id,
             role=role,
             content=content,
             kind=RestoreMessageKind.SEGMENT,
@@ -985,17 +1003,32 @@ def default_restore_integration_source_decisions() -> tuple[dict[str, str], ...]
 def _message_role_for_segment(segment: RestoreSegment) -> str:
     if segment.kind == RestoreSegmentKind.TOOL_RESULT:
         return "tool"
+    if _segment_is_untrusted(segment):
+        return "user"
     return "system"
 
 
 def _block_role_for_segment(segment: RestoreSegment) -> ClaudeContextBlockRole:
     if segment.kind == RestoreSegmentKind.TOOL_RESULT:
         return ClaudeContextBlockRole.TOOL
+    if _segment_is_untrusted(segment):
+        return ClaudeContextBlockRole.ARTIFACT
     if segment.kind == RestoreSegmentKind.CONTEXT_SUMMARY:
         return ClaudeContextBlockRole.SUMMARY
     if segment.kind in {RestoreSegmentKind.FILE_ATTACHMENT, RestoreSegmentKind.INVOKED_SKILL}:
         return ClaudeContextBlockRole.MEMORY
     return ClaudeContextBlockRole.SYSTEM
+
+
+def _segment_is_untrusted(segment: RestoreSegment) -> bool:
+    trust = str(segment.metadata.get("trust_level") or _trust_for_segment(segment)).strip().lower()
+    external = str(segment.metadata.get("external") or "").strip().lower()
+    provenance = str(segment.metadata.get("source_provenance") or _provenance_for_segment(segment)).strip().lower()
+    return (
+        trust in {"untrusted", "external_untrusted"}
+        or external in {"1", "true", "yes", "on"}
+        or any(marker in provenance for marker in ("external", "mcp", "browser", "web"))
+    )
 
 
 def _priority_for_segment(segment: RestoreSegment) -> int:

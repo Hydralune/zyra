@@ -53,6 +53,8 @@ class SessionReplayGapKind(StrEnum):
     SEQUENCE_GAP = "sequence_gap"
     SESSION_MISMATCH = "session_mismatch"
     REQUEST_MISMATCH = "request_mismatch"
+    TASK_MISMATCH = "task_mismatch"
+    RUN_MISMATCH = "run_mismatch"
     STORE_READ_FAILED = "store_read_failed"
 
 
@@ -375,16 +377,58 @@ class CodeWorkerSessionReplayRuntime:
         *,
         session_id: str = "",
         worker_request_id: str = "",
+        expected_task_id: str = "",
+        expected_run_id: str = "",
+        target_session_id: str = "",
+        target_worker_request_id: str = "",
         after_sequence: int = 0,
         limit: int | None = None,
     ) -> SessionReplayPlan:
-        records, path, read_error = self._load_records(session_id=session_id, worker_request_id=worker_request_id)
-        findings = list(self._initial_findings(records, read_error=read_error))
+        all_records, path, read_error = self._load_records(session_id=session_id, worker_request_id=worker_request_id)
+        findings = list(self._initial_findings(all_records, read_error=read_error))
+        explicit_worker_request = bool(worker_request_id)
+        available_worker_request_ids = {
+            record.worker_request_id for record in all_records if record.worker_request_id
+        }
+        selected_worker_request_id = worker_request_id
+        if not selected_worker_request_id:
+            for record in sorted(all_records, key=lambda item: item.sequence, reverse=True):
+                if record.worker_request_id:
+                    selected_worker_request_id = record.worker_request_id
+                    break
+        if explicit_worker_request and selected_worker_request_id not in available_worker_request_ids:
+            findings.append(
+                SessionReplayFinding(
+                    code="worker_request_selector_mismatch",
+                    severity=SessionReplayFindingSeverity.BLOCKER,
+                    gap_kind=SessionReplayGapKind.REQUEST_MISMATCH,
+                    message="The explicitly selected worker request does not belong to the replayed session.",
+                    metadata={
+                        "expected": selected_worker_request_id,
+                        "available": sorted(available_worker_request_ids),
+                    },
+                )
+            )
+            records: list[CodeWorkerSessionStoreRecord] = []
+        elif selected_worker_request_id:
+            records = [
+                record for record in all_records if record.worker_request_id == selected_worker_request_id
+            ]
+        else:
+            records = list(all_records)
         projections = [project_store_record(record) for record in records]
         window = select_replay_window(projections, after_sequence=after_sequence, limit=limit)
-        seed_session_id = session_id or _first_non_empty(record.session_id for record in records)
-        seed_worker_request_id = worker_request_id or _first_non_empty(record.worker_request_id for record in records)
-        findings.extend(validate_replay_identity(records, session_id=seed_session_id, worker_request_id=seed_worker_request_id))
+        source_session_id = session_id or _first_non_empty(record.session_id for record in records or all_records)
+        source_worker_request_id = selected_worker_request_id
+        findings.extend(
+            validate_replay_identity(
+                records,
+                session_id=source_session_id,
+                worker_request_id=source_worker_request_id,
+                expected_task_id=expected_task_id,
+                expected_run_id=expected_run_id,
+            )
+        )
         findings.extend(validate_replay_sequences(records))
         input_states = tuple(input_state_from_record(record) for record in records if _is_input_record(record))
         context_state = context_state_from_records(records)
@@ -395,8 +439,8 @@ class CodeWorkerSessionReplayRuntime:
         return SessionReplayPlan(
             plan_id=new_id("replayplan"),
             status=status,
-            session_id=seed_session_id,
-            worker_request_id=seed_worker_request_id,
+            session_id=target_session_id or source_session_id,
+            worker_request_id=target_worker_request_id or source_worker_request_id,
             actions=tuple(actions),
             input_states=input_states,
             context_state=context_state,
@@ -408,10 +452,28 @@ class CodeWorkerSessionReplayRuntime:
                 "store_path": path,
                 "after_sequence": after_sequence,
                 "limit": limit,
+                "explicit_worker_request_selector": explicit_worker_request,
+                "available_worker_request_ids": sorted(available_worker_request_ids),
+                "selected_worker_request_id": selected_worker_request_id,
+                "expected_task_id": expected_task_id,
+                "expected_run_id": expected_run_id,
+                "source_session_id": source_session_id,
+                "source_worker_request_id": source_worker_request_id,
+                "target_session_id": target_session_id or source_session_id,
+                "target_worker_request_id": target_worker_request_id or source_worker_request_id,
+                "branch_resume": bool(target_session_id and target_session_id != source_session_id),
             },
         )
 
-    def build_plan_from_constraints(self, constraints: Mapping[str, Any]) -> SessionReplayPlan | None:
+    def build_plan_from_constraints(
+        self,
+        constraints: Mapping[str, Any],
+        *,
+        expected_task_id: str = "",
+        expected_run_id: str = "",
+        target_session_id: str = "",
+        target_worker_request_id: str = "",
+    ) -> SessionReplayPlan | None:
         session_id = str(
             constraints.get("resume_session_id")
             or constraints.get("resume_code_worker_session_id")
@@ -428,6 +490,10 @@ class CodeWorkerSessionReplayRuntime:
         return self.build_plan(
             session_id=session_id,
             worker_request_id=worker_request_id,
+            expected_task_id=expected_task_id,
+            expected_run_id=expected_run_id,
+            target_session_id=target_session_id,
+            target_worker_request_id=target_worker_request_id,
             after_sequence=_safe_int(constraints.get("resume_after_sequence"), default=0),
             limit=_optional_positive_int(constraints.get("resume_limit")),
         )
@@ -662,10 +728,14 @@ def validate_replay_identity(
     *,
     session_id: str,
     worker_request_id: str,
+    expected_task_id: str = "",
+    expected_run_id: str = "",
 ) -> list[SessionReplayFinding]:
     findings: list[SessionReplayFinding] = []
     session_ids = {record.session_id for record in records if record.session_id}
     request_ids = {record.worker_request_id for record in records if record.worker_request_id}
+    task_ids = {record.task_id for record in records if record.task_id}
+    run_ids = {record.run_id for record in records if record.run_id}
     if session_id and session_ids and session_ids != {session_id}:
         findings.append(
             SessionReplayFinding(
@@ -684,6 +754,26 @@ def validate_replay_identity(
                 gap_kind=SessionReplayGapKind.REQUEST_MISMATCH,
                 message="Replay records contain multiple or unexpected worker request ids.",
                 metadata={"expected": worker_request_id, "actual": sorted(request_ids)},
+            )
+        )
+    if expected_task_id and task_ids and task_ids != {expected_task_id}:
+        findings.append(
+            SessionReplayFinding(
+                code="task_id_mismatch",
+                severity=SessionReplayFindingSeverity.BLOCKER,
+                gap_kind=SessionReplayGapKind.TASK_MISMATCH,
+                message="Replay records do not belong to the expected task.",
+                metadata={"expected": expected_task_id, "actual": sorted(task_ids)},
+            )
+        )
+    if expected_run_id and run_ids and run_ids != {expected_run_id}:
+        findings.append(
+            SessionReplayFinding(
+                code="run_id_mismatch",
+                severity=SessionReplayFindingSeverity.BLOCKER,
+                gap_kind=SessionReplayGapKind.RUN_MISMATCH,
+                message="Replay records do not belong to the expected run.",
+                metadata={"expected": expected_run_id, "actual": sorted(run_ids)},
             )
         )
     return findings

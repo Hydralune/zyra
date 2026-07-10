@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from zyra_core import ArtifactKind, EventRecord, EventType, new_id, to_jsonable
 from zyra_runtime import (
@@ -308,6 +308,48 @@ class CodeWorkerRuntime:
             )
         )
         seed_session_id = str(request.constraints.get("session_id") or new_id("codesession"))
+        resume_source_session_id = str(
+            request.constraints.get("resume_session_id")
+            or request.constraints.get("resume_code_worker_session_id")
+            or ""
+        )
+        runtime_state_source_session_id = resume_source_session_id or seed_session_id
+        runtime_state_load = session_store.load_runtime_state(
+            session_id=runtime_state_source_session_id,
+            task_id=request.task_id,
+            run_id=request.run_id,
+        )
+        if not runtime_state_load.ok:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime refused a runtime-state checkpoint outside the current task/run scope.",
+                error=runtime_state_load.error or "runtime_state_scope_mismatch",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    **source_graph_audit.metadata(),
+                    **worker_gate.metadata(),
+                    **runtime_state_load.metadata_values(),
+                    "runtime_state_source_session_id": runtime_state_source_session_id,
+                    "runtime_state_target_session_id": seed_session_id,
+                    "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            return CodeWorkerRun(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    *source_graph_audit_events,
+                    worker_gate_event,
+                    _worker_result_event(request, worker_result),
+                ],
+            )
         context_snapshot = context_runtime.assemble(
             request=request,
             session_id=seed_session_id,
@@ -361,7 +403,34 @@ class CodeWorkerRuntime:
         )
         session_seed_events = [*session_seed_events, *tool_session_bridge_events]
         replay_runtime = CodeWorkerSessionReplayRuntime(session_store)
-        replay_plan = replay_runtime.build_plan_from_constraints(request.constraints)
+        replay_plan = replay_runtime.build_plan_from_constraints(
+            request.constraints,
+            expected_task_id=request.task_id,
+            expected_run_id=request.run_id,
+            target_session_id=session_seed.session_id,
+            target_worker_request_id=request.request_id,
+        )
+        if replay_plan is not None and (
+            replay_plan.session_id != session_seed.session_id
+            or replay_plan.worker_request_id != request.request_id
+        ):
+            source_session_id = str(replay_plan.metadata.get("source_session_id") or replay_plan.session_id)
+            source_worker_request_id = str(
+                replay_plan.metadata.get("source_worker_request_id") or replay_plan.worker_request_id
+            )
+            replay_plan = replace(
+                replay_plan,
+                session_id=session_seed.session_id,
+                worker_request_id=request.request_id,
+                metadata={
+                    **replay_plan.metadata,
+                    "replay_source_session_id": source_session_id,
+                    "replay_source_worker_request_id": source_worker_request_id,
+                    "replay_current_session_id": session_seed.session_id,
+                    "replay_current_worker_request_id": request.request_id,
+                    "replay_identity_rebound": True,
+                },
+            )
         replay_events = []
         if replay_plan is not None:
             replay_events.append(
@@ -493,11 +562,52 @@ class CodeWorkerRuntime:
             node_id=request.node_id,
         )
         custody_runtime = QuerySessionResumeCustodyRuntime()
-        pre_engine_custody = custody_runtime.build_report(
-            session_replay=session_store.replay_session(session_seed.session_id),
-            packet=query_session_integration.packet.to_dict(include_text=False),
-            integration_report=query_session_integration.to_dict(include_text=False),
-            after_engine=False,
+        def bind_custody_to_current_request(report: Any) -> Any:
+            source_worker_request_ids = sorted(
+                {
+                    record.worker_request_id
+                    for record in report.records
+                    if record.worker_request_id and record.worker_request_id != request.request_id
+                }
+            )
+            rebound_records = tuple(
+                replace(
+                    record,
+                    session_id=session_seed.session_id,
+                    worker_request_id=request.request_id,
+                    metadata={
+                        **record.metadata,
+                        "source_session_id": record.session_id,
+                        "source_worker_request_id": record.worker_request_id,
+                        "current_session_id": session_seed.session_id,
+                        "current_worker_request_id": request.request_id,
+                    },
+                )
+                for record in report.records
+            )
+            return replace(
+                report,
+                session_id=session_seed.session_id,
+                worker_request_id=request.request_id,
+                records=rebound_records,
+                metadata={
+                    **report.metadata,
+                    "source_session_id": report.session_id,
+                    "source_worker_request_id": report.worker_request_id,
+                    "source_worker_request_ids": source_worker_request_ids,
+                    "current_session_id": session_seed.session_id,
+                    "current_worker_request_id": request.request_id,
+                    "identity_rebound": True,
+                },
+            )
+
+        pre_engine_custody = bind_custody_to_current_request(
+            custody_runtime.build_report(
+                session_replay=session_store.replay_session(session_seed.session_id),
+                packet=query_session_integration.packet.to_dict(include_text=False),
+                integration_report=query_session_integration.to_dict(include_text=False),
+                after_engine=False,
+            )
         )
         pre_engine_custody_event = custody_runtime.event_for_report(
             pre_engine_custody,
@@ -505,19 +615,24 @@ class CodeWorkerRuntime:
             task_id=request.task_id,
             node_id=request.node_id,
         )
+        current_request_store_records = [
+            record.to_dict()
+            for record in session_store.replay_session(session_seed.session_id).records
+            if record.worker_request_id == request.request_id
+        ]
+        current_request_observation_events = [
+            *session_seed_events,
+            turn_lifecycle_event,
+            foundation_audit_record,
+            pre_query_acceptance_event,
+            pre_query_lifecycle_event,
+            *query_session_integration_events,
+            query_handoff_event,
+            pre_engine_custody_event,
+        ]
         event_flow_runtime = QuerySessionEventFlowRuntime()
         pre_engine_event_flow = event_flow_runtime.build_report(
-            [
-                *session_seed_events,
-                *replay_events,
-                turn_lifecycle_event,
-                foundation_audit_record,
-                pre_query_acceptance_event,
-                pre_query_lifecycle_event,
-                *query_session_integration_events,
-                query_handoff_event,
-                pre_engine_custody_event,
-            ],
+            current_request_observation_events,
             session_id=session_seed.session_id,
             worker_request_id=request.request_id,
             expected_engine_stream=False,
@@ -533,22 +648,14 @@ class CodeWorkerRuntime:
         pre_engine_state_graph = state_graph_runtime.build_report(
             session_id=session_seed.session_id,
             worker_request_id=request.request_id,
-            store_records=[record.to_dict() for record in session_store.replay_session(session_seed.session_id).records],
+            store_records=current_request_store_records,
             packet=query_session_integration.packet.to_dict(include_text=False),
             integration_report=query_session_integration.to_dict(include_text=False),
             handoff_report=query_handoff.to_dict(),
             custody_report=pre_engine_custody.to_dict(),
             event_flow_report=pre_engine_event_flow.to_dict(),
             events=[
-                *session_seed_events,
-                *replay_events,
-                turn_lifecycle_event,
-                foundation_audit_record,
-                pre_query_acceptance_event,
-                pre_query_lifecycle_event,
-                *query_session_integration_events,
-                query_handoff_event,
-                pre_engine_custody_event,
+                *current_request_observation_events,
                 pre_engine_event_flow_event,
             ],
             blocked_before_engine=not query_session_integration.ok or not query_handoff.ok or not pre_engine_custody.ok,
@@ -578,15 +685,7 @@ class CodeWorkerRuntime:
                 event_flow_report=pre_engine_event_flow.to_dict(),
                 state_graph_report=pre_engine_state_graph.to_dict(),
                 events=[
-                    *session_seed_events,
-                    *replay_events,
-                    turn_lifecycle_event,
-                    foundation_audit_record,
-                    pre_query_acceptance_event,
-                    pre_query_lifecycle_event,
-                    *query_session_integration_events,
-                    query_handoff_event,
-                    pre_engine_custody_event,
+                    *current_request_observation_events,
                     pre_engine_event_flow_event,
                     pre_engine_state_graph_event,
                 ],
@@ -656,6 +755,18 @@ class CodeWorkerRuntime:
             )
         query_entry_messages = query_session_integration.packet.request_messages()
         query_entry_metadata = query_session_integration.metadata_values()
+        restored_runtime_state = None
+        if runtime_state_load.found:
+            restored_runtime_state = {
+                **runtime_state_load.runtime_state,
+                "restore_provenance": {
+                    "source_session_id": runtime_state_source_session_id,
+                    "source_worker_request_id": runtime_state_load.worker_request_id,
+                    "target_session_id": session_seed.session_id,
+                    "target_worker_request_id": request.request_id,
+                    "branch_resume": runtime_state_source_session_id != session_seed.session_id,
+                },
+            }
         engine = self.query_engine_factory(
             self.execution_context,
             ClaudeQueryEngineConfig(
@@ -717,8 +828,10 @@ class CodeWorkerRuntime:
                 ),
                 runtime_constraints=request.constraints,
                 session_bridge_report=tool_session_bridge,
+                restored_runtime_state=restored_runtime_state,
             ),
         )
+        runtime_state_parent_sequence = session_store.replay_session(session_seed.session_id).last_sequence
         loop_result = engine.run(
             run_id=request.run_id,
             task_id=request.task_id,
@@ -728,6 +841,99 @@ class CodeWorkerRuntime:
             request_messages=query_entry_messages,
             request_metadata={**request.metadata, **session_seed.metadata_values(), **query_entry_metadata},
         )
+        def state_payload(value: Any) -> dict[str, Any]:
+            if isinstance(value, Mapping):
+                return dict(value)
+            to_dict = getattr(value, "to_dict", None)
+            if callable(to_dict):
+                projected = to_dict()
+                return dict(projected) if isinstance(projected, Mapping) else {}
+            return {}
+
+        session_snapshot_payload = to_jsonable(loop_result.session_snapshot)
+        snapshot_runtime_state = (
+            session_snapshot_payload.get("runtime_state")
+            if isinstance(session_snapshot_payload, Mapping)
+            else None
+        )
+        if isinstance(snapshot_runtime_state, Mapping):
+            runtime_state_checkpoint = dict(snapshot_runtime_state)
+        else:
+            raw_runtime_state = getattr(loop_result, "runtime_state_checkpoint", None)
+            if not isinstance(raw_runtime_state, Mapping):
+                metadata_runtime_state = loop_result.metadata.get("runtime_state_checkpoint")
+                raw_runtime_state = metadata_runtime_state if isinstance(metadata_runtime_state, Mapping) else None
+            if isinstance(raw_runtime_state, Mapping):
+                runtime_state_checkpoint = dict(raw_runtime_state)
+            else:
+                runtime_budget_state = {}
+                for candidate in (
+                    getattr(loop_result, "runtime_budget_state", None),
+                    getattr(loop_result, "runtime_budget_snapshot", None),
+                    getattr(loop_result, "runtime_budget_report", None),
+                ):
+                    runtime_budget_state = state_payload(candidate)
+                    if runtime_budget_state:
+                        break
+                context_state = {}
+                for candidate in (
+                    getattr(loop_result, "context_window_state", None),
+                    getattr(loop_result, "context_window_snapshot", None),
+                    getattr(loop_result, "context_report", None),
+                ):
+                    context_state = state_payload(candidate)
+                    if context_state:
+                        break
+                pending_restore_state = {}
+                for candidate in (
+                    getattr(loop_result, "pending_restore_contract", None),
+                    getattr(loop_result, "compact_restore_state", None),
+                    getattr(loop_result, "compact_restore_report", None),
+                ):
+                    pending_restore_state = state_payload(candidate)
+                    if pending_restore_state:
+                        break
+                runtime_state_checkpoint = {
+                    "schema_version": 1,
+                    "query_session_id": str(loop_result.metadata.get("query_session_id") or session_seed.session_id),
+                    "query_session_resume_token": str(loop_result.metadata.get("query_session_resume_token") or ""),
+                    "session_snapshot": session_snapshot_payload,
+                }
+                if runtime_budget_state:
+                    runtime_state_checkpoint["runtime_budget_state"] = runtime_budget_state
+                if context_state:
+                    runtime_state_checkpoint["context_window_state"] = context_state
+                if pending_restore_state:
+                    runtime_state_checkpoint["pending_restore_contract"] = pending_restore_state
+        causal_event_ids = [
+            str(getattr(event, "event_id", "") or getattr(event, "id", ""))
+            for event in loop_result.event_records
+            if getattr(event, "event_id", "") or getattr(event, "id", "")
+        ]
+        runtime_state_checkpoint_receipt = session_store.append_runtime_state(
+            session_id=session_seed.session_id,
+            worker_request_id=request.request_id,
+            run_id=request.run_id,
+            task_id=request.task_id,
+            runtime_state=runtime_state_checkpoint,
+            causal_receipt={
+                "worker_request_id": request.request_id,
+                "query_session_id": str(loop_result.metadata.get("query_session_id") or session_seed.session_id),
+                "query_session_resume_token": str(loop_result.metadata.get("query_session_resume_token") or ""),
+                "event_ids": causal_event_ids,
+                "event_count": len(loop_result.event_records),
+                "session_snapshot_present": loop_result.session_snapshot is not None,
+            },
+            expected_previous_sequence=runtime_state_parent_sequence,
+        )
+        runtime_state_checkpoint_metadata = {
+            "runtime_state_checkpoint_ok": str(runtime_state_checkpoint_receipt.ok).lower(),
+            "runtime_state_checkpoint_path": runtime_state_checkpoint_receipt.path,
+            "runtime_state_checkpoint_sequence": str(runtime_state_checkpoint_receipt.last_sequence),
+            "runtime_state_checkpoint_record_count": str(runtime_state_checkpoint_receipt.record_count),
+            "runtime_state_checkpoint_error": runtime_state_checkpoint_receipt.error,
+            "runtime_state_checkpoint_causal_event_count": str(len(causal_event_ids)),
+        }
         session_store.mark_query_engine_attached(
             session_id=session_seed.session_id,
             worker_request_id=request.request_id,
@@ -736,11 +942,13 @@ class CodeWorkerRuntime:
             query_session_id=str(loop_result.metadata.get("query_session_id") or session_seed.session_id),
             resume_token=str(loop_result.metadata.get("query_session_resume_token") or ""),
         )
-        final_custody = custody_runtime.build_report(
-            session_replay=session_store.replay_session(session_seed.session_id),
-            packet=query_session_integration.packet.to_dict(include_text=False),
-            integration_report=query_session_integration.to_dict(include_text=False),
-            after_engine=True,
+        final_custody = bind_custody_to_current_request(
+            custody_runtime.build_report(
+                session_replay=session_store.replay_session(session_seed.session_id),
+                packet=query_session_integration.packet.to_dict(include_text=False),
+                integration_report=query_session_integration.to_dict(include_text=False),
+                after_engine=True,
+            )
         )
         final_custody_event = custody_runtime.event_for_report(
             final_custody,
@@ -891,6 +1099,8 @@ class CodeWorkerRuntime:
         summary = "CodeWorkerRuntime completed structured tool plan."
         if not loop_result.ok:
             summary = "CodeWorkerRuntime stopped on a failed tool step."
+        elif not runtime_state_checkpoint_receipt.ok:
+            summary = "CodeWorkerRuntime completed the tool loop but failed to persist its runtime-state checkpoint."
         elif not final_acceptance.ok or not lifecycle_report.ok:
             summary = "CodeWorkerRuntime completed the tool loop but failed the session lifecycle gate."
         elif not final_event_flow.ok:
@@ -905,6 +1115,7 @@ class CodeWorkerRuntime:
         worker_result = WorkerResult(
             request_id=request.request_id,
             ok=loop_result.ok
+            and runtime_state_checkpoint_receipt.ok
             and final_acceptance.ok
             and lifecycle_report.ok
             and final_event_flow.ok
@@ -934,13 +1145,15 @@ class CodeWorkerRuntime:
             ],
             error=None
             if loop_result.ok
+            and runtime_state_checkpoint_receipt.ok
             and final_acceptance.ok
             and lifecycle_report.ok
             and final_event_flow.ok
             and final_custody.ok
             and final_state_graph.ok
             and final_disconnect.ok
-            else loop_result.stopped_reason
+            else runtime_state_checkpoint_receipt.error
+            or loop_result.stopped_reason
             or (final_event_flow.first_blocker_code if not final_event_flow.ok else "")
             or (final_custody.first_blocker_code if not final_custody.ok else "")
             or (final_state_graph.first_blocker_code if not final_state_graph.ok else "")
@@ -959,6 +1172,8 @@ class CodeWorkerRuntime:
                 **worker_gate.metadata(),
                 **query_plan_metadata,
                 **session_seed_metadata(session_seed),
+                **runtime_state_load.metadata_values(),
+                **runtime_state_checkpoint_metadata,
                 **foundation_audit_metadata(foundation_audit),
                 **session_replay_metadata(replay_plan),
                 **turn_lifecycle_metadata(turn_lifecycle_projection),

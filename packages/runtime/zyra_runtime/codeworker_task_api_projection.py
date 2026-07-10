@@ -558,9 +558,16 @@ class CodeWorkerTaskApiProjectionRuntime:
         events: Iterable[Any],
     ) -> CodeWorkerSessionApiProjection:
         event_list = [_event_view(event) for event in events]
-        observations = tuple(_phase_observations(event_list))
+        all_observations = tuple(_phase_observations(event_list))
         state_map = state if isinstance(state, Mapping) else {}
-        session = self._session_summary(task_id=task_id, state=state_map, observations=observations)
+        session = self._session_summary(task_id=task_id, state=state_map, observations=all_observations)
+        observations = tuple(
+            _observations_for_session(
+                all_observations,
+                session_id=session.session_id,
+                worker_request_id=session.worker_request_id,
+            )
+        )
         compact_state = self._compact_state(observations)
         model_api = self._model_api_state(observations)
         restore_state = self._restore_state(observations)
@@ -605,9 +612,16 @@ class CodeWorkerTaskApiProjectionRuntime:
         session: CodeWorkerSessionSummary | None = None,
     ) -> CodeWorkerToolTraceProjection:
         event_list = [_event_view(event) for event in events]
-        observations = tuple(_phase_observations(event_list))
+        all_observations = tuple(_phase_observations(event_list))
         if session is None:
-            session = self._session_summary(task_id=task_id, state=state or {}, observations=observations)
+            session = self._session_summary(task_id=task_id, state=state or {}, observations=all_observations)
+        observations = tuple(
+            _observations_for_session(
+                all_observations,
+                session_id=session.session_id,
+                worker_request_id=session.worker_request_id,
+            )
+        )
         items = tuple(_trace_items_from_observations(observations))
         repair = _repair_projection(items)
         findings = list(_tool_trace_findings(items, repair))
@@ -637,7 +651,16 @@ class CodeWorkerTaskApiProjectionRuntime:
         state: Mapping[str, Any] | None,
         events: Iterable[Any],
     ) -> CodeWorkerCompactApiState:
-        observations = tuple(_phase_observations([_event_view(event) for event in events]))
+        all_observations = tuple(_phase_observations([_event_view(event) for event in events]))
+        state_map = state if isinstance(state, Mapping) else {}
+        session = self._session_summary(task_id=task_id, state=state_map, observations=all_observations)
+        observations = tuple(
+            _observations_for_session(
+                all_observations,
+                session_id=session.session_id,
+                worker_request_id=session.worker_request_id,
+            )
+        )
         return self._compact_state(observations)
 
     def event_for_projection(
@@ -910,6 +933,28 @@ def _phase_observations(events: Sequence[Mapping[str, Any]]) -> list[QueryPhaseO
             )
         )
     return observations
+
+
+def _observations_for_session(
+    observations: Sequence[QueryPhaseObservation],
+    *,
+    session_id: str,
+    worker_request_id: str,
+) -> list[QueryPhaseObservation]:
+    if worker_request_id:
+        return [
+            observation
+            for observation in observations
+            if observation.worker_request_id == worker_request_id
+            or (
+                not observation.worker_request_id
+                and bool(session_id)
+                and observation.session_id == session_id
+            )
+        ]
+    if session_id:
+        return [observation for observation in observations if observation.session_id == session_id]
+    return list(observations)
 
 
 def _trace_items_from_observations(observations: Sequence[QueryPhaseObservation]) -> list[CodeWorkerToolTraceItem]:

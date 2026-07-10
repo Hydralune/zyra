@@ -662,6 +662,98 @@ class ClaudeContextWindowManager:
             "context_window_active_limit_chars": str(self.budget.active_limit),
         }
 
+    def model_messages(self, *, max_chars: int | None = None) -> list[dict[str, Any]]:
+        """Build the provider prompt from the current active context custody.
+
+        Provenance is retained on every message. External or otherwise untrusted
+        blocks are always data in the user channel, even when their original
+        context role was system/control/summary.
+        """
+
+        remaining = self.budget.active_limit if max_chars is None else max(0, int(max_chars))
+        messages: list[dict[str, Any]] = []
+        for block in self.active_blocks:
+            if remaining <= 0:
+                break
+            source = block.source
+            block_metadata = dict(block.metadata or {})
+            source_metadata = dict(getattr(source, "metadata", {}) or {})
+            provenance = str(
+                block_metadata.get("source_provenance")
+                or source_metadata.get("source_provenance")
+                or getattr(source, "source_kind", "")
+                or "unknown"
+            )
+            trust_level = str(
+                block_metadata.get("trust_level")
+                or source_metadata.get("trust_level")
+                or "unknown"
+            ).strip().lower()
+            redaction_state = str(
+                block_metadata.get("secret_redaction_state")
+                or source_metadata.get("secret_redaction_state")
+                or "unknown"
+            ).strip().lower()
+            external_marker = str(
+                block_metadata.get("external")
+                or source_metadata.get("external")
+                or ""
+            ).strip().lower()
+            provenance_lower = provenance.lower()
+            untrusted = (
+                trust_level in {"untrusted", "external_untrusted", "unknown"}
+                or external_marker in {"1", "true", "yes", "on"}
+                or any(marker in provenance_lower for marker in ("external", "mcp", "browser", "web"))
+            )
+
+            original_role = str(block.role).split(".")[-1].lower()
+            if untrusted:
+                role = "user"
+            elif original_role == "tool":
+                role = "tool"
+            elif original_role == "assistant":
+                role = "assistant"
+            elif original_role in {"system", "control", "summary"}:
+                role = "system"
+            else:
+                role = "user"
+
+            content = str(block.text or "")
+            if untrusted and not content.startswith("[UNTRUSTED_CONTEXT"):
+                source_ref = getattr(source, "source_id", "") or block.block_id
+                content = f"[UNTRUSTED_CONTEXT source={source_ref}]\n{content}"
+            if len(content) > remaining:
+                content = content[:remaining]
+            if not content:
+                continue
+
+            metadata = {
+                "context_block_id": block.block_id,
+                "context_block_state": str(block.state),
+                "context_original_role": original_role,
+                "source_id": getattr(source, "source_id", ""),
+                "source_kind": getattr(source, "source_kind", ""),
+                "source_path": getattr(source, "source_path", ""),
+                "upstream_source_path": getattr(source, "upstream_source_path", ""),
+                "runtime_owner": getattr(source, "runtime_owner", ""),
+                "source_provenance": provenance,
+                "trust_level": "external_untrusted" if untrusted else trust_level,
+                "secret_redaction_state": redaction_state,
+                "artifact_ids": list(block.artifact_ids),
+                **source_metadata,
+                **block_metadata,
+            }
+            message: dict[str, Any] = {
+                "role": role,
+                "content": content,
+                "metadata": metadata,
+            }
+            if role == "tool" and block.tool_call_id:
+                message["tool_call_id"] = block.tool_call_id
+            messages.append(message)
+            remaining -= len(content)
+        return messages
+
     def snapshot(self, *, include_text: bool = True) -> dict[str, Any]:
         blocks = []
         for block in self._blocks:

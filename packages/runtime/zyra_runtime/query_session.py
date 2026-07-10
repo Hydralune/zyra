@@ -8,6 +8,13 @@ from typing import Any, Iterable, Mapping
 from zyra_core import new_id, now_iso, to_jsonable
 
 
+class SessionRecordType(StrEnum):
+    RESTORE_CONTRACT_CREATED = "restore_contract_created"
+    RESTORE_CONTRACT_APPLIED = "restore_contract_applied"
+    RESTORE_CONTRACT_REJECTED = "restore_contract_rejected"
+    RESTORE_INTEGRATION_REPORT = "restore_integration_report"
+
+
 class QueryMessageRole(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
@@ -35,6 +42,10 @@ class TurnLifecyclePhase(StrEnum):
 
 
 class QueryStreamEventType(StrEnum):
+    RESTORE_CONTRACT_CREATED = "restore_contract_created"
+    RESTORE_CONTRACT_APPLIED = "restore_contract_applied"
+    RESTORE_CONTRACT_REJECTED = "restore_contract_rejected"
+    RESTORE_INTEGRATION_REPORT = "restore_integration_report"
     SESSION_STARTED = "session_started"
     STREAM_REQUEST_START = "stream_request_start"
     TURN_STARTED = "turn_started"
