@@ -1055,6 +1055,22 @@ from .permission.decision_log import PermissionDecisionLog
 from .permission.modes import PermissionModeRuntime
 from .permission.hooks import PermissionHookAdapter
 from .permission.classifier import PermissionClassifierAdapter
+from .permission import (
+    BROWSER_ACTION_GATE_RUNTIME_ID,
+    BrowserActionPermissionConsumption,
+    BrowserActionPermissionDecision,
+    BrowserActionPermissionGate,
+    BrowserActionPermissionInput,
+    PermissionApiFacade,
+    PermissionContinuationRuntime,
+    PermissionContinuationStore,
+    PermissionControlAuthority,
+    PermissionControlCapability,
+    PermissionControlPlane,
+    PermissionExtensionRegistry,
+    PermissionTransportRegistry,
+    ShellCommandAnalyzer,
+)
 from .codeworker_api_foundation import (
     CodeWorkerApiFoundationFinding,
     CodeWorkerApiFoundationPathEdge,
@@ -2327,6 +2343,20 @@ __all__ = [
     "disable_semantics_metadata",
     "PERMISSION_RUNTIME_ID",
     "PERMISSION_RUNTIME_OWNER_UNIT",
+    "BROWSER_ACTION_GATE_RUNTIME_ID",
+    "BrowserActionPermissionConsumption",
+    "BrowserActionPermissionDecision",
+    "BrowserActionPermissionGate",
+    "BrowserActionPermissionInput",
+    "PermissionApiFacade",
+    "PermissionContinuationRuntime",
+    "PermissionContinuationStore",
+    "PermissionControlAuthority",
+    "PermissionControlCapability",
+    "PermissionControlPlane",
+    "PermissionExtensionRegistry",
+    "PermissionTransportRegistry",
+    "ShellCommandAnalyzer",
     "PermissionClassifierAdapter",
     "PermissionDecisionLog",
     "PermissionGrantConsumption",

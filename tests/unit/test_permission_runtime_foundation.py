@@ -116,6 +116,7 @@ from zyra_runtime.permission.source_audit import (  # noqa: E402
 from zyra_integrations import (  # noqa: E402
     LedgerLifecycle,
     LedgerQuery,
+    LineCountPolicy,
     MainPathStatus,
     MigrationStrategy,
     load_seed_ledger,
@@ -603,6 +604,22 @@ class PermissionSourceCoverageFoundationTests(unittest.TestCase):
         actual = {(entry.source_repo, entry.source_path): entry for entry in entries}
 
         self.assertEqual(set(actual), set(expected))
+        self.assertEqual(
+            {
+                disposition: sum(
+                    decision.disposition is disposition
+                    for decision in PERMISSION_SOURCE_DECISIONS
+                )
+                for disposition in SourceDisposition
+            },
+            {
+                SourceDisposition.ACTIVE: 22,
+                SourceDisposition.ADAPTER: 27,
+                SourceDisposition.CONTRACT_ONLY: 3,
+                SourceDisposition.REFERENCE_ONLY: 6,
+                SourceDisposition.DEFERRED: 0,
+            },
+        )
         self.assertIn(("opencode", "packages/opencode/src/permission/index.ts"), actual)
         self.assertFalse(
             any(
@@ -616,9 +633,62 @@ class PermissionSourceCoverageFoundationTests(unittest.TestCase):
             self.assertEqual(entry.metadata["source_disposition"], decision.disposition.value)
             self.assertNotEqual(entry.migration_strategy, MigrationStrategy.VENDORED_RUNTIME)
             self.assertTrue(entry.test_entries)
+            runtime_symbol = f"{entry.runtime_entry.module}.{entry.runtime_entry.function}"
+            if decision.claims_runtime_ownership:
+                self.assertEqual(runtime_symbol, decision.runtime_entry)
+            else:
+                self.assertEqual(
+                    runtime_symbol,
+                    "zyra_runtime.permission.source_audit.source_decision",
+                )
+            if decision.repository != "claude-code-best":
+                self.assertTrue(
+                    entry.metadata["source_graph_ref"].startswith(
+                        f"source-graphs/{decision.repository}/"
+                    ),
+                    entry.metadata["source_graph_ref"],
+                )
+            self.assertIn(
+                "tests.integration.test_browser_worker_permission_gate",
+                entry.runtime_entry.health_check,
+            )
+            self.assertIn(
+                "tests.integration.test_code_worker_permission_continuation_integration",
+                entry.runtime_entry.health_check,
+            )
             if decision.disposition is SourceDisposition.DEFERRED:
                 self.assertEqual(entry.lifecycle, LedgerLifecycle.DEFERRED)
                 self.assertEqual(entry.main_path_status, MainPathStatus.PLANNED)
+                self.assertEqual(
+                    entry.line_count_policy,
+                    LineCountPolicy.EXCLUDED_INVENTORY_ONLY,
+                )
+            elif decision.disposition in {
+                SourceDisposition.CONTRACT_ONLY,
+                SourceDisposition.REFERENCE_ONLY,
+            }:
+                self.assertEqual(entry.lifecycle, LedgerLifecycle.CANDIDATE)
+                self.assertEqual(entry.main_path_status, MainPathStatus.INVENTORIED)
+                self.assertEqual(
+                    entry.line_count_policy,
+                    LineCountPolicy.EXCLUDED_INVENTORY_ONLY,
+                )
+                self.assertFalse(
+                    any(binding.required_for_main_path for binding in entry.target_bindings)
+                )
+                if identity in {
+                    ("claude-code-best", "src/utils/permissions/bashClassifier.ts"),
+                    ("opencode", "packages/opencode/src/permission/arity.ts"),
+                    ("claude-code-best", "src/cli/handlers/autoMode.ts"),
+                    ("claude-code-best", "src/entrypoints/sdk/controlTypes.ts"),
+                }:
+                    self.assertFalse(
+                        any(
+                            binding.target_path
+                            == "packages/runtime/zyra_runtime/permission/risk.py"
+                            for binding in entry.target_bindings
+                        )
+                    )
             else:
                 self.assertEqual(entry.lifecycle, LedgerLifecycle.PRODUCTIZED)
                 self.assertEqual(entry.main_path_status, MainPathStatus.TESTED_MAIN_PATH)

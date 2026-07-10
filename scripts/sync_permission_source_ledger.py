@@ -49,19 +49,46 @@ DEFAULT_LEDGER_PATH = (
     / "internalization_ledger_seed.json"
 )
 OWNER_UNIT = "M1-03A"
-SLICE_ID = "M1-S03A-01"
-EVIDENCE_COMMIT = "46790d8"
-STAMP = "2026-07-10T16:30:00.000Z"
+SLICE_ID = "M1-S03A-02"
+EVIDENCE_COMMIT = "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT"
+STAMP = "2026-07-10T23:30:00.000Z"
 DOWNSTREAM_UNITS = ["M1-03B", "M1-03C", "M1-03D", "M1-04C", "M1-07C", "M2-04A"]
 PERMISSION_EVENTS = [
     "permission_evaluation_started",
     "permission_decision",
     "permission_request_created",
+    "permission_request_delivered",
     "permission_request_resolved",
+    "permission_request_cancelled",
+    "permission_request_aborted",
+    "permission_request_expired",
     "permission_execution_grant_issued",
     "permission_execution_grant_consumed",
+    "permission_mode_transitioned",
+    "permission_state_restored",
     "recovery_input",
 ]
+REFERENCE_TARGET_PATHS = {
+    ("claude-code-best", "src/utils/permissions/bashClassifier.ts"): (
+        "packages/runtime/zyra_runtime/permission/shell_analysis.py"
+    ),
+    ("opencode", "packages/opencode/src/permission/arity.ts"): (
+        "packages/runtime/zyra_runtime/permission/shell_analysis.py"
+    ),
+    ("claude-code-best", "src/cli/handlers/autoMode.ts"): (
+        "packages/runtime/zyra_runtime/permission/extensions.py"
+    ),
+    ("claude-code-best", "src/entrypoints/sdk/controlTypes.ts"): (
+        "packages/runtime/zyra_runtime/permission/control_plane.py"
+    ),
+}
+SUPPLEMENTAL_SOURCE_GRAPHS = {
+    "agent-framework": "source-graphs/agent-framework/source-graph.md",
+    "agentscope": "source-graphs/agentscope/source-graph.md",
+    "hermes-agent": "source-graphs/hermes-agent/batch-02-tool-registry-approval-tool-search.md",
+    "openclaw": "source-graphs/openclaw/source-graph.md",
+    "opencode": "source-graphs/opencode/batch-02-tools-permission-mcp-skills-subagent.md",
+}
 
 
 def target_path_for_symbol(symbol: str) -> str:
@@ -78,7 +105,13 @@ def target_paths_for_decision(decision: PermissionSourceDecision) -> list[str]:
         if path not in paths:
             paths.append(path)
     if not paths:
-        paths.append("packages/runtime/zyra_runtime/permission/risk.py")
+        fallback = REFERENCE_TARGET_PATHS.get((decision.repository, decision.source_path))
+        if fallback is None:
+            raise ValueError(
+                "Reference/contract permission decision needs an explicit replacement target: "
+                f"{decision.repository}:{decision.source_path}"
+            )
+        paths.append(fallback)
     return paths
 
 
@@ -93,13 +126,118 @@ def strategy_for_decision(decision: PermissionSourceDecision) -> MigrationStrate
 def lifecycle_for_decision(decision: PermissionSourceDecision) -> LedgerLifecycle:
     if decision.disposition is SourceDisposition.DEFERRED:
         return LedgerLifecycle.DEFERRED
+    if decision.disposition in {SourceDisposition.CONTRACT_ONLY, SourceDisposition.REFERENCE_ONLY}:
+        # These rows document a source decision and a Zyra replacement, but
+        # deliberately claim no migrated runtime ownership.  Keeping them in
+        # CANDIDATE/INVENTORIED avoids misclassifying a reference-only row as
+        # materialized code or counting its replacement target twice.
+        return LedgerLifecycle.CANDIDATE
     return LedgerLifecycle.PRODUCTIZED
 
 
 def status_for_decision(decision: PermissionSourceDecision) -> MainPathStatus:
     if decision.disposition is SourceDisposition.DEFERRED:
         return MainPathStatus.PLANNED
+    if decision.disposition in {SourceDisposition.CONTRACT_ONLY, SourceDisposition.REFERENCE_ONLY}:
+        return MainPathStatus.INVENTORIED
     return MainPathStatus.TESTED_MAIN_PATH
+
+
+def runtime_entry_for_decision(decision: PermissionSourceDecision) -> RuntimeEntry:
+    symbol = (
+        decision.runtime_entry
+        if decision.claims_runtime_ownership and decision.runtime_entry
+        else "zyra_runtime.permission.source_audit.source_decision"
+    )
+    module, separator, function = symbol.rpartition(".")
+    if not separator:
+        raise ValueError(f"Invalid permission runtime entry symbol: {symbol!r}")
+    return RuntimeEntry(
+        module=module,
+        function=function,
+        protocol=(
+            "zyra-permission-runtime-v1"
+            if decision.claims_runtime_ownership
+            else "zyra-permission-source-decision-v1"
+        ),
+        health_check=(
+            "python -m unittest tests.unit.test_permission_runtime_foundation "
+            "tests.unit.test_permission_control_plane_integration "
+            "tests.unit.test_permission_continuation "
+            "tests.unit.test_permission_shell_extensions "
+            "tests.integration.test_code_worker_permission_runtime_foundation "
+            "tests.integration.test_code_worker_permission_continuation_integration "
+            "tests.integration.test_browser_worker_permission_gate "
+            "tests.integration.test_api_control_commands"
+        ),
+        config_refs=[
+            "packages/runtime/zyra_runtime/permission/store.py",
+            "packages/runtime/zyra_runtime/permission/control_plane.py",
+            "packages/runtime/zyra_runtime/permission/extensions.py",
+        ],
+    )
+
+
+def main_path_for_decision(decision: PermissionSourceDecision) -> MainPathBinding:
+    if not decision.claims_runtime_ownership:
+        return MainPathBinding(
+            surfaces=["permission_source_decision"],
+            worker_runtime=(
+                "Inventory-only source decision; runtime behavior is owned by the explicit "
+                f"replacement {decision.replacement or ', '.join(decision.target_symbols)}."
+            ),
+        )
+    symbols = " ".join((*decision.target_symbols, decision.runtime_entry)).casefold()
+    surfaces = ["permission_runtime"]
+    routes: list[str] = []
+    if any(marker in symbols for marker in ("control_plane", "permission.api", "transport")):
+        surfaces.append("permission_control")
+        routes.extend(
+            [
+                "GET /permissions/requests",
+                "POST /permissions/requests/{request_id}/resolve",
+            ]
+        )
+    if any(marker in symbols for marker in ("tool_execution", "query_engine", "permission.runtime")):
+        surfaces.extend(["tool_execution", "code_worker"])
+        routes.extend(
+            [
+                "POST /tasks/{task_id}/tools",
+                "POST /tasks/{task_id}/workers/code",
+            ]
+        )
+    if decision.test_target == "tests/integration/test_browser_worker_permission_gate.py":
+        surfaces.extend(["browser_action", "browser_worker"])
+        routes.append("POST /tasks/{task_id}/workers/browser")
+    if any(marker in symbols for marker in ("event", "control_plane", "permission.runtime")):
+        surfaces.append("event_log")
+    return MainPathBinding(
+        surfaces=list(dict.fromkeys(surfaces)),
+        event_types=list(PERMISSION_EVENTS),
+        api_routes=list(dict.fromkeys(routes)),
+        worker_runtime=(
+            f"{decision.runtime_entry} -> PermissionStateStore -> exact permission/continuation boundary"
+        ),
+    )
+
+
+def source_graph_ref_for_decision(decision: PermissionSourceDecision) -> str:
+    if decision.repository != "claude-code-best":
+        return SUPPLEMENTAL_SOURCE_GRAPHS[decision.repository]
+    integration_prefixes = (
+        "src/cli/",
+        "src/commands",
+        "src/entrypoints/",
+        "src/main",
+        "src/types/command",
+        "src/utils/QueryGuard",
+        "src/hooks/useCommandQueue",
+        "src/utils/messageQueue",
+        "src/utils/queueProcessor",
+    )
+    if decision.source_path.startswith(integration_prefixes):
+        return "source-graphs/claude-code-best/batch-09-tui-cli-commands-control.md"
+    return "source-graphs/claude-code-best/batch-03-permission-runtime-hooks.md"
 
 
 def test_entry_for_decision(decision: PermissionSourceDecision) -> TestEntry:
@@ -107,9 +245,9 @@ def test_entry_for_decision(decision: PermissionSourceDecision) -> TestEntry:
     module = path.removesuffix(".py").replace("/", ".")
     kind = "integration" if "/integration/" in f"/{path}" else "unit"
     expected = (
-        "real CodeWorker tool execution is guarded before side effects"
+        "real API/CodeWorker/BrowserWorker execution is guarded before side effects"
         if kind == "integration"
-        else "permission source disposition and deterministic policy behavior are verified"
+        else "permission control, continuation, transport, shell and deterministic policy behavior are verified"
     )
     return TestEntry(
         path=path,
@@ -133,8 +271,8 @@ def replacement_plan_for_decision(decision: PermissionSourceDecision) -> str:
         )
     return (
         "The selected mechanism is internalized in the listed Zyra-owned modules and runs through "
-        "CodeWorkerRuntime; the source repository is not required at runtime. Structured remote/API "
-        "approval delivery and resume remain owned by M1-S03A-02."
+        "CodeWorkerRuntime or BrowserWorkerRuntime; the source repository is not required at runtime. "
+        "Structured API/CLI/bridge delivery, exact resolve and continuation resume are Zyra-owned."
     )
 
 
@@ -142,9 +280,20 @@ def build_entry(decision: PermissionSourceDecision) -> InternalizationLedgerEntr
     targets = target_paths_for_decision(decision)
     primary, *supporting = targets
     target_role = "primary" if decision.authority.value == "primary" else "supporting"
-    target_bindings = [TargetBinding(target_path=primary, role=target_role, required_for_main_path=True)]
+    runtime_owner = decision.claims_runtime_ownership
+    target_bindings = [
+        TargetBinding(
+            target_path=primary,
+            role=target_role,
+            required_for_main_path=runtime_owner,
+        )
+    ]
     target_bindings.extend(
-        TargetBinding(target_path=path, role="supporting", required_for_main_path=True)
+        TargetBinding(
+            target_path=path,
+            role="supporting",
+            required_for_main_path=runtime_owner,
+        )
         for path in supporting
     )
     target_bindings.append(
@@ -155,7 +304,7 @@ def build_entry(decision: PermissionSourceDecision) -> InternalizationLedgerEntr
         )
     )
     mechanisms = ", ".join(decision.mechanisms)
-    capability_name = f"permission-foundation:{decision.source_path}"
+    capability_name = f"permission-runtime:{decision.source_path}"
     entry = InternalizationLedgerEntry(
         ledger_id=InternalizationLedgerEntry.new(
             source_repo=decision.repository,
@@ -172,31 +321,17 @@ def build_entry(decision: PermissionSourceDecision) -> InternalizationLedgerEntr
         migration_strategy=strategy_for_decision(decision),
         main_path_status=status_for_decision(decision),
         lifecycle=lifecycle_for_decision(decision),
-        runtime_entry=RuntimeEntry(
-            module="zyra_runtime.permission.runtime",
-            function="ToolPermissionRuntime",
-            protocol="zyra-permission-runtime-v1",
-            health_check=(
-                "python -m unittest tests.unit.test_permission_runtime_foundation "
-                "tests.integration.test_code_worker_permission_runtime_foundation"
-            ),
-            config_refs=["packages/runtime/zyra_runtime/permission/store.py"],
-        ),
+        runtime_entry=runtime_entry_for_decision(decision),
         test_entries=[test_entry_for_decision(decision)],
-        main_path=MainPathBinding(
-            surfaces=["permission_runtime", "tool_execution", "event_log", "code_worker"],
-            event_types=list(PERMISSION_EVENTS),
-            api_routes=[
-                "POST /tasks/{task_id}/tools",
-                "POST /tasks/{task_id}/workers/code",
-            ],
-            worker_runtime=(
-                "CodeWorkerRuntime -> ZyraClaudeQueryEngine -> ToolExecutionRuntime -> ToolPermissionRuntime"
-            ),
-        ),
+        main_path=main_path_for_decision(decision),
         line_count_policy=(
             LineCountPolicy.EXCLUDED_INVENTORY_ONLY
-            if decision.disposition is SourceDisposition.DEFERRED
+            if decision.disposition
+            in {
+                SourceDisposition.DEFERRED,
+                SourceDisposition.CONTRACT_ONLY,
+                SourceDisposition.REFERENCE_ONLY,
+            }
             else LineCountPolicy.COUNTS_WHEN_PRODUCTIZED
         ),
         license_notice=LicenseNotice(
@@ -216,14 +351,14 @@ def build_entry(decision: PermissionSourceDecision) -> InternalizationLedgerEntr
                 source_path=decision.source_path,
                 exists_in_workspace=True,
                 source_kind="file",
-                reason="M1-S03A-01 permission source-to-target decision",
+                reason="M1-S03A-02 permission integration source-to-target decision",
                 symbols=[],
                 tags=["permission", decision.authority.value, decision.disposition.value],
             )
         ],
         tags=[
             "m1-03a",
-            "slice-03a-01",
+            "slice-03a-02",
             "permission-runtime",
             decision.authority.value,
             decision.disposition.value,
@@ -235,12 +370,12 @@ def build_entry(decision: PermissionSourceDecision) -> InternalizationLedgerEntr
         updated_at=STAMP,
         metadata={
             "evidence_commit": EVIDENCE_COMMIT,
-            "internalization_strategy": "zyra_owned_permission_state_machine",
+            "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
             "mechanisms": list(decision.mechanisms),
             "next_owner": decision.next_owner or "",
             "source_authority": decision.authority.value,
             "source_disposition": decision.disposition.value,
-            "source_graph_ref": "source-graphs/claude-code-best/batch-03-permission-runtime-hooks.md",
+            "source_graph_ref": source_graph_ref_for_decision(decision),
             "target_symbols": list(decision.target_symbols),
             "slice_id": SLICE_ID,
         },
@@ -302,7 +437,7 @@ def synchronize(path: Path, *, write: bool) -> tuple[bool, int]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Synchronize M1-S03A-01 source decisions into the bundled internalization ledger."
+        description="Synchronize M1-S03A-02 source decisions into the bundled internalization ledger."
     )
     parser.add_argument("--ledger-path", type=Path, default=DEFAULT_LEDGER_PATH)
     parser.add_argument("--write", action="store_true", help="Write the deterministic ledger projection.")

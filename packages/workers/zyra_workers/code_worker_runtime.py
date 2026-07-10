@@ -75,6 +75,10 @@ from zyra_runtime import (
     worker_execution_gate_event,
     worker_execution_gate_markdown,
 )
+from zyra_runtime.permission.extensions import (
+    PermissionExtensionRegistry,
+    build_deployment_permission_extensions,
+)
 
 from .code_worker_bridge import CodeWorkerSidecarClient
 
@@ -84,6 +88,34 @@ class CodeWorkerRun:
     worker_result: WorkerResult
     event_records: list[EventRecord]
     session_custody_token: str = field(default="", repr=False)
+    session_id: str = ""
+    session_custody_id: str = ""
+    session_custody_fingerprint: str = ""
+    session_custody_created: bool = False
+
+    def safe_session_metadata(self) -> dict[str, Any]:
+        """Public session metadata with no bearer material."""
+
+        return {
+            "session_id": self.session_id,
+            "permission_session_custody_id": self.session_custody_id,
+            "permission_session_custody_fingerprint": self.session_custody_fingerprint,
+            "permission_session_custody_created": self.session_custody_created,
+            "session_custody_token_included": False,
+        }
+
+    def private_api_session_envelope(self) -> dict[str, Any]:
+        """Explicit API handoff; callers must not persist this dictionary."""
+
+        return {
+            **self.safe_session_metadata(),
+            "session_custody_token": (
+                self.session_custody_token if self.session_custody_created else ""
+            ),
+            "session_custody_token_included": bool(
+                self.session_custody_created and self.session_custody_token
+            ),
+        }
 
 
 class CodeWorkerRuntime:
@@ -101,6 +133,8 @@ class CodeWorkerRuntime:
         permission_bypass_available: bool = False,
         permission_auto_available: bool = False,
         permission_accept_edits_available: bool = False,
+        permission_extension_registry: PermissionExtensionRegistry | None = None,
+        permission_state_path: str | Path | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.sidecar_client = sidecar_client or CodeWorkerSidecarClient(self.project_root)
@@ -109,10 +143,18 @@ class CodeWorkerRuntime:
         self.permission_bypass_available = bool(permission_bypass_available)
         self.permission_auto_available = bool(permission_auto_available)
         self.permission_accept_edits_available = bool(permission_accept_edits_available)
+        self.permission_extension_registry = (
+            permission_extension_registry or build_deployment_permission_extensions()
+        )
         self.execution_context = ToolExecutionContext.for_workspace(
             workspace_root=workspace_root,
             artifact_root=artifact_root,
             permission_store=permission_store,
+        )
+        self.permission_state_path = (
+            Path(permission_state_path).resolve()
+            if permission_state_path is not None
+            else self.execution_context.artifact_store.root / ".permission" / "state.json"
         )
 
     def run(self, request: WorkerRequest) -> CodeWorkerRun:
@@ -120,12 +162,24 @@ class CodeWorkerRuntime:
         resume_session_custody_token = str(
             request.constraints.get("resume_session_custody_token") or ""
         )
+        permission_capability_echo_detected = (
+            PermissionSessionCustodyStore.contains_capability_echo(
+                request.constraints,
+                [session_custody_token, resume_session_custody_token],
+            )
+        )
+        explicit_permission_resume = request.constraints.get("permission_continuation_resume")
         # Bearer material is consumed only by the custody gate.  Replace it
         # before any integration report, event, artifact, context snapshot or
         # model-facing projection can observe the WorkerRequest.
+        redacted_constraints = PermissionSessionCustodyStore.redact_constraints(
+            request.constraints
+        )
+        if explicit_permission_resume is not None:
+            redacted_constraints["permission_continuation_resume"] = "<redacted>"
         request = replace(
             request,
-            constraints=PermissionSessionCustodyStore.redact_constraints(request.constraints),
+            constraints=redacted_constraints,
         )
         if request.constraints.get("disable_productized_runtime") is True or self.query_engine_factory is None:
             worker_result = WorkerResult(
@@ -305,7 +359,10 @@ class CodeWorkerRuntime:
             session_contract = self.runtime_contracts.session_contract
             tool_loop_contract = self.runtime_contracts.tool_loop_contract
 
-        query_turns = productized_query_turns_from_constraints(request.constraints)
+        query_turns = _bind_permission_tool_use_identity(
+            productized_query_turns_from_constraints(request.constraints),
+            request.constraints,
+        )
         query_plan_metadata = query_plan_metadata_from_constraints(request.constraints)
         session_store = CodeWorkerSessionStore(self.execution_context.artifact_store.root)
         input_processor = QueryInputProcessor(
@@ -338,9 +395,7 @@ class CodeWorkerRuntime:
         )
         runtime_state_source_session_id = resume_source_session_id or seed_session_id
         permission_custody_store = PermissionSessionCustodyStore(
-            PermissionStateStore(
-                self.execution_context.artifact_store.root / ".permission" / "state.json"
-            )
+            PermissionStateStore(self.permission_state_path)
         )
         target_binding = PermissionSessionCustodyBinding(
             session_id=seed_session_id,
@@ -415,6 +470,86 @@ class CodeWorkerRuntime:
                     _worker_result_event(request, worker_result),
                 ],
             )
+        if permission_capability_echo_detected:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime rejected a custody capability copied into task data.",
+                error="permission_custody_capability_echo",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    **source_graph_audit.metadata(),
+                    **worker_gate.metadata(),
+                    **custody_receipt.metadata(),
+                    "permission_capability_echo_rejected": "true",
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            return _custodied_code_worker_run(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    *source_graph_audit_events,
+                    worker_gate_event,
+                    _worker_result_event(request, worker_result),
+                ],
+                custody_receipt=custody_receipt,
+            )
+        if explicit_permission_resume is not None:
+            # Continuation identity must be prepared by the permission API/control
+            # plane.  A raw WorkerRequest field is not an execution capability and
+            # is deliberately rejected before the QueryEngine can see it.
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="CodeWorkerRuntime refused a direct permission continuation resume.",
+                error="permission_continuation_api_resolver_required",
+                metadata={
+                    **self.runtime_contracts.metadata(),
+                    **integration_report.metadata(),
+                    **runtime_context_report.metadata(),
+                    **source_graph_audit.metadata(),
+                    **worker_gate.metadata(),
+                    **custody_receipt.metadata(),
+                    "permission_continuation_resume_accepted": "false",
+                    "permission_continuation_resume_owner": "PermissionApiFacade",
+                    "query_turns": "0",
+                    "tool_steps": "0",
+                    "context_compactions": "0",
+                },
+            )
+            rejected_event = EventRecord(
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+                event_type=EventType.AGENT_MESSAGE,
+                payload={
+                    "query_session": {
+                        "phase": "permission_continuation_resume_rejected",
+                        "session_id": seed_session_id,
+                        "worker_request_id": request.request_id,
+                        "reason": "api_resolver_required",
+                        "resume_payload_projected": False,
+                    }
+                },
+            )
+            return _custodied_code_worker_run(
+                worker_result=worker_result,
+                event_records=[
+                    *integration_events,
+                    *runtime_context_events,
+                    *source_graph_audit_events,
+                    worker_gate_event,
+                    rejected_event,
+                    _worker_result_event(request, worker_result),
+                ],
+                custody_receipt=custody_receipt,
+            )
         runtime_state_load = session_store.load_runtime_state(
             session_id=runtime_state_source_session_id,
             task_id=request.task_id,
@@ -441,7 +576,7 @@ class CodeWorkerRuntime:
                     "context_compactions": "0",
                 },
             )
-            return CodeWorkerRun(
+            return _custodied_code_worker_run(
                 worker_result=worker_result,
                 event_records=[
                     *integration_events,
@@ -450,7 +585,22 @@ class CodeWorkerRuntime:
                     worker_gate_event,
                     _worker_result_event(request, worker_result),
                 ],
+                custody_receipt=custody_receipt,
             )
+        effective_permission_mode = _permission_mode_from_state_owner(
+            permission_custody_store.state_store,
+            session_id=seed_session_id,
+            restored_runtime_state=(
+                runtime_state_load.runtime_state
+                if runtime_state_load.found
+                and runtime_state_source_session_id == seed_session_id
+                else {}
+            ),
+            fallback=request.constraints.get("permission_mode"),
+            bypass_available=self.permission_bypass_available,
+            auto_available=self.permission_auto_available,
+            accept_edits_available=self.permission_accept_edits_available,
+        )
         context_snapshot = context_runtime.assemble(
             request=request,
             session_id=seed_session_id,
@@ -463,7 +613,7 @@ class CodeWorkerRuntime:
             integration_report=integration_report,
             runtime_context_report=runtime_context_report,
             source_graph_audit=source_graph_audit,
-            permission_mode=str(request.constraints.get("permission_mode") or "workspace"),
+            permission_mode=effective_permission_mode,
             disabled=request.constraints.get("disable_context_assembly") is True,
         )
         session_foundation = CodeWorkerSessionFoundationRuntime(store=session_store)
@@ -615,7 +765,7 @@ class CodeWorkerRuntime:
                     "sidecar_contracts_used": str(use_sidecar_contracts).lower(),
                 },
             )
-            return CodeWorkerRun(
+            return _custodied_code_worker_run(
                 worker_result=worker_result,
                 event_records=[
                     *integration_events,
@@ -630,6 +780,7 @@ class CodeWorkerRuntime:
                     pre_query_lifecycle_event,
                     _worker_result_event(request, worker_result),
                 ],
+                custody_receipt=custody_receipt,
             )
         query_session_runtime = QuerySessionIntegrationRuntime(
             store=session_store,
@@ -832,7 +983,7 @@ class CodeWorkerRuntime:
                     "context_compactions": "0",
                 },
             )
-            return CodeWorkerRun(
+            return _custodied_code_worker_run(
                 worker_result=worker_result,
                 event_records=[
                     *integration_events,
@@ -853,6 +1004,7 @@ class CodeWorkerRuntime:
                     pre_engine_disconnect_event,
                     _worker_result_event(request, worker_result),
                 ],
+                custody_receipt=custody_receipt,
             )
         query_entry_messages = query_session_integration.packet.request_messages()
         query_entry_metadata = query_session_integration.metadata_values()
@@ -872,18 +1024,61 @@ class CodeWorkerRuntime:
                 # Branch replay may recover context, but permission authority
                 # is never copied to a fresh target session by selector alone.
                 restored_runtime_state.pop("permission_runtime", None)
+                restored_runtime_state.pop("permission_continuation", None)
+                restored_runtime_state.pop("permission_continuation_payloads", None)
                 restored_runtime_state["permission_branch_policy"] = {
                     "source_session_id": runtime_state_source_session_id,
                     "target_session_id": session_seed.session_id,
                     "permission_overlay_inherited": False,
+                    "permission_continuation_inherited": False,
                     "source_custody_token_present": bool(resume_session_custody_token),
                 }
-        effective_permission_mode = _bounded_permission_mode(
-            request.constraints.get("permission_mode"),
-            bypass_available=self.permission_bypass_available,
-            auto_available=self.permission_auto_available,
-            accept_edits_available=self.permission_accept_edits_available,
-        )
+        permission_payload_sequence = [
+            session_store.replay_session(session_seed.session_id).last_sequence
+        ]
+
+        def write_permission_continuation_payload(
+            request_id: str,
+            payload_locator: str,
+            replay_payload: Mapping[str, Any],
+        ) -> None:
+            receipt = session_store.append_permission_continuation_payload(
+                session_id=session_seed.session_id,
+                worker_request_id=request.request_id,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                request_id=request_id,
+                payload_locator=payload_locator,
+                replay_payload=replay_payload,
+                expected_previous_sequence=permission_payload_sequence[0],
+            )
+            if not receipt.ok:
+                raise RuntimeError(
+                    receipt.error or "permission_continuation_payload_write_failed"
+                )
+            permission_payload_sequence[0] = receipt.last_sequence
+
+        def tombstone_permission_continuation_payload(
+            request_id: str,
+            payload_locator: str,
+            reason: str,
+        ) -> None:
+            receipt = session_store.append_permission_continuation_tombstone(
+                session_id=session_seed.session_id,
+                worker_request_id=request.request_id,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                request_id=request_id,
+                payload_locator=payload_locator,
+                reason=reason,
+                expected_previous_sequence=permission_payload_sequence[0],
+            )
+            if not receipt.ok:
+                raise RuntimeError(
+                    receipt.error or "permission_continuation_tombstone_write_failed"
+                )
+            permission_payload_sequence[0] = receipt.last_sequence
+
         engine = self.query_engine_factory(
             self.execution_context,
             ClaudeQueryEngineConfig(
@@ -942,6 +1137,10 @@ class CodeWorkerRuntime:
                 ),
                 permission_bypass_available=self.permission_bypass_available,
                 permission_auto_available=self.permission_auto_available,
+                permission_state_path=self.permission_state_path,
+                permission_extension_registry=self.permission_extension_registry,
+                permission_continuation_payload_writer=write_permission_continuation_payload,
+                permission_continuation_payload_tombstoner=tombstone_permission_continuation_payload,
                 disable_runtime_budget_state=request.constraints.get("disable_runtime_budget_state") is True,
                 disable_compact_restore_runtime=request.constraints.get("disable_compact_restore_runtime") is True,
                 disable_model_stream_runtime=request.constraints.get("disable_model_stream_runtime") is True,
@@ -976,7 +1175,6 @@ class CodeWorkerRuntime:
                 restored_runtime_state=restored_runtime_state,
             ),
         )
-        runtime_state_parent_sequence = session_store.replay_session(session_seed.session_id).last_sequence
         loop_result = engine.run(
             run_id=request.run_id,
             task_id=request.task_id,
@@ -1069,7 +1267,7 @@ class CodeWorkerRuntime:
                 "event_count": len(loop_result.event_records),
                 "session_snapshot_present": loop_result.session_snapshot is not None,
             },
-            expected_previous_sequence=runtime_state_parent_sequence,
+            expected_previous_sequence=permission_payload_sequence[0],
         )
         runtime_state_checkpoint_metadata = {
             "runtime_state_checkpoint_ok": str(runtime_state_checkpoint_receipt.ok).lower(),
@@ -1341,7 +1539,7 @@ class CodeWorkerRuntime:
                 "query_session_checkpoint_ready": str(bool(loop_result.session_snapshot)).lower(),
             },
         )
-        return CodeWorkerRun(
+        return _custodied_code_worker_run(
             worker_result=worker_result,
             event_records=[
                 *integration_events,
@@ -1364,8 +1562,29 @@ class CodeWorkerRuntime:
                 final_disconnect_event,
                 _worker_result_event(request, worker_result),
             ],
-            session_custody_token=custody_receipt.token,
+            custody_receipt=custody_receipt,
         )
+
+
+def _custodied_code_worker_run(
+    *,
+    worker_result: WorkerResult,
+    event_records: list[EventRecord],
+    custody_receipt: PermissionSessionCustodyReceipt,
+) -> CodeWorkerRun:
+    """Build the private handoff without projecting bearer material elsewhere."""
+
+    return CodeWorkerRun(
+        worker_result=worker_result,
+        event_records=event_records,
+        session_custody_token=(
+            custody_receipt.token if custody_receipt.created else ""
+        ),
+        session_id=custody_receipt.session_id,
+        session_custody_id=custody_receipt.custody_id,
+        session_custody_fingerprint=custody_receipt.custody_fingerprint,
+        session_custody_created=custody_receipt.created,
+    )
 
 
 def _worker_result_event(request: WorkerRequest, result: WorkerResult) -> EventRecord:
@@ -1525,6 +1744,90 @@ def _bounded_permission_mode(
         return "default"
     allowed = {"default", "plan", "dontAsk", "sealed", "acceptEdits", "auto", "bypassPermissions"}
     return requested if requested in allowed else "default"
+
+
+def _permission_mode_from_state_owner(
+    state_store: PermissionStateStore,
+    *,
+    session_id: str,
+    restored_runtime_state: Mapping[str, Any],
+    fallback: Any,
+    bypass_available: bool,
+    auto_available: bool,
+    accept_edits_available: bool,
+) -> str:
+    """Prefer durable session owners and only then use the request fallback."""
+
+    selected: Any = fallback
+    restored_permission = restored_runtime_state.get("permission_runtime")
+    if isinstance(restored_permission, Mapping):
+        restored_mode = restored_permission.get("mode")
+        if isinstance(restored_mode, Mapping) and restored_mode.get("mode"):
+            selected = restored_mode.get("mode")
+
+    state = state_store.read_state()
+    integration = state.get("metadata", {}).get("permission_integration", {})
+    modes = integration.get("session_modes", {}) if isinstance(integration, Mapping) else {}
+    persisted = modes.get(session_id) if isinstance(modes, Mapping) else None
+    if isinstance(persisted, Mapping) and persisted.get("mode"):
+        selected = persisted.get("mode")
+
+    return _bounded_permission_mode(
+        selected,
+        bypass_available=bypass_available,
+        auto_available=auto_available,
+        accept_edits_available=accept_edits_available,
+    )
+
+
+def _bind_permission_tool_use_identity(
+    query_turns: list[list[dict[str, Any]]],
+    constraints: Mapping[str, Any],
+) -> list[list[dict[str, Any]]]:
+    """Retain caller-visible tool-use ids across an approved exact replay.
+
+    The query planner owns generated step ids, while permission continuations
+    bind the provider/tool-use id.  This overlay only preserves an explicitly
+    supplied id; it does not grant permission and duplicate ids remain subject
+    to the normal settlement/permission guards.
+    """
+
+    raw_turns: list[Any]
+    raw_query_turns = constraints.get("query_turns")
+    if isinstance(raw_query_turns, list):
+        raw_turns = list(raw_query_turns)
+    else:
+        raw_tool_plan = constraints.get("tool_plan")
+        raw_turns = [raw_tool_plan] if isinstance(raw_tool_plan, list) else []
+
+    bound: list[list[dict[str, Any]]] = []
+    for turn_index, generated_turn in enumerate(query_turns):
+        raw_turn = raw_turns[turn_index] if turn_index < len(raw_turns) else []
+        if isinstance(raw_turn, Mapping):
+            raw_steps = (
+                raw_turn.get("tool_calls")
+                or raw_turn.get("steps")
+                or raw_turn.get("tool_plan")
+                or []
+            )
+        else:
+            raw_steps = raw_turn
+        if not isinstance(raw_steps, list):
+            raw_steps = []
+
+        output_turn: list[dict[str, Any]] = []
+        for step_index, generated_step in enumerate(generated_turn):
+            output_step = dict(generated_step)
+            raw_step = raw_steps[step_index] if step_index < len(raw_steps) else None
+            if isinstance(raw_step, Mapping):
+                explicit_id = str(
+                    raw_step.get("tool_call_id") or raw_step.get("id") or ""
+                ).strip()
+                if explicit_id:
+                    output_step["tool_call_id"] = explicit_id
+            output_turn.append(output_step)
+        bound.append(output_turn)
+    return bound
 
 
 def _trace_markdown(

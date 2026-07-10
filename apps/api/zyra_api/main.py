@@ -28,7 +28,15 @@ for package_path in PACKAGE_PATHS:
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
-from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType, create_task_state, to_jsonable
+from zyra_core import (
+    ArtifactKind,
+    ArtifactRef,
+    EventRecord,
+    EventType,
+    create_task_state,
+    new_id,
+    to_jsonable,
+)
 from zyra_core.event_log import append_event as append_jsonl_event
 from zyra_memory import CompactPolicy, MemoryFabric, SQLiteStore
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
@@ -51,9 +59,6 @@ from zyra_runtime import (
     JsonPermissionStore,
     LocalArtifactStore,
     PermissionEffect,
-    PermissionOperation,
-    PermissionRequestStatus,
-    PermissionRule,
     QueryInputProcessor,
     QuerySessionIntegrationRuntime,
     SessionAcceptanceRuntime,
@@ -85,6 +90,25 @@ from zyra_runtime import (
     TurnLifecycleRuntime,
 )
 from zyra_runtime.permission.canonical import arguments_digest
+from zyra_runtime.permission.api import (
+    PermissionApiAuthenticationError,
+    PermissionApiFacade,
+    PermissionApiNotFound,
+    PermissionApiOperation,
+    PermissionApiResponse,
+    PermissionCustodyEnvelope,
+    extract_bearer_token,
+    permission_api_error_response,
+)
+from zyra_runtime.permission.control_plane import (
+    PermissionControlPlane,
+    project_permission_request,
+    project_permission_rule,
+)
+from zyra_runtime.permission.custody import (
+    PermissionSessionCustodyBinding,
+    PermissionSessionCustodyStore,
+)
 from zyra_runtime.permission.models import (
     PermissionEffect as RuntimePermissionEffect,
     PermissionRuleRecord,
@@ -191,6 +215,46 @@ def permission_store_path() -> Path:
     return PROJECT_ROOT / configured
 
 
+def permission_state_path() -> Path:
+    """Return the sole authoritative permission state path.
+
+    ``tmp/permissions.json`` is retained only for the pre-M1 compatibility
+    projection used by unrelated historical graph code.  Every interactive
+    permission operation and every execution guard in this API shares this
+    state owner.
+    """
+
+    configured = Path(
+        os.environ.get(
+            "ZYRA_PERMISSION_STATE",
+            str(artifact_root_path() / ".permission" / "state.json"),
+        )
+    )
+    if configured.is_absolute():
+        return configured
+    return PROJECT_ROOT / configured
+
+
+def get_permission_control_plane() -> PermissionControlPlane:
+    return PermissionControlPlane.from_path(
+        permission_state_path(),
+        allow_standing_rules=_truthy(
+            os.environ.get("ZYRA_PERMISSION_ALLOW_STANDING_RULES"),
+            default=False,
+        ),
+        allow_mode_updates=True,
+    )
+
+
+def get_permission_api_facade() -> PermissionApiFacade:
+    return PermissionApiFacade(
+        get_permission_control_plane(),
+        workspace_root=tool_workspace_path(),
+        service_token=os.environ.get("ZYRA_PERMISSION_SERVICE_TOKEN", ""),
+        expose_custody_token_in_body=True,
+    )
+
+
 def _execute_guarded_api_tool(
     *,
     state: Any,
@@ -198,17 +262,38 @@ def _execute_guarded_api_tool(
     tool_name: str,
     arguments: dict[str, Any],
     context: ToolExecutionContext,
-) -> tuple[ToolCall, Any, tuple[EventRecord, ...]]:
+    session_id: str,
+    worker_request_id: str,
+    tool_call_id: str,
+    custody_token: str = "",
+    external_session_exists: bool = False,
+) -> tuple[
+    ToolCall,
+    Any,
+    tuple[EventRecord, ...],
+    PermissionCustodyEnvelope,
+]:
     """Execute one API tool through the same deterministic permission guard.
 
-    The legacy permission JSON remains a projection until M1-S03A-02 wires
-    structured resolve/retry.  It is never accepted as execution authority.
+    The legacy permission JSON remains a compatibility projection for older
+    graph context.  It is never accepted as execution authority; structured
+    resolve/retry and execution grants share ``PermissionStateStore``.
     Exact, one-use rules below represent only low-risk actions explicitly
     initiated through this interactive API route; shell/network stay on ASK.
     """
 
-    session_id = f"api-tool:{state.task_id}"
-    worker_request_id = f"api-tool-request:{state.task_id}"
+    control_plane = get_permission_control_plane()
+    custody_receipt = control_plane.custody_store.claim(
+        PermissionSessionCustodyBinding(
+            session_id=session_id,
+            run_id=state.run_id,
+            task_id=state.task_id,
+            workspace_root=str(context.workspace_root),
+        ),
+        presented_token=custody_token,
+        external_session_exists=external_session_exists,
+    )
+    custody_envelope = PermissionCustodyEnvelope.from_receipt(custody_receipt)
     materialization = ToolRegistryRuntime(context.registry).materialize(
         worker_request_id=worker_request_id,
         session_id=session_id,
@@ -221,13 +306,26 @@ def _execute_guarded_api_tool(
         node_id=node_id,
         worker_request_id=worker_request_id,
         turn_index=1,
-        steps=[{"tool_name": tool_name, "arguments": dict(arguments)}],
+        steps=[
+            {
+                "tool_name": tool_name,
+                "arguments": dict(arguments),
+                "tool_call_id": tool_call_id,
+                "metadata": {
+                    "permission_session_custody_fingerprint": (
+                        custody_receipt.custody_fingerprint
+                    ),
+                    "api_exact_retry": str(external_session_exists).lower(),
+                },
+            }
+        ],
     )
     scheduled = plan.requests[0]
     permission_runtime = ToolPermissionRuntime.for_session(
         session_id=session_id,
-        state_path=context.artifact_store.root / ".permission" / "state.json",
+        state_path=permission_state_path(),
         workspace_root=context.workspace_root,
+        custody_fingerprint=custody_receipt.custody_fingerprint,
     )
     if _api_low_risk_explicit_action(context, scheduled.call):
         permission_runtime.rule_store.add(
@@ -275,7 +373,12 @@ def _execute_guarded_api_tool(
         tool_context=tool_context,
         max_workers=1,
     )[0]
-    return receipt.request.call, receipt.bounded_result, receipt.permission_events
+    return (
+        receipt.request.call,
+        receipt.bounded_result,
+        receipt.permission_events,
+        custody_envelope,
+    )
 
 
 def _api_low_risk_explicit_action(context: ToolExecutionContext, call: ToolCall) -> bool:
@@ -419,6 +522,291 @@ def _task_node_ids(state: Any) -> set[str]:
 class ZyraRequestHandler(BaseHTTPRequestHandler):
     server_version = "ZyraDevAPI/0.2"
 
+    def _permission_actor_id(self) -> str:
+        # The current development API has no end-user authentication layer.
+        # Stamp a deployment-owned actor instead of trusting request JSON.
+        return str(os.environ.get("ZYRA_PERMISSION_API_ACTOR", "api-operator")).strip() or "api-operator"
+
+    def _permission_authority(
+        self,
+        facade: PermissionApiFacade,
+        values: dict[str, Any],
+        *,
+        session_id: str = "",
+        allow_payload_token: bool = True,
+    ) -> Any:
+        selected_session = str(session_id or values.get("session_id") or "").strip()
+        run_id = str(values.get("run_id") or "").strip()
+        task_id = str(values.get("task_id") or "").strip()
+        if not selected_session or not run_id or not task_id:
+            raise ValueError("session_id, run_id, and task_id are required")
+        return facade.authority(
+            session_id=selected_session,
+            run_id=run_id,
+            task_id=task_id,
+            custody_token=extract_bearer_token(
+                self.headers,
+                values if allow_payload_token else None,
+            ),
+            actor_id=self._permission_actor_id(),
+        )
+
+    @staticmethod
+    def _require_permission_task_identity(
+        store: SQLiteStore,
+        *,
+        task_id: str,
+        run_id: str,
+    ) -> Any:
+        state = store.load_task(str(task_id or ""))
+        if state is None:
+            raise PermissionApiNotFound("permission task was not found")
+        if str(state.run_id) != str(run_id or ""):
+            raise ValueError("permission run_id does not match task custody")
+        return state
+
+    def _send_permission_response(
+        self,
+        store: SQLiteStore,
+        response: PermissionApiResponse,
+    ) -> None:
+        if response.events:
+            persist_events(store, list(response.events))
+        self._send_json(response.status, response.body, headers=response.headers)
+
+    def _handle_permission_get(
+        self,
+        *,
+        parsed: Any,
+        parts: list[str],
+        store: SQLiteStore,
+    ) -> bool:
+        if not parts or parts[0] != "permissions":
+            return False
+        facade = get_permission_api_facade()
+        parameters = _flatten_query(parse_qs(parsed.query, keep_blank_values=True))
+        operation = PermissionApiOperation.HEALTH
+        try:
+            if parts == ["permissions", "health"]:
+                response = facade.health()
+            elif parts == ["permissions"] and not parameters.get("session_id"):
+                health = facade.health()
+                response = PermissionApiResponse(
+                    status=HTTPStatus.OK,
+                    operation=PermissionApiOperation.HEALTH,
+                    body={
+                        **health.body,
+                        "compatibility_projection": {
+                            "legacy_json_store_authority": False,
+                            "state_listing_requires_session_custody": True,
+                            "structured_paths": [
+                                "/permissions/requests",
+                                "/permissions/rules",
+                                "/permissions/mode",
+                                "/permissions/decisions",
+                            ],
+                        },
+                    },
+                    headers=health.headers,
+                )
+            else:
+                if any(
+                    key in parameters
+                    for key in (
+                        "custody_token",
+                        "permission_session_custody_token",
+                        "session_custody_token",
+                    )
+                ):
+                    raise PermissionApiAuthenticationError(
+                        "GET permission custody must use the Authorization header"
+                    )
+                self._require_permission_task_identity(
+                    store,
+                    task_id=str(parameters.get("task_id") or ""),
+                    run_id=str(parameters.get("run_id") or ""),
+                )
+                authority = self._permission_authority(
+                    facade,
+                    parameters,
+                    allow_payload_token=False,
+                )
+                if parts == ["permissions"]:
+                    operation = PermissionApiOperation.REQUEST_QUERY
+                    requests = facade.query_requests(authority, parameters)
+                    rules = facade.query_rules(authority)
+                    mode = facade.get_mode(authority)
+                    response = PermissionApiResponse(
+                        status=HTTPStatus.OK,
+                        operation=operation,
+                        body={
+                            "schema": "zyra.permission-api.v1",
+                            "ok": True,
+                            "operation": operation.value,
+                            "state_owner": "PermissionStateStore",
+                            "legacy_json_store_authority": False,
+                            "requests": requests.body.get("requests", {}),
+                            "rules": rules.body.get("rules", []),
+                            "mode": mode.body.get("mode", "default"),
+                            "session_id": authority.session_id,
+                        },
+                        headers=requests.headers,
+                    )
+                elif parts == ["permissions", "requests"]:
+                    operation = PermissionApiOperation.REQUEST_QUERY
+                    response = facade.query_requests(authority, parameters)
+                elif len(parts) == 3 and parts[:2] == ["permissions", "requests"]:
+                    operation = PermissionApiOperation.REQUEST_GET
+                    response = facade.get_request(authority, parts[2])
+                elif parts == ["permissions", "rules"]:
+                    operation = PermissionApiOperation.RULE_QUERY
+                    response = facade.query_rules(authority)
+                elif parts == ["permissions", "mode"]:
+                    operation = PermissionApiOperation.MODE_GET
+                    response = facade.get_mode(authority)
+                elif parts == ["permissions", "decisions"]:
+                    operation = PermissionApiOperation.DECISION_QUERY
+                    response = facade.query_decisions(
+                        authority,
+                        limit=_bounded_permission_limit(parameters.get("limit")),
+                    )
+                else:
+                    return False
+        except Exception as error:  # noqa: BLE001 - mapped to a redacted permission response.
+            response = permission_api_error_response(operation, error)
+        self._send_permission_response(store, response)
+        return True
+
+    def _handle_permission_post(
+        self,
+        *,
+        parts: list[str],
+        payload: dict[str, Any],
+        store: SQLiteStore,
+    ) -> bool:
+        if not parts or parts[0] != "permissions":
+            return False
+        facade = get_permission_api_facade()
+        operation = PermissionApiOperation.REQUEST_CREATE
+        try:
+            if parts == ["permissions", "sessions", "open"]:
+                operation = PermissionApiOperation.SESSION_OPEN
+                self._require_permission_task_identity(
+                    store,
+                    task_id=str(payload.get("task_id") or ""),
+                    run_id=str(payload.get("run_id") or ""),
+                )
+                response = facade.open_session(
+                    session_id=str(payload.get("session_id") or ""),
+                    run_id=str(payload.get("run_id") or ""),
+                    task_id=str(payload.get("task_id") or ""),
+                    presented_token=extract_bearer_token(self.headers, payload),
+                    external_session_exists=_truthy(
+                        payload.get("external_session_exists"),
+                        default=False,
+                    ),
+                )
+            elif (
+                len(parts) == 4
+                and parts[:2] == ["permissions", "sessions"]
+                and parts[3] == "resume"
+            ):
+                operation = PermissionApiOperation.SESSION_RESUME
+                self._require_permission_task_identity(
+                    store,
+                    task_id=str(payload.get("task_id") or ""),
+                    run_id=str(payload.get("run_id") or ""),
+                )
+                response = facade.resume_session(
+                    session_id=parts[2],
+                    run_id=str(payload.get("run_id") or ""),
+                    task_id=str(payload.get("task_id") or ""),
+                    custody_token=extract_bearer_token(self.headers, payload),
+                    actor_id=self._permission_actor_id(),
+                )
+            else:
+                self._require_permission_task_identity(
+                    store,
+                    task_id=str(payload.get("task_id") or ""),
+                    run_id=str(payload.get("run_id") or ""),
+                )
+                authority = self._permission_authority(facade, payload)
+                node_id = None if payload.get("node_id") is None else str(payload.get("node_id"))
+                if parts == ["permissions", "requests"]:
+                    operation = PermissionApiOperation.REQUEST_CREATE
+                    response = facade.create_request(
+                        authority,
+                        payload,
+                        service_token=str(self.headers.get("X-Zyra-Service-Token") or ""),
+                    )
+                elif parts == ["permissions", "requests", "expire"]:
+                    operation = PermissionApiOperation.REQUEST_EXPIRE
+                    response = facade.expire_requests(authority, node_id=node_id)
+                elif len(parts) == 4 and parts[:2] == ["permissions", "requests"]:
+                    request_id = parts[2]
+                    action = parts[3]
+                    if action == "deliver":
+                        operation = PermissionApiOperation.REQUEST_DELIVER
+                        response = facade.deliver_request(
+                            authority,
+                            request_id,
+                            payload,
+                            node_id=node_id,
+                        )
+                    elif action == "resolve":
+                        operation = PermissionApiOperation.REQUEST_RESOLVE
+                        response = facade.resolve_request(
+                            authority,
+                            request_id,
+                            payload,
+                            node_id=node_id,
+                        )
+                    elif action == "cancel":
+                        operation = PermissionApiOperation.REQUEST_CANCEL
+                        response = facade.cancel_request(
+                            authority,
+                            request_id,
+                            payload,
+                            node_id=node_id,
+                        )
+                    elif action == "abort":
+                        operation = PermissionApiOperation.REQUEST_ABORT
+                        response = facade.abort_request(
+                            authority,
+                            request_id,
+                            payload,
+                            node_id=node_id,
+                        )
+                    elif action == "retry":
+                        operation = PermissionApiOperation.REQUEST_RETRY
+                        response = facade.prepare_retry(
+                            authority,
+                            request_id,
+                            payload,
+                            node_id=node_id,
+                        )
+                    else:
+                        return False
+                elif parts == ["permissions", "rules"]:
+                    operation = PermissionApiOperation.RULE_CREATE
+                    response = facade.create_rule(authority, payload, node_id=node_id)
+                elif (
+                    len(parts) == 4
+                    and parts[:2] == ["permissions", "rules"]
+                    and parts[3] == "remove"
+                ):
+                    operation = PermissionApiOperation.RULE_REMOVE
+                    response = facade.remove_rule(authority, parts[2], node_id=node_id)
+                elif parts == ["permissions", "mode"]:
+                    operation = PermissionApiOperation.MODE_UPDATE
+                    response = facade.update_mode(authority, payload, node_id=node_id)
+                else:
+                    return False
+        except Exception as error:  # noqa: BLE001 - mapped to a redacted permission response.
+            response = permission_api_error_response(operation, error)
+        self._send_permission_response(store, response)
+        return True
+
     def do_OPTIONS(self) -> None:
         self.send_response(HTTPStatus.NO_CONTENT)
         self._send_cors_headers()
@@ -428,6 +816,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         parts = _path_parts(parsed.path)
         store = get_store()
+
+        if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
+            return
 
         if parts == ["health"]:
             self._send_json(
@@ -1177,17 +1568,6 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, browser_use_health_summary(inspect_browser_use_runtime(PROJECT_ROOT)))
             return
 
-        if parts == ["permissions"]:
-            permission_store = get_permission_store()
-            self._send_json(
-                HTTPStatus.OK,
-                {
-                    "rules": [to_jsonable(rule) for rule in permission_store.list_rules()],
-                    "requests": [to_jsonable(request) for request in permission_store.list_requests()],
-                },
-            )
-            return
-
         if parts == ["artifacts"]:
             query = parse_qs(parsed.query)
             task_id = _optional_query_value(query, "task_id")
@@ -1389,6 +1769,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
+
+        if self._handle_permission_post(parts=parts, payload=payload, store=store):
             return
 
         if parts == ["tasks"]:
@@ -1740,13 +2123,59 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 event_reader=store.task_events,
                 checkpoint_reader=lambda task_id: _checkpoint_json(store, task_id),
             )
-            call, result, permission_events = _execute_guarded_api_tool(
-                state=state,
-                node_id=node_id,
-                tool_name=tool_name,
-                arguments=arguments,
-                context=context,
+            existing_permission_session = str(
+                payload.get("permission_session_id") or ""
+            ).strip()
+            permission_session_id = existing_permission_session or (
+                f"api-tool:{state.task_id}:{new_id('permsession')}"
             )
+            permission_tool_use_id = str(
+                payload.get("permission_tool_use_id")
+                or payload.get("tool_call_id")
+                or ""
+            ).strip()
+            permission_worker_request_id = str(
+                payload.get("permission_worker_request_id") or ""
+            ).strip()
+            if existing_permission_session and (
+                not permission_tool_use_id or not permission_worker_request_id
+            ):
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": "permission_retry_identity_required",
+                        "message": (
+                            "permission_tool_use_id and permission_worker_request_id "
+                            "are required when resuming an existing permission session"
+                        ),
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            permission_tool_use_id = permission_tool_use_id or new_id("toolcall")
+            permission_worker_request_id = permission_worker_request_id or new_id(
+                "api-tool-request"
+            )
+            try:
+                call, result, permission_events, custody_envelope = _execute_guarded_api_tool(
+                    state=state,
+                    node_id=node_id,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    context=context,
+                    session_id=permission_session_id,
+                    worker_request_id=permission_worker_request_id,
+                    tool_call_id=permission_tool_use_id,
+                    custody_token=extract_bearer_token(self.headers, payload),
+                    external_session_exists=bool(existing_permission_session),
+                )
+            except Exception as error:  # noqa: BLE001 - return redacted permission error.
+                response = permission_api_error_response(
+                    PermissionApiOperation.SESSION_RESUME,
+                    error,
+                )
+                self._send_permission_response(store, response)
+                return
             event = tool_result_event(call, result)
             if result.artifacts:
                 state.artifacts.extend(result.artifacts)
@@ -1763,6 +2192,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "tool_result": to_jsonable(result),
                     "event": to_jsonable(event),
                     "permission_events": [to_jsonable(item) for item in permission_events],
+                    "permission_session": (
+                        custody_envelope.private_dict()
+                        if custody_envelope.created
+                        else custody_envelope.public_dict()
+                    ),
+                    "permission_retry_identity": {
+                        "permission_session_id": permission_session_id,
+                        "permission_worker_request_id": permission_worker_request_id,
+                        "permission_tool_use_id": call.tool_call_id,
+                        "arguments_digest": arguments_digest(call.arguments),
+                        "raw_arguments_included": False,
+                    },
+                },
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
                 },
             )
             return
@@ -1793,6 +2239,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     project_root=PROJECT_ROOT,
                     workspace_root=tool_workspace_path(),
                     artifact_root=artifact_root_path(),
+                    permission_state_path=permission_state_path(),
                 ).run(request)
             except Exception as error:  # noqa: BLE001 - API must report browser worker startup/runtime failures.
                 self._send_json(
@@ -1809,50 +2256,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             persist_events(store, run_result.event_records)
             store.save_checkpoint(state)
             status = HTTPStatus.CREATED if run_result.worker_result.ok else HTTPStatus.CONFLICT
+            permission_session = _browser_permission_session_envelope(run_result)
             self._send_json(
                 status,
                 {
                     "task": to_jsonable(state),
-                    "worker_request": to_jsonable(request),
+                    "worker_request": _worker_request_projection(request),
                     "worker_result": to_jsonable(run_result.worker_result),
                     "events": [to_jsonable(event) for event in run_result.event_records],
+                    "permission_session": permission_session,
+                },
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
                 },
             )
-            return
-
-        if parts == ["permissions", "rules"]:
-            try:
-                rule = PermissionRule(
-                    operation=PermissionOperation(str(payload.get("operation") or PermissionOperation.SHELL)),
-                    pattern=str(payload.get("pattern") or ""),
-                    effect=PermissionEffect(str(payload.get("effect") or PermissionEffect.ASK)),
-                    reason=str(payload.get("reason") or ""),
-                )
-            except ValueError as error:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_permission_rule", "message": str(error)})
-                return
-            if not rule.pattern:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "missing_pattern"})
-                return
-            stored_rule = get_permission_store().add_rule(rule)
-            self._send_json(HTTPStatus.CREATED, {"rule": to_jsonable(stored_rule)})
-            return
-
-        if len(parts) == 4 and parts[0] == "permissions" and parts[1] == "requests" and parts[3] == "resolve":
-            try:
-                status = PermissionRequestStatus(str(payload.get("status") or ""))
-            except ValueError:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_permission_request_status"})
-                return
-            resolved = get_permission_store().resolve_request(
-                parts[2],
-                status,
-                create_rule=payload.get("create_rule") is True,
-            )
-            if resolved is None:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "permission_request_not_found"})
-                return
-            self._send_json(HTTPStatus.OK, {"request": to_jsonable(resolved)})
             return
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
@@ -1906,6 +2325,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     workspace_root=tool_workspace_path(),
                     artifact_root=artifact_root_path(),
                     permission_store=get_permission_store(),
+                    permission_state_path=permission_state_path(),
                 ).run(request)
             except Exception:  # noqa: BLE001 - keep internal exception details out of API responses.
                 self._send_json(
@@ -1935,7 +2355,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             state.metadata["last_code_worker_api_projection"] = codeworker_api_projection.to_dict()
             response_payload = {
                 "task": to_jsonable(state),
-                "worker_request": to_jsonable(request),
+                "worker_request": _worker_request_projection(request),
                 "worker_result": to_jsonable(run_result.worker_result),
                 "codeworker_session": codeworker_api_projection.to_dict(),
                 "compact_state": codeworker_api_projection.compact_state.to_dict(),
@@ -1974,7 +2394,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 if run_result.worker_result.ok and route_contract.ok
                 else HTTPStatus.CONFLICT
             )
-            self._send_json(status, response_payload)
+            permission_session = {
+                **run_result.private_api_session_envelope(),
+                "schema": "zyra.permission-session-api-envelope.v1",
+                "cacheable": False,
+                "must_not_persist": True,
+                "presentation": "one_time_if_created",
+            }
+            self._send_json(
+                status,
+                {**response_payload, "permission_session": permission_session},
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
+                },
+            )
 
     def log_message(self, format: str, *args: Any) -> None:
         return
@@ -2014,12 +2449,26 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             raise JsonRequestError(HTTPStatus.BAD_REQUEST, "json_object_required", "JSON body must be an object.")
         return body
 
-    def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
+    def _send_json(
+        self,
+        status: HTTPStatus,
+        payload: dict[str, Any],
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for key, value in dict(headers or {}).items():
+            normalized = str(key).strip()
+            if not normalized or "\r" in normalized or "\n" in normalized:
+                continue
+            rendered = str(value)
+            if "\r" in rendered or "\n" in rendered:
+                continue
+            self.send_header(normalized, rendered)
         self.end_headers()
         self.wfile.write(body)
 
@@ -2036,7 +2485,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if origin and origin in allowed_origins:
             self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Vary", "Origin")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, Authorization")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Idempotency-Key, Authorization, X-Zyra-Service-Token",
+        )
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
 
@@ -2053,6 +2505,14 @@ def run(host: str | None = None, port: int | None = None) -> None:
 
 def _path_parts(path: str) -> list[str]:
     return [part for part in path.strip("/").split("/") if part]
+
+
+def _bounded_permission_limit(value: Any) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = 100
+    return min(1000, max(1, parsed))
 
 
 def _is_ledger_list_path(parts: list[str]) -> bool:
@@ -2332,6 +2792,50 @@ def _checkpoint_json(store: SQLiteStore, task_id: str) -> dict[str, Any] | None:
     return None if state is None else to_jsonable(state)
 
 
+def _worker_request_projection(request: WorkerRequest) -> dict[str, Any]:
+    payload = to_jsonable(request)
+    constraints = payload.get("constraints")
+    if isinstance(constraints, dict):
+        payload["constraints"] = PermissionSessionCustodyStore.redact_constraints(
+            constraints
+        )
+    return payload
+
+
+def _browser_permission_session_envelope(run_result: Any) -> dict[str, Any]:
+    """Build the API-only BrowserWorker custody envelope.
+
+    The bearer capability lives only on ``BrowserWorkerRun`` and is added after
+    task/event/checkpoint persistence.  Worker metadata carries public custody
+    identifiers and fingerprints only, so the token cannot leak into durable
+    task state or the canonical event log.
+    """
+
+    metadata = getattr(getattr(run_result, "worker_result", None), "metadata", {})
+    if not isinstance(metadata, dict):
+        metadata = {}
+    created = str(metadata.get("permission_session_custody_created") or "").lower() == "true"
+    envelope: dict[str, Any] = {
+        "schema": "zyra.permission-session-api-envelope.v1",
+        "session_id": str(metadata.get("permission_runtime_session_id") or ""),
+        "custody_id": str(metadata.get("permission_session_custody_id") or ""),
+        "custody_fingerprint": str(
+            metadata.get("permission_session_custody_fingerprint") or ""
+        ),
+        "custody_created": created,
+        "custody_verified": (
+            str(metadata.get("permission_session_custody_verified") or "").lower() == "true"
+        ),
+        "cacheable": False,
+        "must_not_persist": True,
+        "presentation": "one_time_if_created",
+    }
+    token = str(getattr(run_result, "permission_session_custody_token", "") or "")
+    if created and token:
+        envelope["custody_token"] = token
+    return envelope
+
+
 def _artifact_entry(catalog: LocalArtifactStore, artifact: ArtifactRef) -> dict[str, Any]:
     try:
         return catalog.describe(artifact)
@@ -2446,11 +2950,30 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
         result["summary"] = "Registered tools."
         result["data"] = {"tools": [to_jsonable(tool) for tool in default_tool_registry().list()]}
     elif name == "/permissions":
-        permission_store = get_permission_store()
-        result["summary"] = "Permission rules and requests."
+        control_plane = get_permission_control_plane()
+        permission_requests = [
+            request
+            for request in control_plane.state_store.list_requests()
+            if request.task_id == state.task_id and request.run_id == state.run_id
+        ]
+        status_counts: dict[str, int] = {}
+        for request in permission_requests:
+            status = request.status.value
+            status_counts[status] = status_counts.get(status, 0) + 1
+        result["summary"] = "Permission runtime summary; session details require custody."
         result["data"] = {
-            "rules": [to_jsonable(rule) for rule in permission_store.list_rules()],
-            "requests": [to_jsonable(request) for request in permission_store.list_requests()],
+            "state_owner": "PermissionStateStore",
+            "legacy_json_store_authority": False,
+            "request_count": len(permission_requests),
+            "request_status_counts": status_counts,
+            "session_count": len({request.session_id for request in permission_requests}),
+            "custody_required_for_details": True,
+            "structured_routes": [
+                "/permissions/requests",
+                "/permissions/rules",
+                "/permissions/mode",
+                "/permissions/decisions",
+            ],
         }
     elif name == "/help":
         commands = [to_jsonable(command_spec) for command_spec in default_command_registry().list()]

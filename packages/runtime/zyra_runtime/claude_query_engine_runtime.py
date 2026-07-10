@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from zyra_core import ArtifactKind, ArtifactRef, EventRecord, EventType, to_jsonable
 
@@ -89,7 +87,34 @@ from .model_api_runtime import (
 )
 from .model_provider_runtime import ModelProviderCatalogRuntime, model_provider_metadata
 from .model_stream_watchdog_runtime import ModelStreamWatchdogRuntime, model_stream_watchdog_metadata
+from .permission.continuation import (
+    PermissionContinuationClaim,
+    PermissionContinuationError,
+    PermissionContinuationIdentityError,
+    PermissionContinuationOutcomeUnknown,
+    PermissionContinuationPayloadMissing,
+    PermissionContinuationPhase,
+    PermissionContinuationRecord,
+    PermissionContinuationReplay,
+    PermissionContinuationRuntime,
+    PermissionContinuationStateError,
+)
+from .permission.extensions import (
+    PermissionExtensionRegistry,
+    build_deployment_permission_extensions,
+)
+from .permission.canonical import (
+    arguments_digest,
+    build_request_fingerprint,
+    canonical_arguments_json,
+)
+from .permission.models import (
+    PermissionEffect,
+    PermissionRequestPhase,
+    PermissionRequestRecord,
+)
 from .permission.runtime import PermissionRuntimeConfig, ToolPermissionRuntime
+from .permission.store import PermissionStateStore
 from .query_session import QuerySession, QueryStreamEventType, StopReason, snapshot_checkpoint_metadata
 from .runtime_budget_replay_runtime import (
     RuntimeBudgetReplayRuntime,
@@ -99,6 +124,7 @@ from .runtime_budget_replay_runtime import (
 from .runtime_budget_state import RuntimeBudgetState, runtime_budget_metadata
 from .tool_loop import (
     ToolFailureSignal,
+    ToolLoopRequest,
     ToolLoopScheduler,
     tool_failure_signal_from_result,
     watchdog_signal_payload,
@@ -203,6 +229,11 @@ class ClaudeQueryEngineConfig:
     permission_headless: bool = False
     permission_bypass_available: bool = False
     permission_auto_available: bool = True
+    permission_state_path: str | Path | None = None
+    permission_extension_registry: PermissionExtensionRegistry | None = None
+    permission_continuation_payload_writer: Callable[[str, str, Mapping[str, Any]], None] | None = None
+    permission_continuation_payload_tombstoner: Callable[[str, str, str], None] | None = None
+    disable_permission_continuation_runtime: bool = False
     disable_runtime_budget_state: bool = False
     disable_compact_restore_runtime: bool = False
     disable_model_stream_runtime: bool = False
@@ -347,11 +378,28 @@ class ZyraClaudeQueryEngine:
         )
         restored_runtime_state = dict(self.config.restored_runtime_state or {})
         restored_permission = restored_runtime_state.get("permission_runtime")
+        permission_state_path = (
+            Path(self.config.permission_state_path).resolve()
+            if self.config.permission_state_path is not None
+            else self.context.artifact_store.root / ".permission" / "state.json"
+        )
+        persisted_permission_mode = _permission_mode_from_state_owner(
+            permission_state_path,
+            session_id=session.session_id,
+            restored_runtime_state=restored_runtime_state,
+            fallback=self.config.permission_mode,
+            bypass_available=self.config.permission_bypass_available,
+            auto_available=self.config.permission_auto_available,
+        )
+        permission_extensions = (
+            self.config.permission_extension_registry
+            or build_deployment_permission_extensions()
+        )
         permission_runtime = ToolPermissionRuntime.for_session(
             session_id=session.session_id,
-            state_path=self.context.artifact_store.root / ".permission" / "state.json",
+            state_path=permission_state_path,
             config=PermissionRuntimeConfig(
-                mode=self.config.permission_mode,
+                mode=persisted_permission_mode,
                 approval_ttl_seconds=self.config.permission_approval_ttl_seconds,
                 execution_grant_ttl_seconds=self.config.permission_execution_grant_ttl_seconds,
                 bypass_available=self.config.permission_bypass_available,
@@ -368,10 +416,42 @@ class ZyraClaudeQueryEngine:
                 },
             ),
             restored_snapshot=restored_permission if isinstance(restored_permission, Mapping) else None,
+            hook_adapter=permission_extensions.hook_adapter,
+            classifier_adapter=permission_extensions.classifier_adapter,
             workspace_root=self.context.workspace_root,
             custody_fingerprint=str(
                 self.config.session_foundation_metadata.get("permission_session_custody_fingerprint") or ""
             ),
+        )
+        permission_mode_reconciliation = None
+        if str(permission_runtime.mode_runtime.mode) != persisted_permission_mode:
+            permission_mode_reconciliation = permission_runtime.mode_runtime.transition(
+                persisted_permission_mode,
+                permission_runtime.rule_store.list(),
+            )
+        continuation_payloads = _permission_continuation_payloads(restored_runtime_state)
+        permission_continuation = PermissionContinuationRuntime(
+            permission_runtime.state_store,
+            session_id=session.session_id,
+            payload_resolver=lambda record: continuation_payloads.get(record.payload_locator),
+            disabled=self.config.disable_permission_continuation_runtime,
+        )
+        restored_continuation = restored_runtime_state.get("permission_continuation")
+        if isinstance(restored_continuation, Mapping) and restored_continuation:
+            permission_continuation.restore(restored_continuation)
+        _synchronize_permission_continuations(
+            permission_continuation,
+            permission_runtime,
+            continuation_payloads,
+            payload_tombstoner=self.config.permission_continuation_payload_tombstoner,
+        )
+        _reconcile_permission_continuation_payloads(
+            permission_continuation,
+            continuation_payloads,
+            payload_tombstoner=self.config.permission_continuation_payload_tombstoner,
+        )
+        continuation_sequence = int(
+            permission_continuation.snapshot().get("session_sequence") or 0
         )
         execution_runtime = ToolExecutionRuntime(
             self.context,
@@ -536,6 +616,9 @@ class ZyraClaudeQueryEngine:
         permission_failure_seen = False
         permission_terminal_failure = False
         permission_failure_reason = ""
+        permission_suspended = False
+        permission_continuation_request_ids: list[str] = []
+        permission_resume_claims: dict[str, PermissionContinuationClaim] = {}
         max_turns = self.config.max_turns or len(normalized_turns)
         materialization_artifact = persistence_runtime.persist_materialization(
             run_id=run_id,
@@ -620,7 +703,15 @@ class ZyraClaudeQueryEngine:
             "permission_runtime_attached",
             {
                 "permission": self._permission_runtime_payload(),
-                "source_path": "packages/runtime/zyra_runtime/permissions.py",
+                "permission_mode_from_state_owner": persisted_permission_mode,
+                "permission_mode_reconciliation": (
+                    to_jsonable(permission_mode_reconciliation)
+                    if permission_mode_reconciliation is not None
+                    else {"changed": False, "to_mode": persisted_permission_mode}
+                ),
+                "permission_extensions": permission_extensions.descriptor(),
+                "permission_continuation_pending": len(permission_continuation.pending()),
+                "source_path": "packages/runtime/zyra_runtime/permission/runtime.py",
                 "upstream_source_path": "src/cli/src/utils/permissions/*",
                 "resume_token": session.resume_token,
             },
@@ -1286,10 +1377,155 @@ class ZyraClaudeQueryEngine:
                 )
                 break
 
+            continuation_plan, continuation_barrier = _permission_continuation_plan(
+                permission_continuation,
+                tool_loop_plan.requests,
+            )
+            if continuation_barrier:
+                outcome_unknown_fence = (
+                    continuation_barrier
+                    == "permission_continuation_outcome_unknown"
+                )
+                ok = False
+                permission_suspended = not outcome_unknown_fence
+                permission_terminal_failure = (
+                    permission_terminal_failure or outcome_unknown_fence
+                )
+                permission_failure_seen = True
+                permission_failure_reason = continuation_barrier
+                stopped_reason = continuation_barrier
+                session.record_error(
+                    error=continuation_barrier,
+                    stop_reason=StopReason.UNKNOWN,
+                    metadata={
+                        "turn_index": turn_index,
+                        "continuation_request_ids": sorted(
+                            record.request_id for record in continuation_plan.values()
+                        ),
+                        "execution_outcome_unknown": outcome_unknown_fence,
+                        "recovery_requires_different_action": outcome_unknown_fence,
+                    },
+                )
+                self._append_lifecycle(
+                    event_records,
+                    session,
+                    run_id,
+                    task_id,
+                    node_id,
+                    worker_request_id,
+                    (
+                        "permission_continuation_outcome_unknown"
+                        if outcome_unknown_fence
+                        else "permission_continuation_suspended"
+                    ),
+                    {
+                        "turn_index": turn_index,
+                        "turn_id": turn_state.turn_id,
+                        "reason": continuation_barrier,
+                        "continuation_request_ids": sorted(
+                            record.request_id for record in continuation_plan.values()
+                        ),
+                        "execution_outcome_unknown": outcome_unknown_fence,
+                        "recovery_requires_different_action": outcome_unknown_fence,
+                        "resume_token": session.resume_token,
+                    },
+                )
+                break
+
             for batch in tool_loop_plan.batches:
                 batch_index = batch.batch_index
                 batch_requests = batch.requests
                 execution_mode = str(batch.execution_mode)
+                try:
+                    batch_claims = _claim_permission_continuations(
+                        permission_continuation,
+                        continuation_plan,
+                        batch_requests,
+                        worker_request_id=worker_request_id,
+                    )
+                except PermissionContinuationError as error:
+                    outcome_unknown = isinstance(
+                        error,
+                        PermissionContinuationOutcomeUnknown,
+                    )
+                    failure_reason = (
+                        "permission_continuation_outcome_unknown"
+                        if outcome_unknown
+                        else "permission_continuation_replay_rejected"
+                    )
+                    if outcome_unknown:
+                        try:
+                            _reconcile_permission_continuation_payloads(
+                                permission_continuation,
+                                continuation_payloads,
+                                payload_tombstoner=(
+                                    self.config.permission_continuation_payload_tombstoner
+                                ),
+                            )
+                        except PermissionContinuationPayloadMissing:
+                            # Canonical FAILED state is already durable.  Raw
+                            # payload cleanup is retried during the next
+                            # startup reconciliation and must not permit exact
+                            # replay in the meantime.
+                            pass
+                    ok = False
+                    permission_terminal_failure = True
+                    permission_failure_seen = True
+                    permission_failure_reason = failure_reason
+                    stopped_reason = failure_reason
+                    session.record_error(
+                        error=stopped_reason,
+                        stop_reason=StopReason.UNKNOWN,
+                        metadata={
+                            "turn_index": turn_index,
+                            "batch_index": batch_index,
+                            "error_type": type(error).__name__,
+                            "execution_outcome_unknown": outcome_unknown,
+                            "recovery_requires_different_action": outcome_unknown,
+                        },
+                    )
+                    self._append_lifecycle(
+                        event_records,
+                        session,
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        failure_reason,
+                        {
+                            "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
+                            "batch_index": batch_index,
+                            "error_type": type(error).__name__,
+                            "execution_outcome_unknown": outcome_unknown,
+                            "recovery_requires_different_action": outcome_unknown,
+                            "resume_token": session.resume_token,
+                        },
+                    )
+                    break
+                permission_resume_claims.update(batch_claims)
+                for tool_use_id, claim in batch_claims.items():
+                    self._append_lifecycle(
+                        event_records,
+                        session,
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        "permission_continuation_claimed",
+                        {
+                            "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
+                            "batch_index": batch_index,
+                            "tool_call_id": tool_use_id,
+                            "request_id": claim.record.request_id,
+                            "claim_id": claim.record.claim_id,
+                            "continuation_revision": claim.record.revision,
+                            "permission_guard_required": "true",
+                            "authorizes_execution": "false",
+                            "resume_token": session.resume_token,
+                        },
+                    )
                 session.record_batch_event(
                     QueryStreamEventType.TOOL_BATCH_STARTED,
                     turn_id=turn_state.turn_id,
@@ -1347,12 +1583,40 @@ class ZyraClaudeQueryEngine:
                             "resume_token": session.resume_token,
                         },
                     )
-                streaming_trace = streaming_runtime.execute_batch(
-                    execution_runtime,
-                    batch,
-                    tool_context=tool_use_context,
-                    max_workers=max(1, self.config.max_read_only_concurrency),
-                )
+                try:
+                    streaming_trace = streaming_runtime.execute_batch(
+                        execution_runtime,
+                        batch,
+                        tool_context=tool_use_context,
+                        max_workers=max(1, self.config.max_read_only_concurrency),
+                    )
+                except Exception as error:  # noqa: BLE001 - claimed execution is crash-ambiguous.
+                    ok = False
+                    permission_terminal_failure = True
+                    permission_failure_seen = True
+                    permission_failure_reason = "permission_continuation_execution_ambiguous"
+                    stopped_reason = "permission_continuation_execution_ambiguous"
+                    self._append_lifecycle(
+                        event_records,
+                        session,
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        "permission_continuation_execution_ambiguous",
+                        {
+                            "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
+                            "batch_index": batch_index,
+                            "error_type": type(error).__name__,
+                            "claimed_request_ids": sorted(
+                                claim.record.request_id for claim in batch_claims.values()
+                            ),
+                            "claim_fencing": "execution_grant_cas",
+                            "resume_token": session.resume_token,
+                        },
+                    )
+                    break
                 tool_streaming_traces.append(streaming_trace)
                 streaming_events = streaming_runtime.events_for_trace(
                     streaming_trace,
@@ -1361,6 +1625,72 @@ class ZyraClaudeQueryEngine:
                     node_id=node_id,
                 )
                 receipts = list(streaming_trace.receipts)
+                continuation_settlements: list[
+                    tuple[ToolExecutionReceipt, PermissionContinuationClaim, str, str, str]
+                ] = []
+                for receipt in receipts:
+                    resume_claim = permission_resume_claims.pop(
+                        receipt.request.call.tool_call_id,
+                        None,
+                    )
+                    if resume_claim is None:
+                        continue
+                    try:
+                        if bool(receipt.permission.get("allowed")):
+                            completed_continuation = permission_continuation.complete(
+                                resume_claim.record.request_id,
+                                claim_id=resume_claim.record.claim_id,
+                                expected_record_revision=resume_claim.record.revision,
+                                metadata={
+                                    "tool_result_ok": receipt.bounded_result.ok,
+                                    "permission_guard_reentered": True,
+                                    "execution_grant_required": True,
+                                },
+                            )
+                            continuation_phase = str(completed_continuation.phase)
+                        else:
+                            failed_continuation = permission_continuation.fail(
+                                resume_claim.record.request_id,
+                                claim_id=resume_claim.record.claim_id,
+                                failure_code="permission_guard_rejected_replay",
+                                expected_record_revision=resume_claim.record.revision,
+                                metadata={
+                                    "permission_guard_reentered": True,
+                                    "execution_started": False,
+                                },
+                            )
+                            continuation_phase = str(failed_continuation.phase)
+                    except PermissionContinuationError as error:
+                        ok = False
+                        permission_terminal_failure = True
+                        permission_failure_seen = True
+                        permission_failure_reason = "permission_continuation_finish_failed"
+                        stopped_reason = stopped_reason or "permission_continuation_finish_failed"
+                        continuation_settlements.append(
+                            (receipt, resume_claim, "", type(error).__name__, "")
+                        )
+                    else:
+                        cleanup_error = ""
+                        try:
+                            _tombstone_permission_payload(
+                                continuation_payloads,
+                                request_id=resume_claim.record.request_id,
+                                payload_locator=resume_claim.record.payload_locator,
+                                reason=f"continuation_{continuation_phase}",
+                                payload_tombstoner=(
+                                    self.config.permission_continuation_payload_tombstoner
+                                ),
+                            )
+                        except PermissionContinuationPayloadMissing as error:
+                            # The side effect and canonical terminal state are
+                            # already committed.  Report success and retain the
+                            # payload projection so startup reconciliation can
+                            # retry the tombstone; never induce a duplicate
+                            # tool retry by calling this an execution failure.
+                            cleanup_error = type(error).__name__
+                        continuation_settlements.append(
+                            (receipt, resume_claim, continuation_phase, "", cleanup_error)
+                        )
                 # Permission decisions are committed before ToolExecutor is
                 # entered.  Preserve that causal order in the aggregate event
                 # stream even though streaming frames are projected after the
@@ -1383,6 +1713,126 @@ class ZyraClaudeQueryEngine:
                                 "permission_runtime": permission_payload,
                             },
                         )
+                for (
+                    receipt,
+                    resume_claim,
+                    continuation_phase,
+                    finish_error,
+                    cleanup_error,
+                ) in continuation_settlements:
+                    phase = (
+                        "permission_continuation_finished"
+                        if not finish_error
+                        else "permission_continuation_finish_failed"
+                    )
+                    self._append_lifecycle(
+                        event_records,
+                        session,
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        phase,
+                        {
+                            "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
+                            "batch_index": batch_index,
+                            "tool_call_id": receipt.request.call.tool_call_id,
+                            "request_id": resume_claim.record.request_id,
+                            "claim_id": resume_claim.record.claim_id,
+                            "continuation_phase": continuation_phase,
+                            "permission_allowed": str(
+                                bool(receipt.permission.get("allowed"))
+                            ).lower(),
+                            "error_type": finish_error,
+                            "resume_token": session.resume_token,
+                        },
+                    )
+                    if cleanup_error:
+                        self._append_lifecycle(
+                            event_records,
+                            session,
+                            run_id,
+                            task_id,
+                            node_id,
+                            worker_request_id,
+                            "permission_continuation_cleanup_deferred",
+                            {
+                                "turn_index": turn_index,
+                                "turn_id": turn_state.turn_id,
+                                "batch_index": batch_index,
+                                "tool_call_id": receipt.request.call.tool_call_id,
+                                "request_id": resume_claim.record.request_id,
+                                "continuation_phase": continuation_phase,
+                                "error_type": cleanup_error,
+                                "retry_owner": "startup_payload_reconciliation",
+                                "execution_result_changed": "false",
+                                "resume_token": session.resume_token,
+                            },
+                        )
+                for receipt in receipts:
+                    if not bool(receipt.permission.get("ask_pending")):
+                        continue
+                    try:
+                        continuation, continuation_sequence = _park_permission_ask(
+                            permission_continuation,
+                            continuation_payloads,
+                            receipt,
+                            session_sequence=continuation_sequence,
+                            turn_id=turn_state.turn_id,
+                            batch_index=batch_index,
+                            payload_writer=self.config.permission_continuation_payload_writer,
+                            payload_tombstoner=self.config.permission_continuation_payload_tombstoner,
+                        )
+                    except (PermissionContinuationError, TypeError, ValueError) as error:
+                        ok = False
+                        permission_terminal_failure = True
+                        permission_failure_seen = True
+                        permission_failure_reason = "permission_continuation_park_failed"
+                        stopped_reason = "permission_continuation_park_failed"
+                        self._append_lifecycle(
+                            event_records,
+                            session,
+                            run_id,
+                            task_id,
+                            node_id,
+                            worker_request_id,
+                            "permission_continuation_park_failed",
+                            {
+                                "turn_index": turn_index,
+                                "turn_id": turn_state.turn_id,
+                                "batch_index": batch_index,
+                                "tool_call_id": receipt.request.call.tool_call_id,
+                                "error_type": type(error).__name__,
+                                "resume_token": session.resume_token,
+                            },
+                        )
+                        continue
+                    permission_suspended = True
+                    if continuation.request_id not in permission_continuation_request_ids:
+                        permission_continuation_request_ids.append(continuation.request_id)
+                    self._append_lifecycle(
+                        event_records,
+                        session,
+                        run_id,
+                        task_id,
+                        node_id,
+                        worker_request_id,
+                        "permission_continuation_parked",
+                        {
+                            "turn_index": turn_index,
+                            "turn_id": turn_state.turn_id,
+                            "batch_index": batch_index,
+                            "tool_call_id": continuation.tool_use_id,
+                            "request_id": continuation.request_id,
+                            "continuation_id": continuation.continuation_id,
+                            "continuation_revision": continuation.revision,
+                            "session_sequence": continuation.session_sequence,
+                            "payload_locator": continuation.payload_locator,
+                            "arguments_digest": continuation.arguments_digest,
+                            "resume_token": session.resume_token,
+                        },
+                    )
                 for planned, receipt in zip(batch_requests, receipts, strict=True):
                     if not bool(receipt.permission.get("allowed")):
                         continue
@@ -1729,6 +2179,12 @@ class ZyraClaudeQueryEngine:
                                 },
                             )
 
+                    permission_effect = str(
+                        receipt.permission.get("decision", {}).get("effect")
+                        if isinstance(receipt.permission.get("decision"), Mapping)
+                        else ""
+                    )
+                    permission_ask = bool(receipt.permission.get("ask_pending")) or permission_effect == "ask"
                     permission_blocked = bool(receipt.permission.get("blocked"))
                     permission_abort = bool(receipt.permission.get("abort_loop"))
                     if permission_blocked:
@@ -1738,7 +2194,30 @@ class ZyraClaudeQueryEngine:
                         if permission_abort:
                             permission_terminal_failure = True
 
-                    if (
+                    if permission_ask and not permission_terminal_failure:
+                        permission_suspended = True
+                        stopped_reason = "permission_suspended"
+                        session.record_error(
+                            error=stopped_reason,
+                            stop_reason=StopReason.UNKNOWN,
+                            metadata={
+                                "turn_index": turn_index,
+                                "batch_index": batch_index,
+                                "step_index": planned.step_index,
+                                "tool_call_id": planned.call.tool_call_id,
+                                "tool_name": planned.call.tool_name,
+                                "permission_request_id": str(
+                                    receipt.permission.get("decision", {}).get("request_id")
+                                    if isinstance(receipt.permission.get("decision"), Mapping)
+                                    else ""
+                                ),
+                            },
+                        )
+                    elif permission_ask:
+                        # Parking/continuation failure is terminal and must not
+                        # be disguised as an ordinary suspended ASK outcome.
+                        ok = False
+                    elif (
                         not bounded_result.ok
                         and (permission_abort or not self.config.continue_on_error)
                         and stopped_reason is None
@@ -1884,7 +2363,11 @@ class ZyraClaudeQueryEngine:
                         "stopped_reason": stopped_reason,
                     },
                 )
-                if permission_terminal_failure or (not ok and not self.config.continue_on_error):
+                if (
+                    permission_suspended
+                    or permission_terminal_failure
+                    or (not ok and not self.config.continue_on_error)
+                ):
                     break
 
             expected_receipt_ids = {request.call.tool_call_id for request in tool_loop_plan.requests}
@@ -1916,10 +2399,20 @@ class ZyraClaudeQueryEngine:
                         node_id=node_id,
                     )
                 )
-            allow_turn_continue = self.config.continue_on_error and not permission_terminal_failure
+            allow_turn_continue = (
+                self.config.continue_on_error
+                and not permission_terminal_failure
+                and not permission_suspended
+            )
             session.end_turn(
                 ok=ok,
-                stop_reason=StopReason.END_TURN if ok else StopReason.TOOL_ERROR,
+                stop_reason=(
+                    StopReason.END_TURN
+                    if ok
+                    else StopReason.UNKNOWN
+                    if permission_suspended
+                    else StopReason.TOOL_ERROR
+                ),
                 error=stopped_reason,
                 metadata={
                     "turn_index": turn_index,
@@ -1963,14 +2456,24 @@ class ZyraClaudeQueryEngine:
             )
             state_ledger.record_turn(turn_state.turn_id, turn_index=turn_index, completed=True, ok=ok)
             tool_use_context_snapshots.append(tool_use_context.to_dict(include_messages=False))
-            if permission_terminal_failure or (not ok and not allow_turn_continue):
+            if (
+                permission_suspended
+                or permission_terminal_failure
+                or (not ok and not allow_turn_continue)
+            ):
                 break
 
         if permission_failure_seen and not ok and stopped_reason is None:
             stopped_reason = permission_failure_reason or "permission_denied"
         session.complete_session(
             ok=ok,
-            stop_reason=StopReason.SESSION_COMPLETED if ok else StopReason.TOOL_ERROR,
+            stop_reason=(
+                StopReason.SESSION_COMPLETED
+                if ok
+                else StopReason.UNKNOWN
+                if permission_suspended
+                else StopReason.TOOL_ERROR
+            ),
             metadata={
                 "tool_call_count": tool_call_count,
                 "turn_count": executed_turn_count,
@@ -2543,6 +3046,7 @@ class ZyraClaudeQueryEngine:
             ],
         )
         permission_runtime_snapshot = permission_runtime.snapshot()
+        permission_continuation_snapshot = permission_continuation.snapshot()
         session_snapshot = session.snapshot_payload(
             include_transcript=True,
             metadata={
@@ -2569,6 +3073,7 @@ class ZyraClaudeQueryEngine:
                 "tool_result_context_report": tool_result_context_report.to_dict(),
                 "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
                 "permission_runtime": permission_runtime_snapshot,
+                "permission_continuation": permission_continuation_snapshot,
                 "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
                 "compact_restore_report": compact_restore_report.to_dict(),
                 "restore_integration_report": restore_integration_report.to_dict(),
@@ -2610,6 +3115,8 @@ class ZyraClaudeQueryEngine:
             "context_window": context_window.snapshot(include_text=True),
             "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
             "permission_runtime": permission_runtime_snapshot,
+            "permission_continuation": permission_continuation_snapshot,
+            "permission_continuation_payloads": to_jsonable(continuation_payloads),
             "pending_restore_contract": persisted_pending_restore_contract.to_dict()
             if persisted_pending_restore_contract is not None
             else None,
@@ -2650,6 +3157,7 @@ class ZyraClaudeQueryEngine:
                 "tool_result_context_report": tool_result_context_report.to_dict(),
                 "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
                 "permission_runtime": permission_runtime_snapshot,
+                "permission_continuation": permission_continuation_snapshot,
                 "runtime_budget_replay_report": runtime_budget_replay_report.to_dict(),
                 "compact_restore_report": compact_restore_report.to_dict(),
                 "restore_integration_report": restore_integration_report.to_dict(),
@@ -2699,6 +3207,8 @@ class ZyraClaudeQueryEngine:
             "context_window": context_window.snapshot(include_text=True),
             "runtime_budget_state": runtime_budget_state.snapshot().to_dict(),
             "permission_runtime": permission_runtime_snapshot,
+            "permission_continuation": permission_continuation_snapshot,
+            "permission_continuation_payloads": to_jsonable(continuation_payloads),
             "pending_restore_contract": final_pending_restore_contract.to_dict()
             if final_pending_restore_contract is not None
             else None,
@@ -3243,6 +3753,20 @@ class ZyraClaudeQueryEngine:
         metadata.update(context_window.metadata())
         metadata.update(tool_runtime.metadata())
         metadata.update(permission_runtime.metadata())
+        metadata.update(permission_extensions.metadata())
+        metadata.update(
+            {
+                "permission_continuation_suspended": str(permission_suspended).lower(),
+                "permission_continuation_request_count": str(
+                    len(permission_continuation_request_ids)
+                ),
+                "permission_continuation_pending": str(
+                    len(permission_continuation.pending())
+                ),
+                "permission_continuation_payload_count": str(len(continuation_payloads)),
+                "permission_mode_from_state_owner": persisted_permission_mode,
+            }
+        )
         metadata.update(materialization.metadata())
         metadata.update(_tool_use_context_metadata(tool_use_context_snapshots))
         metadata.update(tool_foundation_audit_metadata(tool_foundation_audit))
@@ -3362,9 +3886,11 @@ class ZyraClaudeQueryEngine:
         final_snapshot_metadata = dict(session_snapshot.get("metadata") or {})
         final_runtime_state = dict(session_snapshot.get("runtime_state") or {})
         final_permission_snapshot = permission_runtime.snapshot()
+        final_continuation_snapshot = permission_continuation.snapshot()
         final_snapshot_metadata.update(
             {
                 "permission_runtime": final_permission_snapshot,
+                "permission_continuation": final_continuation_snapshot,
                 "final_event_count": len(event_records),
                 "finalized_after_control": True,
                 "stopped_reason": stopped_reason,
@@ -3382,6 +3908,8 @@ class ZyraClaudeQueryEngine:
                 "session_id": session.session_id,
                 "worker_request_id": worker_request_id,
                 "permission_runtime": final_permission_snapshot,
+                "permission_continuation": final_continuation_snapshot,
+                "permission_continuation_payloads": to_jsonable(continuation_payloads),
             }
         )
         session_snapshot["runtime_state"] = final_runtime_state
@@ -3692,6 +4220,473 @@ class ZyraClaudeQueryEngine:
             "tool_use_summaries": str(tool_use_summary_count),
             "sidecar_contracts_used": "false",
         }
+
+
+def _permission_mode_from_state_owner(
+    state_path: str | Path,
+    *,
+    session_id: str,
+    restored_runtime_state: Mapping[str, Any],
+    fallback: str,
+    bypass_available: bool,
+    auto_available: bool,
+) -> str:
+    """Resolve mode from durable owners and clamp deployment capabilities."""
+
+    selected = str(fallback or "default")
+    restored_permission = restored_runtime_state.get("permission_runtime")
+    if isinstance(restored_permission, Mapping):
+        restored_mode = restored_permission.get("mode")
+        if isinstance(restored_mode, Mapping) and restored_mode.get("mode"):
+            selected = str(restored_mode.get("mode"))
+    state = PermissionStateStore(state_path).read_state()
+    integration = state.get("metadata", {}).get("permission_integration", {})
+    modes = integration.get("session_modes", {}) if isinstance(integration, Mapping) else {}
+    persisted = modes.get(session_id) if isinstance(modes, Mapping) else None
+    if isinstance(persisted, Mapping) and persisted.get("mode"):
+        selected = str(persisted.get("mode"))
+    aliases = {
+        "accept_edits": "acceptEdits",
+        "dont_ask": "dontAsk",
+        "bypass": "bypassPermissions",
+    }
+    selected = aliases.get(selected, selected)
+    if selected == "bypassPermissions" and not bypass_available:
+        return "default"
+    if selected == "auto" and not auto_available:
+        return "default"
+    if selected not in {
+        "default",
+        "acceptEdits",
+        "dontAsk",
+        "bypassPermissions",
+        "auto",
+        "plan",
+        "sealed",
+    }:
+        return "default"
+    return selected
+
+
+def _permission_continuation_payloads(
+    restored_runtime_state: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    raw = restored_runtime_state.get("permission_continuation_payloads")
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise PermissionContinuationIdentityError(
+            "permission continuation payload index is not a mapping"
+        )
+    output: dict[str, dict[str, Any]] = {}
+    for locator, value in raw.items():
+        if not isinstance(value, Mapping):
+            raise PermissionContinuationIdentityError(
+                "permission continuation payload is not a mapping"
+            )
+        replay = PermissionContinuationReplay.from_value(value, source="runtime_state")
+        if replay.payload_locator != str(locator):
+            raise PermissionContinuationIdentityError(
+                "permission continuation payload locator/index mismatch"
+            )
+        output[str(locator)] = to_jsonable(dict(value))
+    return output
+
+
+def _synchronize_permission_continuations(
+    continuation: PermissionContinuationRuntime,
+    permission_runtime: ToolPermissionRuntime,
+    payloads: dict[str, dict[str, Any]],
+    *,
+    payload_tombstoner: Callable[[str, str, str], None] | None = None,
+) -> None:
+    """Converge continuation barriers with the authoritative request queue."""
+
+    # A parked barrier prevents the normal tool guard from running, so request
+    # expiry must be driven here before planning the next turn.
+    permission_runtime.request_queue.expire_due()
+    # RESOLVED requests are terminal in the authoritative queue and therefore
+    # are not changed by expire_due(), but an unused approval still expires at
+    # the same deadline.  Expire every pre-claim continuation independently;
+    # CLAIMED work is intentionally governed by its separate execution lease.
+    continuation.expire_due()
+    for record in continuation.active():
+        request = permission_runtime.request_queue.get(record.request_id)
+        if record.phase is PermissionContinuationPhase.CLAIMED:
+            if not continuation.claim_lease_expired(record):
+                continue
+            reconciled = continuation.reconcile_expired_claim(
+                record.request_id,
+                expected_record_revision=record.revision,
+            )
+            if reconciled.terminal:
+                reconciliation_reason = (
+                    "approval_consumed_outcome_unknown"
+                    if reconciled.phase is PermissionContinuationPhase.FAILED
+                    else "unconsumed_approval_expired_after_claim_lease"
+                )
+                _tombstone_permission_payload(
+                    payloads,
+                    request_id=reconciled.request_id,
+                    payload_locator=reconciled.payload_locator,
+                    reason=reconciliation_reason,
+                    payload_tombstoner=payload_tombstoner,
+                )
+            continue
+        if request is None:
+            continue
+        if request.phase in {
+            PermissionRequestPhase.EXPIRED,
+            PermissionRequestPhase.CANCELLED,
+            PermissionRequestPhase.ABORTED,
+        }:
+            if request.phase is PermissionRequestPhase.EXPIRED:
+                terminal = continuation.expire(
+                    record.request_id,
+                    expected_record_revision=record.revision,
+                    reason="authoritative_permission_request_expired",
+                    force=True,
+                )
+            else:
+                terminal = continuation.cancel(
+                    record.request_id,
+                    reason=(
+                        "authoritative permission request "
+                        f"{str(request.phase)}"
+                    ),
+                    expected_record_revision=record.revision,
+                )
+            _tombstone_permission_payload(
+                payloads,
+                request_id=terminal.request_id,
+                payload_locator=terminal.payload_locator,
+                reason=f"permission_request_{str(request.phase)}",
+                payload_tombstoner=payload_tombstoner,
+            )
+            continue
+        if request.resolution_effect not in {
+            PermissionEffect.ALLOW,
+            PermissionEffect.DENY,
+        }:
+            continue
+        updated = record
+        if record.phase is not PermissionContinuationPhase.RESOLUTION_READY:
+            updated = continuation.resolution_ready(
+                request,
+                expected_record_revision=record.revision,
+            )
+        if request.resolution_effect is PermissionEffect.DENY:
+            terminal = continuation.cancel(
+                updated.request_id,
+                reason="authoritative permission request resolved deny",
+                expected_record_revision=updated.revision,
+            )
+            _tombstone_permission_payload(
+                payloads,
+                request_id=terminal.request_id,
+                payload_locator=terminal.payload_locator,
+                reason="permission_denied",
+                payload_tombstoner=payload_tombstoner,
+            )
+
+
+def _reconcile_permission_continuation_payloads(
+    continuation: PermissionContinuationRuntime,
+    payloads: dict[str, dict[str, Any]],
+    *,
+    payload_tombstoner: Callable[[str, str, str], None] | None = None,
+) -> None:
+    """Remove terminal/orphaned raw replay projections from session recovery."""
+
+    active_by_locator = {
+        record.payload_locator: record
+        for record in continuation.active()
+    }
+    for payload_locator in tuple(payloads):
+        record = active_by_locator.get(payload_locator)
+        if record is not None:
+            continue
+        raw = payloads.get(payload_locator)
+        metadata = raw.get("metadata") if isinstance(raw, Mapping) else None
+        request_id = str(
+            metadata.get("request_id") if isinstance(metadata, Mapping) else ""
+        ) or "orphaned-continuation"
+        _tombstone_permission_payload(
+            payloads,
+            request_id=request_id,
+            payload_locator=payload_locator,
+            reason="terminal_or_orphaned_continuation_reconciled",
+            payload_tombstoner=payload_tombstoner,
+        )
+
+
+def _permission_continuation_plan(
+    continuation: PermissionContinuationRuntime,
+    requests: Sequence[ToolLoopRequest],
+) -> tuple[dict[str, PermissionContinuationRecord], str]:
+    by_tool_use = {request.call.tool_call_id: request for request in requests}
+    selected: dict[str, PermissionContinuationRecord] = {}
+    # A crashed execution may have consumed its one-use approval and performed
+    # the external side effect before the receipt was durably settled.  Those
+    # terminal records are intentionally absent from active(), but they remain
+    # a durable semantic fence: the same tool identity and arguments cannot be
+    # re-authorized merely by creating another ASK (or changing tool_use_id).
+    # A different recovery action remains available.
+    for record in continuation.records():
+        if (
+            record.phase is not PermissionContinuationPhase.FAILED
+            or record.failure_code != "approval_consumed_outcome_unknown"
+        ):
+            continue
+        for request in requests:
+            if _matches_permission_outcome_unknown_fence(record, request):
+                selected[record.tool_use_id] = record
+                return selected, "permission_continuation_outcome_unknown"
+    for record in continuation.active():
+        if record.phase is PermissionContinuationPhase.CLAIMED:
+            selected[record.tool_use_id] = record
+            if not continuation.claim_lease_expired(record):
+                return selected, "permission_continuation_claim_in_progress"
+            if by_tool_use.get(record.tool_use_id) is None:
+                return selected, "permission_continuation_exact_replay_required"
+            continue
+        if record.phase in {
+            PermissionContinuationPhase.PARKED,
+            PermissionContinuationPhase.DELIVERED,
+        }:
+            selected[record.tool_use_id] = record
+            return selected, "permission_suspended"
+        if record.phase is not PermissionContinuationPhase.RESOLUTION_READY:
+            continue
+        current = by_tool_use.get(record.tool_use_id)
+        if record.resolution_effect is PermissionEffect.DENY:
+            if current is not None:
+                selected[record.tool_use_id] = record
+                return selected, "permission_continuation_denied"
+            # A denied exact call must not block a different recovery action.
+            continue
+        if record.resolution_effect is PermissionEffect.ALLOW:
+            selected[record.tool_use_id] = record
+            if current is None:
+                return selected, "permission_continuation_exact_replay_required"
+    return selected, ""
+
+
+def _matches_permission_outcome_unknown_fence(
+    record: PermissionContinuationRecord,
+    request: ToolLoopRequest,
+) -> bool:
+    if (
+        request.run_id != record.run_id
+        or request.task_id != record.task_id
+        or request.tool_name != record.tool_identity.name
+    ):
+        return False
+    digest = arguments_digest(request.arguments)
+    if digest != record.arguments_digest:
+        return False
+    # Validate that the durable fence still describes the exact request that
+    # was parked.  The semantic match deliberately ignores a newly minted
+    # tool_use_id: changing an identifier cannot make an ambiguous side effect
+    # safe to repeat.
+    expected_fingerprint = build_request_fingerprint(
+        record.tool_identity,
+        record.arguments_digest,
+        session_id=record.session_id,
+        tool_use_id=record.tool_use_id,
+        run_id=record.run_id,
+        task_id=record.task_id,
+    )
+    return expected_fingerprint == record.request_fingerprint
+
+
+def _claim_permission_continuations(
+    continuation: PermissionContinuationRuntime,
+    continuation_plan: Mapping[str, PermissionContinuationRecord],
+    requests: Sequence[ToolLoopRequest],
+    *,
+    worker_request_id: str,
+) -> dict[str, PermissionContinuationClaim]:
+    claims: dict[str, PermissionContinuationClaim] = {}
+    try:
+        for request in requests:
+            tool_use_id = request.call.tool_call_id
+            record = continuation_plan.get(tool_use_id)
+            if record is None:
+                continue
+            if record.resolution_effect is not PermissionEffect.ALLOW:
+                raise PermissionContinuationStateError(
+                    "only an exact allow resolution may claim a continuation"
+                )
+            identity = record.tool_identity.to_dict()
+            identity["name"] = request.tool_name
+            presented = {
+                "session_id": record.session_id,
+                "task_id": request.task_id,
+                "run_id": request.run_id,
+                "tool_use_id": tool_use_id,
+                "tool_identity": identity,
+                "arguments": to_jsonable(request.arguments),
+                "arguments_digest": record.arguments_digest,
+                "request_fingerprint": record.request_fingerprint,
+                "scope": record.scope.to_dict(),
+                "payload_locator": record.payload_locator,
+                "session_sequence": record.session_sequence,
+                "metadata": {
+                    "worker_request_id": worker_request_id,
+                    "permission_guard_required": True,
+                },
+            }
+            claims[tool_use_id] = continuation.prepare_resume(
+                record.request_id,
+                presented,
+                claimant=worker_request_id,
+                idempotency_key=(
+                    f"query-engine:{worker_request_id}:{record.request_id}:{record.revision}"
+                ),
+                expected_record_revision=record.revision,
+            )
+    except Exception:
+        for claim in reversed(tuple(claims.values())):
+            try:
+                continuation.release_claim(
+                    claim.record.request_id,
+                    claim_id=claim.record.claim_id,
+                    expected_record_revision=claim.record.revision,
+                    reason="partial_batch_claim_compensation",
+                )
+            except PermissionContinuationError:
+                pass
+        raise
+    return claims
+
+
+def _park_permission_ask(
+    continuation: PermissionContinuationRuntime,
+    payloads: dict[str, dict[str, Any]],
+    receipt: ToolExecutionReceipt,
+    *,
+    session_sequence: int,
+    turn_id: str,
+    batch_index: int,
+    payload_writer: Callable[[str, str, Mapping[str, Any]], None] | None = None,
+    payload_tombstoner: Callable[[str, str, str], None] | None = None,
+) -> tuple[PermissionContinuationRecord, int]:
+    pending_value = receipt.permission.get("pending_request")
+    if not isinstance(pending_value, Mapping):
+        raise PermissionContinuationStateError(
+            "ASK permission receipt is missing its exact pending request"
+        )
+    pending = PermissionRequestRecord.from_dict(pending_value)
+    current_digest = arguments_digest(receipt.request.arguments)
+    if current_digest != pending.arguments_digest:
+        raise PermissionContinuationIdentityError(
+            "parked tool arguments do not match the permission request digest"
+        )
+    locator = "query-session:" + arguments_digest(
+        {
+            "request_id": pending.request_id,
+            "session_id": pending.session_id,
+            "tool_use_id": pending.tool_use_id,
+            "request_fingerprint": pending.request_fingerprint,
+        }
+    )
+    existing_record: PermissionContinuationRecord | None
+    try:
+        existing_record = continuation.get(pending.request_id)
+    except KeyError:
+        existing_record = None
+        next_sequence = session_sequence + 1
+        record_locator = locator
+        record_sequence = next_sequence
+    else:
+        next_sequence = max(session_sequence, existing_record.session_sequence)
+        if existing_record.payload_locator != locator:
+            raise PermissionContinuationIdentityError(
+                "existing continuation locator does not match the exact pending request"
+            )
+        record_locator = existing_record.payload_locator
+        record_sequence = existing_record.session_sequence
+    replay_payload = {
+        "session_id": pending.session_id,
+        "task_id": pending.task_id,
+        "run_id": pending.run_id,
+        "tool_use_id": pending.tool_use_id,
+        "tool_identity": pending.tool_identity.to_dict(),
+        "arguments": to_jsonable(receipt.request.arguments),
+        "arguments_digest": pending.arguments_digest,
+        "request_fingerprint": pending.request_fingerprint,
+        "scope": pending.scope.to_dict(),
+        "payload_locator": record_locator,
+        "session_sequence": record_sequence,
+        "source": "CodeWorkerSessionStore.runtime_state",
+        "metadata": {
+            "request_id": pending.request_id,
+            "permission_guard_required": True,
+        },
+    }
+    PermissionContinuationReplay.from_value(replay_payload, source="query_engine")
+    existing_payload = payloads.get(record_locator)
+    if existing_payload is not None:
+        if canonical_arguments_json(existing_payload) != canonical_arguments_json(replay_payload):
+            raise PermissionContinuationIdentityError(
+                "continuation payload locator already owns a different replay"
+            )
+    else:
+        if payload_writer is not None:
+            try:
+                payload_writer(pending.request_id, record_locator, replay_payload)
+            except Exception as error:  # noqa: BLE001 - session owner failure is fail-closed.
+                raise PermissionContinuationPayloadMissing(
+                    f"session continuation write-ahead failed: {type(error).__name__}"
+                ) from error
+        payloads[record_locator] = replay_payload
+    if existing_record is None:
+        try:
+            record = continuation.park(
+                pending,
+                payload_locator=record_locator,
+                session_sequence=record_sequence,
+                metadata={
+                    "turn_id": turn_id,
+                    "batch_index": batch_index,
+                    "step_index": receipt.request.step_index,
+                    "tool_name": receipt.request.tool_name,
+                    "payload_owner": "CodeWorkerSessionStore.permission_continuation_wal",
+                    "payload_write_ahead": payload_writer is not None,
+                    "raw_arguments_persisted_in_permission_state": False,
+                },
+            )
+        except Exception:
+            _tombstone_permission_payload(
+                payloads,
+                request_id=pending.request_id,
+                payload_locator=record_locator,
+                reason="continuation_park_failed_after_payload_write_ahead",
+                payload_tombstoner=payload_tombstoner,
+            )
+            raise
+    else:
+        record = existing_record
+    return record, next_sequence
+
+
+def _tombstone_permission_payload(
+    payloads: dict[str, dict[str, Any]],
+    *,
+    request_id: str,
+    payload_locator: str,
+    reason: str,
+    payload_tombstoner: Callable[[str, str, str], None] | None,
+) -> None:
+    if payload_tombstoner is not None:
+        try:
+            payload_tombstoner(request_id, payload_locator, reason)
+        except Exception as error:  # noqa: BLE001 - durable cleanup must fail closed.
+            raise PermissionContinuationPayloadMissing(
+                f"session continuation tombstone failed: {type(error).__name__}"
+            ) from error
+    payloads.pop(payload_locator, None)
 
 
 def query_turns_from_constraints(constraints: Mapping[str, Any]) -> list[list[dict[str, Any]]]:

@@ -234,10 +234,78 @@ class PermissionSessionCustodyStore:
 
     @staticmethod
     def redact_constraints(constraints: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            str(key): ("<redacted>" if "custody_token" in str(key).casefold() else value)
-            for key, value in constraints.items()
-        }
+        secrets = tuple(
+            dict.fromkeys(
+                str(value)
+                for key, value in constraints.items()
+                if "custody_token" in str(key).casefold() and str(value)
+            )
+        )
+
+        def redact(value: Any, *, depth: int = 0) -> Any:
+            if depth > 12:
+                return "<redacted-depth>"
+            if isinstance(value, Mapping):
+                output: dict[str, Any] = {}
+                redacted_key_index = 0
+                for raw_key, child in list(value.items())[:512]:
+                    key = str(raw_key)
+                    if "custody_token" in key.casefold():
+                        output[key] = "<redacted>"
+                        continue
+                    if any(secret in key for secret in secrets):
+                        redacted_key_index += 1
+                        output[f"<redacted-capability-key-{redacted_key_index}>"] = "<redacted>"
+                        continue
+                    output[key] = redact(child, depth=depth + 1)
+                return output
+            if isinstance(value, (list, tuple, set, frozenset)):
+                return [redact(item, depth=depth + 1) for item in list(value)[:2048]]
+            if isinstance(value, str) and any(secret in value for secret in secrets):
+                return "<redacted>"
+            return value
+
+        return dict(redact(constraints))
+
+    @staticmethod
+    def contains_capability_echo(
+        constraints: Mapping[str, Any],
+        secrets: tuple[str, ...] | list[str],
+    ) -> bool:
+        """Detect a bearer copied outside its designated authentication field."""
+
+        protected = tuple(dict.fromkeys(str(item) for item in secrets if str(item)))
+        if not protected:
+            return False
+
+        def inspect(value: Any, *, depth: int = 0, auth_field: bool = False) -> bool:
+            if depth > 12:
+                return True
+            if isinstance(value, Mapping):
+                if len(value) > 512:
+                    return True
+                for raw_key, child in value.items():
+                    key = str(raw_key)
+                    designated = depth == 0 and "custody_token" in key.casefold()
+                    if any(secret in key for secret in protected):
+                        return True
+                    if inspect(child, depth=depth + 1, auth_field=designated):
+                        return True
+                return False
+            if isinstance(value, (list, tuple, set, frozenset)):
+                if len(value) > 2048:
+                    return True
+                return any(
+                    inspect(item, depth=depth + 1, auth_field=False)
+                    for item in value
+                )
+            return (
+                isinstance(value, str)
+                and not auth_field
+                and any(secret in value for secret in protected)
+            )
+
+        return inspect(constraints)
 
     @staticmethod
     def _verify_record(

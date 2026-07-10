@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
 import unittest
 import urllib.request
 from urllib.error import HTTPError
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 workers = {worker["name"] for worker in _get(base_url, "/workers")["workers"]}
                 browser_actions = _get(base_url, "/workers/browser/actions")
                 browser_health = _get(base_url, "/workers/browser/health")
+                permission_health = _get(base_url, "/permissions/health")
                 code_inventory = _get(base_url, "/workers/code/inventory")
 
                 self.assertIn("/change", commands)
@@ -103,6 +105,10 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(code_inventory["health"]["vendor"]["complete"], False)
                 self.assertFalse(code_inventory["defaultPath"]["requiresRootSourceRepo"])
                 self.assertGreaterEqual(len(code_inventory["sourceToTarget"]), 10)
+                self.assertNotIn("integration", permission_health["metrics"])
+                self.assertTrue(
+                    permission_health["metrics"]["integration_details_require_custody"]
+                )
             finally:
                 server.shutdown()
                 server.server_close()
@@ -197,6 +203,11 @@ class ApiControlCommandTests(unittest.TestCase):
                 helped = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/help"})
                 context = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/context"})
                 mcp = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/mcp"})
+                permissions = _post(
+                    base_url,
+                    f"/tasks/{task_id}/commands",
+                    {"text": "/permissions"},
+                )
 
                 self.assertIn("context_session", helped["command_result"]["data"]["groups"])
                 self.assertIn("/team-onboarding", helped["command_result"]["data"]["groups"]["extension_team"])
@@ -212,6 +223,11 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertTrue(mcp["command_result"]["data"]["source_graph_ok"])
                 self.assertTrue(mcp["command_result"]["data"]["contracts"])
                 self.assertTrue(mcp["command_result"]["data"]["source_batches"])
+                permission_data = permissions["command_result"]["data"]
+                self.assertTrue(permission_data["custody_required_for_details"])
+                self.assertNotIn("requests", permission_data)
+                self.assertNotIn("rules", permission_data)
+                self.assertNotIn("session_ids", permission_data)
             finally:
                 server.shutdown()
                 server.server_close()
@@ -438,6 +454,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
             from apps.api.zyra_api.main import ZyraRequestHandler
 
@@ -678,6 +695,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
             from apps.api.zyra_api.main import ZyraRequestHandler
 
@@ -701,12 +719,24 @@ class ApiControlCommandTests(unittest.TestCase):
                 )
 
                 self.assertTrue(executed["worker_result"]["ok"])
-                self.assertEqual(len(executed["events"]), 3)
+                browser_events = [
+                    event
+                    for event in executed["events"]
+                    if isinstance(event.get("payload", {}).get("browser_result"), dict)
+                ]
+                self.assertEqual(len(browser_events), 2)
                 self.assertEqual(executed["task"]["budget"]["tool_calls"], 2)
                 self.assertEqual(executed["worker_result"]["metadata"]["vendor"], "browser-use")
                 self.assertIn(
                     "Visible browser text.",
-                    executed["events"][1]["payload"]["browser_result"]["output"]["text_preview"],
+                    browser_events[1]["payload"]["browser_result"]["output"]["text_preview"],
+                )
+                self.assertTrue(executed["permission_session"]["custody_created"])
+                token = executed["permission_session"]["custody_token"]
+                self.assertEqual(executed["worker_request"]["constraints"].get("permission_session_custody_token"), None)
+                self.assertNotIn(
+                    token,
+                    Path(os.environ["ZYRA_PERMISSION_STATE"]).read_text(encoding="utf-8"),
                 )
                 self.assertGreaterEqual(len(_get(base_url, f"/tasks/{task_id}/events")["events"]), 4)
             finally:
@@ -714,13 +744,144 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_legacy_permission_projection_cannot_authorize_new_shell_runtime(self) -> None:
+    def test_browser_worker_permission_api_resumes_exact_network_action_once(self) -> None:
+        class PageHandler(BaseHTTPRequestHandler):
+            hit_count = 0
+
+            def do_GET(self) -> None:  # noqa: N802 - stdlib callback name.
+                type(self).hit_count += 1
+                body = b"<html><head><title>Approved</title></head><body>exact browser approval</body></html>"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args: Any) -> None:
+                return
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(root / "workspace")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+            os.environ["ZYRA_PERMISSION_STORE"] = str(root / "legacy-permissions.json")
+
+            from apps.api.zyra_api.main import ZyraRequestHandler
+
+            page_server = ThreadingHTTPServer(("127.0.0.1", 0), PageHandler)
+            page_thread = threading.Thread(target=page_server.serve_forever, daemon=True)
+            page_thread.start()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            target_url = f"http://127.0.0.1:{page_server.server_address[1]}/approved"
+            try:
+                created = _post(base_url, "/tasks", {"goal": "Approve one browser request.", "auto_run": False})
+                task = created["task"]
+                plan = [{"action": "open_url", "arguments": {"url": target_url}}]
+                first_status, first = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/browser",
+                    {"browser_plan": plan},
+                )
+
+                self.assertEqual(first_status, 409)
+                self.assertEqual(PageHandler.hit_count, 0)
+                first_browser_events = [
+                    event
+                    for event in first["events"]
+                    if isinstance(event.get("payload", {}).get("browser_result"), dict)
+                ]
+                self.assertEqual(
+                    first_browser_events[0]["payload"]["browser_result"]["error"],
+                    "permission_required",
+                )
+                session = first["permission_session"]
+                self.assertTrue(session["custody_created"])
+                token = session["custody_token"]
+                identity = {
+                    "session_id": session["session_id"],
+                    "run_id": task["run_id"],
+                    "task_id": task["task_id"],
+                }
+                headers = {"Authorization": f"Bearer {token}"}
+                pending = _get(
+                    base_url,
+                    (
+                        "/permissions/requests"
+                        f"?session_id={session['session_id']}&run_id={task['run_id']}"
+                        f"&task_id={task['task_id']}&pending_only=true"
+                    ),
+                    headers=headers,
+                )["requests"]["items"]
+                self.assertEqual(len(pending), 1)
+                _post(
+                    base_url,
+                    f"/permissions/requests/{pending[0]['request_id']}/resolve",
+                    {**identity, "effect": "allow", "idempotency_key": "approve-browser-exact"},
+                    headers=headers,
+                )
+
+                retry_payload = {
+                    "browser_plan": plan,
+                    "constraints": {
+                        "permission_session_id": session["session_id"],
+                        "permission_session_custody_token": token,
+                    },
+                }
+                second_status, second = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/browser",
+                    retry_payload,
+                )
+                self.assertEqual(second_status, 201)
+                self.assertTrue(second["worker_result"]["ok"])
+                self.assertEqual(PageHandler.hit_count, 1)
+                self.assertNotIn("custody_token", second["permission_session"])
+                self.assertEqual(
+                    second["worker_request"]["constraints"]["permission_session_custody_token"],
+                    "<redacted>",
+                )
+
+                replay_status, replay = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/browser",
+                    retry_payload,
+                )
+                self.assertEqual(replay_status, 409)
+                replay_browser_events = [
+                    event
+                    for event in replay["events"]
+                    if isinstance(event.get("payload", {}).get("browser_result"), dict)
+                ]
+                self.assertEqual(
+                    replay_browser_events[0]["payload"]["browser_result"]["error"],
+                    "permission_required",
+                )
+                self.assertEqual(PageHandler.hit_count, 1)
+                for path in root.rglob("*"):
+                    if path.is_file():
+                        self.assertNotIn(token.encode("utf-8"), path.read_bytes(), str(path))
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+                page_server.shutdown()
+                page_server.server_close()
+                page_thread.join(timeout=5)
+
+    def test_structured_permission_api_authorizes_only_the_exact_shell_retry(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
             os.environ["ZYRA_PERMISSION_STORE"] = str(Path(tmpdir) / "permissions.json")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
             from apps.api.zyra_api.main import ZyraRequestHandler
 
@@ -740,56 +901,388 @@ class ApiControlCommandTests(unittest.TestCase):
 
                 self.assertEqual(status, 409)
                 request_id = blocked["tool_result"]["metadata"]["permission_request_id"]
-                permissions = _get(base_url, "/permissions")
-                self.assertEqual(permissions["requests"][0]["request_id"], request_id)
+                session = blocked["permission_session"]
+                retry_identity = blocked["permission_retry_identity"]
+                custody_token = session["bearer_token"]
+                run_id = created["task"]["run_id"]
+                query_path = (
+                    "/permissions/requests"
+                    f"?session_id={session['session_id']}"
+                    f"&run_id={run_id}&task_id={task_id}"
+                )
+                query_token_status, query_token_response = _get_with_status(
+                    base_url,
+                    f"{query_path}&custody_token={custody_token}",
+                )
+                self.assertEqual(query_token_status, 401)
+                self.assertEqual(
+                    query_token_response["error"],
+                    "permission_api_authentication_failed",
+                )
+                permissions = _get(
+                    base_url,
+                    query_path,
+                    headers={"Authorization": f"Bearer {custody_token}"},
+                )
+                self.assertEqual(
+                    permissions["requests"]["items"][0]["request_id"],
+                    request_id,
+                )
+
+                malformed_status, malformed = _post_with_status(
+                    base_url,
+                    f"/permissions/requests/{request_id}/resolve",
+                    {
+                        "session_id": session["session_id"],
+                        "run_id": run_id,
+                        "task_id": task_id,
+                        "effect": "not-a-permission-effect",
+                    },
+                    headers={"Authorization": f"Bearer {custody_token}"},
+                )
+                self.assertEqual(malformed_status, 400)
+                self.assertEqual(malformed["error"], "permission_transport_response_invalid")
+
+                secret_status, secret_response = _post_with_status(
+                    base_url,
+                    f"/permissions/requests/{request_id}/resolve",
+                    {
+                        "session_id": session["session_id"],
+                        "run_id": run_id,
+                        "task_id": task_id,
+                        "effect": "allow",
+                        "idempotency_key": "must-not-resolve-secret-echo",
+                        "reason": f"operator accidentally copied {custody_token}",
+                        "metadata": {"note": custody_token},
+                    },
+                    headers={"Authorization": f"Bearer {custody_token}"},
+                )
+                self.assertEqual(secret_status, 403)
+                self.assertEqual(secret_response["error"], "permission_api_authorization_failed")
+                secret_key_status, secret_key_response = _post_with_status(
+                    base_url,
+                    f"/permissions/requests/{request_id}/resolve",
+                    {
+                        "session_id": session["session_id"],
+                        "run_id": run_id,
+                        "task_id": task_id,
+                        "effect": "allow",
+                        "idempotency_key": "must-not-resolve-secret-key",
+                        "metadata": {custody_token: "persist-me"},
+                    },
+                    headers={"Authorization": f"Bearer {custody_token}"},
+                )
+                self.assertEqual(secret_key_status, 403)
+                self.assertEqual(
+                    secret_key_response["error"],
+                    "permission_api_authorization_failed",
+                )
+                self.assertNotIn(
+                    custody_token,
+                    Path(os.environ["ZYRA_PERMISSION_STATE"]).read_text(encoding="utf-8"),
+                )
 
                 resolved = _post(
                     base_url,
                     f"/permissions/requests/{request_id}/resolve",
-                    {"status": "approved", "create_rule": True},
+                    {
+                        "session_id": session["session_id"],
+                        "run_id": run_id,
+                        "task_id": task_id,
+                        "effect": "allow",
+                        "idempotency_key": "approve-shell-once",
+                    },
+                    headers={"Authorization": f"Bearer {custody_token}"},
                 )
-                self.assertEqual(resolved["request"]["status"], "approved")
+                self.assertEqual(
+                    resolved["result"]["request"]["status"],
+                    "approved",
+                )
 
-                second_status, still_blocked = _post_with_status(
+                second_status, executed = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/tools",
-                    {"tool_name": "shell", "arguments": {"command": command}},
+                    {
+                        "tool_name": "shell",
+                        "arguments": {"command": command},
+                        **retry_identity,
+                    },
+                    headers={"Authorization": f"Bearer {custody_token}"},
                 )
-                self.assertEqual(second_status, 409)
-                self.assertFalse(still_blocked["tool_result"]["ok"])
-                self.assertEqual(still_blocked["tool_result"]["error"], "permission_required")
+                self.assertEqual(second_status, 201)
+                self.assertTrue(executed["tool_result"]["ok"])
+                self.assertIn("789", executed["tool_result"]["output"]["stdout"])
+
+                forged_status, forged = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/tools",
+                    {
+                        "tool_name": "shell",
+                        "arguments": {"command": f'{sys.executable} -c "print(999)"'},
+                        **retry_identity,
+                    },
+                    headers={"Authorization": f"Bearer {custody_token}"},
+                )
+                self.assertNotEqual(forged_status, 201)
+                self.assertFalse(forged.get("tool_result", {}).get("ok", False))
+                task_events = _get(base_url, f"/tasks/{task_id}/events")["events"]
+                permission_kinds = [
+                    event.get("payload", {})
+                    .get("query_session", {})
+                    .get("permission_runtime", {})
+                    .get("kind")
+                    for event in task_events
+                ]
+                self.assertIn("permission_request_resolved", permission_kinds)
+                self.assertIn("permission_execution_grant_consumed", permission_kinds)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
+    def test_permission_session_mode_api_is_custody_bound_revisioned_and_no_store(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
+            os.environ["ZYRA_PERMISSION_STORE"] = str(Path(tmpdir) / "legacy-permissions.json")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
+
+            from apps.api.zyra_api.main import ZyraRequestHandler
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(base_url, "/tasks", {"goal": "Mode control.", "auto_run": False})
+                task = created["task"]
+                session_id = "api-mode-session"
+                open_request = urllib.request.Request(
+                    f"{base_url}/permissions/sessions/open",
+                    data=json.dumps(
+                        {
+                            "session_id": session_id,
+                            "run_id": task["run_id"],
+                            "task_id": task["task_id"],
+                        }
+                    ).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(open_request, timeout=15) as response:
+                    opened = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+                    self.assertEqual(
+                        response.headers["X-Zyra-Permission-State-Owner"],
+                        "PermissionStateStore",
+                    )
+                token = opened["session"]["bearer_token"]
+                identity = {
+                    "session_id": session_id,
+                    "run_id": task["run_id"],
+                    "task_id": task["task_id"],
+                }
+                headers = {"Authorization": f"Bearer {token}"}
+
+                changed = _post(
+                    base_url,
+                    "/permissions/mode",
+                    {**identity, "mode": "dont_ask", "expected_mode_revision": 0},
+                    headers=headers,
+                )
+                self.assertEqual(changed["result"]["metadata"]["mode"]["revision"], 1)
+                status, escalated = _post_with_status(
+                    base_url,
+                    "/permissions/mode",
+                    {**identity, "mode": "auto"},
+                    headers=headers,
+                )
+                self.assertEqual(status, 403)
+                self.assertEqual(escalated["error"], "forbidden")
+
+                selected = _get(
+                    base_url,
+                    (
+                        "/permissions/mode"
+                        f"?session_id={session_id}&run_id={task['run_id']}"
+                        f"&task_id={task['task_id']}"
+                    ),
+                    headers=headers,
+                )
+                self.assertEqual(selected["mode"], "dont_ask")
+                state_text = Path(os.environ["ZYRA_PERMISSION_STATE"]).read_text(encoding="utf-8")
+                self.assertNotIn(token, state_text)
+                self.assertFalse(Path(os.environ["ZYRA_PERMISSION_STORE"]).exists())
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
+    def test_code_worker_permission_approval_resumes_exact_parked_call_via_api(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(root / "workspace")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STORE"] = str(root / "legacy-permissions.json")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+
+            from apps.api.zyra_api.main import ZyraRequestHandler
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(base_url, "/tasks", {"goal": "Resume exact code action.", "auto_run": False})
+                task = created["task"]
+                session_id = "api-code-permission-session"
+                command = subprocess.list2cmdline(
+                    [
+                        sys.executable,
+                        "-c",
+                        "from pathlib import Path; Path('api-code-approved.txt').write_text('approved', encoding='utf-8')",
+                    ]
+                )
+                plan = [
+                    {
+                        "tool_name": "shell",
+                        "tool_call_id": "api-code-shell-use-1",
+                        "arguments": {"command": command},
+                    }
+                ]
+                first_status, first = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {"constraints": {"session_id": session_id, "tool_plan": plan}},
+                )
+                self.assertEqual(first_status, 409)
+                self.assertEqual(first["worker_result"]["error"], "permission_suspended")
+                session = first["permission_session"]
+                token = session["session_custody_token"]
+                self.assertTrue(session["session_custody_token_included"])
+                self.assertEqual(first["worker_request"]["constraints"].get("session_custody_token"), None)
+                self.assertFalse((root / "workspace" / "api-code-approved.txt").exists())
+
+                identity = {
+                    "session_id": session_id,
+                    "run_id": task["run_id"],
+                    "task_id": task["task_id"],
+                }
+                headers = {"Authorization": f"Bearer {token}"}
+                pending = _get(
+                    base_url,
+                    (
+                        "/permissions/requests"
+                        f"?session_id={session_id}&run_id={task['run_id']}"
+                        f"&task_id={task['task_id']}&pending_only=true"
+                    ),
+                    headers=headers,
+                )["requests"]["items"]
+                self.assertEqual(len(pending), 1)
+                request_id = pending[0]["request_id"]
+                _post(
+                    base_url,
+                    f"/permissions/requests/{request_id}/resolve",
+                    {**identity, "effect": "allow", "idempotency_key": "approve-api-code"},
+                    headers=headers,
+                )
+
+                second_status, second = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {
+                        "constraints": {
+                            "session_id": session_id,
+                            "session_custody_token": token,
+                            "tool_plan": plan,
+                        }
+                    },
+                )
+                self.assertEqual(second_status, 201)
+                self.assertTrue(second["worker_result"]["ok"])
+                self.assertFalse(second["permission_session"]["session_custody_token_included"])
                 self.assertEqual(
-                    still_blocked["tool_result"]["metadata"]["permission_runtime_id"],
-                    "zyra-tool-permission-runtime",
+                    second["worker_request"]["constraints"]["session_custody_token"],
+                    "<redacted>",
                 )
-                self.assertEqual(_get(base_url, "/permissions")["rules"][0]["effect"], "allow")
+                self.assertEqual(
+                    (root / "workspace" / "api-code-approved.txt").read_text(encoding="utf-8"),
+                    "approved",
+                )
+                for path in root.rglob("*"):
+                    if path.is_file():
+                        self.assertNotIn(token.encode("utf-8"), path.read_bytes(), str(path))
             finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=5)
 
 
-def _get(base_url: str, path: str) -> dict[str, Any]:
-    with urllib.request.urlopen(f"{base_url}{path}", timeout=15) as response:
+def _get(
+    base_url: str,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        headers=headers or {},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _get_with_status(
+    base_url: str,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        headers=headers or {},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        return error.code, json.loads(error.read().decode("utf-8"))
+
+
+def _post(
+    base_url: str,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
     request = urllib.request.Request(
         f"{base_url}{path}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **(headers or {})},
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _post_with_status(base_url: str, path: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+def _post_with_status(
+    base_url: str,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
     request = urllib.request.Request(
         f"{base_url}{path}",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **(headers or {})},
         method="POST",
     )
     try:

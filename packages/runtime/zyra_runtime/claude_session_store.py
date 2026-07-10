@@ -38,6 +38,8 @@ class CodeWorkerSessionStoreRecordType(StrEnum):
     QUERY_ENGINE_ATTACHED = "query_engine_attached"
     SNAPSHOT_MATERIALIZED = "snapshot_materialized"
     RUNTIME_STATE_CHECKPOINT = "runtime_state_checkpoint"
+    PERMISSION_CONTINUATION_PAYLOAD = "permission_continuation_payload"
+    PERMISSION_CONTINUATION_TOMBSTONE = "permission_continuation_tombstone"
     FAILURE = "failure"
 
 
@@ -501,6 +503,127 @@ class CodeWorkerSessionStore:
             expected_previous_sequence=expected_previous_sequence,
         )
 
+    def append_permission_continuation_payload(
+        self,
+        *,
+        session_id: str,
+        worker_request_id: str,
+        run_id: str,
+        task_id: str,
+        request_id: str,
+        payload_locator: str,
+        replay_payload: Mapping[str, Any],
+        expected_previous_sequence: int | None = None,
+        disabled: bool = False,
+    ) -> CodeWorkerSessionStoreReceipt:
+        """Write-ahead the exact replay payload before publishing its barrier."""
+
+        path = self.session_path(session_id) if session_id else self.root / "missing-session.jsonl"
+        if not all(
+            str(item).strip()
+            for item in (
+                session_id,
+                worker_request_id,
+                run_id,
+                task_id,
+                request_id,
+                payload_locator,
+            )
+        ):
+            return CodeWorkerSessionStoreReceipt(
+                ok=False,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                path=str(path),
+                appended_records=(),
+                error="permission_continuation_payload_identity_missing",
+            )
+        record = self._record(
+            record_type=CodeWorkerSessionStoreRecordType.PERMISSION_CONTINUATION_PAYLOAD,
+            session_id=session_id,
+            worker_request_id=worker_request_id,
+            run_id=run_id,
+            task_id=task_id,
+            sequence=0,
+            payload={
+                "schema_version": 1,
+                "request_id": request_id,
+                "payload_locator": payload_locator,
+                "replay_payload": dict(replay_payload),
+                "written_at": now_iso(),
+            },
+            metadata={
+                "permission_continuation_write_ahead": True,
+                "raw_arguments_owned_by_session_store": True,
+            },
+        )
+        return self.append_records(
+            (record,),
+            disabled=disabled,
+            expected_previous_sequence=expected_previous_sequence,
+        )
+
+    def append_permission_continuation_tombstone(
+        self,
+        *,
+        session_id: str,
+        worker_request_id: str,
+        run_id: str,
+        task_id: str,
+        request_id: str,
+        payload_locator: str,
+        reason: str,
+        expected_previous_sequence: int | None = None,
+        disabled: bool = False,
+    ) -> CodeWorkerSessionStoreReceipt:
+        """Stop projecting a settled/orphaned replay payload on recovery."""
+
+        path = self.session_path(session_id) if session_id else self.root / "missing-session.jsonl"
+        if not all(
+            str(item).strip()
+            for item in (
+                session_id,
+                worker_request_id,
+                run_id,
+                task_id,
+                request_id,
+                payload_locator,
+                reason,
+            )
+        ):
+            return CodeWorkerSessionStoreReceipt(
+                ok=False,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                path=str(path),
+                appended_records=(),
+                error="permission_continuation_tombstone_identity_missing",
+            )
+        record = self._record(
+            record_type=CodeWorkerSessionStoreRecordType.PERMISSION_CONTINUATION_TOMBSTONE,
+            session_id=session_id,
+            worker_request_id=worker_request_id,
+            run_id=run_id,
+            task_id=task_id,
+            sequence=0,
+            payload={
+                "schema_version": 1,
+                "request_id": request_id,
+                "payload_locator": payload_locator,
+                "reason": str(reason)[:500],
+                "tombstoned_at": now_iso(),
+            },
+            metadata={
+                "permission_continuation_tombstone": True,
+                "raw_arguments_projected": False,
+            },
+        )
+        return self.append_records(
+            (record,),
+            disabled=disabled,
+            expected_previous_sequence=expected_previous_sequence,
+        )
+
     def load_runtime_state(
         self,
         *,
@@ -568,6 +691,42 @@ class CodeWorkerSessionStore:
             if record.record_type == CodeWorkerSessionStoreRecordType.RUNTIME_STATE_CHECKPOINT
         ]
         if not checkpoints:
+            try:
+                wal_state = _apply_permission_continuation_wal(
+                    {},
+                    replay.records,
+                    after_sequence=0,
+                )
+            except (TypeError, ValueError) as error:
+                return CodeWorkerRuntimeStateLoad(
+                    ok=False,
+                    found=False,
+                    session_id=session_id,
+                    run_id=run_id,
+                    task_id=task_id,
+                    worker_request_id=replay.worker_request_id,
+                    path=replay.path,
+                    sequence=replay.last_sequence,
+                    error="permission_continuation_wal_corrupt",
+                    metadata={"message": str(error)},
+                )
+            if wal_state.get("permission_continuation_payloads"):
+                return CodeWorkerRuntimeStateLoad(
+                    ok=True,
+                    found=True,
+                    session_id=session_id,
+                    run_id=run_id,
+                    task_id=task_id,
+                    worker_request_id=replay.worker_request_id,
+                    path=replay.path,
+                    runtime_state=wal_state,
+                    causal_receipt={},
+                    sequence=replay.last_sequence,
+                    metadata={
+                        "reason": "permission_continuation_write_ahead_recovery",
+                        "permission_continuation_wal_replayed": True,
+                    },
+                )
             return CodeWorkerRuntimeStateLoad(
                 ok=True,
                 found=False,
@@ -583,7 +742,7 @@ class CodeWorkerSessionStore:
         payload = _as_mapping(checkpoint.payload)
         payload_task_id = str(payload.get("task_id") or checkpoint.task_id)
         payload_run_id = str(payload.get("run_id") or checkpoint.run_id)
-        runtime_state = _as_mapping(payload.get("runtime_state"))
+        runtime_state = dict(_as_mapping(payload.get("runtime_state")))
         if payload_task_id != task_id or payload_run_id != run_id:
             return CodeWorkerRuntimeStateLoad(
                 ok=False,
@@ -595,6 +754,25 @@ class CodeWorkerSessionStore:
                 path=replay.path,
                 sequence=checkpoint.sequence,
                 error="runtime_state_checkpoint_identity_mismatch",
+            )
+        try:
+            runtime_state = _apply_permission_continuation_wal(
+                runtime_state,
+                replay.records,
+                after_sequence=checkpoint.sequence,
+            )
+        except (TypeError, ValueError) as error:
+            return CodeWorkerRuntimeStateLoad(
+                ok=False,
+                found=False,
+                session_id=session_id,
+                run_id=run_id,
+                task_id=task_id,
+                worker_request_id=checkpoint.worker_request_id,
+                path=replay.path,
+                sequence=replay.last_sequence,
+                error="permission_continuation_wal_corrupt",
+                metadata={"message": str(error)},
             )
         if not runtime_state:
             return CodeWorkerRuntimeStateLoad(
@@ -618,10 +796,14 @@ class CodeWorkerSessionStore:
             path=replay.path,
             runtime_state=dict(runtime_state),
             causal_receipt=dict(_as_mapping(payload.get("causal_receipt"))),
-            sequence=checkpoint.sequence,
+            sequence=replay.last_sequence,
             metadata={
                 "record_id": checkpoint.record_id,
                 "store_last_sequence": replay.last_sequence,
+                "checkpoint_sequence": checkpoint.sequence,
+                "permission_continuation_wal_replayed": (
+                    replay.last_sequence > checkpoint.sequence
+                ),
             },
         )
 
@@ -1081,6 +1263,57 @@ def seed_failure_result_metadata(seed: CodeWorkerSessionSeed | None, *, error: s
     values["tool_steps"] = "0"
     values["context_compactions"] = "0"
     return values
+
+
+def _apply_permission_continuation_wal(
+    runtime_state: Mapping[str, Any],
+    records: Sequence[CodeWorkerSessionStoreRecord],
+    *,
+    after_sequence: int,
+) -> dict[str, Any]:
+    """Overlay fsynced continuation payload/tombstone records on a checkpoint."""
+
+    output = dict(runtime_state)
+    raw_payloads = output.get("permission_continuation_payloads")
+    if raw_payloads is None:
+        payloads: dict[str, Any] = {}
+    elif isinstance(raw_payloads, Mapping):
+        payloads = {str(key): to_jsonable(value) for key, value in raw_payloads.items()}
+    else:
+        raise TypeError("permission continuation payload checkpoint is not a mapping")
+
+    for record in sorted(records, key=lambda item: item.sequence):
+        if record.sequence <= after_sequence:
+            continue
+        if record.record_type not in {
+            CodeWorkerSessionStoreRecordType.PERMISSION_CONTINUATION_PAYLOAD,
+            CodeWorkerSessionStoreRecordType.PERMISSION_CONTINUATION_TOMBSTONE,
+        }:
+            continue
+        payload = _as_mapping(record.payload)
+        locator = str(payload.get("payload_locator") or "")
+        request_id = str(payload.get("request_id") or "")
+        if not locator or not request_id:
+            raise ValueError("permission continuation WAL identity is missing")
+        if record.record_type == CodeWorkerSessionStoreRecordType.PERMISSION_CONTINUATION_TOMBSTONE:
+            payloads.pop(locator, None)
+            continue
+        replay_payload = payload.get("replay_payload")
+        if not isinstance(replay_payload, Mapping):
+            raise TypeError("permission continuation WAL replay payload is not a mapping")
+        replay_locator = str(replay_payload.get("payload_locator") or "")
+        replay_request_id = str(
+            _as_mapping(replay_payload.get("metadata")).get("request_id") or ""
+        )
+        if replay_locator != locator or (replay_request_id and replay_request_id != request_id):
+            raise ValueError("permission continuation WAL replay identity mismatch")
+        payloads[locator] = to_jsonable(dict(replay_payload))
+
+    if payloads:
+        output["permission_continuation_payloads"] = payloads
+    else:
+        output.pop("permission_continuation_payloads", None)
+    return output
 
 
 def _safe_name(value: str) -> str:

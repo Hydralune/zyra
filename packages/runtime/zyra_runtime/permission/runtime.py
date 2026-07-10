@@ -12,7 +12,7 @@ import hmac
 import time
 from typing import Any
 
-from zyra_core import EventRecord, new_id, to_jsonable
+from zyra_core import EventRecord, new_id, now_iso, to_jsonable
 
 from .classifier import PermissionClassifierAdapter
 from .canonical import (
@@ -446,6 +446,7 @@ class ToolPermissionRuntime:
                     )
                     self._discard_grant_context(grant.grant_id)
                 raise
+            external_cause = self._latest_permission_event_id(decision.request_id)
             evaluation_event = self.event_projector.request_event(
                 trace.effective_request,
                 kind=PermissionRuntimeEventKind.EVALUATION_STARTED,
@@ -453,6 +454,7 @@ class ToolPermissionRuntime:
                 task_id=decision.task_id,
                 node_id=trace.effective_request.node_id,
                 worker_request_id=decision.worker_request_id,
+                cause_event_id=external_cause,
             )
             decision_events = self.event_projector.decision_events(
                 decision,
@@ -494,6 +496,18 @@ class ToolPermissionRuntime:
                     )
                 events.append(issued_event)
                 self._grant_context.setdefault(grant.grant_id, {})["issued_event_id"] = issued_event.event_id
+            linked_request_id = pending.request_id if pending is not None else decision.request_id
+            if linked_request_id:
+                try:
+                    self._persist_permission_event_links(linked_request_id, events)
+                except Exception:
+                    if grant is not None:
+                        self.grant_store.invalidate(
+                            grant,
+                            reason="permission event causality persistence failed",
+                        )
+                        self._discard_grant_context(grant.grant_id)
+                    raise
             self._decision_count += 1
             if decision.effect is PermissionEffect.ALLOW:
                 self._allow_count += 1
@@ -623,8 +637,11 @@ class ToolPermissionRuntime:
             reason=validation.reason,
             cause_event_id=str(context.get("issued_event_id") or ""),
         )
+        self._persist_permission_event_links(grant.binding.request_id, (event,))
         with self._lock:
             self._consumption_events.setdefault(binding.tool_call_id, []).append(event)
+            if validation.accepted:
+                self._discard_grant_context(grant.grant_id)
         return validation.accepted
 
     def drain_execution_events(self, tool_call_id: str) -> tuple[EventRecord, ...]:
@@ -903,6 +920,75 @@ class ToolPermissionRuntime:
         self._grant_context.pop(grant_id, None)
         self._grant_scope_context.pop(grant_id, None)
         self._grant_identity_context.pop(grant_id, None)
+
+    def _latest_permission_event_id(self, request_id: str) -> str:
+        if not request_id:
+            return ""
+        state = self.state_store.read_state()
+        integration = state.get("metadata", {}).get("permission_integration", {})
+        links = integration.get("event_links", {}) if isinstance(integration, Mapping) else {}
+        history = links.get(request_id) if isinstance(links, Mapping) else None
+        if not isinstance(history, Sequence) or isinstance(history, (str, bytes)):
+            return ""
+        for item in reversed(history):
+            if isinstance(item, Mapping) and str(item.get("event_id") or ""):
+                return str(item["event_id"])
+        return ""
+
+    def _persist_permission_event_links(
+        self,
+        request_id: str,
+        events: Sequence[EventRecord],
+    ) -> None:
+        if not request_id or not events:
+            return
+        projected: list[dict[str, str]] = []
+        for event in events:
+            query_session = event.payload.get("query_session") if isinstance(event.payload, Mapping) else None
+            envelope = (
+                query_session.get("permission_runtime")
+                if isinstance(query_session, Mapping)
+                else None
+            )
+            if not isinstance(envelope, Mapping):
+                continue
+            projected.append(
+                {
+                    "phase": str(envelope.get("phase") or envelope.get("kind") or "permission_event"),
+                    "event_id": event.event_id,
+                    "cause_event_id": str(envelope.get("cause_event_id") or ""),
+                    "linked_at": now_iso(),
+                }
+            )
+        if not projected:
+            return
+
+        def mutate(state: dict[str, Any]) -> None:
+            metadata = state.setdefault("metadata", {})
+            integration = metadata.setdefault(
+                "permission_integration",
+                {
+                    "schema": "zyra.permission-integration-state.v1",
+                    "owner_unit": "M1-S03A-02",
+                    "retry_descriptors": {},
+                    "session_modes": {},
+                    "event_links": {},
+                    "metadata": {"legacy_store_is_authority": False},
+                },
+            )
+            links = integration.setdefault("event_links", {})
+            history = links.setdefault(request_id, [])
+            if not isinstance(history, list):
+                raise PermissionStateCorrupt("permission event link history is corrupt")
+            seen = {
+                str(item.get("event_id") or "")
+                for item in history
+                if isinstance(item, Mapping)
+            }
+            history.extend(item for item in projected if item["event_id"] not in seen)
+            del history[:-64]
+
+        self.state_store.mutate(mutate)
 
     def _mode_revision(self) -> int:
         snapshot = self.mode_runtime.snapshot()

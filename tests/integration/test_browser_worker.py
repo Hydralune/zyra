@@ -7,7 +7,6 @@ import unittest
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 for package_path in [
@@ -21,6 +20,18 @@ for package_path in [
 
 from zyra_core import create_task_state
 from zyra_runtime import WorkerRequest
+from zyra_runtime.permission.custody import (
+    PermissionSessionCustodyBinding,
+    PermissionSessionCustodyStore,
+)
+from zyra_runtime.permission.models import (
+    PermissionEffect,
+    PermissionRuleRecord,
+    PermissionRuleSource,
+    PermissionScope,
+    PermissionScopeKind,
+)
+from zyra_runtime.permission.store import PermissionStateStore
 from zyra_workers import (
     BrowserWorkerRuntime,
     configure_browser_use_environment,
@@ -39,6 +50,53 @@ class QuietStaticHandler(SimpleHTTPRequestHandler):
 
     def log_message(self, format: str, *args: object) -> None:
         return
+
+
+def _browser_events(run: object) -> list[object]:
+    return [
+        event
+        for event in run.event_records
+        if isinstance(event.payload.get("browser_result"), dict)
+    ]
+
+
+def _preauthorize_browser_session(
+    *,
+    runtime: BrowserWorkerRuntime,
+    run_id: str,
+    task_id: str,
+    session_id: str,
+) -> dict[str, str]:
+    state_store = PermissionStateStore(runtime.permission_state_path)
+    custody = PermissionSessionCustodyStore(state_store).claim(
+        PermissionSessionCustodyBinding(
+            session_id=session_id,
+            run_id=run_id,
+            task_id=task_id,
+            workspace_root=str(runtime.workspace_root),
+        )
+    )
+    action_names = {
+        str(item["action"])
+        for item in runtime.action_registry.describe()["actions"]
+    }
+    action_names.add("browser_agent_task")
+    for action_name in sorted(action_names):
+        state_store.add_session_rule(
+            session_id,
+            PermissionRuleRecord(
+                effect=PermissionEffect.ALLOW,
+                source=PermissionRuleSource.SESSION,
+                scope=PermissionScope(PermissionScopeKind.SESSION, session_id=session_id),
+                namespace_pattern="browser",
+                tool_pattern=action_name,
+                reason="server-owned live-browser smoke authorization",
+            ),
+        )
+    return {
+        "permission_session_id": session_id,
+        "permission_session_custody_token": custody.token,
+    }
 
 
 class BrowserWorkerTests(unittest.TestCase):
@@ -145,10 +203,10 @@ class BrowserWorkerTests(unittest.TestCase):
             )
 
             run = runtime.run(request)
+            browser_events = _browser_events(run)
 
             self.assertTrue(run.worker_result.ok)
-            self.assertEqual(len(run.event_records), 4)
-            self.assertEqual(len(run.worker_result.events), 3)
+            self.assertEqual(len(browser_events), 3)
             self.assertEqual(run.worker_result.metadata["vendor"], "browser-use")
             self.assertEqual(run.worker_result.metadata["vendor_complete"], "true")
             self.assertEqual(run.worker_result.metadata["action_registry_source"], "browser-use")
@@ -157,10 +215,10 @@ class BrowserWorkerTests(unittest.TestCase):
                 str(runtime.browser_use_health.importable).lower(),
             )
             self.assertEqual(run.worker_result.metadata["browser_use_environment_configured"], "true")
-            self.assertEqual(run.event_records[0].payload["browser_action"]["source_action"], "navigate")
+            self.assertEqual(browser_events[0].payload["browser_action"]["source_action"], "navigate")
             self.assertTrue(any(artifact.kind == "markdown" for artifact in run.worker_result.artifacts))
             self.assertTrue(any(artifact.kind == "structured_data" for artifact in run.worker_result.artifacts))
-            extracted = run.event_records[1].payload["browser_result"]["output"]["text_preview"]
+            extracted = browser_events[1].payload["browser_result"]["output"]["text_preview"]
             self.assertIn("Extract this visible content.", extracted)
 
     def test_browser_worker_clicks_link_inputs_text_and_searches_page(self) -> None:
@@ -208,13 +266,14 @@ class BrowserWorkerTests(unittest.TestCase):
             )
 
             run = runtime.run(request)
+            browser_events = _browser_events(run)
 
             self.assertTrue(run.worker_result.ok)
-            self.assertEqual(len(run.worker_result.events), 4)
-            self.assertEqual(run.event_records[1].payload["browser_result"]["output"]["virtual_inputs"]["0"], "needle")
-            self.assertEqual(run.event_records[2].payload["browser_result"]["output"]["title"], "Target")
-            self.assertEqual(run.event_records[3].payload["browser_result"]["output"]["match_count"], 1)
-            self.assertEqual(run.event_records[3].payload["browser_action"]["source_action"], "search_page")
+            self.assertEqual(len(browser_events), 4)
+            self.assertEqual(browser_events[1].payload["browser_result"]["output"]["virtual_inputs"]["0"], "needle")
+            self.assertEqual(browser_events[2].payload["browser_result"]["output"]["title"], "Target")
+            self.assertEqual(browser_events[3].payload["browser_result"]["output"]["match_count"], 1)
+            self.assertEqual(browser_events[3].payload["browser_action"]["source_action"], "search_page")
 
     def test_browser_worker_static_backend_reports_live_only_actions(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -243,13 +302,7 @@ class BrowserWorkerTests(unittest.TestCase):
             self.assertFalse(run.worker_result.ok)
             self.assertEqual(run.event_records[0].payload["browser_result"]["error"], "browser_action_requires_live_backend")
 
-    def test_browser_worker_agent_backend_reports_missing_llm_without_browser_plan(self) -> None:
-        if find_browser_executable() is None:
-            self.skipTest("Chrome or Edge executable is not available for browser-use Agent backend.")
-        health = inspect_browser_use_runtime(ROOT)
-        if not health.importable:
-            self.skipTest(f"browser_use Python runtime is not importable: {health.error}")
-
+    def test_browser_worker_agent_backend_fails_closed_before_model_or_browser_actions(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Run browser-use Agent backend.")
             workspace = Path(tmpdir) / "workspace"
@@ -273,18 +326,26 @@ class BrowserWorkerTests(unittest.TestCase):
                 },
             )
 
-            with patch.dict("os.environ", {"ZYRA_BROWSER_USE_AGENT_MISSING_KEY": ""}, clear=False):
-                run = runtime.run(request)
+            run = runtime.run(request)
 
             self.assertFalse(run.worker_result.ok)
-            self.assertEqual(run.worker_result.error, "browser_use_agent_llm_missing")
+            self.assertEqual(run.worker_result.error, "browser_agent_per_action_gate_unavailable")
             self.assertEqual(run.worker_result.metadata["browser_backend"], "browser-use-agent")
-            self.assertEqual(run.worker_result.metadata["browser_use_agent_class"], "Agent")
-            self.assertEqual(run.worker_result.metadata["browser_use_agent_history_class"], "AgentHistoryList")
-            self.assertEqual(run.worker_result.metadata["browser_agent_llm_key_env"], "ZYRA_BROWSER_USE_AGENT_MISSING_KEY")
-            self.assertEqual(run.worker_result.metadata["browser_agent_llm_key_configured"], "false")
-            self.assertEqual(run.event_records[0].payload["browser_agent"]["backend"], "browser-use-agent")
-            self.assertEqual(run.event_records[0].payload["browser_agent_result"]["error"], "browser_use_agent_llm_missing")
+            self.assertEqual(run.worker_result.metadata["browser_permission_action_execution_count"], "0")
+            self.assertEqual(run.worker_result.metadata["browser_agent_per_action_gate_integrated"], "false")
+            permission_kinds = [
+                event.payload.get("query_session", {}).get("permission_runtime", {}).get("kind")
+                for event in run.event_records
+            ]
+            self.assertIn("browser_action_permission_unavailable", permission_kinds)
+            self.assertIn("recovery_input", permission_kinds)
+            agent_events = [
+                event for event in run.event_records if "browser_agent_result" in event.payload
+            ]
+            self.assertEqual(
+                agent_events[0].payload["browser_agent_result"]["error"],
+                "browser_agent_per_action_gate_unavailable",
+            )
             self.assertTrue(any(artifact.kind == "trace" for artifact in run.worker_result.artifacts))
 
     def test_browser_worker_live_backend_operates_input_click_and_search(self) -> None:
@@ -330,6 +391,12 @@ class BrowserWorkerTests(unittest.TestCase):
                     workspace_root=paths.root / "test-live-workspace",
                     artifact_root=Path(tmpdir) / "artifacts",
                 )
+                permission_constraints = _preauthorize_browser_session(
+                    runtime=runtime,
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    session_id="browser-live-operations",
+                )
                 request = WorkerRequest(
                     run_id=state.run_id,
                     task_id=state.task_id,
@@ -366,48 +433,50 @@ class BrowserWorkerTests(unittest.TestCase):
                             {"action": "search_page", "arguments": {"pattern": "Live Browser Fixture"}},
                         ],
                         "live_timeout_seconds": 90,
+                        **permission_constraints,
                     },
                 )
 
                 run = runtime.run(request)
+                browser_events = _browser_events(run)
 
                 self.assertTrue(run.worker_result.ok, run.worker_result.error)
                 self.assertEqual(run.worker_result.metadata["browser_backend"], "browser-use-live")
-                self.assertEqual(len(run.worker_result.events), 14)
+                self.assertEqual(len(browser_events), 14)
                 self.assertEqual(
-                    run.event_records[1].payload["browser_result"]["output"]["browser_use_action_result"][
+                    browser_events[1].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
                     ],
                     "Typed 'zyra live test'",
                 )
                 self.assertEqual(
-                    run.event_records[3].payload["browser_result"]["output"]["browser_use_action_result"][
+                    browser_events[3].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
                     ],
                     "zyra evaluated marker",
                 )
-                self.assertGreater(run.event_records[4].payload["browser_result"]["output"]["screenshot_size_bytes"], 0)
+                self.assertGreater(browser_events[4].payload["browser_result"]["output"]["screenshot_size_bytes"], 0)
                 self.assertTrue(
                     any(artifact.kind == "screenshot" for artifact in run.worker_result.artifacts),
                     "expected screenshot artifact",
                 )
-                self.assertGreater(run.event_records[5].payload["browser_result"]["output"]["pdf_size_bytes"], 0)
+                self.assertGreater(browser_events[5].payload["browser_result"]["output"]["pdf_size_bytes"], 0)
                 self.assertTrue(
                     any(str(artifact.uri).lower().endswith(".pdf") for artifact in run.worker_result.artifacts),
                     "expected PDF artifact",
                 )
-                self.assertEqual(run.event_records[10].payload["browser_result"]["output"]["match_count"], 1)
-                self.assertEqual(run.event_records[8].payload["browser_action"]["source_action"], "find_text")
+                self.assertEqual(browser_events[10].payload["browser_result"]["output"]["match_count"], 1)
+                self.assertEqual(browser_events[8].payload["browser_action"]["source_action"], "find_text")
                 self.assertEqual(
-                    run.event_records[12].payload["browser_result"]["output"]["browser_use_action_result"][
+                    browser_events[12].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
                     ],
                     "Navigated back",
                 )
-                self.assertGreaterEqual(run.event_records[13].payload["browser_result"]["output"]["match_count"], 1)
+                self.assertGreaterEqual(browser_events[13].payload["browser_result"]["output"]["match_count"], 1)
                 interactive_indexes = {
                     item["index"]
-                    for item in run.event_records[0].payload["browser_result"]["output"][
+                    for item in browser_events[0].payload["browser_result"]["output"][
                         "browser_use_interactive_elements"
                     ]
                 }
@@ -459,6 +528,12 @@ class BrowserWorkerTests(unittest.TestCase):
                     workspace_root=runtime_workspace,
                     artifact_root=Path(tmpdir) / "artifacts",
                 )
+                permission_constraints = _preauthorize_browser_session(
+                    runtime=runtime,
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    session_id="browser-live-file-transfer",
+                )
                 request = WorkerRequest(
                     run_id=state.run_id,
                     task_id=state.task_id,
@@ -477,34 +552,36 @@ class BrowserWorkerTests(unittest.TestCase):
                             {"action": "collect_downloads", "arguments": {"settle_seconds": 1}},
                         ],
                         "live_timeout_seconds": 90,
+                        **permission_constraints,
                     },
                 )
 
                 run = runtime.run(request)
+                browser_events = _browser_events(run)
 
                 self.assertTrue(run.worker_result.ok, run.worker_result.error)
-                self.assertEqual(len(run.worker_result.events), 5)
+                self.assertEqual(len(browser_events), 5)
                 self.assertTrue(
-                    run.event_records[1].payload["browser_result"]["output"]["browser_use_action_result"][
+                    browser_events[1].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
                     ].startswith("Successfully uploaded file to index"),
                 )
-                self.assertEqual(run.event_records[2].payload["browser_result"]["output"]["match_count"], 1)
+                self.assertEqual(browser_events[2].payload["browser_result"]["output"]["match_count"], 1)
                 interactive_ids = {
                     item["attributes"].get("id")
-                    for item in run.event_records[0].payload["browser_result"]["output"][
+                    for item in browser_events[0].payload["browser_result"]["output"][
                         "browser_use_interactive_elements"
                     ]
                 }
                 self.assertIn("upload", interactive_ids)
                 self.assertIn("download", interactive_ids)
                 self.assertEqual(
-                    run.event_records[3].payload["browser_result"]["output"]["browser_use_action_result"][
+                    browser_events[3].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
                     ],
                     "download clicked",
                 )
-                download_output = run.event_records[4].payload["browser_result"]["output"]
+                download_output = browser_events[4].payload["browser_result"]["output"]
                 self.assertEqual(download_output["download_count"], 1)
                 self.assertEqual(download_output["downloaded_files"][0]["name"], "download.txt")
                 self.assertTrue(

@@ -6,7 +6,7 @@ import json
 import os
 import re
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -15,6 +15,14 @@ from urllib.parse import unquote, urljoin, urlparse
 from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
 from zyra_integrations import browser_use_snapshot, validate_vendor_snapshot
 from zyra_runtime import LocalArtifactStore, WorkerRequest, WorkerResult
+from zyra_runtime.permission.action_gate import (
+    BrowserActionPermissionCustodyError,
+    BrowserActionPermissionDisabled,
+    BrowserActionPermissionGate,
+    BrowserActionPermissionInput,
+    browser_permission_setup_failure_events,
+)
+from zyra_runtime.permission.custody import PermissionSessionCustodyStore
 
 from .browser_actions import BrowserActionRegistry, default_browser_action_registry
 from .browser_use_runtime import (
@@ -31,6 +39,7 @@ from .browser_use_runtime import (
 class BrowserWorkerRun:
     worker_result: WorkerResult
     event_records: list[EventRecord]
+    permission_session_custody_token: str = field(default="", repr=False)
 
 
 @dataclass(slots=True)
@@ -41,6 +50,16 @@ class BrowserPageState:
     links: list[dict[str, str]]
     html_chars: int
     text_chars: int
+
+
+@dataclass(frozen=True, slots=True)
+class _BrowserActionBarrierResult:
+    allowed: bool
+    events: tuple[EventRecord, ...]
+    metadata: dict[str, Any]
+    summary: str = ""
+    error: str | None = None
+    output: dict[str, Any] = field(default_factory=dict)
 
 
 LIVE_BROWSER_USE_TOOL_ACTIONS = {
@@ -74,17 +93,58 @@ class BrowserWorkerRuntime:
         project_root: str | Path,
         workspace_root: str | Path,
         artifact_root: str | Path,
+        permission_state_path: str | Path | None = None,
         timeout_seconds: int = 15,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
         self.workspace_root.mkdir(parents=True, exist_ok=True)
         self.artifact_store = LocalArtifactStore(artifact_root)
+        self.permission_state_path = (
+            Path(permission_state_path).resolve()
+            if permission_state_path is not None
+            else self.artifact_store.root / ".permission" / "state.json"
+        )
         self.timeout_seconds = timeout_seconds
         self.action_registry = default_browser_action_registry(self.project_root)
         self.browser_use_health: BrowserUseRuntimeHealth = inspect_browser_use_runtime(self.project_root)
 
     def run(self, request: WorkerRequest) -> BrowserWorkerRun:
+        constraints = request.constraints
+        presented_custody_tokens = tuple(
+            dict.fromkeys(
+                str(constraints.get(key) or "")
+                for key in (
+                    "permission_session_custody_token",
+                    "session_custody_token",
+                )
+                if str(constraints.get(key) or "")
+            )
+        )
+        if PermissionSessionCustodyStore.contains_capability_echo(
+            constraints,
+            presented_custody_tokens,
+        ):
+            redacted_request = replace(
+                request,
+                constraints=PermissionSessionCustodyStore.redact_constraints(constraints),
+            )
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="BrowserWorker rejected a custody capability copied into browser task data.",
+                error="permission_custody_capability_echo",
+                metadata={
+                    "browser_backend": "blocked_before_selection",
+                    "browser_permission_action_execution_count": "0",
+                    "permission_capability_echo_rejected": "true",
+                },
+            )
+            return BrowserWorkerRun(
+                worker_result=worker_result,
+                event_records=[_worker_result_event(redacted_request, worker_result)],
+            )
+
         snapshot = browser_use_snapshot(self.project_root)
         validate_vendor_snapshot(snapshot)
         backend = _browser_backend_from_request(request)
@@ -126,25 +186,33 @@ class BrowserWorkerRuntime:
                 event_records=[_worker_result_event(request, worker_result)],
             )
 
-        if backend == "browser-use-live":
-            return self._run_browser_use_live(request, snapshot, plan)
         if backend != "static":
-            worker_result = WorkerResult(
-                request_id=request.request_id,
-                ok=False,
-                summary=f"BrowserWorker rejected unknown browser backend: {backend}",
-                error="invalid_browser_backend",
-                metadata={
-                    **_snapshot_metadata(snapshot),
-                    **_action_registry_metadata(self.action_registry),
-                    **browser_use_runtime_metadata(self.browser_use_health),
-                    "browser_backend": backend,
-                },
-            )
-            return BrowserWorkerRun(
-                worker_result=worker_result,
-                event_records=[_worker_result_event(request, worker_result)],
-            )
+            if backend == "browser-use-live":
+                pass
+            else:
+                worker_result = WorkerResult(
+                    request_id=request.request_id,
+                    ok=False,
+                    summary=f"BrowserWorker rejected unknown browser backend: {backend}",
+                    error="invalid_browser_backend",
+                    metadata={
+                        **_snapshot_metadata(snapshot),
+                        **_action_registry_metadata(self.action_registry),
+                        **browser_use_runtime_metadata(self.browser_use_health),
+                        "browser_backend": backend,
+                    },
+                )
+                return BrowserWorkerRun(
+                    worker_result=worker_result,
+                    event_records=[_worker_result_event(request, worker_result)],
+                )
+
+        permission_gate_or_failure = self._permission_gate(request, snapshot, backend=backend)
+        if isinstance(permission_gate_or_failure, BrowserWorkerRun):
+            return permission_gate_or_failure
+        permission_gate = permission_gate_or_failure
+        if backend == "browser-use-live":
+            return self._run_browser_use_live(request, snapshot, plan, permission_gate)
 
         event_records: list[EventRecord] = []
         artifacts = []
@@ -162,6 +230,81 @@ class BrowserWorkerRuntime:
             descriptor = self.action_registry.get(action)
             normalized_action = self.action_registry.normalize_action(action)
             action_metadata = _action_metadata(descriptor, normalized_action)
+
+            # Unsupported live-only actions never reach a browser side-effect
+            # on the static backend, so preserve the backend diagnostic without
+            # manufacturing a permission prompt for an impossible execution.
+            if normalized_action not in LIVE_BROWSER_USE_ONLY_ACTIONS:
+                if normalized_action == "click_element" and current_state is None:
+                    blocked_events = browser_permission_setup_failure_events(
+                        request,
+                        session_id=permission_gate.session_id,
+                        component="static-browser-click-state",
+                        reason=(
+                            "static click requires an explicitly opened/snapshotted page "
+                            "so its exact navigation target is known before permission"
+                        ),
+                        code="browser_click_state_required",
+                    )
+                    event_records.extend(blocked_events)
+                    event_records.append(
+                        _browser_action_event(
+                            request,
+                            index,
+                            action,
+                            action_metadata={
+                                **action_metadata,
+                                "permission_effect": "deny",
+                                "permission_action_allowed": "false",
+                            },
+                            ok=False,
+                            summary="Static browser click was blocked before target resolution.",
+                            output={"action_execution_count": 0},
+                            error="browser_click_state_required",
+                        )
+                    )
+                    if not continue_on_error:
+                        break
+                    continue
+                target_url = str(arguments.get("url") or current_url or "")
+                if normalized_action == "click_element" and current_state is not None:
+                    try:
+                        target_url = _click_link_url(current_state, arguments)
+                    except (TypeError, ValueError):
+                        # Input validation remains the action handler's job; an
+                        # unresolved click is conservatively classified from
+                        # the current page URL.
+                        target_url = current_url
+                barrier = self._permission_barrier(
+                    gate=permission_gate,
+                    request=request,
+                    index=index,
+                    action=action,
+                    normalized_action=normalized_action,
+                    arguments=arguments,
+                    descriptor=descriptor,
+                    backend="static",
+                    current_url=current_url,
+                    target_url=target_url,
+                )
+                event_records.extend(barrier.events)
+                action_metadata = {**action_metadata, **barrier.metadata}
+                if not barrier.allowed:
+                    event_records.append(
+                        _browser_action_event(
+                            request,
+                            index,
+                            action,
+                            action_metadata=action_metadata,
+                            ok=False,
+                            summary=barrier.summary,
+                            output=barrier.output,
+                            error=barrier.error,
+                        )
+                    )
+                    if not continue_on_error:
+                        break
+                    continue
 
             try:
                 if normalized_action == "open_url":
@@ -432,7 +575,12 @@ class BrowserWorkerRuntime:
                 if not continue_on_error:
                     break
 
-        ok = all(_event_browser_result_ok(event) for event in event_records)
+        browser_events = _browser_action_events(event_records)
+        ok = bool(browser_events) and all(_event_browser_result_ok(event) for event in browser_events)
+        action_execution_count = sum(
+            event.payload.get("browser_action", {}).get("permission_execution_grant_consumed") == "true"
+            for event in browser_events
+        )
         trace_artifact = self.artifact_store.write_text(
             run_id=request.run_id,
             task_id=request.task_id,
@@ -455,14 +603,192 @@ class BrowserWorkerRuntime:
                 **_snapshot_metadata(snapshot),
                 **_action_registry_metadata(self.action_registry),
                 **browser_use_runtime_metadata(self.browser_use_health),
+                **permission_gate.metadata(),
                 "browser_backend": backend,
-                "browser_steps": str(len(event_records)),
+                "browser_steps": str(len(browser_events)),
+                "browser_permission_action_execution_count": str(action_execution_count),
                 "trace_artifact_id": trace_artifact.artifact_id,
             },
         )
         return BrowserWorkerRun(
             worker_result=worker_result,
             event_records=[*event_records, _worker_result_event(request, worker_result)],
+            permission_session_custody_token=permission_gate.custody_token,
+        )
+
+    def _permission_gate(
+        self,
+        request: WorkerRequest,
+        snapshot: Any,
+        *,
+        backend: str,
+    ) -> BrowserActionPermissionGate | BrowserWorkerRun:
+        try:
+            return BrowserActionPermissionGate.for_worker_request(
+                request,
+                workspace_root=self.workspace_root,
+                state_path=self.permission_state_path,
+            )
+        except BrowserActionPermissionDisabled as error:
+            return self._permission_setup_failure(
+                request,
+                snapshot,
+                backend=backend,
+                component=error.component,
+                code=error.code,
+                reason=str(error),
+            )
+        except BrowserActionPermissionCustodyError as error:
+            return self._permission_setup_failure(
+                request,
+                snapshot,
+                backend=backend,
+                component=error.component,
+                code=error.cause_code,
+                reason=str(error),
+            )
+        except Exception as error:  # noqa: BLE001 - browser execution must fail closed.
+            return self._permission_setup_failure(
+                request,
+                snapshot,
+                backend=backend,
+                component=type(error).__name__,
+                code="browser_action_permission_setup_failed",
+                reason=str(error),
+            )
+
+    def _permission_setup_failure(
+        self,
+        request: WorkerRequest,
+        snapshot: Any,
+        *,
+        backend: str,
+        component: str,
+        code: str,
+        reason: str,
+    ) -> BrowserWorkerRun:
+        session_id = str(request.constraints.get("permission_session_id") or "")
+        permission_events = list(
+            browser_permission_setup_failure_events(
+                request,
+                session_id=session_id,
+                component=component,
+                reason=reason,
+                code=code,
+            )
+        )
+        worker_result = WorkerResult(
+            request_id=request.request_id,
+            ok=False,
+            summary="BrowserWorker stopped because its permission action barrier is unavailable.",
+            error="browser_action_permission_unavailable",
+            events=[to_jsonable(event) for event in permission_events],
+            metadata={
+                **_snapshot_metadata(snapshot),
+                **_action_registry_metadata(self.action_registry),
+                **browser_use_runtime_metadata(self.browser_use_health),
+                "browser_backend": backend,
+                "browser_permission_gate_runtime_id": "zyra-browser-action-permission-gate",
+                "browser_permission_gate_component": component,
+                "browser_permission_gate_error_code": code,
+                "browser_permission_action_execution_count": "0",
+            },
+        )
+        return BrowserWorkerRun(
+            worker_result=worker_result,
+            event_records=[*permission_events, _worker_result_event(request, worker_result)],
+        )
+
+    def _permission_barrier(
+        self,
+        *,
+        gate: BrowserActionPermissionGate,
+        request: WorkerRequest,
+        index: int,
+        action: str,
+        normalized_action: str,
+        arguments: dict[str, Any],
+        descriptor: Any,
+        backend: str,
+        current_url: str = "",
+        target_url: str = "",
+    ) -> _BrowserActionBarrierResult:
+        permission_input = BrowserActionPermissionInput(
+            step_index=index,
+            action=action,
+            normalized_action=normalized_action,
+            backend=backend,
+            arguments=arguments,
+            source_action=str(getattr(descriptor, "source_action", "") or ""),
+            source_model=str(getattr(descriptor, "source_model", "") or ""),
+            required_arguments=tuple(getattr(descriptor, "zyra_required_arguments", ()) or ()),
+            optional_arguments=tuple(getattr(descriptor, "zyra_optional_arguments", ()) or ()),
+            current_url=current_url,
+            target_url=target_url,
+        )
+        try:
+            decision = gate.guard(permission_input)
+        except Exception as error:  # noqa: BLE001 - decision failures must block the action.
+            events = browser_permission_setup_failure_events(
+                request,
+                session_id=gate.session_id,
+                component=type(error).__name__,
+                reason=str(error),
+                code="browser_action_permission_guard_failed",
+            )
+            return _BrowserActionBarrierResult(
+                allowed=False,
+                events=events,
+                metadata={
+                    "permission_effect": "deny",
+                    "permission_action_allowed": "false",
+                    "permission_tool_use_id": "",
+                },
+                summary="Browser action permission evaluation failed closed.",
+                error="browser_action_permission_guard_failed",
+                output={"action": normalized_action, "message": str(error)},
+            )
+        if not decision.allowed:
+            return _BrowserActionBarrierResult(
+                allowed=False,
+                events=decision.events,
+                metadata=decision.metadata(),
+                summary=(
+                    "Browser action requires permission approval."
+                    if decision.effect == "ask"
+                    else "Browser action was denied by permission policy."
+                ),
+                error=("permission_required" if decision.effect == "ask" else "permission_denied"),
+                output={
+                    "permission_decision": decision.guard.decision.to_dict(),
+                    "pending_request": decision.guard.pending_request.to_dict()
+                    if decision.guard.pending_request is not None
+                    else None,
+                    "recovery_input": decision.guard.decision.recovery_input.to_dict()
+                    if decision.guard.decision.recovery_input is not None
+                    else None,
+                    "alternatives": list(decision.guard.trace.recovery_alternatives),
+                    "action_execution_count": 0,
+                },
+            )
+        consumption = gate.consume(decision, permission_input)
+        if not consumption.accepted:
+            return _BrowserActionBarrierResult(
+                allowed=False,
+                events=(*decision.events, *consumption.events),
+                metadata=consumption.metadata(),
+                summary="Browser action execution grant was rejected at the side-effect boundary.",
+                error="permission_action_grant_rejected",
+                output={
+                    "permission_decision": decision.guard.decision.to_dict(),
+                    "reason": consumption.reason,
+                    "action_execution_count": 0,
+                },
+            )
+        return _BrowserActionBarrierResult(
+            allowed=True,
+            events=(*decision.events, *consumption.events),
+            metadata=consumption.metadata(),
         )
 
     def _load_url(self, url: str, request: WorkerRequest) -> str:
@@ -489,6 +815,7 @@ class BrowserWorkerRuntime:
         request: WorkerRequest,
         snapshot: Any,
         plan: list[dict[str, Any]],
+        permission_gate: BrowserActionPermissionGate,
     ) -> BrowserWorkerRun:
         if not self.browser_use_health.importable:
             worker_result = WorkerResult(
@@ -500,10 +827,16 @@ class BrowserWorkerRuntime:
                     **_snapshot_metadata(snapshot),
                     **_action_registry_metadata(self.action_registry),
                     **browser_use_runtime_metadata(self.browser_use_health),
+                    **permission_gate.metadata(),
                     "browser_backend": "browser-use-live",
+                    "browser_permission_action_execution_count": "0",
                 },
             )
-            return BrowserWorkerRun(worker_result=worker_result, event_records=[_worker_result_event(request, worker_result)])
+            return BrowserWorkerRun(
+                worker_result=worker_result,
+                event_records=[_worker_result_event(request, worker_result)],
+                permission_session_custody_token=permission_gate.custody_token,
+            )
 
         executable = find_browser_executable([str(request.constraints.get("browser_executable") or "")])
         if executable is None:
@@ -516,10 +849,16 @@ class BrowserWorkerRuntime:
                     **_snapshot_metadata(snapshot),
                     **_action_registry_metadata(self.action_registry),
                     **browser_use_runtime_metadata(self.browser_use_health),
+                    **permission_gate.metadata(),
                     "browser_backend": "browser-use-live",
+                    "browser_permission_action_execution_count": "0",
                 },
             )
-            return BrowserWorkerRun(worker_result=worker_result, event_records=[_worker_result_event(request, worker_result)])
+            return BrowserWorkerRun(
+                worker_result=worker_result,
+                event_records=[_worker_result_event(request, worker_result)],
+                permission_session_custody_token=permission_gate.custody_token,
+            )
 
         timeout = _bounded_int(
             request.constraints.get("live_timeout_seconds"),
@@ -535,6 +874,7 @@ class BrowserWorkerRuntime:
                         snapshot=snapshot,
                         plan=plan,
                         executable=executable,
+                        permission_gate=permission_gate,
                     ),
                     timeout=timeout,
                 )
@@ -549,12 +889,18 @@ class BrowserWorkerRuntime:
                     **_snapshot_metadata(snapshot),
                     **_action_registry_metadata(self.action_registry),
                     **browser_use_runtime_metadata(self.browser_use_health),
+                    **permission_gate.metadata(),
                     "browser_backend": "browser-use-live",
                     "browser_executable": str(executable),
                     "live_error": str(error),
+                    "browser_permission_action_execution_count": "0",
                 },
             )
-            return BrowserWorkerRun(worker_result=worker_result, event_records=[_worker_result_event(request, worker_result)])
+            return BrowserWorkerRun(
+                worker_result=worker_result,
+                event_records=[_worker_result_event(request, worker_result)],
+                permission_session_custody_token=permission_gate.custody_token,
+            )
 
     def _run_browser_use_agent(self, request: WorkerRequest, snapshot: Any) -> BrowserWorkerRun:
         task = _browser_use_agent_task_from_request(request)
@@ -564,81 +910,38 @@ class BrowserWorkerRuntime:
             **browser_use_runtime_metadata(self.browser_use_health),
             "browser_backend": "browser-use-agent",
             "browser_agent_task_chars": str(len(task)),
+            "browser_permission_action_execution_count": "0",
+            "browser_agent_per_action_gate_integrated": "false",
+            "browser_agent_deferred_owner": "M1-04C",
         }
-        if not task:
-            return self._browser_use_agent_failure(
-                request,
-                snapshot,
-                summary="Browser-use Agent backend requires agent_task or task.",
-                error="missing_browser_agent_task",
-                metadata=base_metadata,
-                output={"required": "agent_task"},
-            )
-
-        if not self.browser_use_health.importable or not self.browser_use_health.modules.get("agent_service", False):
-            return self._browser_use_agent_failure(
-                request,
-                snapshot,
-                summary="Browser-use Agent backend is not importable.",
-                error="browser_use_agent_unavailable",
-                metadata=base_metadata,
-                output={"health": browser_use_health_summary(self.browser_use_health)},
-            )
-
-        executable = find_browser_executable([str(request.constraints.get("browser_executable") or "")])
-        if executable is None:
-            return self._browser_use_agent_failure(
-                request,
-                snapshot,
-                summary="Browser-use Agent backend could not find Chrome or Edge.",
-                error="browser_executable_not_found",
-                metadata=base_metadata,
-                output={"candidate": str(request.constraints.get("browser_executable") or "")},
-            )
-
-        llm, llm_metadata, llm_error = _create_browser_use_agent_llm(request)
-        metadata = {**base_metadata, **llm_metadata, "browser_executable": str(executable)}
-        if llm_error is not None:
-            return self._browser_use_agent_failure(
-                request,
-                snapshot,
-                summary="Browser-use Agent backend requires a configured LLM provider and API key.",
-                error="browser_use_agent_llm_missing",
-                metadata=metadata,
-                output={"reason": llm_error},
-            )
-
-        max_steps = _bounded_int(request.constraints.get("max_steps"), default=25, minimum=1, maximum=500)
-        timeout = _bounded_int(
-            request.constraints.get("agent_timeout_seconds"),
-            default=max(60, min(1800, max_steps * self.timeout_seconds)),
-            minimum=30,
-            maximum=3600,
+        permission_gate_or_failure = self._permission_gate(request, snapshot, backend="browser-use-agent")
+        if isinstance(permission_gate_or_failure, BrowserWorkerRun):
+            return permission_gate_or_failure
+        permission_gate = permission_gate_or_failure
+        blocked, recovery = browser_permission_setup_failure_events(
+            request,
+            session_id=permission_gate.session_id,
+            component="browser-use-agent-action-registry",
+            reason=(
+                "browser-use Agent cannot execute until each model-selected action "
+                "is connected to the Zyra permission gate"
+            ),
+            code="browser_agent_per_action_gate_unavailable",
         )
-        try:
-            return asyncio.run(
-                asyncio.wait_for(
-                    self._run_browser_use_agent_async(
-                        request=request,
-                        snapshot=snapshot,
-                        task=task,
-                        executable=executable,
-                        llm=llm,
-                        llm_metadata=llm_metadata,
-                        max_steps=max_steps,
-                    ),
-                    timeout=timeout,
-                )
-            )
-        except Exception as error:  # noqa: BLE001 - Agent failures must be surfaced as worker results.
-            return self._browser_use_agent_failure(
-                request,
-                snapshot,
-                summary="Browser-use Agent backend failed before producing a complete history.",
-                error=type(error).__name__,
-                metadata={**metadata, "browser_agent_max_steps": str(max_steps), "agent_error": str(error)},
-                output={"message": str(error)},
-            )
+        return self._browser_use_agent_failure(
+            request,
+            snapshot,
+            summary="Browser-use Agent backend is fail-closed until per-action permission integration.",
+            error="browser_agent_per_action_gate_unavailable",
+            metadata={**base_metadata, **permission_gate.metadata()},
+            output={
+                "task_present": bool(task),
+                "action_execution_count": 0,
+                "recovery": "use an explicit static/live browser_plan or complete M1-04C",
+            },
+            prefix_events=(blocked, recovery),
+            custody_token=permission_gate.custody_token,
+        )
 
     def _browser_use_agent_failure(
         self,
@@ -649,6 +952,8 @@ class BrowserWorkerRuntime:
         error: str,
         metadata: dict[str, str],
         output: dict[str, Any],
+        prefix_events: tuple[EventRecord, ...] = (),
+        custody_token: str = "",
     ) -> BrowserWorkerRun:
         event = _browser_agent_event(
             request,
@@ -659,10 +964,11 @@ class BrowserWorkerRuntime:
             output={**output, "browser_backend": "browser-use-agent"},
             error=error,
         )
+        event_records = [*prefix_events, event]
         trace_artifact = self.artifact_store.write_text(
             run_id=request.run_id,
             task_id=request.task_id,
-            content=_agent_trace_markdown(request, snapshot, [event], False, self.browser_use_health),
+            content=_agent_trace_markdown(request, snapshot, event_records, False, self.browser_use_health),
             title=f"Browser-use Agent trace {request.request_id}",
             kind=ArtifactKind.TRACE,
             extension=".md",
@@ -673,13 +979,14 @@ class BrowserWorkerRuntime:
             ok=False,
             summary=summary,
             artifacts=[trace_artifact],
-            events=[to_jsonable(event)],
+            events=[to_jsonable(item) for item in event_records],
             error=error,
             metadata={**metadata, "trace_artifact_id": trace_artifact.artifact_id},
         )
         return BrowserWorkerRun(
             worker_result=worker_result,
-            event_records=[event, _worker_result_event(request, worker_result)],
+            event_records=[*event_records, _worker_result_event(request, worker_result)],
+            permission_session_custody_token=custody_token,
         )
 
     async def _run_browser_use_agent_async(
@@ -692,6 +999,9 @@ class BrowserWorkerRuntime:
         llm: Any,
         llm_metadata: dict[str, str],
         max_steps: int,
+        permission_gate: BrowserActionPermissionGate,
+        permission_events: tuple[EventRecord, ...],
+        permission_metadata: dict[str, Any],
     ) -> BrowserWorkerRun:
         paths = configure_browser_use_environment(self.project_root)
         from browser_use.agent.service import Agent
@@ -757,7 +1067,8 @@ class BrowserWorkerRuntime:
             extension=".json",
             producer_node_id=request.node_id,
         )
-        event_records = _browser_use_agent_history_events(request, task, history_payload)
+        history_events = _browser_use_agent_history_events(request, task, history_payload)
+        event_records = [*permission_events, *history_events]
         ok = history.is_done() and not history.has_errors() and history.is_successful() is not False
         trace_artifact = self.artifact_store.write_text(
             run_id=request.run_id,
@@ -784,7 +1095,10 @@ class BrowserWorkerRuntime:
                 **_action_registry_metadata(self.action_registry),
                 **browser_use_runtime_metadata(self.browser_use_health),
                 **llm_metadata,
+                **permission_gate.metadata(),
+                **permission_metadata,
                 "browser_backend": "browser-use-agent",
+                "browser_permission_action_execution_count": "1",
                 "browser_agent_steps": str(len(history.history)),
                 "browser_agent_done": str(history.is_done()).lower(),
                 "browser_agent_successful": str(history.is_successful()).lower(),
@@ -799,6 +1113,7 @@ class BrowserWorkerRuntime:
         return BrowserWorkerRun(
             worker_result=worker_result,
             event_records=[*event_records, _worker_result_event(request, worker_result)],
+            permission_session_custody_token=permission_gate.custody_token,
         )
 
     async def _run_browser_use_live_async(
@@ -808,6 +1123,7 @@ class BrowserWorkerRuntime:
         snapshot: Any,
         plan: list[dict[str, Any]],
         executable: Path,
+        permission_gate: BrowserActionPermissionGate,
     ) -> BrowserWorkerRun:
         paths = configure_browser_use_environment(self.project_root)
         from browser_use.browser.session import BrowserSession
@@ -842,8 +1158,9 @@ class BrowserWorkerRuntime:
         )
         tools = Tools()
         browser_use_file_system = FileSystem(paths.root / "files" / request.request_id, create_default_files=False)
+        current_url = ""
+        session_started = False
 
-        await session.start()
         try:
             for index, step in enumerate(plan, start=1):
                 action = str(step.get("action") or step.get("browser_action") or "")
@@ -856,6 +1173,42 @@ class BrowserWorkerRuntime:
                     **_action_metadata(descriptor, normalized_action),
                     "browser_backend": "browser-use-live",
                 }
+                target_url = str(arguments.get("url") or current_url or "")
+                barrier = self._permission_barrier(
+                    gate=permission_gate,
+                    request=request,
+                    index=index,
+                    action=action,
+                    normalized_action=normalized_action,
+                    arguments=arguments,
+                    descriptor=descriptor,
+                    backend="browser-use-live",
+                    current_url=current_url,
+                    target_url=target_url,
+                )
+                event_records.extend(barrier.events)
+                action_metadata = {**action_metadata, **barrier.metadata}
+                if not barrier.allowed:
+                    event_records.append(
+                        _browser_action_event(
+                            request,
+                            index,
+                            action,
+                            action_metadata=action_metadata,
+                            ok=False,
+                            summary=barrier.summary,
+                            output=barrier.output,
+                            error=barrier.error,
+                        )
+                    )
+                    if not continue_on_error:
+                        break
+                    continue
+                if not session_started:
+                    # Browser process/profile creation belongs behind the same
+                    # side-effect barrier as the first executable action.
+                    await session.start()
+                    session_started = True
                 try:
                     if normalized_action == "open_url":
                         current_url = str(arguments.get("url") or "")
@@ -1289,9 +1642,15 @@ class BrowserWorkerRuntime:
                     if not continue_on_error:
                         break
         finally:
-            await session.close()
+            if session_started:
+                await session.close()
 
-        ok = all(_event_browser_result_ok(event) for event in event_records)
+        browser_events = _browser_action_events(event_records)
+        ok = bool(browser_events) and all(_event_browser_result_ok(event) for event in browser_events)
+        action_execution_count = sum(
+            event.payload.get("browser_action", {}).get("permission_execution_grant_consumed") == "true"
+            for event in browser_events
+        )
         trace_artifact = self.artifact_store.write_text(
             run_id=request.run_id,
             task_id=request.task_id,
@@ -1317,8 +1676,10 @@ class BrowserWorkerRuntime:
                 **_snapshot_metadata(snapshot),
                 **_action_registry_metadata(self.action_registry),
                 **browser_use_runtime_metadata(self.browser_use_health),
+                **permission_gate.metadata(),
                 "browser_backend": "browser-use-live",
-                "browser_steps": str(len(event_records)),
+                "browser_steps": str(len(browser_events)),
+                "browser_permission_action_execution_count": str(action_execution_count),
                 "browser_executable": str(executable),
                 "trace_artifact_id": trace_artifact.artifact_id,
             },
@@ -1326,6 +1687,7 @@ class BrowserWorkerRuntime:
         return BrowserWorkerRun(
             worker_result=worker_result,
             event_records=[*event_records, _worker_result_event(request, worker_result)],
+            permission_session_custody_token=permission_gate.custody_token,
         )
 
 
@@ -2107,13 +2469,21 @@ def _browser_agent_event(
 
 
 def _worker_result_event(request: WorkerRequest, result: WorkerResult) -> EventRecord:
+    request_payload = to_jsonable(request)
+    if isinstance(request_payload, dict):
+        constraints = request_payload.get("constraints")
+        if isinstance(constraints, dict):
+            request_payload = {
+                **request_payload,
+                "constraints": PermissionSessionCustodyStore.redact_constraints(constraints),
+            }
     return EventRecord(
         run_id=request.run_id,
         task_id=request.task_id,
         node_id=request.node_id,
         event_type=EventType.AGENT_MESSAGE,
         payload={
-            "worker_request": to_jsonable(request),
+            "worker_request": request_payload,
             "worker_result": to_jsonable(result),
         },
     )
@@ -2122,6 +2492,10 @@ def _worker_result_event(request: WorkerRequest, result: WorkerResult) -> EventR
 def _event_browser_result_ok(event: EventRecord) -> bool:
     result = event.payload.get("browser_result")
     return isinstance(result, dict) and result.get("ok") is True
+
+
+def _browser_action_events(events: list[EventRecord]) -> list[EventRecord]:
+    return [event for event in events if isinstance(event.payload.get("browser_result"), dict)]
 
 
 def _snapshot_metadata(snapshot: Any) -> dict[str, str]:
