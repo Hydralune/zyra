@@ -61162,7 +61162,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "deny/ask/allow precedence",
@@ -61322,7 +61322,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "multi-source rule loading",
@@ -61474,7 +61474,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "tool and argument rule parsing",
@@ -61624,7 +61624,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "rule identity",
@@ -61775,7 +61775,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "mode state",
@@ -61931,7 +61931,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "mode transition order",
@@ -62105,7 +62105,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "consecutive denial circuit breaker",
@@ -62257,7 +62257,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "per-tool prompt projection",
@@ -62426,7 +62426,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "classifier eligibility",
@@ -62579,7 +62579,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "placeholder Bash classifier surface"
@@ -62731,7 +62731,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "interactive approval queue",
@@ -62933,7 +62933,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "bridge request/reply",
@@ -63135,7 +63135,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "pre-call execution guard",
@@ -63274,7 +63274,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "permission request and result type vocabulary"
@@ -63409,7 +63409,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "allow/deny/ask result union"
@@ -63558,7 +63558,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "PreToolUse aggregation",
@@ -63716,7 +63716,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "pending request context",
@@ -63903,7 +63903,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "coordinator approval transport",
@@ -64075,7 +64075,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "worker approval transport",
@@ -64247,7 +64247,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "interactive approval transport",
@@ -64434,7 +64434,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "decision provenance",
@@ -64608,7 +64608,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "session rule update",
@@ -64793,7 +64793,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "validated permission mutation",
@@ -64963,7 +64963,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "auto-mode dangerous allow stripping",
@@ -65131,7 +65131,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "bounded denial presentation"
@@ -65280,7 +65280,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "shell rule ordering",
@@ -65463,7 +65463,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "shell AST validation",
@@ -65651,7 +65651,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "session-backed standing rules",
@@ -65852,7 +65852,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "pending registry",
@@ -66038,7 +66038,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "approval message projection",
@@ -66208,7 +66208,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "last-match rules",
@@ -66378,7 +66378,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "generated command arity hints"
@@ -66530,7 +66530,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "ACP approval transport",
@@ -66701,7 +66701,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "permission mode",
@@ -66884,7 +66884,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "layered tool policy",
@@ -67054,7 +67054,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "before-call block",
@@ -67240,7 +67240,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "staged approval",
@@ -67409,7 +67409,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "write boundary presentation",
@@ -67564,7 +67564,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "typed control request/response",
@@ -67752,7 +67752,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "durable pending map replacement",
@@ -67940,7 +67940,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "headless permission dispatcher",
@@ -68113,7 +68113,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "permission command registration",
@@ -68282,7 +68282,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "permission query projection",
@@ -68453,7 +68453,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "resume command registration",
@@ -68618,7 +68618,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "exact parked call restore",
@@ -68776,7 +68776,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "plan command registration",
@@ -68946,7 +68946,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "plan entry/exit mode",
@@ -69121,7 +69121,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "permission mode entry flags",
@@ -69290,7 +69290,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "auto-mode effective configuration",
@@ -69438,7 +69438,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "single active query",
@@ -69593,7 +69593,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "queued control mutation",
@@ -69766,7 +69766,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "queue ownership",
@@ -69932,7 +69932,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "queue drain barrier",
@@ -70088,7 +70088,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "remote transport registration",
@@ -70261,7 +70261,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "remote-safe command filtering",
@@ -70412,7 +70412,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "control command descriptor vocabulary"
@@ -70566,7 +70566,7 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "workspace scope validation",
@@ -70705,7 +70705,7 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "evidence_commit": "TO_BE_REPLACED_AFTER_EVIDENCE_COMMIT",
+        "evidence_commit": "544f8ee1e5a99fec80929f60b29464b04e996955",
         "internalization_strategy": "zyra_owned_permission_control_and_execution_state_machine",
         "mechanisms": [
           "SDK control type placeholder"
