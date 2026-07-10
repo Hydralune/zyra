@@ -95,6 +95,31 @@ class InternalizationLedgerAccountingTests(unittest.TestCase):
             self.assertEqual(set(conflicts[0]["source_repos"]), {"browser-use", "claude-code-best"})
             self.assertTrue(any(finding.code == "TARGET_OWNERSHIP_CONFLICT" for finding in report.findings))
 
+    def test_supporting_multi_source_binding_is_not_an_ownership_conflict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write(root / "packages/runtime/shared.py", "VALUE = 1\n")
+            primary = sample_entry()
+            primary.target_bindings = [
+                TargetBinding("packages/runtime/shared.py", role="primary")
+            ]
+            supporting = sample_entry()
+            supporting.ledger_id = "ile_opencode_shared_support"
+            supporting.source_repo = "opencode"
+            supporting.source_path = "packages/opencode/src/permission/index.ts"
+            supporting.capability_name = "opencode permission support"
+            supporting.target_bindings = [
+                TargetBinding("packages/runtime/shared.py", role="supporting")
+            ]
+            ledger = InternalizationLedger([primary, supporting])
+
+            report = build_accounting_report(root, ledger)
+
+            self.assertEqual(target_conflict_rows(report), [])
+            self.assertFalse(
+                any(finding.code == "TARGET_OWNERSHIP_CONFLICT" for finding in report.findings)
+            )
+
     def test_accounting_rows_are_stable_and_include_debt_ratios(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

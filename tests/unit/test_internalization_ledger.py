@@ -51,6 +51,7 @@ class InternalizationLedgerTests(unittest.TestCase):
             "agent-framework",
             "hermes-agent",
             "langgraph",
+            "opencode",
         ]:
             self.assertIn(repo, summary.by_source_repo)
         self.assertGreater(summary.by_owner_unit["M1-02B"], 0)

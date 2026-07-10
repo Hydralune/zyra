@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 for package_path in [
     ROOT / "packages" / "core",
+    ROOT / "packages" / "integrations",
     ROOT / "packages" / "runtime",
 ]:
     if str(package_path) not in sys.path:
@@ -108,8 +109,16 @@ from zyra_runtime.permission.custody import (  # noqa: E402
 from zyra_runtime.permission.runtime import ToolPermissionRuntime  # noqa: E402
 from zyra_runtime.permission.source_audit import (  # noqa: E402
     CLAUDE_REQUIRED_PATHS,
+    PERMISSION_SOURCE_DECISIONS,
     SourceDisposition,
     assert_permission_source_coverage,
+)
+from zyra_integrations import (  # noqa: E402
+    LedgerLifecycle,
+    LedgerQuery,
+    MainPathStatus,
+    MigrationStrategy,
+    load_seed_ledger,
 )
 
 
@@ -583,6 +592,36 @@ class PermissionSourceCoverageFoundationTests(unittest.TestCase):
                 for symbol in symbols:
                     with self.subTest(source=decision.key, field=field, symbol=symbol):
                         self.assertIsNotNone(self._resolve_dotted_symbol(symbol))
+
+    def test_internalization_ledger_replaces_stale_vendored_permission_rows(self) -> None:
+        ledger = load_seed_ledger()
+        entries = ledger.query(LedgerQuery(owner_unit="M1-03A", limit=200))
+        expected = {
+            (decision.repository, decision.source_path): decision
+            for decision in PERMISSION_SOURCE_DECISIONS
+        }
+        actual = {(entry.source_repo, entry.source_path): entry for entry in entries}
+
+        self.assertEqual(set(actual), set(expected))
+        self.assertIn(("opencode", "packages/opencode/src/permission/index.ts"), actual)
+        self.assertFalse(
+            any(
+                binding.target_path == "packages/runtime/zyra_runtime/permissions.py"
+                for entry in entries
+                for binding in entry.target_bindings
+            )
+        )
+        for identity, entry in actual.items():
+            decision = expected[identity]
+            self.assertEqual(entry.metadata["source_disposition"], decision.disposition.value)
+            self.assertNotEqual(entry.migration_strategy, MigrationStrategy.VENDORED_RUNTIME)
+            self.assertTrue(entry.test_entries)
+            if decision.disposition is SourceDisposition.DEFERRED:
+                self.assertEqual(entry.lifecycle, LedgerLifecycle.DEFERRED)
+                self.assertEqual(entry.main_path_status, MainPathStatus.PLANNED)
+            else:
+                self.assertEqual(entry.lifecycle, LedgerLifecycle.PRODUCTIZED)
+                self.assertEqual(entry.main_path_status, MainPathStatus.TESTED_MAIN_PATH)
 
 
 class PermissionRuleFoundationTests(unittest.TestCase):

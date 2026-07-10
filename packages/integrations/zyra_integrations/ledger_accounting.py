@@ -469,13 +469,26 @@ def build_target_accounts(project_root: Path, entries: Iterable[InternalizationL
         source_repos = sorted({entry.source_repo for entry, _ in pairs})
         roles = sorted({role for _, role in pairs})
         primary_count = sum(1 for _, role in pairs if role == "primary")
+        primary_owner_units = {
+            entry.owner_unit or "unassigned"
+            for entry, role in pairs
+            if role == "primary"
+        }
+        primary_source_repos = {
+            entry.source_repo
+            for entry, role in pairs
+            if role == "primary"
+        }
         required_for_main_path = any(
             binding.required_for_main_path
             for entry, _ in pairs
             for binding in entry.target_bindings
             if classify_path(binding.target_path).normalized_path == normalized_path
         )
-        is_conflicting = len(owner_units) > 1 or len(source_repos) > 1
+        # Multiple sources are expected to contribute supporting mechanisms to
+        # one Zyra-owned state machine. Only competing *primary* ownership is a
+        # conflict; supporting and source-audit bindings preserve provenance.
+        is_conflicting = len(primary_owner_units) > 1 or len(primary_source_repos) > 1
         accounts[normalized_path] = TargetAccount(
             path=normalized_path,
             normalized_path=normalized_path,

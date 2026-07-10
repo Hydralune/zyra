@@ -7,15 +7,15 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .ledger_models import InternalizationLedgerEntry, SourceEvidence, to_jsonable
-from .ledger_policy import REQUIRED_SOURCE_REPOS, classify_path, normalize_repo_path
+from .ledger_policy import ALLOWED_SOURCE_REPOS, classify_path, normalize_repo_path
 from .ledger_store import InternalizationLedger
 
 
 FORBIDDEN_LITERAL_PATTERNS = [
-    re.compile(r"\.\./(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph)"),
-    re.compile(r"\.\.\\(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph)"),
-    re.compile(r"G:\\agent-zoo\\(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph)", re.IGNORECASE),
-    re.compile(r"g:/agent-zoo/(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph)", re.IGNORECASE),
+    re.compile(r"\.\./(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph|opencode)"),
+    re.compile(r"\.\.\\(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph|opencode)"),
+    re.compile(r"G:\\agent-zoo\\(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph|opencode)", re.IGNORECASE),
+    re.compile(r"g:/agent-zoo/(claude-code-best|browser-use|OpenHands|openclaw|agentscope|agent-framework|hermes-agent|langgraph|opencode)", re.IGNORECASE),
 ]
 
 FORBIDDEN_DYNAMIC_REPOS = {
@@ -27,6 +27,7 @@ FORBIDDEN_DYNAMIC_REPOS = {
     "agent-framework",
     "hermes-agent",
     "langgraph",
+    "opencode",
 }
 
 SCAN_SUFFIXES = {
@@ -228,7 +229,7 @@ def iter_scannable_files(project_root: Path, *, include_tests: bool = False) -> 
 
 def repo_from_source_path(path: str) -> str:
     normalized = normalize_repo_path(path)
-    for repo in REQUIRED_SOURCE_REPOS:
+    for repo in ALLOWED_SOURCE_REPOS:
         if normalized.startswith(repo + "/") or normalized == repo:
             return repo
     return ""

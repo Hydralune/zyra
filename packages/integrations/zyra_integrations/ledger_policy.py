@@ -80,6 +80,10 @@ REQUIRED_SOURCE_REPOS = {
     "langgraph",
 }
 
+# New source-graph repositories are valid evidence without retroactively
+# invalidating historical or isolated seeds that predate their adoption.
+ALLOWED_SOURCE_REPOS = REQUIRED_SOURCE_REPOS | {"opencode"}
+
 ALLOWED_TARGET_ROOTS = {
     "apps",
     "packages",
@@ -464,7 +468,7 @@ def countable_path(path: str) -> bool:
 
 
 def source_repo_allowed(source_repo: str) -> bool:
-    return source_repo in REQUIRED_SOURCE_REPOS
+    return source_repo in ALLOWED_SOURCE_REPOS
 
 
 def entry_requires_runtime(entry: InternalizationLedgerEntry) -> bool:
