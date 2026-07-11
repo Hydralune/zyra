@@ -31,10 +31,13 @@ for package_path in PACKAGE_PATHS:
         sys.path.insert(0, str(package_path))
 
 from zyra_core import (
+    AgentMessage,
+    AgentRole,
     ArtifactKind,
     ArtifactRef,
     EventRecord,
     EventType,
+    MessageIntent,
     create_task_state,
     new_id,
     to_jsonable,
@@ -119,7 +122,20 @@ from zyra_runtime.permission.models import (
     PermissionScope,
     PermissionScopeKind,
 )
-from zyra_skills import default_skill_registry
+from zyra_skills import (
+    SkillCommandSafetyClassifier,
+    SkillInvocationRequest,
+    SkillPermissionDenied,
+    SkillPermissionPending,
+    SkillRuntime,
+    SkillRuntimeConfig,
+    SkillRuntimeHealthProbe,
+    SkillSearchIndex,
+    ToolPermissionRuntimeSkillGateway,
+    compact_reference_from_dict,
+    default_skill_registry,
+    default_skill_runtime,
+)
 from zyra_workers import (
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
@@ -412,6 +428,96 @@ def get_permission_api_facade() -> PermissionApiFacade:
     )
 
 
+def _install_task_skill_permission_ceiling(
+    *,
+    state: Any,
+    permission_runtime: ToolPermissionRuntime,
+    permission_session_id: str,
+    workspace_root: str | Path,
+) -> tuple[SkillRuntime | None, str]:
+    """Restore task-owned 03C state into the active 03A hook adapter."""
+
+    snapshot = state.metadata.get("skill_runtime_state")
+    if not isinstance(snapshot, dict):
+        return None, ""
+    inner = snapshot.get("state_snapshot") if isinstance(snapshot.get("state_snapshot"), dict) else snapshot
+    if not inner.get("states"):
+        return None, ""
+    runtime = SkillRuntime(
+        SkillRuntimeConfig.for_project(
+            PROJECT_ROOT,
+            workspace_root=workspace_root,
+            include_user_skills=False,
+            disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
+        ),
+        state_snapshot=snapshot,
+    )
+    runtime.bootstrap()
+    hook_id = runtime.install_permission_hook(
+        permission_runtime.evaluator.hook_adapter,
+        permission_session_id=permission_session_id,
+    )
+    return runtime, hook_id
+
+
+def _task_skill_worker_messages(state: Any) -> list[AgentMessage]:
+    """Materialize exact skill revisions into the next real worker request."""
+
+    checkpoint = state.metadata.get("skill_runtime_state")
+    context = state.metadata.get("skill_session_context")
+    if not isinstance(checkpoint, dict) or not isinstance(context, dict):
+        return []
+    raw_references = context.get("invoked_skill_refs")
+    if not isinstance(raw_references, list):
+        return []
+    runtime = SkillRuntime(
+        SkillRuntimeConfig.for_project(
+            PROJECT_ROOT,
+            workspace_root=tool_workspace_path(),
+            include_user_skills=False,
+            disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
+        ),
+        state_snapshot=checkpoint,
+    )
+    runtime.bootstrap()
+    messages: list[AgentMessage] = []
+    for raw in raw_references:
+        if not isinstance(raw, dict):
+            continue
+        reference = compact_reference_from_dict(raw)
+        restored = runtime.compact_bridge.restore(
+            (reference,),
+            session_id=reference.session_id,
+            agent_id=reference.agent_id,
+        )
+        for item in restored:
+            revision = runtime.registry.resolve(
+                item.reference.version_ref.qualified_name,
+                requested_ref=item.reference.version_ref,
+            )
+            messages.append(
+                AgentMessage(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    sender_role=AgentRole.USER,
+                    receiver_role=AgentRole.WORKER,
+                    intent=MessageIntent.REQUEST,
+                    content=item.body.text,
+                    summary=f"Invoked skill {revision.qualified_name}",
+                    message_budget_chars=max(2_000, len(item.body.text)),
+                    metadata={
+                        "source": "M1-03C.SkillSessionBridge",
+                        "skill_invocation_id": item.reference.invocation_id,
+                        "skill_ref": item.reference.version_ref.immutable_ref,
+                        "skill_source_kind": str(revision.provenance.source_kind),
+                        "skill_trust_tier": str(revision.provenance.trust_tier),
+                        "permission_authority": False,
+                    },
+                )
+            )
+    return messages
+
+
 def _execute_guarded_api_tool(
     *,
     state: Any,
@@ -483,6 +589,12 @@ def _execute_guarded_api_tool(
         state_path=permission_state_path(),
         workspace_root=context.workspace_root,
         custody_fingerprint=custody_receipt.custody_fingerprint,
+    )
+    skill_policy_runtime, skill_policy_hook_id = _install_task_skill_permission_ceiling(
+        state=state,
+        permission_runtime=permission_runtime,
+        permission_session_id=session_id,
+        workspace_root=context.workspace_root,
     )
     if _api_low_risk_explicit_action(context, scheduled.call):
         permission_runtime.rule_store.add(
@@ -768,6 +880,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             state_path=permission_state_path(),
             workspace_root=workspace,
             custody_fingerprint=authority.custody_fingerprint,
+        )
+        task_state = store.load_task(task_id)
+        if task_state is None:
+            raise McpApiAuthorizationError("mcp_permission_task_not_found", retryable=False)
+        _install_task_skill_permission_ceiling(
+            state=task_state,
+            permission_runtime=permission_runtime,
+            permission_session_id=session_id,
+            workspace_root=workspace,
         )
         evaluation = PermissionEvaluationRequest(
             run_id=run_id,
@@ -1201,9 +1322,45 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["skills"]:
+            skill_runtime = default_skill_runtime()
+            query = parse_qs(parsed.query)
+            reload_status = skill_runtime.reload_if_changed()
+            search_text = str((query.get("q") or query.get("query") or [""])[0]).strip()
+            listing_session = str((query.get("session_id") or [""])[0]).strip()
+            listing_agent = str((query.get("agent_id") or ["CodeWorkerRuntime"])[0]).strip()
+            search_result = (
+                SkillSearchIndex(skill_runtime.registry).search(search_text)
+                if search_text
+                else None
+            )
+            listing_projection = (
+                skill_runtime.listing_projection(
+                    session_id=listing_session,
+                    agent_id=listing_agent,
+                )
+                if listing_session and search_result is None
+                else None
+            )
+            if search_result is not None:
+                skills = list(search_result.hits)
+            elif listing_projection is not None:
+                skills = list(listing_projection.entries)
+            else:
+                skills = list(skill_runtime.list())
             self._send_json(
                 HTTPStatus.OK,
-                {"skills": [to_jsonable(skill) for skill in default_skill_registry().list()]},
+                {
+                    "skills": [to_jsonable(skill) for skill in skills],
+                    "search": to_jsonable(search_result) if search_result is not None else None,
+                    "listing_projection": (
+                        listing_projection.to_dict() if listing_projection is not None else None
+                    ),
+                    "reload": reload_status.to_dict(),
+                    "registry": skill_runtime.registry.snapshot().to_dict(),
+                    "health": SkillRuntimeHealthProbe().probe(skill_runtime).to_dict(),
+                    "progressive_disclosure": True,
+                    "body_loaded": False,
+                },
             )
             return
 
@@ -2450,43 +2607,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "skills":
-            state = store.load_task(parts[1])
-            if state is None:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
-                return
-            skill_name = str(payload.get("skill_name") or payload.get("skill") or "").strip()
-            skill = default_skill_registry().get(skill_name)
-            if skill is None:
-                self._send_json(
-                    HTTPStatus.NOT_FOUND,
-                    {"error": "skill_not_found", "skill_name": skill_name},
-                )
-                return
-            arguments = payload.get("arguments")
-            if not isinstance(arguments, dict):
-                arguments = {}
-            event = _skill_invocation_event(
-                state,
-                skill,
-                arguments=arguments,
-                node_id=str(payload.get("node_id") or state.root_node_id),
-            )
-            _apply_skill_invocation_to_state(state, event)
-            persist_events(store, [event])
-            store.save_checkpoint(state)
-            self._send_json(
-                HTTPStatus.CREATED,
-                {
-                    "task": to_jsonable(state),
-                    "skill": to_jsonable(skill),
-                    "event": to_jsonable(event),
-                    "skill_result": {
-                        "ok": True,
-                        "summary": f"Skill {skill.name} invocation recorded for {skill.preferred_runtime}.",
-                        "runtime_status": "recorded",
-                        "data": event.payload["skill_invocation"],
-                    },
-                },
+            self._execute_skill_runtime_post(store, parts[1], payload)
+            return
+
+        if (
+            len(parts) == 5
+            and parts[0] == "tasks"
+            and parts[2] == "skills"
+            and parts[4] in {"complete", "cancel"}
+        ):
+            self._execute_skill_lifecycle_post(
+                store,
+                parts[1],
+                invocation_id=parts[3],
+                action=parts[4],
+                payload=payload,
             )
             return
 
@@ -2668,6 +2803,410 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
 
+    def _execute_skill_runtime_post(
+        self,
+        store: SQLiteStore,
+        task_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Invoke a versioned skill through the 03C -> 03A main path.
+
+        Skill state is embedded in the existing task/session checkpoint.  The
+        registry and revision loader remain 03C-owned; the permission runtime
+        remains the only decision owner.  An exact rule is created only for
+        immutable Zyra builtins explicitly invoked through this API.  It does
+        not authorize any downstream tool; the skill policy hook only denies
+        tools outside the skill ceiling and every admitted tool still needs a
+        separate 03A one-use grant at execution time.
+        """
+
+        with _task_lock(task_id):
+            state = store.load_task(task_id)
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            skill_name = str(payload.get("skill_name") or payload.get("skill") or "").strip()
+            if not skill_name:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "skill_name_required"},
+                )
+                return
+            node_id = str(payload.get("node_id") or state.root_node_id)
+            if node_id not in _task_node_ids(state):
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "invalid_task_node", "task_id": task_id, "node_id": node_id},
+                )
+                return
+            arguments = payload.get("arguments")
+            if not isinstance(arguments, dict):
+                arguments = {}
+            resources = payload.get("resources")
+            if not isinstance(resources, list) or not all(isinstance(item, str) for item in resources):
+                resources = []
+            session_id = str(payload.get("session_id") or "").strip() or f"skill:{task_id}"
+            worker_request_id = str(payload.get("worker_request_id") or "").strip() or new_id(
+                "skill-worker-request"
+            )
+
+            invocation_id = str(payload.get("invocation_id") or "").strip() or new_id("skillinv")
+            tool_use_id = str(payload.get("tool_use_id") or payload.get("tool_call_id") or "").strip() or invocation_id
+            idempotency_key = str(
+                self.headers.get("Idempotency-Key")
+                or payload.get("idempotency_key")
+                or ""
+            ).strip()
+            if len(idempotency_key) > 200:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "invalid_idempotency_key", "message": "Idempotency-Key exceeds 200 characters."},
+                )
+                return
+
+            control_plane = get_permission_control_plane()
+            try:
+                custody_receipt = control_plane.custody_store.claim(
+                    PermissionSessionCustodyBinding(
+                        session_id=session_id,
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        workspace_root=str(tool_workspace_path()),
+                    ),
+                    presented_token=extract_bearer_token(self.headers, payload),
+                    external_session_exists=bool(payload.get("session_id")),
+                )
+            except Exception as error:  # noqa: BLE001 - custody details must remain private.
+                response = permission_api_error_response(
+                    PermissionApiOperation.SESSION_RESUME,
+                    error,
+                )
+                self._send_permission_response(store, response)
+                return
+            permission_runtime = ToolPermissionRuntime.for_session(
+                session_id=session_id,
+                state_path=permission_state_path(),
+                workspace_root=tool_workspace_path(),
+                custody_fingerprint=custody_receipt.custody_fingerprint,
+            )
+            state_snapshot = state.metadata.get("skill_runtime_state")
+            config = SkillRuntimeConfig.for_project(
+                PROJECT_ROOT,
+                workspace_root=tool_workspace_path(),
+                include_user_skills=False,
+                disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
+            )
+            runtime = SkillRuntime(
+                config,
+                permission_port=ToolPermissionRuntimeSkillGateway(
+                    permission_runtime,
+                    workspace_root=str(tool_workspace_path()),
+                ),
+                state_snapshot=state_snapshot if isinstance(state_snapshot, dict) else None,
+            )
+            try:
+                runtime.bootstrap()
+                revision = runtime.registry.resolve(
+                    skill_name,
+                    require_user_invocable=True,
+                )
+            except Exception as error:  # noqa: BLE001 - skill errors provide safe structured detail.
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "error": str(getattr(error, "code", "skill_not_found")),
+                        "message": str(error),
+                        "skill_name": skill_name,
+                        "detail": dict(getattr(error, "detail", {}) or {}),
+                    },
+                )
+                return
+            request = SkillInvocationRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                session_id=session_id,
+                agent_id=str(payload.get("agent_id") or "CodeWorkerRuntime"),
+                skill_name=skill_name,
+                arguments=dict(arguments),
+                node_id=node_id,
+                worker_request_id=worker_request_id,
+                parent_tool_use_id=tool_use_id,
+                context_refs=tuple(str(item) for item in payload.get("context_refs") or ()),
+                attachment_refs=tuple(str(item) for item in payload.get("attachment_refs") or ()),
+                skill_depth=int(payload.get("skill_depth") or 0),
+                idempotency_key=idempotency_key,
+                interactive=True,
+                headless=False,
+                invocation_id=invocation_id,
+            )
+            active_ref = runtime.registry.snapshot().active_by_qualified_name.get(
+                revision.qualified_name,
+                "",
+            )
+            admission = SkillCommandSafetyClassifier().classify(
+                request,
+                revision,
+                requested_resources=tuple(resources),
+                active_ref=active_ref,
+            )
+            if not admission.valid:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "skill_admission_invalid", "admission": admission.to_dict()},
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            permission_arguments = {
+                "skill_ref": revision.version_ref.immutable_ref,
+                "arguments": dict(arguments),
+                "invocation_mode": str(revision.metadata.invocation.mode),
+            }
+            if admission.bootstrap_allow:
+                permission_runtime.rule_store.add(
+                    PermissionRuleRecord(
+                        rule_id=f"api-skill-exact-{invocation_id}",
+                        effect=RuntimePermissionEffect.ALLOW,
+                        source=PermissionRuleSource.COMMAND,
+                        scope=PermissionScope(
+                            PermissionScopeKind.ACTION,
+                            session_id=session_id,
+                            task_id=state.task_id,
+                            run_id=state.run_id,
+                            workspace_root=str(tool_workspace_path()),
+                            tool_namespace="skill",
+                            tool_name=revision.metadata.name,
+                            server_id=revision.provenance.source_namespace,
+                            argument_digest=arguments_digest(permission_arguments),
+                        ),
+                        namespace_pattern="skill",
+                        tool_pattern=revision.metadata.name,
+                        server_pattern=revision.provenance.source_namespace,
+                        operation_pattern="skill_context_expansion",
+                        reason="exact immutable builtin skill explicitly invoked through task API",
+                        max_uses=1,
+                        metadata={
+                            "authority": "interactive_task_api",
+                            "downstream_tools_authorized": False,
+                            "owner_unit": "M1-03C",
+                            "admission_digest": admission.request_digest,
+                        },
+                    )
+                )
+            try:
+                plan = runtime.invoke(
+                    request,
+                    load_resources=tuple(resources),
+                    require_user_invocable=True,
+                )
+            except (SkillPermissionPending, SkillPermissionDenied) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": str(getattr(error, "code", "skill_permission_denied")),
+                        "message": str(error),
+                        "detail": dict(getattr(error, "detail", {}) or {}),
+                        "permission_session": PermissionCustodyEnvelope.from_receipt(
+                            custody_receipt
+                        ).private_dict(),
+                    },
+                    headers={
+                        "Cache-Control": "no-store, max-age=0",
+                        "X-Zyra-Permission-State-Owner": "PermissionStateStore",
+                    },
+                )
+                return
+            except Exception as error:  # noqa: BLE001 - report fail-closed skill contract errors.
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": str(getattr(error, "code", "skill_invocation_failed")),
+                        "message": str(error),
+                        "detail": dict(getattr(error, "detail", {}) or {}),
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+
+            records = list(runtime.invocation_runtime.event_records(plan.state.invocation_id))
+            persist_events(store, records)
+            policy_hook_id = runtime.install_permission_hook(
+                permission_runtime.evaluator.hook_adapter,
+                permission_session_id=session_id,
+            )
+            session_mutation = runtime.session_bridge.mutation_for_plan(
+                plan,
+                runtime.invocation_runtime.events(plan.state.invocation_id),
+            )
+            session_checkpoint = runtime.session_bridge.checkpoint(
+                session_id=session_id,
+                agent_id=request.agent_id,
+                runtime_state_snapshot=runtime.state_snapshot(),
+            )
+            state.metadata["skill_runtime_state"] = session_checkpoint.to_dict()
+            state.metadata["skill_session_context"] = {
+                "owner": "02B/02D session aggregate via M1-03C SkillSessionBridge",
+                "latest_mutation": {
+                    "invocation_id": session_mutation.invocation_id,
+                    "mutation_digest": session_mutation.mutation_digest,
+                    "policy_snapshot": dict(session_mutation.policy_snapshot),
+                    "state": dict(session_mutation.state),
+                },
+                "message_delta_refs": list(plan.state.message_delta_refs),
+                "attachment_refs": list(plan.state.attachment_refs),
+                "invoked_skill_refs": [
+                    reference.to_dict() for reference in session_checkpoint.compact_references
+                ],
+                "permission_hook_id": policy_hook_id,
+                "body_in_checkpoint": False,
+            }
+            state.metadata["skill_registry_generation"] = runtime.registry.generation
+            state.metadata["skill_invocation_projection"] = {
+                "invocation_id": plan.state.invocation_id,
+                "qualified_name": plan.revision.qualified_name,
+                "version_ref": plan.revision.version_ref.to_dict(),
+                "status": str(plan.state.status),
+                "policy_snapshot_digest": plan.policy_snapshot.policy_digest,
+                "attachment_refs": [item.immutable_ref for item in plan.attachments],
+                "body_in_checkpoint": False,
+                "permission_owner": "M1-03A",
+                "skill_owner": "M1-03C",
+            }
+            state.updated_at = plan.state.updated_at
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "task": to_jsonable(state),
+                    "skill": plan.revision.to_dict(),
+                    "events": [to_jsonable(record) for record in records],
+                    "skill_result": {
+                        "ok": True,
+                        "summary": (
+                            f"Skill {plan.revision.qualified_name} loaded as immutable revision "
+                            f"{plan.revision.version_ref.content_digest[:12]}."
+                        ),
+                        "runtime_status": str(plan.state.status),
+                        "invocation": plan.to_dict(include_body=False),
+                        "message_deltas": [message.to_dict() for message in plan.messages],
+                        "body_returned": True,
+                        "body_in_checkpoint": False,
+                        "admission": admission.to_dict(),
+                        "session_mutation": session_mutation.to_dict(),
+                        "session_checkpoint": session_checkpoint.to_dict(),
+                        "permission_hook_id": policy_hook_id,
+                    },
+                    "permission_session": PermissionCustodyEnvelope.from_receipt(
+                        custody_receipt
+                    ).private_dict(),
+                },
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
+                    "X-Zyra-Skill-State-Owner": "SkillInvocationStateStore",
+                },
+            )
+
+    def _execute_skill_lifecycle_post(
+        self,
+        store: SQLiteStore,
+        task_id: str,
+        *,
+        invocation_id: str,
+        action: str,
+        payload: dict[str, Any],
+    ) -> None:
+        with _task_lock(task_id):
+            state = store.load_task(task_id)
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            checkpoint = state.metadata.get("skill_runtime_state")
+            if not isinstance(checkpoint, dict):
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "skill_runtime_state_not_found"})
+                return
+            runtime = SkillRuntime(
+                SkillRuntimeConfig.for_project(
+                    PROJECT_ROOT,
+                    workspace_root=tool_workspace_path(),
+                    include_user_skills=False,
+                    disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
+                ),
+                state_snapshot=checkpoint,
+            )
+            try:
+                runtime.bootstrap()
+                current = runtime.state_store.get(invocation_id)
+                if current.task_id != task_id:
+                    raise ValueError("skill invocation belongs to another task")
+                if action == "cancel":
+                    terminal = runtime.invocation_runtime.cancel(
+                        invocation_id,
+                        reason=str(payload.get("reason") or "cancelled by task API"),
+                    )
+                else:
+                    terminal = runtime.invocation_runtime.complete(
+                        invocation_id,
+                        outcome_refs=tuple(str(item) for item in payload.get("outcome_refs") or ()),
+                        evidence_refs=tuple(str(item) for item in payload.get("evidence_refs") or ()),
+                        artifact_refs=tuple(str(item) for item in payload.get("artifact_refs") or ()),
+                    )
+            except Exception as error:  # noqa: BLE001 - fail-closed lifecycle response.
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": str(getattr(error, "code", "skill_lifecycle_failed")),
+                        "message": str(error),
+                    },
+                )
+                return
+            session_checkpoint = runtime.session_bridge.checkpoint(
+                session_id=terminal.session_id,
+                agent_id=terminal.agent_id,
+                runtime_state_snapshot=runtime.state_snapshot(),
+            )
+            state.metadata["skill_runtime_state"] = session_checkpoint.to_dict()
+            context = state.metadata.setdefault("skill_session_context", {})
+            context["invoked_skill_refs"] = [
+                reference.to_dict() for reference in session_checkpoint.compact_references
+            ]
+            context["latest_terminal_state"] = terminal.to_dict()
+            context["permission_hook_id"] = ""
+            context["permission_hook_active"] = False
+            outcome = runtime.session_bridge.memory_handoff(invocation_id) if action == "complete" else None
+            projection = state.metadata.get("skill_invocation_projection")
+            if isinstance(projection, dict) and projection.get("invocation_id") == invocation_id:
+                projection["status"] = str(terminal.status)
+                projection["outcome_projection"] = outcome
+                projection["permission_hook_active"] = False
+            event = EventRecord(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                event_type=EventType.SKILL_INVOKED,
+                payload={
+                    "phase": f"skill_{action}",
+                    "invocation_id": invocation_id,
+                    "status": str(terminal.status),
+                    "outcome_projection": outcome,
+                    "owner_unit": "M1-03C",
+                },
+            )
+            persist_events(store, (event,))
+            state.updated_at = terminal.updated_at
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task": to_jsonable(state),
+                    "skill_state": terminal.to_dict(),
+                    "outcome_projection": outcome,
+                    "event": to_jsonable(event),
+                    "session_checkpoint": session_checkpoint.to_dict(),
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+
     def _execute_code_worker_post(self, store: SQLiteStore, task_id: str, payload: dict[str, Any]) -> None:
         with _task_lock(task_id):
             state = store.load_task(task_id)
@@ -2704,12 +3243,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 if key in {"constraints", "node_id", "idempotency_key"}:
                     continue
                 constraints.setdefault(key, value)
+            skill_checkpoint = state.metadata.get("skill_runtime_state")
+            skill_context = state.metadata.get("skill_session_context")
+            if isinstance(skill_checkpoint, dict) and isinstance(skill_context, dict):
+                constraints.setdefault("skill_runtime_state", skill_checkpoint)
+                constraints.setdefault(
+                    "invoked_skill_refs",
+                    list(skill_context.get("invoked_skill_refs") or ()),
+                )
             request = WorkerRequest(
                 run_id=state.run_id,
                 task_id=state.task_id,
                 node_id=node_id,
                 worker_name="CodeWorkerRuntime",
+                messages=_task_skill_worker_messages(state),
                 constraints=constraints,
+                metadata={"skill_context_owner": "M1-03C.SkillSessionBridge"},
             )
             try:
                 run_result = CodeWorkerRuntime(
@@ -3455,10 +4004,17 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             "sidecar_contracts_used": False,
         }
     elif name == "/skills":
-        result["summary"] = "Registered skills and recent skill invocations."
+        skill_runtime = default_skill_runtime()
+        result["summary"] = "Versioned skills and the task-scoped invocation projection."
         result["data"] = {
-            "skills": [to_jsonable(skill) for skill in default_skill_registry().list()],
-            "skill_invocations": list(state.metadata.get("skill_invocations", [])),
+            "skills": [to_jsonable(skill) for skill in skill_runtime.list()],
+            "registry": skill_runtime.registry.snapshot().to_dict(),
+            "skill_invocation": dict(state.metadata.get("skill_invocation_projection") or {}),
+            "runtime_state": dict(state.metadata.get("skill_runtime_state") or {}),
+            "body_in_projection": False,
+            "owner_slice": "M1-S03C-01",
+            "state_owner": "SkillInvocationStateStore",
+            "permission_owner": "ToolPermissionRuntime",
         }
     elif name == "/doctor":
         result["summary"] = "Development runtime health checks."
@@ -3762,50 +4318,6 @@ def _apply_control_event_to_state(state: Any, event: EventRecord) -> list[EventR
         applied_events.extend(apply_failure_injection(state, event))
     state.updated_at = event.created_at
     return applied_events
-
-
-def _skill_invocation_event(
-    state: Any,
-    skill: Any,
-    *,
-    arguments: dict[str, Any],
-    node_id: str,
-) -> EventRecord:
-    return EventRecord(
-        run_id=state.run_id,
-        task_id=state.task_id,
-        event_type=EventType.SKILL_INVOKED,
-        node_id=node_id,
-        payload={
-            "skill_invocation": {
-                "skill_name": skill.name,
-                "purpose": skill.purpose,
-                "source": skill.source,
-                "preferred_runtime": skill.preferred_runtime,
-                "allowed_tools": list(skill.allowed_tools),
-                "vendor_paths": list(skill.vendor_paths),
-                "arguments": arguments,
-                "status": "recorded",
-            }
-        },
-    )
-
-
-def _apply_skill_invocation_to_state(state: Any, event: EventRecord) -> None:
-    invocation = event.payload.get("skill_invocation")
-    if isinstance(invocation, dict):
-        state.metadata.setdefault("skill_invocations", []).append(
-            {
-                "event_id": event.event_id,
-                "node_id": event.node_id,
-                "skill_name": invocation.get("skill_name", ""),
-                "preferred_runtime": invocation.get("preferred_runtime", ""),
-                "allowed_tools": invocation.get("allowed_tools", []),
-                "status": invocation.get("status", "recorded"),
-                "created_at": event.created_at,
-            }
-        )
-    state.updated_at = event.created_at
 
 
 if __name__ == "__main__":

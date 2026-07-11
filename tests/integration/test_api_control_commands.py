@@ -71,6 +71,7 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 commands = {command["name"] for command in _get(base_url, "/commands")["commands"]}
                 skills = {skill["name"] for skill in _get(base_url, "/skills")["skills"]}
+                searched = _get(base_url, "/skills?q=verify+implementation+evidence")
                 tools = {tool["name"] for tool in _get(base_url, "/tools")["tools"]}
                 workers = {worker["name"] for worker in _get(base_url, "/workers")["workers"]}
                 browser_actions = _get(base_url, "/workers/browser/actions")
@@ -86,6 +87,10 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertIn("/goal", commands)
                 self.assertIn("/team-onboarding", commands)
                 self.assertIn("web-research", skills)
+                self.assertIn("verification", {skill["name"] for skill in searched["skills"]})
+                self.assertTrue(searched["search"]["local_only"])
+                self.assertEqual(searched["search"]["remote_search_status"], "deferred_upstream_stub")
+                self.assertFalse(searched["body_loaded"])
                 self.assertIn("browser", tools)
                 self.assertIn("CodeWorkerRuntime", workers)
                 self.assertIn("open_url", {action["action"] for action in browser_actions["actions"]})
@@ -114,10 +119,14 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_skill_endpoint_records_invocation_event(self) -> None:
+    def test_skill_endpoint_loads_versioned_runtime_and_persists_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "skill-input.txt").write_text("skill worker context", encoding="utf-8")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
 
             from apps.api.zyra_api.main import ZyraRequestHandler
 
@@ -138,19 +147,114 @@ class ApiControlCommandTests(unittest.TestCase):
                 )
                 skills_view = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/skills"})
 
-                self.assertEqual(invoked["event"]["event_type"], "skill_invoked")
-                self.assertEqual(invoked["event"]["payload"]["skill_invocation"]["skill_name"], "web-research")
-                self.assertEqual(invoked["skill_result"]["runtime_status"], "recorded")
-                self.assertEqual(invoked["task"]["metadata"]["skill_invocations"][0]["skill_name"], "web-research")
-                self.assertIn("browser", invoked["event"]["payload"]["skill_invocation"]["allowed_tools"])
-                self.assertEqual(skills_view["command_result"]["summary"], "Registered skills and recent skill invocations.")
+                self.assertGreaterEqual(len(invoked["events"]), 5)
+                self.assertTrue(all(event["event_type"] == "skill_invoked" for event in invoked["events"]))
+                self.assertEqual(invoked["skill"]["metadata"]["name"], "web-research")
+                self.assertEqual(invoked["skill"]["provenance"]["source_kind"], "builtin")
+                self.assertTrue(invoked["skill"]["version_ref"]["content_digest"])
+                self.assertEqual(invoked["skill_result"]["runtime_status"], "fork_pending")
+                self.assertTrue(invoked["skill_result"]["body_returned"])
+                self.assertFalse(invoked["skill_result"]["body_in_checkpoint"])
+                projection = invoked["task"]["metadata"]["skill_invocation_projection"]
+                self.assertEqual(projection["qualified_name"], "builtin:web-research")
+                self.assertFalse(projection["body_in_checkpoint"])
+                self.assertEqual(projection["permission_owner"], "M1-03A")
+                self.assertIn(
+                    "states",
+                    invoked["task"]["metadata"]["skill_runtime_state"]["state_snapshot"],
+                )
+                self.assertTrue(
+                    invoked["task"]["metadata"]["skill_session_context"]["invoked_skill_refs"]
+                )
+                self.assertNotIn(
+                    "message_deltas",
+                    invoked["task"]["metadata"]["skill_session_context"],
+                )
+                invocation_id = invoked["skill_result"]["invocation"]["state"]["invocation_id"]
+                completed = _post(
+                    base_url,
+                    f"/tasks/{task_id}/skills/{invocation_id}/complete",
+                    {
+                        "outcome_refs": ["outcome://skill/web-research"],
+                        "evidence_refs": ["event://skill/web-research"],
+                    },
+                )
+                self.assertEqual(completed["skill_state"]["status"], "completed")
+                self.assertEqual(completed["session_checkpoint"]["active_invocation_ids"], [])
                 self.assertEqual(
-                    skills_view["command_result"]["data"]["skill_invocations"][0]["skill_name"],
-                    "web-research",
+                    completed["outcome_projection"]["outcome_refs"],
+                    ["outcome://skill/web-research"],
+                )
+                completed_context = completed["task"]["metadata"]["skill_session_context"]
+                self.assertFalse(completed_context["permission_hook_active"])
+                self.assertEqual(completed_context["permission_hook_id"], "")
+                self.assertEqual(
+                    completed["task"]["metadata"]["skill_invocation_projection"]["status"],
+                    "completed",
+                )
+                worker_status, worker = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/workers/code",
+                    {
+                        "tool_plan": [
+                            {
+                                "tool_name": "file_read",
+                                "arguments": {"path": "skill-input.txt"},
+                            }
+                        ]
+                    },
+                )
+                self.assertEqual(worker_status, 201, worker)
+                skill_messages = [
+                    message
+                    for message in worker["worker_request"]["messages"]
+                    if message.get("metadata", {}).get("skill_invocation_id") == invocation_id
+                ]
+                self.assertEqual(len(skill_messages), 1)
+                self.assertIn("source provenance", skill_messages[0]["content"].lower())
+                self.assertEqual(
+                    skill_messages[0]["metadata"]["skill_ref"],
+                    completed["skill_state"]["version_ref"]["immutable_ref"],
+                )
+                self.assertEqual(
+                    skills_view["command_result"]["summary"],
+                    "Versioned skills and the task-scoped invocation projection.",
+                )
+                self.assertEqual(
+                    skills_view["command_result"]["data"]["skill_invocation"]["qualified_name"],
+                    "builtin:web-research",
                 )
                 events = _get(base_url, f"/tasks/{task_id}/events")["events"]
                 self.assertTrue(any(event["event_type"] == "skill_invoked" for event in events))
             finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
+    def test_skill_api_disable_flag_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
+            os.environ["ZYRA_SKILL_RUNTIME_DISABLED"] = "true"
+
+            from apps.api.zyra_api.main import ZyraRequestHandler
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(base_url, "/tasks", {"goal": "Disabled skill runtime.", "auto_run": False})
+                status, response = _post_with_status(
+                    base_url,
+                    f"/tasks/{created['task']['task_id']}/skills",
+                    {"skill_name": "verification"},
+                )
+
+                self.assertEqual(status, 404)
+                self.assertEqual(response["error"], "skill_registry_disabled")
+            finally:
+                os.environ.pop("ZYRA_SKILL_RUNTIME_DISABLED", None)
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=5)

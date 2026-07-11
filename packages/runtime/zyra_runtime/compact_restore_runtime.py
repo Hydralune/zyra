@@ -665,10 +665,12 @@ class CompactRestoreRuntime:
         owner_unit: str = M1_02D_OWNER_UNIT,
         runtime_id: str = CODEWORKER_API_FOUNDATION_RUNTIME_ID,
         disabled: bool = False,
+        skill_restore_resolver: Any = None,
     ) -> None:
         self.owner_unit = owner_unit
         self.runtime_id = runtime_id
         self.disabled = disabled
+        self.skill_restore_resolver = skill_restore_resolver
         self.context_budget_runtime = ContextBudgetRuntime(
             owner_unit=owner_unit,
             runtime_id=runtime_id,
@@ -1069,6 +1071,19 @@ class CompactRestoreRuntime:
                     },
                 )
             )
+        structured_skill_refs = [
+            item
+            for item in _as_list(
+                constraints.get("invoked_skill_refs")
+                or constraints.get("skill_compact_references")
+            )
+            if isinstance(item, Mapping)
+        ]
+        if structured_skill_refs:
+            segments.extend(self._structured_skill_restore_segments(structured_skill_refs))
+        # Compatibility projection for protected 02D callers.  It is not a
+        # versioned restore and carries no body, policy, grant, or authority.
+        # New 03C paths must pass invoked_skill_refs above.
         for skill in _string_list(constraints.get("invoked_skills") or constraints.get("restore_skills")):
             segments.append(
                 RestoreSegment(
@@ -1090,6 +1105,10 @@ class CompactRestoreRuntime:
                         "code_index_source": "false",
                         "source_path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
                         "upstream_source_path": "src/tools/SkillTool",
+                        "compatibility_projection_only": "true",
+                        "immutable_revision_verified": "false",
+                        "permission_authority": "none",
+                        "migration_owner": "M1-S03C-01 structured invoked_skill_refs",
                     },
                 )
             )
@@ -1169,6 +1188,61 @@ class CompactRestoreRuntime:
                 },
             )
         )
+        return segments
+
+    def _structured_skill_restore_segments(
+        self,
+        references: Sequence[Mapping[str, Any]],
+    ) -> list[RestoreSegment]:
+        if self.skill_restore_resolver is not None:
+            restored_items = self.skill_restore_resolver(references)
+        else:
+            raise RuntimeError(
+                "structured skill restore requires the current session's M1-03C resolver"
+            )
+        segments: list[RestoreSegment] = []
+        for restored in restored_items:
+            reference = restored.reference
+            body = restored.body
+            policy = restored.restored_policy
+            trusted_product = reference.source_kind in {"managed", "builtin"} and reference.trust_tier in {
+                "managed",
+                "product",
+            }
+            trust_level = "trusted_system" if trusted_product else "untrusted"
+            segments.append(
+                RestoreSegment(
+                    segment_id=new_id("restore"),
+                    kind=RestoreSegmentKind.INVOKED_SKILL,
+                    label=reference.version_ref.qualified_name,
+                    content=body.text,
+                    source_id=reference.invocation_id,
+                    required=False,
+                    budget_chars=len(body.text),
+                    metadata={
+                        "source_provenance": "invoked_skill_immutable_revision",
+                        "trust_level": trust_level,
+                        "skill_source_kind": reference.source_kind,
+                        "skill_trust_tier": reference.trust_tier,
+                        "prompt_injection_guard": "required" if not trusted_product else "product_owned",
+                        "secret_redaction_state": "clean",
+                        "source_ref": reference.version_ref.immutable_ref,
+                        "retrieval_query": reference.version_ref.qualified_name,
+                        "retrieval_scope": "M1-03C.SkillBodyResourceLoader",
+                        "retrieval_budget": str(body.token_estimate),
+                        "code_index_source": "false",
+                        "content_digest": reference.version_ref.content_digest,
+                        "body_digest": reference.version_ref.body_digest,
+                        "policy_snapshot_digest": policy.policy_digest,
+                        "revocation_epoch": str(reference.version_ref.revocation_epoch),
+                        "immutable_revision_verified": "true",
+                        "permission_authority": "M1-03A.ToolPermissionRuntime",
+                        "allowed_tools_restore_grant": "false",
+                        "source_path": "packages/skills/zyra_skills/compact_bridge.py",
+                        "upstream_source_path": "src/services/compact/compact.ts",
+                    },
+                )
+            )
         return segments
 
 

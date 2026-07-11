@@ -86,11 +86,17 @@ class CommandSkillTests(unittest.TestCase):
         self.assertEqual(parsed.control_command.metadata["event_hint"], "budget_updated")
         self.assertEqual(parsed.control_command.metadata["category"], "model_resource")
 
-    def test_default_skills_reference_vendored_runtime_sources(self) -> None:
+    def test_default_skills_are_versioned_zyra_owned_runtime_entries(self) -> None:
         skills = default_skill_registry()
+        code_change = skills.get("code-change")
+        web_research = skills.get("web-research")
 
-        self.assertIn("vendor/claude-code-best/src/tools/FileEditTool", skills.get("code-change").vendor_paths)
-        self.assertIn("vendor/browser-use/browser_use/agent", skills.get("web-research").vendor_paths)
+        self.assertEqual(code_change.provenance.source_kind, "builtin")
+        self.assertTrue(code_change.version_ref.content_digest)
+        self.assertTrue(code_change.version_ref.policy_digest)
+        self.assertNotIn("vendor", code_change.skill_root.replace("\\", "/").split("/"))
+        self.assertEqual(web_research.metadata.invocation.mode, "fork")
+        self.assertEqual(web_research.metadata.invocation.agent, "Researcher")
 
 
 if __name__ == "__main__":

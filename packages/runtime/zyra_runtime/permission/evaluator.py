@@ -476,6 +476,9 @@ class PermissionPolicyEvaluator:
                 "request_fingerprint": request.request_fingerprint,
                 "node_id": request.node_id,
                 "operation": request.operation,
+                "tool_namespace": request.tool_identity.namespace,
+                "tool_server_id": request.tool_identity.server_id,
+                **dict(request.metadata),
             },
         )
 

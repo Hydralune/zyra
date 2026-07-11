@@ -1072,6 +1072,15 @@ class CodeWorkerRuntime:
                     "permission_continuation_inherited": False,
                     "source_custody_token_present": bool(resume_session_custody_token),
                 }
+        incoming_skill_state = request.constraints.get("skill_runtime_state")
+        if isinstance(incoming_skill_state, Mapping):
+            restored_runtime_state = dict(restored_runtime_state or {})
+            restored_runtime_state["skill_runtime_state"] = dict(incoming_skill_state)
+            restored_runtime_state["invoked_skill_refs"] = [
+                dict(item)
+                for item in request.constraints.get("invoked_skill_refs") or ()
+                if isinstance(item, Mapping)
+            ]
         permission_payload_sequence = [
             session_store.replay_session(session_seed.session_id).last_sequence
         ]

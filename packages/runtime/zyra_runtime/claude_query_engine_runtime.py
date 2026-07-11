@@ -395,6 +395,27 @@ class ZyraClaudeQueryEngine:
             self.config.permission_extension_registry
             or build_deployment_permission_extensions()
         )
+        skill_runtime = None
+        restored_skill_state = restored_runtime_state.get("skill_runtime_state")
+        if isinstance(restored_skill_state, Mapping):
+            # Lazy dependency preserves package layering for deployments that
+            # do not enable 03C, while a supplied checkpoint is mandatory and
+            # fail-closed when it cannot be restored.
+            from zyra_skills import SkillRuntime, SkillRuntimeConfig
+
+            skill_runtime = SkillRuntime(
+                SkillRuntimeConfig.for_project(
+                    self.config.project_root,
+                    workspace_root=self.context.workspace_root,
+                    include_user_skills=False,
+                ),
+                state_snapshot=restored_skill_state,
+            )
+            skill_runtime.bootstrap()
+            skill_runtime.install_permission_hook(
+                permission_extensions.hook_adapter,
+                permission_session_id=session.session_id,
+            )
         permission_runtime = ToolPermissionRuntime.for_session(
             session_id=session.session_id,
             state_path=permission_state_path,
@@ -511,7 +532,12 @@ class ZyraClaudeQueryEngine:
                     "upstream_source_path": "opencode/packages/opencode/src/session",
                 },
             )
-        compact_restore_runtime = CompactRestoreRuntime(disabled=self.config.disable_compact_restore_runtime)
+        compact_restore_runtime = CompactRestoreRuntime(
+            disabled=self.config.disable_compact_restore_runtime,
+            skill_restore_resolver=(
+                skill_runtime.restore_compact_references if skill_runtime is not None else None
+            ),
+        )
         compact_restore_policy_runtime = CompactRestorePolicyRuntime()
         model_provider_catalog_runtime = ModelProviderCatalogRuntime()
         model_stream_runtime = ModelStreamRuntime(disabled=self.config.disable_model_stream_runtime)
