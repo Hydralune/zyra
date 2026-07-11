@@ -382,6 +382,29 @@ def discover_api_routes(project_root: Path) -> list[RouteProbe]:
                         evidence=[f"{method_name}:{helper}", f"{helper}:{route}"],
                     )
                 )
+    facade_path = project_root / "apps" / "api" / "zyra_api" / "mcp_api.py"
+    facade_is_connected = (
+        facade_path.exists()
+        and "McpApiFacade" in text
+        and ".handle_get(" in text
+        and ".handle_post(" in text
+    )
+    if facade_is_connected:
+        facade_text = facade_path.read_text(encoding="utf-8", errors="ignore")
+        for method, route in _route_manifest_from_source(facade_text, "MCP_API_ROUTES"):
+            probes.append(
+                RouteProbe(
+                    route=route,
+                    method=method,
+                    declared_by="apps/api/zyra_api/mcp_api.py",
+                    implemented=True,
+                    handler="McpApiFacade",
+                    evidence=[
+                        "main.py:McpApiFacade.handle_get/handle_post",
+                        f"MCP_API_ROUTES:{method} {route}",
+                    ],
+                )
+            )
     return _dedupe_routes(probes)
 
 
@@ -416,17 +439,32 @@ def discover_cli_commands(project_root: Path) -> list[CliProbe]:
                 evidence=[f"argparse:{command}", f"alias:ledger:{command}"],
             )
         )
+    api_path = project_root / "apps" / "api" / "zyra_api" / "main.py"
+    if api_path.exists():
+        api_text = api_path.read_text(encoding="utf-8", errors="ignore")
+        command_source = _function_source(api_text, "_command_result_for_event")
+        for command in _slash_commands_from_source(command_source):
+            probes.append(
+                CliProbe(
+                    command=command,
+                    implemented=True,
+                    parser_path="apps/api/zyra_api/main.py",
+                    evidence=[f"_command_result_for_event:{command}"],
+                )
+            )
     return probes
 
 
 def discover_event_producers(project_root: Path) -> list[EventProbe]:
     probes: list[EventProbe] = []
+    event_enum_values = _event_enum_values(project_root)
     for path in [
         project_root / "packages" / "integrations" / "zyra_integrations" / "ledger_events.py",
         project_root / "packages" / "integrations" / "zyra_integrations" / "source_extraction.py",
         project_root / "packages" / "runtime" / "zyra_runtime" / "scaffold.py",
         project_root / "packages" / "runtime" / "zyra_runtime" / "scaffold_lifecycle.py",
         project_root / "packages" / "workers" / "zyra_workers" / "scaffold_bridge_runtime.py",
+        project_root / "packages" / "integrations" / "zyra_integrations" / "mcp" / "events.py",
         project_root / "apps" / "api" / "zyra_api" / "main.py",
     ]:
         if not path.exists():
@@ -469,6 +507,18 @@ def discover_event_producers(project_root: Path) -> list[EventProbe]:
                     producer=_relative(project_root, path),
                     payload_key="EventType.SYSTEM_NOTICE",
                     evidence=["EventRecord"],
+                )
+            )
+        for member_name, event_type in event_enum_values.items():
+            if member_name not in text:
+                continue
+            probes.append(
+                EventProbe(
+                    event_type=event_type,
+                    implemented=True,
+                    producer=_relative(project_root, path),
+                    payload_key=member_name,
+                    evidence=[f"EventType.{member_name}"],
                 )
             )
     return _dedupe_events(probes)
@@ -834,6 +884,82 @@ def _routes_for_helper(source: str, helper: str) -> list[str]:
                 if route:
                     routes.append(route)
     return sorted(set(routes))
+
+
+def _route_manifest_from_source(source: str, variable_name: str) -> list[tuple[str, str]]:
+    """Read a literal ``(method, route)`` manifest without importing API code."""
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    for node in tree.body:
+        target_name = ""
+        value: ast.AST | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name = node.targets[0].id
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target_name = node.target.id
+            value = node.value
+        if target_name != variable_name or value is None:
+            continue
+        try:
+            literal = ast.literal_eval(value)
+        except (ValueError, TypeError, SyntaxError):
+            return []
+        routes: list[tuple[str, str]] = []
+        if not isinstance(literal, (list, tuple)):
+            return routes
+        for item in literal:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                continue
+            method, route = str(item[0]).upper(), str(item[1])
+            if method in {"GET", "POST", "PUT", "PATCH", "DELETE"} and route.startswith("/"):
+                routes.append((method, _normalize_route(route)))
+        return routes
+    return []
+
+
+def _slash_commands_from_source(source: str) -> list[str]:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    commands: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            continue
+        value = node.value.strip()
+        if value.startswith("/") and " " not in value and len(value) > 1:
+            commands.add(value)
+    return sorted(commands)
+
+
+def _event_enum_values(project_root: Path) -> dict[str, str]:
+    """Map statically declared EventType members to their wire values."""
+
+    models_path = project_root / "packages" / "core" / "zyra_core" / "models.py"
+    if not models_path.exists():
+        return {}
+    try:
+        tree = ast.parse(models_path.read_text(encoding="utf-8", errors="ignore"))
+    except SyntaxError:
+        return {}
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef) or node.name != "EventType":
+            continue
+        values: dict[str, str] = {}
+        for statement in node.body:
+            if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+                continue
+            target = statement.targets[0]
+            if not isinstance(target, ast.Name):
+                continue
+            if isinstance(statement.value, ast.Constant) and isinstance(statement.value.value, str):
+                values[target.id] = statement.value.value
+        return values
+    return {}
 
 
 def _dedupe_routes(routes: Iterable[RouteProbe]) -> list[RouteProbe]:

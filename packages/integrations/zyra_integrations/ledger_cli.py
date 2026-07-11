@@ -720,10 +720,19 @@ def _print_payload(payload: dict[str, Any], *, as_json: bool) -> None:
     if as_json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return
-    if "entries" in payload:
-        for entry in payload["entries"]:
+    entries = payload.get("entries")
+    if (
+        isinstance(entries, list)
+        and (not entries or all(
+            isinstance(entry, dict)
+            and {"ledger_id", "source_repo", "owner_unit", "main_path_status", "capability_name"}.issubset(entry)
+            for entry in entries
+        ))
+        and "findings" not in payload
+    ):
+        for entry in entries:
             print(f"{entry['ledger_id']} {entry['source_repo']} {entry['owner_unit']} {entry['main_path_status']} {entry['capability_name']}")
-        print(f"total={payload['summary']['total_entries']}")
+        print(f"total={payload.get('summary', {}).get('total_entries', len(entries))}")
         return
     if "findings" in payload:
         finding_count = payload.get("finding_count", len(payload.get("findings", [])))

@@ -84,6 +84,14 @@ class EventType(StrEnum):
     WORKER_HEALTH = "worker_health"
     EVALUATION = "evaluation"
     BUDGET_UPDATED = "budget_updated"
+    MCP_CONFIG_CHANGED = "mcp_config_changed"
+    MCP_CONNECTION_CHANGED = "mcp_connection_changed"
+    MCP_CAPABILITIES_CHANGED = "mcp_capabilities_changed"
+    MCP_AUTH_CHANGED = "mcp_auth_changed"
+    MCP_ELICITATION = "mcp_elicitation"
+    MCP_TASK_UPDATED = "mcp_task_updated"
+    MCP_INSTRUCTIONS_CHANGED = "mcp_instructions_changed"
+    MCP_TOOL_RESULT = "mcp_tool_result"
     SYSTEM_NOTICE = "system_notice"
 
 

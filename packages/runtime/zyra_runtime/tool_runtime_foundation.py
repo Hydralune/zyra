@@ -1127,6 +1127,15 @@ def _trusted_permission_identity(
 ) -> tuple[str, str, str]:
     """Resolve identity from the registered ToolSpec without caller downgrade."""
 
+    provenance = spec.execution_provenance if spec is not None else None
+    if provenance is not None:
+        # Dynamic executable identity belongs to the registry snapshot, not to
+        # API/display metadata that can be filtered or reconstructed.  In
+        # particular, an MCP handler always retains its exact canonical server
+        # identity even if every metadata hint is absent or adversarially
+        # downgraded.
+        return provenance.namespace, provenance.server_id, provenance.version
+
     spec_metadata = dict(spec.metadata) if spec is not None else {}
     source = str(spec.source if spec is not None else "").strip()
     source_lower = source.casefold()
@@ -1160,6 +1169,13 @@ def _trusted_tool_capabilities(spec: ToolSpec | None) -> tuple[str, ...]:
     metadata = dict(spec.metadata)
     raw = metadata.get("capabilities") or ""
     values = [item.strip() for item in str(raw).split(",") if item.strip()]
+    provenance = spec.execution_provenance
+    if provenance is not None:
+        values.append(provenance.handler_kind)
+        if provenance.external_boundary:
+            values.append("network")
+        if provenance.namespace == "mcp":
+            values.append("mcp")
     source = str(spec.source).casefold()
     if source.startswith(("mcp:", "mcp/", "remote:", "remote/", "cloud:", "cloud/")):
         values.append("network")

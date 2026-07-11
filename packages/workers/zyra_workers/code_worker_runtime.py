@@ -135,6 +135,7 @@ class CodeWorkerRuntime:
         permission_accept_edits_available: bool = False,
         permission_extension_registry: PermissionExtensionRegistry | None = None,
         permission_state_path: str | Path | None = None,
+        mcp_runtime: Any | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.sidecar_client = sidecar_client or CodeWorkerSidecarClient(self.project_root)
@@ -146,6 +147,7 @@ class CodeWorkerRuntime:
         self.permission_extension_registry = (
             permission_extension_registry or build_deployment_permission_extensions()
         )
+        self.mcp_runtime = mcp_runtime
         self.execution_context = ToolExecutionContext.for_workspace(
             workspace_root=workspace_root,
             artifact_root=artifact_root,
@@ -226,7 +228,17 @@ class CodeWorkerRuntime:
                 worker_result=worker_result,
                 event_records=[*integration_events, _worker_result_event(request, worker_result)],
             )
-        tool_specs = self.execution_context.registry.list()
+        execution_context = self.execution_context
+        mcp_projection = None
+        if self.mcp_runtime is not None:
+            mcp_projection = self.mcp_runtime.worker_projection(
+                execution_context,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+            )
+            execution_context = mcp_projection.context
+        tool_specs = execution_context.registry.list()
         tool_names = tuple(tool.name for tool in tool_specs)
         read_only_tool_names = tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") == "true")
         mutating_tool_names = tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") != "true")
@@ -235,8 +247,8 @@ class CodeWorkerRuntime:
             integration_report=integration_report,
             runtime_contracts=self.runtime_contracts,
             project_root=self.project_root,
-            workspace_root=self.execution_context.workspace_root,
-            artifact_root=self.execution_context.artifact_store.root,
+            workspace_root=execution_context.workspace_root,
+            artifact_root=execution_context.artifact_store.root,
             tool_names=tool_names,
             read_only_tool_names=read_only_tool_names,
             mutating_tool_names=mutating_tool_names,
@@ -305,8 +317,8 @@ class CodeWorkerRuntime:
             build_worker_execution_gate_inputs(
                 request=request,
                 project_root=self.project_root,
-                workspace_root=self.execution_context.workspace_root,
-                artifact_root=self.execution_context.artifact_store.root,
+                workspace_root=execution_context.workspace_root,
+                artifact_root=execution_context.artifact_store.root,
                 runtime_contracts=self.runtime_contracts,
                 integration_report=integration_report,
                 runtime_context_report=runtime_context_report,
@@ -364,7 +376,7 @@ class CodeWorkerRuntime:
             request.constraints,
         )
         query_plan_metadata = query_plan_metadata_from_constraints(request.constraints)
-        session_store = CodeWorkerSessionStore(self.execution_context.artifact_store.root)
+        session_store = CodeWorkerSessionStore(execution_context.artifact_store.root)
         input_processor = QueryInputProcessor(
             max_input_chars=_positive_int(
                 request.constraints.get("max_query_input_chars"),
@@ -401,7 +413,7 @@ class CodeWorkerRuntime:
             session_id=seed_session_id,
             run_id=request.run_id,
             task_id=request.task_id,
-            workspace_root=str(self.execution_context.workspace_root),
+            workspace_root=str(execution_context.workspace_root),
         )
         target_session_exists = bool(session_store.replay_session(seed_session_id).records)
         try:
@@ -415,7 +427,7 @@ class CodeWorkerRuntime:
                         session_id=resume_source_session_id,
                         run_id=request.run_id,
                         task_id=request.task_id,
-                        workspace_root=str(self.execution_context.workspace_root),
+                        workspace_root=str(execution_context.workspace_root),
                     ),
                     presented_token=resume_session_custody_token,
                 )
@@ -587,6 +599,21 @@ class CodeWorkerRuntime:
                 ],
                 custody_receipt=custody_receipt,
             )
+        if self.mcp_runtime is not None:
+            restored_mcp_state = (
+                runtime_state_load.runtime_state.get("mcp_runtime")
+                if runtime_state_load.found
+                and isinstance(runtime_state_load.runtime_state, Mapping)
+                else None
+            )
+            self.mcp_runtime.restore_session_snapshot(restored_mcp_state)
+            request = replace(
+                request,
+                constraints=self.mcp_runtime.prepare_worker_constraints(
+                    request.constraints,
+                    session_id=seed_session_id,
+                ),
+            )
         effective_permission_mode = _permission_mode_from_state_owner(
             permission_custody_store.state_store,
             session_id=seed_session_id,
@@ -607,8 +634,8 @@ class CodeWorkerRuntime:
             input_records=input_report.records,
             tool_specs=tool_specs,
             project_root=self.project_root,
-            workspace_root=self.execution_context.workspace_root,
-            artifact_root=self.execution_context.artifact_store.root,
+            workspace_root=execution_context.workspace_root,
+            artifact_root=execution_context.artifact_store.root,
             runtime_contracts=self.runtime_contracts,
             integration_report=integration_report,
             runtime_context_report=runtime_context_report,
@@ -784,7 +811,7 @@ class CodeWorkerRuntime:
             )
         query_session_runtime = QuerySessionIntegrationRuntime(
             store=session_store,
-            artifact_store=self.execution_context.artifact_store,
+            artifact_store=execution_context.artifact_store,
         )
         query_session_integration = query_session_runtime.prepare(
             request=request,
@@ -1080,7 +1107,7 @@ class CodeWorkerRuntime:
             permission_payload_sequence[0] = receipt.last_sequence
 
         engine = self.query_engine_factory(
-            self.execution_context,
+            execution_context,
             ClaudeQueryEngineConfig(
                 max_turns=_optional_int(request.constraints.get("max_turns")),
                 max_tool_result_chars=_positive_int(
@@ -1248,6 +1275,10 @@ class CodeWorkerRuntime:
                     runtime_state_checkpoint["context_window_state"] = context_state
                 if pending_restore_state:
                     runtime_state_checkpoint["pending_restore_contract"] = pending_restore_state
+        if self.mcp_runtime is not None:
+            runtime_state_checkpoint["mcp_runtime"] = self.mcp_runtime.session_snapshot(
+                session_seed.session_id
+            )
         causal_event_ids = [
             str(getattr(event, "event_id", "") or getattr(event, "id", ""))
             for event in loop_result.event_records
@@ -1408,7 +1439,7 @@ class CodeWorkerRuntime:
         artifacts = list(loop_result.artifacts)
         step_summaries = list(loop_result.step_summaries)
 
-        trace_artifact = self.execution_context.artifact_store.write_text(
+        trace_artifact = execution_context.artifact_store.write_text(
             run_id=request.run_id,
             task_id=request.task_id,
             content=_trace_markdown(
@@ -1539,6 +1570,11 @@ class CodeWorkerRuntime:
                 "query_session_checkpoint_ready": str(bool(loop_result.session_snapshot)).lower(),
             },
         )
+        mcp_events = (
+            list(self.mcp_runtime.drain_events(run_id=request.run_id, task_id=request.task_id))
+            if self.mcp_runtime is not None
+            else []
+        )
         return _custodied_code_worker_run(
             worker_result=worker_result,
             event_records=[
@@ -1560,6 +1596,7 @@ class CodeWorkerRuntime:
                 final_event_flow_event,
                 final_state_graph_event,
                 final_disconnect_event,
+                *mcp_events,
                 _worker_result_event(request, worker_result),
             ],
             custody_receipt=custody_receipt,

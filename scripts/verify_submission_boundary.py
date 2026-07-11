@@ -11,6 +11,7 @@ SOURCE_REPOSITORIES = [
     "claude-code-best",
     "hermes-agent",
     "langgraph",
+    "opencode",
     "openclaw",
     "OpenHands",
 ]

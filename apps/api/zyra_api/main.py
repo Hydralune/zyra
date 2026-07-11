@@ -4,6 +4,7 @@ import json
 import os
 import threading
 import sys
+from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -89,7 +90,7 @@ from zyra_runtime import (
     tool_result_event,
     TurnLifecycleRuntime,
 )
-from zyra_runtime.permission.canonical import arguments_digest
+from zyra_runtime.permission.canonical import arguments_digest, build_tool_identity
 from zyra_runtime.permission.api import (
     PermissionApiAuthenticationError,
     PermissionApiFacade,
@@ -111,6 +112,7 @@ from zyra_runtime.permission.custody import (
 )
 from zyra_runtime.permission.models import (
     PermissionEffect as RuntimePermissionEffect,
+    PermissionEvaluationRequest,
     PermissionRuleRecord,
     PermissionRuleSource,
     PermissionScope,
@@ -178,6 +180,22 @@ from zyra_integrations import (
     unit_review_payload,
     validate_entry_for_persistence,
 )
+from zyra_integrations.mcp.runtime import McpClientRuntime
+
+if __package__:
+    from .mcp_api import (
+        McpApiAuthorizationError,
+        McpApiFacade,
+        McpMutationAuthorization,
+        McpMutationRequest,
+    )
+else:  # pragma: no cover - direct development script entry.
+    from mcp_api import (
+        McpApiAuthorizationError,
+        McpApiFacade,
+        McpMutationAuthorization,
+        McpMutationRequest,
+    )
 
 
 def event_log_path() -> Path:
@@ -233,6 +251,53 @@ def permission_state_path() -> Path:
     if configured.is_absolute():
         return configured
     return PROJECT_ROOT / configured
+
+
+def mcp_state_path() -> Path:
+    configured = Path(
+        os.environ.get(
+            "ZYRA_MCP_STATE",
+            str(artifact_root_path() / ".mcp" / "state.json"),
+        )
+    )
+    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+
+
+_MCP_RUNTIME_LOCK = threading.RLock()
+_MCP_RUNTIME_INSTANCE: McpClientRuntime | None = None
+_MCP_RUNTIME_KEY: tuple[str, str] | None = None
+
+
+def get_mcp_runtime() -> McpClientRuntime:
+    """Return the process-live MCP runtime with durable Zyra state custody."""
+
+    global _MCP_RUNTIME_INSTANCE, _MCP_RUNTIME_KEY
+    key = (str(mcp_state_path().resolve()), str(artifact_root_path().resolve()))
+    with _MCP_RUNTIME_LOCK:
+        if _MCP_RUNTIME_INSTANCE is None or _MCP_RUNTIME_KEY != key:
+            if _MCP_RUNTIME_INSTANCE is not None:
+                _MCP_RUNTIME_INSTANCE.connection_runtime.close_all()
+            _MCP_RUNTIME_INSTANCE = McpClientRuntime.from_paths(
+                state_path=key[0],
+                artifact_root=key[1],
+            )
+            _MCP_RUNTIME_KEY = key
+        return _MCP_RUNTIME_INSTANCE
+
+
+def reset_mcp_runtime(runtime: McpClientRuntime | None = None) -> None:
+    """Test/development reset without changing the production state owner."""
+
+    global _MCP_RUNTIME_INSTANCE, _MCP_RUNTIME_KEY
+    with _MCP_RUNTIME_LOCK:
+        if _MCP_RUNTIME_INSTANCE is not None and _MCP_RUNTIME_INSTANCE is not runtime:
+            _MCP_RUNTIME_INSTANCE.connection_runtime.close_all()
+        _MCP_RUNTIME_INSTANCE = runtime
+        _MCP_RUNTIME_KEY = (
+            (str(mcp_state_path().resolve()), str(artifact_root_path().resolve()))
+            if runtime is not None
+            else None
+        )
 
 
 def get_permission_control_plane() -> PermissionControlPlane:
@@ -551,6 +616,179 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             actor_id=self._permission_actor_id(),
         )
 
+    def _authorize_mcp_mutation(
+        self,
+        request: McpMutationRequest,
+        *,
+        payload: dict[str, Any],
+        store: SQLiteStore,
+    ) -> McpMutationAuthorization:
+        """Authorize and atomically consume one exact 03A execution grant.
+
+        The custody bearer proves ownership of the permission session; it is
+        not itself an MCP grant.  ``ToolPermissionRuntime`` binds the grant to
+        action, server, canonical argument digest, task/run/session, and the
+        caller-supplied stable tool-use identity, then consumes it before the
+        facade invokes any MCP runtime mutation.
+        """
+
+        session_id = str(payload.get("session_id") or "").strip()
+        run_id = str(payload.get("run_id") or "").strip()
+        task_id = str(payload.get("task_id") or "").strip()
+        worker_request_id = str(payload.get("worker_request_id") or "").strip()
+        tool_use_id = str(payload.get("tool_use_id") or "").strip()
+        if not all((session_id, run_id, task_id, worker_request_id, tool_use_id)):
+            raise McpApiAuthorizationError(
+                "mcp_permission_identity_required",
+                retryable=False,
+            )
+        # Execution grants are private capabilities consumed inside this
+        # method.  Accepting a caller-presented grant id/token would create a
+        # second authority path and permit confused-deputy replay.
+        if payload.get("permission_grant_id") or payload.get("permission_grant_token"):
+            raise McpApiAuthorizationError(
+                "mcp_presented_grant_rejected",
+                retryable=False,
+            )
+
+        facade = get_permission_api_facade()
+        try:
+            authority = self._permission_authority(
+                facade,
+                payload,
+                session_id=session_id,
+                allow_payload_token=False,
+            )
+            self._require_permission_task_identity(
+                store,
+                task_id=task_id,
+                run_id=run_id,
+            )
+        except Exception as error:  # noqa: BLE001 - never expose custody details.
+            raise McpApiAuthorizationError(
+                "mcp_permission_authority_invalid",
+                retryable=False,
+            ) from error
+
+        workspace = Path(authority.workspace_root).resolve()
+        permission_runtime = ToolPermissionRuntime.for_session(
+            session_id=session_id,
+            state_path=permission_state_path(),
+            workspace_root=workspace,
+            custody_fingerprint=authority.custody_fingerprint,
+        )
+        evaluation = PermissionEvaluationRequest(
+            run_id=run_id,
+            task_id=task_id,
+            session_id=session_id,
+            worker_request_id=worker_request_id,
+            tool_use_id=tool_use_id,
+            node_id=str(payload.get("node_id") or "") or None,
+            tool_identity=build_tool_identity(
+                request.action,
+                namespace="mcp-control",
+                server_id=request.server_id,
+                version="v1",
+            ),
+            arguments=dict(request.arguments),
+            operation="mcp_control_mutation",
+            workspace_root=str(workspace),
+            principal_id=authority.principal_id or authority.actor_id,
+            interactive=True,
+            requires_interaction=True,
+            risk_tags=("mcp_control_mutation", "external_runtime_state"),
+            attributes={
+                "mcp_action": request.action,
+                "mcp_server_id": request.server_id,
+                "authority_id": authority.authority_id,
+            },
+            metadata={
+                "owner_unit": "M1-03B",
+                "permission_custody": "M1-03A.PermissionSessionCustodyStore",
+                "grant_custody": "ToolPermissionRuntime.ExecutionGrantStore",
+                "http_facade": "McpApiFacade",
+            },
+        )
+        guarded = permission_runtime.guard(evaluation)
+        permission_events = list(guarded.events)
+        if permission_events:
+            persist_events(store, permission_events)
+        evidence = {
+            "effect": str(guarded.effect),
+            "decision_id": guarded.decision.decision_id,
+            "request_id": guarded.decision.request_id,
+            "request_fingerprint": guarded.request.request_fingerprint,
+            "arguments_digest": guarded.request.arguments_digest,
+            "custody_fingerprint": authority.custody_fingerprint,
+            "restored_approval": guarded.restored_approval,
+            "pending_request": (
+                guarded.pending_request.to_dict() if guarded.pending_request is not None else None
+            ),
+            "events": [to_jsonable(event) for event in permission_events],
+            "exact_one_shot": True,
+        }
+        if guarded.effect is RuntimePermissionEffect.ASK:
+            raise McpApiAuthorizationError(
+                "mcp_permission_pending",
+                status=HTTPStatus.CONFLICT,
+                permission=evidence,
+            )
+        if guarded.effect is not RuntimePermissionEffect.ALLOW or guarded.execution_grant is None:
+            raise McpApiAuthorizationError(
+                "mcp_permission_denied",
+                status=HTTPStatus.FORBIDDEN,
+                retryable=False,
+                permission=evidence,
+            )
+
+        grant = guarded.execution_grant
+        call = ToolCall(
+            run_id=run_id,
+            task_id=task_id,
+            node_id=str(payload.get("node_id") or "") or None,
+            tool_name=request.action,
+            arguments=dict(request.arguments),
+            tool_call_id=tool_use_id,
+            metadata={
+                "tool_namespace": "mcp-control",
+                "server_id": request.server_id,
+            },
+        )
+        consumed = permission_runtime.validate_and_consume(
+            call,
+            grant,
+            SimpleNamespace(workspace_root=workspace, registry=None),
+        )
+        consumption_events = list(permission_runtime.drain_execution_events(tool_use_id))
+        if consumption_events:
+            persist_events(store, consumption_events)
+        all_events = [*permission_events, *consumption_events]
+        if not consumed:
+            raise McpApiAuthorizationError(
+                "mcp_permission_grant_rejected",
+                retryable=False,
+                permission={
+                    **evidence,
+                    "grant_id": grant.grant_id,
+                    "events": [to_jsonable(event) for event in all_events],
+                },
+            )
+        return McpMutationAuthorization(
+            allowed=True,
+            decision_id=guarded.decision.decision_id,
+            request_id=guarded.decision.request_id,
+            grant_id=grant.grant_id,
+            custody_fingerprint=authority.custody_fingerprint,
+            reason_code=guarded.decision.reason_code,
+            events=tuple(to_jsonable(event) for event in all_events),
+            metadata={
+                "permission_runtime": "ToolPermissionRuntime",
+                "control_plane": "PermissionControlPlane",
+                "grant_consumed_before_mutation": True,
+                "request_fingerprint": guarded.request.request_fingerprint,
+            },
+        )
+
     @staticmethod
     def _require_permission_task_identity(
         store: SQLiteStore,
@@ -820,6 +1058,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
             return
 
+        mcp_response = McpApiFacade(get_mcp_runtime()).handle_get(
+            parts,
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if mcp_response is not None:
+            status, body, headers = mcp_response
+            self._send_json(status, body, headers=headers)
+            return
+
         if parts == ["health"]:
             self._send_json(
                 HTTPStatus.OK,
@@ -869,9 +1116,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["tools"]:
+            base_context = ToolExecutionContext.for_workspace(
+                workspace_root=tool_workspace_path(),
+                artifact_root=artifact_root_path(),
+                permission_store=get_permission_store(),
+            )
+            mcp_projection = get_mcp_runtime().worker_projection(
+                base_context,
+                run_id="api-tools-catalog",
+                task_id="api-tools-catalog",
+                node_id=None,
+            )
             self._send_json(
                 HTTPStatus.OK,
-                {"tools": [to_jsonable(tool) for tool in default_tool_registry().list()]},
+                {
+                    "tools": [to_jsonable(tool) for tool in mcp_projection.context.registry.list()],
+                    "mcp": mcp_projection.safe_dict(),
+                },
             )
             return
 
@@ -1774,6 +2035,34 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if self._handle_permission_post(parts=parts, payload=payload, store=store):
             return
 
+        mcp_runtime = get_mcp_runtime()
+        mcp_response = McpApiFacade(
+            mcp_runtime,
+            mutation_authorizer=lambda request: self._authorize_mcp_mutation(
+                request,
+                payload=payload,
+                store=store,
+            ),
+        ).handle_post(
+            parts,
+            payload,
+            self._permission_actor_id(),
+        )
+        if mcp_response is not None:
+            status, body, headers = mcp_response
+            run_id = str(payload.get("run_id") or "")
+            task_id = str(payload.get("task_id") or "")
+            mcp_events = (
+                list(mcp_runtime.drain_events(run_id=run_id, task_id=task_id))
+                if run_id and task_id
+                else []
+            )
+            if mcp_events:
+                persist_events(store, mcp_events)
+                body = {**body, "events": [to_jsonable(event) for event in mcp_events]}
+            self._send_json(status, body, headers=headers)
+            return
+
         if parts == ["tasks"]:
             user_goal = str(payload.get("goal") or "Unspecified long-horizon task")
             auto_run = payload.get("auto_run", True) is not False
@@ -2123,6 +2412,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 event_reader=store.task_events,
                 checkpoint_reader=lambda task_id: _checkpoint_json(store, task_id),
             )
+            context = get_mcp_runtime().worker_projection(
+                context,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=node_id,
+            ).context
             existing_permission_session = str(
                 payload.get("permission_session_id") or ""
             ).strip()
@@ -2326,6 +2621,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     artifact_root=artifact_root_path(),
                     permission_store=get_permission_store(),
                     permission_state_path=permission_state_path(),
+                    mcp_runtime=get_mcp_runtime(),
                 ).run(request)
             except Exception:  # noqa: BLE001 - keep internal exception details out of API responses.
                 self._send_json(
@@ -2947,8 +3243,22 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
         result["summary"] = "Task artifacts."
         result["data"] = {"artifacts": [_artifact_entry(catalog, artifact) for artifact in state.artifacts]}
     elif name == "/tools":
+        base_context = ToolExecutionContext.for_workspace(
+            workspace_root=tool_workspace_path(),
+            artifact_root=artifact_root_path(),
+            permission_store=get_permission_store(),
+        )
+        projection = get_mcp_runtime().worker_projection(
+            base_context,
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+        )
         result["summary"] = "Registered tools."
-        result["data"] = {"tools": [to_jsonable(tool) for tool in default_tool_registry().list()]}
+        result["data"] = {
+            "tools": [to_jsonable(tool) for tool in projection.context.registry.list()],
+            "mcp": projection.safe_dict(),
+        }
     elif name == "/permissions":
         control_plane = get_permission_control_plane()
         permission_requests = [
@@ -3029,8 +3339,10 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             if contract.owner_slice == "M1-03B" or "mcp" in contract.contract_id.lower()
         ]
         result["summary"] = "MCP runtime handoff contract from Zyra source graph crosswalk."
+        result["runtime_status"] = "live"
         result["data"] = {
-            "runtime_status": "downstream_handoff",
+            **get_mcp_runtime().diagnostics(),
+            "runtime_status": "live",
             "owner_slice": "M1-03B",
             "source_repo": integration.crosswalk.source_repo,
             "source_graph_contract_id": integration.crosswalk.contract_id,

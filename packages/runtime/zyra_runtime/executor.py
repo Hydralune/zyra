@@ -4,10 +4,10 @@ import copy
 import json
 import re
 import subprocess
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, url2pathname, urlopen
 
@@ -22,7 +22,14 @@ from .permissions import (
     PermissionRequest,
     ToolPermissionPolicy,
 )
-from .tools import ToolCall, ToolRegistry, ToolResult, default_tool_registry
+from .tools import (
+    DynamicToolProvenance,
+    ProvenancedDynamicHandler,
+    ToolCall,
+    ToolRegistry,
+    ToolResult,
+    default_tool_registry,
+)
 
 
 @dataclass(slots=True)
@@ -36,6 +43,7 @@ class ToolExecutionContext:
     checkpoint_reader: Callable[[str], dict[str, Any] | None] | None = None
     max_inline_chars: int = 12000
     shell_timeout_seconds: int = 30
+    dynamic_handlers: Mapping[str, Callable[[ToolCall], ToolResult]] = field(default_factory=dict)
 
     @classmethod
     def for_workspace(
@@ -48,6 +56,7 @@ class ToolExecutionContext:
         permission_store: JsonPermissionStore | None = None,
         event_reader: Callable[[str], list[dict[str, Any]]] | None = None,
         checkpoint_reader: Callable[[str], dict[str, Any] | None] | None = None,
+        dynamic_handlers: Mapping[str, Callable[[ToolCall], ToolResult]] | None = None,
     ) -> "ToolExecutionContext":
         root = Path(workspace_root).resolve()
         root.mkdir(parents=True, exist_ok=True)
@@ -61,6 +70,7 @@ class ToolExecutionContext:
             permission_store=permission_store,
             event_reader=event_reader,
             checkpoint_reader=checkpoint_reader,
+            dynamic_handlers=dict(dynamic_handlers or {}),
         )
 
 
@@ -95,6 +105,11 @@ class ToolExecutor:
         self._checkpoint_reader = context.checkpoint_reader
         self._max_inline_chars = int(context.max_inline_chars)
         self._shell_timeout_seconds = int(context.shell_timeout_seconds)
+        # Registry materialization and executable handlers form one immutable
+        # snapshot.  A list-changed notification must create a new execution
+        # context; mutating a shared handler map mid-call would break the
+        # permission identity that was approved for this exact ToolSpec.
+        self._dynamic_handlers = dict(context.dynamic_handlers)
         self._permission_execution_view = _PermissionExecutionView(
             workspace_root=self._workspace_root,
             registry=self._registry,
@@ -124,8 +139,55 @@ class ToolExecutor:
                 metadata={"tool_name": call.tool_name},
             )
 
+        dynamic_handler = self._dynamic_handlers.get(call.tool_name)
+        dynamic_provenance: DynamicToolProvenance | None = None
+        if dynamic_handler is not None:
+            registered_provenance = self._registry.execution_provenance(call.tool_name)
+            if not isinstance(dynamic_handler, ProvenancedDynamicHandler):
+                return self._invalid_dynamic_handler_result(
+                    call,
+                    "dynamic handler has no immutable execution provenance",
+                )
+            dynamic_provenance = dynamic_handler.provenance
+            # Identity comparison is deliberate: a value-equivalent record
+            # reconstructed by an untrusted plugin is not the capability that
+            # projection deposited into this registry snapshot.
+            if registered_provenance is None or dynamic_provenance is not registered_provenance:
+                return self._invalid_dynamic_handler_result(
+                    call,
+                    "dynamic handler provenance does not match the registry snapshot",
+                )
+            # PermissionRuntime treats call metadata only as an optional
+            # consistency echo.  Replace any caller/display values with the
+            # registry-owned identity before validation so an attacker can
+            # neither downgrade MCP to builtin nor turn a valid exact grant
+            # into a confused-deputy mismatch.
+            trusted_metadata = dict(call.metadata)
+            trusted_metadata.update(
+                {
+                    "tool_namespace": dynamic_provenance.namespace,
+                    "namespace": dynamic_provenance.namespace,
+                    "server_id": dynamic_provenance.server_id,
+                    "server_name": dynamic_provenance.server_id,
+                    "tool_version": dynamic_provenance.version,
+                }
+            )
+            call = replace(call, metadata=trusted_metadata)
+
         authorized = False
         if permission_grant is not None:
+            if (
+                dynamic_provenance is not None
+                and dynamic_provenance.requires_exact_grant
+                and not self._grant_matches_dynamic_provenance(
+                    permission_grant,
+                    dynamic_provenance,
+                )
+            ):
+                return self._invalid_grant_result(
+                    call,
+                    "permission grant does not match immutable dynamic handler provenance",
+                )
             # The executor owns its authority binding.  A model/plugin/caller
             # cannot provide an arbitrary ``lambda: True`` validator.
             try:
@@ -183,6 +245,24 @@ class ToolExecutor:
                 return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "trace":
                 result = self._trace(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
+            if dynamic_handler is not None:
+                # Dynamic callables are executable capabilities, never passive
+                # read-only metadata.  Every registered handler requires a
+                # one-use grant; MCP additionally matches exact namespace and
+                # canonical server identity before the grant is consumed.
+                if not authorized:
+                    return self._missing_grant_result(call)
+                result = dynamic_handler(call)
+                if not isinstance(result, ToolResult):
+                    raise TypeError(
+                        f"dynamic handler for {call.tool_name!r} returned "
+                        f"{type(result).__name__}, expected ToolResult"
+                    )
+                if result.tool_call_id != call.tool_call_id:
+                    raise ValueError(
+                        "dynamic handler returned a ToolResult for a different tool call"
+                    )
                 return self._stamp_grant(result, permission_grant, call) if authorized else result
         except subprocess.TimeoutExpired as error:
             return ToolResult(
@@ -815,6 +895,19 @@ class ToolExecutor:
             },
         )
 
+    def _invalid_dynamic_handler_result(self, call: ToolCall, reason: str) -> ToolResult:
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=False,
+            summary="Dynamic tool registration is invalid.",
+            error="dynamic_handler_provenance_invalid",
+            metadata={
+                "permission_effect": str(PermissionEffect.DENY),
+                "permission_reason": reason,
+                "tool_name": call.tool_name,
+            },
+        )
+
     def _missing_grant_result(self, call: ToolCall) -> ToolResult:
         return ToolResult(
             tool_call_id=call.tool_call_id,
@@ -841,6 +934,26 @@ class ToolExecutor:
         if call.tool_name in {"checkpoint", "trace"}:
             return bool(call.arguments.get("write_artifact"))
         return False
+
+    @staticmethod
+    def _grant_matches_dynamic_provenance(
+        grant: Any,
+        provenance: DynamicToolProvenance,
+    ) -> bool:
+        binding = grant.get("binding") if isinstance(grant, dict) else getattr(grant, "binding", None)
+        if binding is None:
+            return False
+
+        def value(name: str) -> str:
+            if isinstance(binding, Mapping):
+                return str(binding.get(name) or "")
+            return str(getattr(binding, name, "") or "")
+
+        return (
+            value("tool_name") == provenance.tool_name
+            and value("tool_namespace") == provenance.namespace
+            and value("server_name") == provenance.server_id
+        )
 
     def _stamp_grant(self, result: ToolResult, grant: Any, call: ToolCall) -> ToolResult:
         def value(name: str) -> str:

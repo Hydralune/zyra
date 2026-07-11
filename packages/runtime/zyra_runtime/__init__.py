@@ -318,6 +318,8 @@ from .claude_query_session_disconnect_audit import (
     render_query_disconnect_markdown,
 )
 from .tools import (
+    DynamicToolProvenance,
+    ProvenancedDynamicHandler,
     ToolCall,
     ToolResult,
     ToolSpec,
@@ -1702,6 +1704,7 @@ __all__ = [
     "TranscriptEntryType",
     "TurnLifecyclePhase",
     "TurnState",
+    "DynamicToolProvenance",
     "ToolCall",
     "ToolAccessMode",
     "ToolBatchExecutionMode",
@@ -1715,6 +1718,7 @@ __all__ = [
     "ToolLoopRequest",
     "ToolLoopScheduler",
     "ToolPermissionPolicy",
+    "ProvenancedDynamicHandler",
     "ToolRegistry",
     "ToolResult",
     "ToolResultBudgeter",

@@ -115,7 +115,6 @@ DEFAULT_COPY_ROOTS = [
     "packages",
     "scripts",
     "tests",
-    "vendor-runtimes",
     "skills",
     "pyproject.toml",
     "README.md",

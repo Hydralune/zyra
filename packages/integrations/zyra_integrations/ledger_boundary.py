@@ -44,6 +44,7 @@ SOURCE_REPOSITORIES = (
     "agent-framework",
     "hermes-agent",
     "langgraph",
+    "opencode",
 )
 
 SCANNED_SUFFIXES = {

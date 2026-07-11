@@ -47,6 +47,11 @@ from zyra_integrations.ledger_boundary import BoundaryCode
 from zyra_integrations.ledger_line_buckets import LineBucket, bucket_line_count_report
 from zyra_integrations.ledger_linecount import EffectiveLineCountReport, parse_numstat
 from zyra_integrations.ledger_policy import CountVerdict, classify_path
+from zyra_integrations.ledger_reachability import (
+    discover_api_routes,
+    discover_cli_commands,
+    discover_event_producers,
+)
 from tests.unit.test_internalization_ledger_policy_linecount import sample_entry
 
 
@@ -124,6 +129,24 @@ class InternalizationLedgerControlPlaneTests(unittest.TestCase):
 
         self.assertFalse(report.ok)
         self.assertTrue(any("route" in finding.message.lower() for finding in report.findings))
+
+    def test_reachability_discovers_delegated_mcp_surfaces(self) -> None:
+        routes = {(probe.method, probe.route) for probe in discover_api_routes(ROOT)}
+        commands = {probe.command for probe in discover_cli_commands(ROOT)}
+        events = {probe.event_type for probe in discover_event_producers(ROOT)}
+
+        self.assertIn(("GET", "/mcp"), routes)
+        self.assertIn(("POST", "/mcp/servers/{server_id}/connect"), routes)
+        self.assertIn(("POST", "/mcp/servers/{server_id}/auth/install"), routes)
+        self.assertIn(("POST", "/mcp/elicitations/resolve"), routes)
+        self.assertIn("/mcp", commands)
+        self.assertIn("mcp_connection_changed", events)
+        self.assertIn("mcp_capabilities_changed", events)
+        self.assertIn("mcp_auth_changed", events)
+        self.assertIn("mcp_elicitation", events)
+        self.assertIn("mcp_task_updated", events)
+        self.assertIn("mcp_instructions_changed", events)
+        self.assertIn("mcp_tool_result", events)
 
     def test_persistence_validation_rejects_bad_entry_before_upsert(self) -> None:
         ledger = InternalizationLedger([sample_entry()])
