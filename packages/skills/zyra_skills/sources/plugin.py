@@ -27,12 +27,50 @@ class PluginUserConfigField:
 
 
 @dataclass(frozen=True, slots=True)
+class PluginCommandDeclaration:
+    name: str
+    skill: str
+    description: str = ""
+    user_invocable: bool = True
+    aliases: tuple[str, ...] = ()
+    default_arguments: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        name = self.name.strip().removeprefix("/")
+        if not PLUGIN_ID_PATTERN.fullmatch(name):
+            raise PluginManifestError("invalid plugin command name", detail={"name": self.name})
+        if not self.skill.strip():
+            raise PluginManifestError("plugin command requires a target skill")
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "skill", self.skill.strip().removeprefix("/"))
+
+
+@dataclass(frozen=True, slots=True)
+class PluginHookDeclaration:
+    event: str
+    action: str
+    matcher: str = "*"
+    once: bool = False
+    payload: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        allowed_events = {"pre_invoke", "post_invoke", "on_error", "on_cancel"}
+        allowed_actions = {"emit_event", "attach_reference"}
+        if self.event not in allowed_events:
+            raise PluginManifestError("unsupported plugin hook event", detail={"event": self.event})
+        if self.action not in allowed_actions:
+            raise PluginManifestError("unsupported plugin hook action", detail={"action": self.action})
+
+
+@dataclass(frozen=True, slots=True)
 class PluginManifest:
     plugin_id: str
     version: str
     skills_paths: tuple[str, ...] = ("skills",)
     enabled: bool = True
     user_config: tuple[PluginUserConfigField, ...] = ()
+    commands: tuple[PluginCommandDeclaration, ...] = ()
+    hooks: tuple[PluginHookDeclaration, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -57,7 +95,7 @@ class PluginManifest:
             raise PluginManifestError("plugin manifest is not valid JSON") from error
         if not isinstance(item, dict):
             raise PluginManifestError("plugin manifest must be a JSON object")
-        allowed = {"id", "name", "version", "skills", "enabled", "user_config", "metadata"}
+        allowed = {"id", "name", "version", "skills", "enabled", "user_config", "commands", "hooks", "metadata"}
         unknown = set(item) - allowed
         if unknown:
             raise PluginManifestError("plugin manifest has unknown fields", detail={"fields": sorted(unknown)})
@@ -83,12 +121,70 @@ class PluginManifest:
                     default=str(descriptor.get("default") or ""),
                 )
             )
+        commands: list[PluginCommandDeclaration] = []
+        raw_commands = item.get("commands", [])
+        if not isinstance(raw_commands, list):
+            raise PluginManifestError("plugin commands must be an array")
+        for descriptor in raw_commands:
+            if not isinstance(descriptor, dict):
+                raise PluginManifestError("plugin command declaration must be an object")
+            unknown_command = set(descriptor) - {
+                "name", "skill", "description", "user_invocable", "aliases", "default_arguments"
+            }
+            if unknown_command:
+                raise PluginManifestError(
+                    "plugin command has unknown fields",
+                    detail={"fields": sorted(unknown_command)},
+                )
+            aliases = descriptor.get("aliases", [])
+            if not isinstance(aliases, list) or not all(isinstance(value, str) for value in aliases):
+                raise PluginManifestError("plugin command aliases must be an array of strings")
+            default_arguments = descriptor.get("default_arguments", {})
+            if not isinstance(default_arguments, dict):
+                raise PluginManifestError("plugin command default_arguments must be an object")
+            commands.append(
+                PluginCommandDeclaration(
+                    name=str(descriptor.get("name") or ""),
+                    skill=str(descriptor.get("skill") or ""),
+                    description=str(descriptor.get("description") or ""),
+                    user_invocable=bool(descriptor.get("user_invocable", True)),
+                    aliases=tuple(aliases),
+                    default_arguments=dict(default_arguments),
+                )
+            )
+        hooks: list[PluginHookDeclaration] = []
+        raw_hooks = item.get("hooks", [])
+        if not isinstance(raw_hooks, list):
+            raise PluginManifestError("plugin hooks must be an array")
+        for descriptor in raw_hooks:
+            if not isinstance(descriptor, dict):
+                raise PluginManifestError("plugin hook declaration must be an object")
+            unknown_hook = set(descriptor) - {"event", "action", "matcher", "once", "payload"}
+            if unknown_hook:
+                raise PluginManifestError(
+                    "plugin hook has unknown fields",
+                    detail={"fields": sorted(unknown_hook)},
+                )
+            payload = descriptor.get("payload", {})
+            if not isinstance(payload, dict):
+                raise PluginManifestError("plugin hook payload must be an object")
+            hooks.append(
+                PluginHookDeclaration(
+                    event=str(descriptor.get("event") or ""),
+                    action=str(descriptor.get("action") or ""),
+                    matcher=str(descriptor.get("matcher") or "*"),
+                    once=bool(descriptor.get("once", False)),
+                    payload=dict(payload),
+                )
+            )
         return cls(
             plugin_id=str(item.get("id") or item.get("name") or root.name).lower(),
             version=str(item.get("version") or "0"),
             skills_paths=skills,
             enabled=bool(item.get("enabled", True)),
             user_config=tuple(fields),
+            commands=tuple(commands),
+            hooks=tuple(hooks),
             metadata=dict(item.get("metadata") or {}),
         )
 
@@ -100,6 +196,8 @@ class PluginManifest:
                 "skills_paths": self.skills_paths,
                 "enabled": self.enabled,
                 "user_config": [asdict(item) for item in self.user_config],
+                "commands": [asdict(item) for item in self.commands],
+                "hooks": [asdict(item) for item in self.hooks],
                 "metadata": self.metadata,
             }
         )

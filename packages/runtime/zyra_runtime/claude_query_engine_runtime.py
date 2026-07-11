@@ -395,9 +395,10 @@ class ZyraClaudeQueryEngine:
             self.config.permission_extension_registry
             or build_deployment_permission_extensions()
         )
-        skill_runtime = None
+        runtime_services = dict(getattr(self.context, "runtime_services", {}) or {})
+        skill_runtime = runtime_services.get("skill_runtime")
         restored_skill_state = restored_runtime_state.get("skill_runtime_state")
-        if isinstance(restored_skill_state, Mapping):
+        if skill_runtime is None and isinstance(restored_skill_state, Mapping):
             # Lazy dependency preserves package layering for deployments that
             # do not enable 03C, while a supplied checkpoint is mandatory and
             # fail-closed when it cannot be restored.
@@ -412,6 +413,7 @@ class ZyraClaudeQueryEngine:
                 state_snapshot=restored_skill_state,
             )
             skill_runtime.bootstrap()
+        if skill_runtime is not None:
             skill_runtime.install_permission_hook(
                 permission_extensions.hook_adapter,
                 permission_session_id=session.session_id,

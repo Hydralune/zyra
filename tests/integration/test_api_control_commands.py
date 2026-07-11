@@ -19,6 +19,87 @@ if str(ROOT) not in sys.path:
 
 
 class ApiControlCommandTests(unittest.TestCase):
+    def test_skill_update_api_suspends_then_resumes_exact_local_install(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            workspace = root / "workspace"
+            bundle = workspace / ".zyra" / "skill-imports" / "api-release" / "api-helper"
+            bundle.mkdir(parents=True)
+            (bundle / "SKILL.md").write_text(
+                "---\nschema: zyra.skill/v1\nname: api-helper\ndescription: API update helper.\nversion: 1.0.0\nuser-invocable: true\nmodel-invocable: true\ninvocation: {\"mode\":\"inline\",\"max-skill-depth\":0}\nallowed-tools: []\n---\nAPI helper body.\n",
+                encoding="utf-8",
+            )
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+
+            from apps.api.zyra_api.main import ZyraRequestHandler
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                task = _post(base_url, "/tasks", {"goal": "Install a trusted skill bundle.", "auto_run": False})["task"]
+                payload = {
+                    "action": "install",
+                    "channel": "project",
+                    "bundle_name": "api-release",
+                    "update_id": "api-update-1",
+                }
+                first_status, first = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/skill-updates",
+                    payload,
+                )
+                self.assertEqual(first_status, 409, first)
+                self.assertEqual(first["error"], "skill_plugin_update_pending")
+                self.assertEqual(first["update_id"], "api-update-1")
+                session = first["permission_session"]
+                self.assertTrue(session["created"])
+                session_id = session["session_id"]
+                token = session["bearer_token"]
+                headers = {"Authorization": f"Bearer {token}"}
+                pending = _get(
+                    base_url,
+                    (
+                        "/permissions/requests"
+                        f"?session_id={session_id}&run_id={task['run_id']}"
+                        f"&task_id={task['task_id']}&pending_only=true"
+                    ),
+                    headers=headers,
+                )["requests"]["items"]
+                self.assertEqual(len(pending), 1)
+                _post(
+                    base_url,
+                    f"/permissions/requests/{pending[0]['request_id']}/resolve",
+                    {
+                        "session_id": session_id,
+                        "run_id": task["run_id"],
+                        "task_id": task["task_id"],
+                        "effect": "allow",
+                        "idempotency_key": "approve-api-update-1",
+                    },
+                    headers=headers,
+                )
+                second_status, second = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/skill-updates",
+                    payload,
+                    headers=headers,
+                )
+                self.assertEqual(second_status, 200)
+                self.assertEqual(second["skill_update"]["state"]["status"], "committed")
+                self.assertTrue((workspace / ".zyra" / "skills" / "api-helper" / "SKILL.md").is_file())
+                self.assertTrue(any(event["payload"].get("phase") == "skill_update_committed" for event in second["events"]))
+                self.assertNotIn(token, json.dumps(second))
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
     def test_change_command_creates_requirement_change_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
@@ -153,7 +234,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(invoked["skill"]["provenance"]["source_kind"], "builtin")
                 self.assertTrue(invoked["skill"]["version_ref"]["content_digest"])
                 self.assertEqual(invoked["skill_result"]["runtime_status"], "fork_pending")
-                self.assertTrue(invoked["skill_result"]["body_returned"])
+                self.assertFalse(invoked["skill_result"]["body_returned"])
                 self.assertFalse(invoked["skill_result"]["body_in_checkpoint"])
                 projection = invoked["task"]["metadata"]["skill_invocation_projection"]
                 self.assertEqual(projection["qualified_name"], "builtin:web-research")
@@ -163,28 +244,35 @@ class ApiControlCommandTests(unittest.TestCase):
                     "states",
                     invoked["task"]["metadata"]["skill_runtime_state"]["state_snapshot"],
                 )
+                self.assertEqual(
+                    invoked["task"]["metadata"]["skill_session_context"]["invoked_skill_refs"],
+                    [],
+                )
                 self.assertTrue(
-                    invoked["task"]["metadata"]["skill_session_context"]["invoked_skill_refs"]
+                    invoked["task"]["metadata"]["skill_runtime_state"]["state_snapshot"]["fork_handoff"]["requests"]
                 )
                 self.assertNotIn(
                     "message_deltas",
                     invoked["task"]["metadata"]["skill_session_context"],
                 )
                 invocation_id = invoked["skill_result"]["invocation"]["state"]["invocation_id"]
+                causal_event_id = next(
+                    event["event_id"]
+                    for event in invoked["events"]
+                    if event.get("payload", {}).get("skill_runtime", {}).get("invocation_id")
+                    == invocation_id
+                )
                 completed = _post(
                     base_url,
                     f"/tasks/{task_id}/skills/{invocation_id}/complete",
                     {
-                        "outcome_refs": ["outcome://skill/web-research"],
-                        "evidence_refs": ["event://skill/web-research"],
+                        "event_ids": [causal_event_id],
                     },
                 )
                 self.assertEqual(completed["skill_state"]["status"], "completed")
                 self.assertEqual(completed["session_checkpoint"]["active_invocation_ids"], [])
-                self.assertEqual(
-                    completed["outcome_projection"]["outcome_refs"],
-                    ["outcome://skill/web-research"],
-                )
+                self.assertEqual(completed["outcome_projection"]["outcome_refs"], [])
+                self.assertTrue(completed["outcome_projection"]["evidence_refs"])
                 completed_context = completed["task"]["metadata"]["skill_session_context"]
                 self.assertFalse(completed_context["permission_hook_active"])
                 self.assertEqual(completed_context["permission_hook_id"], "")
@@ -210,11 +298,10 @@ class ApiControlCommandTests(unittest.TestCase):
                     for message in worker["worker_request"]["messages"]
                     if message.get("metadata", {}).get("skill_invocation_id") == invocation_id
                 ]
-                self.assertEqual(len(skill_messages), 1)
-                self.assertIn("source provenance", skill_messages[0]["content"].lower())
+                self.assertEqual(skill_messages, [])
                 self.assertEqual(
-                    skill_messages[0]["metadata"]["skill_ref"],
-                    completed["skill_state"]["version_ref"]["immutable_ref"],
+                    completed["session_checkpoint"]["active_invocation_ids"],
+                    [],
                 )
                 self.assertEqual(
                     skills_view["command_result"]["summary"],

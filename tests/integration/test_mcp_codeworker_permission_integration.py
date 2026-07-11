@@ -573,7 +573,12 @@ class McpCodeWorkerPermissionIntegrationTests(unittest.TestCase):
             ]
             self.assertEqual(len(materialized), 1)
             self.assertIn(self.TOOL_NAME, materialized[0]["active_tool_names"])
-            self.assertEqual(materialized[0]["active_tool_count"], 10)
+            self.assertEqual(materialized[0]["active_tool_count"], 13)
+            self.assertTrue(
+                {"skill", "read_skill_resource", "list_skills"}.issubset(
+                    set(materialized[0]["active_tool_names"])
+                )
+            )
 
             loaded = CodeWorkerSessionStore(artifact_root).load_runtime_state(
                 session_id=session_id,

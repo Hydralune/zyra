@@ -125,16 +125,25 @@ from zyra_runtime.permission.models import (
 from zyra_skills import (
     SkillCommandSafetyClassifier,
     SkillInvocationRequest,
+    SkillInvocationMode,
+    SkillIntegrationHealthProbe,
+    SkillOutcomeCommitRequest,
+    SkillOutcomeCommitRuntime,
+    InMemorySkillOutcomeEvidencePort,
     SkillPermissionDenied,
     SkillPermissionPending,
     SkillRuntime,
     SkillRuntimeConfig,
     SkillRuntimeHealthProbe,
     SkillSearchIndex,
+    SkillTaskIntegrationRuntime,
+    SkillUpdateControlRuntime,
+    SkillWorkerDisclosureBatch,
     ToolPermissionRuntimeSkillGateway,
     compact_reference_from_dict,
     default_skill_registry,
     default_skill_runtime,
+    utc_now,
 )
 from zyra_workers import (
     BrowserWorkerRuntime,
@@ -460,16 +469,20 @@ def _install_task_skill_permission_ceiling(
     return runtime, hook_id
 
 
-def _task_skill_worker_messages(state: Any) -> list[AgentMessage]:
+def _task_skill_worker_messages(
+    state: Any,
+    *,
+    worker_request_id: str = "",
+) -> tuple[list[AgentMessage], SkillWorkerDisclosureBatch | None]:
     """Materialize exact skill revisions into the next real worker request."""
 
     checkpoint = state.metadata.get("skill_runtime_state")
     context = state.metadata.get("skill_session_context")
     if not isinstance(checkpoint, dict) or not isinstance(context, dict):
-        return []
+        return [], None
     raw_references = context.get("invoked_skill_refs")
     if not isinstance(raw_references, list):
-        return []
+        return [], None
     runtime = SkillRuntime(
         SkillRuntimeConfig.for_project(
             PROJECT_ROOT,
@@ -480,42 +493,31 @@ def _task_skill_worker_messages(state: Any) -> list[AgentMessage]:
         state_snapshot=checkpoint,
     )
     runtime.bootstrap()
+    bridge = SkillTaskIntegrationRuntime()
+    batch = bridge.prepare_disclosures(
+        metadata=state.metadata,
+        runtime=runtime,
+        run_id=state.run_id,
+        task_id=state.task_id,
+        worker_request_id=worker_request_id,
+    )
     messages: list[AgentMessage] = []
-    for raw in raw_references:
-        if not isinstance(raw, dict):
-            continue
-        reference = compact_reference_from_dict(raw)
-        restored = runtime.compact_bridge.restore(
-            (reference,),
-            session_id=reference.session_id,
-            agent_id=reference.agent_id,
+    for disclosure in batch.disclosures:
+        projection = disclosure.to_message_projection()
+        messages.append(
+            AgentMessage(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                sender_role=AgentRole.USER,
+                receiver_role=AgentRole.WORKER,
+                intent=MessageIntent.REQUEST,
+                content=str(projection["content"]),
+                summary=str(projection["summary"]),
+                message_budget_chars=int(projection["message_budget_chars"]),
+                metadata=dict(projection["metadata"]),
+            )
         )
-        for item in restored:
-            revision = runtime.registry.resolve(
-                item.reference.version_ref.qualified_name,
-                requested_ref=item.reference.version_ref,
-            )
-            messages.append(
-                AgentMessage(
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    sender_role=AgentRole.USER,
-                    receiver_role=AgentRole.WORKER,
-                    intent=MessageIntent.REQUEST,
-                    content=item.body.text,
-                    summary=f"Invoked skill {revision.qualified_name}",
-                    message_budget_chars=max(2_000, len(item.body.text)),
-                    metadata={
-                        "source": "M1-03C.SkillSessionBridge",
-                        "skill_invocation_id": item.reference.invocation_id,
-                        "skill_ref": item.reference.version_ref.immutable_ref,
-                        "skill_source_kind": str(revision.provenance.source_kind),
-                        "skill_trust_tier": str(revision.provenance.trust_tier),
-                        "permission_authority": False,
-                    },
-                )
-            )
-    return messages
+    return messages, None if batch.empty else batch
 
 
 def _execute_guarded_api_tool(
@@ -1358,6 +1360,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "reload": reload_status.to_dict(),
                     "registry": skill_runtime.registry.snapshot().to_dict(),
                     "health": SkillRuntimeHealthProbe().probe(skill_runtime).to_dict(),
+                    "integration_health": SkillIntegrationHealthProbe().probe(
+                        product_root=PROJECT_ROOT,
+                        workspace_root=tool_workspace_path(),
+                        runtime=skill_runtime,
+                    ).to_dict(),
                     "progressive_disclosure": True,
                     "body_loaded": False,
                 },
@@ -2610,6 +2617,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._execute_skill_runtime_post(store, parts[1], payload)
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "skill-updates":
+            self._execute_skill_update_post(store, parts[1], payload)
+            return
+
         if (
             len(parts) == 5
             and parts[0] == "tasks"
@@ -3088,7 +3099,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "runtime_status": str(plan.state.status),
                         "invocation": plan.to_dict(include_body=False),
                         "message_deltas": [message.to_dict() for message in plan.messages],
-                        "body_returned": True,
+                        "body_returned": (
+                            plan.revision.metadata.invocation.mode
+                            is SkillInvocationMode.INLINE
+                        ),
                         "body_in_checkpoint": False,
                         "admission": admission.to_dict(),
                         "session_mutation": session_mutation.to_dict(),
@@ -3104,6 +3118,153 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "Pragma": "no-cache",
                     "X-Zyra-Permission-State-Owner": "PermissionStateStore",
                     "X-Zyra-Skill-State-Owner": "SkillInvocationStateStore",
+                },
+            )
+
+    def _execute_skill_update_post(
+        self,
+        store: SQLiteStore,
+        task_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Run a trusted-local install/update/control request through 03A."""
+
+        with _task_lock(task_id):
+            state = store.load_task(task_id)
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            session_id = str(payload.get("session_id") or f"skill-update:{task_id}")
+            custody = None
+            try:
+                custody = get_permission_control_plane().custody_store.claim(
+                    PermissionSessionCustodyBinding(
+                        session_id=session_id,
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        workspace_root=str(tool_workspace_path()),
+                    ),
+                    presented_token=extract_bearer_token(self.headers, payload),
+                    external_session_exists=bool(payload.get("session_id")),
+                )
+                permission_runtime = ToolPermissionRuntime.for_session(
+                    session_id=session_id,
+                    state_path=permission_state_path(),
+                    workspace_root=tool_workspace_path(),
+                    custody_fingerprint=custody.custody_fingerprint,
+                )
+                checkpoint = state.metadata.get("skill_runtime_state")
+                skill_runtime = SkillRuntime(
+                    SkillRuntimeConfig.for_project(
+                        PROJECT_ROOT,
+                        workspace_root=tool_workspace_path(),
+                        include_user_skills=False,
+                    ),
+                    state_snapshot=checkpoint if isinstance(checkpoint, dict) else None,
+                )
+                skill_runtime.bootstrap()
+                update_control = SkillUpdateControlRuntime(
+                    product_root=PROJECT_ROOT,
+                    workspace_root=tool_workspace_path(),
+                    permission_runtime=permission_runtime,
+                    skill_runtime=skill_runtime,
+                    state_snapshot=(
+                        state.metadata.get("skill_update_runtime_state")
+                        if isinstance(state.metadata.get("skill_update_runtime_state"), dict)
+                        else None
+                    ),
+                )
+                receipt = update_control.execute(
+                    payload,
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    session_id=session_id,
+                    task_metadata=state.metadata,
+                )
+                state.metadata["skill_runtime_state"] = (
+                    update_control.skill_runtime.state_snapshot()
+                )
+                skill_context = state.metadata.get("skill_session_context")
+                if isinstance(skill_context, dict) and receipt.state.invalidated_invocations:
+                    invalidated = set(receipt.state.invalidated_invocations)
+                    skill_context["invoked_skill_refs"] = [
+                        item
+                        for item in skill_context.get("invoked_skill_refs") or ()
+                        if isinstance(item, dict)
+                        and str(item.get("invocation_id") or "") not in invalidated
+                    ]
+            except Exception as error:  # noqa: BLE001 - structured fail-closed control response.
+                code = str(getattr(error, "code", "skill_update_failed"))
+                if "skill_update_runtime_state" in state.metadata:
+                    store.save_checkpoint(state)
+                status = (
+                    HTTPStatus.CONFLICT
+                    if code.endswith(("pending", "denied"))
+                    else HTTPStatus.BAD_REQUEST
+                )
+                self._send_json(
+                    status,
+                    {
+                        "error": code,
+                        "message": str(error),
+                        "detail": dict(getattr(error, "detail", {}) or {}),
+                        "permission_session": (
+                            PermissionCustodyEnvelope.from_receipt(custody).private_dict()
+                            if custody is not None and custody.created
+                            else PermissionCustodyEnvelope.from_receipt(custody).public_dict()
+                            if custody is not None
+                            else None
+                        ),
+                        "update_id": str(
+                            payload.get("update_id")
+                            or dict(getattr(error, "detail", {}) or {}).get("update_id")
+                            or ""
+                        ),
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            events = [
+                EventRecord(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    event_type=EventType.SKILL_INVOKED,
+                    payload=value,
+                )
+                for value in receipt.event_payloads
+            ]
+            events.append(
+                EventRecord(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    event_type=EventType.SKILL_INVOKED,
+                    payload={
+                        "phase": "skill_update_committed",
+                        "owner_unit": "M1-03C",
+                        "control": receipt.to_dict(),
+                        "body_persisted": False,
+                    },
+                )
+            )
+            persist_events(store, events)
+            state.updated_at = events[-1].created_at
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task": to_jsonable(state),
+                    "skill_update": receipt.to_dict(),
+                    "events": [to_jsonable(event) for event in events],
+                    "permission_session": PermissionCustodyEnvelope.from_receipt(
+                        custody
+                    ).private_dict(),
+                },
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
+                    "X-Zyra-Skill-Update-State-Owner": "SkillUpdateRuntime",
                 },
             )
 
@@ -3144,13 +3305,74 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         invocation_id,
                         reason=str(payload.get("reason") or "cancelled by task API"),
                     )
+                    outcome_commit = None
                 else:
-                    terminal = runtime.invocation_runtime.complete(
-                        invocation_id,
-                        outcome_refs=tuple(str(item) for item in payload.get("outcome_refs") or ()),
-                        evidence_refs=tuple(str(item) for item in payload.get("evidence_refs") or ()),
-                        artifact_refs=tuple(str(item) for item in payload.get("artifact_refs") or ()),
+                    task_events = [to_jsonable(item) for item in store.task_events(task_id)]
+                    task_artifacts = [to_jsonable(item) for item in state.artifacts]
+                    evidence_port = InMemorySkillOutcomeEvidencePort(
+                        events=(item for item in task_events if isinstance(item, dict)),
+                        artifacts=(item for item in task_artifacts if isinstance(item, dict)),
                     )
+                    known_event_ids = {
+                        str(item.get("event_id") or "")
+                        for item in task_events
+                        if isinstance(item, dict)
+                    }
+                    supplied_evidence = tuple(
+                        str(item) for item in payload.get("evidence_refs") or ()
+                    )
+                    event_ids = [str(item) for item in payload.get("event_ids") or ()]
+                    explicit_refs = [str(item) for item in payload.get("explicit_refs") or ()]
+                    for reference in supplied_evidence:
+                        candidate = reference.rstrip("/").rsplit("/", 1)[-1]
+                        if candidate in known_event_ids:
+                            event_ids.append(candidate)
+                        else:
+                            explicit_refs.append(reference)
+                    explicit_refs.extend(
+                        str(item) for item in payload.get("outcome_refs") or ()
+                    )
+                    artifact_ids = [str(item) for item in payload.get("artifact_ids") or ()]
+                    artifact_ids.extend(
+                        str(item).rstrip("/").rsplit("/", 1)[-1]
+                        for item in payload.get("artifact_refs") or ()
+                    )
+                    if not event_ids and not artifact_ids and not explicit_refs:
+                        event_ids.extend(
+                            str(item.get("event_id"))
+                            for item in task_events
+                            if isinstance(item, dict)
+                            and isinstance(item.get("payload"), dict)
+                            and str(
+                                item["payload"].get("invocation_id")
+                                or (
+                                    item["payload"].get("skill_runtime", {}).get("invocation_id")
+                                    if isinstance(item["payload"].get("skill_runtime"), dict)
+                                    else ""
+                                )
+                                or ""
+                            )
+                            == invocation_id
+                        )
+                    outcome_commit = SkillOutcomeCommitRuntime(
+                        skill_runtime=runtime,
+                        evidence_port=evidence_port,
+                    ).commit(
+                        SkillOutcomeCommitRequest(
+                            commit_id=str(payload.get("commit_id") or new_id("skillcommit")),
+                            invocation_id=invocation_id,
+                            run_id=current.run_id,
+                            task_id=current.task_id,
+                            session_id=current.session_id,
+                            worker_request_id=str(payload.get("worker_request_id") or ""),
+                            child_task_id=str(payload.get("child_task_id") or ""),
+                            event_ids=tuple(dict.fromkeys(event_ids)),
+                            artifact_ids=tuple(dict.fromkeys(artifact_ids)),
+                            explicit_refs=tuple(dict.fromkeys(explicit_refs)),
+                            expected_state_revision=current.revision,
+                        )
+                    )
+                    terminal = runtime.state_store.get(invocation_id)
             except Exception as error:  # noqa: BLE001 - fail-closed lifecycle response.
                 self._send_json(
                     HTTPStatus.BAD_REQUEST,
@@ -3173,7 +3395,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             context["latest_terminal_state"] = terminal.to_dict()
             context["permission_hook_id"] = ""
             context["permission_hook_active"] = False
-            outcome = runtime.session_bridge.memory_handoff(invocation_id) if action == "complete" else None
+            outcome = (
+                outcome_commit.outcome_projection.to_dict()
+                if action == "complete" and outcome_commit is not None
+                else None
+            )
+            if outcome_commit is not None:
+                context["latest_outcome_commit"] = outcome_commit.to_dict()
             projection = state.metadata.get("skill_invocation_projection")
             if isinstance(projection, dict) and projection.get("invocation_id") == invocation_id:
                 projection["status"] = str(terminal.status)
@@ -3246,17 +3474,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             skill_checkpoint = state.metadata.get("skill_runtime_state")
             skill_context = state.metadata.get("skill_session_context")
             if isinstance(skill_checkpoint, dict) and isinstance(skill_context, dict):
-                constraints.setdefault("skill_runtime_state", skill_checkpoint)
-                constraints.setdefault(
-                    "invoked_skill_refs",
-                    list(skill_context.get("invoked_skill_refs") or ()),
-                )
+                for key, value in SkillTaskIntegrationRuntime().worker_constraints(
+                    state.metadata
+                ).items():
+                    constraints.setdefault(key, value)
+            worker_request_id = new_id("workerreq")
+            worker_messages, skill_disclosure_batch = _task_skill_worker_messages(
+                state,
+                worker_request_id=worker_request_id,
+            )
             request = WorkerRequest(
                 run_id=state.run_id,
                 task_id=state.task_id,
                 node_id=node_id,
                 worker_name="CodeWorkerRuntime",
-                messages=_task_skill_worker_messages(state),
+                messages=worker_messages,
+                request_id=worker_request_id,
                 constraints=constraints,
                 metadata={"skill_context_owner": "M1-03C.SkillSessionBridge"},
             )
@@ -3270,6 +3503,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     mcp_runtime=get_mcp_runtime(),
                 ).run(request)
             except Exception as error:  # noqa: BLE001 - keep internal exception details out of API responses.
+                if skill_disclosure_batch is not None:
+                    SkillTaskIntegrationRuntime().abort_disclosures(
+                        metadata=state.metadata,
+                        batch=skill_disclosure_batch,
+                        reason=f"worker raised {type(error).__name__}",
+                    )
                 self._send_json(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     {
@@ -3281,6 +3520,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
 
             _attach_artifacts(state, list(run_result.worker_result.artifacts))
+            skill_task_bridge = SkillTaskIntegrationRuntime()
+            skill_ingest_receipt = skill_task_bridge.ingest_worker_events(
+                metadata=state.metadata,
+                events=run_result.event_records,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                worker_request_id=worker_request_id,
+            )
+            if skill_disclosure_batch is not None:
+                skill_task_bridge.commit_disclosures(
+                    metadata=state.metadata,
+                    batch=skill_disclosure_batch,
+                    worker_event_ids=tuple(
+                        event.event_id for event in run_result.event_records
+                    ),
+                )
             state.budget.tool_calls += sum(1 for event in run_result.event_records if "tool_result" in event.payload)
             if run_result.event_records:
                 state.updated_at = run_result.event_records[-1].created_at
@@ -3307,6 +3562,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 "compact_state": codeworker_api_projection.compact_state.to_dict(),
                 "tool_trace": codeworker_api_projection.tool_trace.to_dict(),
                 "events": [to_jsonable(event) for event in projected_events],
+                "skill_task_ingest": skill_ingest_receipt.to_dict(),
             }
             contract_runtime = CodeWorkerTaskApiContractRuntime()
             route_contract = contract_runtime.build_report(

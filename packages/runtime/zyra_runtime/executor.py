@@ -44,6 +44,7 @@ class ToolExecutionContext:
     max_inline_chars: int = 12000
     shell_timeout_seconds: int = 30
     dynamic_handlers: Mapping[str, Callable[[ToolCall], ToolResult]] = field(default_factory=dict)
+    runtime_services: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
     @classmethod
     def for_workspace(
@@ -57,6 +58,7 @@ class ToolExecutionContext:
         event_reader: Callable[[str], list[dict[str, Any]]] | None = None,
         checkpoint_reader: Callable[[str], dict[str, Any] | None] | None = None,
         dynamic_handlers: Mapping[str, Callable[[ToolCall], ToolResult]] | None = None,
+        runtime_services: Mapping[str, Any] | None = None,
     ) -> "ToolExecutionContext":
         root = Path(workspace_root).resolve()
         root.mkdir(parents=True, exist_ok=True)
@@ -71,6 +73,7 @@ class ToolExecutionContext:
             event_reader=event_reader,
             checkpoint_reader=checkpoint_reader,
             dynamic_handlers=dict(dynamic_handlers or {}),
+            runtime_services=dict(runtime_services or {}),
         )
 
 

@@ -51,6 +51,8 @@ class SkillRuntimeConfig:
     include_user_skills: bool = False
     strict_sources: bool = True
     disabled: bool = False
+    external_sources: tuple[Any, ...] = ()
+    composition_id: str = ""
 
     @classmethod
     def for_project(
@@ -387,6 +389,7 @@ class SkillRuntime:
                 )
             )
         sources.extend(self.plugin_runtime.skill_sources())
+        sources.extend(config.external_sources)
         return tuple(sources)
 
 

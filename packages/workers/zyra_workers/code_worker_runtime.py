@@ -75,6 +75,10 @@ from zyra_runtime import (
     worker_execution_gate_event,
     worker_execution_gate_markdown,
 )
+from zyra_skills import (
+    SkillToolProjectionRuntime,
+    default_mcp_skill_discovery_runtime,
+)
 from zyra_runtime.permission.extensions import (
     PermissionExtensionRegistry,
     build_deployment_permission_extensions,
@@ -230,6 +234,10 @@ class CodeWorkerRuntime:
             )
         execution_context = self.execution_context
         mcp_projection = None
+        skill_projection = None
+        mcp_skill_sources: tuple[Any, ...] = ()
+        mcp_skill_discovery_receipt = None
+        mcp_skill_discovery_events: list[EventRecord] = []
         if self.mcp_runtime is not None:
             mcp_projection_session_id = str(
                 request.constraints.get("session_id")
@@ -248,6 +256,63 @@ class CodeWorkerRuntime:
             )
             mcp_projection = mcp_open.projection
             execution_context = mcp_projection.context
+            try:
+                discovery = default_mcp_skill_discovery_runtime(
+                    self.mcp_runtime,
+                    cache_root=self.execution_context.artifact_store.root / ".skill-mcp-cache",
+                ).discover(
+                    run_id=request.run_id,
+                    task_id=request.task_id,
+                    worker_request_id=request.request_id,
+                    node_id=request.node_id,
+                )
+                mcp_skill_sources = discovery.sources
+                mcp_skill_discovery_receipt = discovery.receipt
+                mcp_skill_discovery_events.append(
+                    EventRecord(
+                        run_id=request.run_id,
+                        task_id=request.task_id,
+                        node_id=request.node_id,
+                        event_type=EventType.SKILL_INVOKED,
+                        payload={
+                            "phase": "mcp_skill_discovery",
+                            "owner_unit": "M1-03C",
+                            "mcp_skill_discovery": discovery.receipt.to_dict(),
+                            "body_persisted": False,
+                        },
+                    )
+                )
+            except Exception as error:  # noqa: BLE001 - one optional source must not hide builtin skills.
+                mcp_skill_discovery_events.append(
+                    EventRecord(
+                        run_id=request.run_id,
+                        task_id=request.task_id,
+                        node_id=request.node_id,
+                        event_type=EventType.SKILL_INVOKED,
+                        payload={
+                            "phase": "mcp_skill_discovery_failed",
+                            "owner_unit": "M1-03C",
+                            "error_code": str(getattr(error, "code", "mcp_skill_discovery_failed")),
+                            "error_type": type(error).__name__,
+                            "body_persisted": False,
+                        },
+                    )
+                )
+        skill_projection_session_id = str(
+            request.constraints.get("skill_session_id")
+            or request.constraints.get("session_id")
+            or f"skill:{request.task_id}:{request.request_id}"
+        )
+        skill_open = SkillToolProjectionRuntime.open_for_worker(
+            execution_context,
+            project_root=self.project_root,
+            request=request,
+            session_id=skill_projection_session_id,
+            disabled=request.constraints.get("disable_skill_tool_projection") is True,
+            external_sources=mcp_skill_sources,
+        )
+        skill_projection = skill_open.projection
+        execution_context = skill_open.context
         tool_specs = execution_context.registry.list()
         tool_names = tuple(tool.name for tool in tool_specs)
         read_only_tool_names = tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") == "true")
@@ -1512,6 +1577,33 @@ class CodeWorkerRuntime:
         elif not final_disconnect.ok:
             summary = "CodeWorkerRuntime completed the tool loop but failed the query disconnect audit gate."
 
+        if loop_result.ok:
+            skill_projection.finalize_successful_query(
+                evidence_refs=tuple(
+                    f"event://{event.event_id}" for event in loop_result.event_records
+                ),
+                artifact_refs=tuple(
+                    f"artifact://{artifact.artifact_id}" for artifact in artifacts
+                ),
+            )
+        skill_projection_snapshot = skill_projection.snapshot()
+        skill_projection_events = [
+            EventRecord(
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+                event_type=EventType.SKILL_INVOKED,
+                payload={
+                    **event.to_dict(),
+                    "phase": event.kind,
+                    "owner_unit": "M1-03C",
+                    "skill_session_checkpoint": skill_projection_snapshot.state_snapshot,
+                    "skill_compact_references": list(skill_projection_snapshot.compact_references),
+                    "skill_outcome_projections": list(skill_projection_snapshot.outcome_projections),
+                },
+            )
+            for event in skill_projection.events()
+        ]
         worker_result = WorkerResult(
             request_id=request.request_id,
             ok=loop_result.ok
@@ -1541,6 +1633,8 @@ class CodeWorkerRuntime:
                     final_event_flow_event,
                     final_state_graph_event,
                     final_disconnect_event,
+                    *skill_projection_events,
+                    *mcp_skill_discovery_events,
                 ]
             ],
             error=None
@@ -1594,6 +1688,18 @@ class CodeWorkerRuntime:
                 "context_compactions": str(loop_result.context_compaction_count),
                 "trace_artifact_id": trace_artifact.artifact_id,
                 "query_session_checkpoint_ready": str(bool(loop_result.session_snapshot)).lower(),
+                "skill_tool_projection": "active",
+                "skill_tool_projection_id": skill_projection_snapshot.projection_id,
+                "skill_registry_generation": str(skill_projection_snapshot.registry_generation),
+                "skill_invocation_count": str(len(skill_projection_snapshot.invocation_ids)),
+                "skill_projection_event_count": str(skill_projection_snapshot.event_count),
+                "skill_projection_snapshot_digest": skill_projection_snapshot.digest,
+                "mcp_skill_source_count": str(len(mcp_skill_sources)),
+                "mcp_skill_discovery_id": (
+                    mcp_skill_discovery_receipt.discovery_id
+                    if mcp_skill_discovery_receipt is not None
+                    else ""
+                ),
             },
         )
         mcp_events = (
@@ -1622,6 +1728,8 @@ class CodeWorkerRuntime:
                 final_event_flow_event,
                 final_state_graph_event,
                 final_disconnect_event,
+                *skill_projection_events,
+                *mcp_skill_discovery_events,
                 *mcp_events,
                 _worker_result_event(request, worker_result),
             ],

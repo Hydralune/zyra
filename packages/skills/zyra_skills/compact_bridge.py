@@ -33,6 +33,17 @@ class SkillCompactReference:
     artifact_refs: tuple[str, ...] = ()
     invoked_at: str = ""
 
+    @property
+    def status(self) -> SkillInvocationStatus:
+        """Typed lifecycle view retained alongside the wire-compatible field."""
+
+        try:
+            return SkillInvocationStatus(self.invocation_status)
+        except ValueError as error:
+            raise SkillCompactRestoreError(
+                "skill compact reference has an invalid invocation status"
+            ) from error
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "invocation_id": self.invocation_id,
@@ -97,12 +108,7 @@ class SkillCompactBridge:
             if state.session_id == session_id
             and state.agent_id == agent_id
             and state.policy_snapshot is not None
-            and state.status
-            in {
-                SkillInvocationStatus.INLINE_ACTIVE,
-                SkillInvocationStatus.FORK_PENDING,
-                SkillInvocationStatus.COMPLETED,
-            }
+            and state.status is SkillInvocationStatus.INLINE_ACTIVE
         ]
         selected.sort(key=lambda item: item.updated_at, reverse=True)
         references: list[SkillCompactReference] = []
@@ -140,6 +146,14 @@ class SkillCompactBridge:
         for reference in references:
             if reference.session_id != session_id or reference.agent_id != agent_id:
                 raise SkillCompactRestoreError("skill compact reference scope mismatch")
+            if reference.status is SkillInvocationStatus.FORK_PENDING:
+                raise SkillCompactRestoreError(
+                    "forked skill body belongs to the 03D child session and cannot restore into its parent"
+                )
+            if reference.status.terminal:
+                raise SkillCompactRestoreError(
+                    "terminal skill restores only immutable outcome/evidence projection, not body content"
+                )
             try:
                 revision = self.registry.resolve(
                     reference.version_ref.qualified_name,

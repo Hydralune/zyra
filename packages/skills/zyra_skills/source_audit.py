@@ -133,6 +133,11 @@ class SkillRuntimeAuditor:
             "SkillInvocationRuntime",
             "InvokedSkillState",
             "SkillCompactBridge",
+            "SkillToolProjectionRuntime",
+            "SkillTaskIntegrationRuntime",
+            "McpSkillProjectionRuntime",
+            "PluginCapabilityIntegrationRuntime",
+            "SkillUpdateRuntime",
         ):
             if not reachability.get(required):
                 findings.append(
@@ -346,6 +351,11 @@ class SkillRuntimeAuditor:
                 "skill_restore_resolver",
                 "allowed_tools_restore_grant",
             ),
+            self.project_root / "packages" / "workers" / "zyra_workers" / "code_worker_runtime.py": (
+                "SkillToolProjectionRuntime.open_for_worker",
+                "mcp_skill_discovery_events",
+                "skill_projection_events",
+            ),
         }
         for path, needles in checks.items():
             if not path.exists():
@@ -471,6 +481,11 @@ class SkillRuntimeAuditor:
             "SkillInvocationRuntime",
             "InvokedSkillState",
             "SkillCompactBridge",
+            "SkillToolProjectionRuntime",
+            "SkillTaskIntegrationRuntime",
+            "McpSkillProjectionRuntime",
+            "PluginCapabilityIntegrationRuntime",
+            "SkillUpdateRuntime",
         )
         hits: dict[str, list[str]] = {symbol: [] for symbol in symbols}
         for root in roots:
@@ -485,6 +500,8 @@ class SkillRuntimeAuditor:
                     continue
                 called: set[str] = set()
                 for node in ast.walk(tree):
+                    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                        called.add(node.id)
                     if not isinstance(node, ast.Call):
                         continue
                     function = node.func
@@ -503,15 +520,16 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
     tests = (
         "tests/unit/test_skill_runtime_foundation.py",
         "tests/integration/test_api_control_commands.py",
+        "tests/integration/test_skill_runtime_loader_integration.py",
     )
     return (
         SkillSourceDecision(
             "claude-code-best",
             "src/tools/SkillTool/{SkillTool,types}.ts",
             SkillSourceDisposition.ACTIVE,
-            core,
-            ("validate/permission/inline-fork dispatch", "message and context deltas"),
-            ("POST /tasks/{id}/skills", "SkillInvocationRuntime.invoke"),
+            ("packages/skills/zyra_skills/tool_projection.py", "packages/workers/zyra_workers/code_worker_runtime.py", "apps/api/zyra_api/main.py"),
+            ("real QueryEngine ToolSpec/handler projection", "03A exact grant before inline/fork dispatch", "message and context deltas"),
+            ("CodeWorkerRuntime.run", "POST /tasks/{id}/skills", "SkillInvocationRuntime.invoke"),
             tests,
             "Adapted into the Zyra session and permission state model; raw AppState union was removed.",
         ),
@@ -570,9 +588,9 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
             "claude-code-best",
             "src/utils/processUserInput/processSlashCommand.tsx",
             SkillSourceDisposition.ACTIVE,
-            ("packages/skills/zyra_skills/invocation.py", "packages/skills/zyra_skills/session_bridge.py"),
-            ("atomic body/policy/hook/state/message mutation",),
-            ("POST /tasks/{id}/skills",),
+            ("packages/skills/zyra_skills/command_integration.py", "packages/skills/zyra_skills/session_integration.py"),
+            ("strict slash parsing", "atomic body/policy/hook/state/message mutation"),
+            ("SkillCommandIntegrationRuntime.execute", "POST /tasks/{id}/skills"),
             tests,
             "Product-specific UI behavior was removed; session mutation semantics were preserved.",
         ),
@@ -580,8 +598,8 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
             "claude-code-best",
             "src/services/compact/compact.ts",
             SkillSourceDisposition.ADAPTER,
-            ("packages/skills/zyra_skills/compact_bridge.py", "packages/runtime/zyra_runtime/compact_restore_runtime.py"),
-            ("agent-scoped invoked restore", "per-skill and total budgets"),
+            ("packages/skills/zyra_skills/compact_bridge.py", "packages/skills/zyra_skills/compact_integration.py", "packages/runtime/zyra_runtime/compact_restore_runtime.py"),
+            ("status-aware inline/fork/terminal split", "agent-scoped exact restore", "per-skill and total budgets"),
             ("CompactRestoreRuntime.build_report",),
             tests,
             "Raw cached skill content was replaced by exact immutable revision references.",
@@ -619,13 +637,13 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
         SkillSourceDecision(
             "claude-code-best",
             "src/utils/plugins/{loadPluginCommands,loadPluginHooks}.ts",
-            SkillSourceDisposition.CONTRACT_ONLY,
-            ("packages/skills/zyra_skills/plugin_runtime.py", "packages/skills/zyra_skills/hooks.py"),
-            ("validated plugin capability boundary", "no command or hook activation in foundation"),
-            ("PluginRuntime.capabilities",),
+            SkillSourceDisposition.ACTIVE,
+            ("packages/skills/zyra_skills/plugin_integration.py", "packages/skills/zyra_skills/command_integration.py", "packages/skills/zyra_skills/hooks.py"),
+            ("typed cached plugin commands", "declarative hook activation", "atomic last-good reload"),
+            ("PluginCapabilityIntegrationRuntime.refresh", "SkillCommandIntegrationRuntime.execute"),
             tests,
-            "Plugin skill discovery is active; plugin command and hook activation remain an explicit 03C-02 integration contract.",
-            downstream_owner="M1-03C-02",
+            "03C-02 activates typed command aliases and declarative hooks without importing or executing plugin modules.",
+            owner_slice="M1-S03C-02",
         ),
         SkillSourceDecision(
             "claude-code-best",
@@ -641,13 +659,13 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
         SkillSourceDecision(
             "claude-code-best",
             "src/utils/plugins/mcpPluginIntegration.ts",
-            SkillSourceDisposition.CONTRACT_ONLY,
-            ("packages/skills/zyra_skills/sources/mcp.py", "packages/skills/zyra_skills/plugin_runtime.py"),
-            ("plugin provenance handoff", "03B typed server projection boundary"),
-            ("McpProjectedSkillSource", "PluginRuntime.snapshot"),
+            SkillSourceDisposition.ADAPTER,
+            ("packages/skills/zyra_skills/mcp_integration.py", "packages/skills/zyra_skills/mcp_discovery.py", "packages/skills/zyra_skills/plugin_integration.py"),
+            ("plugin provenance handoff", "03B catalog/resource/artifact custody", "exact local materialization"),
+            ("McpSkillDiscoveryRuntime.discover", "McpSkillProjectionRuntime.open"),
             tests,
-            "MCP server lifecycle and authentication remain 03B-owned; 03C accepts only an already validated typed projection.",
-            downstream_owner="M1-03C-02",
+            "03C-02 consumes only already connected/authenticated 03B resources and materializes digest-bound sources.",
+            owner_slice="M1-S03C-02",
         ),
         SkillSourceDecision(
             "claude-code-best",
@@ -663,13 +681,13 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
         SkillSourceDecision(
             "claude-code-best",
             "src/skills/mcpSkillBuilders.ts",
-            SkillSourceDisposition.CONTRACT_ONLY,
-            ("packages/skills/zyra_skills/sources/mcp.py",),
-            ("cycle-breaking typed MCP skill builder", "immutable projection validation"),
-            ("McpProjectedSkillSource",),
+            SkillSourceDisposition.ADAPTER,
+            ("packages/skills/zyra_skills/mcp_integration.py", "packages/skills/zyra_skills/mcp_discovery.py"),
+            ("typed MCP skill index builder", "immutable byte/digest projection validation"),
+            ("McpSkillProjectionRuntime.open",),
             tests,
-            "The builder shape is retained as a typed 03B projection contract; activation waits for 03C-02.",
-            downstream_owner="M1-03C-02",
+            "The builder shape is active behind the 03B resource port; it does not own transport or credentials.",
+            owner_slice="M1-S03C-02",
         ),
         SkillSourceDecision(
             "claude-code-best",
@@ -694,13 +712,13 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
         SkillSourceDecision(
             "agent-framework",
             "python/packages/core/agent_framework/_skills.py::MCPSkillsSource",
-            SkillSourceDisposition.CONTRACT_ONLY,
-            ("packages/skills/zyra_skills/sources/mcp.py",),
-            ("03B typed MCP projection", "digest/provenance validation"),
-            ("McpProjectedSkillSource",),
+            SkillSourceDisposition.ADAPTER,
+            ("packages/skills/zyra_skills/mcp_integration.py", "packages/skills/zyra_skills/sources/mcp.py"),
+            ("03B typed MCP projection", "digest/provenance validation", "atomic cache materialization"),
+            ("McpClientSkillResourcePort", "McpSkillProjectionRuntime.open"),
             tests,
-            "MCP transport and server lifecycle remain 03B-owned; 03C-02 will activate projected skills.",
-            downstream_owner="M1-03C-02",
+            "Activated in 03C-02 while MCP transport, auth and resource custody remain 03B-owned.",
+            owner_slice="M1-S03C-02",
         ),
         SkillSourceDecision(
             "opencode",
@@ -725,10 +743,10 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
         SkillSourceDecision(
             "opencode",
             "packages/opencode/src/command/index.ts",
-            SkillSourceDisposition.ADAPTER,
-            ("packages/skills/zyra_skills/session_bridge.py", "apps/api/zyra_api/main.py"),
-            ("command-to-skill synthesis", "message/session delta", "terminal lifecycle"),
-            ("POST /tasks/{id}/skills", "POST /tasks/{id}/skills/{invocation}/{complete|cancel}"),
+            SkillSourceDisposition.ACTIVE,
+            ("packages/skills/zyra_skills/command_integration.py", "packages/skills/zyra_skills/session_integration.py", "apps/api/zyra_api/main.py"),
+            ("strict command-to-skill synthesis", "message/session delta", "terminal lifecycle"),
+            ("SkillCommandIntegrationRuntime.execute", "POST /tasks/{id}/skills", "POST /tasks/{id}/skills/{invocation}/{complete|cancel}"),
             tests,
             "Command synthesis is an API/session mutation rather than an independent prompt library.",
         ),
@@ -745,13 +763,13 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
         SkillSourceDecision(
             "opencode",
             "packages/opencode/src/plugin/install.ts",
-            SkillSourceDisposition.DEFERRED,
-            ("packages/skills/zyra_skills/atomic_update.py",),
-            ("local staged update contract only",),
-            ("AtomicSkillPackageUpdater",),
+            SkillSourceDisposition.ADAPTER,
+            ("packages/skills/zyra_skills/atomic_update.py", "packages/skills/zyra_skills/update_runtime.py", "packages/skills/zyra_skills/update_integration.py"),
+            ("permissioned trusted-local staged update", "backup/rollback", "registry/plugin reload"),
+            ("POST /tasks/{id}/skill-updates", "SkillUpdateControlRuntime.execute"),
             tests,
-            "Network/package installation is out of the foundation main path; local transaction support is retained for 03C-02.",
-            downstream_owner="M1-03C-02",
+            "03C-02 productizes trusted-local package mutation; network/npm installation remains excluded.",
+            owner_slice="M1-S03C-02",
         ),
         SkillSourceDecision(
             "hermes-agent",
@@ -776,13 +794,13 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
         SkillSourceDecision(
             "hermes-agent",
             "tools/skill_manager_tool.py",
-            SkillSourceDisposition.CONTRACT_ONLY,
-            ("packages/skills/zyra_skills/atomic_update.py",),
-            ("read-before-write", "staging/backup/rollback", "approval boundary"),
-            ("AtomicSkillPackageUpdater",),
+            SkillSourceDisposition.ACTIVE,
+            ("packages/skills/zyra_skills/atomic_update.py", "packages/skills/zyra_skills/update_runtime.py", "packages/skills/zyra_skills/update_integration.py"),
+            ("read-before-write", "staging/backup/rollback", "03A approval boundary", "dependent reload"),
+            ("POST /tasks/{id}/skill-updates", "SkillUpdateRuntime.request"),
             tests,
-            "The local transaction exists, but mutation approval/API productization belongs to 03C-02.",
-            downstream_owner="M1-03C-02",
+            "03C-02 exposes the local transaction through a task-scoped, 03A-guarded API control path.",
+            owner_slice="M1-S03C-02",
         ),
         SkillSourceDecision(
             "hermes-agent",
@@ -793,6 +811,6 @@ def default_skill_source_decisions() -> tuple[SkillSourceDecision, ...]:
             ("SkillSearchIndex.search",),
             tests,
             "Remote marketplace and network install are explicitly outside the foundation main path.",
-            downstream_owner="M1-03C-02",
+            downstream_owner="M3 marketplace/product distribution follow-up",
         ),
     )
