@@ -50,6 +50,13 @@ from zyra_integrations.mcp.connection import (
     McpServerNotConnected,
     McpServerNotFound,
 )
+from zyra_integrations.mcp.control import (
+    McpControlAction,
+    McpControlAuthorization,
+    McpControlContext,
+    McpControlRequest,
+    McpControlRuntime,
+)
 from zyra_integrations.mcp.elicitation import (
     McpElicitationConflict,
     McpElicitationError,
@@ -101,8 +108,10 @@ MCP_API_ROUTES: tuple[tuple[str, str], ...] = (
     ("POST", "/mcp/servers/{server_id}/approve"),
     ("POST", "/mcp/servers/{server_id}/reject"),
     ("POST", "/mcp/servers/{server_id}/auth/install"),
+    ("POST", "/mcp/servers/{server_id}/auth/refresh"),
     ("POST", "/mcp/servers/{server_id}/auth/revoke"),
     ("POST", "/mcp/auth/{server_id}/install"),
+    ("POST", "/mcp/auth/{server_id}/refresh"),
     ("POST", "/mcp/auth/{server_id}/revoke"),
     ("POST", "/mcp/resources/read"),
     ("POST", "/mcp/prompts/get"),
@@ -412,6 +421,7 @@ class McpApiFacade:
         mutation_policy: McpMutationPolicy | None = None,
     ) -> None:
         self.runtime = runtime
+        self.control_runtime = McpControlRuntime(runtime)
         self.mutation_authorizer = mutation_authorizer
         self.mutation_policy = mutation_policy or McpMutationPolicy.from_environment()
 
@@ -537,32 +547,70 @@ class McpApiFacade:
             if route == ("resources", "read"):
                 server_id = _required_text(value, "server_id")
                 uri = _required_text(value, "uri")
-                receipt = self.runtime.read_resource(server_id, uri, **_event_context(value))
-                return _response(
-                    HTTPStatus.OK,
-                    {
-                        "schema": "zyra.mcp-api.resource-read.v1",
-                        "server_id": server_id,
-                        "uri": uri,
-                        "resource": _safe_value(receipt),
-                    },
-                    sensitive=True,
+                mutation = self._external_read_mutation(
+                    "resource_read",
+                    server_id,
+                    {"uri": uri, **_event_context(value)},
+                    actor_id=actor_id,
+                )
+                authorization = self._authorize_mutation(mutation)
+                result = self._execute_control(
+                    McpControlAction.RESOURCE_READ,
+                    server_id,
+                    {"uri": uri},
+                    value,
+                    authorization,
+                    actor_id=actor_id,
+                )
+                return _with_authorization(
+                    _response(
+                        HTTPStatus.OK if result["ok"] else HTTPStatus.BAD_GATEWAY,
+                        {
+                            "schema": "zyra.mcp-api.resource-read.v1",
+                            "server_id": server_id,
+                            "uri": uri,
+                            "resource": result,
+                        },
+                        sensitive=True,
+                    ),
+                    authorization,
                 )
 
             if route == ("prompts", "get"):
                 server_id = _required_text(value, "server_id")
                 name = _required_text(value, "name")
                 arguments = _mapping(value.get("arguments"), "arguments", default={})
-                receipt = self.runtime.get_prompt(server_id, name, arguments)
-                return _response(
-                    HTTPStatus.OK,
+                mutation = self._external_read_mutation(
+                    "prompt_get",
+                    server_id,
                     {
-                        "schema": "zyra.mcp-api.prompt-get.v1",
-                        "server_id": server_id,
                         "name": name,
-                        "prompt": _safe_value(receipt),
+                        "arguments_digest": _canonical_digest(arguments),
+                        **_event_context(value),
                     },
-                    sensitive=True,
+                    actor_id=actor_id,
+                )
+                authorization = self._authorize_mutation(mutation)
+                result = self._execute_control(
+                    McpControlAction.PROMPT_GET,
+                    server_id,
+                    {"name": name, "arguments": arguments},
+                    value,
+                    authorization,
+                    actor_id=actor_id,
+                )
+                return _with_authorization(
+                    _response(
+                        HTTPStatus.OK if result["ok"] else HTTPStatus.BAD_GATEWAY,
+                        {
+                            "schema": "zyra.mcp-api.prompt-get.v1",
+                            "server_id": server_id,
+                            "name": name,
+                            "prompt": result,
+                        },
+                        sensitive=True,
+                    ),
+                    authorization,
                 )
 
             if route == ("elicitations", "resolve"):
@@ -609,6 +657,64 @@ class McpApiFacade:
                 retryable=False,
             )
         return authorization
+
+    def _external_read_mutation(
+        self,
+        operation: str,
+        server_id: str,
+        arguments: Mapping[str, Any],
+        *,
+        actor_id: str,
+    ) -> McpMutationRequest:
+        _, canonical_server_id, record = self._server_record(server_id)
+        self.mutation_policy.validate_existing(record)
+        return McpMutationRequest(
+            action=f"mcp.{operation}",
+            server_id=canonical_server_id,
+            actor_id=actor_id,
+            arguments=dict(arguments),
+        )
+
+    def _execute_control(
+        self,
+        action: McpControlAction,
+        target: str,
+        arguments: Mapping[str, Any],
+        payload: Mapping[str, Any],
+        authorization: McpMutationAuthorization,
+        *,
+        actor_id: str,
+    ) -> dict[str, Any]:
+        context = _event_context(payload)
+        request = McpControlRequest(
+            action=action,
+            target=target,
+            arguments=dict(arguments),
+            context=McpControlContext(
+                run_id=str(context.get("run_id") or ""),
+                task_id=str(context.get("task_id") or ""),
+                node_id=str(context.get("node_id") or ""),
+                session_id=str(context.get("session_id") or ""),
+                worker_request_id=str(payload.get("worker_request_id") or ""),
+                tool_use_id=str(payload.get("tool_use_id") or ""),
+                actor_id=actor_id,
+                cause_event_id=authorization.decision_id,
+            ),
+            idempotency_key=str(payload.get("idempotency_key") or ""),
+        )
+        converted = McpControlAuthorization(
+            allowed=authorization.allowed,
+            decision_id=authorization.decision_id,
+            request_id=authorization.request_id,
+            grant_id=authorization.grant_id,
+            reason_code=authorization.reason_code,
+            evidence=authorization.safe_dict(),
+        )
+        result = self.control_runtime.execute(
+            request,
+            authorizer=lambda _request: converted,
+        )
+        return result.safe_dict()
 
     def _server_add_values(
         self,
@@ -737,7 +843,7 @@ class McpApiFacade:
                 raise McpApiValidationError("tokens.access_token is required.")
             arguments["token_fields"] = sorted(str(key) for key in tokens)
             arguments["tokens_digest"] = _canonical_digest(tokens)
-        elif selected_action != "revoke":
+        elif selected_action not in {"refresh", "revoke"}:
             raise McpApiValidationError("unsupported MCP auth action.")
         return McpMutationRequest(
             action=f"mcp.auth.{selected_action}",
@@ -883,6 +989,9 @@ class McpApiFacade:
             # still exposes the durable server_id used by transport/catalog.
             outcome = self.runtime.install_auth_tokens(config_name, tokens)
             status = HTTPStatus.CREATED
+        elif action == "refresh":
+            outcome = self.runtime.refresh_auth(config_name)
+            status = HTTPStatus.OK
         elif action == "revoke":
             outcome = self.runtime.revoke_auth(config_name)
             status = HTTPStatus.OK
@@ -1044,14 +1153,14 @@ def _auth_route(route: tuple[str, ...]) -> tuple[str, str] | None:
     if (
         len(route) == 3
         and route[0].casefold() == "auth"
-        and route[2].casefold() in {"install", "revoke"}
+        and route[2].casefold() in {"install", "refresh", "revoke"}
     ):
         return route[1], route[2].casefold()
     if (
         len(route) == 4
         and route[0].casefold() == "servers"
         and route[2].casefold() == "auth"
-        and route[3].casefold() in {"install", "revoke"}
+        and route[3].casefold() in {"install", "refresh", "revoke"}
     ):
         return route[1], route[3].casefold()
     return None

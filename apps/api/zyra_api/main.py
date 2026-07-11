@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -180,7 +181,15 @@ from zyra_integrations import (
     unit_review_payload,
     validate_entry_for_persistence,
 )
+from zyra_integrations.mcp.control import McpControlContext, McpControlRuntime
+from zyra_integrations.mcp.event_commit import (
+    CallableMcpEventSink,
+    CallableMcpEventStorePort,
+    McpEventCommitter,
+    McpEventStoreCommitResult,
+)
 from zyra_integrations.mcp.runtime import McpClientRuntime
+from zyra_commands.mcp_control import McpCommandAdapter
 
 if __package__:
     from .mcp_api import (
@@ -268,6 +277,76 @@ _MCP_RUNTIME_INSTANCE: McpClientRuntime | None = None
 _MCP_RUNTIME_KEY: tuple[str, str] | None = None
 
 
+def _commit_mcp_runtime_event(event: EventRecord) -> None:
+    if not str(event.run_id or "") or not str(event.task_id or ""):
+        raise ValueError("MCP event has no canonical run/task partition")
+    store = get_store()
+
+    def partition_revision(run_id: str, task_id: str) -> int:
+        return sum(
+            1
+            for value in store.task_events(task_id)
+            if str(value.get("run_id") or "") == run_id
+        )
+
+    def event_fingerprints(
+        run_id: str,
+        task_id: str,
+        event_ids: Any,
+    ) -> dict[str, str]:
+        selected = set(str(value) for value in event_ids)
+        result: dict[str, str] = {}
+        for value in store.task_events(task_id):
+            if str(value.get("run_id") or "") != run_id:
+                continue
+            event_id = str(value.get("event_id") or value.get("id") or "")
+            if event_id not in selected:
+                continue
+            encoded = json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            result[event_id] = "sha256:" + hashlib.sha256(encoded).hexdigest()
+        return result
+
+    def commit_events(
+        run_id: str,
+        task_id: str,
+        events: Any,
+        *,
+        expected_revision: int,
+        idempotency_key: str,
+        atomic: bool,
+    ) -> McpEventStoreCommitResult:
+        del idempotency_key, atomic
+        current = partition_revision(run_id, task_id)
+        if current != expected_revision:
+            return McpEventStoreCommitResult(
+                committed=False,
+                partition_revision=current,
+                retryable=True,
+                conflict=True,
+                error_code="event_partition_revision_conflict",
+            )
+        persist_events(store, list(events))
+        return McpEventStoreCommitResult(
+            committed=True,
+            partition_revision=partition_revision(run_id, task_id),
+            committed_event_ids=tuple(str(value.event_id) for value in events),
+            metadata={"state_owner": "SQLiteStore", "atomic_adapter": True},
+        )
+
+    port = CallableMcpEventStorePort(
+        partition_revision=partition_revision,
+        event_fingerprints=event_fingerprints,
+        commit_events=commit_events,
+    )
+    sink = CallableMcpEventSink(McpEventCommitter(port))
+    sink.append(event)
+
+
 def get_mcp_runtime() -> McpClientRuntime:
     """Return the process-live MCP runtime with durable Zyra state custody."""
 
@@ -280,6 +359,7 @@ def get_mcp_runtime() -> McpClientRuntime:
             _MCP_RUNTIME_INSTANCE = McpClientRuntime.from_paths(
                 state_path=key[0],
                 artifact_root=key[1],
+                event_sink=_commit_mcp_runtime_event,
             )
             _MCP_RUNTIME_KEY = key
         return _MCP_RUNTIME_INSTANCE
@@ -298,6 +378,18 @@ def reset_mcp_runtime(runtime: McpClientRuntime | None = None) -> None:
             if runtime is not None
             else None
         )
+
+
+def get_mcp_command_adapter() -> McpCommandAdapter:
+    runtime = get_mcp_runtime()
+    return McpCommandAdapter(
+        runtime.control_runtime,
+        prompt_source=runtime,
+    )
+
+
+def get_runtime_command_registry() -> Any:
+    return get_mcp_command_adapter().registry(default_command_registry())
 
 
 def get_permission_control_plane() -> PermissionControlPlane:
@@ -1104,7 +1196,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if parts == ["commands"]:
             self._send_json(
                 HTTPStatus.OK,
-                {"commands": [to_jsonable(command) for command in default_command_registry().list()]},
+                {"commands": [to_jsonable(command) for command in get_runtime_command_registry().list()]},
             )
             return
 
@@ -1126,6 +1218,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 run_id="api-tools-catalog",
                 task_id="api-tools-catalog",
                 node_id=None,
+                session_id="api-tools-catalog",
+                worker_request_id="api-tools-catalog",
             )
             self._send_json(
                 HTTPStatus.OK,
@@ -2183,6 +2277,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 text,
                 run_id=state.run_id,
                 task_id=state.task_id,
+                registry=get_runtime_command_registry(),
             )
             if parsed_command is None:
                 self._send_json(
@@ -2417,6 +2512,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 run_id=state.run_id,
                 task_id=state.task_id,
                 node_id=node_id,
+                session_id=str(payload.get("session_id") or ""),
+                worker_request_id=str(payload.get("worker_request_id") or ""),
             ).context
             existing_permission_session = str(
                 payload.get("permission_session_id") or ""
@@ -2623,10 +2720,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     permission_state_path=permission_state_path(),
                     mcp_runtime=get_mcp_runtime(),
                 ).run(request)
-            except Exception:  # noqa: BLE001 - keep internal exception details out of API responses.
+            except Exception as error:  # noqa: BLE001 - keep internal exception details out of API responses.
                 self._send_json(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"error": "code_worker_failed", "message": "CodeWorker execution failed."},
+                    {
+                        "error": "code_worker_failed",
+                        "message": "CodeWorker execution failed.",
+                        "exception_type": type(error).__name__,
+                    },
                 )
                 return
 
@@ -3322,35 +3423,36 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
     elif name == "/scheduler":
         result["summary"] = "M5 resource scheduler, worker manifests, and recovery state."
         result["data"] = _scheduler_task_view(state, store)
-    elif name == "/mcp":
-        contracts = build_productized_claude_runtime_contracts(project_root=PROJECT_ROOT)
-        integration = build_claude_productization_integration_report(
-            project_root=PROJECT_ROOT,
-            runtime_contracts=contracts,
+    elif name == "/mcp" or str(metadata.get("command_kind") or "") == "mcp_prompt":
+        arguments = command.get("arguments")
+        raw = str(arguments.get("raw") or "") if isinstance(arguments, dict) else ""
+        control_result = get_mcp_command_adapter().execute(
+            name,
+            raw,
+            context=McpControlContext(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=str(state.root_node_id or ""),
+                session_id=str(state.metadata.get("code_worker_session_id") or ""),
+                worker_request_id=str(event.event_id),
+                tool_use_id=str(event.event_id),
+                actor_id="control-command",
+                cause_event_id=str(event.event_id),
+            ),
         )
-        mcp_batches = [
-            batch.to_dict()
-            for batch in integration.crosswalk.batches
-            if "M1-03B" in batch.downstream_slices or "mcp" in str(batch.batch).lower()
-        ]
-        mcp_contracts = [
-            contract.to_dict()
-            for contract in integration.crosswalk.downstream_contracts
-            if contract.owner_slice == "M1-03B" or "mcp" in contract.contract_id.lower()
-        ]
-        result["summary"] = "MCP runtime handoff contract from Zyra source graph crosswalk."
-        result["runtime_status"] = "live"
+        control_payload = control_result.safe_dict()
+        result["ok"] = control_result.ok
+        result["summary"] = control_result.summary
+        result["runtime_status"] = "live" if control_result.ok else "blocked"
         result["data"] = {
-            **get_mcp_runtime().diagnostics(),
-            "runtime_status": "live",
-            "owner_slice": "M1-03B",
-            "source_repo": integration.crosswalk.source_repo,
-            "source_graph_contract_id": integration.crosswalk.contract_id,
-            "source_graph_ok": integration.ok,
+            **dict(control_result.data),
+            "control": control_payload,
+            "runtime_status": result["runtime_status"],
+            "owner_slice": "M1-S03B-02",
+            "state_owner": "McpClientRuntime",
+            "permission_owner": "ToolPermissionRuntime",
             "requires_node_sidecar": False,
             "sidecar_contracts_used": False,
-            "contracts": mcp_contracts,
-            "source_batches": mcp_batches,
         }
     elif name == "/skills":
         result["summary"] = "Registered skills and recent skill invocations."

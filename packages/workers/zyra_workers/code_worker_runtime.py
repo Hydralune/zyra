@@ -231,12 +231,22 @@ class CodeWorkerRuntime:
         execution_context = self.execution_context
         mcp_projection = None
         if self.mcp_runtime is not None:
-            mcp_projection = self.mcp_runtime.worker_projection(
+            mcp_projection_session_id = str(
+                request.constraints.get("session_id")
+                or f"mcp-projection:{request.task_id}:{request.request_id}"
+            )
+            mcp_open = self.mcp_runtime.main_path_runtime.open_for_worker(
                 execution_context,
                 run_id=request.run_id,
                 task_id=request.task_id,
                 node_id=request.node_id,
+                session_id=mcp_projection_session_id,
+                worker_request_id=request.request_id,
+                constraints=request.constraints,
+                bootstrap_connections=False,
+                checkpoint_session=False,
             )
+            mcp_projection = mcp_open.projection
             execution_context = mcp_projection.context
         tool_specs = execution_context.registry.list()
         tool_names = tuple(tool.name for tool in tool_specs)
@@ -600,13 +610,15 @@ class CodeWorkerRuntime:
                 custody_receipt=custody_receipt,
             )
         if self.mcp_runtime is not None:
-            restored_mcp_state = (
-                runtime_state_load.runtime_state.get("mcp_runtime")
-                if runtime_state_load.found
-                and isinstance(runtime_state_load.runtime_state, Mapping)
-                else None
+            self.mcp_runtime.restore_session_from_store(
+                session_store,
+                session_id=seed_session_id,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                worker_request_id=request.request_id,
+                node_id=str(request.node_id or ""),
+                require_causality=False,
             )
-            self.mcp_runtime.restore_session_snapshot(restored_mcp_state)
             request = replace(
                 request,
                 constraints=self.mcp_runtime.prepare_worker_constraints(
@@ -1276,8 +1288,13 @@ class CodeWorkerRuntime:
                 if pending_restore_state:
                     runtime_state_checkpoint["pending_restore_contract"] = pending_restore_state
         if self.mcp_runtime is not None:
-            runtime_state_checkpoint["mcp_runtime"] = self.mcp_runtime.session_snapshot(
-                session_seed.session_id
+            runtime_state_checkpoint["mcp_runtime"] = self.mcp_runtime.prepare_session_checkpoint(
+                session_store,
+                session_id=session_seed.session_id,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                worker_request_id=request.request_id,
+                node_id=str(request.node_id or ""),
             )
         causal_event_ids = [
             str(getattr(event, "event_id", "") or getattr(event, "id", ""))

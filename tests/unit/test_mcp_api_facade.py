@@ -436,19 +436,36 @@ class McpApiFacadeTests(unittest.TestCase):
     def test_resource_prompt_and_elicitation_operations_forward_validated_values(self) -> None:
         status, resource, _ = self.facade.handle_post(
             ["mcp", "resources", "read"],
-            {"server_id": "srv-alpha", "uri": "memo://one", "task_id": "task-1"},
+            {
+                "server_id": "srv-alpha",
+                "uri": "memo://one",
+                "run_id": "run-1",
+                "task_id": "task-1",
+            },
             "operator",
         )  # type: ignore[misc]
         self.assertEqual(status, HTTPStatus.OK)
-        self.assertEqual(resource["resource"]["content"][0]["text"], "safe result")
+        self.assertEqual(
+            resource["resource"]["data"]["resource"]["content"][0]["text"],
+            "safe result",
+        )
 
         status, prompt, _ = self.facade.handle_post(
             ["mcp", "prompts", "get"],
-            {"server_id": "srv-alpha", "name": "welcome", "arguments": {"name": "Ada"}},
+            {
+                "server_id": "srv-alpha",
+                "name": "welcome",
+                "arguments": {"name": "Ada"},
+                "run_id": "run-1",
+                "task_id": "task-1",
+            },
             "operator",
         )  # type: ignore[misc]
         self.assertEqual(status, HTTPStatus.OK)
-        self.assertEqual(prompt["prompt"]["description"], "Greeting")
+        self.assertEqual(
+            prompt["prompt"]["data"]["prompt"]["description"],
+            "Greeting",
+        )
 
         status, elicitation, _ = self.facade.handle_post(
             ["mcp", "elicitations", "resolve"],

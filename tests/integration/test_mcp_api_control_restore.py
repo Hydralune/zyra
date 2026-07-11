@@ -414,36 +414,44 @@ class McpApiControlRestoreIntegrationTests(unittest.TestCase):
                 self.assertEqual(tools["count"], 1)
                 self.assertEqual(tools["tools"][0]["local_name"], "mcp__integration_mcp__echo")
 
-                resource_status, resource, resource_headers = _request(
+                resource_status, resource, resource_headers = _approved_mcp_request(
                     base_url,
-                    "POST",
                     "/mcp/resources/read",
                     {
+                        **permission_identity,
+                        "worker_request_id": "mcp-resource-worker",
+                        "tool_use_id": "mcp-resource-call",
                         "server_id": "integration-mcp",
                         "uri": "memo://live/status",
-                        "run_id": run_id,
-                        "task_id": task_id,
-                        "node_id": node_id,
                     },
+                    identity=permission_identity,
+                    custody_token=custody_token,
+                    approval_key="approve-mcp-resource-read",
                 )
                 self.assertEqual(resource_status, 200, resource)
                 self.assertTrue(resource["resource"]["ok"])
-                self.assertTrue(resource["resource"]["projections"])
+                self.assertTrue(resource["resource"]["data"]["resource"]["projections"])
                 self.assertEqual(resource_headers.get("Cache-Control"), "no-store, max-age=0")
 
-                prompt_status, prompt, _ = _request(
+                prompt_status, prompt, _ = _approved_mcp_request(
                     base_url,
-                    "POST",
                     "/mcp/prompts/get",
                     {
+                        **permission_identity,
+                        "worker_request_id": "mcp-prompt-worker",
+                        "tool_use_id": "mcp-prompt-call",
                         "server_id": "integration-mcp",
                         "name": "welcome",
                         "arguments": {"name": "Zyra"},
                     },
+                    identity=permission_identity,
+                    custody_token=custody_token,
+                    approval_key="approve-mcp-prompt-get",
                 )
                 self.assertEqual(prompt_status, 200, prompt)
-                self.assertEqual(prompt["prompt"]["messages"][0]["role"], "user")
-                self.assertEqual(prompt["prompt"]["arguments"], {"name": "Zyra"})
+                prompt_result = prompt["prompt"]["data"]["prompt"]
+                self.assertEqual(prompt_result["messages"][0]["role"], "user")
+                self.assertEqual(prompt_result["arguments"], {"name": "Zyra"})
 
                 live_peer.publish_tool_change()
                 _, refreshed_tools, _ = _request(base_url, "GET", "/mcp/tools")

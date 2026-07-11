@@ -42,9 +42,22 @@ class SlashCommandRegistry:
     def list(self) -> list[CommandSpec]:
         return list(self._commands.values())
 
+    def merged(self, commands: list[CommandSpec] | tuple[CommandSpec, ...]) -> "SlashCommandRegistry":
+        selected = list(self._commands.values())
+        positions = {command.name: index for index, command in enumerate(selected)}
+        for command in commands:
+            if command.name in positions:
+                selected[positions[command.name]] = command
+            else:
+                positions[command.name] = len(selected)
+                selected.append(command)
+        return SlashCommandRegistry(selected)
 
-def default_command_registry() -> SlashCommandRegistry:
-    return SlashCommandRegistry(
+
+def default_command_registry(
+    dynamic_commands: list[CommandSpec] | tuple[CommandSpec, ...] = (),
+) -> SlashCommandRegistry:
+    registry = SlashCommandRegistry(
         [
             _command("/status", "Inspect current run state.", "zyra", "control_command", "runtime_observation"),
             _command("/graph", "Inspect task graph and dependencies.", "zyra", "control_command", "runtime_observation"),
@@ -80,6 +93,7 @@ def default_command_registry() -> SlashCommandRegistry:
             _command("/eval", "Run scenario or trace evaluation.", "zyra evaluation harness", "evaluation", "competition_harness", runtime_status=COMMAND_RUNTIME_STATEFUL),
         ]
     )
+    return registry.merged(dynamic_commands) if dynamic_commands else registry
 
 
 def _command(

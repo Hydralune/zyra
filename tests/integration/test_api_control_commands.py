@@ -215,14 +215,21 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(context["command_result"]["name"], "/context")
                 self.assertEqual(
                     mcp["command_result"]["summary"],
-                    "MCP runtime handoff contract from Zyra source graph crosswalk.",
+                    "MCP runtime status",
                 )
-                self.assertEqual(mcp["command_result"]["data"]["owner_slice"], "M1-03B")
+                self.assertEqual(mcp["command_result"]["data"]["owner_slice"], "M1-S03B-02")
                 self.assertFalse(mcp["command_result"]["data"]["requires_node_sidecar"])
                 self.assertFalse(mcp["command_result"]["data"]["sidecar_contracts_used"])
-                self.assertTrue(mcp["command_result"]["data"]["source_graph_ok"])
-                self.assertTrue(mcp["command_result"]["data"]["contracts"])
-                self.assertTrue(mcp["command_result"]["data"]["source_batches"])
+                self.assertTrue(mcp["command_result"]["data"]["enabled"])
+                self.assertEqual(
+                    mcp["command_result"]["data"]["state_owner"],
+                    "McpClientRuntime",
+                )
+                self.assertTrue(mcp["command_result"]["data"]["control"]["ok"])
+                self.assertEqual(
+                    mcp["command_result"]["data"]["control"]["action"],
+                    "status",
+                )
                 permission_data = permissions["command_result"]["data"]
                 self.assertTrue(permission_data["custody_required_for_details"])
                 self.assertNotIn("requests", permission_data)

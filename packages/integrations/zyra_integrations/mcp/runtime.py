@@ -25,6 +25,7 @@ from .auth import (
     OAuthTokenResponse,
 )
 from .capabilities import McpCapabilityCatalog, McpPaginationPolicy, McpResourcePromptRuntime
+from .bootstrap import McpBootstrapRuntime
 from .config import McpConfigNotFound, McpConfigStore
 from .connection import McpConnectReceipt, McpConnectionRuntime, McpRefreshReceipt
 from .credentials import FileCredentialVault
@@ -43,7 +44,19 @@ from .models import (
 )
 from .output import McpOutputBudgetRuntime, McpOutputPolicy
 from .projection import McpProjectionBundle, McpToolProjectionRuntime
+from .resource_projection import (
+    McpResourceProjectionBundle,
+    McpResourceProjectionRuntime,
+)
+from .main_path import McpMainPathRuntime
+from .control import McpControlRuntime
 from .sampling import McpSamplingRuntime, SamplingCallback, SamplingPolicy
+from .session_bridge import McpSessionBridge, McpSessionIdentity
+from .recovery import (
+    McpRecoveryIdentity,
+    McpRecoveryPlanner,
+    McpRecoverySignal,
+)
 from .store import McpRuntimeStateStore
 
 
@@ -77,6 +90,7 @@ class McpWorkerProjection:
     context: ToolExecutionContext
     bundle: McpProjectionBundle
     omitted_by_policy: tuple[str, ...]
+    resource_bundle: McpResourceProjectionBundle | None = None
 
     def safe_dict(self) -> dict[str, JsonValue]:
         return {
@@ -84,6 +98,11 @@ class McpWorkerProjection:
             "omitted_by_policy": list(self.omitted_by_policy),
             "registry_tool_count": len(self.context.registry.list()),
             "dynamic_handler_count": len(self.context.dynamic_handlers),
+            "resource_projection": (
+                self.resource_bundle.safe_dict()
+                if self.resource_bundle is not None
+                else None
+            ),
         }
 
 
@@ -199,6 +218,33 @@ class McpClientRuntime:
             event_sink=self._emit,
             disabled=disabled,
         )
+        self.resource_projection_runtime = McpResourceProjectionRuntime(
+            self.catalog,
+            self.connection_runtime,
+            self.output_runtime,
+            event_sink=self._emit,
+            disabled=disabled,
+        )
+        self.bootstrap_runtime = McpBootstrapRuntime(
+            self.config_store,
+            self.connection_runtime,
+            self.state_store,
+            event_sink=self._emit,
+            disabled=disabled,
+        )
+        self.control_runtime = McpControlRuntime(
+            self,
+            bootstrap_runtime=self.bootstrap_runtime,
+            task_runtime=getattr(self.connection_runtime, "task_runtime", None),
+            disabled=disabled,
+        )
+        self.main_path_runtime = McpMainPathRuntime(
+            self,
+            self.resource_projection_runtime,
+            self.bootstrap_runtime,
+            disabled=disabled,
+        )
+        self.recovery_planner = McpRecoveryPlanner(disabled=disabled)
 
     @classmethod
     def from_paths(
@@ -382,7 +428,10 @@ class McpClientRuntime:
         run_id: str,
         task_id: str,
         node_id: str | None,
+        session_id: str = "",
+        worker_request_id: str = "",
         include_servers: Sequence[str] | None = None,
+        include_resource_surfaces: bool = True,
     ) -> McpWorkerProjection:
         self._assert_enabled()
         reserved = tuple(tool.name for tool in base_context.registry.list())
@@ -413,13 +462,53 @@ class McpClientRuntime:
             server_generations=built.server_generations,
             created_at=built.created_at,
         )
-        merged_registry = base_context.registry.merged(list(bundle.tool_specs))
+        resource_bundle = None
+        resource_specs: tuple[Any, ...] = ()
+        resource_handlers: Mapping[str, Any] = {}
+        if include_resource_surfaces:
+            resource_bundle = self.resource_projection_runtime.build_bundle(
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                reserved_names=(
+                    *reserved,
+                    *(spec.name for spec in bundle.tool_specs),
+                ),
+                include_servers=include_servers,
+            )
+            resource_specs = resource_bundle.tool_specs
+            resource_handlers = resource_bundle.handlers
+        merged_registry = base_context.registry.merged(
+            [*bundle.tool_specs, *resource_specs]
+        )
         context = replace(
             base_context,
             registry=merged_registry,
-            dynamic_handlers={**dict(base_context.dynamic_handlers), **dict(bundle.handlers)},
+            dynamic_handlers={
+                **dict(base_context.dynamic_handlers),
+                **dict(bundle.handlers),
+                **dict(resource_handlers),
+            },
         )
-        return McpWorkerProjection(context, bundle, tuple(sorted(omitted)))
+        return McpWorkerProjection(
+            context,
+            bundle,
+            tuple(sorted(omitted)),
+            resource_bundle,
+        )
+
+    def prompt_commands(self) -> tuple[Any, ...]:
+        bundle = self.resource_projection_runtime.build_bundle(
+            run_id="mcp-command-catalog",
+            task_id="mcp-command-catalog",
+            node_id=None,
+            session_id="mcp-command-catalog",
+            worker_request_id="mcp-command-catalog",
+            reserved_names=(),
+        )
+        return bundle.prompt_commands
 
     def prepare_worker_constraints(
         self,
@@ -473,6 +562,95 @@ class McpClientRuntime:
         instructions = snapshot.get("instructions")
         return self.instructions_runtime.restore_snapshot(instructions) if isinstance(instructions, Mapping) else 0
 
+    def restore_session_from_store(
+        self,
+        store: Any,
+        *,
+        session_id: str,
+        run_id: str,
+        task_id: str,
+        worker_request_id: str,
+        node_id: str = "",
+        require_causality: bool = False,
+    ) -> dict[str, JsonValue]:
+        bridge = McpSessionBridge(store=store)
+        identity = McpSessionIdentity(
+            session_id=session_id,
+            run_id=run_id,
+            task_id=task_id,
+            worker_request_id=worker_request_id,
+            node_id=node_id,
+        )
+        loaded = bridge.load(identity)
+        if not bool(getattr(loaded, "found", False)):
+            return {
+                "schema": "zyra.mcp-session-restore-receipt.v1",
+                "restored": False,
+                "found": False,
+                "session_id": session_id,
+            }
+        receipt = bridge.restore(
+            self,
+            identity,
+            require_causality=require_causality,
+        )
+        return receipt.to_dict()
+
+    def prepare_session_checkpoint(
+        self,
+        store: Any,
+        *,
+        session_id: str,
+        run_id: str,
+        task_id: str,
+        worker_request_id: str,
+        node_id: str = "",
+    ) -> dict[str, JsonValue]:
+        bridge = McpSessionBridge(store=store)
+        identity = McpSessionIdentity(
+            session_id=session_id,
+            run_id=run_id,
+            task_id=task_id,
+            worker_request_id=worker_request_id,
+            node_id=node_id,
+        )
+        snapshot = self.session_snapshot(session_id)
+        validation = bridge.validator.validate(
+            snapshot,
+            expected_session_id=session_id,
+        )
+        if str(snapshot.get("session_id") or "") != session_id:
+            raise McpClientRuntimeError("MCP session checkpoint identity mismatch")
+        if bool(snapshot.get("credentials_included")) or bool(
+            snapshot.get("live_transports_included")
+        ):
+            raise McpClientRuntimeError("MCP session checkpoint contains forbidden custody")
+        bridge.diff_checkpoint(identity, snapshot)
+        return snapshot
+
+    def plan_recovery(
+        self,
+        *,
+        run_id: str,
+        task_id: str,
+        signals: Sequence[McpRecoverySignal],
+        node_id: str = "",
+        session_id: str = "",
+        worker_request_id: str = "",
+        cause_event_id: str = "",
+    ) -> Any:
+        return self.recovery_planner.plan(
+            McpRecoveryIdentity(
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                session_id=session_id,
+                worker_request_id=worker_request_id,
+                cause_event_id=cause_event_id,
+            ),
+            signals,
+        )
+
     def diagnostics(self) -> dict[str, JsonValue]:
         auth = {
             server_id: runtime.safe_diagnostics()
@@ -483,7 +661,7 @@ class McpClientRuntime:
         return {
             "schema": "zyra.mcp-client-runtime.v1",
             "runtime_id": "McpClientRuntime",
-            "owner_unit": "M1-S03B-01",
+            "owner_unit": "M1-S03B-02",
             "enabled": not self.disabled,
             "ok": bool(health["ok"]) and not self.disabled,
             "config": to_json_value(config),
@@ -499,6 +677,32 @@ class McpClientRuntime:
             "requires_node_sidecar": False,
             "root_source_repository_dependency": False,
             "fixed_ok_health": False,
+            "control": self.control_runtime.diagnostics(),
+            "resource_projection": {
+                "runtime_id": "McpResourceProjectionRuntime",
+                "enabled": not self.resource_projection_runtime.disabled,
+                "state_owner": "McpCapabilityCatalog",
+            },
+            "bootstrap": (
+                self.bootstrap_runtime.last_report.safe_dict()
+                if self.bootstrap_runtime.last_report is not None
+                else {
+                    "runtime_id": "McpBootstrapRuntime",
+                    "enabled": not self.bootstrap_runtime.disabled,
+                    "executed": False,
+                }
+            ),
+            "main_path": {
+                "runtime_id": "McpMainPathRuntime",
+                "enabled": not self.main_path_runtime.disabled,
+                "creates_parallel_store": False,
+            },
+            "recovery": {
+                "runtime_id": "McpRecoveryPlanner",
+                "enabled": not self.recovery_planner.disabled,
+                "state_owner": "McpRuntimeStateStore",
+                "creates_parallel_store": False,
+            },
         }
 
     def drain_events(self, *, run_id: str = "", task_id: str = "") -> tuple[EventRecord, ...]:
@@ -539,9 +743,15 @@ class McpClientRuntime:
             return runtime
 
     def _emit(self, event: EventRecord) -> None:
-        self.event_buffer.append(event)
         if self.external_event_sink is not None:
-            self.external_event_sink(event)
+            try:
+                self.external_event_sink(event)
+                return
+            except ValueError:
+                # Events without a canonical run/task partition remain in the
+                # transient outbox until a caller supplies that identity.
+                pass
+        self.event_buffer.append(event)
 
     def _auth_event(self, value: Mapping[str, Any]) -> None:
         # Auth runtime already persists a redacted event in McpRuntimeStateStore.
