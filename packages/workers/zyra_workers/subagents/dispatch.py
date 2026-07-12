@@ -6,7 +6,6 @@ from pathlib import Path
 from threading import Event, RLock
 from typing import Any, Callable, Mapping, Protocol
 
-from zyra_core import AgentMessage, AgentRole, MessageIntent
 from zyra_runtime import ToolRegistry, WorkerRequest, default_tool_registry
 
 from .errors import ParentCancelled, SubagentDispatchRejected, SubagentExecutionFailed
@@ -16,6 +15,14 @@ from .models import (
     SubagentExecutionResult,
     SubagentTaskStatus,
     UsageLedger,
+)
+from .parent_scope import ChildExecutionScope
+from .session_assembly import ChildWorkerSessionAssembler, extract_explicit_typed_yield
+from .subagent_yield import (
+    SUBAGENT_YIELD_TOOL_NAME,
+    SubagentYieldCollector,
+    bind_subagent_yield_collector,
+    subagent_yield_tool_spec,
 )
 
 
@@ -69,14 +76,20 @@ class CodeWorkerSubagentExecutionPort:
         permission_state_path: str | Path | None = None,
         parent_registry: ToolRegistry | None = None,
         mcp_runtime: Any | None = None,
+        skill_fork_port: Any | None = None,
+        session_assembler: ChildWorkerSessionAssembler | None = None,
         runtime_factory: Callable[..., Any] | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.artifact_root = Path(artifact_root).resolve()
         self.permission_store = permission_store
         self.permission_state_path = permission_state_path
-        self.parent_registry = parent_registry or default_tool_registry()
+        self.parent_registry = (parent_registry or default_tool_registry()).merged(
+            [subagent_yield_tool_spec()], keep_existing=True
+        )
         self.mcp_runtime = mcp_runtime
+        self.skill_fork_port = skill_fork_port
+        self.session_assembler = session_assembler or ChildWorkerSessionAssembler()
         self.runtime_factory = runtime_factory
         self.cancellations = CancellationRegistry()
 
@@ -104,71 +117,54 @@ class CodeWorkerSubagentExecutionPort:
         if tuple(spec.name for spec in registry.list()) != request.tool_scope.child_tools:
             missing = sorted(set(request.tool_scope.child_tools) - {spec.name for spec in registry.list()})
             raise SubagentDispatchRejected("child executable registry does not match derived scope", missing=missing)
+        yield_spec = registry.get(SUBAGENT_YIELD_TOOL_NAME)
+        collector = SubagentYieldCollector(
+            task_id=request.task_id,
+            parent_task_id=request.parent_task_id,
+            execution_ref=execution_ref,
+            attempt=request.attempt,
+        )
+        dynamic_handlers: dict[str, Any] = {}
+        if yield_spec is not None:
+            binding = bind_subagent_yield_collector(yield_spec, collector)
+            dynamic_handlers[SUBAGENT_YIELD_TOOL_NAME] = binding.handler
+        raw_child_scope = request.constraints.get("signed_child_scope")
+        child_scope = (
+            ChildExecutionScope.from_dict(raw_child_scope)
+            if isinstance(raw_child_scope, Mapping) and raw_child_scope
+            else None
+        )
+        assembled = self.session_assembler.assemble(
+            request,
+            registry=registry,
+            child_scope=child_scope,
+            cancel_check=combined_cancel,
+            typed_yield_sink=lambda raw: collector.capture(raw, causation_id="runtime-service"),
+            skill_fork_port=self.skill_fork_port,
+        )
         if progress:
-            progress({"phase": "codeworker_start", "execution_ref": execution_ref})
+            progress({
+                "phase": "codeworker_start",
+                "execution_ref": execution_ref,
+                "child_session_envelope_digest": assembled.envelope.digest,
+            })
         runtime = self._runtime(
             workspace_root=request.isolation.effective_cwd,
-            registry=registry,
-            cancel_check=combined_cancel,
+            registry=assembled.registry,
+            runtime_services=assembled.runtime_services,
+            dynamic_handlers=dynamic_handlers,
         )
-        root_task_id = str(request.metadata.get("root_task_id") or request.parent_task_id)
-        message = AgentMessage(
-            run_id=request.run_id,
-            task_id=root_task_id,
-            sender_role=AgentRole.PLANNER,
-            receiver_role=AgentRole.CODE_WORKER,
-            intent=MessageIntent.EXECUTE,
-            content=request.prompt,
-            summary="Bounded subagent dispatch",
-            artifact_refs=[],
-            metadata={
-                "subagent_task_id": request.task_id,
-                "parent_task_id": request.parent_task_id,
-                "context_snapshot_id": request.context.snapshot_id,
-                "tool_scope_digest": request.tool_scope.digest,
-                "permission_digest": request.permission.digest,
-            },
-        )
-        constraints = {
-            **copy.deepcopy(request.constraints),
-            "session_id": str(request.metadata.get("child_session_id") or f"subagent:{request.task_id}"),
-            "subagent_task_id": request.task_id,
-            "parent_task_id": request.parent_task_id,
-            "subagent_depth": request.context.depth,
-            "max_turns": request.budget.max_turns,
-            "max_tool_calls": request.budget.max_tool_calls,
-            "permission_mode": request.permission.child_mode.value,
-            "allowed_mcp_servers": list(request.permission.mcp_servers),
-            "child_tool_scope": request.tool_scope.to_dict(),
-            "disable_skill_tool_projection": not bool(
-                {"skill", "list_skills", "read_skill_resource"}.intersection(request.tool_scope.child_tools)
-            ),
-            "invoked_skill_refs": [copy.deepcopy(item) for item in request.context.invoked_skill_refs],
-            "content_replacement_refs": list(request.context.content_replacement_refs),
-        }
-        worker_request = WorkerRequest(
-            run_id=request.run_id,
-            task_id=root_task_id,
-            worker_name=request.worker_name,
-            messages=[message],
-            node_id=str(request.metadata.get("node_id") or "") or None,
-            constraints=constraints,
-            metadata={
-                "logical_subagent_task_id": request.task_id,
-                "dispatch_id": request.dispatch_id,
-                "execution_ref": execution_ref,
-                "agent_definition_id": request.agent_definition_id,
-            },
-        )
+        worker_request = assembled.worker_request
+        root_task_id = assembled.envelope.root_task_id
         try:
             run = runtime.run(worker_request)
         except Exception as error:
             raise SubagentExecutionFailed(
-                "CodeWorker subagent execution raised an exception",
+                f"CodeWorker subagent execution raised {type(error).__name__}: {error}",
                 task_id=request.task_id,
                 execution_ref=execution_ref,
                 error_type=type(error).__name__,
-                message=str(error),
+                exception_message=str(error),
             ) from error
         finally:
             self.cancellations.release(execution_ref)
@@ -183,7 +179,11 @@ class CodeWorkerSubagentExecutionPort:
             tool_calls=int(run.worker_result.metadata.get("tool_steps") or 0),
             input_tokens=int(run.worker_result.metadata.get("input_tokens") or 0),
             output_tokens=int(run.worker_result.metadata.get("output_tokens") or 0),
-            result_chars=sum(len(str(item.payload)) for item in run.event_records),
+            # Event envelopes include the complete runtime audit projection and
+            # are not child tool output.  Charging them as result characters can
+            # exceed the child budget even for a tiny typed yield.  CodeWorker's
+            # owned result-budget counter is the authoritative usage signal.
+            result_chars=int(run.worker_result.metadata.get("tool_runtime_result_chars") or 0),
         )
         return SubagentExecutionResult(
             task_id=request.task_id,
@@ -202,6 +202,14 @@ class CodeWorkerSubagentExecutionPort:
             error_message=str(run.worker_result.error or ""),
             metadata={
                 **dict(run.worker_result.metadata),
+                "typed_yield": (
+                    collector.value.to_dict()
+                    if collector.value is not None
+                    else extract_explicit_typed_yield(run.worker_result.metadata)
+                ),
+                "child_session_envelope_digest": assembled.envelope.digest,
+                "child_model_name": assembled.envelope.model_name,
+                "child_effort": assembled.envelope.effort,
                 "root_task_id": root_task_id,
                 "logical_subagent_task_id": request.task_id,
                 "worker_id_owned": False,
@@ -212,7 +220,14 @@ class CodeWorkerSubagentExecutionPort:
     def cancel(self, execution_ref: str) -> bool:
         return self.cancellations.cancel(execution_ref)
 
-    def _runtime(self, *, workspace_root: str | Path, registry: ToolRegistry, cancel_check: Callable[[], bool]) -> Any:
+    def _runtime(
+        self,
+        *,
+        workspace_root: str | Path,
+        registry: ToolRegistry,
+        runtime_services: Mapping[str, Any],
+        dynamic_handlers: Mapping[str, Any],
+    ) -> Any:
         if self.runtime_factory is not None:
             return self.runtime_factory(
                 project_root=self.project_root,
@@ -222,7 +237,9 @@ class CodeWorkerSubagentExecutionPort:
                 permission_state_path=self.permission_state_path,
                 mcp_runtime=self.mcp_runtime,
                 tool_registry=registry,
-                runtime_services={"cancel_check": cancel_check},
+                dynamic_handlers=dynamic_handlers,
+                runtime_services=runtime_services,
+                skill_fork_port=self.skill_fork_port,
             )
         from zyra_workers.code_worker_runtime import CodeWorkerRuntime
 
@@ -234,7 +251,9 @@ class CodeWorkerSubagentExecutionPort:
             permission_state_path=self.permission_state_path,
             mcp_runtime=self.mcp_runtime,
             tool_registry=registry,
-            runtime_services={"cancel_check": cancel_check},
+            dynamic_handlers=dynamic_handlers,
+            runtime_services=runtime_services,
+            skill_fork_port=self.skill_fork_port,
         )
 
 

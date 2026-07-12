@@ -271,7 +271,7 @@ class AgentDefinitionRegistry:
 def built_in_agent_definitions() -> tuple[AgentDefinition, ...]:
     """Zyra-owned, product-facing definitions derived from AgentTool roles."""
 
-    read_tools = ("file_read", "trace", "checkpoint", "list_skills", "read_skill_resource")
+    read_tools = ("file_read", "trace", "checkpoint", "list_skills", "read_skill_resource", "SubagentYield")
     edit_tools = (*read_tools, "file_write", "file_edit", "artifact_write", "shell", "skill")
     return (
         AgentDefinition(

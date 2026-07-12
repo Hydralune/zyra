@@ -888,6 +888,7 @@ class SubagentSpawnRequest:
     execution_mode: AgentExecutionMode = AgentExecutionMode.FOREGROUND
     workspace_root: str = ""
     requested_cwd: str = ""
+    parent_scope_snapshot_id: str = ""
     context_payload: dict[str, Any] = field(default_factory=dict)
     constraints: dict[str, Any] = field(default_factory=dict)
     idempotency_key: str = ""

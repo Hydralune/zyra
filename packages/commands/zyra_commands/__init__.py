@@ -21,6 +21,11 @@ from .runtime import (
     SideQuestionContextSnapshot,
     StructuredControlIO,
     StructuredEnvelope,
+    StructuredControlHub,
+    ControlFrameStore,
+    CommandRegistryCoordinator,
+    SessionControlRuntime,
+    CanonicalOwnerHandlerSet,
     default_control_command_registry,
 )
 
@@ -45,5 +50,10 @@ __all__ = [
     "SideQuestionContextSnapshot",
     "StructuredControlIO",
     "StructuredEnvelope",
+    "StructuredControlHub",
+    "ControlFrameStore",
+    "CommandRegistryCoordinator",
+    "SessionControlRuntime",
+    "CanonicalOwnerHandlerSet",
     "default_control_command_registry",
 ]

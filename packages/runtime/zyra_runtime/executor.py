@@ -263,7 +263,13 @@ class ToolExecutor:
                 # read-only metadata.  Every registered handler requires a
                 # one-use grant; MCP additionally matches exact namespace and
                 # canonical server identity before the grant is consumed.
-                if not authorized:
+                internal_protocol = (
+                    dynamic_provenance is not None
+                    and dynamic_provenance.namespace == "zyra-subagent-yield"
+                    and not dynamic_provenance.external_boundary
+                    and spec.metadata.get("logical_child_protocol") == "true"
+                )
+                if not authorized and not internal_protocol:
                     return self._missing_grant_result(call)
                 result = dynamic_handler(call)
                 if not isinstance(result, ToolResult):

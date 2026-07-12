@@ -23,6 +23,8 @@ from .errors import (
     SubagentDisabled,
 )
 from .handoff import SubagentHandoffRuntime
+from .integration import SpawnPreflight, SubagentIntegrationRuntime
+from .execution_receipts import ExecutionPhase
 from .isolation import SubagentIsolationRequestPort
 from .lifecycle import AgentTaskLifecycleRuntime, LifecycleResult
 from .models import (
@@ -50,6 +52,7 @@ class SubagentRuntimeConfig:
     workspace_root: str
     artifact_root: str
     maximum_active_children_per_parent: int = 4
+    require_signed_parent_scope: bool = False
     default_parent_budget: UsageBudget = field(
         default_factory=lambda: UsageBudget(
             max_turns=64,
@@ -86,10 +89,13 @@ class SubagentSpawnResult:
     record: SubagentTaskRecord
     lifecycle: LifecycleResult | None
     background: bool
+    replayed: bool = False
     accepted_at: str = field(default_factory=now_iso)
 
     @property
     def ok(self) -> bool:
+        if self.replayed:
+            return self.record.status is SubagentTaskStatus.COMPLETED or not self.record.status.terminal
         if self.background:
             return self.record.status in {SubagentTaskStatus.READY, SubagentTaskStatus.DISPATCHED, SubagentTaskStatus.RUNNING}
         return bool(self.lifecycle and self.lifecycle.ok)
@@ -100,6 +106,7 @@ class SubagentSpawnResult:
             "record": self.record.safe_dict(),
             "lifecycle": self.lifecycle.to_dict() if self.lifecycle else None,
             "background": self.background,
+            "replayed": self.replayed,
             "accepted_at": self.accepted_at,
         }
 
@@ -120,6 +127,7 @@ class SubagentRuntime:
         transcript_store: SubagentTranscriptStore | None = None,
         budget_store: SubagentBudgetReservationStore | None = None,
         lifecycle_runtime: AgentTaskLifecycleRuntime | None = None,
+        integration_runtime: SubagentIntegrationRuntime | None = None,
     ) -> None:
         self.config = config
         state_root = Path(config.state_root).resolve()
@@ -136,6 +144,12 @@ class SubagentRuntime:
         self.execution_port = execution_port
         self.artifact_store = LocalArtifactStore(config.artifact_root)
         self.handoff_runtime = SubagentHandoffRuntime(self.artifact_store)
+        self.integration = integration_runtime or SubagentIntegrationRuntime(
+            state_root / "integration",
+            task_store=self.task_store,
+            transcript_store=self.transcript_store,
+            require_signed_parent_scope=config.require_signed_parent_scope,
+        )
         self.continuation_runtime = SubagentContinuationRuntime(
             task_store=self.task_store,
             transcript_store=self.transcript_store,
@@ -159,6 +173,18 @@ class SubagentRuntime:
 
     def spawn(self, request: SubagentSpawnRequest) -> SubagentSpawnResult:
         self._require_enabled()
+        preflight: SpawnPreflight | None = None
+        if request.parent_scope_snapshot_id or self.config.require_signed_parent_scope:
+            preflight = self.integration.preflight(request)
+            if preflight.replay_record is not None:
+                replay = preflight.replay_record
+                return SubagentSpawnResult(
+                    record=replay,
+                    lifecycle=None,
+                    background=replay.execution_mode == AgentExecutionMode.BACKGROUND and not replay.status.terminal,
+                    replayed=True,
+                )
+            request = preflight.request
         definition = self.definition_registry.get(request.agent_type)
         if definition is None or not definition.enabled:
             raise AgentDefinitionNotFound(request.agent_type)
@@ -194,6 +220,12 @@ class SubagentRuntime:
             requested_mcp_servers=request.requested_mcp_servers,
             definition_mcp_servers=definition.mcp_servers,
         )
+        parent_budget = UsageBudget.from_dict(
+            request.constraints.get("parent_budget")
+            if isinstance(request.constraints.get("parent_budget"), Mapping)
+            else self.config.default_parent_budget.to_dict()
+        )
+        child_budget = parent_budget.narrowed_by(definition.budget)
         objective_digest = digest_object({
             "prompt": request.prompt,
             "artifact_refs": request.context_payload.get("artifact_refs") or (),
@@ -224,7 +256,7 @@ class SubagentRuntime:
             agent_type=request.agent_type,
             objective_digest=objective_digest,
             mode=request.context_mode,
-            maximum_depth=definition.budget.max_depth,
+            maximum_depth=child_budget.max_depth,
             directive=request.prompt,
         )
         workspace_root = request.workspace_root or self.config.workspace_root
@@ -246,13 +278,7 @@ class SubagentRuntime:
             },
         )
         isolation_manifest = self.isolation_port.prepare(isolation_request)
-        parent_budget = UsageBudget.from_dict(
-            request.constraints.get("parent_budget")
-            if isinstance(request.constraints.get("parent_budget"), Mapping)
-            else self.config.default_parent_budget.to_dict()
-        )
         self.budget_store.set_parent_limit(request.parent_task_id, parent_budget)
-        child_budget = parent_budget.narrowed_by(definition.budget)
         reservation = self.budget_store.reserve(
             parent_task_id=request.parent_task_id,
             child_task_id=request.task_id,
@@ -286,6 +312,15 @@ class SubagentRuntime:
                 "physical_worker_state_owned": False,
                 "worker_lease_state_owned": False,
                 "workspace_lifecycle_owned": False,
+                "execution_receipt_id": (
+                    preflight.execution_claim.receipt.receipt_id if preflight is not None else ""
+                ),
+                "parent_scope_snapshot_id": (
+                    preflight.parent_scope.snapshot_id if preflight is not None else ""
+                ),
+                "child_scope_digest": (
+                    preflight.child_scope.digest if preflight is not None else ""
+                ),
             },
         )
         try:
@@ -294,6 +329,13 @@ class SubagentRuntime:
                 idempotency_key=request.idempotency_key,
                 context_payload=context.to_dict(),
             )
+            if preflight is not None:
+                self.integration.bind_created_task(preflight, ready)
+                self.integration.transition_receipt(
+                    preflight.execution_claim.receipt.receipt_id,
+                    ExecutionPhase.DISPATCHED,
+                    digest_value={"task_id": ready.task_id, "status": ready.status.value},
+                )
             self.transcript_store.append(
                 request.task_id,
                 TranscriptEntryKind.USER,
@@ -328,6 +370,9 @@ class SubagentRuntime:
                     "agent_memory_scope": definition.memory_scope,
                     "model": definition.model,
                     "effort": definition.effort,
+                    "signed_child_scope": (
+                        preflight.child_scope.to_dict() if preflight is not None else {}
+                    ),
                 },
                 metadata={
                     "root_task_id": str(record.metadata["root_task_id"]),
@@ -339,7 +384,11 @@ class SubagentRuntime:
             if ready.execution_mode == AgentExecutionMode.BACKGROUND:
                 thread = Thread(
                     target=self._run_background,
-                    args=(dispatch, reservation.reservation_id),
+                    args=(
+                        dispatch,
+                        reservation.reservation_id,
+                        preflight.execution_claim.receipt.receipt_id if preflight is not None else "",
+                    ),
                     name=f"zyra-subagent-{request.task_id}",
                     daemon=True,
                 )
@@ -351,17 +400,36 @@ class SubagentRuntime:
                     lifecycle=None,
                     background=True,
                 )
+            if preflight is not None:
+                receipt_id = preflight.execution_claim.receipt.receipt_id
+                self.integration.transition_receipt(receipt_id, ExecutionPhase.STARTED)
+                self.integration.transition_receipt(
+                    receipt_id,
+                    ExecutionPhase.EFFECT_STARTED,
+                    digest_value={"execution_ref": self.execution_port.execution_ref(dispatch)},
+                )
             lifecycle = self.lifecycle.execute(
                 dispatch,
                 reservation_id=reservation.reservation_id,
                 cancellation_check=lambda: self._is_cancelled(request.task_id, request.parent_task_id),
             )
+            if preflight is not None:
+                self._commit_integration_lifecycle(preflight, lifecycle)
             return SubagentSpawnResult(
                 record=lifecycle.record,
                 lifecycle=lifecycle,
                 background=False,
             )
-        except Exception:
+        except Exception as error:
+            if preflight is not None:
+                try:
+                    self.integration.transition_receipt(
+                        preflight.execution_claim.receipt.receipt_id,
+                        ExecutionPhase.FAILED,
+                        reason=f"{type(error).__name__}: {error}",
+                    )
+                except Exception:
+                    pass
             try:
                 self.budget_store.release(reservation.reservation_id, reason="spawn_failed_before_terminal")
             except Exception:
@@ -445,18 +513,66 @@ class SubagentRuntime:
         with self._lock:
             return self._background_results.get(task_id)
 
-    def _run_background(self, dispatch: SubagentDispatchRequest, reservation_id: str) -> None:
+    def _run_background(self, dispatch: SubagentDispatchRequest, reservation_id: str, receipt_id: str = "") -> None:
         try:
+            if receipt_id:
+                self.integration.transition_receipt(receipt_id, ExecutionPhase.STARTED)
+                self.integration.transition_receipt(
+                    receipt_id,
+                    ExecutionPhase.EFFECT_STARTED,
+                    digest_value={"execution_ref": self.execution_port.execution_ref(dispatch)},
+                )
             result = self.lifecycle.execute(
                 dispatch,
                 reservation_id=reservation_id,
                 cancellation_check=lambda: self._is_cancelled(dispatch.task_id, dispatch.parent_task_id),
             )
+            if receipt_id:
+                self._commit_integration_result(receipt_id, result)
             with self._lock:
                 self._background_results[dispatch.task_id] = result
         finally:
             with self._lock:
                 self._threads.pop(dispatch.task_id, None)
+
+    def _commit_integration_lifecycle(self, preflight: SpawnPreflight, lifecycle: LifecycleResult) -> None:
+        receipt_id = preflight.execution_claim.receipt.receipt_id
+        self._commit_integration_result(receipt_id, lifecycle)
+
+    def _commit_integration_result(self, receipt_id: str, lifecycle: LifecycleResult) -> None:
+        if lifecycle.execution_result is None:
+            self.integration.transition_receipt(
+                receipt_id,
+                ExecutionPhase.FAILED,
+                reason="logical execution completed without result",
+            )
+            return
+        result = lifecycle.execution_result
+        self.integration.transition_receipt(
+            receipt_id,
+            ExecutionPhase.EFFECT_COMMITTED,
+            digest_value=result.safe_dict(),
+        )
+        handoff = lifecycle.handoff.safe_dict() if lifecycle.handoff is not None else {
+            "status": "failed",
+            "summary": result.error_message or result.summary,
+        }
+        self.integration.transition_receipt(
+            receipt_id,
+            ExecutionPhase.YIELD_COMMITTED,
+            digest_value=handoff,
+        )
+        self.integration.transition_receipt(
+            receipt_id,
+            ExecutionPhase.HANDOFF_COMMITTED,
+            digest_value=handoff,
+        )
+        cleanup = lifecycle.cleanup.to_dict() if lifecycle.cleanup is not None else {"status": "not_required"}
+        self.integration.transition_receipt(
+            receipt_id,
+            ExecutionPhase.CLEANUP_COMMITTED,
+            digest_value=cleanup,
+        )
 
     def _is_cancelled(self, task_id: str, parent_task_id: str) -> bool:
         with self._lock:

@@ -267,12 +267,16 @@ class SubagentBudgetReservationStore:
             if reservation.parent_task_id != parent_task_id or not reservation.active:
                 continue
             for key, value in reservation.requested.to_dict().items():
-                reserved[key] += value
+                # Depth is a per-branch ceiling, not a consumable parent pool.
+                # Concurrent siblings at the same depth must not subtract it
+                # from each other; max_children remains the fan-out pool.
+                if key != "max_depth":
+                    reserved[key] += value
         available: dict[str, int] = {}
         for key, maximum in limit.items():
             usage_key = mapping[key]
             used = committed.get(usage_key, 0) if usage_key else 0
-            available[key] = max(0, maximum - used - reserved[key])
+            available[key] = maximum if key == "max_depth" else max(0, maximum - used - reserved[key])
         return available
 
     def _assert_usage_within(self, budget: UsageBudget, usage: UsageLedger) -> None:

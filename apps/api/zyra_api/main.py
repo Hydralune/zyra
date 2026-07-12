@@ -5,6 +5,7 @@ import json
 import os
 import threading
 import sys
+from dataclasses import replace
 from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -63,10 +64,25 @@ from zyra_commands import (
     SideQuestionContextSnapshot,
     SideQuestionRuntime,
     StructuredControlIO,
+    StructuredControlHub,
+    ControlFrameStore,
     StructuredEnvelope,
     default_command_registry,
     default_control_command_registry,
     parse_slash_command,
+)
+from zyra_commands.runtime import (
+    CallbackSessionOwner,
+    CanonicalOwnerHandlerSet,
+    CallableCommandSourceProvider,
+    CommandOwnerServices,
+    CommandRegistryCoordinator,
+    CommandSourceKind,
+    SessionAction,
+    SessionControlRuntime,
+    SessionControlStore,
+    deterministic_owner_authorization,
+    snapshot_from_state,
 )
 from zyra_runtime import (
     ContextAssemblyRuntime,
@@ -163,16 +179,25 @@ from zyra_skills import (
 from zyra_workers import (
     AgentContextMode,
     AgentExecutionMode,
+    AgentToolParentContext,
+    AgentToolRuntime,
+    FanoutFailurePolicy,
+    FanoutItem,
+    FanoutRequest,
+    FanoutStore,
+    LogicalFanoutRuntime,
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
     CodeWorkerSubagentExecutionPort,
     LogicalWorkspaceIsolationPort,
+    ParentScopeBuilder,
     PermissionMode,
     SubagentRuntime,
     SubagentRuntimeConfig,
     SubagentControlAction,
     SubagentControlRequest,
     SubagentSpawnRequest,
+    YieldContract,
     browser_use_health_summary,
     default_browser_action_registry,
     inspect_browser_use_runtime,
@@ -444,11 +469,14 @@ def get_runtime_command_registry() -> Any:
 
 _CONTROL_RUNTIME_LOCK = threading.RLock()
 _CONTROL_REGISTRY: Any | None = None
+_CONTROL_SOURCE_COORDINATOR: CommandRegistryCoordinator | None = None
 _CONTROL_DISPATCHER: RuntimeControlDispatcher | None = None
+_STRUCTURED_CONTROL_HUB: StructuredControlHub | None = None
 _CONTROL_RUNTIME_KEY: str | None = None
 _SUBAGENT_RUNTIME_LOCK = threading.RLock()
 _SUBAGENT_RUNTIME: SubagentRuntime | None = None
 _SUBAGENT_RUNTIME_KEY: str | None = None
+_FANOUT_RUNTIME_INSTANCES: dict[str, LogicalFanoutRuntime] = {}
 
 
 def control_state_path() -> Path:
@@ -462,11 +490,105 @@ def subagent_state_path() -> Path:
 
 
 def get_control_command_registry() -> Any:
-    global _CONTROL_REGISTRY
+    global _CONTROL_REGISTRY, _CONTROL_SOURCE_COORDINATOR
     with _CONTROL_RUNTIME_LOCK:
         if _CONTROL_REGISTRY is None:
             _CONTROL_REGISTRY = default_control_command_registry()
+            _CONTROL_SOURCE_COORDINATOR = _build_command_source_coordinator(_CONTROL_REGISTRY)
+            _CONTROL_SOURCE_COORDINATOR.refresh_all()
         return _CONTROL_REGISTRY
+
+
+def get_command_source_coordinator() -> CommandRegistryCoordinator:
+    get_control_command_registry()
+    if _CONTROL_SOURCE_COORDINATOR is None:
+        raise RuntimeError("command source coordinator was not initialized")
+    return _CONTROL_SOURCE_COORDINATOR
+
+
+def _build_command_source_coordinator(registry: Any) -> CommandRegistryCoordinator:
+    coordinator = CommandRegistryCoordinator(
+        registry,
+        control_state_path() / "command-sources.json",
+        event_sink=_commit_runtime_event,
+    )
+
+    def mcp_commands() -> tuple[Any, ...]:
+        return tuple(get_mcp_runtime().prompt_commands())
+
+    coordinator.register(CallableCommandSourceProvider(
+        "mcp-prompts",
+        CommandSourceKind.MCP,
+        mcp_commands,
+        revision_loader=lambda: str(get_mcp_runtime().diagnostics().get("catalog_generation") or "live"),
+    ))
+
+    def skill_commands() -> tuple[dict[str, Any], ...]:
+        runtime = default_skill_runtime()
+        runtime.reload_if_changed()
+        values = []
+        for skill in runtime.list():
+            if not bool(getattr(skill, "user_invocable", False)):
+                continue
+            values.append({
+                "name": f"/skill:{skill.qualified_name}",
+                "description": skill.description or f"Invoke skill {skill.qualified_name}.",
+                "handler_id": "skill.command",
+                "metadata": {
+                    "skill_ref": skill.qualified_name,
+                    "content_digest": skill.content_digest,
+                },
+            })
+        return tuple(values)
+
+    coordinator.register(CallableCommandSourceProvider(
+        "skill-registry",
+        CommandSourceKind.SKILL,
+        skill_commands,
+        revision_loader=lambda: str(default_skill_runtime().registry.snapshot().generation),
+    ))
+
+    def plugin_commands() -> tuple[dict[str, Any], ...]:
+        snapshot = default_skill_runtime().plugin_runtime.snapshot()
+        values: list[dict[str, Any]] = []
+        for plugin_id, plugin in sorted(snapshot.plugins.items()):
+            for command in plugin.get("commands") or ():
+                raw = dict(command) if isinstance(command, dict) else {}
+                name = str(raw.get("name") or "").strip().lstrip("/")
+                if not name:
+                    continue
+                values.append({
+                    "name": f"/{plugin_id}:{name}",
+                    "description": str(raw.get("description") or f"Invoke plugin command {name}."),
+                    "handler_id": "skill_plugin.command",
+                    "metadata": {"plugin_id": plugin_id, "plugin_command": name},
+                })
+        return tuple(values)
+
+    coordinator.register(CallableCommandSourceProvider(
+        "plugin-cache",
+        CommandSourceKind.PLUGIN,
+        plugin_commands,
+        revision_loader=lambda: str(default_skill_runtime().plugin_runtime.snapshot().generation),
+    ))
+
+    project_commands = PROJECT_ROOT / ".zyra" / "commands.json"
+
+    def project_workflows() -> tuple[dict[str, Any], ...]:
+        if not project_commands.exists():
+            return ()
+        value = json.loads(project_commands.read_text(encoding="utf-8"))
+        if not isinstance(value, list):
+            raise ValueError(".zyra/commands.json must contain an array")
+        return tuple(dict(item) for item in value if isinstance(item, dict))
+
+    coordinator.register(CallableCommandSourceProvider(
+        "project-workflows",
+        CommandSourceKind.PROJECT,
+        project_workflows,
+        revision_loader=lambda: str(project_commands.stat().st_mtime_ns) if project_commands.exists() else "absent",
+    ))
+    return coordinator
 
 
 def _commit_runtime_event(event: EventRecord) -> None:
@@ -489,12 +611,40 @@ def get_control_dispatcher() -> RuntimeControlDispatcher:
         return _CONTROL_DISPATCHER
 
 
+def get_structured_control_hub() -> StructuredControlHub:
+    global _STRUCTURED_CONTROL_HUB
+    with _CONTROL_RUNTIME_LOCK:
+        if _STRUCTURED_CONTROL_HUB is None:
+            frame_store = ControlFrameStore(control_state_path() / "structured" / "control-frames.json")
+            frame_store.recover()
+
+            def resolve_context(run_id: str, task_id: str, session_id: str) -> RuntimeControlContext:
+                state_store = get_store()
+                task = state_store.load_task(task_id)
+                if task is None or task.run_id != run_id:
+                    raise RuntimeError("structured control task identity is unavailable")
+                expected_session = str(task.metadata.get("query_session_id") or f"task:{task.task_id}")
+                if session_id != expected_session:
+                    raise RuntimeError("structured control session identity mismatch")
+                return _control_context_for_task(task, state_store)
+
+            _STRUCTURED_CONTROL_HUB = StructuredControlHub(
+                frame_store,
+                get_control_dispatcher(),
+                resolve_context,
+                registry_snapshot=lambda: get_control_command_registry().snapshot().to_dict(),
+            )
+        return _STRUCTURED_CONTROL_HUB
+
+
 def reset_control_runtime() -> None:
-    global _CONTROL_DISPATCHER, _CONTROL_RUNTIME_KEY, _CONTROL_REGISTRY
+    global _CONTROL_DISPATCHER, _CONTROL_RUNTIME_KEY, _CONTROL_REGISTRY, _CONTROL_SOURCE_COORDINATOR, _STRUCTURED_CONTROL_HUB
     with _CONTROL_RUNTIME_LOCK:
         _CONTROL_DISPATCHER = None
         _CONTROL_RUNTIME_KEY = None
         _CONTROL_REGISTRY = None
+        _CONTROL_SOURCE_COORDINATOR = None
+        _STRUCTURED_CONTROL_HUB = None
 
 
 def get_subagent_runtime() -> SubagentRuntime:
@@ -512,26 +662,162 @@ def get_subagent_runtime() -> SubagentRuntime:
                 parent_registry=parent_registry,
                 mcp_runtime=get_mcp_runtime(),
             )
-            _SUBAGENT_RUNTIME = SubagentRuntime(
-                SubagentRuntimeConfig.from_paths(
+            config = SubagentRuntimeConfig.from_paths(
                     state_root=root,
                     workspace_root=tool_workspace_path(),
                     artifact_root=artifact_root_path(),
-                ),
+                )
+            _SUBAGENT_RUNTIME = SubagentRuntime(
+                replace(config, require_signed_parent_scope=True),
                 execution_port=execution,
                 isolation_port=LogicalWorkspaceIsolationPort(),
-                parent_registry=parent_registry,
+                parent_registry=execution.parent_registry,
                 event_sink=_commit_runtime_event,
             )
             _SUBAGENT_RUNTIME_KEY = key
         return _SUBAGENT_RUNTIME
 
 
+def _issue_parent_subagent_scope(state: Any, *, session_id: str) -> Any:
+    """Capture the parent ceiling from canonical process owners, never HTTP input."""
+
+    runtime = get_subagent_runtime()
+    permission_plane = get_permission_control_plane()
+    permission_state = permission_plane.state_store.read_state()
+    permission_metadata = permission_state.get("metadata", {}) if isinstance(permission_state, dict) else {}
+    integration = permission_metadata.get("permission_integration", {}) if isinstance(permission_metadata, dict) else {}
+    permission_revision = int(integration.get("revision") or permission_state.get("revision") or 0) if isinstance(integration, dict) else 0
+    try:
+        parent_permission_mode = PermissionMode(permission_plane.session_mode(session_id, fallback="default"))
+    except ValueError:
+        parent_permission_mode = PermissionMode.DEFAULT
+    try:
+        permission_rules = tuple(get_permission_store().list_rules())
+    except Exception:
+        # Absence of optional overlay rules narrows the snapshot; it never
+        # authorizes a client-declared replacement.
+        permission_rules = ()
+    mcp_runtime = get_mcp_runtime()
+    try:
+        mcp_catalog = tuple(mcp_runtime.config_store.list_servers(include_inactive=True).values())
+    except Exception:
+        mcp_catalog = ()
+    state_metadata = state.metadata if isinstance(state.metadata, dict) else {}
+    session_revision = int(
+        state_metadata.get("session_revision")
+        or state_metadata.get("query_session_revision")
+        or state_metadata.get("revision")
+        or 0
+    )
+    effective_model = str(state_metadata.get("model_name") or state_metadata.get("model") or "zyra-local-code-model")
+    configured_models = state_metadata.get("model_allowlist")
+    model_allowlist = (
+        tuple(str(item) for item in configured_models if str(item))
+        if isinstance(configured_models, (list, tuple))
+        else (effective_model,)
+    )
+    workspace = tool_workspace_path().resolve()
+    builder = ParentScopeBuilder(runtime.integration.parent_scopes)
+    return builder.build(
+        run_id=state.run_id,
+        parent_task_id=state.task_id,
+        parent_session_id=session_id,
+        session_revision=session_revision,
+        tool_registry=runtime.parent_registry,
+        tool_generation=int(state_metadata.get("tool_registry_generation") or 0),
+        permission_mode=parent_permission_mode,
+        permission_revision=permission_revision,
+        permission_rules=permission_rules,
+        mcp_catalog=mcp_catalog,
+        model_allowlist=model_allowlist,
+        effective_model=effective_model,
+        workspace_root=workspace,
+        writable_roots=(workspace,),
+        readable_roots=(workspace,),
+        network_allowed=_truthy(os.environ.get("ZYRA_SUBAGENT_NETWORK_ALLOWED"), default=False),
+        skill_refs=tuple(state_metadata.get("skill_invocation_refs") or ()),
+        hook_refs=tuple(state_metadata.get("active_hook_refs") or ()),
+        context_epoch=int(state_metadata.get("context_epoch") or 0),
+        compact_boundary_id=str(state_metadata.get("compact_boundary_id") or ""),
+        metadata={"origin": "api-parent-scope", "state_owner": "task+permission+mcp+model"},
+    )
+
+
 def reset_subagent_runtime() -> None:
-    global _SUBAGENT_RUNTIME, _SUBAGENT_RUNTIME_KEY
+    global _SUBAGENT_RUNTIME, _SUBAGENT_RUNTIME_KEY, _FANOUT_RUNTIME_INSTANCES
     with _SUBAGENT_RUNTIME_LOCK:
         _SUBAGENT_RUNTIME = None
         _SUBAGENT_RUNTIME_KEY = None
+        _FANOUT_RUNTIME_INSTANCES = {}
+
+
+def _fanout_runtime_for(
+    state: Any,
+    *,
+    parent_scope: Any,
+    context_payload: dict[str, Any],
+) -> LogicalFanoutRuntime:
+    subagents = get_subagent_runtime()
+    key = f"{state.task_id}:{parent_scope.snapshot_id}"
+
+    def spawn_request(record: Any, child: Any) -> SubagentSpawnRequest:
+        item = child.item
+        constraints = {
+            **dict(item.constraints),
+            "typed_yield_required": True,
+            "typed_yield_schema": dict((record.request.yield_contract or YieldContract(
+                contract_id=f"fanout:{record.group_id}", schema={"type": "object"}
+            )).schema),
+            "model_name": item.requested_model or parent_scope.effective_model,
+            "writable_paths": list(item.requested_writable_paths),
+            "read_only_paths": list(item.requested_readable_paths),
+        }
+        return SubagentSpawnRequest(
+            run_id=state.run_id,
+            parent_task_id=state.task_id,
+            parent_session_id=record.request.parent_session_id,
+            parent_worker_request_id=f"fanout:{record.group_id}",
+            agent_type=item.agent_type,
+            prompt=(record.request.shared_context + "\n\n" + item.prompt).strip(),
+            parent_tools=parent_scope.tool_names,
+            parent_permission_mode=parent_scope.permission_mode,
+            requested_tools=item.requested_tools,
+            requested_permission_mode=None,
+            available_mcp_servers=parent_scope.mcp_servers,
+            requested_mcp_servers=item.requested_mcp_servers,
+            context_mode=AgentContextMode.ISOLATED,
+            execution_mode=AgentExecutionMode.FOREGROUND,
+            workspace_root=parent_scope.workspace_root,
+            requested_cwd="",
+            parent_scope_snapshot_id=parent_scope.snapshot_id,
+            context_payload=dict(context_payload),
+            constraints=constraints,
+            idempotency_key=f"{record.request.idempotency_key}:{item.item_id}",
+            task_id=child.task_id,
+            metadata={
+                "root_task_id": state.task_id,
+                "node_id": state.root_node_id,
+                "origin": "fanout-api",
+                "fanout_group_id": record.group_id,
+                "fanout_item_id": item.item_id,
+                "parent_scope_snapshot_id": parent_scope.snapshot_id,
+                "expected_parent_session_revision": parent_scope.session_revision,
+                "expected_parent_permission_revision": parent_scope.permission_revision,
+                "expected_parent_tool_generation": parent_scope.tool_generation,
+                "expected_parent_mcp_generations": dict(parent_scope.mcp_catalog_generations),
+            },
+        )
+
+    runtime = LogicalFanoutRuntime(
+        FanoutStore(subagent_state_path() / "fanout.json"),
+        subagents,
+        subagents.integration.typed_yields,
+        subagents.integration.execution_receipts,
+        event_sink=_commit_runtime_event,
+        spawn_request_factory=spawn_request,
+    )
+    _FANOUT_RUNTIME_INSTANCES[key] = runtime
+    return runtime
 
 
 def get_permission_control_plane() -> PermissionControlPlane:
@@ -1434,12 +1720,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["commands"]:
+            refresh_receipts = get_command_source_coordinator().refresh_all()
             snapshot = get_control_command_registry().snapshot()
             self._send_json(
                 HTTPStatus.OK,
                 {
                     "commands": [command.to_dict() for command in snapshot.descriptors],
                     "registry": snapshot.to_dict(),
+                    "sources": get_command_source_coordinator().snapshot(),
+                    "refresh": [item.to_dict() for item in refresh_receipts],
                 },
             )
             return
@@ -2513,6 +2802,64 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "subagents" and parts[3] == "fanout":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            raw_items = payload.get("items")
+            if not isinstance(raw_items, list) or len(raw_items) < 2:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "fanout_requires_two_or_more_items"})
+                return
+            session_id = str(payload.get("session_id") or state.metadata.get("query_session_id") or f"task:{state.task_id}")
+            parent_scope = _issue_parent_subagent_scope(state, session_id=session_id)
+            context_payload = {
+                "messages": [],
+                "artifact_refs": [to_jsonable(item) for item in state.artifacts],
+                "evidence_refs": list(payload.get("evidence_refs") or ()),
+                "invoked_skill_refs": list(state.metadata.get("skill_invocation_refs") or ()),
+                "context_epoch": int(state.metadata.get("context_epoch") or 0),
+                "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
+                "rendered_system_prompt": str(state.metadata.get("rendered_system_prompt") or ""),
+                "parent_permission_rule_ids": list(parent_scope.permission_rule_ids),
+                "parent_permission_denials": list(parent_scope.deny_rule_ids),
+            }
+            schema = payload.get("yield_schema") if isinstance(payload.get("yield_schema"), dict) else {
+                "type": "object",
+            }
+            request = FanoutRequest(
+                run_id=state.run_id,
+                parent_task_id=state.task_id,
+                parent_session_id=session_id,
+                shared_context=str(payload.get("shared_context") or ""),
+                items=tuple(FanoutItem.from_dict(item) for item in raw_items if isinstance(item, dict)),
+                idempotency_key=str(payload.get("idempotency_key") or new_id("fanoutrequest")),
+                execution_mode=AgentExecutionMode(str(payload.get("execution_mode") or "foreground")),
+                failure_policy=FanoutFailurePolicy(str(payload.get("failure_policy") or "require_all")),
+                maximum_concurrency=max(1, int(payload.get("maximum_concurrency") or 4)),
+                promotion_after_ms=max(0, int(payload.get("promotion_after_ms") or 0)),
+                yield_contract=YieldContract(
+                    contract_id=str(payload.get("yield_contract_id") or new_id("yieldcontract")),
+                    schema=schema,
+                ),
+                parent_scope_snapshot_id=parent_scope.snapshot_id,
+                metadata={"origin": "api", "node_id": state.root_node_id},
+            )
+            try:
+                result = _fanout_runtime_for(
+                    state,
+                    parent_scope=parent_scope,
+                    context_payload=context_payload,
+                ).start(request, causation_id=str(payload.get("causation_id") or "api-fanout"))
+            except (ValueError, RuntimeError) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "subagent_fanout_rejected", "message": str(error), "type": type(error).__name__},
+                )
+                return
+            self._send_json(HTTPStatus.ACCEPTED if result.detached else HTTPStatus.CREATED, result.to_dict())
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "subagents":
             state = store.load_task(parts[1])
             if state is None:
@@ -2520,24 +2867,24 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             execution_mode = AgentExecutionMode(str(payload.get("execution_mode") or "background"))
             context_mode = AgentContextMode(str(payload.get("context_mode") or "isolated"))
-            permission_mode = PermissionMode(str(payload.get("permission_mode") or "default"))
-            parent_registry = get_subagent_runtime().parent_registry
+            session_id = str(payload.get("session_id") or state.metadata.get("query_session_id") or f"task:{state.task_id}")
+            parent_scope = _issue_parent_subagent_scope(state, session_id=session_id)
             request = SubagentSpawnRequest(
                 run_id=state.run_id,
                 parent_task_id=state.task_id,
-                parent_session_id=str(payload.get("session_id") or state.metadata.get("query_session_id") or f"task:{state.task_id}"),
+                parent_session_id=session_id,
                 parent_worker_request_id=str(payload.get("parent_worker_request_id") or "api-control"),
                 agent_type=str(payload.get("agent_type") or "general-purpose"),
                 prompt=str(payload.get("prompt") or ""),
-                parent_tools=tuple(item.name for item in parent_registry.list()),
-                parent_permission_mode=permission_mode,
+                parent_tools=parent_scope.tool_names,
+                parent_permission_mode=parent_scope.permission_mode,
                 requested_tools=tuple(payload.get("requested_tools") or ()),
                 requested_permission_mode=(
                     PermissionMode(str(payload["requested_permission_mode"]))
                     if payload.get("requested_permission_mode")
                     else None
                 ),
-                available_mcp_servers=tuple(payload.get("available_mcp_servers") or ()),
+                available_mcp_servers=parent_scope.mcp_servers,
                 requested_mcp_servers=tuple(payload.get("requested_mcp_servers") or ()),
                 context_mode=context_mode,
                 execution_mode=execution_mode,
@@ -2550,14 +2897,24 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "invoked_skill_refs": list(state.metadata.get("skill_invocation_refs") or ()),
                     "context_epoch": int(state.metadata.get("context_epoch") or 0),
                     "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
-                    "rendered_system_prompt": str(payload.get("rendered_system_prompt") or ""),
-                    "parent_permission_rule_ids": list(payload.get("parent_permission_rule_ids") or ()),
-                    "parent_permission_denials": list(payload.get("parent_permission_denials") or ()),
+                    "rendered_system_prompt": str(state.metadata.get("rendered_system_prompt") or ""),
+                    "parent_permission_rule_ids": list(parent_scope.permission_rule_ids),
+                    "parent_permission_denials": list(parent_scope.deny_rule_ids),
                 },
                 constraints=dict(payload.get("constraints") or {}),
                 idempotency_key=str(payload.get("idempotency_key") or ""),
                 task_id=str(payload.get("subagent_task_id") or new_id("subagenttask")),
-                metadata={"root_task_id": state.task_id, "node_id": state.root_node_id, "origin": "api"},
+                parent_scope_snapshot_id=parent_scope.snapshot_id,
+                metadata={
+                    "root_task_id": state.task_id,
+                    "node_id": state.root_node_id,
+                    "origin": "api",
+                    "parent_scope_snapshot_id": parent_scope.snapshot_id,
+                    "expected_parent_session_revision": parent_scope.session_revision,
+                    "expected_parent_permission_revision": parent_scope.permission_revision,
+                    "expected_parent_tool_generation": parent_scope.tool_generation,
+                    "expected_parent_mcp_generations": dict(parent_scope.mcp_catalog_generations),
+                },
             )
             try:
                 result = get_subagent_runtime().spawn(request)
@@ -2722,22 +3079,33 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             raw_envelope = payload.get("envelope") if isinstance(payload.get("envelope"), dict) else payload
             try:
-                envelope = StructuredEnvelope.from_dict(raw_envelope)
-                structured = StructuredControlIO(
-                    control_state_path() / "structured" / f"{state.task_id}.json",
-                    dispatcher=lambda request: get_control_dispatcher().submit(
-                        request,
-                        _control_context_for_task(state, store),
-                    ),
-                    cancel_callback=lambda request_id: bool(
-                        get_control_dispatcher().cancel(
-                            request_id,
-                            reason="structured_control_cancelled",
-                            context=_control_context_for_task(state, store),
-                        )
-                    ),
-                )
-                response_envelope = structured.handle(envelope)
+                if raw_envelope.get("protocol_version") == 1 or raw_envelope.get("version") == 1:
+                    response_envelope = get_structured_control_hub().handle(raw_envelope)
+                    structured_state = get_structured_control_hub().store.snapshot()
+                    protocol_schema = "zyra.structured-control-stream/v1"
+                else:
+                    # Compatibility path for the 03D-01 envelope.  New callers
+                    # use the process-live hub above so cancel and sequence
+                    # ownership survive individual HTTP requests and restarts.
+                    envelope = StructuredEnvelope.from_dict(raw_envelope)
+                    structured = StructuredControlIO(
+                        control_state_path() / "structured" / f"{state.task_id}.json",
+                        dispatcher=lambda request: get_control_dispatcher().submit(
+                            request,
+                            _control_context_for_task(state, store),
+                        ),
+                        cancel_callback=lambda request_id: bool(
+                            get_control_dispatcher().cancel(
+                                request_id,
+                                reason="structured_control_cancelled",
+                                context=_control_context_for_task(state, store),
+                            )
+                        ),
+                    )
+                    legacy_response = structured.handle(envelope)
+                    response_envelope = legacy_response.to_dict() if legacy_response else None
+                    structured_state = structured.snapshot()
+                    protocol_schema = "zyra.structured-control-api/v1"
             except (KeyError, ValueError, RuntimeError) as error:
                 self._send_json(
                     HTTPStatus.BAD_REQUEST,
@@ -2748,9 +3116,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(
                 HTTPStatus.CREATED,
                 {
-                    "schema": "zyra.structured-control-api/v1",
-                    "envelope": response_envelope.to_dict() if response_envelope else None,
-                    "state": structured.snapshot(),
+                    "schema": protocol_schema,
+                    "envelope": response_envelope,
+                    "state": structured_state,
                     "event_only_stateful_fallback": False,
                 },
             )
@@ -3779,6 +4147,35 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 constraints=constraints,
                 metadata={"skill_context_owner": "M1-03C.SkillSessionBridge"},
             )
+            parent_session_id = str(
+                constraints.get("session_id")
+                or state.metadata.get("query_session_id")
+                or f"task:{state.task_id}"
+            )
+            parent_scope = _issue_parent_subagent_scope(state, session_id=parent_session_id)
+            agent_tool = AgentToolRuntime(
+                get_subagent_runtime(),
+                AgentToolParentContext(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    session_id=parent_session_id,
+                    worker_request_id=worker_request_id,
+                    workspace_root=str(tool_workspace_path()),
+                    parent_scope=parent_scope,
+                    context_payload={
+                        "messages": [],
+                        "artifact_refs": [to_jsonable(item) for item in state.artifacts],
+                        "evidence_refs": list(state.metadata.get("evidence_refs") or ()),
+                        "invoked_skill_refs": list(state.metadata.get("skill_invocation_refs") or ()),
+                        "context_epoch": int(state.metadata.get("context_epoch") or 0),
+                        "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
+                        "rendered_system_prompt": str(state.metadata.get("rendered_system_prompt") or ""),
+                    },
+                    root_task_id=state.task_id,
+                    node_id=node_id,
+                ),
+            )
+            agent_tool_binding = agent_tool.bind(default_tool_registry())
             try:
                 run_result = CodeWorkerRuntime(
                     project_root=PROJECT_ROOT,
@@ -3787,6 +4184,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     permission_store=get_permission_store(),
                     permission_state_path=permission_state_path(),
                     mcp_runtime=get_mcp_runtime(),
+                    tool_registry=agent_tool_binding.registry,
+                    dynamic_handlers=agent_tool_binding.handlers,
                 ).run(request)
             except Exception as error:  # noqa: BLE001 - keep internal exception details out of API responses.
                 if skill_disclosure_batch is not None:
@@ -4430,6 +4829,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         return descriptor.permission_action in {
             "task.goal",
             "context.compact",
+            "session.clear",
             "artifact.write",
             "task.change",
             "task.inject",
@@ -4478,6 +4878,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         handlers[handler_id] = read_projection
 
     def registry_help(_request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        get_command_source_coordinator().refresh_all()
         snapshot = get_control_command_registry().snapshot()
         groups: dict[str, list[str]] = {}
         for item in snapshot.descriptors:
@@ -4503,9 +4904,175 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         )
 
     handlers["subagent.inspect"] = subagent_inspect
-    handlers["mcp.control"] = read_projection
-    handlers["permission.control"] = read_projection
-    handlers["provider.model"] = read_projection
+
+    def mcp_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
+        if action not in {"status", "health", "servers", "server", "catalog", "tools", "resources", "prompts", "tasks", "elicitations"}:
+            raise RuntimeError("mutating MCP control requires an exact McpClientRuntime authorization")
+        diagnostics = get_mcp_runtime().diagnostics()
+        return {"ok": True, "summary": "MCP runtime state.", "action": action, "diagnostics": diagnostics}
+
+    def permission_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
+        if action not in {"inspect", "status", "list", "rules", "requests", "decisions", "mode"}:
+            raise RuntimeError("mutating permission control requires an exact PermissionStateStore authorization")
+        plane = get_permission_control_plane()
+        return {
+            "ok": True,
+            "summary": "Permission runtime state.",
+            "action": action,
+            "state": plane.state_store.snapshot(),
+        }
+
+    def model_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
+        if action != "inspect":
+            raise RuntimeError("model mutation requires an exact session-owner authorization")
+        return {
+            "ok": True,
+            "summary": "Current session model.",
+            "model": str(state.metadata.get("model") or os.environ.get("ZYRA_MODEL", "unconfigured")),
+            "effort": str(state.metadata.get("effort") or "default"),
+            "session_revision": revision(request.session_id),
+        }
+
+    def plugin_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
+        if action not in {"inspect", "status", "list", "hooks", "plugins"}:
+            raise RuntimeError("plugin mutation requires an exact SkillPluginRuntime authorization")
+        snapshot = default_skill_runtime().plugin_runtime.snapshot()
+        return {
+            "ok": True,
+            "summary": "Plugin capability state.",
+            "generation": snapshot.generation,
+            "plugins": snapshot.plugins,
+            "errors": list(snapshot.errors),
+        }
+
+    def subagent_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
+        task_id = str(arguments.get("task_id") or "")
+        if action not in {"status", "inspect"}:
+            raise RuntimeError("mutating subagent control requires an exact SubagentTaskStore authorization")
+        record = get_subagent_runtime().task_store.get(task_id)
+        if record is None:
+            raise RuntimeError(f"logical subagent task not found: {task_id}")
+        if record.parent_task_id != state.task_id:
+            raise RuntimeError("logical subagent does not belong to this parent task")
+        return {"ok": True, "summary": "Logical subagent state.", "task": record.safe_dict()}
+
+    def session_snapshot(*, run_id: str, task_id: str, session_id: str) -> Any:
+        if run_id != state.run_id or task_id != state.task_id:
+            raise RuntimeError("canonical session owner identity mismatch")
+        effective_session = str(state.metadata.get("query_session_id") or f"task:{state.task_id}")
+        if session_id != effective_session:
+            raise RuntimeError("canonical session owner does not own the requested session")
+        session_revision = int(state.metadata.get("session_control_revision") or revision(session_id))
+        epoch = int(state.metadata.get("session_epoch") or 0)
+        session_state = {
+            "model": str(state.metadata.get("model") or ""),
+            "effort": str(state.metadata.get("effort") or ""),
+            "thinking": str(state.metadata.get("thinking") or ""),
+            "context_epoch": int(state.metadata.get("context_epoch") or 0),
+            "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
+            "active": True,
+            "message_count": len(state.metadata.get("main_messages") or ()),
+        }
+        return snapshot_from_state(
+            run_id=run_id,
+            task_id=task_id,
+            session_id=session_id,
+            revision=session_revision,
+            epoch=epoch,
+            state=session_state,
+            checkpoint_ref=f"sqlite-session:{task_id}:{session_revision}:{epoch}",
+            transcript=tuple(state.metadata.get("main_messages") or ()),
+            metadata={"owner": "SQLiteStore", "owner_unit": "M1-S03D-02"},
+        )
+
+    def session_mutation(request: Any, before: Any) -> dict[str, Any]:
+        if request.action is not SessionAction.CLEAR:
+            raise RuntimeError(f"session action is not connected to this canonical owner: {request.action.value}")
+        messages = list(state.metadata.get("main_messages") or ())
+        checkpoint = {
+            "checkpoint_ref": before.checkpoint_ref,
+            "session_id": before.session_id,
+            "revision": before.revision,
+            "epoch": before.epoch,
+            "messages": messages,
+            "context_epoch": int(state.metadata.get("context_epoch") or 0),
+            "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
+        }
+        state.metadata.setdefault("session_control_checkpoints", []).append(checkpoint)
+        state.metadata["main_messages"] = []
+        state.metadata["session_epoch"] = before.epoch + 1
+        state.metadata["context_epoch"] = int(state.metadata.get("context_epoch") or 0) + 1
+        state.metadata["compact_boundary_id"] = ""
+        state.metadata["session_control_revision"] = before.revision + 1
+        event = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            event_type=EventType.COMMAND_SUCCEEDED,
+            payload={
+                "schema": "zyra.session-clear/v1",
+                "request_id": request.request_id,
+                "session_id": before.session_id,
+                "before_checkpoint": before.checkpoint_ref,
+                "before_message_count": len(messages),
+                "after_epoch": before.epoch + 1,
+            },
+        )
+        persist_events(store, [event])
+        store.save_checkpoint(state)
+        return {
+            "changed": True,
+            "session_id": before.session_id,
+            "revision": before.revision + 1,
+            "checkpoint_ref": f"sqlite-session:{state.task_id}:{before.revision + 1}:{before.epoch + 1}",
+            "result": {"cleared_messages": len(messages), "checkpoint": checkpoint},
+            "event_ids": [event.event_id],
+            "metadata": {"same_session_new_epoch": True, "state_owner": "SQLiteStore"},
+        }
+
+    session_runtime = SessionControlRuntime(
+        SessionControlStore(control_state_path() / "sessions" / f"{state.task_id}.json"),
+        CallbackSessionOwner(session_snapshot, session_mutation),
+    )
+
+    def owner_authorizer(owner: str, action: str, request: Any, arguments: Any) -> Any:
+        granted = owner == "CanonicalSessionStore" and action == SessionAction.CLEAR.value and request.canonical_name == "/clear"
+        return deterministic_owner_authorization(
+            owner=owner,
+            action=action,
+            request=request,
+            actor_id=str(request.metadata.get("actor_id") or "api-user"),
+            authority={
+                "source": "RuntimeControlDispatcher.permission_authorize",
+                "permission_action": "session.clear",
+                "request_id": request.request_id,
+            },
+            granted=granted,
+            reason="explicit /clear is a checkpoint-before-reset canonical session action" if granted else "owner action not granted",
+        )
+
+    owner_handlers = CanonicalOwnerHandlerSet(CommandOwnerServices(
+        session=session_runtime,
+        mcp=mcp_owner,
+        permission=permission_owner,
+        model=model_owner,
+        plugin=plugin_owner,
+        subagent=subagent_owner,
+        authorizer=owner_authorizer,
+        registry_refresh=lambda: {
+            "receipts": [item.to_dict() for item in get_command_source_coordinator().refresh_all()],
+            "snapshot": get_command_source_coordinator().snapshot(),
+        },
+    )).handlers()
+    for handler_id in {
+        "session.clear",
+        "mcp.control",
+        "permission.control",
+        "provider.model",
+        "skill_plugin.hooks",
+        "subagent.control",
+    }:
+        handlers[handler_id] = owner_handlers[handler_id]
 
     def compact_context(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
         result = _memory_fabric(store).compact_context(

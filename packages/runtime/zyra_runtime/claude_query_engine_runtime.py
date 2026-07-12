@@ -110,8 +110,12 @@ from .permission.canonical import (
 )
 from .permission.models import (
     PermissionEffect,
+    PermissionRuleRecord,
+    PermissionRuleSource,
     PermissionRequestPhase,
     PermissionRequestRecord,
+    PermissionScope,
+    PermissionScopeKind,
 )
 from .permission.runtime import PermissionRuntimeConfig, ToolPermissionRuntime
 from .permission.store import PermissionStateStore
@@ -445,6 +449,11 @@ class ZyraClaudeQueryEngine:
             custody_fingerprint=str(
                 self.config.session_foundation_metadata.get("permission_session_custody_fingerprint") or ""
             ),
+        )
+        _install_signed_internal_protocol_rules(
+            permission_runtime,
+            registry=self.context.registry,
+            session_id=session.session_id,
         )
         permission_mode_reconciliation = None
         if str(permission_runtime.mode_runtime.mode) != persisted_permission_mode:
@@ -4294,6 +4303,66 @@ def _permission_mode_from_state_owner(
     }:
         return "default"
     return selected
+
+
+def _install_signed_internal_protocol_rules(
+    runtime: ToolPermissionRuntime,
+    *,
+    registry: Any,
+    session_id: str,
+) -> None:
+    """Authorize only host-owned, non-external child protocol tools.
+
+    The rule still flows through ``ToolPermissionRuntime.guard`` and produces
+    a normal one-use execution grant.  It is installed only when the final
+    executable registry contains the exact host provenance used by the
+    server-signed child scope; arbitrary dynamic/plugin tools remain ASK/DENY.
+    """
+
+    existing = {item.rule_id for item in runtime.rule_store.list(include_inactive=True)}
+    for spec in registry.list():
+        provenance = getattr(spec, "execution_provenance", None)
+        if not (
+            spec.name == "SubagentYield"
+            and provenance is not None
+            and provenance.namespace == "zyra-subagent-yield"
+            and provenance.version == "M1-S03D-02"
+            and provenance.handler_kind == "typed-yield"
+            and provenance.source == "zyra_workers.subagents.subagent_yield"
+            and not provenance.external_boundary
+            and not provenance.requires_exact_grant
+            and spec.metadata.get("logical_child_protocol") == "true"
+        ):
+            continue
+        rule_id = f"signed-internal-protocol:{session_id}:{spec.name}"
+        if rule_id in existing:
+            continue
+        runtime.rule_store.add(
+            PermissionRuleRecord(
+                rule_id=rule_id,
+                effect=PermissionEffect.ALLOW,
+                source=PermissionRuleSource.SESSION,
+                scope=PermissionScope(
+                    kind=PermissionScopeKind.SESSION,
+                    session_id=session_id,
+                    tool_namespace=provenance.namespace,
+                    tool_name=spec.name,
+                ),
+                tool_pattern=spec.name,
+                namespace_pattern=provenance.namespace,
+                operation_pattern="execute",
+                reason="host-owned typed yield authorized by signed child execution scope",
+                priority=10_000,
+                metadata={
+                    "owner_unit": "M1-S03D-02",
+                    "signed_child_protocol": True,
+                    "external_boundary": False,
+                    "provenance_source": provenance.source,
+                    "provenance_version": provenance.version,
+                },
+            )
+        )
+        existing.add(rule_id)
 
 
 def _permission_continuation_payloads(

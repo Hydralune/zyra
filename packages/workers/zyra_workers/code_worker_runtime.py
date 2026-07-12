@@ -141,6 +141,7 @@ class CodeWorkerRuntime:
         permission_state_path: str | Path | None = None,
         mcp_runtime: Any | None = None,
         tool_registry: Any | None = None,
+        dynamic_handlers: Mapping[str, Any] | None = None,
         runtime_services: Mapping[str, Any] | None = None,
         skill_fork_port: Any | None = None,
     ) -> None:
@@ -156,12 +157,14 @@ class CodeWorkerRuntime:
         )
         self.mcp_runtime = mcp_runtime
         self.skill_fork_port = skill_fork_port
+        self.runtime_services = dict(runtime_services or {})
         self.execution_context = ToolExecutionContext.for_workspace(
             workspace_root=workspace_root,
             artifact_root=artifact_root,
             permission_store=permission_store,
             registry=tool_registry,
-            runtime_services=runtime_services,
+            dynamic_handlers=dynamic_handlers,
+            runtime_services=self.runtime_services,
         )
         self.permission_state_path = (
             Path(permission_state_path).resolve()
@@ -245,6 +248,13 @@ class CodeWorkerRuntime:
         mcp_skill_discovery_receipt = None
         mcp_skill_discovery_events: list[EventRecord] = []
         if self.mcp_runtime is not None:
+            included_mcp_servers = tuple(
+                str(item) for item in request.constraints.get("mcp_include_servers") or () if str(item)
+            )
+            if included_mcp_servers and request.constraints.get("mcp_network_allowed") is not True:
+                raise RuntimeError(
+                    "child MCP projection denied because the signed child scope does not permit network access"
+                )
             mcp_projection_session_id = str(
                 request.constraints.get("session_id")
                 or f"mcp-projection:{request.task_id}:{request.request_id}"
@@ -257,6 +267,7 @@ class CodeWorkerRuntime:
                 session_id=mcp_projection_session_id,
                 worker_request_id=request.request_id,
                 constraints=request.constraints,
+                include_servers=included_mcp_servers or None,
                 bootstrap_connections=False,
                 checkpoint_session=False,
             )
@@ -309,17 +320,24 @@ class CodeWorkerRuntime:
             or request.constraints.get("session_id")
             or f"skill:{request.task_id}:{request.request_id}"
         )
-        skill_open = SkillToolProjectionRuntime.open_for_worker(
-            execution_context,
-            project_root=self.project_root,
-            request=request,
-            session_id=skill_projection_session_id,
-            disabled=request.constraints.get("disable_skill_tool_projection") is True,
-            external_sources=mcp_skill_sources,
-            fork_port=self.skill_fork_port,
-        )
-        skill_projection = skill_open.projection
-        execution_context = skill_open.context
+        if request.constraints.get("disable_skill_tool_projection") is not True:
+            skill_open = SkillToolProjectionRuntime.open_for_worker(
+                execution_context,
+                project_root=self.project_root,
+                request=request,
+                session_id=skill_projection_session_id,
+                disabled=False,
+                external_sources=mcp_skill_sources,
+                fork_port=self.skill_fork_port,
+            )
+            skill_projection = skill_open.projection
+            execution_context = skill_open.context
+        child_scope_registry_assert = self.runtime_services.get("child_scope_registry_assert")
+        if callable(child_scope_registry_assert):
+            # MCP and SkillTool both project tools after construction.  Re-check
+            # the final executable registry so neither dynamic source can widen
+            # the server-signed parent ceiling.
+            child_scope_registry_assert(execution_context.registry)
         tool_specs = execution_context.registry.list()
         tool_names = tuple(tool.name for tool in tool_specs)
         read_only_tool_names = tuple(tool.name for tool in tool_specs if tool.metadata.get("read_only") == "true")
@@ -1584,7 +1602,7 @@ class CodeWorkerRuntime:
         elif not final_disconnect.ok:
             summary = "CodeWorkerRuntime completed the tool loop but failed the query disconnect audit gate."
 
-        if loop_result.ok:
+        if loop_result.ok and skill_projection is not None:
             skill_projection.finalize_successful_query(
                 evidence_refs=tuple(
                     f"event://{event.event_id}" for event in loop_result.event_records
@@ -1593,24 +1611,46 @@ class CodeWorkerRuntime:
                     f"artifact://{artifact.artifact_id}" for artifact in artifacts
                 ),
             )
-        skill_projection_snapshot = skill_projection.snapshot()
-        skill_projection_events = [
-            EventRecord(
-                run_id=request.run_id,
-                task_id=request.task_id,
-                node_id=request.node_id,
-                event_type=EventType.SKILL_INVOKED,
-                payload={
-                    **event.to_dict(),
-                    "phase": event.kind,
-                    "owner_unit": "M1-03C",
-                    "skill_session_checkpoint": skill_projection_snapshot.state_snapshot,
-                    "skill_compact_references": list(skill_projection_snapshot.compact_references),
-                    "skill_outcome_projections": list(skill_projection_snapshot.outcome_projections),
-                },
-            )
-            for event in skill_projection.events()
-        ]
+        if skill_projection is not None:
+            skill_projection_snapshot = skill_projection.snapshot()
+            skill_projection_events = [
+                EventRecord(
+                    run_id=request.run_id,
+                    task_id=request.task_id,
+                    node_id=request.node_id,
+                    event_type=EventType.SKILL_INVOKED,
+                    payload={
+                        **event.to_dict(),
+                        "phase": event.kind,
+                        "owner_unit": "M1-03C",
+                        "skill_session_checkpoint": skill_projection_snapshot.state_snapshot,
+                        "skill_compact_references": list(skill_projection_snapshot.compact_references),
+                        "skill_outcome_projections": list(skill_projection_snapshot.outcome_projections),
+                    },
+                )
+                for event in skill_projection.events()
+            ]
+            skill_projection_metadata = {
+                "skill_tool_projection": "active",
+                "skill_tool_projection_id": skill_projection_snapshot.projection_id,
+                "skill_registry_generation": str(skill_projection_snapshot.registry_generation),
+                "skill_invocation_count": str(len(skill_projection_snapshot.invocation_ids)),
+                "skill_projection_event_count": str(skill_projection_snapshot.event_count),
+                "skill_projection_snapshot_digest": skill_projection_snapshot.digest,
+            }
+        else:
+            # A server-signed child scope may deliberately disable SkillTool
+            # projection.  This is a real isolation mode, not a failed open:
+            # the child retains only its already-narrowed executable registry.
+            skill_projection_events = []
+            skill_projection_metadata = {
+                "skill_tool_projection": "disabled_by_signed_child_scope",
+                "skill_tool_projection_id": "",
+                "skill_registry_generation": "0",
+                "skill_invocation_count": "0",
+                "skill_projection_event_count": "0",
+                "skill_projection_snapshot_digest": "",
+            }
         worker_result = WorkerResult(
             request_id=request.request_id,
             ok=loop_result.ok
@@ -1695,12 +1735,7 @@ class CodeWorkerRuntime:
                 "context_compactions": str(loop_result.context_compaction_count),
                 "trace_artifact_id": trace_artifact.artifact_id,
                 "query_session_checkpoint_ready": str(bool(loop_result.session_snapshot)).lower(),
-                "skill_tool_projection": "active",
-                "skill_tool_projection_id": skill_projection_snapshot.projection_id,
-                "skill_registry_generation": str(skill_projection_snapshot.registry_generation),
-                "skill_invocation_count": str(len(skill_projection_snapshot.invocation_ids)),
-                "skill_projection_event_count": str(skill_projection_snapshot.event_count),
-                "skill_projection_snapshot_digest": skill_projection_snapshot.digest,
+                **skill_projection_metadata,
                 "mcp_skill_source_count": str(len(mcp_skill_sources)),
                 "mcp_skill_discovery_id": (
                     mcp_skill_discovery_receipt.discovery_id

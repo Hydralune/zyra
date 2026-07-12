@@ -69,7 +69,7 @@ class SubagentSourceAudit:
 
 def subagent_source_decisions() -> tuple[SubagentSourceDecision, ...]:
     active = {
-        "src/tools/AgentTool/AgentTool.tsx": "zyra_workers.subagents.runtime",
+        "src/tools/AgentTool/AgentTool.tsx": "zyra_workers.subagents.agent_tool",
         "src/tools/AgentTool/runAgent.ts": "zyra_workers.subagents.dispatch",
         "src/tools/AgentTool/loadAgentsDir.ts": "zyra_workers.subagents.definitions",
         "src/tools/AgentTool/agentToolUtils.ts": "zyra_workers.subagents.tool_scope",
@@ -90,7 +90,7 @@ def subagent_source_decisions() -> tuple[SubagentSourceDecision, ...]:
             disposition=SourceDisposition.ACTIVE,
             target_module=target,
             runtime_entry="SubagentRuntime.spawn",
-            behavior_test="tests/unit/test_subagent_commands_foundation.py",
+            behavior_test="tests/unit/test_subagent_commands_integration.py",
             rationale="Mechanism is rewritten into the durable Zyra logical task/session/permission model.",
         )
         for path, target in active.items()
@@ -123,8 +123,8 @@ def subagent_source_decisions() -> tuple[SubagentSourceDecision, ...]:
             ),
             SubagentSourceDecision(
                 "opencode", "packages/opencode/src/tool/task.ts", SourceDisposition.ADAPTER,
-                "zyra_workers.subagents.runtime", "SubagentRuntime.spawn",
-                "tests/integration/test_subagent_commands_foundation.py",
+                "zyra_workers.subagents.agent_tool", "AgentToolRuntime.handle",
+                "tests/integration/test_subagent_commands_integration_api.py",
                 "Child session, permission derivation and foreground/background semantics supplement Claude AgentTool.",
             ),
             SubagentSourceDecision(
@@ -142,7 +142,7 @@ def subagent_source_decisions() -> tuple[SubagentSourceDecision, ...]:
             SubagentSourceDecision(
                 "hermes-agent", "tools/async_delegation.py", SourceDisposition.ADAPTER,
                 "zyra_workers.subagents.lifecycle", "AgentTaskLifecycleRuntime.execute",
-                "tests/integration/test_subagent_commands_foundation.py",
+                "tests/unit/test_subagent_commands_integration.py",
                 "Completion/re-entry semantics are moved to the durable task store; daemon registry is not retained.",
             ),
             SubagentSourceDecision(
@@ -156,6 +156,31 @@ def subagent_source_decisions() -> tuple[SubagentSourceDecision, ...]:
                 "packages/workers", "none in 03D",
                 "tests/unit/test_subagent_commands_foundation.py",
                 "Resident inbox/wakeup and physical background registry belong to 07A/05C.", downstream_owner="M1-07A/M1-05C", maturity="process-local", main_path=False,
+            ),
+            SubagentSourceDecision(
+                "oh-my-pi", "packages/coding-agent/src/task/executor.ts", SourceDisposition.ADAPTER,
+                "zyra_workers.subagents.execution_receipts", "ExecutionReceiptStore.claim",
+                "tests/unit/test_subagent_commands_integration.py",
+                "Attempt identity, idempotency and late-result fencing are rewritten into a durable Zyra receipt state machine; provider execution stays behind CodeWorkerRuntime.",
+            ),
+            SubagentSourceDecision(
+                "oh-my-pi", "packages/coding-agent/src/task/job-manager.ts", SourceDisposition.ADAPTER,
+                "zyra_workers.subagents.fanout", "LogicalFanoutRuntime.start",
+                "tests/unit/test_subagent_commands_integration.py",
+                "Fan-out concurrency, promotion and fan-in become session-scoped durable logical groups rather than a process-local job map.",
+            ),
+            SubagentSourceDecision(
+                "oh-my-pi", "packages/coding-agent/src/task/agent-registry.ts", SourceDisposition.ADAPTER,
+                "zyra_workers.subagents.delivery", "DurableDeliveryStore.enqueue",
+                "tests/unit/test_subagent_commands_integration.py",
+                "Topology-bound parent-child delivery replaces unrestricted free-form agent messaging; sibling and broadcast routes are rejected.",
+            ),
+            SubagentSourceDecision(
+                "oh-my-pi", "packages/coding-agent/src/provider/rpc.ts", SourceDisposition.CONTRACT_ONLY,
+                "zyra_workers.subagents.typed_yield", "TypedYieldStore.append",
+                "tests/unit/test_subagent_commands_integration.py",
+                "Only typed, sequenced, budgeted yield semantics are internalized here; physical provider RPC and leases remain owned by M1-07A.",
+                downstream_owner="M1-07A",
             ),
         ]
     )
