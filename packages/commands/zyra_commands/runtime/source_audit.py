@@ -31,7 +31,7 @@ class CommandSourceDecision:
 COMMAND_SOURCE_DECISIONS = (
     CommandSourceDecision(
         "claude-code-best",
-        ("src/commands.ts", "src/entrypoints/sdk/controlSchemas.ts", "src/cli/structuredIO.ts"),
+        ("src/commands.ts", "src/commands/*", "src/entrypoints/sdk/controlSchemas.ts", "src/cli/structuredIO.ts"),
         "command discovery, strict control frames and structured IO",
         ("packages/commands/zyra_commands/runtime/registry.py", "packages/commands/zyra_commands/runtime/dispatcher.py", "packages/commands/zyra_commands/runtime/structured_io.py"),
         "zyra_module_migrated",
@@ -40,7 +40,7 @@ COMMAND_SOURCE_DECISIONS = (
     ),
     CommandSourceDecision(
         "claude-code-best",
-        ("src/entrypoints/cli.tsx", "src/screens/REPL.tsx", "src/components/PromptQueue.tsx"),
+        ("src/entrypoints/cli.tsx", "src/screens/REPL.tsx", "src/components/PromptQueue.tsx", "src/hooks/useCommandQueue.ts", "src/utils/messageQueueManager.ts", "src/utils/handlePromptSubmit.ts"),
         "now/next/later prompt and control queue",
         ("packages/commands/zyra_commands/runtime/prompt_queue.py",),
         "zyra_module_migrated",
@@ -49,12 +49,22 @@ COMMAND_SOURCE_DECISIONS = (
     ),
     CommandSourceDecision(
         "claude-code-best",
-        ("src/screens/Btw.tsx", "src/screens/REPL.tsx"),
+        ("src/commands/btw/*", "src/utils/sideQuestion.ts", "src/utils/forkedAgent.ts", "src/screens/Btw.tsx", "src/screens/REPL.tsx"),
         "one-turn side questions",
         ("packages/commands/zyra_commands/runtime/side_question.py",),
         "zyra_module_migrated",
         "Added immutable parent snapshot, zero-tool enforcement, independent transcript/usage and proof that main messages and replanning are unchanged.",
         "/btw through side_question.ask",
+    ),
+    CommandSourceDecision(
+        "claude-code-best",
+        ("src/cli/remoteIO.ts", "src/cli/print.ts"),
+        "remote structured control transport and safe result projection",
+        ("packages/commands/zyra_commands/runtime/structured_io.py", "apps/api/zyra_api/main.py"),
+        "active_adapter_port",
+        "Retained versioned ordered envelopes, cancellation, dedupe and redacted result projection; remote network transport is an injected downstream transport rather than a new 03D state owner.",
+        "POST /tasks/{task_id}/control-frames",
+        "M1-03D-02 and M2-04A own richer interactive/remote surfaces.",
     ),
     CommandSourceDecision(
         "opencode",
