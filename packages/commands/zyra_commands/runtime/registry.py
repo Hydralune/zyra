@@ -277,6 +277,7 @@ def built_in_control_descriptors() -> tuple[ControlCommandDescriptor, ...]:
         descriptor("/status", "Inspect current task status.", "task.status", source=zyra, category="observability"),
         descriptor("/graph", "Inspect current task graph.", "task.graph", source=zyra, category="observability"),
         descriptor("/trace", "Inspect canonical event trace.", "task.trace", source=zyra, category="observability"),
+        descriptor("/scheduler", "Inspect resource scheduler, worker manifests, health and recovery routes.", "scheduler.inspect", source=zyra, category="observability"),
         descriptor("/artifacts", "Inspect task artifacts.", "artifact.list", source=zyra, category="observability"),
         descriptor("/skills", "Inspect M1-03C skill registry and invocation state.", "skill.list", category="extensions"),
         descriptor("/tools", "Inspect the executable tool registry.", "tool.list", category="runtime"),

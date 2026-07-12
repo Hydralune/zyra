@@ -13,6 +13,7 @@ for package_path in [
     ROOT / "packages" / "runtime",
     ROOT / "packages" / "integrations",
     ROOT / "packages" / "workers",
+    ROOT / "packages" / "skills",
 ]:
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))

@@ -170,14 +170,19 @@ def main() -> None:
     skill_event = EventType.SKILL_INVOKED
     assert skill is not None
     assert skill_event == EventType.SKILL_INVOKED
-    assert "vendor/browser-use/browser_use/agent" in skill.vendor_paths
+    skill_root = Path(skill.skill_root).resolve()
+    assert skill.provenance.source_kind.value == "builtin"
+    assert skill_root.is_relative_to((ROOT / "skills" / "builtin").resolve())
     skill_invocation_event = {
         "event_type": "skill_invoked",
         "payload": {
             "skill_invocation": {
-                "skill_name": skill.name,
-                "preferred_runtime": skill.preferred_runtime,
-                "allowed_tools": list(skill.allowed_tools),
+                "skill_name": skill.metadata.name,
+                "preferred_runtime": skill.metadata.preferred_runtime,
+                "allowed_tools": [
+                    selector.canonical_name
+                    for selector in (skill.metadata.allowed_tools or ())
+                ],
             }
         },
     }
@@ -207,8 +212,9 @@ def main() -> None:
                 arguments={"path": "m2.txt", "content": "runtime tool execution"},
             )
         )
-        assert result.ok
-        assert result.output["relative_path"].endswith("m2.txt")
+        assert not result.ok
+        assert result.error == "permission_required"
+        assert not (Path(tmpdir) / "workspace" / "m2.txt").exists()
         (Path(tmpdir) / "workspace" / "research.md").write_text(
             "M2 should support searchable research evidence for long-horizon tasks.",
             encoding="utf-8",
@@ -221,9 +227,9 @@ def main() -> None:
                 arguments={"query": "research evidence", "paths": ["."]},
             )
         )
-        assert search_result.ok
-        assert search_result.output["result_count"] == 1
-        assert search_result.artifacts
+        assert not search_result.ok
+        assert search_result.error == "permission_required"
+        assert not search_result.artifacts
         browser_tool_result = ToolExecutor(context).execute(
             ToolCall(
                 run_id=state.run_id,
@@ -235,9 +241,9 @@ def main() -> None:
                 },
             )
         )
-        assert browser_tool_result.ok
-        assert browser_tool_result.output["state"]["title"] == "M2 Tool Browser"
-        assert browser_tool_result.artifacts
+        assert not browser_tool_result.ok
+        assert browser_tool_result.error == "permission_required"
+        assert not browser_tool_result.artifacts
         trace_context = ToolExecutionContext.for_workspace(
             Path(tmpdir) / "trace-workspace",
             Path(tmpdir) / "trace-artifacts",
@@ -257,12 +263,12 @@ def main() -> None:
                 run_id=state.run_id,
                 task_id=state.task_id,
                 tool_name="trace",
-                arguments={"limit": 1, "write_artifact": True},
+                arguments={"limit": 1, "write_artifact": False},
             )
         )
         assert trace_result.ok
         assert trace_result.output["returned_count"] == 1
-        assert trace_result.artifacts
+        assert not trace_result.artifacts
         checkpoint_context = ToolExecutionContext.for_workspace(
             Path(tmpdir) / "checkpoint-workspace",
             Path(tmpdir) / "checkpoint-artifacts",
@@ -282,12 +288,12 @@ def main() -> None:
                 run_id=state.run_id,
                 task_id=state.task_id,
                 tool_name="checkpoint",
-                arguments={"include_state": True, "write_artifact": True},
+                arguments={"include_state": True, "write_artifact": False},
             )
         )
         assert checkpoint_result.ok
         assert checkpoint_result.output["summary"]["task_id"] == state.task_id
-        assert checkpoint_result.artifacts
+        assert not checkpoint_result.artifacts
 
         permission_store = JsonPermissionStore(Path(tmpdir) / "permissions.json")
         shell_result = ToolExecutor(
@@ -337,17 +343,22 @@ def main() -> None:
             )
         )
         assert run.worker_result.ok
-        assert run.worker_result.metadata["vendor_complete"] == "true"
-        assert run.worker_result.metadata["inventory_source"] == "claude-code-best"
-        assert run.worker_result.metadata["loop"] == "claude_code_query_engine_contract_loop"
-        assert run.worker_result.metadata["query_contract_source"] == "claude-code-best"
+        assert run.worker_result.metadata["vendor_complete"] == "false"
+        assert run.worker_result.metadata["inventory_source"] == "zyra-claude-productized"
+        assert run.worker_result.metadata["loop"] == "zyra_claude_query_engine_runtime"
+        assert run.worker_result.metadata["query_contract_source"] == "zyra-claude-productized"
         assert run.worker_result.metadata["query_contract_write_serial"] == "true"
         assert run.worker_result.metadata["query_turns"] == "1"
         assert run.worker_result.metadata["query_session_id"].startswith("codesession_")
         assert run.worker_result.metadata["context_compactions"] == "0"
         assert any("query_session" in event.payload for event in run.event_records)
+        trace_artifact = next(
+            artifact
+            for artifact in run.worker_result.artifacts
+            if artifact.title.startswith("CodeWorker trace ")
+        )
         code_worker_preview = LocalArtifactStore(Path(tmpdir) / "worker-artifacts").read_preview(
-            run.worker_result.artifacts[0]
+            trace_artifact
         )
         assert "CodeWorker Runtime Trace" in code_worker_preview["content"]
 

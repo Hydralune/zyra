@@ -506,7 +506,7 @@ class McpApiControlRestoreIntegrationTests(unittest.TestCase):
                 )
                 self.assertEqual(command_status, 201, command)
                 command_result = command["command_result"]
-                self.assertEqual(command_result["runtime_status"], "live")
+                self.assertEqual(command_result["runtime_status"], "stateful")
                 self.assertTrue(command_result["data"]["enabled"])
                 self.assertEqual(command_result["data"]["health"]["connected_count"], 1)
                 self.assertEqual(command_result["data"]["catalog"]["tool_count"], 2)

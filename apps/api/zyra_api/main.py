@@ -4870,6 +4870,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         "task.status",
         "task.graph",
         "task.trace",
+        "scheduler.inspect",
         "artifact.list",
         "skill.list",
         "tool.list",
@@ -4908,18 +4909,62 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
     def mcp_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         if action not in {"status", "health", "servers", "server", "catalog", "tools", "resources", "prompts", "tasks", "elicitations"}:
             raise RuntimeError("mutating MCP control requires an exact McpClientRuntime authorization")
-        diagnostics = get_mcp_runtime().diagnostics()
-        return {"ok": True, "summary": "MCP runtime state.", "action": action, "diagnostics": diagnostics}
+        target = str(arguments.get("target") or "").strip()
+        raw = " ".join(item for item in (action, target) if item)
+        control_result = get_mcp_command_adapter().execute(
+            "/mcp",
+            raw,
+            context=McpControlContext(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=str(state.root_node_id or ""),
+                session_id=str(state.metadata.get("code_worker_session_id") or ""),
+                worker_request_id=str(request.request_id),
+                tool_use_id=str(request.command_id),
+                actor_id=str(request.metadata.get("actor_id") or "control-command"),
+                cause_event_id=str(request.request_id),
+            ),
+        )
+        payload = control_result.safe_dict()
+        return {
+            "ok": control_result.ok,
+            "summary": control_result.summary,
+            **dict(control_result.data),
+            "control": payload,
+            "runtime_status": "live" if control_result.ok else "blocked",
+            "owner_slice": "M1-S03B-02",
+            "requires_node_sidecar": False,
+            "sidecar_contracts_used": False,
+        }
 
     def permission_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         if action not in {"inspect", "status", "list", "rules", "requests", "decisions", "mode"}:
             raise RuntimeError("mutating permission control requires an exact PermissionStateStore authorization")
         plane = get_permission_control_plane()
+        permission_requests = [
+            item
+            for item in plane.state_store.list_requests()
+            if item.task_id == state.task_id and item.run_id == state.run_id
+        ]
+        status_counts: dict[str, int] = {}
+        for item in permission_requests:
+            status = item.status.value
+            status_counts[status] = status_counts.get(status, 0) + 1
         return {
             "ok": True,
-            "summary": "Permission runtime state.",
+            "summary": "Permission runtime summary; session details require custody.",
             "action": action,
-            "state": plane.state_store.snapshot(),
+            "legacy_json_store_authority": False,
+            "request_count": len(permission_requests),
+            "request_status_counts": status_counts,
+            "session_count": len({item.session_id for item in permission_requests}),
+            "custody_required_for_details": True,
+            "structured_routes": [
+                "/permissions/requests",
+                "/permissions/rules",
+                "/permissions/mode",
+                "/permissions/decisions",
+            ],
         }
 
     def model_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:

@@ -432,7 +432,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_clear_and_rewind_fail_closed_without_canonical_session_owner(self) -> None:
+    def test_clear_uses_canonical_session_owner_and_rewind_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
@@ -449,13 +449,15 @@ class ApiControlCommandTests(unittest.TestCase):
                 clear_status, cleared = _post_with_status(base_url, f"/tasks/{task_id}/commands", {"text": "/clear start focused session"})
                 rewind_status, rewound = _post_with_status(base_url, f"/tasks/{task_id}/commands", {"text": "/rewind latest"})
 
-                self.assertEqual(clear_status, 409)
+                self.assertEqual(clear_status, 201)
                 self.assertEqual(rewind_status, 409)
-                self.assertFalse(cleared["command_result"]["ok"])
+                self.assertTrue(cleared["command_result"]["ok"])
                 self.assertFalse(rewound["command_result"]["ok"])
-                self.assertIn(cleared["command_result"]["error"]["code"], {"permission_denied", "state_owner_unavailable"})
                 self.assertIn(rewound["command_result"]["error"]["code"], {"permission_denied", "state_owner_unavailable"})
                 self.assertFalse(cleared["event_only_stateful_fallback"])
+                self.assertTrue(
+                    cleared["command_result"]["data"]["transaction"]["effect"]["metadata"]["same_session_new_epoch"]
+                )
             finally:
                 server.shutdown()
                 server.server_close()

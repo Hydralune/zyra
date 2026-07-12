@@ -425,7 +425,12 @@ class CodeWorkerToolLoopFoundationRuntimeTests(unittest.TestCase):
             self.assertEqual(run.worker_result.metadata["tool_contract_gate_status"], "pass")
             self.assertEqual(run.worker_result.metadata["tool_settlement_all_ok"], "true")
             self.assertEqual(run.worker_result.metadata["tool_settlement_reports"], "1")
-            self.assertEqual(run.worker_result.metadata["tool_registry_active_count"], "9")
+            active_tool_count = int(run.worker_result.metadata["tool_registry_active_count"])
+            self.assertGreaterEqual(active_tool_count, 9)
+            self.assertEqual(
+                active_tool_count,
+                int(run.worker_result.metadata["runtime_context_tool_names"]),
+            )
             self.assertGreaterEqual(int(run.worker_result.metadata["tool_use_context_modifiers"]), 4)
             self.assertGreaterEqual(int(run.worker_result.metadata["tool_foundation_persisted_artifacts"]), 5)
             self.assertEqual(len(_query_phases(run.event_records, "tool_registry_materialized")), 1)
