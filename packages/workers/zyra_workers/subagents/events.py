@@ -58,7 +58,6 @@ def subagent_event(
         },
     )
 
-
 def dispatch_event(
     record: SubagentTaskRecord,
     receipt: SubagentDispatchReceipt,
@@ -100,4 +99,3 @@ def cleanup_event(record: SubagentTaskRecord, receipt: IsolationCleanupReceipt) 
         payload={"cleanup": receipt.to_dict()},
         causation_id=receipt.cleanup_id,
     )
-

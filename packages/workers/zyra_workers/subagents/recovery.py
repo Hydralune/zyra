@@ -92,4 +92,3 @@ class SubagentRecoverySignalRuntime:
         if error is not None:
             return SubagentFailureKind.EXECUTION
         return SubagentFailureKind.UNKNOWN
-

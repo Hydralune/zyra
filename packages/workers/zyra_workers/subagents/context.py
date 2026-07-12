@@ -240,4 +240,3 @@ def _content_blocks(message: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if isinstance(content, list):
         return [item for item in content if isinstance(item, Mapping)]
     return []
-

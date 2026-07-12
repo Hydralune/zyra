@@ -57,4 +57,3 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, bytes):
         return {"encoding": "hex", "value": value.hex()}
     return value
-

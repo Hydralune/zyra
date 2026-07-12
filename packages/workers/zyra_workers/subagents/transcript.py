@@ -232,4 +232,3 @@ class SubagentTranscriptStore:
     def _require_enabled(self) -> None:
         if self.disabled:
             raise RuntimeError("SubagentTranscriptStore is disabled")
-

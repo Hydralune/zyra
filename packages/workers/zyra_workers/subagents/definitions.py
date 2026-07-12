@@ -337,4 +337,3 @@ def built_in_agent_definitions() -> tuple[AgentDefinition, ...]:
 
 def default_agent_definition_registry(*, disabled: bool = False) -> AgentDefinitionRegistry:
     return AgentDefinitionRegistry(built_in_agent_definitions(), disabled=disabled)
-

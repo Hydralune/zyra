@@ -368,4 +368,3 @@ class AgentTaskLifecycleRuntime:
     def _require_enabled(self) -> None:
         if self.disabled:
             raise SubagentDisabled("AgentTaskLifecycleRuntime")
-

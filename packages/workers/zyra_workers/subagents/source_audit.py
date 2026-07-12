@@ -192,4 +192,3 @@ def audit_subagent_sources(project_root: str | Path) -> SubagentSourceAudit:
             })
     payload = [item.to_dict() for item in decisions]
     return SubagentSourceAudit(tuple(decisions), tuple(findings), digest_object(payload))
-

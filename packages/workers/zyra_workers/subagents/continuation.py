@@ -161,4 +161,3 @@ class SubagentContinuationRuntime:
             )
         self._seen[request.idempotency_key] = receipt
         return receipt
-

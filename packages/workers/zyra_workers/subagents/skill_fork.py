@@ -93,4 +93,3 @@ class SubagentSkillForkPort:
             execution_ref=record.execution_ref,
             status=record.status.value,
         )
-

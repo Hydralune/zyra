@@ -178,4 +178,3 @@ def _contains(root: Path, candidate: Path) -> bool:
         return True
     except ValueError:
         return candidate == root
-

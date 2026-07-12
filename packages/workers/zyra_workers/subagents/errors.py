@@ -38,7 +38,6 @@ class SubagentDisabled(SubagentRuntimeError):
             detail={"component": component},
         )
 
-
 class AgentDefinitionError(SubagentRuntimeError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="agent_definition_invalid", detail=detail)
@@ -176,4 +175,3 @@ class StructuredHandoffRequired(SubagentRuntimeError):
             code="subagent_structured_handoff_required",
             detail={"task_id": task_id},
         )
-

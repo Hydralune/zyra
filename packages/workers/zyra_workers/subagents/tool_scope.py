@@ -314,4 +314,3 @@ def _mcp_server_id(spec: ToolSpec) -> str:
     if metadata.get("tool_namespace") == "mcp" or metadata.get("namespace") == "mcp":
         return str(metadata.get("server_id") or metadata.get("server_name") or "")
     return ""
-
