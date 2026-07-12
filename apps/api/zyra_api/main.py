@@ -170,6 +170,8 @@ from zyra_workers import (
     PermissionMode,
     SubagentRuntime,
     SubagentRuntimeConfig,
+    SubagentControlAction,
+    SubagentControlRequest,
     SubagentSpawnRequest,
     browser_use_health_summary,
     default_browser_action_registry,
@@ -2583,13 +2585,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.CONFLICT, {"error": "subagent_parent_mismatch"})
                 return
             if parts[4] == "cancel":
-                records = runtime.cancel(record.task_id, reason=str(payload.get("reason") or "api_cancelled"))
-                self._send_json(HTTPStatus.OK, {"cancelled": [item.safe_dict() for item in records]})
+                action = SubagentControlAction.CANCEL
+            elif parts[4] == "background":
+                action = SubagentControlAction.BACKGROUND
+            elif parts[4] == "message":
+                action = SubagentControlAction.MESSAGE
+            elif parts[4] == "status":
+                action = SubagentControlAction.STATUS
+            else:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "subagent_control_not_found"})
                 return
-            if parts[4] == "background":
-                updated = runtime.promote_to_background(record.task_id)
-                self._send_json(HTTPStatus.OK, {"subagent": updated.safe_dict(), "execution_ref_reused": True})
-                return
+            response = runtime.control_runtime.execute(SubagentControlRequest(
+                root_task_id=state.task_id,
+                subagent_task_id=record.task_id,
+                action=action,
+                arguments=dict(payload),
+                request_id=str(payload.get("request_id") or new_id("subcontrol")),
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+                expected_task_revision=(int(payload["expected_task_revision"]) if payload.get("expected_task_revision") is not None else None),
+            ))
+            self._send_json(HTTPStatus.OK if response.ok else HTTPStatus.CONFLICT, response.to_dict())
+            return
 
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "ingest":
             state = store.load_task(parts[1])

@@ -1,6 +1,13 @@
 from .budget import BudgetReservation, ParentBudgetAccount, SubagentBudgetReservationStore
 from .context import ForkContextBuilder, ForkedMessagePrefix, ParentContextInput, SubagentContextFactory
 from .continuation import ContinuationReceipt, ContinuationRequest, SubagentContinuationRuntime
+from .control import (
+    SubagentControlAction,
+    SubagentControlRequest,
+    SubagentControlResponse,
+    SubagentControlRuntime,
+    SubagentControlStatus,
+)
 from .definitions import (
     AgentDefinitionRegistry,
     AgentDefinitionShadow,

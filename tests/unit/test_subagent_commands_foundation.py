@@ -44,6 +44,9 @@ from zyra_workers.subagents import (
     LogicalWorkspaceIsolationPort,
     PermissionMode,
     SubagentBudgetReservationStore,
+    SubagentControlAction,
+    SubagentControlRequest,
+    SubagentControlRuntime,
     SubagentExecutionResult,
     SubagentRuntime,
     SubagentRuntimeConfig,
@@ -360,6 +363,23 @@ class SubagentCommandFoundationTests(unittest.TestCase):
             self.assertTrue(execution.started.wait(timeout=2))
             running = runtime.task_store.get("background-child")
             execution_ref = running.execution_ref
+            control_request = SubagentControlRequest(
+                root_task_id="parent",
+                subagent_task_id="background-child",
+                action=SubagentControlAction.MESSAGE,
+                arguments={"message": "report progress at the next safe boundary"},
+                idempotency_key="message-background-once",
+                expected_task_revision=running.revision,
+            )
+            message = runtime.control_runtime.execute(control_request)
+            replayed_message = runtime.control_runtime.execute(control_request)
+            restarted_message = SubagentControlRuntime(
+                runtime, root / "state" / "controls.json"
+            ).execute(control_request)
+            self.assertTrue(message.ok)
+            self.assertEqual(message.to_dict(), replayed_message.to_dict())
+            self.assertEqual(message.to_dict(), restarted_message.to_dict())
+            self.assertEqual(1, len(runtime.task_store.get("background-child").pending_messages))
             cancelled = runtime.cancel_for_parent("parent", reason="parent_cancelled")
             release.set()
             runtime.wait("background-child", timeout=3)
@@ -406,6 +426,69 @@ class SubagentCommandFoundationTests(unittest.TestCase):
         self.assertGreaterEqual(commands["counts"]["zyra_module_migrated"], 3)
         self.assertTrue(subagents["decisions"])
         self.assertTrue(all(item["target_module"] for item in subagents["decisions"]))
+
+    def test_disabling_each_core_owner_breaks_real_task_or_control_behavior(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            workspace = root / "workspace"
+            workspace.mkdir()
+
+            def request(task_id: str) -> SubagentSpawnRequest:
+                return SubagentSpawnRequest(
+                    run_id="run", parent_task_id="parent", parent_session_id="session",
+                    parent_worker_request_id="worker", agent_type="explore", prompt="must fail",
+                    parent_tools=tuple(item.name for item in default_tool_registry().list()),
+                    requested_tools=("file_read",), workspace_root=str(workspace), task_id=task_id,
+                )
+
+            disabled_runtime = SubagentRuntime(
+                SubagentRuntimeConfig.from_paths(
+                    state_root=root / "disabled-runtime", workspace_root=workspace,
+                    artifact_root=root / "artifacts", disabled=True,
+                ),
+                execution_port=FakeExecutionPort(), isolation_port=LogicalWorkspaceIsolationPort(),
+                parent_registry=default_tool_registry(),
+            )
+            with self.assertRaises(RuntimeError):
+                disabled_runtime.spawn(request("disabled-runtime"))
+
+            disabled_isolation = SubagentRuntime(
+                SubagentRuntimeConfig.from_paths(
+                    state_root=root / "disabled-isolation", workspace_root=workspace, artifact_root=root / "artifacts",
+                ),
+                execution_port=FakeExecutionPort(), isolation_port=LogicalWorkspaceIsolationPort(disabled=True),
+                parent_registry=default_tool_registry(),
+            )
+            with self.assertRaises(RuntimeError):
+                disabled_isolation.spawn(request("disabled-isolation"))
+
+            disabled_lifecycle = SubagentRuntime(
+                SubagentRuntimeConfig.from_paths(
+                    state_root=root / "disabled-lifecycle", workspace_root=workspace, artifact_root=root / "artifacts",
+                ),
+                execution_port=FakeExecutionPort(), isolation_port=LogicalWorkspaceIsolationPort(),
+                parent_registry=default_tool_registry(),
+            )
+            disabled_lifecycle.lifecycle.disabled = True
+            with self.assertRaises(RuntimeError):
+                disabled_lifecycle.spawn(request("disabled-lifecycle"))
+
+            registry = ControlCommandRegistry(disabled=True)
+            with self.assertRaises(RuntimeError):
+                registry.list()
+
+            active_registry = default_control_command_registry()
+            dispatcher = RuntimeControlDispatcher(
+                registry=active_registry,
+                request_store=ControlRequestStore(root / "disabled-dispatcher.json"),
+                prompt_queue=PromptQueueRuntime(root / "disabled-queue.json"),
+                disabled=True,
+            )
+            with self.assertRaises(RuntimeError):
+                dispatcher.submit(ControlCommandRequest(
+                    run_id="run", task_id="task", session_id="session", canonical_name="/status",
+                    registry_generation=active_registry.generation,
+                ), RuntimeControlContext())
 
 
 if __name__ == "__main__":

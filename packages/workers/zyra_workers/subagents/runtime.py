@@ -11,6 +11,8 @@ from zyra_runtime import LocalArtifactStore, ToolRegistry, default_tool_registry
 
 from .budget import SubagentBudgetReservationStore
 from .context import ParentContextInput, SubagentContextFactory
+from .continuation import ContinuationRequest, SubagentContinuationRuntime
+from .control import SubagentControlRuntime
 from .definitions import AgentDefinitionRegistry, default_agent_definition_registry
 from .digests import digest_object, stable_id
 from .dispatch import SubagentExecutionPort
@@ -134,6 +136,12 @@ class SubagentRuntime:
         self.execution_port = execution_port
         self.artifact_store = LocalArtifactStore(config.artifact_root)
         self.handoff_runtime = SubagentHandoffRuntime(self.artifact_store)
+        self.continuation_runtime = SubagentContinuationRuntime(
+            task_store=self.task_store,
+            transcript_store=self.transcript_store,
+            context_factory=self.context_factory,
+        )
+        self.control_runtime = SubagentControlRuntime(self, state_root / "controls.json")
         self.event_sink = event_sink
         self.lifecycle = lifecycle_runtime or AgentTaskLifecycleRuntime(
             task_store=self.task_store,
@@ -390,6 +398,10 @@ class SubagentRuntime:
             for descendant in self.task_store.descendants(task_id):
                 self._cancel_requested.add(descendant.task_id)
         return self.lifecycle.cancel(task_id, reason=reason, cascade=True)
+
+    def send_message(self, request: ContinuationRequest):
+        self._require_enabled()
+        return self.continuation_runtime.send(request)
 
     def cancel_for_parent(self, parent_task_id: str, *, reason: str = "parent_cancelled") -> tuple[SubagentTaskRecord, ...]:
         self._require_enabled()
