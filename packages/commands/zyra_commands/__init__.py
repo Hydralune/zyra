@@ -19,6 +19,8 @@ from .runtime import (
     RuntimeControlDispatcher,
     SideQuestionRuntime,
     SideQuestionContextSnapshot,
+    StructuredControlIO,
+    StructuredEnvelope,
     default_control_command_registry,
 )
 
@@ -41,5 +43,7 @@ __all__ = [
     "RuntimeControlDispatcher",
     "SideQuestionRuntime",
     "SideQuestionContextSnapshot",
+    "StructuredControlIO",
+    "StructuredEnvelope",
     "default_control_command_registry",
 ]

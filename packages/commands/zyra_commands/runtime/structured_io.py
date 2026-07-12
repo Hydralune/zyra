@@ -336,6 +336,7 @@ class StructuredControlIO:
         self._audit = [dict(item) for item in raw.get("audit") or () if isinstance(item, Mapping)]
 
     def _persist(self) -> None:
+        self.state_path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
         temp.write_text(json.dumps(self.snapshot(), ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
         os.replace(temp, self.state_path)
@@ -345,4 +346,3 @@ class StructuredControlIO:
             raise RuntimeError("StructuredControlIO is disabled")
         if self._closed:
             raise RuntimeError("StructuredControlIO is closed")
-

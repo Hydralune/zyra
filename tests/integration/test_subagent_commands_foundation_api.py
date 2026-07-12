@@ -47,6 +47,22 @@ class SubagentCommandsFoundationApiTests(unittest.TestCase):
                 })
                 view = _get(base, f"/tasks/{task['task_id']}")
                 subagents = _get(base, f"/tasks/{task['task_id']}/subagents")
+                generation = _get(base, "/commands")["registry"]["generation"]
+                frame = _post(base, f"/tasks/{task['task_id']}/control-frames", {
+                    "protocol_version": "zyra.structured-io/v1",
+                    "message_type": "control_request",
+                    "message_id": "structured-status-1",
+                    "payload": {
+                        "protocol_version": "zyra.control/v1",
+                        "request_id": "structured-control-1",
+                        "command_id": "structured-command-1",
+                        "run_id": task["run_id"],
+                        "task_id": task["task_id"],
+                        "session_id": f"task:{task['task_id']}",
+                        "canonical_name": "/status",
+                        "registry_generation": generation,
+                    },
+                })
 
                 self.assertTrue(status["command_result"]["ok"])
                 self.assertTrue(changed["command_result"]["ok"])
@@ -58,6 +74,9 @@ class SubagentCommandsFoundationApiTests(unittest.TestCase):
                 self.assertFalse(side["command_result"]["data"]["main_replan_triggered"])
                 self.assertEqual([], subagents["subagents"])
                 self.assertFalse(subagents["physical_worker_state_owned"])
+                self.assertEqual("control_response", frame["envelope"]["message_type"])
+                self.assertEqual("succeeded", frame["envelope"]["payload"]["status"])
+                self.assertIn("structured-control-1", frame["state"]["resolved"])
                 request_state = json.loads((root / "control" / "requests.json").read_text(encoding="utf-8"))
                 self.assertGreaterEqual(len(request_state["records"]), 3)
                 self.assertTrue(all(item["status"] == "succeeded" for item in request_state["records"]))

@@ -62,6 +62,8 @@ from zyra_commands import (
     RuntimeControlDispatcher,
     SideQuestionContextSnapshot,
     SideQuestionRuntime,
+    StructuredControlIO,
+    StructuredEnvelope,
     default_command_registry,
     default_control_command_registry,
     parse_slash_command,
@@ -2692,6 +2694,47 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "command": descriptor.to_dict(),
                     "command_result": compatibility_result,
                     "event": control_event,
+                    "event_only_stateful_fallback": False,
+                },
+            )
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "control-frames":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            raw_envelope = payload.get("envelope") if isinstance(payload.get("envelope"), dict) else payload
+            try:
+                envelope = StructuredEnvelope.from_dict(raw_envelope)
+                structured = StructuredControlIO(
+                    control_state_path() / "structured" / f"{state.task_id}.json",
+                    dispatcher=lambda request: get_control_dispatcher().submit(
+                        request,
+                        _control_context_for_task(state, store),
+                    ),
+                    cancel_callback=lambda request_id: bool(
+                        get_control_dispatcher().cancel(
+                            request_id,
+                            reason="structured_control_cancelled",
+                            context=_control_context_for_task(state, store),
+                        )
+                    ),
+                )
+                response_envelope = structured.handle(envelope)
+            except (KeyError, ValueError, RuntimeError) as error:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "structured_control_invalid", "message": str(error), "type": type(error).__name__},
+                )
+                return
+            store.save_checkpoint(state)
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "schema": "zyra.structured-control-api/v1",
+                    "envelope": response_envelope.to_dict() if response_envelope else None,
+                    "state": structured.snapshot(),
                     "event_only_stateful_fallback": False,
                 },
             )
