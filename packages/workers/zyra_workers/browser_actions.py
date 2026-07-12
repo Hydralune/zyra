@@ -90,7 +90,7 @@ class BrowserActionRegistry:
 
     def describe(self) -> dict[str, Any]:
         return {
-            "source": "browser-use",
+            "source": "browser-use" if self.source_actions else "zyra-browser-productized",
             "source_models_path": str(self.source_models_path),
             "source_service_path": str(self.source_service_path),
             "actions": [asdict(item) for item in self._descriptors.values()],
@@ -103,8 +103,14 @@ def default_browser_action_registry(project_root: str | Path) -> BrowserActionRe
     root = Path(project_root)
     models_path = root / "vendor" / "browser-use" / "browser_use" / "tools" / "views.py"
     service_path = root / "vendor" / "browser-use" / "browser_use" / "tools" / "service.py"
-    model_fields = load_browser_use_action_models(models_path)
-    source_actions = load_browser_use_registered_actions(service_path)
+    # Source scanning remains an explicit audit operation.  Production action
+    # discovery is deterministic and does not depend on a vendor checkout.
+    if models_path.is_file() and service_path.is_file():
+        model_fields = load_browser_use_action_models(models_path)
+        source_actions = load_browser_use_registered_actions(service_path)
+    else:
+        model_fields = {}
+        source_actions = []
     source_by_name = {action.name: action for action in source_actions}
 
     descriptors = [

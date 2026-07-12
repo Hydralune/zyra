@@ -18,6 +18,16 @@ from .browser_use_runtime import (
     inspect_browser_use_runtime,
 )
 from .browser_worker import BrowserWorkerRun, BrowserWorkerRuntime
+from .browser_session import (
+    BrowserRuntime,
+    BrowserRuntimeConfig,
+    BrowserSessionCommand,
+    BrowserSessionDiagnostic,
+    BrowserSessionRef,
+    BrowserSessionStartResult,
+    BrowserSessionStopResult,
+    JsonBrowserStateStore,
+)
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_query_loop import CodeQueryLoop, CodeQueryLoopConfig, CodeQueryLoopResult, query_turns_from_constraints
 from .code_worker_runtime import CodeWorkerRun, CodeWorkerRuntime
@@ -97,6 +107,14 @@ from .subagents import (
 __all__ = [
     "BrowserWorkerRun",
     "BrowserWorkerRuntime",
+    "BrowserRuntime",
+    "BrowserRuntimeConfig",
+    "BrowserSessionCommand",
+    "BrowserSessionDiagnostic",
+    "BrowserSessionRef",
+    "BrowserSessionStartResult",
+    "BrowserSessionStopResult",
+    "JsonBrowserStateStore",
     "BridgeProbeResult",
     "BridgeProbeStatus",
     "BridgeProbeStep",

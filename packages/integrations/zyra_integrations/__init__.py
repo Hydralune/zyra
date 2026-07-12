@@ -1,3 +1,15 @@
+from .browser_use import (
+    BrowserEndpoint,
+    BrowserEndpointDiscovery,
+    BrowserEventBus,
+    CdpMessageCodec,
+    ChromeLaunchPlan,
+    ChromeLaunchPolicy,
+    ChromeProcessController,
+    RequestIdAllocator,
+    WebSocketClient,
+    WebSocketConfig,
+)
 from .vendor_manifest import (
     VendorModule,
     VendorSnapshot,
@@ -364,6 +376,16 @@ from .extraction_lineage import (
 )
 
 __all__ = [
+    "BrowserEndpoint",
+    "BrowserEndpointDiscovery",
+    "BrowserEventBus",
+    "CdpMessageCodec",
+    "ChromeLaunchPlan",
+    "ChromeLaunchPolicy",
+    "ChromeProcessController",
+    "RequestIdAllocator",
+    "WebSocketClient",
+    "WebSocketConfig",
     "AccountingFinding",
     "AcceptanceReport",
     "AtomicLedgerStore",

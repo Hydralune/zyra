@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import unquote, urljoin, urlparse
 
 from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
-from zyra_integrations import browser_use_snapshot, validate_vendor_snapshot
+from zyra_integrations import browser_use_snapshot
 from zyra_runtime import LocalArtifactStore, WorkerRequest, WorkerResult
 from zyra_runtime.permission.action_gate import (
     BrowserActionPermissionCustodyError,
@@ -25,6 +25,7 @@ from zyra_runtime.permission.action_gate import (
 from zyra_runtime.permission.custody import PermissionSessionCustodyStore
 
 from .browser_actions import BrowserActionRegistry, default_browser_action_registry
+from .browser_session import BrowserRuntime, BrowserRuntimeConfig, BrowserSessionCommand
 from .browser_use_runtime import (
     BrowserUseRuntimeHealth,
     browser_use_health_summary,
@@ -85,7 +86,7 @@ LIVE_BROWSER_USE_ONLY_ACTIONS = LIVE_BROWSER_USE_TOOL_ACTIONS | LIVE_BROWSER_USE
 
 
 class BrowserWorkerRuntime:
-    """Browser worker adapter backed by the vendored browser-use module boundary."""
+    """Zyra-owned browser worker with a productized session lifecycle."""
 
     def __init__(
         self,
@@ -95,6 +96,7 @@ class BrowserWorkerRuntime:
         artifact_root: str | Path,
         permission_state_path: str | Path | None = None,
         timeout_seconds: int = 15,
+        browser_session_runtime: BrowserRuntime | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -108,8 +110,196 @@ class BrowserWorkerRuntime:
         self.timeout_seconds = timeout_seconds
         self.action_registry = default_browser_action_registry(self.project_root)
         self.browser_use_health: BrowserUseRuntimeHealth = inspect_browser_use_runtime(self.project_root)
+        self.browser_session_runtime = browser_session_runtime or BrowserRuntime(
+            config=BrowserRuntimeConfig(
+                state_root=self.artifact_store.root / ".browser-session" / "state",
+                runtime_root=self.project_root / "tmp" / "browser-session-runtime",
+                artifact_root=self.artifact_store.root,
+                request_timeout_seconds=float(timeout_seconds),
+                connect_timeout_seconds=float(timeout_seconds),
+            )
+        )
 
     def run(self, request: WorkerRequest) -> BrowserWorkerRun:
+        if _request_contains_permission_capability_echo(request):
+            return self._run_legacy_actions(request)
+
+        lifecycle_command = _browser_lifecycle_command_from_request(request)
+        if lifecycle_command:
+            return self._run_browser_lifecycle(request, lifecycle_command)
+
+        backend = _browser_backend_from_request(request)
+        if backend in {"static", "browser-use-live", "browser-use-agent"}:
+            return self._run_legacy_actions(request)
+        if backend != "zyra-browser-productized":
+            return _browser_productized_failure(
+                request,
+                code="invalid_browser_backend",
+                summary=f"BrowserWorker rejected unknown browser backend: {backend}",
+            )
+
+        command = self._browser_session_command(request)
+        try:
+            started = self.browser_session_runtime.ensure_started(command)
+        except Exception as error:  # noqa: BLE001 - runtime boundary returns typed worker failure.
+            return _browser_productized_failure(
+                request,
+                code=type(error).__name__,
+                summary="BrowserSessionRuntime failed to prepare a browser session.",
+                details=str(error),
+            )
+        if not started.ok:
+            return _browser_productized_failure(
+                request,
+                code=started.error or "browser_session_start_failed",
+                summary="BrowserSessionRuntime could not prepare a browser session.",
+            )
+
+        start_payload = to_jsonable(started)
+        start_event = _browser_session_event(request, "session_attached", start_payload)
+        legacy_request = replace(
+            request,
+            constraints={**request.constraints, "browser_backend": "static"},
+        )
+        action_run = self._run_legacy_actions(legacy_request)
+        stop_payload: dict[str, Any] = {}
+        stop_event: EventRecord | None = None
+        stop_error = ""
+        if not command.keep_alive:
+            try:
+                stopped = self.browser_session_runtime.stop(
+                    started.session.session_id,
+                    reason="worker_request_completed",
+                )
+                stop_payload = to_jsonable(stopped)
+                stop_event = _browser_session_event(request, "session_released", stop_payload)
+            except Exception as error:  # noqa: BLE001 - cleanup failure is part of worker result.
+                stop_error = f"{type(error).__name__}: {error}"
+
+        session_metadata = {
+            "browser_backend": "zyra-browser-productized",
+            "browser_session_id": started.session.session_id,
+            "browser_canonical_session_id": started.session.canonical_session_id,
+            "browser_session_status": str(started.session.status),
+            "browser_session_revision": str(started.session.revision),
+            "browser_session_keep_alive": str(command.keep_alive).lower(),
+            "browser_session_created": str(started.created).lower(),
+            "browser_session_reused": str(started.reused).lower(),
+            "browser_runtime_vendor_required": "false",
+        }
+        events = [start_event, *action_run.event_records]
+        if stop_event is not None:
+            events.append(stop_event)
+        result_events = [*action_run.worker_result.events, {"browser_session": start_payload}]
+        if stop_payload:
+            result_events.append({"browser_session_stop": stop_payload})
+        worker_result = replace(
+            action_run.worker_result,
+            ok=action_run.worker_result.ok and not stop_error,
+            error=action_run.worker_result.error or ("browser_session_stop_failed" if stop_error else None),
+            metadata={
+                **action_run.worker_result.metadata,
+                **session_metadata,
+                **({"browser_session_stop_error": stop_error} if stop_error else {}),
+            },
+            events=result_events,
+        )
+        return BrowserWorkerRun(
+            worker_result=worker_result,
+            event_records=events,
+            permission_session_custody_token=action_run.permission_session_custody_token,
+        )
+
+    def _run_browser_lifecycle(self, request: WorkerRequest, command_name: str) -> BrowserWorkerRun:
+        command = self._browser_session_command(request)
+        try:
+            if command_name == "start":
+                result = self.browser_session_runtime.start(command)
+            elif command_name in {"ensure", "ensure-started", "prepare", "attach"}:
+                result = self.browser_session_runtime.ensure_started(command)
+            elif command_name == "reconnect":
+                result = self.browser_session_runtime.reconnect(_required_browser_session_id(command))
+            elif command_name == "stop":
+                result = self.browser_session_runtime.stop(
+                    _required_browser_session_id(command),
+                    force=bool(request.constraints.get("force")),
+                    reason=str(request.constraints.get("reason") or "requested"),
+                )
+            elif command_name in {"diagnose", "diagnostic", "health"}:
+                result = self.browser_session_runtime.diagnose(_required_browser_session_id(command))
+            elif command_name in {"list", "list-sessions"}:
+                result = self.browser_session_runtime.list_sessions(task_id=request.task_id)
+            else:
+                return _browser_productized_failure(
+                    request,
+                    code="invalid_browser_lifecycle_command",
+                    summary=f"Unknown browser lifecycle command: {command_name}",
+                )
+        except Exception as error:  # noqa: BLE001 - lifecycle errors are worker results.
+            return _browser_productized_failure(
+                request,
+                code=type(error).__name__,
+                summary=f"Browser lifecycle command {command_name} failed.",
+                details=str(error),
+            )
+
+        payload = to_jsonable(result)
+        ok = bool(payload.get("ok", True)) if isinstance(payload, dict) else True
+        event_type = (
+            EventType.BROWSER_RUNTIME_DIAGNOSTIC
+            if command_name in {"diagnose", "diagnostic", "health"}
+            else EventType.BROWSER_SESSION_LIFECYCLE
+        )
+        event = EventRecord(
+            run_id=request.run_id,
+            task_id=request.task_id,
+            node_id=request.node_id,
+            event_type=event_type,
+            payload={"browser_session": {"command": command_name, "result": payload}},
+        )
+        worker_result = WorkerResult(
+            request_id=request.request_id,
+            ok=ok,
+            summary=f"Browser lifecycle command {command_name} {'completed' if ok else 'failed'}.",
+            error=None if ok else str(payload.get("error") or "browser_lifecycle_failed"),
+            events=[to_jsonable(event)],
+            metadata={
+                "browser_backend": "zyra-browser-productized",
+                "browser_lifecycle_command": command_name,
+                "browser_runtime_vendor_required": "false",
+            },
+        )
+        return BrowserWorkerRun(worker_result=worker_result, event_records=[event])
+
+    def _browser_session_command(self, request: WorkerRequest) -> BrowserSessionCommand:
+        constraints = PermissionSessionCustodyStore.redact_constraints(request.constraints)
+        executable = constraints.get("browser_executable") or constraints.get("executable_path")
+        headers = constraints.get("browser_headers") or constraints.get("headers") or {}
+        if not isinstance(headers, dict):
+            headers = {}
+        return BrowserSessionCommand(
+            run_id=request.run_id,
+            task_id=request.task_id,
+            worker_request_id=request.request_id,
+            canonical_session_id=str(
+                constraints.get("canonical_session_id")
+                or constraints.get("session_id")
+                or f"{request.run_id}:{request.task_id}"
+            ),
+            node_id=request.node_id or "",
+            browser_session_id=str(constraints.get("browser_session_id") or ""),
+            workspace_root=self.workspace_root,
+            artifact_root=self.artifact_store.root,
+            executable_path=Path(str(executable)).expanduser() if executable else None,
+            endpoint_url=str(constraints.get("cdp_url") or constraints.get("endpoint_url") or ""),
+            headless=bool(constraints.get("headless", True)),
+            keep_alive=bool(constraints.get("keep_alive", False)),
+            headers={str(key): str(value) for key, value in headers.items()},
+            proxy_url=str(constraints.get("proxy_url") or ""),
+            constraints=dict(constraints),
+        )
+
+    def _run_legacy_actions(self, request: WorkerRequest) -> BrowserWorkerRun:
         constraints = request.constraints
         presented_custody_tokens = tuple(
             dict.fromkeys(
@@ -145,8 +335,9 @@ class BrowserWorkerRuntime:
                 event_records=[_worker_result_event(redacted_request, worker_result)],
             )
 
+        # Provenance is optional metadata only.  Missing source files are
+        # reported by the snapshot but never validated as a runtime gate.
         snapshot = browser_use_snapshot(self.project_root)
-        validate_vendor_snapshot(snapshot)
         backend = _browser_backend_from_request(request)
         if backend == "browser-use-agent":
             return self._run_browser_use_agent(request, snapshot)
@@ -1744,15 +1935,95 @@ def _browser_plan_from_request(request: WorkerRequest) -> list[dict[str, Any]]:
 
 
 def _browser_backend_from_request(request: WorkerRequest) -> str:
-    raw_backend = request.constraints.get("browser_backend", request.constraints.get("backend", "static"))
+    raw_backend = request.constraints.get(
+        "browser_backend",
+        request.constraints.get("backend", "static"),
+    )
     if request.constraints.get("browser_use_live") is True:
         raw_backend = "browser-use-live"
     backend = str(raw_backend or "static").strip().lower().replace("_", "-")
     if backend in {"live", "browser-live", "browser-use"}:
         return "browser-use-live"
+    if backend == "browser-use-live":
+        return "browser-use-live"
+    if backend in {"productized", "zyra-browser", "zyra-browser-productized"}:
+        return "zyra-browser-productized"
     if backend in {"agent", "browser-agent", "browser-use-agent"}:
         return "browser-use-agent"
     return backend
+
+
+def _browser_lifecycle_command_from_request(request: WorkerRequest) -> str:
+    value = request.constraints.get("browser_lifecycle_command")
+    if value in (None, ""):
+        value = request.constraints.get("browser_session_command")
+    return str(value or "").strip().lower().replace("_", "-")
+
+
+def _request_contains_permission_capability_echo(request: WorkerRequest) -> bool:
+    tokens = tuple(
+        dict.fromkeys(
+            str(request.constraints.get(key) or "")
+            for key in ("permission_session_custody_token", "session_custody_token")
+            if str(request.constraints.get(key) or "")
+        )
+    )
+    return PermissionSessionCustodyStore.contains_capability_echo(request.constraints, tokens)
+
+
+def _required_browser_session_id(command: BrowserSessionCommand) -> str:
+    if not command.browser_session_id:
+        raise ValueError("browser_session_id is required for this lifecycle command")
+    return command.browser_session_id
+
+
+def _browser_session_event(
+    request: WorkerRequest,
+    phase: str,
+    result: dict[str, Any],
+) -> EventRecord:
+    return EventRecord(
+        run_id=request.run_id,
+        task_id=request.task_id,
+        node_id=request.node_id,
+        event_type=EventType.BROWSER_SESSION_LIFECYCLE,
+        payload={"browser_session": {"phase": phase, "result": result}},
+    )
+
+
+def _browser_productized_failure(
+    request: WorkerRequest,
+    *,
+    code: str,
+    summary: str,
+    details: str = "",
+) -> BrowserWorkerRun:
+    event = EventRecord(
+        run_id=request.run_id,
+        task_id=request.task_id,
+        node_id=request.node_id,
+        event_type=EventType.BROWSER_SESSION_LIFECYCLE,
+        payload={
+            "browser_session": {
+                "phase": "failed",
+                "error": code,
+                "details": details,
+            }
+        },
+    )
+    worker_result = WorkerResult(
+        request_id=request.request_id,
+        ok=False,
+        summary=summary,
+        error=code,
+        events=[to_jsonable(event)],
+        metadata={
+            "browser_backend": "zyra-browser-productized",
+            "browser_runtime_vendor_required": "false",
+            **({"browser_runtime_error_details": details} if details else {}),
+        },
+    )
+    return BrowserWorkerRun(worker_result=worker_result, event_records=[event])
 
 
 def _browser_use_agent_task_from_request(request: WorkerRequest) -> str:
@@ -2499,6 +2770,14 @@ def _browser_action_events(events: list[EventRecord]) -> list[EventRecord]:
 
 
 def _snapshot_metadata(snapshot: Any) -> dict[str, str]:
+    if snapshot is None:
+        return {
+            "vendor": "browser-use",
+            "vendor_root": "",
+            "vendor_complete": "not-required",
+            "browser_runtime_backend": "zyra-browser-productized",
+            "browser_runtime_vendor_required": "false",
+        }
     return {
         "vendor": snapshot.name,
         "vendor_root": str(snapshot.root),

@@ -113,6 +113,10 @@ class EventType(StrEnum):
     PROMPT_QUEUE_UPDATED = "prompt_queue_updated"
     SIDE_QUESTION = "side_question"
     SYSTEM_NOTICE = "system_notice"
+    BROWSER_SESSION_LIFECYCLE = "browser_session_lifecycle"
+    BROWSER_TARGET_LIFECYCLE = "browser_target_lifecycle"
+    BROWSER_CDP_REQUEST = "browser_cdp_request"
+    BROWSER_RUNTIME_DIAGNOSTIC = "browser_runtime_diagnostic"
 
 
 @dataclass(slots=True)

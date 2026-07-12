@@ -64,9 +64,16 @@ def default_worker_descriptors() -> list[WorkerRuntimeDescriptor]:
         ),
         WorkerRuntimeDescriptor(
             name="BrowserWorker",
-            kind=WorkerRuntimeKind.VENDORED_ADAPTER,
-            source="vendor/browser-use",
+            kind=WorkerRuntimeKind.PYTHON,
+            source="zyra-browser-productized",
             capabilities=("web-research", "browser-action", "browser-agent", "screenshot", "dom-state", "browser-trace"),
             entrypoint="packages/workers/zyra_workers/browser_worker.py",
+            metadata={
+                "upstream_source": "browser-use",
+                "runtime_id": "zyra-browser-productized-runtime",
+                "vendor_required_for_default_path": "false",
+                "sidecar_required_for_default_path": "false",
+                "owner_unit": "M1-S04A-01",
+            },
         ),
     ]

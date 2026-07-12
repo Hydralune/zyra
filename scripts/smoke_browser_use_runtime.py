@@ -11,12 +11,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-for package_path in [
-    ROOT / "packages" / "core",
-    ROOT / "packages" / "runtime",
-    ROOT / "packages" / "integrations",
-    ROOT / "packages" / "workers",
-]:
+for package_path in sorted((ROOT / "packages").iterdir()):
+    if not package_path.is_dir():
+        continue
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
