@@ -64,6 +64,21 @@ from .scaffold_supervisor import (
     supervised_worker_payload,
     supervisor_event_records,
 )
+from .subagents import (
+    AgentContextMode,
+    AgentDefinitionRegistry,
+    AgentExecutionMode,
+    AgentTaskLifecycleRuntime,
+    CodeWorkerSubagentExecutionPort,
+    LogicalWorkspaceIsolationPort,
+    PermissionMode,
+    SubagentRuntime,
+    SubagentRuntimeConfig,
+    SubagentSpawnRequest,
+    SubagentTaskStore,
+    default_agent_definition_registry,
+    audit_subagent_sources,
+)
 
 __all__ = [
     "BrowserWorkerRun",
@@ -128,4 +143,17 @@ __all__ = [
     "worker_bridge_event_records",
     "worker_scaffold_events",
     "worker_scaffold_health_payload",
+    "AgentDefinitionRegistry",
+    "AgentContextMode",
+    "AgentExecutionMode",
+    "AgentTaskLifecycleRuntime",
+    "CodeWorkerSubagentExecutionPort",
+    "LogicalWorkspaceIsolationPort",
+    "PermissionMode",
+    "SubagentRuntime",
+    "SubagentRuntimeConfig",
+    "SubagentSpawnRequest",
+    "SubagentTaskStore",
+    "default_agent_definition_registry",
+    "audit_subagent_sources",
 ]

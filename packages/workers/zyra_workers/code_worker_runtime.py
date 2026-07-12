@@ -140,6 +140,9 @@ class CodeWorkerRuntime:
         permission_extension_registry: PermissionExtensionRegistry | None = None,
         permission_state_path: str | Path | None = None,
         mcp_runtime: Any | None = None,
+        tool_registry: Any | None = None,
+        runtime_services: Mapping[str, Any] | None = None,
+        skill_fork_port: Any | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.sidecar_client = sidecar_client or CodeWorkerSidecarClient(self.project_root)
@@ -152,10 +155,13 @@ class CodeWorkerRuntime:
             permission_extension_registry or build_deployment_permission_extensions()
         )
         self.mcp_runtime = mcp_runtime
+        self.skill_fork_port = skill_fork_port
         self.execution_context = ToolExecutionContext.for_workspace(
             workspace_root=workspace_root,
             artifact_root=artifact_root,
             permission_store=permission_store,
+            registry=tool_registry,
+            runtime_services=runtime_services,
         )
         self.permission_state_path = (
             Path(permission_state_path).resolve()
@@ -310,6 +316,7 @@ class CodeWorkerRuntime:
             session_id=skill_projection_session_id,
             disabled=request.constraints.get("disable_skill_tool_projection") is True,
             external_sources=mcp_skill_sources,
+            fork_port=self.skill_fork_port,
         )
         skill_projection = skill_open.projection
         execution_context = skill_open.context

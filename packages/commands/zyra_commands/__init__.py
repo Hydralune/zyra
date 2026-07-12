@@ -7,6 +7,20 @@ from .registry import (
     default_command_registry,
     parse_slash_command,
 )
+from .runtime import (
+    CommandOrigin,
+    ControlCommandRegistry,
+    ControlCommandRequest,
+    ControlCommandResponse,
+    ControlRequestStore,
+    ControlResult,
+    PromptQueueRuntime,
+    RuntimeControlContext,
+    RuntimeControlDispatcher,
+    SideQuestionRuntime,
+    SideQuestionContextSnapshot,
+    default_control_command_registry,
+)
 
 __all__ = [
     "CommandSpec",
@@ -16,4 +30,16 @@ __all__ = [
     "SlashCommandRegistry",
     "default_command_registry",
     "parse_slash_command",
+    "ControlCommandRegistry",
+    "CommandOrigin",
+    "ControlCommandRequest",
+    "ControlCommandResponse",
+    "ControlRequestStore",
+    "ControlResult",
+    "PromptQueueRuntime",
+    "RuntimeControlContext",
+    "RuntimeControlDispatcher",
+    "SideQuestionRuntime",
+    "SideQuestionContextSnapshot",
+    "default_control_command_registry",
 ]

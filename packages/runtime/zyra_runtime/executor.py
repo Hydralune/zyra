@@ -113,6 +113,7 @@ class ToolExecutor:
         # context; mutating a shared handler map mid-call would break the
         # permission identity that was approved for this exact ToolSpec.
         self._dynamic_handlers = dict(context.dynamic_handlers)
+        self._cancellation_check = context.runtime_services.get("cancellation_check")
         self._permission_execution_view = _PermissionExecutionView(
             workspace_root=self._workspace_root,
             registry=self._registry,
@@ -132,6 +133,14 @@ class ToolExecutor:
             arguments=copy.deepcopy(dict(call.arguments)),
             metadata=copy.deepcopy(dict(call.metadata)),
         )
+        if callable(self._cancellation_check) and self._cancellation_check():
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=False,
+                summary="Tool execution was cancelled before the side-effect boundary.",
+                error="parent_cancelled",
+                metadata={"cooperative_cancellation": "true", "tool_name": call.tool_name},
+            )
         spec = self._registry.get(call.tool_name)
         if spec is None:
             return ToolResult(

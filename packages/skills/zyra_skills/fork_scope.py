@@ -242,12 +242,14 @@ def _selector_matches(selector: ToolSelector, identity: ToolUseIdentity) -> bool
         fnmatch.fnmatchcase(identity.operation, operation) for operation in selector.operations
     ):
         return False
-    if selector.path_prefixes and identity.path and not any(
-        identity.path.startswith(prefix) for prefix in selector.path_prefixes
-    ):
-        return False
-    if selector.domains and identity.domain and not any(
-        fnmatch.fnmatchcase(identity.domain, domain) for domain in selector.domains
-    ):
-        return False
+    if selector.path_prefixes:
+        if not identity.path:
+            return False
+        if not any(identity.path.startswith(prefix) for prefix in selector.path_prefixes):
+            return False
+    if selector.domains:
+        if not identity.domain:
+            return False
+        if not any(fnmatch.fnmatchcase(identity.domain, domain) for domain in selector.domains):
+            return False
     return True

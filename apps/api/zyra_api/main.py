@@ -52,7 +52,20 @@ from zyra_scheduler import (
     WorkerPool,
     source_to_target_ledger,
 )
-from zyra_commands import default_command_registry, parse_slash_command
+from zyra_commands import (
+    CommandOrigin,
+    ControlCommandRequest,
+    ControlRequestStore,
+    ControlResult,
+    PromptQueueRuntime,
+    RuntimeControlContext,
+    RuntimeControlDispatcher,
+    SideQuestionContextSnapshot,
+    SideQuestionRuntime,
+    default_command_registry,
+    default_control_command_registry,
+    parse_slash_command,
+)
 from zyra_runtime import (
     ContextAssemblyRuntime,
     ContextSessionRuntime,
@@ -146,8 +159,16 @@ from zyra_skills import (
     utc_now,
 )
 from zyra_workers import (
+    AgentContextMode,
+    AgentExecutionMode,
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
+    CodeWorkerSubagentExecutionPort,
+    LogicalWorkspaceIsolationPort,
+    PermissionMode,
+    SubagentRuntime,
+    SubagentRuntimeConfig,
+    SubagentSpawnRequest,
     browser_use_health_summary,
     default_browser_action_registry,
     inspect_browser_use_runtime,
@@ -415,6 +436,98 @@ def get_mcp_command_adapter() -> McpCommandAdapter:
 
 def get_runtime_command_registry() -> Any:
     return get_mcp_command_adapter().registry(default_command_registry())
+
+
+_CONTROL_RUNTIME_LOCK = threading.RLock()
+_CONTROL_REGISTRY: Any | None = None
+_CONTROL_DISPATCHER: RuntimeControlDispatcher | None = None
+_CONTROL_RUNTIME_KEY: str | None = None
+_SUBAGENT_RUNTIME_LOCK = threading.RLock()
+_SUBAGENT_RUNTIME: SubagentRuntime | None = None
+_SUBAGENT_RUNTIME_KEY: str | None = None
+
+
+def control_state_path() -> Path:
+    configured = Path(os.environ.get("ZYRA_CONTROL_STATE", str(artifact_root_path() / ".control")))
+    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+
+
+def subagent_state_path() -> Path:
+    configured = Path(os.environ.get("ZYRA_SUBAGENT_STATE", str(artifact_root_path() / ".subagents")))
+    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+
+
+def get_control_command_registry() -> Any:
+    global _CONTROL_REGISTRY
+    with _CONTROL_RUNTIME_LOCK:
+        if _CONTROL_REGISTRY is None:
+            _CONTROL_REGISTRY = default_control_command_registry()
+        return _CONTROL_REGISTRY
+
+
+def _commit_runtime_event(event: EventRecord) -> None:
+    persist_events(get_store(), [event])
+
+
+def get_control_dispatcher() -> RuntimeControlDispatcher:
+    global _CONTROL_DISPATCHER, _CONTROL_RUNTIME_KEY
+    root = control_state_path().resolve()
+    key = str(root)
+    with _CONTROL_RUNTIME_LOCK:
+        if _CONTROL_DISPATCHER is None or _CONTROL_RUNTIME_KEY != key:
+            root.mkdir(parents=True, exist_ok=True)
+            _CONTROL_DISPATCHER = RuntimeControlDispatcher(
+                registry=get_control_command_registry(),
+                request_store=ControlRequestStore(root / "requests.json"),
+                prompt_queue=PromptQueueRuntime(root / "prompt-queue.json"),
+            )
+            _CONTROL_RUNTIME_KEY = key
+        return _CONTROL_DISPATCHER
+
+
+def reset_control_runtime() -> None:
+    global _CONTROL_DISPATCHER, _CONTROL_RUNTIME_KEY, _CONTROL_REGISTRY
+    with _CONTROL_RUNTIME_LOCK:
+        _CONTROL_DISPATCHER = None
+        _CONTROL_RUNTIME_KEY = None
+        _CONTROL_REGISTRY = None
+
+
+def get_subagent_runtime() -> SubagentRuntime:
+    global _SUBAGENT_RUNTIME, _SUBAGENT_RUNTIME_KEY
+    root = subagent_state_path().resolve()
+    key = str(root)
+    with _SUBAGENT_RUNTIME_LOCK:
+        if _SUBAGENT_RUNTIME is None or _SUBAGENT_RUNTIME_KEY != key:
+            parent_registry = default_tool_registry()
+            execution = CodeWorkerSubagentExecutionPort(
+                project_root=PROJECT_ROOT,
+                artifact_root=artifact_root_path(),
+                permission_store=get_permission_store(),
+                permission_state_path=permission_state_path(),
+                parent_registry=parent_registry,
+                mcp_runtime=get_mcp_runtime(),
+            )
+            _SUBAGENT_RUNTIME = SubagentRuntime(
+                SubagentRuntimeConfig.from_paths(
+                    state_root=root,
+                    workspace_root=tool_workspace_path(),
+                    artifact_root=artifact_root_path(),
+                ),
+                execution_port=execution,
+                isolation_port=LogicalWorkspaceIsolationPort(),
+                parent_registry=parent_registry,
+                event_sink=_commit_runtime_event,
+            )
+            _SUBAGENT_RUNTIME_KEY = key
+        return _SUBAGENT_RUNTIME
+
+
+def reset_subagent_runtime() -> None:
+    global _SUBAGENT_RUNTIME, _SUBAGENT_RUNTIME_KEY
+    with _SUBAGENT_RUNTIME_LOCK:
+        _SUBAGENT_RUNTIME = None
+        _SUBAGENT_RUNTIME_KEY = None
 
 
 def get_permission_control_plane() -> PermissionControlPlane:
@@ -1317,9 +1430,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["commands"]:
+            snapshot = get_control_command_registry().snapshot()
             self._send_json(
                 HTTPStatus.OK,
-                {"commands": [to_jsonable(command) for command in get_runtime_command_registry().list()]},
+                {
+                    "commands": [command.to_dict() for command in snapshot.descriptors],
+                    "registry": snapshot.to_dict(),
+                },
             )
             return
 
@@ -2278,6 +2395,25 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "subagents":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            runtime = get_subagent_runtime()
+            tasks = runtime.task_store.list(parent_task_id=state.task_id)
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "schema": "zyra.subagent-api/v1",
+                    "task_id": state.task_id,
+                    "subagents": [item.safe_dict() for item in tasks],
+                    "active_count": sum(1 for item in tasks if not item.status.terminal),
+                    "physical_worker_state_owned": False,
+                },
+            )
+            return
+
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
 
     def do_POST(self) -> None:
@@ -2360,13 +2496,98 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             reason = str(payload.get("reason") or "Cancelled by control API.")
             events = cancel_task_graph(state, reason=reason)
+            cancelled_subagents = get_subagent_runtime().cancel_for_parent(state.task_id, reason=reason)
             persist_events(store, events)
             store.save_checkpoint(state)
             self._send_json(
                 HTTPStatus.OK,
-                {"task": to_jsonable(state), "events": [to_jsonable(event) for event in events]},
+                {
+                    "task": to_jsonable(state),
+                    "events": [to_jsonable(event) for event in events],
+                    "cancelled_subagents": [item.safe_dict() for item in cancelled_subagents],
+                },
             )
             return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "subagents":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            execution_mode = AgentExecutionMode(str(payload.get("execution_mode") or "background"))
+            context_mode = AgentContextMode(str(payload.get("context_mode") or "isolated"))
+            permission_mode = PermissionMode(str(payload.get("permission_mode") or "default"))
+            parent_registry = get_subagent_runtime().parent_registry
+            request = SubagentSpawnRequest(
+                run_id=state.run_id,
+                parent_task_id=state.task_id,
+                parent_session_id=str(payload.get("session_id") or state.metadata.get("query_session_id") or f"task:{state.task_id}"),
+                parent_worker_request_id=str(payload.get("parent_worker_request_id") or "api-control"),
+                agent_type=str(payload.get("agent_type") or "general-purpose"),
+                prompt=str(payload.get("prompt") or ""),
+                parent_tools=tuple(item.name for item in parent_registry.list()),
+                parent_permission_mode=permission_mode,
+                requested_tools=tuple(payload.get("requested_tools") or ()),
+                requested_permission_mode=(
+                    PermissionMode(str(payload["requested_permission_mode"]))
+                    if payload.get("requested_permission_mode")
+                    else None
+                ),
+                available_mcp_servers=tuple(payload.get("available_mcp_servers") or ()),
+                requested_mcp_servers=tuple(payload.get("requested_mcp_servers") or ()),
+                context_mode=context_mode,
+                execution_mode=execution_mode,
+                workspace_root=str(tool_workspace_path()),
+                requested_cwd=str(payload.get("requested_cwd") or ""),
+                context_payload={
+                    "messages": list(payload.get("messages") or ()),
+                    "artifact_refs": [to_jsonable(item) for item in state.artifacts],
+                    "evidence_refs": list(payload.get("evidence_refs") or ()),
+                    "invoked_skill_refs": list(state.metadata.get("skill_invocation_refs") or ()),
+                    "context_epoch": int(state.metadata.get("context_epoch") or 0),
+                    "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
+                    "rendered_system_prompt": str(payload.get("rendered_system_prompt") or ""),
+                    "parent_permission_rule_ids": list(payload.get("parent_permission_rule_ids") or ()),
+                    "parent_permission_denials": list(payload.get("parent_permission_denials") or ()),
+                },
+                constraints=dict(payload.get("constraints") or {}),
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+                task_id=str(payload.get("subagent_task_id") or new_id("subagenttask")),
+                metadata={"root_task_id": state.task_id, "node_id": state.root_node_id, "origin": "api"},
+            )
+            try:
+                result = get_subagent_runtime().spawn(request)
+            except (ValueError, RuntimeError) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "subagent_spawn_rejected", "message": str(error), "type": type(error).__name__},
+                )
+                return
+            self._send_json(HTTPStatus.ACCEPTED if result.background else HTTPStatus.CREATED, result.to_dict())
+            return
+
+        if len(parts) == 5 and parts[0] == "tasks" and parts[2] == "subagents":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            runtime = get_subagent_runtime()
+            try:
+                record = runtime.task_store.get(parts[3])
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "subagent_not_found"})
+                return
+            if record.parent_task_id != state.task_id:
+                self._send_json(HTTPStatus.CONFLICT, {"error": "subagent_parent_mismatch"})
+                return
+            if parts[4] == "cancel":
+                records = runtime.cancel(record.task_id, reason=str(payload.get("reason") or "api_cancelled"))
+                self._send_json(HTTPStatus.OK, {"cancelled": [item.safe_dict() for item in records]})
+                return
+            if parts[4] == "background":
+                updated = runtime.promote_to_background(record.task_id)
+                self._send_json(HTTPStatus.OK, {"subagent": updated.safe_dict(), "execution_ref_reused": True})
+                return
 
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "ingest":
             state = store.load_task(parts[1])
@@ -2437,35 +2658,41 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
             text = str(payload.get("text") or "")
-            parsed_command = parse_slash_command(
-                text,
-                run_id=state.run_id,
-                task_id=state.task_id,
-                registry=get_runtime_command_registry(),
-            )
-            if parsed_command is None:
+            control_request = _control_command_request_from_text(state, text, payload)
+            if control_request is None:
                 self._send_json(
                     HTTPStatus.BAD_REQUEST,
                     {"error": "unknown_or_invalid_command", "text": text},
                 )
                 return
-
-            event = control_event_from_command(
-                parsed_command.control_command,
-                node_id=state.root_node_id,
+            response = get_control_dispatcher().submit(
+                control_request,
+                _control_context_for_task(state, store),
             )
-            applied_events = _apply_control_event_to_state(state, event)
-            persist_events(store, [event, *applied_events])
-            command_result = _command_result_for_event(state, event, store)
             store.save_checkpoint(state)
+            status = HTTPStatus.CREATED if response.ok else HTTPStatus.ACCEPTED if response.status.value == "queued" else HTTPStatus.CONFLICT
+            descriptor = get_control_command_registry().require(control_request.canonical_name)
+            compatibility_result = {
+                **response.to_dict(),
+                "name": control_request.canonical_name,
+                "summary": response.summary,
+                "data": response.result.data,
+                "runtime_status": (
+                    str(response.result.metadata.get("runtime_status") or "stateful")
+                    if descriptor.mutation_scope.value != "read_only"
+                    else "read_only"
+                ),
+            }
+            control_event = response.result.data.get("control_event") if isinstance(response.result.data, dict) else None
             self._send_json(
-                HTTPStatus.CREATED,
+                status,
                 {
                     "task": to_jsonable(state),
-                    "command": to_jsonable(parsed_command.control_command),
-                    "command_result": command_result,
-                    "event": to_jsonable(event),
-                    "events": [to_jsonable(item) for item in [event, *applied_events]],
+                    "control_request": control_request.to_dict(),
+                    "command": descriptor.to_dict(),
+                    "command_result": compatibility_result,
+                    "event": control_event,
+                    "event_only_stateful_fallback": False,
                 },
             )
             return
@@ -4078,6 +4305,326 @@ def _scheduler_task_view(state: Any, store: SQLiteStore) -> dict[str, Any]:
         "event_counts": _event_counts(events),
         "memory_record_count": len(memory_records),
     }
+
+
+def _control_command_request_from_text(state: Any, text: str, payload: dict[str, Any]) -> ControlCommandRequest | None:
+    stripped = text.strip()
+    if not stripped.startswith("/"):
+        return None
+    name, _, raw = stripped.partition(" ")
+    registry = get_control_command_registry()
+    descriptor = registry.get(name)
+    if descriptor is None:
+        return None
+    arguments = dict(payload.get("arguments") or {})
+    arguments.setdefault("raw", raw.strip())
+    arguments.setdefault("argv", [item for item in raw.split() if item])
+    if descriptor.handler_id == "side_question.ask":
+        arguments.setdefault("question", raw.strip())
+    session_id = str(
+        payload.get("session_id")
+        or state.metadata.get("query_session_id")
+        or state.metadata.get("session_id")
+        or f"task:{state.task_id}"
+    )
+    return ControlCommandRequest(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        session_id=session_id,
+        canonical_name=descriptor.canonical_name,
+        arguments=arguments,
+        request_id=str(payload.get("request_id") or new_id("controlreq")),
+        command_id=str(payload.get("command_id") or new_id("cmd")),
+        idempotency_key=str(payload.get("idempotency_key") or ""),
+        target_subagent_task_id=str(payload.get("target_subagent_task_id") or ""),
+        origin=CommandOrigin.API,
+        registry_generation=registry.generation,
+        expected_session_revision=(
+            int(payload["expected_session_revision"])
+            if payload.get("expected_session_revision") is not None
+            else None
+        ),
+        metadata={
+            "actor_id": str(payload.get("actor_id") or "api-user"),
+            "permission_authority": "PermissionStateStore deterministic control allowlist",
+        },
+    )
+
+
+def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlContext:
+    def revision(_session_id: str) -> int:
+        return len(store.task_events(state.task_id)) + len(state.metadata.get("control_mutations") or ())
+
+    def checkpoint(request: ControlCommandRequest, descriptor: Any) -> str:
+        store.save_checkpoint(state)
+        return f"sqlite-task:{state.task_id}:{revision(request.session_id)}:{descriptor.mutation_scope.value}"
+
+    def permission_authorize(request: ControlCommandRequest, descriptor: Any) -> bool:
+        # Interactive command permission remains under the 03A state owner.
+        # Foundation exposes only a deterministic low-risk allowlist; commands
+        # that would change permission, provider, MCP, plugin or session custody
+        # fail closed until their canonical owner supplies an exact handler/grant.
+        get_permission_control_plane().state_store.snapshot()
+        raw = str(request.arguments.get("raw") or "").strip().lower()
+        if descriptor.handler_id in {"mcp.control", "permission.control", "provider.model"} and raw in {"", "status", "list", "show"}:
+            return True
+        return descriptor.permission_action in {
+            "task.goal",
+            "context.compact",
+            "artifact.write",
+            "task.change",
+            "task.inject",
+            "artifact.export",
+            "task.evaluate",
+        }
+
+    handlers: dict[str, Any] = {}
+
+    def read_projection(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        legacy = parse_slash_command(
+            f"{request.canonical_name} {request.arguments.get('raw', '')}".strip(),
+            run_id=state.run_id,
+            task_id=state.task_id,
+            registry=get_runtime_command_registry(),
+        )
+        if legacy is None:
+            raise RuntimeError(f"read projection is unavailable for {request.canonical_name}")
+        event = control_event_from_command(legacy.control_command, node_id=state.root_node_id)
+        projected = _command_result_for_event(state, event, store)
+        projected_data = dict(projected.get("data") or {})
+        if request.canonical_name == "/context":
+            projected_data["control_commands"] = sum(
+                1 for item in store.task_events(state.task_id)
+                if item.get("event_type") in {"command_requested", "control_command"}
+            )
+        return ControlResult(
+            display_text=str(projected.get("summary") or request.canonical_name),
+            data=projected_data,
+            metadata={"legacy_parser_only": True, "event_only_stateful_fallback": False},
+        )
+
+    for handler_id in {
+        "session.context",
+        "usage.cost",
+        "usage.inspect",
+        "runtime.doctor",
+        "task.status",
+        "task.graph",
+        "task.trace",
+        "artifact.list",
+        "skill.list",
+        "tool.list",
+        "memory.inspect",
+    }:
+        handlers[handler_id] = read_projection
+
+    def registry_help(_request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        snapshot = get_control_command_registry().snapshot()
+        groups: dict[str, list[str]] = {}
+        for item in snapshot.descriptors:
+            groups.setdefault(item.category, []).append(item.canonical_name)
+        # Compatibility group aliases remain projections only; the dynamic
+        # registry categories above are the canonical source of truth.
+        groups.setdefault("context_session", ["/context", "/compact", "/btw"])
+        groups.setdefault("extension_team", ["/goal", "/team-onboarding", "/agents"])
+        return ControlResult(
+            display_text=f"{len(snapshot.descriptors)} commands available.",
+            data={**snapshot.to_dict(), "groups": groups},
+        )
+
+    handlers["registry.help"] = registry_help
+
+    def subagent_inspect(_request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        snapshot = get_subagent_runtime().snapshot()
+        tasks = [item for item in snapshot.tasks if item.get("parent_task_id") == state.task_id]
+        return ControlResult(
+            display_text=f"{len(tasks)} logical subagent tasks.",
+            data={**snapshot.to_dict(), "tasks": tasks},
+            metadata={"physical_worker_state_owned": False},
+        )
+
+    handlers["subagent.inspect"] = subagent_inspect
+    handlers["mcp.control"] = read_projection
+    handlers["permission.control"] = read_projection
+    handlers["provider.model"] = read_projection
+
+    def compact_context(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        result = _memory_fabric(store).compact_context(
+            state,
+            store.task_events(state.task_id),
+            focus=str(request.arguments.get("raw") or ""),
+            persist=True,
+        )
+        _attach_artifacts(state, result.artifacts)
+        _record_compaction_metadata(state, result, source_event_id=request.request_id)
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.canonical_name,
+            "compact_id": result.compact_id,
+        })
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text="Context compact summary artifact written.",
+            data={
+                "compact": to_jsonable(result),
+                "artifact": (
+                    _artifact_entry(LocalArtifactStore(artifact_root_path()), result.artifacts[-1])
+                    if result.artifacts else None
+                ),
+            },
+            artifact_refs=tuple(result.artifacts),
+        )
+
+    handlers["session.compact"] = compact_context
+
+    def task_goal(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        value = str(request.arguments.get("goal") or request.arguments.get("raw") or "").strip()
+        if not value:
+            return ControlResult(display_text="Current task objective.", data={"goal": state.user_goal})
+        previous = state.user_goal
+        state.user_goal = value
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.canonical_name,
+            "before": previous,
+            "after": value,
+        })
+        event = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            event_type=EventType.REQUIREMENT_CHANGE,
+            payload={
+                "schema": "zyra.control-goal/v1",
+                "request_id": request.request_id,
+                "previous_goal": previous,
+                "goal": value,
+            },
+        )
+        persist_events(store, [event])
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text="Root task objective updated.",
+            data={"previous_goal": previous, "goal": value, "event_id": event.event_id},
+        )
+
+    handlers["task.goal"] = task_goal
+
+    def legacy_real_mutation(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        legacy = parse_slash_command(
+            f"{request.canonical_name} {request.arguments.get('raw', '')}".strip(),
+            run_id=state.run_id,
+            task_id=state.task_id,
+            registry=get_runtime_command_registry(),
+        )
+        if legacy is None:
+            raise RuntimeError(f"canonical mutation owner is unavailable for {request.canonical_name}")
+        event = control_event_from_command(legacy.control_command, node_id=state.root_node_id)
+        applied = _apply_control_event_to_state(state, event)
+        persist_events(store, [event, *applied])
+        projected = _command_result_for_event(state, event, store)
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.canonical_name,
+            "event_id": event.event_id,
+        })
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text=str(projected.get("summary") or request.canonical_name),
+            data={**dict(projected.get("data") or {}), "control_event": to_jsonable(event)},
+            metadata={"runtime_status": str(projected.get("runtime_status") or "stateful")},
+        )
+
+    handlers["task.change"] = legacy_real_mutation
+    handlers["task.inject"] = legacy_real_mutation
+    handlers["artifact.export"] = legacy_real_mutation
+    handlers["task.evaluate"] = legacy_real_mutation
+
+    def onboarding(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        events = store.task_events(state.task_id)
+        content = "\n".join([
+            f"# Team onboarding: {state.user_goal}",
+            "",
+            f"- task_id: `{state.task_id}`",
+            f"- run_id: `{state.run_id}`",
+            f"- status: `{state.status}`",
+            f"- plan nodes: `{len(state.plan_nodes)}`",
+            f"- canonical events: `{len(events)}`",
+            f"- logical subagents: `{len(get_subagent_runtime().task_store.list(parent_task_id=state.task_id))}`",
+            "",
+            "This artifact is generated from live Zyra task state; it is not a static acknowledgement.",
+        ])
+        artifact = LocalArtifactStore(artifact_root_path()).write_text(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            content=content,
+            title="Team onboarding",
+            kind=ArtifactKind.DOCUMENT,
+            extension=".md",
+            producer_node_id=state.root_node_id,
+        )
+        _attach_artifacts(state, [artifact])
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.canonical_name,
+            "artifact_id": artifact.artifact_id,
+        })
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text="Team onboarding artifact written.",
+            data={"artifact": _artifact_entry(LocalArtifactStore(artifact_root_path()), artifact)},
+            artifact_refs=(artifact,),
+        )
+
+    handlers["task.onboarding"] = onboarding
+
+    def side_question(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        events = store.task_events(state.task_id)
+        messages_before = list(state.metadata.get("main_messages") or ())
+        snapshot = SideQuestionContextSnapshot(
+            parent_session_id=request.session_id,
+            parent_session_revision=revision(request.session_id),
+            context_epoch=int(state.metadata.get("context_epoch") or 0),
+            compact_boundary_id=str(state.metadata.get("compact_boundary_id") or ""),
+            message_ids=tuple(str(item.get("message_id") or "") for item in messages_before if isinstance(item, dict)),
+            system_prompt_digest=f"sha256:{hashlib.sha256(str(state.user_goal).encode('utf-8')).hexdigest()}",
+            user_context_digest=f"sha256:{hashlib.sha256(json.dumps(events[-20:], sort_keys=True).encode('utf-8')).hexdigest()}",
+            model=str(state.metadata.get("model") or os.environ.get("ZYRA_MODEL", "unconfigured")),
+            thinking=str(state.metadata.get("thinking") or "default"),
+            cache_prefix_digest=str(state.metadata.get("cache_prefix_digest") or ""),
+            metadata={"context_summary": f"Task {state.task_id} is {state.status}; goal: {state.user_goal}"},
+        )
+        runtime = SideQuestionRuntime(
+            control_state_path() / "side-questions",
+            artifact_store=LocalArtifactStore(artifact_root_path()),
+            event_sink=_commit_runtime_event,
+        )
+        result = runtime.ask(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            question=str(request.arguments.get("question") or request.arguments.get("raw") or ""),
+            snapshot=snapshot,
+            parent_messages_before=messages_before,
+            parent_messages_after=lambda: list(state.metadata.get("main_messages") or ()),
+        )
+        if not result.ok:
+            raise RuntimeError("side question tool or parent-mutation invariant failed")
+        return ControlResult(
+            display_text=result.answer,
+            data=result.to_dict(),
+            usage=result.usage.to_dict(),
+            metadata={"main_replan_triggered": False, "parent_messages_mutated": False},
+        )
+
+    handlers["side_question.ask"] = side_question
+    return RuntimeControlContext(
+        handlers=handlers,
+        session_revision=revision,
+        checkpoint=checkpoint,
+        permission_authorize=permission_authorize,
+        event_sink=_commit_runtime_event,
+        metadata={"root_task_id": state.task_id, "state_owner": "SQLiteStore"},
+    )
 
 
 def _recovery_task_view(state: Any, store: SQLiteStore) -> dict[str, Any]:

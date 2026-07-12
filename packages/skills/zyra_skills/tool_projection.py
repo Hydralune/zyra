@@ -56,6 +56,7 @@ class SkillToolProjectionConfig:
     disabled: bool = False
     max_resources_per_call: int = 16
     max_resource_tokens_per_call: int = 8_000
+    fork_port: Any | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not str(self.project_root).strip():
@@ -223,6 +224,7 @@ class SkillToolProjectionRuntime:
             product_root=config.project_root,
             workspace_root=config.workspace_root,
             permission_port=self._permission,
+            fork_port=config.fork_port,
             state_snapshot=config.state_snapshot or None,
             disabled=config.disabled,
             external_sources=config.external_sources,
@@ -251,6 +253,7 @@ class SkillToolProjectionRuntime:
         session_id: str,
         disabled: bool = False,
         external_sources: Sequence[Any] = (),
+        fork_port: Any | None = None,
     ) -> SkillToolProjectionOpen:
         constraints = request.constraints if isinstance(request.constraints, Mapping) else {}
         raw_state = constraints.get("skill_runtime_state")
@@ -272,6 +275,7 @@ class SkillToolProjectionRuntime:
                 external_sources=tuple(external_sources),
                 include_user_skills=False,
                 disabled=disabled or constraints.get("disable_skill_runtime") is True,
+                fork_port=fork_port,
             )
         )
         projected = runtime.project_context(context)

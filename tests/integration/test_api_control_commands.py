@@ -346,7 +346,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_control_command_history_records_event_only_commands(self) -> None:
+    def test_goal_command_mutates_canonical_task_instead_of_event_only_ack(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
@@ -366,12 +366,13 @@ class ApiControlCommandTests(unittest.TestCase):
                     {"text": "/goal keep optimizing verifier evidence"},
                 )
 
-                self.assertEqual(recorded["event"]["event_type"], "control_command")
-                self.assertEqual(recorded["command"]["metadata"]["category"], "extension_team")
-                self.assertEqual(recorded["command_result"]["summary"], "/goal accepted and recorded for downstream runtime handling.")
-                history = recorded["task"]["metadata"]["control_commands"]
-                self.assertEqual(history[0]["name"], "/goal")
-                self.assertEqual(history[0]["metadata"]["runtime_status"], "event_only")
+                self.assertIsNone(recorded["event"])
+                self.assertEqual(recorded["command"]["category"], "task")
+                self.assertEqual(recorded["command_result"]["summary"], "Root task objective updated.")
+                self.assertEqual(recorded["task"]["user_goal"], "keep optimizing verifier evidence")
+                history = recorded["task"]["metadata"]["control_mutations"]
+                self.assertEqual(history[0]["command"], "/goal")
+                self.assertFalse(recorded["event_only_stateful_fallback"])
             finally:
                 server.shutdown()
                 server.server_close()
@@ -431,7 +432,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_clear_context_and_rewind_are_stateful_session_commands(self) -> None:
+    def test_clear_and_rewind_fail_closed_without_canonical_session_owner(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
@@ -445,27 +446,16 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Exercise session commands.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                cleared = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/clear start focused session"})
-                after_clear_context = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/context"})
-                rewound = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/rewind latest"})
-                after_rewind_context = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/context"})
+                clear_status, cleared = _post_with_status(base_url, f"/tasks/{task_id}/commands", {"text": "/clear start focused session"})
+                rewind_status, rewound = _post_with_status(base_url, f"/tasks/{task_id}/commands", {"text": "/rewind latest"})
 
-                self.assertEqual(cleared["command_result"]["runtime_status"], "stateful")
-                self.assertEqual(cleared["command_result"]["summary"], "Visible context cleared; durable event trace retained.")
-                self.assertGreater(cleared["command_result"]["data"]["cleared_visible_events"], 0)
-                self.assertEqual(after_clear_context["command_result"]["data"]["snapshot_count"], 1)
-                self.assertLess(
-                    after_clear_context["command_result"]["data"]["visible_events"],
-                    after_clear_context["command_result"]["data"]["events"],
-                )
-                self.assertEqual(rewound["command_result"]["summary"], "Context rewound to a prior visible window.")
-                self.assertEqual(rewound["command_result"]["data"]["active_session_id"], "session_initial")
-                self.assertGreaterEqual(after_rewind_context["command_result"]["data"]["snapshot_count"], 2)
-                self.assertGreater(
-                    after_rewind_context["command_result"]["data"]["visible_events"],
-                    after_clear_context["command_result"]["data"]["visible_events"],
-                )
-                self.assertIn("context_session", after_rewind_context["task"]["metadata"])
+                self.assertEqual(clear_status, 409)
+                self.assertEqual(rewind_status, 409)
+                self.assertFalse(cleared["command_result"]["ok"])
+                self.assertFalse(rewound["command_result"]["ok"])
+                self.assertIn(cleared["command_result"]["error"]["code"], {"permission_denied", "state_owner_unavailable"})
+                self.assertIn(rewound["command_result"]["error"]["code"], {"permission_denied", "state_owner_unavailable"})
+                self.assertFalse(cleared["event_only_stateful_fallback"])
             finally:
                 server.shutdown()
                 server.server_close()
