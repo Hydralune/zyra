@@ -94613,7 +94613,7 @@
     {
       "blockers": [],
       "capability_name": "browser-agent-session: _cdp_timeout",
-      "capability_summary": "Browser-use agent loop and browser session candidates.",
+      "capability_summary": "Zyra-owned browser session lifecycle, registry, session-bound action, permission, artifact and API integration.",
       "created_at": "2026-07-05T17:44:26.143Z",
       "dependencies": [],
       "downstream_units": [
@@ -94623,54 +94623,82 @@
       "ledger_id": "ile_browser_use_411ee9ffa100507d",
       "license_notice": {
         "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "notes": "Browser Use source lineage and attribution are recorded in third_party/NOTICE.md; M3 may refine source URL and version metadata.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
         "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /workers/browser/sessions",
+          "GET /workers/browser/sessions/{session_id}"
         ],
-        "artifact_kinds": [],
-        "control_commands": [],
+        "artifact_kinds": [
+          "screenshot",
+          "download",
+          "trace"
+        ],
+        "control_commands": [
+          "start",
+          "ensure",
+          "reconnect",
+          "stop",
+          "diagnose",
+          "list"
+        ],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "browser_action"
         ],
         "surfaces": [
-          "ledger",
+          "api",
           "worker_runtime",
-          "artifact"
+          "event_log",
+          "artifact",
+          "permission"
         ],
         "ui_panels": [],
         "worker_runtime": "BrowserWorkerRuntime"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
         "generated_by": "scripts/build_integration_ledger_seed.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent"
+        "source_root": "browser_use/agent",
+        "source_disposition": "active",
+        "evidence_slice": "M1-S04A-02",
+        "legacy_vendor_required": false,
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "verification_status": "pre_evidence_verified",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
+        "api_path": "apps/api/zyra_api/main.py",
+        "test_path": "tests/integration/test_browser_session_productization_integration.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "live_path": "scripts/smoke_browser_session_productization_live.py"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04A",
-      "replacement_plan": "Use M1-04A to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Implemented in Zyra browser_session modules; no runtime dependency on root browser-use sources or a Browser Use sidecar.",
       "risk_notes": [],
       "runtime_entry": {
-        "command": "",
+        "command": "python scripts/smoke_browser_session_productization.py",
         "config_refs": [
-          "ledger:browser-use:M1-04A"
+          "ZYRA_BROWSER_STATE",
+          "ZYRA_BROWSER_RUNTIME_ROOT",
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_PERMISSION_STATE"
         ],
         "environment_refs": [],
-        "function": "planned_browser_agent_session",
-        "health_check": "scripts/verify_m1_04a.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserSessionApplication.execute_plan",
+        "health_check": "scripts/verify_browser_session_cleanroom.py",
+        "module": "zyra_workers.browser_session.application",
+        "protocol": "zyra-browser-productized"
       },
       "source_evidence": [
         {
@@ -94705,7 +94733,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_use_runtime.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/cdp_runtime.py"
         },
         {
           "must_exist_for_statuses": [
@@ -94719,19 +94747,54 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/action_runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/application.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04a_browser_agent_session",
-          "expected_signal": "browser-use browser-agent-session ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_session_productization_integration",
+          "expected_signal": "session-bound actions use the started Zyra BrowserRuntime and fail closed when disabled or state is lost",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04a_browser_agent_session.py",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m unittest tests.integration.test_browser_session_productization_api",
+          "expected_signal": "browser API start, list, diagnose and stop share the registry-owned session",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/verify_browser_session_cleanroom.py",
+          "expected_signal": "source-free browser application, API, smoke and import-origin audit pass",
+          "kind": "cleanroom",
+          "path": "scripts/verify_browser_session_cleanroom.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/smoke_browser_session_productization_live.py",
+          "expected_signal": "mandatory local Chrome executes the productized Worker path and emits session, receipt, screenshot, trace and stop evidence",
+          "kind": "live_integration",
+          "path": "scripts/smoke_browser_session_productization_live.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.143Z"
+      "updated_at": "2026-07-13T00:00:00Z"
     },
     {
       "blockers": [],
@@ -94982,7 +95045,7 @@
     {
       "blockers": [],
       "capability_name": "browser-agent-session: chrome",
-      "capability_summary": "Browser-use agent loop and browser session candidates.",
+      "capability_summary": "Zyra-owned browser session lifecycle, registry, session-bound action, permission, artifact and API integration.",
       "created_at": "2026-07-05T17:44:26.143Z",
       "dependencies": [],
       "downstream_units": [
@@ -94992,54 +95055,82 @@
       "ledger_id": "ile_browser_use_2d47bc1ae37a5bb6",
       "license_notice": {
         "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "notes": "Browser Use source lineage and attribution are recorded in third_party/NOTICE.md; M3 may refine source URL and version metadata.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
         "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /workers/browser/sessions",
+          "GET /workers/browser/sessions/{session_id}"
         ],
-        "artifact_kinds": [],
-        "control_commands": [],
+        "artifact_kinds": [
+          "screenshot",
+          "download",
+          "trace"
+        ],
+        "control_commands": [
+          "start",
+          "ensure",
+          "reconnect",
+          "stop",
+          "diagnose",
+          "list"
+        ],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "browser_action"
         ],
         "surfaces": [
-          "ledger",
+          "api",
           "worker_runtime",
-          "artifact"
+          "event_log",
+          "artifact",
+          "permission"
         ],
         "ui_panels": [],
         "worker_runtime": "BrowserWorkerRuntime"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
         "generated_by": "scripts/build_integration_ledger_seed.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent"
+        "source_root": "browser_use/agent",
+        "source_disposition": "active",
+        "evidence_slice": "M1-S04A-02",
+        "legacy_vendor_required": false,
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "verification_status": "pre_evidence_verified",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
+        "api_path": "apps/api/zyra_api/main.py",
+        "test_path": "tests/integration/test_browser_session_productization_integration.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "live_path": "scripts/smoke_browser_session_productization_live.py"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-04A",
-      "replacement_plan": "Use M1-04A to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Implemented in Zyra browser_session modules; no runtime dependency on root browser-use sources or a Browser Use sidecar.",
       "risk_notes": [],
       "runtime_entry": {
-        "command": "",
+        "command": "python scripts/smoke_browser_session_productization.py",
         "config_refs": [
-          "ledger:browser-use:M1-04A"
+          "ZYRA_BROWSER_STATE",
+          "ZYRA_BROWSER_RUNTIME_ROOT",
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_PERMISSION_STATE"
         ],
         "environment_refs": [],
-        "function": "planned_browser_agent_session",
-        "health_check": "scripts/verify_m1_04a.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserSessionApplication.execute_plan",
+        "health_check": "scripts/verify_browser_session_cleanroom.py",
+        "module": "zyra_workers.browser_session.application",
+        "protocol": "zyra-browser-productized"
       },
       "source_evidence": [
         {
@@ -95074,7 +95165,35 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_use_runtime.py"
+          "target_path": "packages/integrations/zyra_integrations/browser_use/chrome_process.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/integrations/zyra_integrations/browser_use/discovery.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/runtime_registry.py"
         },
         {
           "must_exist_for_statuses": [
@@ -95093,14 +95212,35 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04a_browser_agent_session",
-          "expected_signal": "browser-use browser-agent-session ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_session_productization_integration",
+          "expected_signal": "session-bound actions use the started Zyra BrowserRuntime and fail closed when disabled or state is lost",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04a_browser_agent_session.py",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m unittest tests.integration.test_browser_session_productization_api",
+          "expected_signal": "browser API start, list, diagnose and stop share the registry-owned session",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/verify_browser_session_cleanroom.py",
+          "expected_signal": "source-free browser application, API, smoke and import-origin audit pass",
+          "kind": "cleanroom",
+          "path": "scripts/verify_browser_session_cleanroom.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/smoke_browser_session_productization_live.py",
+          "expected_signal": "mandatory local Chrome executes the productized Worker path and emits session, receipt, screenshot, trace and stop evidence",
+          "kind": "live_integration",
+          "path": "scripts/smoke_browser_session_productization_live.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.143Z"
+      "updated_at": "2026-07-13T00:00:00Z"
     },
     {
       "blockers": [],
@@ -95966,7 +96106,7 @@
     {
       "blockers": [],
       "capability_name": "browser-agent-session: events",
-      "capability_summary": "Browser-use agent loop and browser session candidates.",
+      "capability_summary": "Zyra-owned browser session lifecycle, registry, session-bound action, permission, artifact and API integration.",
       "created_at": "2026-07-05T17:44:26.143Z",
       "dependencies": [],
       "downstream_units": [
@@ -95976,54 +96116,82 @@
       "ledger_id": "ile_browser_use_95efa412d1525ae9",
       "license_notice": {
         "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "notes": "Browser Use source lineage and attribution are recorded in third_party/NOTICE.md; M3 may refine source URL and version metadata.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
         "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /workers/browser/sessions",
+          "GET /workers/browser/sessions/{session_id}"
         ],
-        "artifact_kinds": [],
-        "control_commands": [],
+        "artifact_kinds": [
+          "screenshot",
+          "download",
+          "trace"
+        ],
+        "control_commands": [
+          "start",
+          "ensure",
+          "reconnect",
+          "stop",
+          "diagnose",
+          "list"
+        ],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "browser_action"
         ],
         "surfaces": [
-          "ledger",
+          "api",
           "worker_runtime",
-          "artifact"
+          "event_log",
+          "artifact",
+          "permission"
         ],
         "ui_panels": [],
         "worker_runtime": "BrowserWorkerRuntime"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
         "generated_by": "scripts/build_integration_ledger_seed.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent"
+        "source_root": "browser_use/agent",
+        "source_disposition": "active",
+        "evidence_slice": "M1-S04A-02",
+        "legacy_vendor_required": false,
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "verification_status": "pre_evidence_verified",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
+        "api_path": "apps/api/zyra_api/main.py",
+        "test_path": "tests/integration/test_browser_session_productization_integration.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "live_path": "scripts/smoke_browser_session_productization_live.py"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "adapter",
       "milestone": "M1",
       "owner_unit": "M1-04A",
-      "replacement_plan": "Use M1-04A to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Implemented in Zyra browser_session modules; no runtime dependency on root browser-use sources or a Browser Use sidecar.",
       "risk_notes": [],
       "runtime_entry": {
-        "command": "",
+        "command": "python scripts/smoke_browser_session_productization.py",
         "config_refs": [
-          "ledger:browser-use:M1-04A"
+          "ZYRA_BROWSER_STATE",
+          "ZYRA_BROWSER_RUNTIME_ROOT",
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_PERMISSION_STATE"
         ],
         "environment_refs": [],
-        "function": "planned_browser_agent_session",
-        "health_check": "scripts/verify_m1_04a.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserSessionApplication.execute_plan",
+        "health_check": "scripts/verify_browser_session_cleanroom.py",
+        "module": "zyra_workers.browser_session.application",
+        "protocol": "zyra-browser-productized"
       },
       "source_evidence": [
         {
@@ -96058,7 +96226,35 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_use_runtime.py"
+          "target_path": "packages/integrations/zyra_integrations/browser_use/event_bus.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/artifact_event_bridge.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/application.py"
         },
         {
           "must_exist_for_statuses": [
@@ -96077,14 +96273,35 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04a_browser_agent_session",
-          "expected_signal": "browser-use browser-agent-session ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_session_productization_integration",
+          "expected_signal": "session-bound actions use the started Zyra BrowserRuntime and fail closed when disabled or state is lost",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04a_browser_agent_session.py",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m unittest tests.integration.test_browser_session_productization_api",
+          "expected_signal": "browser API start, list, diagnose and stop share the registry-owned session",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/verify_browser_session_cleanroom.py",
+          "expected_signal": "source-free browser application, API, smoke and import-origin audit pass",
+          "kind": "cleanroom",
+          "path": "scripts/verify_browser_session_cleanroom.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/smoke_browser_session_productization_live.py",
+          "expected_signal": "mandatory local Chrome executes the productized Worker path and emits session, receipt, screenshot, trace and stop evidence",
+          "kind": "live_integration",
+          "path": "scripts/smoke_browser_session_productization_live.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.143Z"
+      "updated_at": "2026-07-13T00:00:00Z"
     },
     {
       "blockers": [],
@@ -96827,7 +97044,7 @@
     {
       "blockers": [],
       "capability_name": "browser-agent-session: profile",
-      "capability_summary": "Browser-use agent loop and browser session candidates.",
+      "capability_summary": "Zyra-owned browser session lifecycle, registry, session-bound action, permission, artifact and API integration.",
       "created_at": "2026-07-05T17:44:26.143Z",
       "dependencies": [],
       "downstream_units": [
@@ -96837,54 +97054,82 @@
       "ledger_id": "ile_browser_use_3f7599b1dba15b73",
       "license_notice": {
         "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "notes": "Browser Use source lineage and attribution are recorded in third_party/NOTICE.md; M3 may refine source URL and version metadata.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
         "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /workers/browser/sessions",
+          "GET /workers/browser/sessions/{session_id}"
         ],
-        "artifact_kinds": [],
-        "control_commands": [],
+        "artifact_kinds": [
+          "screenshot",
+          "download",
+          "trace"
+        ],
+        "control_commands": [
+          "start",
+          "ensure",
+          "reconnect",
+          "stop",
+          "diagnose",
+          "list"
+        ],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "browser_action"
         ],
         "surfaces": [
-          "ledger",
+          "api",
           "worker_runtime",
-          "artifact"
+          "event_log",
+          "artifact",
+          "permission"
         ],
         "ui_panels": [],
         "worker_runtime": "BrowserWorkerRuntime"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
         "generated_by": "scripts/build_integration_ledger_seed.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent"
+        "source_root": "browser_use/agent",
+        "source_disposition": "active",
+        "evidence_slice": "M1-S04A-02",
+        "legacy_vendor_required": false,
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "verification_status": "pre_evidence_verified",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
+        "api_path": "apps/api/zyra_api/main.py",
+        "test_path": "tests/integration/test_browser_session_productization_integration.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "live_path": "scripts/smoke_browser_session_productization_live.py"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04A",
-      "replacement_plan": "Use M1-04A to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Implemented in Zyra browser_session modules; no runtime dependency on root browser-use sources or a Browser Use sidecar.",
       "risk_notes": [],
       "runtime_entry": {
-        "command": "",
+        "command": "python scripts/smoke_browser_session_productization.py",
         "config_refs": [
-          "ledger:browser-use:M1-04A"
+          "ZYRA_BROWSER_STATE",
+          "ZYRA_BROWSER_RUNTIME_ROOT",
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_PERMISSION_STATE"
         ],
         "environment_refs": [],
-        "function": "planned_browser_agent_session",
-        "health_check": "scripts/verify_m1_04a.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserSessionApplication.execute_plan",
+        "health_check": "scripts/verify_browser_session_cleanroom.py",
+        "module": "zyra_workers.browser_session.application",
+        "protocol": "zyra-browser-productized"
       },
       "source_evidence": [
         {
@@ -96919,7 +97164,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_use_runtime.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/connection_policy.py"
         },
         {
           "must_exist_for_statuses": [
@@ -96933,19 +97178,54 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/profile_store.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/application.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04a_browser_agent_session",
-          "expected_signal": "browser-use browser-agent-session ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_session_productization_integration",
+          "expected_signal": "session-bound actions use the started Zyra BrowserRuntime and fail closed when disabled or state is lost",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04a_browser_agent_session.py",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m unittest tests.integration.test_browser_session_productization_api",
+          "expected_signal": "browser API start, list, diagnose and stop share the registry-owned session",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/verify_browser_session_cleanroom.py",
+          "expected_signal": "source-free browser application, API, smoke and import-origin audit pass",
+          "kind": "cleanroom",
+          "path": "scripts/verify_browser_session_cleanroom.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/smoke_browser_session_productization_live.py",
+          "expected_signal": "mandatory local Chrome executes the productized Worker path and emits session, receipt, screenshot, trace and stop evidence",
+          "kind": "live_integration",
+          "path": "scripts/smoke_browser_session_productization_live.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.143Z"
+      "updated_at": "2026-07-13T00:00:00Z"
     },
     {
       "blockers": [],
@@ -97442,7 +97722,7 @@
     {
       "blockers": [],
       "capability_name": "browser-agent-session: session",
-      "capability_summary": "Browser-use agent loop and browser session candidates.",
+      "capability_summary": "Zyra-owned browser session lifecycle, registry, session-bound action, permission, artifact and API integration.",
       "created_at": "2026-07-05T17:44:26.143Z",
       "dependencies": [],
       "downstream_units": [
@@ -97452,54 +97732,82 @@
       "ledger_id": "ile_browser_use_a377fdd8a04a5ece",
       "license_notice": {
         "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "notes": "Browser Use source lineage and attribution are recorded in third_party/NOTICE.md; M3 may refine source URL and version metadata.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
         "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /workers/browser/sessions",
+          "GET /workers/browser/sessions/{session_id}"
         ],
-        "artifact_kinds": [],
-        "control_commands": [],
+        "artifact_kinds": [
+          "screenshot",
+          "download",
+          "trace"
+        ],
+        "control_commands": [
+          "start",
+          "ensure",
+          "reconnect",
+          "stop",
+          "diagnose",
+          "list"
+        ],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "browser_action"
         ],
         "surfaces": [
-          "ledger",
+          "api",
           "worker_runtime",
-          "artifact"
+          "event_log",
+          "artifact",
+          "permission"
         ],
         "ui_panels": [],
         "worker_runtime": "BrowserWorkerRuntime"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
         "generated_by": "scripts/build_integration_ledger_seed.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent"
+        "source_root": "browser_use/agent",
+        "source_disposition": "active",
+        "evidence_slice": "M1-S04A-02",
+        "legacy_vendor_required": false,
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "verification_status": "pre_evidence_verified",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
+        "api_path": "apps/api/zyra_api/main.py",
+        "test_path": "tests/integration/test_browser_session_productization_integration.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "live_path": "scripts/smoke_browser_session_productization_live.py"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04A",
-      "replacement_plan": "Use M1-04A to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Implemented in Zyra browser_session modules; no runtime dependency on root browser-use sources or a Browser Use sidecar.",
       "risk_notes": [],
       "runtime_entry": {
-        "command": "",
+        "command": "python scripts/smoke_browser_session_productization.py",
         "config_refs": [
-          "ledger:browser-use:M1-04A"
+          "ZYRA_BROWSER_STATE",
+          "ZYRA_BROWSER_RUNTIME_ROOT",
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_PERMISSION_STATE"
         ],
         "environment_refs": [],
-        "function": "planned_browser_agent_session",
-        "health_check": "scripts/verify_m1_04a.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserSessionApplication.execute_plan",
+        "health_check": "scripts/verify_browser_session_cleanroom.py",
+        "module": "zyra_workers.browser_session.application",
+        "protocol": "zyra-browser-productized"
       },
       "source_evidence": [
         {
@@ -97534,7 +97842,49 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_use_runtime.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/session_runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/application.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/session_lease.py"
         },
         {
           "must_exist_for_statuses": [
@@ -97553,19 +97903,40 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04a_browser_agent_session",
-          "expected_signal": "browser-use browser-agent-session ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_session_productization_integration",
+          "expected_signal": "session-bound actions use the started Zyra BrowserRuntime and fail closed when disabled or state is lost",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04a_browser_agent_session.py",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m unittest tests.integration.test_browser_session_productization_api",
+          "expected_signal": "browser API start, list, diagnose and stop share the registry-owned session",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/verify_browser_session_cleanroom.py",
+          "expected_signal": "source-free browser application, API, smoke and import-origin audit pass",
+          "kind": "cleanroom",
+          "path": "scripts/verify_browser_session_cleanroom.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/smoke_browser_session_productization_live.py",
+          "expected_signal": "mandatory local Chrome executes the productized Worker path and emits session, receipt, screenshot, trace and stop evidence",
+          "kind": "live_integration",
+          "path": "scripts/smoke_browser_session_productization_live.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.143Z"
+      "updated_at": "2026-07-13T00:00:00Z"
     },
     {
       "blockers": [],
       "capability_name": "browser-agent-session: session_manager",
-      "capability_summary": "Browser-use agent loop and browser session candidates.",
+      "capability_summary": "Zyra-owned browser session lifecycle, registry, session-bound action, permission, artifact and API integration.",
       "created_at": "2026-07-05T17:44:26.143Z",
       "dependencies": [],
       "downstream_units": [
@@ -97575,54 +97946,82 @@
       "ledger_id": "ile_browser_use_3e77c4ab681654e1",
       "license_notice": {
         "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "notes": "Browser Use source lineage and attribution are recorded in third_party/NOTICE.md; M3 may refine source URL and version metadata.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
         "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /workers/browser/sessions",
+          "GET /workers/browser/sessions/{session_id}"
         ],
-        "artifact_kinds": [],
-        "control_commands": [],
+        "artifact_kinds": [
+          "screenshot",
+          "download",
+          "trace"
+        ],
+        "control_commands": [
+          "start",
+          "ensure",
+          "reconnect",
+          "stop",
+          "diagnose",
+          "list"
+        ],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "browser_action"
         ],
         "surfaces": [
-          "ledger",
+          "api",
           "worker_runtime",
-          "artifact"
+          "event_log",
+          "artifact",
+          "permission"
         ],
         "ui_panels": [],
         "worker_runtime": "BrowserWorkerRuntime"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
         "generated_by": "scripts/build_integration_ledger_seed.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent"
+        "source_root": "browser_use/agent",
+        "source_disposition": "active",
+        "evidence_slice": "M1-S04A-02",
+        "legacy_vendor_required": false,
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "verification_status": "pre_evidence_verified",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
+        "api_path": "apps/api/zyra_api/main.py",
+        "test_path": "tests/integration/test_browser_session_productization_integration.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "live_path": "scripts/smoke_browser_session_productization_live.py"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04A",
-      "replacement_plan": "Use M1-04A to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Implemented in Zyra browser_session modules; no runtime dependency on root browser-use sources or a Browser Use sidecar.",
       "risk_notes": [],
       "runtime_entry": {
-        "command": "",
+        "command": "python scripts/smoke_browser_session_productization.py",
         "config_refs": [
-          "ledger:browser-use:M1-04A"
+          "ZYRA_BROWSER_STATE",
+          "ZYRA_BROWSER_RUNTIME_ROOT",
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_PERMISSION_STATE"
         ],
         "environment_refs": [],
-        "function": "planned_browser_agent_session",
-        "health_check": "scripts/verify_m1_04a.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserSessionApplication.execute_plan",
+        "health_check": "scripts/verify_browser_session_cleanroom.py",
+        "module": "zyra_workers.browser_session.application",
+        "protocol": "zyra-browser-productized"
       },
       "source_evidence": [
         {
@@ -97657,7 +98056,35 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_use_runtime.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/target_runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/session_lease.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/action_runtime.py"
         },
         {
           "must_exist_for_statuses": [
@@ -97676,14 +98103,35 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04a_browser_agent_session",
-          "expected_signal": "browser-use browser-agent-session ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_session_productization_integration",
+          "expected_signal": "session-bound actions use the started Zyra BrowserRuntime and fail closed when disabled or state is lost",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04a_browser_agent_session.py",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m unittest tests.integration.test_browser_session_productization_api",
+          "expected_signal": "browser API start, list, diagnose and stop share the registry-owned session",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/verify_browser_session_cleanroom.py",
+          "expected_signal": "source-free browser application, API, smoke and import-origin audit pass",
+          "kind": "cleanroom",
+          "path": "scripts/verify_browser_session_cleanroom.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/smoke_browser_session_productization_live.py",
+          "expected_signal": "mandatory local Chrome executes the productized Worker path and emits session, receipt, screenshot, trace and stop evidence",
+          "kind": "live_integration",
+          "path": "scripts/smoke_browser_session_productization_live.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.143Z"
+      "updated_at": "2026-07-13T00:00:00Z"
     },
     {
       "blockers": [],
@@ -99533,7 +99981,7 @@
     {
       "blockers": [],
       "capability_name": "browser-agent-session: watchdog_base",
-      "capability_summary": "Browser-use agent loop and browser session candidates.",
+      "capability_summary": "Zyra-owned browser session lifecycle, registry, session-bound action, permission, artifact and API integration.",
       "created_at": "2026-07-05T17:44:26.143Z",
       "dependencies": [],
       "downstream_units": [
@@ -99543,54 +99991,82 @@
       "ledger_id": "ile_browser_use_f03f6590d88653b0",
       "license_notice": {
         "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "notes": "Browser Use source lineage and attribution are recorded in third_party/NOTICE.md; M3 may refine source URL and version metadata.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
         "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /workers/browser/sessions",
+          "GET /workers/browser/sessions/{session_id}"
         ],
-        "artifact_kinds": [],
-        "control_commands": [],
+        "artifact_kinds": [
+          "screenshot",
+          "download",
+          "trace"
+        ],
+        "control_commands": [
+          "start",
+          "ensure",
+          "reconnect",
+          "stop",
+          "diagnose",
+          "list"
+        ],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "browser_action"
         ],
         "surfaces": [
-          "ledger",
+          "api",
           "worker_runtime",
-          "artifact"
+          "event_log",
+          "artifact",
+          "permission"
         ],
         "ui_panels": [],
         "worker_runtime": "BrowserWorkerRuntime"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
         "generated_by": "scripts/build_integration_ledger_seed.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent"
+        "source_root": "browser_use/agent",
+        "source_disposition": "active",
+        "evidence_slice": "M1-S04A-02",
+        "legacy_vendor_required": false,
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "verification_status": "pre_evidence_verified",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
+        "api_path": "apps/api/zyra_api/main.py",
+        "test_path": "tests/integration/test_browser_session_productization_integration.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "live_path": "scripts/smoke_browser_session_productization_live.py"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04A",
-      "replacement_plan": "Use M1-04A to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Implemented in Zyra browser_session modules; no runtime dependency on root browser-use sources or a Browser Use sidecar.",
       "risk_notes": [],
       "runtime_entry": {
-        "command": "",
+        "command": "python scripts/smoke_browser_session_productization.py",
         "config_refs": [
-          "ledger:browser-use:M1-04A"
+          "ZYRA_BROWSER_STATE",
+          "ZYRA_BROWSER_RUNTIME_ROOT",
+          "ZYRA_ARTIFACT_ROOT",
+          "ZYRA_PERMISSION_STATE"
         ],
         "environment_refs": [],
-        "function": "planned_browser_agent_session",
-        "health_check": "scripts/verify_m1_04a.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserSessionApplication.execute_plan",
+        "health_check": "scripts/verify_browser_session_cleanroom.py",
+        "module": "zyra_workers.browser_session.application",
+        "protocol": "zyra-browser-productized"
       },
       "source_evidence": [
         {
@@ -99625,7 +100101,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_use_runtime.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/task_supervisor.py"
         },
         {
           "must_exist_for_statuses": [
@@ -99639,19 +100115,54 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_session/recovery.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_session/application.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04a_browser_agent_session",
-          "expected_signal": "browser-use browser-agent-session ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_session_productization_integration",
+          "expected_signal": "session-bound actions use the started Zyra BrowserRuntime and fail closed when disabled or state is lost",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04a_browser_agent_session.py",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m unittest tests.integration.test_browser_session_productization_api",
+          "expected_signal": "browser API start, list, diagnose and stop share the registry-owned session",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/verify_browser_session_cleanroom.py",
+          "expected_signal": "source-free browser application, API, smoke and import-origin audit pass",
+          "kind": "cleanroom",
+          "path": "scripts/verify_browser_session_cleanroom.py",
+          "required": true
+        },
+        {
+          "command": "python scripts/smoke_browser_session_productization_live.py",
+          "expected_signal": "mandatory local Chrome executes the productized Worker path and emits session, receipt, screenshot, trace and stop evidence",
+          "kind": "live_integration",
+          "path": "scripts/smoke_browser_session_productization_live.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.143Z"
+      "updated_at": "2026-07-13T00:00:00Z"
     },
     {
       "blockers": [],
