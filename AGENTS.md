@@ -11,7 +11,7 @@
 ## 赛题退出门禁
 
 - 赛题 requirement ID、100 分评分 owner 和证据定义以 `../docs/比赛要求追踪矩阵.md` 为准；当前进度只以 `../docs/milestones/execution-state.yaml` 为准。
-- 第一阶段同时通过赛题证据、工程内化、交付排期三类门禁。`550,000` 行是内部重型内化失败线，不是 PDF 分值，不能替代双跨领域、数千有效 step、零人工、动态稀疏拓扑、低熵、真实端边云、多模型、故障恢复、材料与截止日期证据。
+- 第一阶段同时通过赛题证据、工程内化、交付排期三类门禁。`564,500` 行是内部重型内化失败线，不是 PDF 分值，不能替代双跨领域、数千有效 step、零人工、动态稀疏拓扑、低熵、真实端边云、多模型、故障恢复、材料与截止日期证据。
 - 正式 benchmark 使用 sealed autonomous policy：低风险 allowlist 自动放行，高风险或未知动作确定性拒绝并进入 recovery/replan，`human_intervention_count=0`。交互式审批模式不能成为正式场景依赖。
 - 开发期模拟端边云只能用于测试；冻结前必须验证 local/terminal、隔离 edge runtime、cloud provider/model 三类真实 dispatch 和模型/子任务切分。
 
@@ -24,7 +24,6 @@
 - 2026-07-08 source graph 重排文档：`../docs/milestones/source-graph-realignment-2026-07-08.md`
 - 赛题要求追踪矩阵：`../docs/比赛要求追踪矩阵.md`
 - 唯一执行状态源：`../docs/milestones/execution-state.yaml`
-- 旧版工程计划背景：`../docs/第一阶段工程计划（旧版，仅作背景参考）.md`
 - 根目录约定：`../AGENTS.md`
 
 正式开发前应优先阅读上述文档，尤其是：
@@ -63,6 +62,14 @@
 - 2026-07-08 逐仓 source graph 后，`opencode` 也应纳入高价值来源仓库，尤其用于 durable session/event、provider catalog/credential/AISDK、tool/permission/MCP/skill/command/plugin、typed protocol、app/session UI/TUI/terminal/review/diff 等链路补强；它不是 `claude-code-best` 的替代，而是 M1/M2/M3 的重要补充来源。
 - 不要把新的 M0 基础接入实现误解为后续阶段的执行策略。从新的 M1 开始必须明显转向成熟代码迁移、大模块复用和 sidecar/adapter 接入；不能用小规模手写闭环、mock 或占位模块替代第一阶段完整系统目标。
 - `../` 下的其它仓库只是来源仓库，`zyra` 才是最终提交项目。凡是最终运行依赖的复用代码、skills、配置、前端组件或 sidecar runtime，都必须迁移、裁剪、改造或封装进 `zyra/packages/**`、`zyra/apps/**`、`zyra/skills/**`、`zyra/scripts/**` 等正式模块，不能让 `zyra` 在提交后依赖 `../claude-code-best`、`../browser-use`、`../OpenHands`、`../opencode` 等相对路径。`vendor`、`vendor-runtimes`、`source-pool`、`runtime-sources` 等目录只能作为历史债务或临时抽取材料，不能作为第一阶段完成落位或有效行数来源。
+
+## 来源职责去重与前向保护边界
+
+- source graph 和分析索引是候选机制全集，不是逐仓实现 backlog。每个具体状态域默认只设 `1` 个 primary implementation source，并最多设 `2` 个只补独立缺口的 supplementary implementation sources；不得并行内化多套同义 runtime、store、reducer、manager 或 UI state，也不得形成第二个 canonical owner。
+- `conformance_only` 只承担协议映射/兼容测试，`reference_only` 只承担设计校验/反例，`experimental` 默认关闭且不能成为默认主路径或替代正式能力；这些角色不产生生产迁移配额，也不要求自建等价实现，unit 明确要求时只提供有界消融证据。`deferred/rejected` 记录原因，只有保留能力确有缺口时才指定后续 owner。
+- 去重只删除重复来源义务，不删除 Zyra 能力、主路径、失败路径、安全/恢复语义、赛题证据或行为测试。行数下限按保留能力与 Zyra-owned 工程责任校准，不按活跃仓库数量计算。
+- Agent Framework、AgentScope、LangGraph 不享有仓库级保底权重：LangGraph 只在 checkpoint identity/lineage、pending/committed writes、stable task/request id、atomic commit、interrupt/resume correlation 和 exact-resume 的窄域恢复合同中作为 primary semantic source；`StateGraph`、通用 channel/reducer、Pregel planner/runner、stream controller、Store、ToolNode/prebuilt agent、SDK/server/deploy 均为 conformance/reference/deferred，不取得 production owner。Agent Framework 的受保护早期 invocation/history/atomic-compaction 事实不回写，自 04B-02 向后只做 workflow/checkpoint 与 AG-UI conformance，不再并行迁移；AgentScope 只在计划明确指定的 workspace、RAG/KB、worker lifecycle/inbox/wakeup 子域承担 primary 或 supplementary。其它重叠项降为 conformance/reference/deferred。
+- 2026-07-13 去重规则从 `../docs/milestones/M1-runtime-memory-scheduler-fault/slice-04b-02-message-manager-state-compression-integration.md` 起应用，且不得追溯改变此前执行事实。这只是规则的历史适用边界，不代表当前编辑授权；任何已完成 unit/slice 均受 `../docs/milestones/execution-state.yaml` 保护，当前保护范围和下一入口只以该文件为准。
 
 ## 严格内化定义
 
@@ -113,8 +120,9 @@
 - 新 M2 的最低完成形态是正式控制台：event stream、任务图/拓扑、agent 状态、artifact/diff/terminal/browser viewer、permission/session/context/memory panels、command palette、故障注入和运行中需求变更输入都必须连接真实 API 和 event log；OpenHands、`claude-code-best`、browser-use、opencode 等来源中的交互模式都应进入 source-to-target 裁决。
 - 如果一个里程碑只新增少量 schema、简单 if/else、薄 wrapper、mock 数据或静态页面，即使测试通过，也不能视为完成重型目标。阶段自检必须先补齐，或者明确把里程碑保持为未完成。
 - 新 M3 只能做冻结、产品化整合、历史 vendor/source-pool 债务清理和来源映射；不能把第一次大规模迁移 runtime/scheduler/UI 推迟到新 M3。
-- 第一阶段父级执行单元的最低有效新增代码总量为 `550,000` 行，具体分配见 `../docs/第一阶段总工程计划.md` 和当前执行单元文档。该口径已经吸收 `../docs/milestones/M1-runtime-memory-scheduler-fault/slice-02b-02-query-session-lifecycle-integration.md` 从 9,000 行下调为 6,000 行后的预算重算。
+- 第一阶段父级执行单元的最低有效新增代码总量为 `564,500` 行，具体分配见 `../docs/第一阶段总工程计划.md` 和当前执行单元文档。该口径已经吸收 `../docs/milestones/M1-runtime-memory-scheduler-fault/slice-02b-02-query-session-lifecycle-integration.md` 从 9,000 行下调为 6,000 行后的预算重算。
 - 当前 `39` 个 `unit-*.md` 是父级验收单元。M1 现有 `foundation/integration` 文档是阶段容器；未完成切片若仍跨多个状态 owner 或无法独立验证，应继续拆成通常 3,000-6,000 行的单语义前向切片。M1-01A/01B 和已完成到 02D 的文档不回头拆分。
+- M2/M3 已采用用户批准的低停顿切片方案：M2 共 20 片，仅 `M2-03B` 与 `M2-05` 各 3 片，其余父级各 2 片；M3 共 10 片，每个父级各 2 片。单片预算最高 8,000 行，最后一片累计完成父级收口，不额外创建只做审查的空切片。执行中不得自行增加切片数量；若既定边界无法隔离状态 owner 或真实验证链，应先向用户说明并取得认可。
 - 例外：`M1-01A` 和 `M1-01B` 用户已明确不要拆分。后续不得回头把这两个文档拆成 slice；如复审发现问题，应在原单元文档、`docs/plans/M1-01A-ledger-schema-audit.md` 或 `docs/plans/M1-01B-extraction-runtime-scaffold.md` 中回补记录、代码和验证。
 - 当前 `M1-01B` 的 `vendor-runtimes/claude-code-runtime/pilot` 只能视为 source-pool 证据，`required_for_main_path=false`，不得计入有效内化代码。`M1-02A` 以后必须继续把 QueryEngine/tool loop/session lifecycle 等主体迁入正式 Zyra 模块，不能把该 pilot 当作产品化 runtime。
 - 代码行数下限是失败线，不是完成线。即使超过目标行数，只要执行单元目标、详细任务、主路径接入、验证或批判式审查没有完成，仍然视为失败。
