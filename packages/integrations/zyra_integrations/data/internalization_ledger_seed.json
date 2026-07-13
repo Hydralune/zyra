@@ -94666,20 +94666,20 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
+        "api_path": "apps/api/zyra_api/main.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "evidence_slice": "M1-S04A-02",
         "generated_by": "scripts/build_integration_ledger_seed.py",
+        "legacy_vendor_required": false,
+        "live_path": "scripts/smoke_browser_session_productization_live.py",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
+        "source_disposition": "active",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
         "source_root": "browser_use/agent",
-        "source_disposition": "active",
-        "evidence_slice": "M1-S04A-02",
-        "legacy_vendor_required": false,
-        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
-        "verification_status": "pre_evidence_verified",
-        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
-        "api_path": "apps/api/zyra_api/main.py",
         "test_path": "tests/integration/test_browser_session_productization_integration.py",
-        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
-        "live_path": "scripts/smoke_browser_session_productization_live.py"
+        "verification_status": "pre_evidence_verified"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -95098,20 +95098,20 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
+        "api_path": "apps/api/zyra_api/main.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "evidence_slice": "M1-S04A-02",
         "generated_by": "scripts/build_integration_ledger_seed.py",
+        "legacy_vendor_required": false,
+        "live_path": "scripts/smoke_browser_session_productization_live.py",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
+        "source_disposition": "active",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
         "source_root": "browser_use/agent",
-        "source_disposition": "active",
-        "evidence_slice": "M1-S04A-02",
-        "legacy_vendor_required": false,
-        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
-        "verification_status": "pre_evidence_verified",
-        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
-        "api_path": "apps/api/zyra_api/main.py",
         "test_path": "tests/integration/test_browser_session_productization_integration.py",
-        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
-        "live_path": "scripts/smoke_browser_session_productization_live.py"
+        "verification_status": "pre_evidence_verified"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -96159,20 +96159,20 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
+        "api_path": "apps/api/zyra_api/main.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "evidence_slice": "M1-S04A-02",
         "generated_by": "scripts/build_integration_ledger_seed.py",
+        "legacy_vendor_required": false,
+        "live_path": "scripts/smoke_browser_session_productization_live.py",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
+        "source_disposition": "active",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
         "source_root": "browser_use/agent",
-        "source_disposition": "active",
-        "evidence_slice": "M1-S04A-02",
-        "legacy_vendor_required": false,
-        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
-        "verification_status": "pre_evidence_verified",
-        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
-        "api_path": "apps/api/zyra_api/main.py",
         "test_path": "tests/integration/test_browser_session_productization_integration.py",
-        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
-        "live_path": "scripts/smoke_browser_session_productization_live.py"
+        "verification_status": "pre_evidence_verified"
       },
       "migration_strategy": "adapter",
       "milestone": "M1",
@@ -97097,20 +97097,20 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
+        "api_path": "apps/api/zyra_api/main.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "evidence_slice": "M1-S04A-02",
         "generated_by": "scripts/build_integration_ledger_seed.py",
+        "legacy_vendor_required": false,
+        "live_path": "scripts/smoke_browser_session_productization_live.py",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
+        "source_disposition": "active",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
         "source_root": "browser_use/agent",
-        "source_disposition": "active",
-        "evidence_slice": "M1-S04A-02",
-        "legacy_vendor_required": false,
-        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
-        "verification_status": "pre_evidence_verified",
-        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
-        "api_path": "apps/api/zyra_api/main.py",
         "test_path": "tests/integration/test_browser_session_productization_integration.py",
-        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
-        "live_path": "scripts/smoke_browser_session_productization_live.py"
+        "verification_status": "pre_evidence_verified"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -97775,20 +97775,20 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
+        "api_path": "apps/api/zyra_api/main.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "evidence_slice": "M1-S04A-02",
         "generated_by": "scripts/build_integration_ledger_seed.py",
+        "legacy_vendor_required": false,
+        "live_path": "scripts/smoke_browser_session_productization_live.py",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
+        "source_disposition": "active",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
         "source_root": "browser_use/agent",
-        "source_disposition": "active",
-        "evidence_slice": "M1-S04A-02",
-        "legacy_vendor_required": false,
-        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
-        "verification_status": "pre_evidence_verified",
-        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
-        "api_path": "apps/api/zyra_api/main.py",
         "test_path": "tests/integration/test_browser_session_productization_integration.py",
-        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
-        "live_path": "scripts/smoke_browser_session_productization_live.py"
+        "verification_status": "pre_evidence_verified"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -97989,20 +97989,20 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
+        "api_path": "apps/api/zyra_api/main.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "evidence_slice": "M1-S04A-02",
         "generated_by": "scripts/build_integration_ledger_seed.py",
+        "legacy_vendor_required": false,
+        "live_path": "scripts/smoke_browser_session_productization_live.py",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
+        "source_disposition": "active",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
         "source_root": "browser_use/agent",
-        "source_disposition": "active",
-        "evidence_slice": "M1-S04A-02",
-        "legacy_vendor_required": false,
-        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
-        "verification_status": "pre_evidence_verified",
-        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
-        "api_path": "apps/api/zyra_api/main.py",
         "test_path": "tests/integration/test_browser_session_productization_integration.py",
-        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
-        "live_path": "scripts/smoke_browser_session_productization_live.py"
+        "verification_status": "pre_evidence_verified"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -100034,20 +100034,20 @@
       },
       "main_path_status": "tested_main_path",
       "metadata": {
+        "api_path": "apps/api/zyra_api/main.py",
+        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
+        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
+        "evidence_slice": "M1-S04A-02",
         "generated_by": "scripts/build_integration_ledger_seed.py",
+        "legacy_vendor_required": false,
+        "live_path": "scripts/smoke_browser_session_productization_live.py",
+        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
         "seed_scope": "M1-01A initial source-to-target ledger",
+        "source_disposition": "active",
         "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
         "source_root": "browser_use/agent",
-        "source_disposition": "active",
-        "evidence_slice": "M1-S04A-02",
-        "legacy_vendor_required": false,
-        "evidence_commit": "86937955ce65963e789a6f576d85725261d1e609",
-        "verification_status": "pre_evidence_verified",
-        "runtime_path": "packages/workers/zyra_workers/browser_worker.py",
-        "api_path": "apps/api/zyra_api/main.py",
         "test_path": "tests/integration/test_browser_session_productization_integration.py",
-        "cleanroom_path": "scripts/verify_browser_session_cleanroom.py",
-        "live_path": "scripts/smoke_browser_session_productization_live.py"
+        "verification_status": "pre_evidence_verified"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -100299,86 +100299,83 @@
     {
       "blockers": [],
       "capability_name": "message-manager-state: __init__",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
+      "capability_summary": "screenshot reference surface",
+      "created_at": "2026-07-13T06:00:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_d8996a5bebca56aa",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
-      "line_count_policy": "counts_when_productized",
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
-        ],
+        "api_routes": [],
         "artifact_kinds": [],
         "control_commands": [],
-        "event_types": [
-          "system_notice"
-        ],
+        "event_types": [],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_message_state_source_decision"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "reference_only; behavior is owned by M1-S04C-01"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "inventoried",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "M1-S04C-01",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "reference_only",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "not_selected",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
-      "risk_notes": [],
+      "replacement_plan": "Reference only: The package initializer contributes no state algorithm; 04B preserves existing 04A screenshot artifact references. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "The package initializer contributes no state algorithm; 04B preserves existing 04A screenshot artifact references."
+      ],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/screenshots/__init__.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "reference_only"
           ]
         }
       ],
       "source_path": "browser_use/screenshots/__init__.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "reference_only"
       ],
       "target_bindings": [
         {
@@ -100391,119 +100388,115 @@
             "ui_connected",
             "tested_main_path"
           ],
-          "required_for_main_path": true,
+          "required_for_main_path": false,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "adapter_ready",
-            "api_connected",
-            "event_log_connected",
-            "control_command_connected",
-            "worker_runtime_connected",
-            "ui_connected",
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/artifact_serializer.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
-          "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: clickable_elements",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "interactive element classification, selector disclosure ranking",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_b41bef0d82e35fd9",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/serializer/clickable_elements.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/serializer/clickable_elements.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -100518,7 +100511,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/interactivity.py"
         },
         {
           "must_exist_for_statuses": [
@@ -100532,103 +100525,113 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/selector_ranker.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: enhanced_snapshot",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "DOMSnapshot decoding, DOM and AX merge, frame-aware capture identity",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_cacf101711f15dbc",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/enhanced_snapshot.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/enhanced_snapshot.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -100643,7 +100646,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/snapshot_decoder.py"
         },
         {
           "must_exist_for_statuses": [
@@ -100657,103 +100660,114 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/dom_builder.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_state/runtime.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: eval_serializer",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
+      "capability_summary": "evaluate-based DOM serialization alternative",
+      "created_at": "2026-07-13T06:00:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_32b1e74cbbd85b31",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
-      "line_count_policy": "counts_when_productized",
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
-        ],
+        "api_routes": [],
         "artifact_kinds": [],
         "control_commands": [],
-        "event_types": [
-          "system_notice"
-        ],
+        "event_types": [],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_message_state_source_decision"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "reference_only; behavior is owned by packages/workers/zyra_workers/browser_state/serializer.py"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "inventoried",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "reference_only",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "not_selected",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
-      "risk_notes": [],
+      "replacement_plan": "Reference only: The evaluate serializer was rejected for the authoritative path; Zyra requires CDP DOMSnapshot plus DOM and AX capture. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "The evaluate serializer was rejected for the authoritative path; Zyra requires CDP DOMSnapshot plus DOM and AX capture."
+      ],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/serializer/eval_serializer.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "reference_only"
           ]
         }
       ],
       "source_path": "browser_use/dom/serializer/eval_serializer.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "reference_only"
       ],
       "target_bindings": [
         {
@@ -100766,119 +100780,102 @@
             "ui_connected",
             "tested_main_path"
           ],
-          "required_for_main_path": true,
+          "required_for_main_path": false,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "adapter_ready",
-            "api_connected",
-            "event_log_connected",
-            "control_command_connected",
-            "worker_runtime_connected",
-            "ui_connected",
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/serializer.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
-          "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: extraction",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
+      "capability_summary": "experimental extraction examples",
+      "created_at": "2026-07-13T06:00:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_41966ad1c3e85a03",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
-      "line_count_policy": "counts_when_productized",
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
-        ],
+        "api_routes": [],
         "artifact_kinds": [],
         "control_commands": [],
-        "event_types": [
-          "system_notice"
-        ],
+        "event_types": [],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_message_state_source_decision"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "reference_only; behavior is owned by packages/workers/zyra_workers/browser_state/semantic_sections.py"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "inventoried",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "reference_only",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "not_selected",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
-      "risk_notes": [],
+      "replacement_plan": "Reference only: Playground extraction is not a product runtime dependency; semantic extraction is deterministic Zyra code. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "Playground extraction is not a product runtime dependency; semantic extraction is deterministic Zyra code."
+      ],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/playground/extraction.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "reference_only"
           ]
         }
       ],
       "source_path": "browser_use/dom/playground/extraction.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "reference_only"
       ],
       "target_bindings": [
         {
@@ -100891,119 +100888,115 @@
             "ui_connected",
             "tested_main_path"
           ],
-          "required_for_main_path": true,
+          "required_for_main_path": false,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "adapter_ready",
-            "api_connected",
-            "event_log_connected",
-            "control_command_connected",
-            "worker_runtime_connected",
-            "ui_connected",
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/semantic_sections.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
-          "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: html_serializer",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "readable HTML serialization, attribute filtering",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_3c443bf0dfc457a6",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/serializer/html_serializer.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/serializer/html_serializer.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -101018,117 +101011,113 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "adapter_ready",
-            "api_connected",
-            "event_log_connected",
-            "control_command_connected",
-            "worker_runtime_connected",
-            "ui_connected",
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/serializer.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: markdown_extractor",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "semantic section extraction, low-entropy document outline",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_ed3d70343f2558fd",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/markdown_extractor.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/markdown_extractor.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -101143,117 +101132,100 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "adapter_ready",
-            "api_connected",
-            "event_log_connected",
-            "control_command_connected",
-            "worker_runtime_connected",
-            "ui_connected",
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/semantic_sections.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: multi_act",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
+      "capability_summary": "multi-action playground",
+      "created_at": "2026-07-13T06:00:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_bc62bbfea5d95de6",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
-      "line_count_policy": "counts_when_productized",
+      "lifecycle": "deferred",
+      "line_count_policy": "excluded_inventory_only",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
-        ],
+        "api_routes": [],
         "artifact_kinds": [],
         "control_commands": [],
-        "event_types": [
-          "system_notice"
-        ],
+        "event_types": [],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_message_state_source_decision"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "deferred; behavior is owned by M1-S04D-01"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "planned",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "M1-S04D-01",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "deferred",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "planned_adapter",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
-      "risk_notes": [],
+      "replacement_plan": "Deferred to M1-S04D-01: Multi-action registry execution belongs to the action/controller watchdog slice, not state projection.",
+      "risk_notes": [
+        "Multi-action registry execution belongs to the action/controller watchdog slice, not state projection."
+      ],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/playground/multi_act.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "deferred"
           ]
         }
       ],
       "source_path": "browser_use/dom/playground/multi_act.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "deferred"
       ],
       "target_bindings": [
         {
@@ -101266,119 +101238,115 @@
             "ui_connected",
             "tested_main_path"
           ],
-          "required_for_main_path": true,
+          "required_for_main_path": false,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "adapter_ready",
-            "api_connected",
-            "event_log_connected",
-            "control_command_connected",
-            "worker_runtime_connected",
-            "ui_connected",
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/watchdog.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
-          "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: paint_order",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "paint-order visibility, occlusion-aware serialization",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_4c87dbadcbc35076",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/serializer/paint_order.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/serializer/paint_order.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -101393,7 +101361,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/occlusion.py"
         },
         {
           "must_exist_for_statuses": [
@@ -101407,103 +101375,113 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/serializer.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: serializer",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "DOM tree model, serializer pipeline, selector identity",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_f651b7749380579b",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/serializer/serializer.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/serializer/serializer.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -101518,7 +101496,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/models.py"
         },
         {
           "must_exist_for_statuses": [
@@ -101532,103 +101510,127 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/serializer.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_state/dom_builder.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: service",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "message projection, context compression, turn application service",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_017dd924dc66517d",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/agent/message_manager/service.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/agent/message_manager/service.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -101643,7 +101645,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_context/message_manager.py"
         },
         {
           "must_exist_for_statuses": [
@@ -101657,103 +101659,127 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_context/compressor.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_context/application.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: service",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "authoritative DOM state service, capture policy",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_61197a528d3d5e47",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/service.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/service.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -101768,7 +101794,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/runtime.py"
         },
         {
           "must_exist_for_statuses": [
@@ -101782,103 +101808,100 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/capture_policy.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: service",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
+      "capability_summary": "screenshot artifact candidate",
+      "created_at": "2026-07-13T06:00:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_d6cae043ca655afb",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
-      "line_count_policy": "counts_when_productized",
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
-        ],
+        "api_routes": [],
         "artifact_kinds": [],
         "control_commands": [],
-        "event_types": [
-          "system_notice"
-        ],
+        "event_types": [],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_message_state_source_decision"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "reference_only; behavior is owned by M1-S04C-01"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "inventoried",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "M1-S04C-01",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "reference_only",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "not_selected",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
-      "risk_notes": [],
+      "replacement_plan": "Reference only: Screenshot acquisition remains owned by the 04A browser session; 04B only preserves and externalizes artifact references. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "Screenshot acquisition remains owned by the 04A browser session; 04B only preserves and externalizes artifact references."
+      ],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
-        "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/screenshots/service.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "reference_only"
           ]
         }
       ],
       "source_path": "browser_use/screenshots/service.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "reference_only"
       ],
       "target_bindings": [
         {
@@ -101891,9 +101914,9 @@
             "ui_connected",
             "tested_main_path"
           ],
-          "required_for_main_path": true,
+          "required_for_main_path": false,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/artifact_serializer.py"
         },
         {
           "must_exist_for_statuses": [
@@ -101905,105 +101928,115 @@
             "ui_connected",
             "tested_main_path"
           ],
-          "required_for_main_path": true,
+          "required_for_main_path": false,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_context/externalizer.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
-          "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: utils",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "action result normalization, atomic tool pair history",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_2fd75aefb7075119",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/agent/message_manager/utils.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/agent/message_manager/utils.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -102018,7 +102051,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_context/action_result.py"
         },
         {
           "must_exist_for_statuses": [
@@ -102032,103 +102065,113 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_context/history.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: utils",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "DOM text normalization, fact identity",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_74b6315a7c765906",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/utils.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/utils.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -102143,117 +102186,113 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
-        },
-        {
-          "must_exist_for_statuses": [
-            "adapter_ready",
-            "api_connected",
-            "event_log_connected",
-            "control_command_connected",
-            "worker_runtime_connected",
-            "ui_connected",
-            "tested_main_path"
-          ],
-          "required_for_main_path": true,
-          "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/text.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: views",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "message history contracts, projection models",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_575ac7aaf09e51d7",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/agent/message_manager/views.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/agent/message_manager/views.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -102268,7 +102307,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_context/models.py"
         },
         {
           "must_exist_for_statuses": [
@@ -102282,103 +102321,113 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_context/history.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "message-manager-state: views",
-      "capability_summary": "Message manager, DOM compression, screenshot artifact candidates.",
-      "created_at": "2026-07-05T17:44:26.149Z",
-      "dependencies": [],
+      "capability_summary": "DOM node contracts, selector map revision contracts",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
       "downstream_units": [
-        "M1-08",
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
         "M2-01A"
       ],
       "ledger_id": "ile_browser_use_0af2cfaec4c652f8",
       "license_notice": {
-        "license_hint": "source snapshot; finalize attribution in M3",
-        "notes": "Seeded for M1-01A; must be finalized during M3 source-map freeze.",
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
         "notice_path": "third_party/NOTICE.md",
         "source_repo": "browser-use",
         "source_url": "",
-        "status": "pending"
+        "status": "recorded"
       },
-      "lifecycle": "planned",
+      "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [
-          "GET /ledger",
-          "GET /ledger/audit"
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
         ],
-        "artifact_kinds": [],
         "control_commands": [],
         "event_types": [
-          "system_notice"
+          "browser_session_lifecycle",
+          "agent_message"
         ],
         "surfaces": [
-          "ledger",
-          "worker_runtime",
-          "artifact"
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime"
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
       },
-      "main_path_status": "vendored",
+      "main_path_status": "tested_main_path",
       "metadata": {
-        "generated_by": "scripts/build_integration_ledger_seed.py",
-        "seed_scope": "M1-01A initial source-to-target ledger",
-        "source_index_ref": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
-        "source_root": "browser_use/agent/message_manager"
+        "next_owner": "",
+        "slice_id": "M1-S04B-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
       },
-      "migration_strategy": "vendored_runtime",
+      "migration_strategy": "direct_port",
       "milestone": "M1",
       "owner_unit": "M1-04B",
-      "replacement_plan": "Use M1-04B to decide direct migration, productized adapter, or rejection; do not depend on parent workspace paths at runtime.",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
       "risk_notes": [],
       "runtime_entry": {
         "command": "",
         "config_refs": [
-          "ledger:browser-use:M1-04B"
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
         ],
         "environment_refs": [],
-        "function": "planned_message_manager_state",
-        "health_check": "scripts/verify_m1_04b.py",
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
         "module": "zyra_workers.browser_worker",
-        "protocol": "planned-adapter"
+        "protocol": "zyra-browser-message-state-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "docs/比赛项目开源Agent架构借鉴分析.md#m2-runtime-index",
+          "reason": "M1-S04B-01 browser message/state source-to-target decision",
           "source_kind": "file",
           "source_path": "browser_use/dom/views.py",
           "source_repo": "browser-use",
           "symbols": [],
           "tags": [
-            "browser-use",
-            "dom",
-            "memory"
+            "browser-state",
+            "zyra_module_migrated"
           ]
         }
       ],
       "source_path": "browser_use/dom/views.py",
       "source_repo": "browser-use",
       "tags": [
-        "browser-use",
-        "dom",
-        "memory"
+        "m1-04b",
+        "slice-04b-01",
+        "browser-message-state",
+        "zyra_module_migrated"
       ],
       "target_bindings": [
         {
@@ -102393,7 +102442,7 @@
           ],
           "required_for_main_path": true,
           "role": "primary",
-          "target_path": "packages/workers/zyra_workers/browser_worker.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/models.py"
         },
         {
           "must_exist_for_statuses": [
@@ -102407,19 +102456,19 @@
           ],
           "required_for_main_path": true,
           "role": "supporting",
-          "target_path": "packages/memory/zyra_memory/fabric.py"
+          "target_path": "packages/workers/zyra_workers/browser_state/contracts.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.integration.test_m1_04b_message_manager_state",
-          "expected_signal": "browser-use message-manager-state ledger entry remains queryable and auditable",
+          "command": "python -m unittest tests.integration.test_browser_message_state_compression_foundation",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
-          "path": "tests/integration/test_m1_04b_message_manager_state.py",
+          "path": "tests/integration/test_browser_message_state_compression_foundation.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-05T17:44:26.149Z"
+      "updated_at": "2026-07-13T06:00:00.000Z"
     },
     {
       "blockers": [],
@@ -169167,23 +169216,23 @@
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 386,
-    "blocked_or_rejected": 7,
+    "active_or_internalized": 405,
+    "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 22,
-      "deferred": 7,
-      "planned": 722,
-      "productized": 331
+      "candidate": 26,
+      "deferred": 8,
+      "planned": 698,
+      "productized": 350
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 22,
-      "planned": 502,
-      "tested_main_path": 92,
-      "vendored": 227,
+      "inventoried": 26,
+      "planned": 503,
+      "tested_main_path": 111,
+      "vendored": 203,
       "worker_runtime_connected": 275
     },
     "by_owner_unit": {
@@ -169225,26 +169274,28 @@
       "opencode": 11
     },
     "by_strategy": {
-      "adapter": 78,
+      "adapter": 80,
       "candidate_review": 7,
-      "planned_adapter": 377,
-      "reimplemented_pattern": 206,
-      "vendored_runtime": 469
+      "direct_port": 11,
+      "not_selected": 4,
+      "planned_adapter": 378,
+      "reimplemented_pattern": 212,
+      "vendored_runtime": 445
     },
-    "planned_or_candidate": 744,
+    "planned_or_candidate": 724,
     "primary_target_prefixes": {
       "apps/api": 31,
       "apps/code-worker": 34,
       "apps/web": 46,
       "packages/evaluation": 34,
-      "packages/integrations": 76,
+      "packages/integrations": 78,
       "packages/memory": 184,
       "packages/orchestration": 59,
       "packages/runtime": 162,
       "packages/scheduler": 78,
       "packages/skills": 48,
       "packages/symbolic": 1,
-      "packages/workers": 144,
+      "packages/workers": 142,
       "vendor-runtimes/claude-code-runtime": 240
     },
     "total_entries": 1137

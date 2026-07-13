@@ -25,6 +25,7 @@ from zyra_runtime.permission.action_gate import (
 from zyra_runtime.permission.custody import PermissionSessionCustodyStore
 
 from .browser_actions import BrowserActionRegistry, default_browser_action_registry
+from .browser_context import BrowserMessageStateApplication
 from .browser_session import (
     BrowserRuntime,
     BrowserRuntimeConfig,
@@ -111,6 +112,7 @@ class BrowserWorkerRuntime:
         browser_runtime_registry: BrowserRuntimeRegistry | None = None,
         browser_session_control: BrowserSessionControlRuntime | None = None,
         browser_session_resume: BrowserSessionResumeRuntime | None = None,
+        browser_message_state_application: BrowserMessageStateApplication | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -171,6 +173,20 @@ class BrowserWorkerRuntime:
             self.browser_session_runtime
         )
         setattr(self.browser_session_runtime, "_zyra_browser_resume", self.browser_session_resume)
+        shared_message_state = getattr(self.browser_session_runtime, "_browser_message_state_application", None)
+        self.browser_message_state_application = (
+            browser_message_state_application
+            or shared_message_state
+            or BrowserMessageStateApplication(
+                self.browser_session_runtime,
+                artifact_store=self.artifact_store,
+            )
+        )
+        setattr(
+            self.browser_session_runtime,
+            "_browser_message_state_application",
+            self.browser_message_state_application,
+        )
 
     def _capture_browser_resume_capsule(self, session_id: str) -> Any:
         if self._browser_registry_config is not None:
@@ -336,6 +352,29 @@ class BrowserWorkerRuntime:
             action_error = f"{type(error).__name__}: {error}"
         else:
             action_error = ""
+        action_receipts = tuple(
+            getattr(action_run, "receipts", getattr(action_run, "action_receipts", ()))
+        ) if action_run is not None else ()
+        message_turn = None
+        message_state_error = ""
+        if action_run is not None:
+            try:
+                message_turn = self.browser_message_state_application.read_state(
+                    request=request,
+                    session_start=started,
+                    action_receipts=action_receipts,
+                    source_event_id=start_event.event_id,
+                )
+            except Exception as error:  # noqa: BLE001 - authoritative read-state fails closed.
+                message_state_error = f"{type(error).__name__}: {error}"
+                error_details = getattr(error, "details", None)
+                if error_details:
+                    message_state_error += " | " + json.dumps(
+                        to_jsonable(error_details),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        default=str,
+                    )
         stop_payload: dict[str, Any] = {}
         stop_event: EventRecord | None = None
         stop_error = ""
@@ -385,9 +424,14 @@ class BrowserWorkerRuntime:
         application_artifacts = list(
             getattr(application_worker_result, "artifacts", getattr(action_run, "artifacts", ()))
         ) if action_run is not None else []
-        application_receipts = tuple(
-            getattr(action_run, "receipts", getattr(action_run, "action_receipts", ()))
-        ) if action_run is not None else ()
+        application_receipts = action_receipts
+        if message_turn is not None:
+            application_events.extend(message_turn.events)
+            known_artifact_ids = {item.artifact_id for item in application_artifacts}
+            application_artifacts.extend(
+                item for item in message_turn.artifacts
+                if item.artifact_id not in known_artifact_ids
+            )
         failed_receipts = [
             receipt for receipt in application_receipts
             if not bool(getattr(receipt, "ok", False))
@@ -395,11 +439,14 @@ class BrowserWorkerRuntime:
         application_ok = (
             bool(getattr(application_worker_result, "ok", getattr(action_run, "ok", False)))
             and not failed_receipts
+            and message_turn is not None
+            and message_turn.ok
             if action_run is not None
             else False
         )
         application_error = (
-            str(getattr(application_worker_result, "error", getattr(action_run, "error", "")) or "")
+            message_state_error
+            or str(getattr(application_worker_result, "error", getattr(action_run, "error", "")) or "")
             if action_run is not None
             else action_error or "browser_application_failed"
         )
@@ -427,6 +474,21 @@ class BrowserWorkerRuntime:
         application_metadata = (
             dict(action_run.worker_result.metadata) if action_run is not None else {}
         )
+        if message_turn is not None:
+            application_metadata.update({
+                "browser_dom_capture_id": message_turn.capture_id,
+                "browser_selector_revision_id": message_turn.selector_revision_id,
+                "browser_context_disclosure_id": message_turn.disclosure.disclosure_id,
+                "browser_context_receipt_id": message_turn.next_context.receipt_id,
+                "browser_context_tokens": str(message_turn.disclosure.tokens),
+                "browser_context_bytes": str(message_turn.disclosure.bytes),
+                "browser_context_compression_ratio": str(message_turn.metrics.compression_ratio),
+                "browser_memory_candidate_count": str(len(message_turn.memory_candidates)),
+                "browser_state_artifact_count": str(len(message_turn.artifacts)),
+                "browser_message_turn_status": str(message_turn.status),
+            })
+        elif message_state_error:
+            application_metadata["browser_message_state_error"] = message_state_error
         worker_result = WorkerResult(
             request_id=request.request_id,
             ok=application_ok and not stop_error,

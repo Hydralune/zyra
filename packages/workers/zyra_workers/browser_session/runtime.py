@@ -150,6 +150,21 @@ class BrowserRuntime:
             raise BrowserSessionNotFound(f"browser session {session_id} does not exist", session_id=session_id)
         return session
 
+    def session_runtime_component(self) -> BrowserSessionRuntime:
+        """Return the 04A state owner for tightly scoped downstream ports."""
+        self._ensure_available()
+        return self._runtime
+
+    def target_runtime(self, session_id: str) -> Any:
+        """Return the live target runtime; callers must not create a second owner."""
+        self._ensure_available()
+        return self._runtime.target_runtime(session_id)
+
+    def cdp_runtime(self, session_id: str) -> Any:
+        """Return the live CDP runtime bound to the session target generation."""
+        self._ensure_available()
+        return self._runtime.cdp_runtime(session_id)
+
     def stop_all(self, *, task_id: str = "", force: bool = False, reason: str = "runtime_shutdown") -> tuple[BrowserSessionStopResult, ...]:
         results: list[BrowserSessionStopResult] = []
         for session in self.list_sessions(task_id=task_id):

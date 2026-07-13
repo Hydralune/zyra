@@ -125,7 +125,34 @@ class _CdpResponder:
         if method == "Page.captureScreenshot":
             result = {"data": base64.b64encode(b"\x89PNG\r\n\x1a\nproductized").decode("ascii")}
         elif method == "Runtime.evaluate":
-            result = {"result": {"type": "string", "value": "productized-evaluation"}}
+            expression = str(request.get("params", {}).get("expression") or "")
+            value = (
+                json.dumps({
+                    "width": 1280, "height": 720, "dpr": 1,
+                    "scrollX": 0, "scrollY": 0,
+                    "documentWidth": 1280, "documentHeight": 1600,
+                })
+                if "documentWidth" in expression
+                else "productized-evaluation"
+            )
+            result = {"result": {"type": "string", "value": value}}
+        elif method == "DOM.getDocument":
+            result = _dom_document()
+        elif method == "DOMSnapshot.captureSnapshot":
+            result = _dom_snapshot()
+        elif method == "Accessibility.getFullAXTree":
+            result = _ax_tree()
+        elif method == "Page.getFrameTree":
+            result = {
+                "frameTree": {
+                    "frame": {
+                        "id": "frame-productized",
+                        "loaderId": "loader-productized",
+                        "url": "https://example.test/productized",
+                        "securityOrigin": "https://example.test",
+                    }
+                }
+            }
         elif method == "Target.getTargets":
             result = {
                 "targetInfos": [
@@ -140,6 +167,90 @@ class _CdpResponder:
         else:
             result = {"frameId": "frame-productized"}
         return json.dumps({"id": request["id"], "result": result})
+
+
+def _dom_document() -> dict[str, object]:
+    def node(node_id: int, backend_id: int, node_type: int, name: str, value: str = "", **extra: object) -> dict[str, object]:
+        return {
+            "nodeId": node_id,
+            "backendNodeId": backend_id,
+            "nodeType": node_type,
+            "nodeName": name,
+            "nodeValue": value,
+            **extra,
+        }
+
+    return {"root": node(
+        1, 1, 9, "#document",
+        documentURL="https://example.test/productized",
+        baseURL="https://example.test/productized",
+        frameId="frame-productized",
+        children=[node(
+            2, 2, 1, "HTML", frameId="frame-productized", children=[node(
+                3, 3, 1, "BODY", frameId="frame-productized", children=[
+                    node(4, 4, 1, "H1", frameId="frame-productized", children=[
+                        node(5, 5, 3, "#text", "Productized browser state", frameId="frame-productized"),
+                    ]),
+                    node(
+                        6, 6, 1, "BUTTON", frameId="frame-productized",
+                        attributes=["id", "continue", "aria-label", "Continue safely"],
+                        children=[node(7, 7, 3, "#text", "Continue", frameId="frame-productized")],
+                    ),
+                ],
+            )],
+        )],
+    )}
+
+
+def _dom_snapshot() -> dict[str, object]:
+    strings = ["frame-productized", "block", "visible", "1", "auto", "pointer"]
+    styles = [[1, 2, 3, 4, 4, 5] for _ in range(7)]
+    return {
+        "strings": strings,
+        "documents": [{
+            "frameId": 0,
+            "contentSize": {"width": 1280, "height": 1600},
+            "scrollOffsetX": 0,
+            "scrollOffsetY": 0,
+            "computedStyleNames": ["display", "visibility", "opacity", "overflow", "overflow-y", "cursor"],
+            "nodes": {
+                "backendNodeId": [1, 2, 3, 4, 5, 6, 7],
+                "isClickable": {"index": [5]},
+            },
+            "layout": {
+                "nodeIndex": [0, 1, 2, 3, 4, 5, 6],
+                "bounds": [
+                    [0, 0, 1280, 1600], [0, 0, 1280, 1600], [0, 0, 1280, 1600],
+                    [20, 20, 500, 50], [20, 20, 500, 50], [20, 100, 180, 44], [30, 110, 140, 24],
+                ],
+                "clientRects": [
+                    [0, 0, 1280, 720], [0, 0, 1280, 720], [0, 0, 1280, 720],
+                    [20, 20, 500, 50], [20, 20, 500, 50], [20, 100, 180, 44], [30, 110, 140, 24],
+                ],
+                "scrollRects": [[0, 0, 1280, 1600] for _ in range(7)],
+                "paintOrders": list(range(7)),
+                "styles": styles,
+            },
+        }],
+    }
+
+
+def _ax_tree() -> dict[str, object]:
+    def ax(node_id: str, backend_id: int, role: str, name: str) -> dict[str, object]:
+        return {
+            "nodeId": node_id,
+            "backendDOMNodeId": backend_id,
+            "ignored": False,
+            "role": {"type": "role", "value": role},
+            "name": {"type": "computedString", "value": name},
+            "properties": [],
+        }
+
+    return {"nodes": [
+        ax("ax-document", 1, "RootWebArea", "Productized"),
+        ax("ax-heading", 4, "heading", "Productized browser state"),
+        ax("ax-button", 6, "button", "Continue safely"),
+    ]}
 
 
 def _command(root: Path, endpoint: str, request_id: str = "request-productized") -> BrowserSessionCommand:
@@ -409,14 +520,32 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
                     {"action": "capture_trace", "arguments": {}},
                 ],
             }
-            first = worker.run(WorkerRequest(
-                run_id="run-worker-default", task_id="task-worker-default", node_id="node-browser",
-                worker_name="BrowserWorker", constraints=constraints,
+            prepared = runtime.ensure_started(BrowserSessionCommand(
+                run_id="run-worker-default",
+                task_id="task-worker-default",
+                worker_request_id="request-worker-default-setup",
+                canonical_session_id="canonical-worker-default",
+                node_id="node-browser",
+                workspace_root=root / "workspace",
+                artifact_root=root / "artifacts",
+                endpoint_url=discovery.endpoint,
+                keep_alive=True,
+                constraints={"browser_transport": "memory"},
             ))
-            second = worker.run(WorkerRequest(
-                run_id="run-worker-default", task_id="task-worker-default", node_id="node-browser",
-                worker_name="BrowserWorker", constraints=constraints,
-            ))
+            runtime._runtime._cdp[prepared.session.session_id].close()
+            responder = _CdpResponder()
+            bus = _install_memory_cdp(runtime, prepared.session.session_id, responder)
+            try:
+                first = worker.run(WorkerRequest(
+                    run_id="run-worker-default", task_id="task-worker-default", node_id="node-browser",
+                    worker_name="BrowserWorker", constraints=constraints,
+                ))
+                second = worker.run(WorkerRequest(
+                    run_id="run-worker-default", task_id="task-worker-default", node_id="node-browser",
+                    worker_name="BrowserWorker", constraints=constraints,
+                ))
+            finally:
+                bus.stop()
             self.assertTrue(first.worker_result.ok, first.worker_result.error)
             self.assertTrue(second.worker_result.ok, second.worker_result.error)
             self.assertEqual(first.worker_result.metadata["browser_backend"], "zyra-browser-productized")
