@@ -486,6 +486,23 @@ class BrowserMessageStateCompressionIntegrationTests(unittest.TestCase):
             self.assertTrue(projection.ok, [item.to_dict() for item in projection.findings])
             self.assertTrue(all(item.atomic for item in projection.tool_pairs))
 
+            # These are production dependency boundaries, not feature flags that
+            # may silently fall back to the pre-04B path.  Disabling any consumer
+            # must therefore fail closed instead of dropping context or evidence.
+            with self.assertRaises(RuntimeError):
+                BrowserContextTaskIntegrationRuntime(disabled=True).begin_browser_turn(
+                    restored,
+                    worker_request_id="disabled-context-consumer",
+                )
+            with self.assertRaises(RuntimeError):
+                BrowserContextApiProjectionRuntime(disabled=True).build(restored)
+            with self.assertRaises(RuntimeError):
+                BrowserMemoryCandidateConsumerPort(disabled=True).consume_event(
+                    memory_events[0],
+                    expected_run_id=checkpoint.scope.run_id,
+                    expected_task_id=checkpoint.scope.task_id,
+                )
+
     def test_ablation_has_three_lanes_and_bitmap_is_default_off_non_authoritative(self) -> None:
         foundation = _foundation_module.BrowserMessageStateCompressionFoundationTests(
             "test_default_worker_reaches_dom_selector_message_context_artifact_and_memory_chain"
