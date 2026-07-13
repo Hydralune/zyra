@@ -122,12 +122,18 @@ class BrowserWorkerTests(unittest.TestCase):
         self.assertEqual(health.classes["ScreenshotAction"], "ScreenshotAction")
         self.assertEqual(health.classes["SaveAsPdfAction"], "SaveAsPdfAction")
 
-    def test_browser_action_registry_reads_vendored_browser_use_actions(self) -> None:
+    def test_browser_action_registry_is_zyra_owned_and_source_checkout_independent(self) -> None:
         registry = default_browser_action_registry(ROOT)
         navigate = registry.get("navigate")
-        actions = {action["name"] for action in registry.describe()["source_registered_actions"]}
+        description = registry.describe()
+        actions = {action["name"] for action in description["source_registered_actions"]}
 
         self.assertIsNotNone(navigate)
+        self.assertEqual(description["source"], "zyra-browser-action-foundation")
+        self.assertFalse(description["filesystem_source_scan"])
+        self.assertFalse(description["external_runtime_required"])
+        self.assertEqual(description["source_models_path"], "")
+        self.assertEqual(description["source_service_path"], "")
         self.assertEqual(navigate.action, "open_url")
         self.assertEqual(registry.get("click").action, "click_element")
         self.assertEqual(registry.get("input").action, "input_text")
@@ -211,7 +217,7 @@ class BrowserWorkerTests(unittest.TestCase):
             self.assertEqual(len(browser_events), 3)
             self.assertEqual(run.worker_result.metadata["vendor"], "browser-use")
             self.assertEqual(run.worker_result.metadata["vendor_complete"], "true")
-            self.assertEqual(run.worker_result.metadata["action_registry_source"], "browser-use")
+            self.assertEqual(run.worker_result.metadata["action_registry_source"], "zyra-browser-action-foundation")
             self.assertEqual(
                 run.worker_result.metadata["browser_use_python_importable"],
                 str(runtime.browser_use_health.importable).lower(),

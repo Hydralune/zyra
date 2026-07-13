@@ -170261,27 +170261,1394 @@
         }
       ],
       "updated_at": "2026-07-05T17:44:26.189Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser action immutable registry and strict ToolSpec projection",
+      "capability_summary": "Runtime reflection and vendor AST discovery were replaced by a closed Zyra-owned catalog.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [
+        "M1-03A",
+        "M1-04A",
+        "M1-04B"
+      ],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_browser_use_b9e9cc0f4f1d56a3",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "agent_message",
+          "artifact_written",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_action_gateway",
+          "permission_runtime",
+          "event_log",
+          "artifact_store"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
+        "source_role": "primary"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "Runtime reflection and vendor AST discovery were replaced by a closed Zyra-owned catalog.",
+      "risk_notes": [
+        "Runtime reflection and vendor AST discovery were replaced by a closed Zyra-owned catalog."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/registry.py",
+          "packages/workers/zyra_workers/browser_action/schema.py",
+          "packages/workers/zyra_workers/browser_action/catalog.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionGateway.run",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "browser_use/tools/registry/service.py;browser_use/tools/registry/views.py;browser_use/tools/views.py",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "primary",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "browser_use/tools/registry/service.py;browser_use/tools/registry/views.py;browser_use/tools/views.py",
+      "source_repo": "browser-use",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "primary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/registry.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/schema.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/catalog.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed action gateway, side-effect fence and all-actions-first preflight",
+      "capability_summary": "Action branches were decomposed around Zyra permission, selector, event and artifact owners.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [
+        "M1-03A",
+        "M1-04A",
+        "M1-04B"
+      ],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_browser_use_e7667e0f01bb5712",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "agent_message",
+          "artifact_written",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_action_gateway",
+          "permission_runtime",
+          "event_log",
+          "artifact_store"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
+        "source_role": "primary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "Action branches were decomposed around Zyra permission, selector, event and artifact owners.",
+      "risk_notes": [
+        "Action branches were decomposed around Zyra permission, selector, event and artifact owners."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/gateway.py",
+          "packages/workers/zyra_workers/browser_action/executor.py",
+          "packages/workers/zyra_workers/browser_action/sequence.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionGateway.run",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "browser_use/tools/service.py",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "primary",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "browser_use/tools/service.py",
+      "source_repo": "browser-use",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "primary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/gateway.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/executor.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/sequence.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "frame-correct CDP geometry, occlusion, scroll, pointer and keyboard mechanics",
+      "capability_summary": "Blind JavaScript click, nearest-element fallback and public actor bypasses were removed.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [
+        "M1-03A",
+        "M1-04A",
+        "M1-04B"
+      ],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_browser_use_a25eb1d39a2758a5",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "agent_message",
+          "artifact_written",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_action_gateway",
+          "permission_runtime",
+          "event_log",
+          "artifact_store"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
+        "source_role": "primary"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "Blind JavaScript click, nearest-element fallback and public actor bypasses were removed.",
+      "risk_notes": [
+        "Blind JavaScript click, nearest-element fallback and public actor bypasses were removed."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/cdp_probe.py",
+          "packages/workers/zyra_workers/browser_action/geometry_guard.py",
+          "packages/workers/zyra_workers/browser_action/keyboard_codec.py",
+          "packages/workers/zyra_workers/browser_action/executor.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionGateway.run",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "browser_use/actor/page.py;browser_use/actor/element.py;browser_use/actor/mouse.py;browser_use/actor/utils.py;browser_use/browser/watchdogs/default_action_watchdog.py",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "primary",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "browser_use/actor/page.py;browser_use/actor/element.py;browser_use/actor/mouse.py;browser_use/actor/utils.py;browser_use/browser/watchdogs/default_action_watchdog.py",
+      "source_repo": "browser-use",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "primary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/cdp_probe.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/geometry_guard.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/keyboard_codec.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/executor.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "upload identity/containment and grant-scoped download quarantine",
+      "capability_summary": "Zyra workspace/artifact roots replace the upstream parallel filesystem state owner.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [
+        "M1-03A",
+        "M1-04A",
+        "M1-04B"
+      ],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_browser_use_179d6fc76e255801",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "agent_message",
+          "artifact_written",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_action_gateway",
+          "permission_runtime",
+          "event_log",
+          "artifact_store"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
+        "source_role": "primary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "Zyra workspace/artifact roots replace the upstream parallel filesystem state owner.",
+      "risk_notes": [
+        "Zyra workspace/artifact roots replace the upstream parallel filesystem state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/file_policy.py",
+          "packages/workers/zyra_workers/browser_action/download_guard.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionGateway.run",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "browser_use/filesystem/file_system.py;browser_use/browser/watchdogs/downloads_watchdog.py",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "primary",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "browser_use/filesystem/file_system.py;browser_use/browser/watchdogs/downloads_watchdog.py",
+      "source_repo": "browser-use",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "primary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/file_policy.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/download_guard.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "canonical URL/domain/DNS-IP policy and pre-network redirect interception",
+      "capability_summary": "Post-navigation observation was strengthened with DNS pinning and request-paused denial.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [
+        "M1-03A",
+        "M1-04A",
+        "M1-04B"
+      ],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_browser_use_2610cb7c40e857f8",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "agent_message",
+          "artifact_written",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_action_gateway",
+          "permission_runtime",
+          "event_log",
+          "artifact_store"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
+        "source_role": "primary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "Post-navigation observation was strengthened with DNS pinning and request-paused denial.",
+      "risk_notes": [
+        "Post-navigation observation was strengthened with DNS pinning and request-paused denial."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/network_policy.py",
+          "packages/workers/zyra_workers/browser_action/redirect_guard.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionGateway.run",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "browser_use/browser/watchdogs/security_watchdog.py",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "primary",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "browser_use/browser/watchdogs/security_watchdog.py",
+      "source_repo": "browser-use",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "primary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/network_policy.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/redirect_guard.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "exact browser action permission bridge to the existing one-use grant owner",
+      "capability_summary": "M1-03A remains the only decision/request/grant owner; 04C contributes browser binding material.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [
+        "M1-03A",
+        "M1-04A",
+        "M1-04B"
+      ],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_claude_code_best_c9d0f73659a95b86",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "claude-code-best",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "agent_message",
+          "artifact_written",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_action_gateway",
+          "permission_runtime",
+          "event_log",
+          "artifact_store"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "supplementary_existing_owner_bridge",
+        "source_graph_ref": "source-graphs/claude-code-best/batch-03-permission-runtime.md",
+        "source_role": "supplementary"
+      },
+      "migration_strategy": "adapter",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "M1-03A remains the only decision/request/grant owner; 04C contributes browser binding material.",
+      "risk_notes": [
+        "M1-03A remains the only decision/request/grant owner; 04C contributes browser binding material."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/permission_bridge.py",
+          "packages/runtime/zyra_runtime/permission/action_gate.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionGateway.run",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "src/cli/src/utils/permissions/*;src/QueryEngine.ts;src/tools/*",
+          "source_repo": "claude-code-best",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "supplementary",
+            "supplementary_existing_owner_bridge"
+          ]
+        }
+      ],
+      "source_path": "src/cli/src/utils/permissions/*;src/QueryEngine.ts;src/tools/*",
+      "source_repo": "claude-code-best",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "supplementary",
+        "supplementary_existing_owner_bridge"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/permission_bridge.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/runtime/zyra_runtime/permission/action_gate.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "deny-first typed hooks, argument hashes and all-sections preflight",
+      "capability_summary": "Dynamic extension execution and yolo/bypass semantics are intentionally absent.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [
+        "M1-03A",
+        "M1-04A",
+        "M1-04B"
+      ],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_oh_my_pi_d42d04df83545155",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "agent_message",
+          "artifact_written",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_action_gateway",
+          "permission_runtime",
+          "event_log",
+          "artifact_store"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/oh-my-pi/batch-02-tool-runtime-permission-hooks.md",
+        "source_role": "supplementary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "Dynamic extension execution and yolo/bypass semantics are intentionally absent.",
+      "risk_notes": [
+        "Dynamic extension execution and yolo/bypass semantics are intentionally absent."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/hook_preflight.py",
+          "packages/workers/zyra_workers/browser_action/sequence.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionGateway.run",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "packages/coding-agent/src/tools/**;packages/hashline/**",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "supplementary",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/tools/**;packages/hashline/**",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "supplementary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/hook_preflight.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/sequence.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "permission question behavior comparison",
+      "capability_summary": "Used only to compare ASK presentation; it cannot become a parallel BrowserPermissionRuntime.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_opencode_13e118441b9c57d7",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "source_conformance"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "conformance_only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "conformance_only",
+        "source_graph_ref": "source-graphs/opencode/batch-05-tools-permissions-mcp-skills.md",
+        "source_role": "conformance_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "Used only to compare ASK presentation; it cannot become a parallel BrowserPermissionRuntime.",
+      "risk_notes": [
+        "Used only to compare ASK presentation; it cannot become a parallel BrowserPermissionRuntime."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/sensitive_policy.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionSourceAuditor.audit",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "packages/opencode/src/permission/**",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "conformance_only",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "packages/opencode/src/permission/**",
+      "source_repo": "opencode",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "conformance_only",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/sensitive_policy.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser policy and safe-bin reference",
+      "capability_summary": "No production migration quota; deterministic browser policy remains Zyra-owned.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_openclaw_ad8c173d1c7054df",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "openclaw",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "source_conformance"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "reference_only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "reference_only",
+        "source_graph_ref": "source-graphs/openclaw/batch-03-tools-policy-exec-approval.md",
+        "source_role": "reference_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "No production migration quota; deterministic browser policy remains Zyra-owned.",
+      "risk_notes": [
+        "No production migration quota; deterministic browser policy remains Zyra-owned."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/sensitive_policy.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionSourceAuditor.audit",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "src/security/**;src/agents/tools/**",
+          "source_repo": "openclaw",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "reference_only",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "src/security/**;src/agents/tools/**",
+      "source_repo": "openclaw",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "reference_only",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/sensitive_policy.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "permission engine reference",
+      "capability_summary": "The overlapping permission state machine is rejected to preserve the M1-03A owner.",
+      "created_at": "2026-07-13T12:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M1-S04C-02",
+        "M1-04D",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_agentscope_06d1319bda195d5c",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser action internalization.",
+        "notes": "No runtime dependency on a root source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agentscope",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "source_conformance"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "reference_only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "slice_id": "M1-S04C-01",
+        "source_disposition": "reference_only",
+        "source_graph_ref": "source-graphs/agentscope/batch-06-runtime-tools-memory.md",
+        "source_role": "reference_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M1",
+      "owner_unit": "M1-04C",
+      "replacement_plan": "The overlapping permission state machine is rejected to preserve the M1-03A owner.",
+      "risk_notes": [
+        "The overlapping permission state machine is rejected to preserve the M1-03A owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_action/sensitive_policy.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserActionSourceAuditor.audit",
+        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+        "module": "zyra_workers.browser_action.gateway",
+        "protocol": "zyra-browser-action-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04C-01 source-to-target decision",
+          "source_kind": "source_graph_decision",
+          "source_path": "src/agentscope/tool/**/permission*",
+          "source_repo": "agentscope",
+          "symbols": [],
+          "tags": [
+            "browser-action",
+            "reference_only",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "src/agentscope/tool/**/permission*",
+      "source_repo": "agentscope",
+      "tags": [
+        "m1-04c",
+        "slice-04c-01",
+        "browser-action",
+        "reference_only",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_action/sensitive_policy.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
+          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
+          "kind": "integration",
+          "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T12:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 409,
+    "active_or_internalized": 416,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 30,
+      "candidate": 33,
       "deferred": 8,
       "planned": 698,
-      "productized": 354
+      "productized": 361
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 30,
+      "inventoried": 33,
       "planned": 503,
-      "tested_main_path": 115,
+      "tested_main_path": 122,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -170297,6 +171664,7 @@
       "M1-03D": 48,
       "M1-04A": 45,
       "M1-04B": 25,
+      "M1-04C": 10,
       "M1-04D": 38,
       "M1-05A": 48,
       "M1-05B": 4,
@@ -170315,25 +171683,25 @@
     "by_source_repo": {
       "OpenHands": 81,
       "agent-framework": 93,
-      "agentscope": 98,
-      "browser-use": 101,
-      "claude-code-best": 507,
+      "agentscope": 99,
+      "browser-use": 106,
+      "claude-code-best": 508,
       "hermes-agent": 80,
       "langgraph": 85,
-      "oh-my-pi": 3,
-      "openclaw": 85,
-      "opencode": 12
+      "oh-my-pi": 4,
+      "openclaw": 86,
+      "opencode": 13
     },
     "by_strategy": {
-      "adapter": 80,
+      "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 11,
-      "not_selected": 8,
+      "direct_port": 13,
+      "not_selected": 11,
       "planned_adapter": 378,
-      "reimplemented_pattern": 216,
+      "reimplemented_pattern": 220,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 728,
+    "planned_or_candidate": 731,
     "primary_target_prefixes": {
       "apps/api": 31,
       "apps/code-worker": 34,
@@ -170346,10 +171714,10 @@
       "packages/scheduler": 78,
       "packages/skills": 48,
       "packages/symbolic": 1,
-      "packages/workers": 147,
+      "packages/workers": 157,
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1145
+    "total_entries": 1155
   }
 }

@@ -5,6 +5,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .browser_action.registry import BrowserActionRegistry as FoundationBrowserActionRegistry
+from .browser_action.registry import default_browser_action_registry as foundation_browser_action_registry
+
 
 @dataclass(frozen=True, slots=True)
 class BrowserUseModelField:
@@ -53,20 +56,33 @@ class BrowserActionRegistry:
         source_actions: list[BrowserUseRegisteredAction],
         source_models_path: Path,
         source_service_path: Path,
+        foundation: FoundationBrowserActionRegistry | None = None,
     ) -> None:
         self._descriptors = {descriptor.action: descriptor for descriptor in descriptors}
         self._aliases = aliases
         self.source_actions = source_actions
         self.source_models_path = source_models_path
         self.source_service_path = source_service_path
+        self.foundation = foundation
 
     def get(self, action: str) -> BrowserActionDescriptor | None:
         return self._descriptors.get(self.normalize_action(action))
 
     def normalize_action(self, action: str) -> str:
+        if self.foundation is not None:
+            return self.foundation.canonical_name(action) or action
         return self._aliases.get(action, action)
 
     def validate_plan(self, plan: list[dict[str, Any]]) -> list[BrowserPlanValidationIssue]:
+        if self.foundation is not None:
+            return [
+                BrowserPlanValidationIssue(
+                    issue.step_index,
+                    issue.action,
+                    issue.reason,
+                )
+                for issue in self.foundation.validate_plan(plan)
+            ]
         issues: list[BrowserPlanValidationIssue] = []
         for index, step in enumerate(plan, start=1):
             action = str(step.get("action") or step.get("browser_action") or "")
@@ -101,6 +117,22 @@ class BrowserActionRegistry:
         return issues
 
     def describe(self) -> dict[str, Any]:
+        if self.foundation is not None:
+            snapshot = self.foundation.snapshot()
+            return {
+                "source": "zyra-browser-action-foundation",
+                "runtime_authority": "zyra_workers.browser_action.registry.BrowserActionRegistry",
+                "source_models_path": "",
+                "source_service_path": "",
+                "filesystem_source_scan": False,
+                "external_runtime_required": False,
+                "registry_digest": snapshot.digest,
+                "registry_version": snapshot.version,
+                "actions": [asdict(item) for item in self._descriptors.values()],
+                "aliases": dict(snapshot.aliases),
+                "source_registered_actions": [asdict(item) for item in self.source_actions],
+                "source_summary": self.foundation.source_summary(),
+            }
         return {
             "source": "browser-use" if self.source_actions else "zyra-browser-productized",
             "source_models_path": str(self.source_models_path),
@@ -112,6 +144,77 @@ class BrowserActionRegistry:
 
 
 def default_browser_action_registry(project_root: str | Path) -> BrowserActionRegistry:
+    # ``project_root`` remains in the public signature for BrowserWorker
+    # compatibility, but 04C production discovery is deliberately independent
+    # of a vendor checkout.  Source AST helpers below are audit-only APIs.
+    _ = Path(project_root)
+    foundation = foundation_browser_action_registry()
+    definitions = [foundation.require(name) for name in foundation.names()]
+    descriptors = [
+        BrowserActionDescriptor(
+            action=definition.name,
+            source_action=definition.source_name,
+            source_model=f"BrowserActionDefinition.v{definition.schema_version}",
+            description=definition.description,
+            implemented=True,
+            zyra_required_arguments=definition.required_arguments,
+            zyra_optional_arguments=definition.optional_arguments,
+            source_required_fields=definition.required_arguments,
+            source_optional_fields=definition.optional_arguments,
+        )
+        for definition in definitions
+    ]
+    source_actions = [
+        BrowserUseRegisteredAction(
+            name=definition.source_name,
+            description=definition.description,
+            param_model=f"BrowserActionDefinition.v{definition.schema_version}",
+            terminates_sequence=definition.terminates_sequence,
+            source_line=0,
+        )
+        for definition in definitions
+    ]
+    return BrowserActionRegistry(
+        descriptors=descriptors,
+        aliases=dict(foundation.snapshot().aliases),
+        source_actions=source_actions,
+        source_models_path=Path(),
+        source_service_path=Path(),
+        foundation=foundation,
+    )
+
+
+def audit_browser_use_source_registry(project_root: str | Path) -> dict[str, Any]:
+    """Audit an optional source checkout without affecting runtime actions."""
+    root = Path(project_root)
+    models_path = root / "vendor" / "browser-use" / "browser_use" / "tools" / "views.py"
+    service_path = root / "vendor" / "browser-use" / "browser_use" / "tools" / "service.py"
+    if not models_path.is_file() or not service_path.is_file():
+        return {
+            "available": False,
+            "models_path": str(models_path),
+            "service_path": str(service_path),
+            "models": {},
+            "actions": [],
+        }
+    models = load_browser_use_action_models(models_path)
+    actions = load_browser_use_registered_actions(service_path)
+    return {
+        "available": True,
+        "models_path": str(models_path),
+        "service_path": str(service_path),
+        "models": {name: [asdict(field) for field in fields] for name, fields in models.items()},
+        "actions": [asdict(action) for action in actions],
+    }
+
+
+def _legacy_vendor_backed_browser_action_registry(project_root: str | Path) -> BrowserActionRegistry:
+    """Historical constructor retained only for source-diff tooling.
+
+    Production code must call ``default_browser_action_registry``.  Keeping the
+    old mapping in this private function makes source comparison reproducible
+    without letting filesystem discovery become runtime authority again.
+    """
     root = Path(project_root)
     models_path = root / "vendor" / "browser-use" / "browser_use" / "tools" / "views.py"
     service_path = root / "vendor" / "browser-use" / "browser_use" / "tools" / "service.py"
