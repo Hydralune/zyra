@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-COPY_DIRECTORIES = ("apps", "packages", "skills", "scripts", "tests")
+COPY_DIRECTORIES = ("apps", "packages", "skills", "scripts", "tests", "third_party")
 COPY_FILES = ("pyproject.toml", "requirements.txt", "requirements-dev.txt", "pytest.ini")
 IGNORED = {".git", ".cache", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "__pycache__", "artifacts", "tmp", "vendor", "vendor-runtimes", "build", "dist"}
 SOURCE_REPOSITORIES = ("browser-use", "claude-code-best", "opencode", "OpenHands", "agentscope", "agent-framework", "hermes-agent", "langgraph", "openclaw", "oh-my-pi")
@@ -97,8 +97,49 @@ def run_cleanroom(*, python: Path, clean_root: Path) -> list[dict[str, object]]:
         [str(python), "-S", "-m", "unittest", "tests.integration.test_browser_session_productization_foundation"],
         [str(python), "-S", "-m", "unittest", "tests.integration.test_browser_session_productization_integration"],
         [str(python), "-S", "-m", "unittest", "tests.integration.test_browser_session_productization_api"],
+        [
+            str(python),
+            "-S",
+            "-m",
+            "pytest",
+            "tests/integration/test_browser_message_state_compression_foundation.py",
+            "tests/integration/test_browser_message_state_compression_integration.py",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp=.clean-state/pytest-04b",
+        ],
+        [
+            str(python),
+            "-S",
+            "-m",
+            "pytest",
+            "tests/unit/test_browser_action_registry_permission_foundation.py",
+            "tests/unit/test_browser_action_permission_integration.py",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp=.clean-state/pytest-04c",
+        ],
+        [
+            str(python),
+            "-S",
+            "-m",
+            "pytest",
+            "tests/unit/test_browser_observability_foundation.py",
+            "tests/unit/test_browser_observability_integration.py",
+            "tests/integration/test_browser_observability_main_path.py",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp=.clean-state/pytest-04d",
+        ],
         [str(python), "-S", "scripts/smoke_browser_session_foundation.py"],
         [str(python), "-S", "scripts/smoke_browser_session_productization.py"],
+        [str(python), "-S", "scripts/smoke_browser_session_productization_live.py"],
+        [str(python), "-S", "scripts/sync_browser_message_state_source_ledger.py", "--check"],
+        [str(python), "-S", "scripts/sync_browser_action_permission_source_ledger.py", "--check"],
+        [str(python), "-S", "scripts/sync_browser_observability_source_ledger.py", "--check"],
         [str(python), "-S", "scripts/audit_browser_session_cleanroom.py"],
         [str(python), "-S", "scripts/verify_submission_boundary.py"],
     )

@@ -73,6 +73,11 @@ def main() -> None:
             "blocker_count": report.blocker_count,
             "warning_count": report.warning_count,
             "finding_count": report.finding_count,
+            "blocking_findings": [
+                finding.to_dict()
+                for finding in report.findings
+                if str(finding.severity) in {"error", "blocker"}
+            ],
         },
         "line_count": line_count_payload(line_count) if line_count else None,
         "counted_paths": COUNTED_PATHS,

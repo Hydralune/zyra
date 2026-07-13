@@ -315,8 +315,19 @@ def rewrite(payload: dict[str, object]) -> dict[str, object]:
     if not isinstance(raw_entries, list):
         raise ValueError("ledger payload has no entries list")
     replacements = [build_entry(decision).to_dict() for decision in DECISIONS]
-    output = [item for item in raw_entries if isinstance(item, dict) and item.get("owner_unit") != OWNER_UNIT]
-    output.extend(replacements)
+    output: list[dict[str, object]] = []
+    inserted = False
+    for item in raw_entries:
+        if not isinstance(item, dict):
+            raise ValueError("ledger entry is not an object")
+        if item.get("owner_unit") == OWNER_UNIT:
+            if not inserted:
+                output.extend(replacements)
+                inserted = True
+            continue
+        output.append(item)
+    if not inserted:
+        output.extend(replacements)
     typed = [InternalizationLedgerEntry.from_dict(item) for item in output]
     result = dict(payload)
     result["entries"] = output

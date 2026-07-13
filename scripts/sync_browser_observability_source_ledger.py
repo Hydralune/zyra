@@ -3,11 +3,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+for package_path in (ROOT / "packages" / "core", ROOT / "packages" / "integrations"):
+    if str(package_path) not in sys.path:
+        sys.path.insert(0, str(package_path))
+
+from zyra_integrations import InternalizationLedger, InternalizationLedgerEntry  # noqa: E402
+from zyra_integrations.ledger_models import to_jsonable  # noqa: E402
+
+
 DEFAULT_LEDGER = (
     ROOT
     / "packages"
@@ -383,10 +393,7 @@ def entry(
     }
 
 
-def sync(
-    path: Path,
-) -> int:
-    document = json.loads(path.read_text(encoding="utf-8"))
+def rewrite(document: Any) -> Any:
     if isinstance(document, list):
         entries = document
     elif isinstance(document, dict) and isinstance(document.get("entries"), list):
@@ -402,27 +409,48 @@ def sync(
         for item in entries
     ]
     output.extend(replacements.values())
+    typed = [InternalizationLedgerEntry.from_dict(item) for item in output]
     if isinstance(document, list):
-        updated: Any = output
-    else:
-        updated = {**document, "entries": output}
-    path.write_text(
-        json.dumps(updated, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return len(replacements)
+        return output
+    return {
+        **document,
+        "entries": output,
+        "summary": to_jsonable(InternalizationLedger(typed).summary()),
+    }
 
 
-def main() -> int:
+def canonical(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+
+def synchronize(path: Path, *, write: bool) -> tuple[bool, int]:
+    current = json.loads(path.read_text(encoding="utf-8"))
+    expected = rewrite(current)
+    aligned = canonical(current) == canonical(expected)
+    if write and not aligned:
+        path.write_text(canonical(expected), encoding="utf-8", newline="\n")
+        aligned = True
+    return aligned, len(DECISIONS)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--ledger",
         type=Path,
         default=DEFAULT_LEDGER,
     )
-    args = parser.parse_args()
-    sync(args.ledger.resolve())
-    return 0
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--write", action="store_true")
+    mode.add_argument("--check", action="store_true")
+    args = parser.parse_args(argv)
+    write = args.write or not args.check
+    aligned, count = synchronize(args.ledger.resolve(), write=write)
+    print(f"browser_observability_source_ledger_aligned={str(aligned).lower()}")
+    print(f"browser_observability_source_decision_count={count}")
+    print(f"browser_observability_owner_units=M1-S04D-01,M1-S04D-02")
+    print(f"ledger_path={args.ledger.resolve()}")
+    return 0 if aligned or not args.check else 1
 
 
 if __name__ == "__main__":

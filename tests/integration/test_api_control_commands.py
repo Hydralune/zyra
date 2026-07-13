@@ -845,7 +845,16 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(metadata["query_turns"], "1")
                 self.assertEqual(metadata["context_compactions"], "0")
                 self.assertEqual(metadata["query_session_consistent"], "true")
-                self.assertTrue(metadata["query_session_resume_token"].startswith("codesession_"))
+                self.assertEqual(
+                    metadata["query_session_resume_token"],
+                    ":".join(
+                        (
+                            metadata["query_session_id"],
+                            metadata["query_session_leaf_uuid"],
+                            metadata["query_session_transcript_entries"],
+                        )
+                    ),
+                )
                 self.assertIn("last_code_worker_session", executed["task"]["metadata"])
                 self.assertEqual(
                     executed["task"]["metadata"]["last_code_worker_session"]["session_id"],

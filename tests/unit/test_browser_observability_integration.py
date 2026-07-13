@@ -226,6 +226,62 @@ def test_commit_fence_audit_exposes_corrupt_restart_receipt(
     assert fence.projection(scope=current)["audit"]["ok"] is False
 
 
+def test_commit_fence_restores_every_delivery_phase_after_restart(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "commits"
+    current = scope()
+    receipt = ObservationCommitFence(root).prepare(
+        current,
+        source_event_ids=("source-event",),
+        action_receipt_ids=("action-receipt",),
+        artifact_ids=("source-artifact",),
+    )
+
+    def restart(expected: CommitPhase) -> ObservationCommitFence:
+        reopened = ObservationCommitFence(root)
+        restored = reopened.get(current, receipt.commit_id)
+        assert restored is not None
+        assert restored.phase == expected
+        assert reopened.audit(scope=current).ok
+        if expected == CommitPhase.CHECKPOINT_COMMITTED:
+            assert reopened.pending(scope=current) == ()
+        else:
+            assert [item.commit_id for item in reopened.pending(scope=current)] == [
+                receipt.commit_id
+            ]
+        return reopened
+
+    fence = restart(CommitPhase.PREPARED)
+    receipt = fence.advance(
+        receipt,
+        CommitPhase.HISTORY_COMMITTED,
+        history_head_digest="sha256:history-head",
+    )
+    fence = restart(CommitPhase.HISTORY_COMMITTED)
+    receipt = fence.advance(
+        receipt,
+        CommitPhase.ARTIFACTS_COMMITTED,
+        artifact_ids=("artifact-one",),
+    )
+    fence = restart(CommitPhase.ARTIFACTS_COMMITTED)
+    receipt = fence.advance(
+        receipt,
+        CommitPhase.EVENTS_PENDING,
+        event_ids=("event-one",),
+    )
+    fence = restart(CommitPhase.EVENTS_PENDING)
+    receipt = fence.acknowledge_events(
+        current,
+        receipt.commit_id,
+        committed_event_ids=("event-one",),
+    )
+    fence = restart(CommitPhase.EVENTS_COMMITTED)
+    receipt = fence.acknowledge_checkpoint(current, receipt.commit_id)
+    restart(CommitPhase.CHECKPOINT_COMMITTED)
+    assert receipt.revision == 5
+
+
 def test_event_attachment_observes_existing_bus_and_tears_down() -> None:
     bus = BrowserEventBus()
     bus.start()

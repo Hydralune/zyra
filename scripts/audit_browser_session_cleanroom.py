@@ -26,6 +26,19 @@ MODULES = (
     "zyra_workers.browser_session.lifecycle_transactions",
     "zyra_workers.browser_session.resume_runtime",
     "zyra_workers.browser_session.session_projection",
+    "zyra_workers.browser_context.application",
+    "zyra_workers.browser_context.api_projection",
+    "zyra_workers.browser_context.task_integration",
+    "zyra_workers.browser_state.runtime",
+    "zyra_workers.browser_state.selector_store",
+    "zyra_workers.browser_action.application",
+    "zyra_workers.browser_action.continuation_runtime",
+    "zyra_workers.browser_action.gateway",
+    "zyra_workers.browser_observability.application",
+    "zyra_workers.browser_observability.history_store",
+    "zyra_workers.browser_observability.restart_projection",
+    "zyra_workers.browser_observability.integration.application",
+    "zyra_workers.browser_observability.integration.commit_fence",
 )
 
 

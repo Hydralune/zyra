@@ -68,15 +68,12 @@ def main() -> int:
                 node_id=state.root_node_id,
                 worker_name="BrowserWorker",
                 constraints={
+                    "browser_lifecycle_command": "start",
                     "browser_endpoint_url": endpoint,
                     "browser_transport": "memory",
                     "canonical_session_id": "productized-smoke",
                     "keep_alive": True,
                     "permission_mode": "sealed",
-                    "browser_plan": [
-                        {"action": "list_targets", "arguments": {}},
-                        {"action": "capture_trace", "arguments": {}},
-                    ],
                 },
             ))
             session_id = str(run.worker_result.metadata.get("browser_session_id") or "")
@@ -94,6 +91,10 @@ def main() -> int:
             ))
             payload = {
                 "ok": run.worker_result.ok and stopped.worker_result.ok,
+                "run_ok": run.worker_result.ok,
+                "run_summary": run.worker_result.summary,
+                "run_error": run.worker_result.error,
+                "run_metadata": dict(run.worker_result.metadata),
                 "backend": run.worker_result.metadata.get("browser_backend"),
                 "session_id": session_id,
                 "session_revision": run.worker_result.metadata.get("browser_session_revision"),
@@ -106,7 +107,12 @@ def main() -> int:
                 "legacy_backend_counted": False,
             }
             print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-            return 0 if payload["ok"] and session_id and payload["artifacts"] else 2
+            return 0 if (
+                payload["ok"]
+                and session_id
+                and payload["capsule_fingerprint"]
+                and payload["event_count"]
+            ) else 2
         finally:
             server.shutdown()
             server.server_close()
