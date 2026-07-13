@@ -103,6 +103,7 @@ def _command(root: Path, endpoint: str, *, request_id: str = "request-1") -> Bro
         workspace_root=workspace,
         artifact_root=root / "artifacts",
         endpoint_url=endpoint,
+        constraints={"browser_transport": "memory"},
         headers={"Authorization": "Bearer must-not-leak", "X-Zyra-Test": "foundation"},
     )
 

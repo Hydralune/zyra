@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urljoin, urlparse
 
-from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
+from zyra_core import ArtifactKind, ControlCommand, EventRecord, EventType, to_jsonable
 from zyra_integrations import browser_use_snapshot
 from zyra_runtime import LocalArtifactStore, WorkerRequest, WorkerResult
 from zyra_runtime.permission.action_gate import (
@@ -25,7 +25,17 @@ from zyra_runtime.permission.action_gate import (
 from zyra_runtime.permission.custody import PermissionSessionCustodyStore
 
 from .browser_actions import BrowserActionRegistry, default_browser_action_registry
-from .browser_session import BrowserRuntime, BrowserRuntimeConfig, BrowserSessionCommand
+from .browser_session import (
+    BrowserRuntime,
+    BrowserRuntimeConfig,
+    BrowserSessionCommand,
+    BrowserSessionControlRuntime,
+    BrowserRuntimeRegistry,
+    default_browser_runtime_registry,
+    validate_plan as validate_productized_browser_plan,
+)
+from .browser_session.application import BrowserSessionApplication
+from .browser_session.resume_runtime import BrowserSessionResumeRuntime
 from .browser_use_runtime import (
     BrowserUseRuntimeHealth,
     browser_use_health_summary,
@@ -97,6 +107,10 @@ class BrowserWorkerRuntime:
         permission_state_path: str | Path | None = None,
         timeout_seconds: int = 15,
         browser_session_runtime: BrowserRuntime | None = None,
+        browser_session_application: BrowserSessionApplication | None = None,
+        browser_runtime_registry: BrowserRuntimeRegistry | None = None,
+        browser_session_control: BrowserSessionControlRuntime | None = None,
+        browser_session_resume: BrowserSessionResumeRuntime | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -110,20 +124,115 @@ class BrowserWorkerRuntime:
         self.timeout_seconds = timeout_seconds
         self.action_registry = default_browser_action_registry(self.project_root)
         self.browser_use_health: BrowserUseRuntimeHealth = inspect_browser_use_runtime(self.project_root)
-        self.browser_session_runtime = browser_session_runtime or BrowserRuntime(
-            config=BrowserRuntimeConfig(
-                state_root=self.artifact_store.root / ".browser-session" / "state",
-                runtime_root=self.project_root / "tmp" / "browser-session-runtime",
-                artifact_root=self.artifact_store.root,
-                request_timeout_seconds=float(timeout_seconds),
-                connect_timeout_seconds=float(timeout_seconds),
+        browser_config = BrowserRuntimeConfig(
+            state_root=self.artifact_store.root / ".browser-session" / "state",
+            runtime_root=self.project_root / "tmp" / "browser-session-runtime",
+            artifact_root=self.artifact_store.root,
+            request_timeout_seconds=float(timeout_seconds),
+            connect_timeout_seconds=float(timeout_seconds),
+        )
+        self.browser_runtime_registry = browser_runtime_registry or default_browser_runtime_registry()
+        self.browser_session_runtime = browser_session_runtime or self.browser_runtime_registry.get_or_create(browser_config)
+        registry_owns_runtime = browser_session_runtime is None
+        if browser_session_runtime is not None and browser_runtime_registry is not None:
+            registry_owns_runtime = self.browser_runtime_registry.get_or_create(browser_config) is browser_session_runtime
+        self._browser_registry_config = browser_config if registry_owns_runtime else None
+        registry_application = (
+            self.browser_runtime_registry.application(browser_config)
+            if registry_owns_runtime
+            else None
+        )
+        shared_application = getattr(self.browser_session_runtime, "_zyra_browser_application", None)
+        self.browser_session_application = (
+            browser_session_application
+            or registry_application
+            or shared_application
+            or BrowserSessionApplication(self.browser_session_runtime, artifact_store=self.artifact_store)
+        )
+        setattr(self.browser_session_runtime, "_zyra_browser_application", self.browser_session_application)
+        registry_control = (
+            self.browser_runtime_registry.control(browser_config)
+            if registry_owns_runtime
+            else None
+        )
+        shared_control = getattr(self.browser_session_runtime, "_zyra_browser_control", None)
+        self.browser_session_control = (
+            browser_session_control
+            or registry_control
+            or shared_control
+            or BrowserSessionControlRuntime(
+                self.browser_session_runtime,
+                lease_store=self.browser_session_application.receipt_store,
             )
         )
+        setattr(self.browser_session_runtime, "_zyra_browser_control", self.browser_session_control)
+        shared_resume = getattr(self.browser_session_runtime, "_zyra_browser_resume", None)
+        self.browser_session_resume = browser_session_resume or shared_resume or BrowserSessionResumeRuntime(
+            self.browser_session_runtime
+        )
+        setattr(self.browser_session_runtime, "_zyra_browser_resume", self.browser_session_resume)
+
+    def _capture_browser_resume_capsule(self, session_id: str) -> Any:
+        if self._browser_registry_config is not None:
+            return self.browser_runtime_registry.capture_resume_capsule(
+                self._browser_registry_config,
+                session_id,
+            )
+        return self.browser_session_resume.capture(session_id)
+
+    def _resume_browser_session(
+        self,
+        session_id: str,
+        *,
+        expected_run_id: str,
+        expected_task_id: str,
+        worker_request_id: str,
+    ) -> Any:
+        if self._browser_registry_config is not None:
+            return self.browser_runtime_registry.resume(
+                self._browser_registry_config,
+                session_id,
+                expected_run_id=expected_run_id,
+                expected_task_id=expected_task_id,
+                worker_request_id=worker_request_id,
+            )
+        return self.browser_session_resume.resume(
+            session_id,
+            expected_run_id=expected_run_id,
+            expected_task_id=expected_task_id,
+            worker_request_id=worker_request_id,
+        )
+
+    def _browser_start_failure_metadata(
+        self,
+        request: WorkerRequest,
+        command: BrowserSessionCommand,
+    ) -> dict[str, Any]:
+        try:
+            matching = [
+                session
+                for session in self.browser_session_runtime.list_sessions()
+                if session.run_id == request.run_id
+                and session.task_id == request.task_id
+                and session.canonical_session_id == command.canonical_session_id
+            ]
+        except Exception:  # noqa: BLE001 - failure projection must preserve the primary error.
+            return {}
+        if not matching:
+            return {}
+        session = matching[-1]
+        return {
+            "browser_session_id": session.session_id,
+            "browser_canonical_session_id": session.canonical_session_id,
+            "browser_session_status": session.status,
+            "browser_session_revision": str(session.revision),
+        }
 
     def run(self, request: WorkerRequest) -> BrowserWorkerRun:
         if _request_contains_permission_capability_echo(request):
+            # Shared permission preflight; this path rejects before backend selection
+            # and does not execute a legacy browser action.
             return self._run_legacy_actions(request)
-
         lifecycle_command = _browser_lifecycle_command_from_request(request)
         if lifecycle_command:
             return self._run_browser_lifecycle(request, lifecycle_command)
@@ -138,6 +247,53 @@ class BrowserWorkerRuntime:
                 summary=f"BrowserWorker rejected unknown browser backend: {backend}",
             )
 
+        snapshot = browser_use_snapshot(self.project_root)
+        plan = _browser_plan_from_request(request)
+        if not plan:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="BrowserWorker requires a browser_plan.",
+                error="missing_browser_plan",
+                metadata={
+                    **_snapshot_metadata(snapshot),
+                    **_action_registry_metadata(self.action_registry),
+                    "browser_backend": "zyra-browser-productized",
+                    "browser_runtime_vendor_required": "false",
+                },
+            )
+            return BrowserWorkerRun(
+                worker_result=worker_result,
+                event_records=[_worker_result_event(request, worker_result)],
+            )
+        validation_issues = validate_productized_browser_plan(plan)
+        if validation_issues:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="BrowserWorker rejected an invalid browser_plan.",
+                error="invalid_browser_plan",
+                events=[to_jsonable(issue) for issue in validation_issues],
+                metadata={
+                    **_snapshot_metadata(snapshot),
+                    **_action_registry_metadata(self.action_registry),
+                    "browser_backend": "zyra-browser-productized",
+                    "browser_runtime_vendor_required": "false",
+                },
+            )
+            return BrowserWorkerRun(
+                worker_result=worker_result,
+                event_records=[_worker_result_event(request, worker_result)],
+            )
+
+        permission_gate_or_failure = self._permission_gate(
+            request,
+            snapshot,
+            backend="zyra-browser-productized",
+        )
+        if isinstance(permission_gate_or_failure, BrowserWorkerRun):
+            return permission_gate_or_failure
+        permission_gate = permission_gate_or_failure
         command = self._browser_session_command(request)
         try:
             started = self.browser_session_runtime.ensure_started(command)
@@ -147,32 +303,65 @@ class BrowserWorkerRuntime:
                 code=type(error).__name__,
                 summary="BrowserSessionRuntime failed to prepare a browser session.",
                 details=str(error),
+                metadata=self._browser_start_failure_metadata(request, command),
             )
         if not started.ok:
             return _browser_productized_failure(
                 request,
                 code=started.error or "browser_session_start_failed",
                 summary="BrowserSessionRuntime could not prepare a browser session.",
+                metadata=self._browser_start_failure_metadata(request, command),
+            )
+        try:
+            resume_capsule = self._capture_browser_resume_capsule(started.session.session_id)
+        except Exception as error:  # noqa: BLE001 - actions require durable resume state.
+            return _browser_productized_failure(
+                request,
+                code="browser_resume_capsule_capture_failed",
+                summary="BrowserWorker could not persist browser session resume state.",
+                details=f"{type(error).__name__}: {error}",
             )
 
         start_payload = to_jsonable(started)
         start_event = _browser_session_event(request, "session_attached", start_payload)
-        legacy_request = replace(
-            request,
-            constraints={**request.constraints, "browser_backend": "static"},
-        )
-        action_run = self._run_legacy_actions(legacy_request)
+        try:
+            action_run = self.browser_session_application.execute_plan(
+                request,
+                started,
+                plan,
+                permission_gate,
+            )
+        except Exception as error:  # noqa: BLE001 - fail closed at the productized action boundary.
+            action_run = None
+            action_error = f"{type(error).__name__}: {error}"
+        else:
+            action_error = ""
         stop_payload: dict[str, Any] = {}
         stop_event: EventRecord | None = None
         stop_error = ""
         if not command.keep_alive:
             try:
-                stopped = self.browser_session_runtime.stop(
-                    started.session.session_id,
+                stop_control = self.browser_session_control.execute(
+                    ControlCommand(
+                        run_id=request.run_id,
+                        task_id=request.task_id,
+                        name="stop",
+                        arguments={
+                            "browser_session_id": started.session.session_id,
+                            "worker_request_id": request.request_id,
+                            "reason": "worker_request_completed",
+                        },
+                        metadata={"node_id": request.node_id},
+                    ),
+                    session_id=started.session.session_id,
+                    task_id=request.task_id,
                     reason="worker_request_completed",
                 )
+                if not stop_control.ok:
+                    raise RuntimeError(stop_control.error or "browser_session_stop_failed")
+                stopped = stop_control.result
                 stop_payload = to_jsonable(stopped)
-                stop_event = _browser_session_event(request, "session_released", stop_payload)
+                stop_event = stop_control.event_record or _browser_session_event(request, "session_released", stop_payload)
             except Exception as error:  # noqa: BLE001 - cleanup failure is part of worker result.
                 stop_error = f"{type(error).__name__}: {error}"
 
@@ -185,56 +374,159 @@ class BrowserWorkerRuntime:
             "browser_session_keep_alive": str(command.keep_alive).lower(),
             "browser_session_created": str(started.created).lower(),
             "browser_session_reused": str(started.reused).lower(),
+            "browser_resume_capsule_revision": str(resume_capsule.session_revision),
+            "browser_resume_capsule_fingerprint": resume_capsule.fingerprint,
             "browser_runtime_vendor_required": "false",
         }
-        events = [start_event, *action_run.event_records]
+        application_worker_result = getattr(action_run, "worker_result", None)
+        application_events = list(
+            getattr(action_run, "event_records", getattr(action_run, "events", ()))
+        ) if action_run is not None else []
+        application_artifacts = list(
+            getattr(application_worker_result, "artifacts", getattr(action_run, "artifacts", ()))
+        ) if action_run is not None else []
+        application_receipts = tuple(
+            getattr(action_run, "receipts", getattr(action_run, "action_receipts", ()))
+        ) if action_run is not None else ()
+        failed_receipts = [
+            receipt for receipt in application_receipts
+            if not bool(getattr(receipt, "ok", False))
+        ]
+        application_ok = (
+            bool(getattr(application_worker_result, "ok", getattr(action_run, "ok", False)))
+            and not failed_receipts
+            if action_run is not None
+            else False
+        )
+        application_error = (
+            str(getattr(application_worker_result, "error", getattr(action_run, "error", "")) or "")
+            if action_run is not None
+            else action_error or "browser_application_failed"
+        )
+        events = [start_event, *application_events]
+        if not application_ok:
+            events.append(EventRecord(
+                run_id=request.run_id,
+                task_id=request.task_id,
+                node_id=request.node_id,
+                event_type=EventType.RECOVERY_PLANNED,
+                payload={"browser_recovery_input": {
+                    "browser_session_id": started.session.session_id,
+                    "worker_request_id": request.request_id,
+                    "error": application_error or "browser_action_failed",
+                    "failed_receipt_ids": [str(getattr(item, "receipt_id", "")) for item in failed_receipts],
+                    "fallback_allowed": False,
+                }},
+            ))
         if stop_event is not None:
             events.append(stop_event)
-        result_events = [*action_run.worker_result.events, {"browser_session": start_payload}]
+        result_events = [to_jsonable(event) for event in application_events]
+        result_events.append({"browser_session": start_payload})
         if stop_payload:
             result_events.append({"browser_session_stop": stop_payload})
-        worker_result = replace(
-            action_run.worker_result,
-            ok=action_run.worker_result.ok and not stop_error,
-            error=action_run.worker_result.error or ("browser_session_stop_failed" if stop_error else None),
-            metadata={
-                **action_run.worker_result.metadata,
-                **session_metadata,
-                **({"browser_session_stop_error": stop_error} if stop_error else {}),
-            },
+        application_metadata = (
+            dict(action_run.worker_result.metadata) if action_run is not None else {}
+        )
+        worker_result = WorkerResult(
+            request_id=request.request_id,
+            ok=application_ok and not stop_error,
+            summary=(
+                "BrowserWorker completed the productized browser plan."
+                if application_ok and not stop_error
+                else "BrowserWorker stopped on a productized browser session failure."
+            ),
+            artifacts=application_artifacts,
             events=result_events,
+            error=(
+                None
+                if application_ok and not stop_error
+                else application_error or ("browser_session_stop_failed" if stop_error else "browser_action_failed")
+            ),
+            metadata={
+                **application_metadata,
+                **session_metadata,
+                **permission_gate.metadata(),
+                **({"browser_session_stop_error": stop_error} if stop_error else {}),
+                "browser_permission_action_execution_count": str(
+                    sum(1 for receipt in application_receipts if bool(getattr(receipt, "ok", False)))
+                    if action_run is not None else 0
+                ),
+            },
         )
         return BrowserWorkerRun(
             worker_result=worker_result,
             event_records=events,
-            permission_session_custody_token=action_run.permission_session_custody_token,
+            permission_session_custody_token=permission_gate.custody_token,
         )
 
     def _run_browser_lifecycle(self, request: WorkerRequest, command_name: str) -> BrowserWorkerRun:
         command = self._browser_session_command(request)
         try:
-            if command_name == "start":
-                result = self.browser_session_runtime.start(command)
-            elif command_name in {"ensure", "ensure-started", "prepare", "attach"}:
-                result = self.browser_session_runtime.ensure_started(command)
-            elif command_name == "reconnect":
-                result = self.browser_session_runtime.reconnect(_required_browser_session_id(command))
-            elif command_name == "stop":
-                result = self.browser_session_runtime.stop(
+            normalized = {
+                "ensure": "ensure-started", "prepare": "ensure-started", "attach": "ensure-started",
+                "diagnostic": "diagnose", "health": "diagnose", "list-sessions": "list",
+            }.get(command_name, command_name)
+            capsule = None
+            control_event = None
+            if normalized == "resume":
+                result = self._resume_browser_session(
                     _required_browser_session_id(command),
+                    expected_run_id=request.run_id,
+                    expected_task_id=request.task_id,
+                    worker_request_id=request.request_id,
+                )
+                ok = bool(getattr(result, "ok", False))
+            else:
+                control_result = self.browser_session_control.execute(
+                    ControlCommand(
+                        run_id=request.run_id,
+                        task_id=request.task_id,
+                        name=normalized,
+                        arguments={
+                            **PermissionSessionCustodyStore.redact_constraints(request.constraints),
+                            "browser_session_id": command.browser_session_id,
+                            "worker_request_id": request.request_id,
+                        },
+                        metadata={"node_id": request.node_id},
+                    ),
+                    session_command=command,
+                    session_id=command.browser_session_id,
+                    task_id=request.task_id,
                     force=bool(request.constraints.get("force")),
                     reason=str(request.constraints.get("reason") or "requested"),
                 )
-            elif command_name in {"diagnose", "diagnostic", "health"}:
-                result = self.browser_session_runtime.diagnose(_required_browser_session_id(command))
-            elif command_name in {"list", "list-sessions"}:
-                result = self.browser_session_runtime.list_sessions(task_id=request.task_id)
-            else:
-                return _browser_productized_failure(
-                    request,
-                    code="invalid_browser_lifecycle_command",
-                    summary=f"Unknown browser lifecycle command: {command_name}",
-                )
+                result = control_result.result
+                ok = control_result.ok
+                control_event = control_result.event_record
+                if not ok:
+                    failure_event = _browser_session_event(
+                        request,
+                        f"{normalized}_failed",
+                        {
+                            "ok": False,
+                            "error": control_result.error or "browser_lifecycle_failed",
+                            "control": to_jsonable(control_result),
+                        },
+                    )
+                    failure_events = [item for item in (control_event, failure_event) if item is not None]
+                    return BrowserWorkerRun(
+                        worker_result=WorkerResult(
+                            request_id=request.request_id,
+                            ok=False,
+                            summary=f"Browser lifecycle command {normalized} failed.",
+                            error=control_result.error or "browser_lifecycle_failed",
+                            events=[to_jsonable(item) for item in failure_events],
+                            metadata={
+                                "browser_backend": "zyra-browser-productized",
+                                "browser_lifecycle_command": normalized,
+                                **{str(key): str(value) for key, value in control_result.metadata.items()},
+                            },
+                        ),
+                        event_records=failure_events,
+                    )
+            result_session_id = str(getattr(getattr(result, "session", None), "session_id", "") or command.browser_session_id)
+            if ok and normalized in {"start", "ensure-started", "reconnect", "resume"} and result_session_id:
+                capsule = self._capture_browser_resume_capsule(result_session_id)
         except Exception as error:  # noqa: BLE001 - lifecycle errors are worker results.
             return _browser_productized_failure(
                 request,
@@ -244,32 +536,41 @@ class BrowserWorkerRuntime:
             )
 
         payload = to_jsonable(result)
-        ok = bool(payload.get("ok", True)) if isinstance(payload, dict) else True
-        event_type = (
-            EventType.BROWSER_RUNTIME_DIAGNOSTIC
-            if command_name in {"diagnose", "diagnostic", "health"}
-            else EventType.BROWSER_SESSION_LIFECYCLE
-        )
+        ok = bool(payload.get("ok", ok)) if isinstance(payload, dict) else ok
+        result_session = payload.get("session", {}) if isinstance(payload, dict) else {}
+        if not isinstance(result_session, dict):
+            result_session = {}
         event = EventRecord(
             run_id=request.run_id,
             task_id=request.task_id,
             node_id=request.node_id,
-            event_type=event_type,
-            payload={"browser_session": {"command": command_name, "result": payload}},
+            event_type=(EventType.BROWSER_RUNTIME_DIAGNOSTIC if normalized == "diagnose" else EventType.BROWSER_SESSION_LIFECYCLE),
+            payload={"browser_session": {"command": normalized, "result": payload}},
         )
+        lifecycle_events = [item for item in (control_event, event) if item is not None]
         worker_result = WorkerResult(
             request_id=request.request_id,
             ok=ok,
-            summary=f"Browser lifecycle command {command_name} {'completed' if ok else 'failed'}.",
-            error=None if ok else str(payload.get("error") or "browser_lifecycle_failed"),
-            events=[to_jsonable(event)],
+            summary=f"Browser lifecycle command {normalized} {'completed' if ok else 'failed'}.",
+            error=None if ok else str(payload.get("error") or payload.get("error_code") or "browser_lifecycle_failed"),
+            events=[to_jsonable(item) for item in lifecycle_events],
             metadata={
                 "browser_backend": "zyra-browser-productized",
-                "browser_lifecycle_command": command_name,
+                "browser_lifecycle_command": normalized,
                 "browser_runtime_vendor_required": "false",
+                "browser_session_id": str(result_session.get("session_id") or command.browser_session_id),
+                "browser_canonical_session_id": str(
+                    result_session.get("canonical_session_id") or command.canonical_session_id
+                ),
+                "browser_session_status": str(result_session.get("status") or ""),
+                "browser_session_revision": str(result_session.get("revision") or ""),
+                **({
+                    "browser_resume_capsule_revision": str(capsule.session_revision),
+                    "browser_resume_capsule_fingerprint": capsule.fingerprint,
+                } if capsule is not None else {}),
             },
         )
-        return BrowserWorkerRun(worker_result=worker_result, event_records=[event])
+        return BrowserWorkerRun(worker_result=worker_result, event_records=lifecycle_events)
 
     def _browser_session_command(self, request: WorkerRequest) -> BrowserSessionCommand:
         constraints = PermissionSessionCustodyStore.redact_constraints(request.constraints)
@@ -291,7 +592,12 @@ class BrowserWorkerRuntime:
             workspace_root=self.workspace_root,
             artifact_root=self.artifact_store.root,
             executable_path=Path(str(executable)).expanduser() if executable else None,
-            endpoint_url=str(constraints.get("cdp_url") or constraints.get("endpoint_url") or ""),
+            endpoint_url=str(
+                constraints.get("cdp_url")
+                or constraints.get("browser_endpoint_url")
+                or constraints.get("endpoint_url")
+                or ""
+            ),
             headless=bool(constraints.get("headless", True)),
             keep_alive=bool(constraints.get("keep_alive", False)),
             headers={str(key): str(value) for key, value in headers.items()},
@@ -1325,6 +1631,26 @@ class BrowserWorkerRuntime:
         artifacts = []
         collected_download_paths: set[Path] = set()
         continue_on_error = request.constraints.get("continue_on_error") is True
+        navigation_timeout = (
+            _bounded_int(
+                request.constraints.get("live_navigation_timeout_seconds"),
+                default=30,
+                minimum=5,
+                maximum=120,
+            )
+            if request.constraints.get("live_navigation_timeout_seconds") is not None
+            else None
+        )
+        action_timeout = (
+            _bounded_int(
+                request.constraints.get("live_action_timeout_seconds"),
+                default=30,
+                minimum=5,
+                maximum=120,
+            )
+            if request.constraints.get("live_action_timeout_seconds") is not None
+            else None
+        )
         allowed_domains = request.constraints.get("allowed_domains")
         allowed_domains_arg = [str(item) for item in allowed_domains] if isinstance(allowed_domains, list) else None
         downloads_dir = paths.root / "downloads" / request.request_id
@@ -1404,7 +1730,12 @@ class BrowserWorkerRuntime:
                     if normalized_action == "open_url":
                         current_url = str(arguments.get("url") or "")
                         _validate_live_url(current_url, request.constraints)
-                        await session.navigate_to(current_url)
+                        await _browser_use_live_navigate(
+                            session,
+                            current_url,
+                            navigation_timeout_seconds=navigation_timeout,
+                            action_timeout_seconds=action_timeout,
+                        )
                         state, output = await _browser_use_live_state(session)
                         state_artifact = self.artifact_store.write_text(
                             run_id=request.run_id,
@@ -1486,8 +1817,11 @@ class BrowserWorkerRuntime:
                             )
                         )
                     elif normalized_action == "click_element":
-                        target_index = int(arguments.get("index"))
-                        await _ensure_browser_use_live_index(session, target_index)
+                        target_index = await _resolve_browser_use_live_target_index(
+                            session,
+                            arguments,
+                            purpose="click_element",
+                        )
                         result = await tools.click(index=target_index, browser_session=session)
                         result_output = _browser_use_action_result_output(result)
                         if result_output.get("error"):
@@ -1518,8 +1852,11 @@ class BrowserWorkerRuntime:
                         )
                     elif normalized_action == "input_text":
                         input_action = getattr(tools, "input")
-                        target_index = int(arguments.get("index"))
-                        await _ensure_browser_use_live_index(session, target_index)
+                        target_index = await _resolve_browser_use_live_target_index(
+                            session,
+                            arguments,
+                            purpose="input_text",
+                        )
                         result = await input_action(
                             index=target_index,
                             text=str(arguments.get("text") or ""),
@@ -1548,7 +1885,7 @@ class BrowserWorkerRuntime:
                                 action,
                                 action_metadata=action_metadata,
                                 ok=True,
-                                summary=f"Browser-use live input text into element {arguments.get('index')}",
+                                summary=f"Browser-use live input text into element {target_index}",
                                 output=output,
                                 artifacts=[state_artifact],
                             )
@@ -1842,6 +2179,17 @@ class BrowserWorkerRuntime:
             event.payload.get("browser_action", {}).get("permission_execution_grant_consumed") == "true"
             for event in browser_events
         )
+        failed_action = next(
+            (
+                event.payload.get("browser_result", {})
+                for event in browser_events
+                if not _event_browser_result_ok(event)
+            ),
+            {},
+        )
+        failed_output = failed_action.get("output", {}) if isinstance(failed_action, dict) else {}
+        if not isinstance(failed_output, dict):
+            failed_output = {}
         trace_artifact = self.artifact_store.write_text(
             run_id=request.run_id,
             task_id=request.task_id,
@@ -1873,6 +2221,12 @@ class BrowserWorkerRuntime:
                 "browser_permission_action_execution_count": str(action_execution_count),
                 "browser_executable": str(executable),
                 "trace_artifact_id": trace_artifact.artifact_id,
+                "live_navigation_timeout_seconds": str(navigation_timeout or ""),
+                "live_action_timeout_seconds": str(action_timeout or ""),
+                "live_failed_action_index": str(failed_action.get("step_index") or ""),
+                "live_failed_action": str(failed_action.get("action") or ""),
+                "live_failed_action_error": str(failed_action.get("error") or ""),
+                "live_failed_action_message": str(failed_output.get("message") or ""),
             },
         )
         return BrowserWorkerRun(
@@ -1937,11 +2291,11 @@ def _browser_plan_from_request(request: WorkerRequest) -> list[dict[str, Any]]:
 def _browser_backend_from_request(request: WorkerRequest) -> str:
     raw_backend = request.constraints.get(
         "browser_backend",
-        request.constraints.get("backend", "static"),
+        request.constraints.get("backend", "zyra-browser-productized"),
     )
     if request.constraints.get("browser_use_live") is True:
         raw_backend = "browser-use-live"
-    backend = str(raw_backend or "static").strip().lower().replace("_", "-")
+    backend = str(raw_backend or "zyra-browser-productized").strip().lower().replace("_", "-")
     if backend in {"live", "browser-live", "browser-use"}:
         return "browser-use-live"
     if backend == "browser-use-live":
@@ -1997,7 +2351,9 @@ def _browser_productized_failure(
     code: str,
     summary: str,
     details: str = "",
+    metadata: dict[str, Any] | None = None,
 ) -> BrowserWorkerRun:
+    failure_metadata = dict(metadata or {})
     event = EventRecord(
         run_id=request.run_id,
         task_id=request.task_id,
@@ -2008,6 +2364,7 @@ def _browser_productized_failure(
                 "phase": "failed",
                 "error": code,
                 "details": details,
+                **failure_metadata,
             }
         },
     )
@@ -2021,6 +2378,7 @@ def _browser_productized_failure(
             "browser_backend": "zyra-browser-productized",
             "browser_runtime_vendor_required": "false",
             **({"browser_runtime_error_details": details} if details else {}),
+            **failure_metadata,
         },
     )
     return BrowserWorkerRun(worker_result=worker_result, event_records=[event])
@@ -2382,6 +2740,32 @@ async def _browser_use_live_state(session: Any) -> tuple[BrowserPageState, dict[
         ],
     }
     return state, output
+
+
+async def _browser_use_live_navigate(
+    session: Any,
+    url: str,
+    *,
+    navigation_timeout_seconds: int | None,
+    action_timeout_seconds: int | None,
+) -> None:
+    if navigation_timeout_seconds is None and action_timeout_seconds is None:
+        await session.navigate_to(url)
+        return
+
+    from browser_use.browser.events import NavigateToUrlEvent
+
+    navigation_timeout = navigation_timeout_seconds or 8
+    event_timeout = max(action_timeout_seconds or 30, navigation_timeout + 5)
+    event = session.event_bus.dispatch(
+        NavigateToUrlEvent(
+            url=url,
+            timeout_ms=navigation_timeout * 1000,
+            event_timeout=float(event_timeout),
+        )
+    )
+    await event
+    await event.event_result(raise_if_any=True, raise_if_none=False)
 
 
 async def _ensure_browser_use_live_index(session: Any, index: int) -> None:

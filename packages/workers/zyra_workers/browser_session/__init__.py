@@ -106,6 +106,108 @@ from .task_supervisor import (
     BrowserTaskSupervisorSnapshot,
 )
 from .worker_bridge import BrowserWorkerSessionBinding, BrowserWorkerSessionBridge
+from .integration_models import (
+    ACTION_ALIASES,
+    BrowserActionExecution,
+    BrowserActionName,
+    BrowserActionReceipt,
+    BrowserActionRequest,
+    BrowserActionStatus,
+    BrowserApplicationResult,
+    BrowserArtifactHandoff,
+    BrowserLeaseStatus,
+    BrowserSessionLease,
+    integration_digest,
+    normalize_action_name,
+    public_mapping,
+    validate_plan,
+)
+from .session_lease import (
+    BrowserLeaseLost,
+    BrowserReceiptConflict,
+    BrowserSessionLeaseStore,
+)
+from .action_runtime import (
+    BrowserApplicationArtifactStore,
+    BrowserCanonicalIntegrationPorts,
+    LeaseBoundBrowserSessionApplication,
+    SessionBoundActionRuntime,
+)
+from .action_policy import (
+    BrowserActionAdmission,
+    BrowserActionAdmissionEffect,
+    BrowserActionAdmissionPolicy,
+    BrowserActionPolicyConfig,
+    BrowserActionPolicyError,
+    BrowserActionRisk,
+    BrowserActionTimeoutPolicy,
+    redact_action_arguments,
+)
+from .artifact_pipeline import (
+    BrowserArtifactPayload,
+    BrowserArtifactPayloadKind,
+    BrowserArtifactPipeline,
+    BrowserArtifactPipelineError,
+    BrowserArtifactPipelinePolicy,
+    BrowserArtifactPipelineResult,
+    BrowserArtifactVerification,
+    BrowserArtifactVerificationStatus,
+    redact_artifact_metadata,
+)
+from .lifecycle_transactions import (
+    BrowserLifecycleAction,
+    BrowserLifecycleCancellation,
+    BrowserLifecycleControlReceipt,
+    BrowserLifecycleTransactionError,
+    BrowserLifecycleTransactionRequest,
+    BrowserLifecycleTransactionRuntime,
+    BrowserLifecycleTransactionStatus,
+)
+from .control_runtime import BrowserControlAction, BrowserControlResult, BrowserSessionControlRuntime
+from .application import BrowserSessionApplication, BrowserSessionApplicationResult
+from .canonical_ports import BrowserCanonicalPorts, CanonicalProjectionFailure, CanonicalProjectionResult
+from .integration_audit import (
+    BrowserIntegrationFinding,
+    BrowserIntegrationSeverity,
+    BrowserIntegrationStatus,
+    BrowserIntegrationAuditReport,
+    BrowserSessionIntegrationAudit,
+    browser_integration_metadata,
+)
+from .runtime_registry import (
+    BrowserRuntimeRegistry,
+    BrowserRuntimeRegistryEntry,
+    BrowserRuntimeRegistryKey,
+    BrowserRuntimeRegistryStatus,
+    default_browser_runtime_registry,
+    reset_default_browser_runtime_registry,
+)
+from .resume_runtime import (
+    BrowserResumeCapsule,
+    BrowserResumeDisposition,
+    BrowserResumeResult,
+    BrowserSessionResumeRuntime,
+    BrowserStateLossRecoveryInput,
+)
+from .diagnostics_runtime import (
+    BrowserDiagnosticCheck,
+    BrowserDiagnosticFinding,
+    BrowserDiagnosticSeverity,
+    BrowserDiagnosticsReport,
+    BrowserDiagnosticsRuntime,
+    BrowserSessionDiagnosticView,
+)
+from .session_projection import (
+    BrowserActionProjection,
+    BrowserArtifactProjection,
+    BrowserCdpProjection,
+    BrowserControlProjection,
+    BrowserProfileProjection,
+    BrowserRuntimeProjection,
+    BrowserSessionProjection,
+    BrowserSessionProjectionRuntime,
+    BrowserTargetProjection,
+)
 
 __all__ = [name for name in globals() if name.startswith("Browser") or name in {
     "AllowLifecyclePermissionPort",
@@ -135,4 +237,16 @@ __all__ = [name for name in globals() if name.startswith("Browser") or name in {
     "classify_browser_error",
     "failure_chain",
     "public_error",
+    "ACTION_ALIASES",
+    "SessionBoundActionRuntime",
+    "LeaseBoundBrowserSessionApplication",
+    "browser_integration_metadata",
+    "default_browser_runtime_registry",
+    "integration_digest",
+    "normalize_action_name",
+    "public_mapping",
+    "reset_default_browser_runtime_registry",
+    "validate_plan",
+    "redact_action_arguments",
+    "redact_artifact_metadata",
 }]

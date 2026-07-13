@@ -83,6 +83,7 @@ class BrowserSessionProductizationFoundationTests(unittest.TestCase):
             workspace_root=workspace,
             artifact_root=root / "artifacts",
             endpoint_url=self.endpoint,
+            constraints={"browser_transport": "memory"},
             headers={"Authorization": "Bearer integration-secret", "X-Trace": "trace-visible"},
         )
 
@@ -153,7 +154,8 @@ class BrowserSessionProductizationFoundationTests(unittest.TestCase):
                 broken.start(BrowserSessionCommand(
                     run_id="run-broken", task_id="task-broken", worker_request_id="request-broken",
                     canonical_session_id="canonical-broken", workspace_root=root / "workspace",
-                    artifact_root=root / "broken-artifacts", endpoint_url=self.endpoint,
+            artifact_root=root / "broken-artifacts", endpoint_url=self.endpoint,
+            constraints={"browser_transport": "memory"},
                 ))
             self.assertEqual(broken.list_sessions()[0].status, "failed")
 

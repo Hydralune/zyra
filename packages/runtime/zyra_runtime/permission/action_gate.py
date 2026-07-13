@@ -640,9 +640,10 @@ def _browser_action_capabilities(action: BrowserActionPermissionInput) -> tuple[
     normalized = action.normalized_action
     target_url = action.target_url or str(action.arguments.get("url") or action.current_url or "")
     scheme = urlparse(target_url).scheme.casefold() if target_url else ""
-    local_static = action.backend == "static" and scheme in {"", "file"}
+    local_resource = scheme in {"", "file"}
     local_read_actions = {
         "open_url",
+        "navigate",
         "extract_text",
         "snapshot_state",
         "search_page",
@@ -653,10 +654,22 @@ def _browser_action_capabilities(action: BrowserActionPermissionInput) -> tuple[
         "scroll_page",
         "scroll_to_text",
         "go_back",
+        "list_targets",
+        "focus_target",
+        "take_screenshot",
+        "capture_trace",
     }
     local_virtual_actions = {"click_element", "input_text", "send_keys"}
+    session_read_actions = {
+        "list_targets",
+        "focus_target",
+        "take_screenshot",
+        "capture_trace",
+    }
     capabilities: list[str] = ["browser_action"]
-    if local_static and normalized in local_read_actions | local_virtual_actions:
+    if normalized in session_read_actions or (local_resource and normalized in local_read_actions) or (
+        action.backend == "static" and local_resource and normalized in local_virtual_actions
+    ):
         # The static backend cannot submit forms or execute page JavaScript;
         # file:// navigation and its virtual inputs are local simulation only.
         capabilities.extend(("read_only", "local_browser_state"))

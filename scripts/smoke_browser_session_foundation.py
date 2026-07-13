@@ -58,7 +58,8 @@ def main() -> int:
         command = BrowserSessionCommand(
             run_id="run-smoke", task_id="task-smoke", worker_request_id="request-smoke",
             canonical_session_id="canonical-smoke", node_id="browser-smoke",
-            workspace_root=workspace, artifact_root=root / "artifacts", endpoint_url=endpoint,
+        workspace_root=workspace, artifact_root=root / "artifacts", endpoint_url=endpoint,
+        constraints={"browser_transport": "memory"},
         )
         started = runtime.start(command)
         replay = runtime.ensure_started(command)

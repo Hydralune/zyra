@@ -72,6 +72,7 @@ class TaskGraphTests(unittest.TestCase):
             state = create_task_state("Run a graph through a failing browser worker.")
             state.metadata["runtime_hints"] = {
                 "preferred_worker": "BrowserWorker",
+                "browser_backend": "static",
                 "browser_plan": [{"action": "open_url", "arguments": {"url": outside.resolve().as_uri()}}],
                 "allowed_schemes": ["file"],
             }

@@ -189,6 +189,7 @@ class JsonBrowserStateStore:
         return state
 
     def _write_atomic(self, path: Path, state: Mapping[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
         temp = path.with_suffix(path.suffix + ".tmp")
         encoded = json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2, default=str)
         with temp.open("w", encoding="utf-8") as stream:
@@ -198,6 +199,7 @@ class JsonBrowserStateStore:
         os.replace(temp, path)
 
     def _persist(self, state: dict[str, Any], mutation: StateMutation | None = None) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
         state["updated_at"] = browser_now()
         state["checksum"] = _checksum(state)
         if self.path.exists():
@@ -209,9 +211,12 @@ class JsonBrowserStateStore:
                 pass
         self._write_atomic(self.path, state)
         if mutation is not None:
+            self.journal_path.parent.mkdir(parents=True, exist_ok=True)
             with self.journal_path.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(mutation.to_dict(), sort_keys=True))
                 stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
 
     def _mutate(self, mutator: Callable[[dict[str, Any]], T], *, changed_paths: tuple[str, ...]) -> T:
         with self._lock:

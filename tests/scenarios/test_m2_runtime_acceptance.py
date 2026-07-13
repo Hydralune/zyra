@@ -109,9 +109,10 @@ class M2RuntimeAcceptanceScenario(unittest.TestCase):
                     run_id=state.run_id,
                     task_id=state.task_id,
                     node_id=state.root_node_id,
-                    worker_name="BrowserWorker",
-                    constraints={
-                        "browser_plan": [
+                worker_name="BrowserWorker",
+                constraints={
+                    "browser_backend": "static",
+                    "browser_plan": [
                             {"action": "open_url", "arguments": {"url": page.resolve().as_uri()}},
                             {"action": "extract_text"},
                             {"action": "click_element", "arguments": {"index": 0}},

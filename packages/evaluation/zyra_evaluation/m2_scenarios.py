@@ -221,6 +221,7 @@ def _browser_research_scenario(root: Path, out: Path) -> ScenarioRunRecord:
             node_id=state.root_node_id,
             worker_name="BrowserWorker",
             constraints={
+                "browser_backend": "static",
                 "browser_plan": [
                     {"action": "open_url", "arguments": {"url": page.resolve().as_uri()}},
                     {"action": "input_text", "arguments": {"index": 0, "text": "browser evidence"}},

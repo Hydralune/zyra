@@ -635,6 +635,9 @@ def _browser_constraints(
     browser_url: str,
 ) -> dict[str, Any]:
     constraints: dict[str, Any] = {}
+    browser_backend = hints.get("browser_backend")
+    if isinstance(browser_backend, str) and browser_backend.strip():
+        constraints["browser_backend"] = browser_backend.strip()
     if isinstance(hints.get("browser_plan"), list):
         constraints["browser_plan"] = hints["browser_plan"]
     else:

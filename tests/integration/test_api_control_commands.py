@@ -904,7 +904,7 @@ class ApiControlCommandTests(unittest.TestCase):
                             {"action": "open_url", "arguments": {"url": page.resolve().as_uri()}},
                             {"action": "extract_text"},
                         ],
-                        "constraints": {"allowed_schemes": ["file"]},
+                        "constraints": {"browser_backend": "static", "allowed_schemes": ["file"]},
                     },
                 )
 
@@ -976,7 +976,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 first_status, first = _post_with_status(
                     base_url,
                     f"/tasks/{task['task_id']}/workers/browser",
-                    {"browser_plan": plan},
+                    {"browser_plan": plan, "constraints": {"browser_backend": "static"}},
                 )
 
                 self.assertEqual(first_status, 409)
@@ -1019,6 +1019,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 retry_payload = {
                     "browser_plan": plan,
                     "constraints": {
+                        "browser_backend": "static",
                         "permission_session_id": session["session_id"],
                         "permission_session_custody_token": token,
                     },

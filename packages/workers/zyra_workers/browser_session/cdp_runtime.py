@@ -192,6 +192,14 @@ class CdpRequestRuntime:
         with self._lock:
             self._transport = None
             self._status = BrowserConnectionStatus.CLOSED
+            reader = self._reader
+            monitor = self._monitor
+            self._reader = None
+            self._monitor = None
+        current = threading.current_thread()
+        for thread in (reader, monitor):
+            if thread is not None and thread is not current and thread.is_alive():
+                thread.join(timeout=max(self.request_timeout_seconds, 0.25))
         self._publish("browser.cdp.closed", {"session_id": self.session_id, "generation": generation, "reason": reason})
 
     def reconnect(self) -> int:

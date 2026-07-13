@@ -31,6 +31,14 @@ class M5SchedulerFaultRecoveryScenarioTests(unittest.TestCase):
             page = workspace / "page.html"
             page.write_text("<html><body>M5 scheduler browser evidence.</body></html>", encoding="utf-8")
             state = create_task_state(f"Open {page.resolve().as_uri()} and collect browser evidence.")
+            state.metadata["runtime_hints"] = {
+                "preferred_worker": "BrowserWorker",
+                "browser_backend": "static",
+                "browser_plan": [
+                    {"action": "open_url", "arguments": {"url": page.resolve().as_uri()}},
+                ],
+                "allowed_schemes": ["file"],
+            }
             events = run_task_graph(
                 state,
                 execution_context=GraphExecutionContext.from_paths(

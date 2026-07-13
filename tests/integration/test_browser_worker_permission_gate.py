@@ -128,6 +128,7 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
             constraints={
                 "browser_plan": [{"action": "open_url", "arguments": {"url": url}}],
                 **(constraints or {}),
+                **({} if constraints and "browser_backend" in constraints else {"browser_backend": "static"}),
             },
         )
 

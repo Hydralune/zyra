@@ -96,6 +96,24 @@ class BrowserTargetRuntime:
             self._recovery_in_progress = False
             self._recovery_event.set()
 
+    def begin_cdp_generation(self) -> int:
+        """Invalidate flattened sessions while retaining HTTP-discovered targets."""
+        with self._lock:
+            self._generation += 1
+            self._sessions.clear()
+            self._target_sessions.clear()
+            self._session_targets.clear()
+            self._lifecycle_events.clear()
+            for target_id, target in tuple(self._targets.items()):
+                self._targets[target_id] = replace(
+                    target,
+                    status=str(BrowserTargetStatus.DISCOVERED),
+                    session_ids=(),
+                    attached_at="",
+                    updated_at=browser_now(),
+                )
+            return self._generation
+
     def reconcile(self, *, recover_focus: bool = True) -> tuple[BrowserTargetRef, ...]:
         self._ensure_available()
         discovery = self.discovery_factory()
@@ -171,9 +189,80 @@ class BrowserTargetRuntime:
             self._sessions[cdp_session_id] = cdp_session
             self._target_sessions[target_id].add(cdp_session_id)
             self._session_targets[cdp_session_id] = target_id
-            self._attach_count += 1
+            if existing_session is None:
+                self._attach_count += 1
         self._publish("browser.target.attached", {"target": target.to_dict(), "cdp_session_id": cdp_session_id})
         return target
+
+    def bind_cdp_events(self, cdp_runtime: Any) -> None:
+        for method in (
+            "Target.attachedToTarget",
+            "Target.detachedFromTarget",
+            "Target.targetCreated",
+            "Target.targetDestroyed",
+            "Target.targetInfoChanged",
+            "Page.lifecycleEvent",
+        ):
+            cdp_runtime.register(method, lambda params, event_method=method: self.ingest_cdp_event(event_method, params))
+
+    def ingest_cdp_event(self, method: str, params: Mapping[str, Any]) -> None:
+        if method == "Target.attachedToTarget":
+            target_info = dict(params.get("targetInfo") or {})
+            target_id = str(target_info.get("targetId") or "")
+            cdp_session_id = str(params.get("sessionId") or "")
+            if target_id and cdp_session_id:
+                self.attach_target(
+                    target_id,
+                    cdp_session_id,
+                    target_type=str(target_info.get("type") or "page"),
+                    url=str(target_info.get("url") or ""),
+                    title=str(target_info.get("title") or ""),
+                )
+            return
+        if method == "Target.detachedFromTarget":
+            self.detach_session(
+                str(params.get("sessionId") or ""),
+                reason=str(params.get("reason") or "cdp_detached"),
+                recover_focus=False,
+            )
+            return
+        if method == "Target.targetDestroyed":
+            self.detach_target(
+                str(params.get("targetId") or ""),
+                reason="cdp_target_destroyed",
+                recover_focus=False,
+            )
+            return
+        if method in {"Target.targetCreated", "Target.targetInfoChanged"}:
+            self.upsert_target_info(dict(params.get("targetInfo") or {}))
+            return
+        if method == "Page.lifecycleEvent":
+            cdp_session_id = str(params.get("_cdp_session_id") or "")
+            if cdp_session_id:
+                try:
+                    self.append_lifecycle(cdp_session_id, params)
+                except BrowserTargetDetached:
+                    pass
+
+    def upsert_target_info(self, target_info: Mapping[str, Any]) -> BrowserTargetRef | None:
+        target_id = str(target_info.get("targetId") or "")
+        if not target_id:
+            return None
+        with self._lock:
+            current = self._targets.get(target_id)
+            target = BrowserTargetRef(
+                target_id=target_id,
+                target_type=str(target_info.get("type") or (current.target_type if current else "page")),
+                url=str(target_info.get("url") or (current.url if current else "")),
+                title=str(target_info.get("title") or (current.title if current else "")),
+                status=current.status if current else str(BrowserTargetStatus.DISCOVERED),
+                session_ids=current.session_ids if current else (),
+                opener_id=str(target_info.get("openerId") or (current.opener_id if current else "")),
+                attached_at=current.attached_at if current else "",
+                updated_at=browser_now(),
+            )
+            self._targets[target_id] = target
+            return target
 
     def detach_session(
         self,
@@ -369,12 +458,30 @@ class BrowserTargetRuntime:
 
     def cdp_session(self, target_id: str) -> BrowserCdpSessionRef:
         with self._lock:
-            session_ids = tuple(self._target_sessions.get(target_id, ()))
+            session_ids = tuple(sorted(self._target_sessions.get(target_id, ())))
             for session_id in session_ids:
                 session = self._sessions.get(session_id)
-                if session is not None:
+                if session is not None and session.generation == self._generation:
                     return session
         raise BrowserTargetDetached(f"target {target_id} has no attached CDP session", session_id=self.session_id)
+
+    def wait_for_cdp_session(self, target_id: str, *, timeout: float = 2.0) -> BrowserCdpSessionRef:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                return self.cdp_session(target_id)
+            except BrowserTargetDetached:
+                time.sleep(0.01)
+        return self.cdp_session(target_id)
+
+    def active_cdp_session(self, *, timeout: float = 2.0) -> BrowserCdpSessionRef:
+        target = self.ensure_valid_focus(timeout=timeout)
+        return self.wait_for_cdp_session(target.target_id, timeout=timeout)
+
+    def cdp_session_id(self, target_id: str = "", *, timeout: float = 2.0) -> str:
+        if target_id:
+            return self.wait_for_cdp_session(target_id, timeout=timeout).cdp_session_id
+        return self.active_cdp_session(timeout=timeout).cdp_session_id
 
     @property
     def active_target_id(self) -> str:

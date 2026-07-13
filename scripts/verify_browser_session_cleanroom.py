@@ -12,7 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COPY_DIRECTORIES = ("apps", "packages", "skills", "scripts", "tests")
 COPY_FILES = ("pyproject.toml", "requirements.txt", "requirements-dev.txt", "pytest.ini")
-IGNORED = {".git", ".cache", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "__pycache__", "artifacts", "tmp", "vendor", "vendor-runtimes"}
+IGNORED = {".git", ".cache", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "__pycache__", "artifacts", "tmp", "vendor", "vendor-runtimes", "build", "dist"}
 SOURCE_REPOSITORIES = ("browser-use", "claude-code-best", "opencode", "OpenHands", "agentscope", "agent-framework", "hermes-agent", "langgraph", "openclaw", "oh-my-pi")
 
 
@@ -47,24 +47,78 @@ def clean_environment(clean_root: Path) -> dict[str, str]:
         "ZYRA_ARTIFACT_ROOT": str(state / "artifacts"),
         "ZYRA_BROWSER_STATE": str(state / "browser-state"),
         "ZYRA_PERMISSION_STATE": str(state / "permission-state.json"),
+        "ZYRA_BROWSER_FORBIDDEN_SOURCE_ROOTS": os.pathsep.join(
+            [str((PROJECT_ROOT.parent / name).resolve()) for name in SOURCE_REPOSITORIES]
+            + [str((PROJECT_ROOT / name).resolve()) for name in ("vendor", "vendor-runtimes")]
+        ),
     })
     return environment
 
 
+def selected_site_packages(python: Path) -> tuple[Path, ...]:
+    probe = subprocess.run(
+        [
+            str(python),
+            "-c",
+            (
+                "import json, site, sysconfig; "
+                "print(json.dumps(list(dict.fromkeys([*site.getsitepackages(), "
+                "sysconfig.get_path('purelib'), sysconfig.get_path('platlib')]))))"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    values = json.loads(probe.stdout)
+    return tuple(
+        dict.fromkeys(
+            Path(str(value)).resolve()
+            for value in values
+            if value and Path(str(value)).is_dir()
+        )
+    )
+
+
+def isolated_python_path(clean_root: Path, site_packages: tuple[Path, ...]) -> str:
+    package_paths = tuple(
+        path.resolve()
+        for path in sorted((clean_root / "packages").iterdir())
+        if path.is_dir()
+    )
+    return os.pathsep.join(str(path) for path in (clean_root.resolve(), *package_paths, *site_packages))
+
+
 def run_cleanroom(*, python: Path, clean_root: Path) -> list[dict[str, object]]:
     commands = (
-        [str(python), "-m", "unittest", "tests.unit.test_browser_session_runtime_foundation"],
-        [str(python), "-m", "unittest", "tests.integration.test_browser_session_productization_foundation"],
-        [str(python), "scripts/smoke_browser_session_foundation.py"],
-        [str(python), "scripts/verify_submission_boundary.py"],
+        [str(python), "-S", "-m", "unittest", "tests.unit.test_browser_session_runtime_foundation"],
+        [str(python), "-S", "-m", "unittest", "tests.unit.test_browser_chrome_process_custody"],
+        [str(python), "-S", "-m", "unittest", "tests.integration.test_browser_session_productization_foundation"],
+        [str(python), "-S", "-m", "unittest", "tests.integration.test_browser_session_productization_integration"],
+        [str(python), "-S", "-m", "unittest", "tests.integration.test_browser_session_productization_api"],
+        [str(python), "-S", "scripts/smoke_browser_session_foundation.py"],
+        [str(python), "-S", "scripts/smoke_browser_session_productization.py"],
+        [str(python), "-S", "scripts/audit_browser_session_cleanroom.py"],
+        [str(python), "-S", "scripts/verify_submission_boundary.py"],
     )
     environment = clean_environment(clean_root)
+    site_packages = selected_site_packages(python)
+    environment["PYTHONPATH"] = isolated_python_path(clean_root, site_packages)
+    environment["ZYRA_BROWSER_INACTIVE_SITE_PACKAGES"] = os.pathsep.join(
+        str(path) for path in site_packages
+    )
     forbidden = [str(PROJECT_ROOT.parent / name) for name in SOURCE_REPOSITORIES]
     results: list[dict[str, object]] = []
     for command in commands:
-        completed = subprocess.run(command, cwd=clean_root, env=environment, capture_output=True, text=True, timeout=240, check=False)
+        if Path(command[0]).resolve() != python.resolve():
+            raise RuntimeError(f"cleanroom subprocess escaped the selected Python boundary: {command}")
+        completed = subprocess.run(command, cwd=clean_root, env=environment, capture_output=True, text=True, timeout=360, check=False)
         combined = completed.stdout + "\n" + completed.stderr
-        leaks = [value for value in forbidden if value.casefold() in combined.casefold()]
+        is_audit = command[-1] == "scripts/audit_browser_session_cleanroom.py"
+        leaks = [] if is_audit else [
+            value for value in forbidden if value.casefold() in combined.casefold()
+        ]
         if leaks:
             raise RuntimeError(f"browser cleanroom exposed source-repository paths: {leaks}")
         result = {"command": command[1:], "returncode": completed.returncode, "stdout_tail": completed.stdout[-2000:], "stderr_tail": completed.stderr[-2000:]}

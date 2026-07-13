@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import threading
@@ -193,6 +194,7 @@ class BrowserWorkerTests(unittest.TestCase):
                 node_id=state.root_node_id,
                 worker_name="BrowserWorker",
                 constraints={
+                    "browser_backend": "static",
                     "browser_plan": [
                         {"action": "open_url", "arguments": {"url": page.resolve().as_uri()}},
                         {"action": "extract_text"},
@@ -255,6 +257,7 @@ class BrowserWorkerTests(unittest.TestCase):
                 node_id=state.root_node_id,
                 worker_name="BrowserWorker",
                 constraints={
+                    "browser_backend": "static",
                     "browser_plan": [
                         {"action": "open_url", "arguments": {"url": index.resolve().as_uri()}},
                         {"action": "input_text", "arguments": {"index": 0, "text": "needle"}},
@@ -291,6 +294,7 @@ class BrowserWorkerTests(unittest.TestCase):
                 node_id=state.root_node_id,
                 worker_name="BrowserWorker",
                 constraints={
+                    "browser_backend": "static",
                     "browser_plan": [
                         {"action": "evaluate_js", "arguments": {"code": "1 + 1"}},
                     ],
@@ -406,13 +410,16 @@ class BrowserWorkerTests(unittest.TestCase):
                         "browser_backend": "browser-use-live",
                         "browser_plan": [
                             {"action": "open_url", "arguments": {"url": url}},
-                            {"action": "input_text", "arguments": {"index": 5, "text": "zyra live test"}},
-                            {"action": "click_element", "arguments": {"index": 6}},
+                            {"action": "input_text", "arguments": {"id": "q", "text": "zyra live test"}},
+                            {"action": "snapshot_state"},
+                            {"action": "click_element", "arguments": {"id": "run"}},
                             {
                                 "action": "evaluate_js",
                                 "arguments": {
                                     "code": (
-                                        "(function(){document.body.insertAdjacentHTML('beforeend',"
+                                        "(function(){const clicked=document.querySelector('#result')?.textContent;"
+                                        "if(clicked!=='live result zyra live test'){throw new Error('click contract failed: '+clicked);};"
+                                        "document.body.insertAdjacentHTML('beforeend',"
                                         "'<p id=\"eval\">zyra evaluated marker</p>');"
                                         "return document.querySelector('#eval').textContent;})()"
                                     )
@@ -433,6 +440,8 @@ class BrowserWorkerTests(unittest.TestCase):
                             {"action": "search_page", "arguments": {"pattern": "Live Browser Fixture"}},
                         ],
                         "live_timeout_seconds": 90,
+                        "live_navigation_timeout_seconds": 30,
+                        "live_action_timeout_seconds": 30,
                         **permission_constraints,
                     },
                 )
@@ -440,9 +449,20 @@ class BrowserWorkerTests(unittest.TestCase):
                 run = runtime.run(request)
                 browser_events = _browser_events(run)
 
-                self.assertTrue(run.worker_result.ok, run.worker_result.error)
+                self.assertTrue(
+                    run.worker_result.ok,
+                    json.dumps(
+                        {
+                            "error": run.worker_result.error,
+                            "metadata": run.worker_result.metadata,
+                        },
+                        sort_keys=True,
+                    ),
+                )
                 self.assertEqual(run.worker_result.metadata["browser_backend"], "browser-use-live")
-                self.assertEqual(len(browser_events), 14)
+                self.assertEqual(run.worker_result.metadata["live_navigation_timeout_seconds"], "30")
+                self.assertEqual(run.worker_result.metadata["live_action_timeout_seconds"], "30")
+                self.assertEqual(len(browser_events), 15)
                 self.assertEqual(
                     browser_events[1].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
@@ -450,38 +470,39 @@ class BrowserWorkerTests(unittest.TestCase):
                     "Typed 'zyra live test'",
                 )
                 self.assertEqual(
-                    browser_events[3].payload["browser_result"]["output"]["browser_use_action_result"][
+                    browser_events[4].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
                     ],
                     "zyra evaluated marker",
                 )
-                self.assertGreater(browser_events[4].payload["browser_result"]["output"]["screenshot_size_bytes"], 0)
+                selector_contract = {
+                    item["attributes"].get("id"): item
+                    for item in browser_events[2].payload["browser_result"]["output"][
+                        "browser_use_interactive_elements"
+                    ]
+                }
+                self.assertIn("q", selector_contract)
+                self.assertIn("run", selector_contract)
+                self.assertNotEqual(selector_contract["q"]["index"], selector_contract["run"]["index"])
+                self.assertGreater(browser_events[5].payload["browser_result"]["output"]["screenshot_size_bytes"], 0)
                 self.assertTrue(
                     any(artifact.kind == "screenshot" for artifact in run.worker_result.artifacts),
                     "expected screenshot artifact",
                 )
-                self.assertGreater(browser_events[5].payload["browser_result"]["output"]["pdf_size_bytes"], 0)
+                self.assertGreater(browser_events[6].payload["browser_result"]["output"]["pdf_size_bytes"], 0)
                 self.assertTrue(
                     any(str(artifact.uri).lower().endswith(".pdf") for artifact in run.worker_result.artifacts),
                     "expected PDF artifact",
                 )
-                self.assertEqual(browser_events[10].payload["browser_result"]["output"]["match_count"], 1)
-                self.assertEqual(browser_events[8].payload["browser_action"]["source_action"], "find_text")
+                self.assertEqual(browser_events[11].payload["browser_result"]["output"]["match_count"], 1)
+                self.assertEqual(browser_events[9].payload["browser_action"]["source_action"], "find_text")
                 self.assertEqual(
-                    browser_events[12].payload["browser_result"]["output"]["browser_use_action_result"][
+                    browser_events[13].payload["browser_result"]["output"]["browser_use_action_result"][
                         "extracted_content"
                     ],
                     "Navigated back",
                 )
-                self.assertGreaterEqual(browser_events[13].payload["browser_result"]["output"]["match_count"], 1)
-                interactive_indexes = {
-                    item["index"]
-                    for item in browser_events[0].payload["browser_result"]["output"][
-                        "browser_use_interactive_elements"
-                    ]
-                }
-                self.assertIn(5, interactive_indexes)
-                self.assertIn(6, interactive_indexes)
+                self.assertGreaterEqual(browser_events[14].payload["browser_result"]["output"]["match_count"], 1)
             finally:
                 server.shutdown()
                 server.server_close()
@@ -611,7 +632,7 @@ class BrowserWorkerTests(unittest.TestCase):
                 task_id=state.task_id,
                 node_id=state.root_node_id,
                 worker_name="BrowserWorker",
-                constraints={"browser_plan": [{"action": "navigate", "arguments": {}}]},
+                constraints={"browser_backend": "static", "browser_plan": [{"action": "navigate", "arguments": {}}]},
             )
 
             run = runtime.run(request)
@@ -638,6 +659,7 @@ class BrowserWorkerTests(unittest.TestCase):
                 node_id=state.root_node_id,
                 worker_name="BrowserWorker",
                 constraints={
+                    "browser_backend": "static",
                     "browser_plan": [{"action": "open_url", "arguments": {"url": outside.resolve().as_uri()}}],
                     "allowed_schemes": ["file"],
                 },

@@ -19,14 +19,17 @@ from .browser_use_runtime import (
 )
 from .browser_worker import BrowserWorkerRun, BrowserWorkerRuntime
 from .browser_session import (
+    BrowserRuntimeRegistry,
     BrowserRuntime,
     BrowserRuntimeConfig,
+    BrowserSessionApplication,
     BrowserSessionCommand,
     BrowserSessionDiagnostic,
     BrowserSessionRef,
     BrowserSessionStartResult,
     BrowserSessionStopResult,
     JsonBrowserStateStore,
+    default_browser_runtime_registry,
 )
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_query_loop import CodeQueryLoop, CodeQueryLoopConfig, CodeQueryLoopResult, query_turns_from_constraints
@@ -108,13 +111,16 @@ __all__ = [
     "BrowserWorkerRun",
     "BrowserWorkerRuntime",
     "BrowserRuntime",
+    "BrowserRuntimeRegistry",
     "BrowserRuntimeConfig",
+    "BrowserSessionApplication",
     "BrowserSessionCommand",
     "BrowserSessionDiagnostic",
     "BrowserSessionRef",
     "BrowserSessionStartResult",
     "BrowserSessionStopResult",
     "JsonBrowserStateStore",
+    "default_browser_runtime_registry",
     "BridgeProbeResult",
     "BridgeProbeStatus",
     "BridgeProbeStep",

@@ -77,6 +77,18 @@ class BrowserActionRegistry:
             arguments = step.get("arguments")
             if not isinstance(arguments, dict):
                 arguments = {}
+            normalized_action = self.normalize_action(action)
+            if normalized_action in {"click_element", "input_text"} and not any(
+                arguments.get(name) not in (None, "")
+                for name in ("index", "id", "element_id", "selector", "css_selector")
+            ):
+                issues.append(
+                    BrowserPlanValidationIssue(
+                        index,
+                        action,
+                        "missing_required_target:index|id|selector",
+                    )
+                )
             for argument_name in descriptor.zyra_required_arguments:
                 if arguments.get(argument_name) in (None, ""):
                     issues.append(
@@ -154,9 +166,9 @@ def default_browser_action_registry(project_root: str | Path) -> BrowserActionRe
             action="click_element",
             source_action="click",
             source_model="ClickElementAction",
-            fallback_description="Click an indexed element in the current browser state.",
-            zyra_required_arguments=("index",),
-            zyra_optional_arguments=("coordinate_x", "coordinate_y"),
+            fallback_description="Click an element resolved from the current state by index, id, or #id selector.",
+            zyra_required_arguments=(),
+            zyra_optional_arguments=("index", "id", "element_id", "selector", "css_selector"),
             source_by_name=source_by_name,
             model_fields=model_fields,
         ),
@@ -164,9 +176,9 @@ def default_browser_action_registry(project_root: str | Path) -> BrowserActionRe
             action="input_text",
             source_action="input",
             source_model="InputTextAction",
-            fallback_description="Input text into an indexed element.",
-            zyra_required_arguments=("index", "text"),
-            zyra_optional_arguments=("clear",),
+            fallback_description="Input text into an element resolved by index, id, or #id selector.",
+            zyra_required_arguments=("text",),
+            zyra_optional_arguments=("index", "id", "element_id", "selector", "css_selector", "clear"),
             source_by_name=source_by_name,
             model_fields=model_fields,
         ),

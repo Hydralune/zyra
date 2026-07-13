@@ -123,6 +123,7 @@ class BrowserProfileStore:
         session_id: str,
         *,
         policy: BrowserProfilePolicy | None = None,
+        active_owned_profile: bool = False,
     ) -> BrowserProfilePreparation:
         self._ensure_available()
         policy = policy or BrowserProfilePolicy()
@@ -138,6 +139,22 @@ class BrowserProfileStore:
                         copied=False,
                         recovered=False,
                         chrome_args=self.chrome_args(existing, command, policy),
+                    )
+                if (
+                    active_owned_profile
+                    and health.root_exists
+                    and health.marker_valid
+                    and health.directories_valid
+                    and health.lock_files
+                    and set(health.issues) == {"profile contains transient lock files"}
+                ):
+                    return BrowserProfilePreparation(
+                        profile=existing,
+                        created=False,
+                        copied=False,
+                        recovered=False,
+                        chrome_args=self.chrome_args(existing, command, policy),
+                        warnings=("verified active-owned Chrome profile retains transient lock files",),
                     )
                 if not policy.quarantine_corrupt:
                     raise BrowserProfileCorrupt(

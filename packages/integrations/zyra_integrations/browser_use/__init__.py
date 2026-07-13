@@ -12,7 +12,9 @@ from .chrome_process import (
     ChromeProcessController,
     ChromeProcessSnapshot,
     ChromeProcessState,
+    ChromeSandboxBypassRequired,
 )
+from .cdp_transport import WebSocketCdpTransport
 from .discovery import (
     BrowserEndpoint,
     BrowserEndpointDiscovery,
@@ -73,11 +75,13 @@ __all__ = [
     "ChromeProcessController",
     "ChromeProcessSnapshot",
     "ChromeProcessState",
+    "ChromeSandboxBypassRequired",
     "DiscoveryError",
     "DiscoverySnapshot",
     "RedactedHeaders",
     "RequestIdAllocator",
     "WebSocketClient",
+    "WebSocketCdpTransport",
     "WebSocketClosed",
     "WebSocketConfig",
     "WebSocketError",

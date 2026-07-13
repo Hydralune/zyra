@@ -186,6 +186,8 @@ from zyra_workers import (
     FanoutRequest,
     FanoutStore,
     LogicalFanoutRuntime,
+    BrowserRuntimeConfig,
+    BrowserRuntimeRegistry,
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
     CodeWorkerSubagentExecutionPort,
@@ -477,6 +479,67 @@ _SUBAGENT_RUNTIME_LOCK = threading.RLock()
 _SUBAGENT_RUNTIME: SubagentRuntime | None = None
 _SUBAGENT_RUNTIME_KEY: str | None = None
 _FANOUT_RUNTIME_INSTANCES: dict[str, LogicalFanoutRuntime] = {}
+_BROWSER_RUNTIME_LOCK = threading.RLock()
+_BROWSER_RUNTIME_REGISTRY = BrowserRuntimeRegistry()
+
+
+def browser_runtime_config() -> BrowserRuntimeConfig:
+    return BrowserRuntimeConfig(
+        state_root=artifact_root_path() / ".browser-session" / "state",
+        runtime_root=PROJECT_ROOT / "tmp" / "browser-session-runtime",
+        artifact_root=artifact_root_path(),
+        request_timeout_seconds=float(os.environ.get("ZYRA_BROWSER_REQUEST_TIMEOUT", "15")),
+        connect_timeout_seconds=float(os.environ.get("ZYRA_BROWSER_CONNECT_TIMEOUT", "15")),
+    )
+
+
+def get_browser_runtime() -> Any:
+    """Return the process-live 04A browser resource owner.
+
+    Canonical task/session identity remains in SQLite/02B.  This registry owns
+    only Chrome, CDP, target/focus, event-bus and reconnect resources whose
+    process lifetime must span sequential HTTP worker requests.
+    """
+
+    with _BROWSER_RUNTIME_LOCK:
+        return _BROWSER_RUNTIME_REGISTRY.get_or_create(browser_runtime_config())
+
+
+def get_browser_runtime_services() -> tuple[Any, BrowserWorkerRuntime]:
+    """Bind API requests to one registry runtime and its shared services."""
+
+    runtime = get_browser_runtime()
+    worker = BrowserWorkerRuntime(
+        project_root=PROJECT_ROOT,
+        workspace_root=tool_workspace_path(),
+        artifact_root=artifact_root_path(),
+        permission_state_path=permission_state_path(),
+        browser_session_runtime=runtime,
+        browser_runtime_registry=_BROWSER_RUNTIME_REGISTRY,
+    )
+    return runtime, worker
+
+
+def _browser_projection_payload(projection: Any) -> dict[str, Any]:
+    if isinstance(projection, dict):
+        return dict(projection)
+    to_dict = getattr(projection, "to_dict", None)
+    if callable(to_dict):
+        value = to_dict()
+        if isinstance(value, dict):
+            return dict(value)
+        return {"value": to_jsonable(value)}
+    value = to_jsonable(projection)
+    if isinstance(value, dict):
+        return value
+    return {"value": value}
+
+
+def reset_browser_runtime(*, stop: bool = True) -> None:
+    """Explicit test/development reset; never silently replace a live owner."""
+
+    with _BROWSER_RUNTIME_LOCK:
+        _BROWSER_RUNTIME_REGISTRY.shutdown(force=stop)
 
 
 def control_state_path() -> Path:
@@ -2494,7 +2557,87 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["workers", "browser", "health"]:
-            self._send_json(HTTPStatus.OK, browser_use_health_summary(inspect_browser_use_runtime(PROJECT_ROOT)))
+            runtime, worker = get_browser_runtime_services()
+            compatibility = browser_use_health_summary(inspect_browser_use_runtime(PROJECT_ROOT))
+            diagnostics = _BROWSER_RUNTIME_REGISTRY.diagnostics(
+                browser_runtime_config(),
+                action_runtime=worker.browser_session_application,
+                lease_store=worker.browser_session_application.receipt_store,
+            )
+            projection = _BROWSER_RUNTIME_REGISTRY.projection(
+                browser_runtime_config(),
+                lease_store=worker.browser_session_application.receipt_store,
+            )
+            diagnostic_payload = _browser_projection_payload(diagnostics)
+            integration_diagnostics = diagnostic_payload.get("integration_audit")
+            integration_ok = bool(
+                isinstance(integration_diagnostics, dict)
+                and integration_diagnostics.get(
+                    "ok",
+                    integration_diagnostics.get("ready", False),
+                )
+            )
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    **compatibility,
+                    "ok": bool(diagnostic_payload.get("ok"))
+                    and integration_ok
+                    and not bool(diagnostic_payload.get("blocking_findings")),
+                    "runtime": runtime.snapshot(),
+                    "diagnostics": diagnostic_payload,
+                    "projection": _browser_projection_payload(projection),
+                    "compatibility": compatibility,
+                    "state_owner": "JsonBrowserStateStore",
+                    "canonical_task_owner": "SQLiteStore",
+                    "permission_owner": "PermissionStateStore",
+                    "source_repository_dependency": False,
+                },
+            )
+            return
+
+        if parts == ["workers", "browser", "sessions"]:
+            runtime, worker = get_browser_runtime_services()
+            projection = _BROWSER_RUNTIME_REGISTRY.projection(
+                browser_runtime_config(),
+                lease_store=worker.browser_session_application.receipt_store,
+            )
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "sessions": [to_jsonable(item) for item in runtime.list_sessions()],
+                    "registry": _BROWSER_RUNTIME_REGISTRY.snapshot(),
+                    "projection": _browser_projection_payload(projection),
+                    "state_owner": "JsonBrowserStateStore",
+                },
+            )
+            return
+
+        if len(parts) == 4 and parts[:3] == ["workers", "browser", "sessions"]:
+            runtime, worker = get_browser_runtime_services()
+            try:
+                session = runtime.get_session(parts[3])
+                diagnostic = runtime.diagnose(parts[3])
+                projection = _BROWSER_RUNTIME_REGISTRY.projection(
+                    browser_runtime_config(),
+                    session_id=parts[3],
+                    lease_store=worker.browser_session_application.receipt_store,
+                )
+            except Exception as error:  # noqa: BLE001 - typed browser lookup boundary.
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": type(error).__name__, "message": str(error)},
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "session": to_jsonable(session),
+                    "diagnostic": to_jsonable(diagnostic),
+                    "projection": _browser_projection_payload(projection),
+                    "state_owner": "JsonBrowserStateStore",
+                },
+            )
             return
 
         if parts == ["artifacts"]:
@@ -3427,12 +3570,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 constraints=constraints,
             )
             try:
-                run_result = BrowserWorkerRuntime(
-                    project_root=PROJECT_ROOT,
-                    workspace_root=tool_workspace_path(),
-                    artifact_root=artifact_root_path(),
-                    permission_state_path=permission_state_path(),
-                ).run(request)
+                _runtime, browser_worker = get_browser_runtime_services()
+                run_result = browser_worker.run(request)
             except Exception as error:  # noqa: BLE001 - API must report browser worker startup/runtime failures.
                 self._send_json(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -3442,7 +3581,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
             if run_result.worker_result.artifacts:
                 state.artifacts.extend(run_result.worker_result.artifacts)
-            state.budget.tool_calls += sum(1 for event in run_result.event_records if "browser_result" in event.payload)
+            state.budget.tool_calls += sum(
+                1
+                for event in run_result.event_records
+                if "browser_result" in event.payload or "browser_action" in event.payload
+            )
             if run_result.event_records:
                 state.updated_at = run_result.event_records[-1].created_at
             persist_events(store, run_result.event_records)
