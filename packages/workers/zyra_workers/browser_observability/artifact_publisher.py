@@ -57,7 +57,7 @@ class BrowserArtifactPublisher:
     ) -> None:
         self.artifact_store = artifact_store
         self.policy = policy or ArtifactPublisherPolicy()
-        self._by_digest: dict[str, ArtifactPublication] = {}
+        self._by_key: dict[tuple[str, str, str, str], ArtifactPublication] = {}
 
     def adopt(
         self,
@@ -96,7 +96,19 @@ class BrowserArtifactPublisher:
                 "producer_node_id": artifact.producer_node_id,
             },
         )
-        existing = self._by_digest.get(digest)
+        lineage_key = (
+            scope.key,
+            str(role),
+            digest,
+            digest_value(
+                {
+                    "source_event_ids": list(source_event_ids),
+                    "source_record_ids": list(source_record_ids),
+                    "parent_artifact_ids": list(parent_artifact_ids),
+                }
+            ),
+        )
+        existing = self._by_key.get(lineage_key)
         if existing and self.policy.deduplicate:
             return ArtifactPublication(
                 artifact=existing.artifact,
@@ -106,7 +118,7 @@ class BrowserArtifactPublisher:
             )
         event = self._event(scope, artifact, lineage)
         publication = ArtifactPublication(artifact, lineage, event)
-        self._by_digest[digest] = publication
+        self._by_key[lineage_key] = publication
         return publication
 
     def publish_trace(
@@ -188,7 +200,7 @@ class BrowserArtifactPublisher:
         role: ArtifactRole | None = None,
     ) -> tuple[ArtifactPublication, ...]:
         output: list[ArtifactPublication] = []
-        for item in self._by_digest.values():
+        for item in self._by_key.values():
             if scope is not None and item.lineage.scope != scope:
                 continue
             if role is not None and item.lineage.role != role:
@@ -278,6 +290,7 @@ class BrowserArtifactPublisher:
             kind=kind,
             title=title,
             producer_node_id=producer_node_id,
+            extension=suffix,
         )
         artifact.metadata.update(
             {

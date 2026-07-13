@@ -18,6 +18,8 @@ DEFAULT_LEDGER = (
 )
 FOUNDATION_TEST = "tests/unit/test_browser_observability_foundation.py"
 INTEGRATION_TEST = "tests/integration/test_browser_observability_main_path.py"
+ACTIVE_INTEGRATION_TEST = "tests/unit/test_browser_observability_integration.py"
+HTTP_INTEGRATION_TEST = "tests/integration/test_browser_session_productization_api.py"
 FOUNDATION_COMMAND = (
     "python -m pytest tests/unit/test_browser_observability_foundation.py -q"
 )
@@ -131,6 +133,97 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "so it cannot be represented as an attached upstream behavior."
         ),
     },
+    {
+        "source_repo": "browser-use",
+        "source_path": (
+            "browser_use/browser/session.py;"
+            "browser_use/browser/watchdogs/**;"
+            "browser_use/browser/profile.py;"
+            "browser_use/browser/views.py"
+        ),
+        "capability_name": "browser_active_watchdog_history_artifact_integration",
+        "capability_summary": (
+            "Pre-action event attachment, atomic history visibility, download and "
+            "screenshot lifecycle cleanup, storage restore, navigation closure and "
+            "typed failure handoff on the productized worker path."
+        ),
+        "target_paths": [
+            "packages/workers/zyra_workers/browser_observability/integration/application.py",
+            "packages/workers/zyra_workers/browser_observability/integration/event_bus.py",
+            "packages/workers/zyra_workers/browser_observability/integration/downloads.py",
+            "packages/workers/zyra_workers/browser_observability/integration/storage.py",
+            "packages/workers/zyra_workers/browser_observability/integration/screenshots.py",
+            "packages/workers/zyra_workers/browser_observability/integration/navigation.py",
+            "packages/workers/zyra_workers/browser_observability/history_store.py",
+            "packages/workers/zyra_workers/browser_session/screenshot_capture.py",
+        ],
+        "source_role": "primary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "lifecycle": "productized",
+        "main_path_status": "tested_main_path",
+        "runtime_required": True,
+        "owner_unit": "M1-S04D-02",
+        "rationale": (
+            "Zyra reuses 04A event/CDP/profile and 04C action/download owners; "
+            "04D observes and fences them without a second browser state owner."
+        ),
+    },
+    {
+        "source_repo": "OpenHands",
+        "source_path": "openhands/events/**;openhands/storage/**;openhands/server/**",
+        "capability_name": "browser_restart_projection_and_delivery_fence",
+        "capability_summary": (
+            "Restart-safe health/artifact projections, redacted HTTP views and a "
+            "durable history/artifact/event/checkpoint delivery fence."
+        ),
+        "target_paths": [
+            "packages/workers/zyra_workers/browser_observability/restart_projection.py",
+            "packages/workers/zyra_workers/browser_observability/integration/commit_fence.py",
+            "packages/workers/zyra_workers/browser_observability/api_projection.py",
+            "apps/api/zyra_api/main.py",
+        ],
+        "source_role": "supplementary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "lifecycle": "productized",
+        "main_path_status": "tested_main_path",
+        "runtime_required": True,
+        "owner_unit": "M1-S04D-02",
+        "rationale": (
+            "Existing Zyra EventLog, LocalArtifactStore, BrowserHistoryStore and "
+            "TaskState retain custody; the fence exposes partial delivery rather "
+            "than claiming a cross-store transaction."
+        ),
+    },
+    {
+        "source_repo": "oh-my-pi",
+        "source_path": (
+            "packages/coding-agent/src/core/agent-loop.ts;"
+            "packages/coding-agent/src/tools/edit/hashline.ts;"
+            "packages/coding-agent/src/task/**;"
+            "packages/coding-agent/src/worktree/**"
+        ),
+        "capability_name": "browser_runtime_evidence_and_trajectory_mapping",
+        "capability_summary": (
+            "Strict partial/terminal provider evidence, MCP/subagent/background "
+            "correlation, Hashline/worktree conflict receipts and immutable "
+            "MemoryFabric trajectory input."
+        ),
+        "target_paths": [
+            "packages/workers/zyra_workers/browser_observability/integration/contracts.py",
+            "packages/workers/zyra_workers/browser_observability/integration/runtime_evidence.py",
+            "packages/workers/zyra_workers/browser_observability/integration/trajectory.py",
+        ],
+        "source_role": "supplementary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "lifecycle": "productized",
+        "main_path_status": "tested_main_path",
+        "runtime_required": True,
+        "owner_unit": "M1-S04D-02",
+        "rationale": (
+            "The optional mapper cannot affect canonical browser execution when "
+            "disabled and never becomes provider, MCP, subagent or recovery owner."
+        ),
+    },
 )
 
 
@@ -152,6 +245,8 @@ def entry(
 ) -> dict[str, Any]:
     targets = list(decision["target_paths"])
     runtime_required = bool(decision["runtime_required"])
+    owner_unit = str(decision.get("owner_unit") or "M1-S04D-01")
+    integration_slice = owner_unit == "M1-S04D-02"
     main_path = (
         {
             "surfaces": [
@@ -206,7 +301,7 @@ def entry(
         "migration_strategy": decision["migration_strategy"],
         "main_path_status": decision["main_path_status"],
         "lifecycle": decision["lifecycle"],
-        "owner_unit": "M1-S04D-01",
+        "owner_unit": owner_unit,
         "main_path": main_path,
         "line_count_policy": (
             "counts_as_runtime"
@@ -236,8 +331,14 @@ def entry(
                 "required": True,
             },
             {
-                "path": INTEGRATION_TEST,
-                "command": INTEGRATION_COMMAND,
+                "path": (
+                    ACTIVE_INTEGRATION_TEST if integration_slice else INTEGRATION_TEST
+                ),
+                "command": (
+                    "python -m pytest tests/unit/test_browser_observability_integration.py -q"
+                    if integration_slice
+                    else INTEGRATION_COMMAND
+                ),
                 "kind": "integration",
                 "expected_signal": (
                     "default browser path publishes history/trace/artifacts "
@@ -245,6 +346,25 @@ def entry(
                 ),
                 "required": runtime_required,
             },
+            *(
+                [
+                    {
+                        "path": HTTP_INTEGRATION_TEST,
+                        "command": (
+                            "python -m pytest "
+                            "tests/integration/test_browser_session_productization_api.py -q"
+                        ),
+                        "kind": "integration",
+                        "expected_signal": (
+                            "HTTP main path closes the event/checkpoint fence and "
+                            "rebuilds redacted durable views"
+                        ),
+                        "required": True,
+                    }
+                ]
+                if integration_slice and runtime_required
+                else []
+            ),
         ],
         "notes": (
             f"source_role={decision['source_role']}; "
@@ -252,7 +372,7 @@ def entry(
             f"{decision['rationale']}"
         ),
         "metadata": {
-            "owner_unit": "M1-S04D-01",
+            "owner_unit": owner_unit,
             "source_role": decision["source_role"],
             "canonical_task_owner": "SQLite/TaskState",
             "canonical_event_owner": "EventLog",

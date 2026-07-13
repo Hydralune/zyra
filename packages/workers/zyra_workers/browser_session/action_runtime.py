@@ -47,6 +47,7 @@ from .integration_models import (
     validate_plan,
 )
 from .models import BrowserArtifactKind, BrowserSessionRef, BrowserSessionStartResult, browser_now
+from .screenshot_capture import HighlightFreeScreenshotCapture
 from .lifecycle_transactions import BrowserLifecycleTransactionRuntime
 from .runtime import BrowserRuntime
 from .session_lease import BrowserSessionLeaseStore
@@ -646,24 +647,26 @@ class SessionBoundActionRuntime:
         image_format = str(request.arguments.get("format") or "png").casefold()
         if image_format not in {"png", "jpeg", "webp"}:
             raise ValueError("screenshot format must be png, jpeg, or webp")
-        params: dict[str, Any] = {
-            "format": image_format,
-            "captureBeyondViewport": bool(request.arguments.get("full_page", False)),
-            "fromSurface": True,
-        }
-        if image_format in {"jpeg", "webp"}:
-            params["quality"] = self._bounded_int(request.arguments.get("quality"), default=90, minimum=1, maximum=100)
-        response = components.cdp.send(
-            "Page.captureScreenshot",
-            params,
+        timeout = self._timeout(request.arguments, default=30.0)
+        capture = HighlightFreeScreenshotCapture().capture(
+            lambda method, params: components.cdp.send(
+                method,
+                params,
+                cdp_session_id=cdp_session_id,
+                timeout_seconds=timeout,
+            ),
+            image_format=image_format,
+            capture_beyond_viewport=bool(request.arguments.get("full_page", False)),
+            from_surface=True,
+            quality=(
+                self._bounded_int(request.arguments.get("quality"), default=90, minimum=1, maximum=100)
+                if image_format in {"jpeg", "webp"}
+                else None
+            ),
+            target_id=target.target_id,
             cdp_session_id=cdp_session_id,
-            timeout_seconds=self._timeout(request.arguments, default=30.0),
         )
-        encoded = str(response.get("data") or "")
-        try:
-            content = base64.b64decode(encoded, validate=True)
-        except Exception as error:
-            raise BrowserArtifactError("CDP screenshot returned invalid base64 data", session_id=request.browser_session_id) from error
+        content = capture.content
         if not content or len(content) > self.max_screenshot_bytes:
             raise BrowserArtifactError("CDP screenshot size is empty or exceeds the productized limit", session_id=request.browser_session_id)
         extension = ".jpg" if image_format == "jpeg" else f".{image_format}"
@@ -676,13 +679,23 @@ class SessionBoundActionRuntime:
             browser_kind=BrowserArtifactKind.SCREENSHOT,
             extension=extension,
             media_type=media_type,
-            metadata={"target_id": target.target_id, "format": image_format},
+            metadata={
+                "target_id": target.target_id,
+                "format": image_format,
+                "highlight_removed": capture.highlight_removed,
+                "highlight_restored": capture.highlight_restored,
+                "screenshot_capture_id": capture.capture_id,
+                "screenshot_sha256": capture.sha256,
+            },
         )
         return ({
             "artifact_id": artifact.artifact_id,
             "target_id": target.target_id,
             "size_bytes": len(content),
             "format": image_format,
+            "highlight_removed": capture.highlight_removed,
+            "highlight_restored": capture.highlight_restored,
+            "capture_id": capture.capture_id,
         }, (artifact,), (handoff,))
 
     def _evaluate_js(self, request: BrowserActionRequest, components: _SessionComponents):

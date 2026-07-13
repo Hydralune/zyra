@@ -36,6 +36,17 @@ from .browser_context.integration_audit import BrowserMessageIntegrationAuditRun
 from .browser_action.application import BrowserActionApplication
 from .browser_action.control_runtime import BrowserActionControlCommand
 from .browser_observability import BrowserObservabilityApplication
+from .browser_observability.failure_projection import BrowserFailureProjector
+from .browser_observability.models import (
+    HealthStatus,
+    ObservationScope,
+    RecoveryInput,
+    RecoveryReason,
+    Severity,
+    SignalKind,
+    WatchdogName,
+    WatchdogSignal,
+)
 from .browser_session import (
     BrowserRuntime,
     BrowserRuntimeConfig,
@@ -438,6 +449,20 @@ class BrowserWorkerRuntime:
                 },
             )
         try:
+            self.browser_observability_application.attach(
+                request=request,
+                session_start=started,
+                start_event=start_event,
+                runtime=self.browser_session_runtime,
+            )
+        except Exception as error:  # noqa: BLE001 - active observability is mandatory before actions.
+            return _browser_observability_failure_run(
+                request,
+                started,
+                error,
+                phase="attach_before_action",
+            )
+        try:
             action_run = self.browser_action_application.execute_plan(
                 request,
                 started,
@@ -484,6 +509,15 @@ class BrowserWorkerRuntime:
         stop_payload: dict[str, Any] = {}
         stop_event: EventRecord | None = None
         stop_error = ""
+        observability_before_stop_error = ""
+        try:
+            self.browser_observability_application.before_stop(
+                request=request,
+                session_start=started,
+                runtime=self.browser_session_runtime,
+            )
+        except Exception as error:  # noqa: BLE001 - storage/watchdog flush failure is visible below.
+            observability_before_stop_error = f"{type(error).__name__}: {error}"
         if not command.keep_alive and not action_pending:
             try:
                 stop_control = self.browser_session_control.execute(
@@ -576,7 +610,8 @@ class BrowserWorkerRuntime:
             else False
         )
         application_error = (
-            message_state_error
+            observability_before_stop_error
+            or message_state_error
             or str(getattr(application_worker_result, "error", getattr(action_run, "error", "")) or "")
             if action_run is not None
             else action_error or "browser_application_failed"
@@ -602,45 +637,15 @@ class BrowserWorkerRuntime:
             observability_error = f"{type(error).__name__}: {error}"
             application_ok = False
             application_error = "browser_observability_failed"
-            observability_events = [
-                EventRecord(
-                    run_id=request.run_id,
-                    task_id=request.task_id,
-                    node_id=request.node_id,
-                    event_type=EventType.WORKER_HEALTH,
-                    payload={
-                        "worker_health_signal": {
-                            "schema": "zyra.browser-observability.worker-health-signal.v1",
-                            "watchdog": "observability_application",
-                            "kind": "history_corruption",
-                            "status": "unhealthy",
-                            "severity": "critical",
-                            "summary": "Browser observability failed on the mandatory main path.",
-                            "error": observability_error,
-                            "fallback_allowed": False,
-                        }
-                    },
-                ),
-                EventRecord(
-                    run_id=request.run_id,
-                    task_id=request.task_id,
-                    node_id=request.node_id,
-                    event_type=EventType.AGENT_MESSAGE,
-                    payload={
-                        "browser_recovery_input": {
-                            "schema": "zyra.browser-observability.recovery-input.v1",
-                            "reason": "history_failure",
-                            "summary": "Mandatory browser observability failed.",
-                            "error": observability_error,
-                            "worker_request_id": request.request_id,
-                            "browser_session_id": started.session.session_id,
-                            "planner_owner": "M1-07C",
-                            "is_recovery_plan": False,
-                            "fallback_allowed": False,
-                        }
-                    },
-                ),
-            ]
+            failure_signal, failure_input, observability_events = _browser_failure_handoff(
+                request,
+                started,
+                reason=RecoveryReason.HISTORY_FAILURE,
+                signal_kind=SignalKind.HISTORY_CORRUPTION,
+                summary="Browser observability failed on the mandatory main path.",
+                error=observability_error,
+                failed_receipts=failed_receipts,
+            )
             observability_projection = {
                 "schema": "zyra.browser-observability.worker-projection.v1",
                 "scope": {
@@ -652,9 +657,11 @@ class BrowserWorkerRuntime:
                     "worker_request_id": request.request_id,
                 },
                 "error": observability_error,
+                "health": {"signals": [failure_signal.to_dict()]},
                 "default_route": True,
                 "fallback_allowed": False,
                 "recovery_handoff": {
+                    "inputs": [failure_input.to_dict()],
                     "planner_owner": "M1-07C",
                     "recovery_planned_emitted": False,
                 },
@@ -675,28 +682,16 @@ class BrowserWorkerRuntime:
             and not action_pending
             and not any("browser_recovery_input" in event.payload for event in observability_events)
         ):
-            events.append(EventRecord(
-                run_id=request.run_id,
-                task_id=request.task_id,
-                node_id=request.node_id,
-                event_type=EventType.AGENT_MESSAGE,
-                payload={
-                    "browser_recovery_input": {
-                        "schema": "zyra.browser-observability.recovery-input.v1",
-                        "reason": "action_failure",
-                        "summary": application_error or "browser_action_failed",
-                        "browser_session_id": started.session.session_id,
-                        "worker_request_id": request.request_id,
-                        "failed_receipt_ids": [
-                            str(getattr(item, "receipt_id", ""))
-                            for item in failed_receipts
-                        ],
-                        "planner_owner": "M1-07C",
-                        "is_recovery_plan": False,
-                        "fallback_allowed": False,
-                    }
-                },
-            ))
+            _, _, fallback_events = _browser_failure_handoff(
+                request,
+                started,
+                reason=RecoveryReason.ACTION_FAILURE,
+                signal_kind=SignalKind.TOOL_FAILED,
+                summary=application_error or "browser_action_failed",
+                error=application_error or "browser_action_failed",
+                failed_receipts=failed_receipts,
+            )
+            events.extend(fallback_events)
         if stop_event is not None:
             events.append(stop_event)
         result_events = [
@@ -2745,6 +2740,145 @@ def _browser_productized_failure(
         },
     )
     return BrowserWorkerRun(worker_result=worker_result, event_records=[event])
+
+
+def _browser_observability_failure_run(
+    request: WorkerRequest,
+    session_start: Any,
+    error: BaseException,
+    *,
+    phase: str,
+) -> BrowserWorkerRun:
+    session = getattr(session_start, "session", None)
+    signal, recovery, events = _browser_failure_handoff(
+        request,
+        session_start,
+        reason=RecoveryReason.HISTORY_FAILURE,
+        signal_kind=SignalKind.HISTORY_CORRUPTION,
+        summary="Mandatory browser observability failed before action execution.",
+        error=f"{type(error).__name__}: {error}",
+        failed_receipts=(),
+        metadata={"phase": phase},
+    )
+    worker_result = WorkerResult(
+        request_id=request.request_id,
+        ok=False,
+        summary=signal.summary,
+        error="browser_observability_failed",
+        events=[to_jsonable(item) for item in events],
+        metadata={
+            "browser_backend": "zyra-browser-productized",
+            "browser_observability_phase": phase,
+            "browser_observability_error": f"{type(error).__name__}: {error}",
+            "browser_observability_default_route": "true",
+            "browser_observability_fallback_allowed": "false",
+            "browser_recovery_planner_owner": "M1-07C",
+            "browser_recovery_planned_emitted": "false",
+        },
+    )
+    return BrowserWorkerRun(
+        worker_result=worker_result,
+        event_records=list(events),
+        browser_observability_projection={
+            "scope": signal.scope.to_dict(),
+            "health": {"signals": [signal.to_dict()]},
+            "recovery_handoff": {
+                "inputs": [recovery.to_dict()],
+                "planner_owner": "M1-07C",
+                "recovery_planned_emitted": False,
+            },
+            "default_route": True,
+            "fallback_allowed": False,
+        },
+    )
+
+
+def _browser_failure_handoff(
+    request: WorkerRequest,
+    session_start: Any,
+    *,
+    reason: RecoveryReason,
+    signal_kind: SignalKind,
+    summary: str,
+    error: str,
+    failed_receipts: Sequence[Any],
+    metadata: Mapping[str, Any] | None = None,
+) -> tuple[WatchdogSignal, RecoveryInput, list[EventRecord]]:
+    session = getattr(session_start, "session", None)
+    scope = ObservationScope(
+        run_id=request.run_id,
+        task_id=request.task_id,
+        node_id=request.node_id or "",
+        browser_session_id=str(
+            getattr(session, "session_id", "") or "browser-session-missing"
+        ),
+        canonical_session_id=str(
+            getattr(session, "canonical_session_id", "") or ""
+        ),
+        worker_request_id=request.request_id,
+    )
+    values = [
+        to_jsonable(item) if not isinstance(item, Mapping) else dict(item)
+        for item in failed_receipts
+    ]
+    mapped = [dict(item) for item in values if isinstance(item, Mapping)]
+    retryable = any(bool(item.get("retryable")) for item in mapped)
+    outcome_unknown = any(bool(item.get("outcome_unknown")) for item in mapped)
+    failed_receipt_ids = tuple(
+        str(item.get("receipt_id") or "")
+        for item in mapped
+        if str(item.get("receipt_id") or "")
+    )
+    failed_tool_ids = tuple(
+        str(item.get("tool_call_id") or item.get("action_id") or "")
+        for item in mapped
+        if str(item.get("tool_call_id") or item.get("action_id") or "")
+    )
+    signal = WatchdogSignal(
+        scope=scope,
+        watchdog=WatchdogName.CRASH_DETECTOR,
+        kind=signal_kind,
+        status=HealthStatus.UNHEALTHY,
+        severity=(
+            Severity.CRITICAL
+            if signal_kind == SignalKind.HISTORY_CORRUPTION
+            else Severity.ERROR
+        ),
+        summary=summary,
+        sequence=max(1, len(mapped)),
+        retryable=retryable,
+        terminal=True,
+        metadata={
+            **dict(metadata or {}),
+            "error": error,
+            "outcome_unknown": outcome_unknown,
+            "fallback_allowed": False,
+        },
+    )
+    recovery = RecoveryInput(
+        scope=scope,
+        reason=reason,
+        summary=summary,
+        signal_ids=(signal.signal_id,),
+        failed_tool_call_ids=failed_tool_ids,
+        failed_receipt_ids=failed_receipt_ids,
+        retryable=retryable,
+        outcome_unknown=outcome_unknown,
+        metadata={
+            **dict(metadata or {}),
+            "error": error,
+            "fallback_allowed": False,
+        },
+    )
+    health_event = BrowserFailureProjector.health_event(signal)
+    recovery_event = EventRecord(
+        run_id=request.run_id,
+        task_id=request.task_id,
+        node_id=request.node_id,
+        event_type=EventType.AGENT_MESSAGE,
+        payload={"browser_recovery_input": recovery.to_dict()},
+    )
+    return signal, recovery, [health_event, recovery_event]
 
 
 def _browser_use_agent_task_from_request(request: WorkerRequest) -> str:

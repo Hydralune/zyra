@@ -69,6 +69,36 @@ class BrowserProfilePreparation:
 
 
 @dataclass(frozen=True, slots=True)
+class BrowserStorageStateReceipt:
+    profile_id: str
+    state_path: str
+    digest: str
+    cookies: int
+    origins: int
+    source: str
+    backup_digest: str = ""
+    restored_primary: bool = False
+    temporary_removed: bool = True
+    saved_at: str = field(default_factory=browser_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "zyra.browser-session.storage-state-receipt.v1",
+            "profile_id": self.profile_id,
+            "state_path": self.state_path,
+            "digest": self.digest,
+            "cookies": self.cookies,
+            "origins": self.origins,
+            "source": self.source,
+            "backup_digest": self.backup_digest,
+            "restored_primary": self.restored_primary,
+            "temporary_removed": self.temporary_removed,
+            "saved_at": self.saved_at,
+            "canonical_owner": "M1-04A/BrowserProfileStore",
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class BrowserProfileHealth:
     healthy: bool
     profile_id: str
@@ -480,6 +510,14 @@ class BrowserProfileStore:
         raise BrowserProfileError("download filename collision limit exceeded")
 
     def save_storage_state(self, profile_id: str, value: Mapping[str, Any]) -> Path:
+        receipt = self.save_storage_state_with_receipt(profile_id, value)
+        return Path(receipt.state_path)
+
+    def save_storage_state_with_receipt(
+        self,
+        profile_id: str,
+        value: Mapping[str, Any],
+    ) -> BrowserStorageStateReceipt:
         profile = self.get(profile_id)
         if profile is None:
             raise BrowserProfileError(f"profile {profile_id} does not exist")
@@ -491,28 +529,138 @@ class BrowserProfileStore:
         target = profile.state_dir / "storage-state.json"
         backup = profile.state_dir / "storage-state.backup.json"
         temp = profile.state_dir / ".storage-state.tmp"
-        if target.exists():
-            shutil.copy2(target, backup)
-        temp.write_text(json.dumps(sanitized, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
-        os.replace(temp, target)
-        return target
+        backup_digest = ""
+        payload = (
+            json.dumps(sanitized, ensure_ascii=False, sort_keys=True, indent=2)
+            + "\n"
+        ).encode("utf-8")
+        try:
+            if target.exists():
+                prior = target.read_bytes()
+                backup_temp = backup.with_suffix(".json.tmp")
+                with backup_temp.open("wb") as handle:
+                    handle.write(prior)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(backup_temp, backup)
+                backup_digest = hashlib.sha256(prior).hexdigest()
+            with temp.open("wb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp, target)
+            self._fsync_directory(profile.state_dir)
+            verified = self._decode_storage_state(target)
+            if verified is None:
+                raise BrowserProfileCorrupt("storage state failed readback validation")
+        except Exception:
+            temp.unlink(missing_ok=True)
+            backup.with_suffix(".json.tmp").unlink(missing_ok=True)
+            raise
+        return BrowserStorageStateReceipt(
+            profile_id=profile_id,
+            state_path=str(target),
+            digest=hashlib.sha256(payload).hexdigest(),
+            cookies=len(sanitized["cookies"]),
+            origins=len(sanitized["origins"]),
+            source="primary",
+            backup_digest=backup_digest,
+            temporary_removed=not temp.exists(),
+            saved_at=str(sanitized["saved_at"]),
+        )
 
     def load_storage_state(self, profile_id: str) -> dict[str, Any]:
+        value, _ = self.load_storage_state_with_receipt(profile_id)
+        return value
+
+    def load_storage_state_with_receipt(
+        self,
+        profile_id: str,
+    ) -> tuple[dict[str, Any], BrowserStorageStateReceipt]:
         profile = self.get(profile_id)
         if profile is None:
             raise BrowserProfileError(f"profile {profile_id} does not exist")
         target = profile.state_dir / "storage-state.json"
         backup = profile.state_dir / "storage-state.backup.json"
-        for candidate in (target, backup):
-            if not candidate.exists():
-                continue
-            try:
-                value = json.loads(candidate.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            if isinstance(value, dict) and isinstance(value.get("cookies", []), list) and isinstance(value.get("origins", []), list):
-                return value
-        return {"cookies": [], "origins": []}
+        primary = self._decode_storage_state(target)
+        restored = False
+        source = "primary"
+        if primary is None:
+            primary = self._decode_storage_state(backup)
+            source = "backup"
+            if primary is not None:
+                payload = (
+                    json.dumps(primary, ensure_ascii=False, sort_keys=True, indent=2)
+                    + "\n"
+                ).encode("utf-8")
+                temp = profile.state_dir / ".storage-state.restore.tmp"
+                try:
+                    with temp.open("wb") as handle:
+                        handle.write(payload)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    os.replace(temp, target)
+                    self._fsync_directory(profile.state_dir)
+                    restored = True
+                finally:
+                    temp.unlink(missing_ok=True)
+        if primary is None:
+            if target.exists() or backup.exists():
+                raise BrowserProfileCorrupt(
+                    "primary and backup browser storage state are corrupt"
+                )
+            primary = {"cookies": [], "origins": []}
+            source = "empty"
+        payload = json.dumps(
+            primary,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        receipt = BrowserStorageStateReceipt(
+            profile_id=profile_id,
+            state_path=str(target),
+            digest=hashlib.sha256(payload).hexdigest(),
+            cookies=len(primary.get("cookies") or []),
+            origins=len(primary.get("origins") or []),
+            source=source,
+            backup_digest=(
+                hashlib.sha256(backup.read_bytes()).hexdigest()
+                if backup.is_file()
+                else ""
+            ),
+            restored_primary=restored,
+            temporary_removed=not (profile.state_dir / ".storage-state.restore.tmp").exists(),
+            saved_at=str(primary.get("saved_at") or browser_now()),
+        )
+        return primary, receipt
+
+    @staticmethod
+    def _decode_storage_state(path: Path) -> dict[str, Any] | None:
+        if not path.is_file():
+            return None
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(value, dict):
+            return None
+        if not isinstance(value.get("cookies", []), list):
+            return None
+        if not isinstance(value.get("origins", []), list):
+            return None
+        return value
+
+    @staticmethod
+    def _fsync_directory(path: Path) -> None:
+        try:
+            descriptor = os.open(path, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
 
     def clean_transient_files(self, profile_id: str) -> tuple[str, ...]:
         profile = self.get(profile_id)

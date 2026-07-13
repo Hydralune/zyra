@@ -3886,7 +3886,33 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     for key in oldest:
                         idempotency_records.pop(key, None)
             persist_events(store, run_result.event_records)
+            run_result = replace(
+                run_result,
+                browser_observability_projection=(
+                    browser_worker.browser_observability_application.acknowledge_events(
+                        run_result.browser_observability_projection,
+                        committed_event_ids=tuple(
+                            event.event_id for event in run_result.event_records
+                        ),
+                    )
+                ),
+            )
+            state.metadata["browser_observability"] = dict(
+                run_result.browser_observability_projection
+            )
+            if idempotency_key and idempotency_key in idempotency_records:
+                idempotency_records[idempotency_key]["browser_observability"] = dict(
+                    run_result.browser_observability_projection
+                )
             store.save_checkpoint(state)
+            run_result = replace(
+                run_result,
+                browser_observability_projection=(
+                    browser_worker.browser_observability_application.acknowledge_checkpoint(
+                        run_result.browser_observability_projection
+                    )
+                ),
+            )
             status = (
                 HTTPStatus.ACCEPTED
                 if browser_action_pending

@@ -17,6 +17,9 @@ from .models import (
     WatchdogSignal,
 )
 
+if False:  # pragma: no cover - type-checking import without a runtime cycle.
+    from .integration.contracts import RuntimeEvidenceEnvelope
+
 
 @dataclass(frozen=True, slots=True)
 class HistoryWriteResult:
@@ -66,17 +69,20 @@ class BrowserHistoryRuntime:
             "canonical_state_owner": "SQLite/TaskState",
             "browser_resource_owner": "M1-04A",
         }
-        return self._write(
+        record = self.store.next_record(
             scope,
-            (
-                self.store.next_record(
-                    scope,
-                    HistoryKind.SESSION_STARTED,
-                    payload,
-                    causal_event_ids=(source_event.event_id,),
-                ),
+            HistoryKind.SESSION_STARTED,
+            payload,
+            causal_event_ids=(source_event.event_id,),
+        )
+        transaction = self.store.append_transaction(
+            scope,
+            (record,),
+            transaction_id=(
+                f"session-start-{scope.worker_request_id}-{source_event.event_id}"
             ),
         )
+        return HistoryWriteResult(transaction.records, transaction.receipts)
 
     def action_receipts(
         self,
@@ -86,6 +92,7 @@ class BrowserHistoryRuntime:
         events: Sequence[EventRecord],
     ) -> HistoryWriteResult:
         records: list[HistoryRecord] = []
+        append_receipts: list[HistoryAppendReceipt] = []
         event_ids = tuple(item.event_id for item in events)
         events_by_tool = self._events_by_tool(events)
         for index, receipt in enumerate(receipts, start=1):
@@ -133,8 +140,6 @@ class BrowserHistoryRuntime:
                 artifact_ids=artifact_ids,
                 tool_call_id=tool_call_id,
             )
-            records.append(call)
-            call_receipt = self.store.append(call)
             ok = bool(value.get("ok"))
             result = self.store.next_record(
                 scope,
@@ -166,18 +171,20 @@ class BrowserHistoryRuntime:
                 tool_call_id=tool_call_id,
                 parent_record_id=call.record_id,
             )
-            result_receipt = self.store.append(
-                result,
-                expected_head_digest=call_receipt.content_digest,
+            transaction = self.store.append_transaction(
+                scope,
+                (call, result),
+                transaction_id=(
+                    f"action-pair-{receipt_id}"
+                    if receipt_id
+                    else f"action-pair-{tool_call_id}-{index}"
+                ),
             )
-            records.append(result)
-            records[-2] = call
+            records.extend(transaction.records)
+            append_receipts.extend(transaction.receipts)
         return HistoryWriteResult(
             records=tuple(records),
-            receipts=tuple(
-                self._receipt_for(scope, item)
-                for item in records
-            ),
+            receipts=tuple(append_receipts),
         )
 
     def state_capture(
@@ -315,6 +322,50 @@ class BrowserHistoryRuntime:
                 causal_event_ids=span.event_ids,
                 artifact_ids=span.artifact_ids,
                 tool_call_id=span.tool_call_id,
+            )
+            receipt = self.store.append(record)
+            records.append(record)
+            receipts.append(receipt)
+        return HistoryWriteResult(tuple(records), tuple(receipts))
+
+    def runtime_evidence(
+        self,
+        scope: ObservationScope,
+        values: Sequence["RuntimeEvidenceEnvelope"],
+    ) -> HistoryWriteResult:
+        records: list[HistoryRecord] = []
+        receipts: list[HistoryAppendReceipt] = []
+        for item in values:
+            if item.scope != scope:
+                raise ValueError("runtime evidence crosses history scope")
+            record = self.store.next_record(
+                scope,
+                HistoryKind.OBSERVATION,
+                {
+                    "name": f"runtime_evidence:{item.source}",
+                    "runtime_evidence": item.to_dict(),
+                    "status": str(item.terminal_state),
+                    "supplementary": item.source
+                    in {
+                        "provider_stream",
+                        "mcp",
+                        "subagent",
+                        "background_task",
+                        "hashline",
+                        "worktree",
+                    },
+                },
+                causal_event_ids=tuple(
+                    dict.fromkeys(
+                        [
+                            item.source_event_id,
+                            item.causation_event_id,
+                            *item.correlation_event_ids,
+                        ]
+                    )
+                ),
+                artifact_ids=item.artifact_ids,
+                tool_call_id=item.tool_call_id or item.parent_tool_call_id,
             )
             receipt = self.store.append(record)
             records.append(record)

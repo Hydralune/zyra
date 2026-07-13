@@ -150,6 +150,7 @@ class BrowserNativeDownloadRuntime:
         self._lock = threading.RLock()
         self._downloads = 0
         self._failures = 0
+        self._last_cleanup: dict[str, Any] = {}
 
     def download(
         self,
@@ -229,7 +230,16 @@ class BrowserNativeDownloadRuntime:
         finally:
             self._stop_events()
             try:
-                self.guard.disarm(lease)
+                cleanup = self.guard.abort(
+                    lease,
+                    reason=(
+                        "download_action_completed"
+                        if attempt.completed is not None and attempt.error is None
+                        else "download_action_interrupted"
+                    ),
+                    cancel_active=attempt.completed is None,
+                )
+                self._last_cleanup = cleanup.public_dict()
             finally:
                 with self._lock:
                     self._attempt = None
@@ -358,7 +368,9 @@ class BrowserNativeDownloadRuntime:
             "active_action_id": active.context.request.identity.action_id if active else "",
             "downloads": self._downloads,
             "failures": self._failures,
+            "last_cleanup": dict(self._last_cleanup),
             "ledger": self.ledger.snapshot(),
+            "guard": self.guard.snapshot(),
         }
 
 

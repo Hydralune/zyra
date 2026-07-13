@@ -25,6 +25,7 @@ from .health_runtime import BrowserHealthRuntime
 from .judge import BrowserTraceJudge
 from .models import (
     BrowserObservation,
+    HistoryKind,
     HistoryRecord,
     ObservationScope,
     ObservabilityResult,
@@ -34,6 +35,10 @@ from .models import (
 from .replay import BrowserHistoryReplay
 from .trace_runtime import BrowserTraceRuntime, TracePairingError
 from .watchdogs import BrowserWatchdogRegistry, WatchdogPolicy
+from .integration import (
+    BrowserIntegrationOutput,
+    BrowserObservabilityIntegrationRuntime,
+)
 
 
 class BrowserObservabilityDisabled(RuntimeError):
@@ -84,6 +89,12 @@ class BrowserObservabilityApplication:
             artifact_store,
         )
         self.failures = failure_projector or BrowserFailureProjector()
+        self.integration = BrowserObservabilityIntegrationRuntime(
+            artifact_store=artifact_store,
+            state_root=self.state_root / "integration",
+            history=self.history,
+            failure_projector=self.failures,
+        )
         self.health = BrowserHealthRuntime()
         self.replay = BrowserHistoryReplay(
             self.history_store,
@@ -97,9 +108,81 @@ class BrowserObservabilityApplication:
             crash_detector=self.crash_detector,
             watchdog_registry=self.watchdogs,
             artifact_publisher=self.artifacts,
+            integration_runtime=self.integration,
         )
         self._runs = 0
         self._failures = 0
+
+    def attach(
+        self,
+        *,
+        request: WorkerRequest,
+        session_start: Any,
+        start_event: EventRecord,
+        runtime: Any,
+    ) -> dict[str, Any]:
+        if self.disabled:
+            raise BrowserObservabilityDisabled(
+                "browser observability is disabled on the productized main path"
+            )
+        return self.integration.attach(
+            request=request,
+            session_start=session_start,
+            start_event=start_event,
+            runtime=runtime,
+        )
+
+    def before_stop(
+        self,
+        *,
+        request: WorkerRequest,
+        session_start: Any,
+        runtime: Any,
+    ) -> BrowserIntegrationOutput:
+        if self.disabled:
+            raise BrowserObservabilityDisabled(
+                "browser observability is disabled on the productized main path"
+            )
+        return self.integration.before_stop(
+            request=request,
+            session_start=session_start,
+            runtime=runtime,
+        )
+
+    def acknowledge_events(
+        self,
+        projection: Mapping[str, Any],
+        *,
+        committed_event_ids: Sequence[str],
+    ) -> dict[str, Any]:
+        commit = projection.get("observation_commit")
+        if not isinstance(commit, Mapping):
+            return dict(projection)
+        updated = self.integration.acknowledge_events(
+            commit,
+            committed_event_ids=committed_event_ids,
+        )
+        return {**dict(projection), "observation_commit": updated}
+
+    def acknowledge_checkpoint(
+        self,
+        projection: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        commit = projection.get("observation_commit")
+        if not isinstance(commit, Mapping):
+            return dict(projection)
+        updated = self.integration.acknowledge_checkpoint(commit)
+        return {**dict(projection), "observation_commit": updated}
+
+    def refresh_commit(
+        self,
+        projection: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        commit = projection.get("observation_commit")
+        if not isinstance(commit, Mapping):
+            return dict(projection)
+        updated = self.integration.refresh_commit(commit)
+        return {**dict(projection), "observation_commit": updated}
 
     def observe(
         self,
@@ -131,12 +214,19 @@ class BrowserObservabilityApplication:
         signals: list[WatchdogSignal] = []
         recovery_inputs = []
         try:
-            started = self.history.session_started(
-                scope,
-                session_start,
-                source_event=start_event,
+            self.integration.attach(
+                request=request,
+                session_start=session_start,
+                start_event=start_event,
+                runtime=runtime,
+                allow_passive=True,
             )
-            records.extend(started.records)
+            records.extend(
+                self.history_store.records(
+                    scope,
+                    kinds=(HistoryKind.SESSION_STARTED,),
+                )
+            )
             receipts = tuple(
                 getattr(
                     action_run,
@@ -180,6 +270,56 @@ class BrowserObservabilityApplication:
                     events.append(publication.event)
                 artifact_history = self.history.artifact(publication.lineage)
                 records.extend(artifact_history.records)
+            integration_output = self.integration.finalize(
+                request=request,
+                session_start=session_start,
+                action_run=action_run,
+                application_events=application_events,
+                application_artifacts=application_artifacts,
+                start_event=start_event,
+                runtime=runtime,
+                application_ok=application_ok,
+                application_error=application_error,
+                action_pending=action_pending,
+            )
+            events.extend(integration_output.events)
+            signals.extend(integration_output.signals)
+            if integration_output.evidence:
+                evidence_history = self.history.runtime_evidence(
+                    scope,
+                    integration_output.evidence,
+                )
+                records.extend(evidence_history.records)
+            if integration_output.spans:
+                span_history = self.history.trace_spans(
+                    scope,
+                    integration_output.spans,
+                )
+                records.extend(span_history.records)
+            integration_causal_ids = tuple(
+                dict.fromkeys(
+                    [
+                        start_event.event_id,
+                        *(item.event_id for item in application_events),
+                        *(item.event_id for item in integration_output.events),
+                    ]
+                )
+            )
+            for artifact in integration_output.artifacts:
+                publication = self.artifacts.adopt(
+                    scope,
+                    artifact,
+                    role=infer_artifact_role(artifact),
+                    source_event_ids=integration_causal_ids,
+                    source_record_ids=tuple(item.record_id for item in records),
+                    metadata={"integration_owner": "M1-S04D-02"},
+                )
+                artifacts.append(publication.artifact)
+                lineage.append(publication.lineage)
+                if not publication.idempotent:
+                    events.append(publication.event)
+                artifact_history = self.history.artifact(publication.lineage)
+                records.extend(artifact_history.records)
             observation = self._observation(
                 scope,
                 request=request,
@@ -205,12 +345,11 @@ class BrowserObservabilityApplication:
                 )
             crash_signals = self.crash_detector.observe(observation)
             attached_signals = self.watchdogs.evaluate(observation)
-            signals.extend(
-                self._dedupe_signals(
-                    (
-                        *crash_signals,
-                        *attached_signals,
-                    )
+            signals[:] = self._dedupe_signals(
+                (
+                    *signals,
+                    *crash_signals,
+                    *attached_signals,
                 )
             )
             health_state = self.health.ingest(scope, signals)
@@ -341,6 +480,23 @@ class BrowserObservabilityApplication:
                 application_error=application_error,
                 action_pending=action_pending,
             )
+            public["integration"] = {
+                **dict(integration_output.projection),
+                **self.integration.projection(scope=scope),
+            }
+            head = self.history_store.head(scope)
+            commit_output = integration_output.merge(
+                BrowserIntegrationOutput(
+                    recovery_inputs=tuple(recovery_inputs),
+                    artifacts=tuple(self._dedupe_artifacts(artifacts)),
+                    events=tuple(events),
+                )
+            )
+            public["observation_commit"] = self.integration.mark_history_artifacts_committed(
+                scope,
+                commit_output,
+                history_head_digest=head.content_digest if head else "",
+            )
             self._runs += 1
             return ObservabilityResult(
                 scope=scope,
@@ -388,6 +544,7 @@ class BrowserObservabilityApplication:
             "state_root": str(self.state_root),
             "watchdogs": self.watchdogs.snapshot(),
             "health": self.health.projection(),
+            "integration": self.integration.projection(),
             "default_route": True,
             "fallback_allowed": False,
             "recovery_planner_owner": "M1-07C",

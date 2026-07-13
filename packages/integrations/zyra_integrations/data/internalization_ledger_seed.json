@@ -172240,6 +172240,336 @@
         "recovery_planner_owner": "M1-07C",
         "root_source_runtime_dependency": false
       }
+    },
+    {
+      "ledger_id": "ledger_9bfe8efcf3aac97a",
+      "source_repo": "browser-use",
+      "source_path": "browser_use/browser/session.py;browser_use/browser/watchdogs/**;browser_use/browser/profile.py;browser_use/browser/views.py",
+      "capability_name": "browser_active_watchdog_history_artifact_integration",
+      "capability_summary": "Pre-action event attachment, atomic history visibility, download and screenshot lifecycle cleanup, storage restore, navigation closure and typed failure handoff on the productized worker path.",
+      "target_bindings": [
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/application.py",
+          "role": "primary",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/event_bus.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/downloads.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/storage.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/screenshots.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/navigation.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/history_store.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_session/screenshot_capture.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        }
+      ],
+      "migration_strategy": "reimplemented_pattern",
+      "main_path_status": "tested_main_path",
+      "lifecycle": "productized",
+      "owner_unit": "M1-S04D-02",
+      "main_path": {
+        "surfaces": [
+          "browser_worker",
+          "browser_observability_api",
+          "durable_browser_history"
+        ],
+        "event_types": [
+          "worker_health",
+          "agent_message",
+          "artifact_written"
+        ],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /tasks/{task_id}/browser-observability"
+        ],
+        "control_commands": [],
+        "artifact_kinds": [
+          "trace",
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "worker_runtime": "BrowserWorkerRuntime.run",
+        "ui_panels": []
+      },
+      "line_count_policy": "counts_as_runtime",
+      "runtime_entry": {
+        "module": "zyra_workers.browser_observability.application",
+        "function": "BrowserObservabilityApplication.observe",
+        "protocol": "zyra-browser-observability-v1",
+        "health_check": "python -m pytest tests/integration/test_browser_observability_main_path.py -q",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_observability/integration/application.py",
+          "packages/workers/zyra_workers/browser_observability/integration/event_bus.py",
+          "packages/workers/zyra_workers/browser_observability/integration/downloads.py",
+          "packages/workers/zyra_workers/browser_observability/integration/storage.py",
+          "packages/workers/zyra_workers/browser_observability/integration/screenshots.py",
+          "packages/workers/zyra_workers/browser_observability/integration/navigation.py",
+          "packages/workers/zyra_workers/browser_observability/history_store.py",
+          "packages/workers/zyra_workers/browser_session/screenshot_capture.py"
+        ]
+      },
+      "test_entries": [
+        {
+          "path": "tests/unit/test_browser_observability_foundation.py",
+          "command": "python -m pytest tests/unit/test_browser_observability_foundation.py -q",
+          "kind": "unit",
+          "expected_signal": "durable history, attached watchdogs, crash detector and recovery handoff behave deterministically",
+          "required": true
+        },
+        {
+          "path": "tests/unit/test_browser_observability_integration.py",
+          "command": "python -m pytest tests/unit/test_browser_observability_integration.py -q",
+          "kind": "integration",
+          "expected_signal": "default browser path publishes history/trace/artifacts and never emits recovery_planned",
+          "required": true
+        },
+        {
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "command": "python -m pytest tests/integration/test_browser_session_productization_api.py -q",
+          "kind": "integration",
+          "expected_signal": "HTTP main path closes the event/checkpoint fence and rebuilds redacted durable views",
+          "required": true
+        }
+      ],
+      "notes": "source_role=primary_implementation; runtime_required=true; Zyra reuses 04A event/CDP/profile and 04C action/download owners; 04D observes and fences them without a second browser state owner.",
+      "metadata": {
+        "owner_unit": "M1-S04D-02",
+        "source_role": "primary_implementation",
+        "canonical_task_owner": "SQLite/TaskState",
+        "canonical_event_owner": "EventLog",
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "recovery_planner_owner": "M1-07C",
+        "root_source_runtime_dependency": false
+      }
+    },
+    {
+      "ledger_id": "ledger_8d3ebe1b29f6cf89",
+      "source_repo": "OpenHands",
+      "source_path": "openhands/events/**;openhands/storage/**;openhands/server/**",
+      "capability_name": "browser_restart_projection_and_delivery_fence",
+      "capability_summary": "Restart-safe health/artifact projections, redacted HTTP views and a durable history/artifact/event/checkpoint delivery fence.",
+      "target_bindings": [
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/restart_projection.py",
+          "role": "primary",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/commit_fence.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/api_projection.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        }
+      ],
+      "migration_strategy": "reimplemented_pattern",
+      "main_path_status": "tested_main_path",
+      "lifecycle": "productized",
+      "owner_unit": "M1-S04D-02",
+      "main_path": {
+        "surfaces": [
+          "browser_worker",
+          "browser_observability_api",
+          "durable_browser_history"
+        ],
+        "event_types": [
+          "worker_health",
+          "agent_message",
+          "artifact_written"
+        ],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /tasks/{task_id}/browser-observability"
+        ],
+        "control_commands": [],
+        "artifact_kinds": [
+          "trace",
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "worker_runtime": "BrowserWorkerRuntime.run",
+        "ui_panels": []
+      },
+      "line_count_policy": "counts_as_runtime",
+      "runtime_entry": {
+        "module": "zyra_workers.browser_observability.application",
+        "function": "BrowserObservabilityApplication.observe",
+        "protocol": "zyra-browser-observability-v1",
+        "health_check": "python -m pytest tests/integration/test_browser_observability_main_path.py -q",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_observability/restart_projection.py",
+          "packages/workers/zyra_workers/browser_observability/integration/commit_fence.py",
+          "packages/workers/zyra_workers/browser_observability/api_projection.py",
+          "apps/api/zyra_api/main.py"
+        ]
+      },
+      "test_entries": [
+        {
+          "path": "tests/unit/test_browser_observability_foundation.py",
+          "command": "python -m pytest tests/unit/test_browser_observability_foundation.py -q",
+          "kind": "unit",
+          "expected_signal": "durable history, attached watchdogs, crash detector and recovery handoff behave deterministically",
+          "required": true
+        },
+        {
+          "path": "tests/unit/test_browser_observability_integration.py",
+          "command": "python -m pytest tests/unit/test_browser_observability_integration.py -q",
+          "kind": "integration",
+          "expected_signal": "default browser path publishes history/trace/artifacts and never emits recovery_planned",
+          "required": true
+        },
+        {
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "command": "python -m pytest tests/integration/test_browser_session_productization_api.py -q",
+          "kind": "integration",
+          "expected_signal": "HTTP main path closes the event/checkpoint fence and rebuilds redacted durable views",
+          "required": true
+        }
+      ],
+      "notes": "source_role=supplementary_implementation; runtime_required=true; Existing Zyra EventLog, LocalArtifactStore, BrowserHistoryStore and TaskState retain custody; the fence exposes partial delivery rather than claiming a cross-store transaction.",
+      "metadata": {
+        "owner_unit": "M1-S04D-02",
+        "source_role": "supplementary_implementation",
+        "canonical_task_owner": "SQLite/TaskState",
+        "canonical_event_owner": "EventLog",
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "recovery_planner_owner": "M1-07C",
+        "root_source_runtime_dependency": false
+      }
+    },
+    {
+      "ledger_id": "ledger_f0cb6b28a6941e5b",
+      "source_repo": "oh-my-pi",
+      "source_path": "packages/coding-agent/src/core/agent-loop.ts;packages/coding-agent/src/tools/edit/hashline.ts;packages/coding-agent/src/task/**;packages/coding-agent/src/worktree/**",
+      "capability_name": "browser_runtime_evidence_and_trajectory_mapping",
+      "capability_summary": "Strict partial/terminal provider evidence, MCP/subagent/background correlation, Hashline/worktree conflict receipts and immutable MemoryFabric trajectory input.",
+      "target_bindings": [
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/contracts.py",
+          "role": "primary",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/runtime_evidence.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_observability/integration/trajectory.py",
+          "role": "supporting",
+          "required_for_main_path": true
+        }
+      ],
+      "migration_strategy": "reimplemented_pattern",
+      "main_path_status": "tested_main_path",
+      "lifecycle": "productized",
+      "owner_unit": "M1-S04D-02",
+      "main_path": {
+        "surfaces": [
+          "browser_worker",
+          "browser_observability_api",
+          "durable_browser_history"
+        ],
+        "event_types": [
+          "worker_health",
+          "agent_message",
+          "artifact_written"
+        ],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser",
+          "GET /tasks/{task_id}/browser-observability"
+        ],
+        "control_commands": [],
+        "artifact_kinds": [
+          "trace",
+          "structured_data",
+          "screenshot",
+          "file"
+        ],
+        "worker_runtime": "BrowserWorkerRuntime.run",
+        "ui_panels": []
+      },
+      "line_count_policy": "counts_as_runtime",
+      "runtime_entry": {
+        "module": "zyra_workers.browser_observability.application",
+        "function": "BrowserObservabilityApplication.observe",
+        "protocol": "zyra-browser-observability-v1",
+        "health_check": "python -m pytest tests/integration/test_browser_observability_main_path.py -q",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_observability/integration/contracts.py",
+          "packages/workers/zyra_workers/browser_observability/integration/runtime_evidence.py",
+          "packages/workers/zyra_workers/browser_observability/integration/trajectory.py"
+        ]
+      },
+      "test_entries": [
+        {
+          "path": "tests/unit/test_browser_observability_foundation.py",
+          "command": "python -m pytest tests/unit/test_browser_observability_foundation.py -q",
+          "kind": "unit",
+          "expected_signal": "durable history, attached watchdogs, crash detector and recovery handoff behave deterministically",
+          "required": true
+        },
+        {
+          "path": "tests/unit/test_browser_observability_integration.py",
+          "command": "python -m pytest tests/unit/test_browser_observability_integration.py -q",
+          "kind": "integration",
+          "expected_signal": "default browser path publishes history/trace/artifacts and never emits recovery_planned",
+          "required": true
+        },
+        {
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "command": "python -m pytest tests/integration/test_browser_session_productization_api.py -q",
+          "kind": "integration",
+          "expected_signal": "HTTP main path closes the event/checkpoint fence and rebuilds redacted durable views",
+          "required": true
+        }
+      ],
+      "notes": "source_role=supplementary_implementation; runtime_required=true; The optional mapper cannot affect canonical browser execution when disabled and never becomes provider, MCP, subagent or recovery owner.",
+      "metadata": {
+        "owner_unit": "M1-S04D-02",
+        "source_role": "supplementary_implementation",
+        "canonical_task_owner": "SQLite/TaskState",
+        "canonical_event_owner": "EventLog",
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "recovery_planner_owner": "M1-07C",
+        "root_source_runtime_dependency": false
+      }
     }
   ],
   "kind": "zyra.internalization_ledger",

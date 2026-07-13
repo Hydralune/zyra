@@ -5,7 +5,7 @@ import os
 import threading
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,7 @@ from .models import (
     canonical_json,
     digest_value,
     history_record_from_mapping,
+    new_observation_id,
     utc_now,
 )
 
@@ -76,6 +77,31 @@ class HistoryAppendReceipt:
             "segment": self.segment,
             "offset": self.offset,
             "length": self.length,
+            "idempotent": self.idempotent,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryTransactionReceipt:
+    transaction_id: str
+    scope_key: str
+    transaction_digest: str
+    records: tuple[HistoryRecord, ...]
+    receipts: tuple[HistoryAppendReceipt, ...]
+    previous_head_digest: str
+    committed_head_digest: str
+    idempotent: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "zyra.browser-observability.history-transaction.v1",
+            "transaction_id": self.transaction_id,
+            "scope_key": self.scope_key,
+            "transaction_digest": self.transaction_digest,
+            "record_ids": [item.record_id for item in self.records],
+            "receipts": [item.to_dict() for item in self.receipts],
+            "previous_head_digest": self.previous_head_digest,
+            "committed_head_digest": self.committed_head_digest,
             "idempotent": self.idempotent,
         }
 
@@ -215,13 +241,163 @@ class BrowserHistoryStore:
             return ()
         if any(item.scope != scope for item in records):
             raise BrowserHistoryScopeMismatch("append_many records cross observation scopes")
-        receipts: list[HistoryAppendReceipt] = []
-        expected = expected_head_digest
-        for record in records:
-            receipt = self.append(record, expected_head_digest=expected)
-            receipts.append(receipt)
-            expected = receipt.content_digest
-        return tuple(receipts)
+        transaction = self.append_transaction(
+            scope,
+            records,
+            expected_head_digest=expected_head_digest,
+        )
+        return transaction.receipts
+
+    def append_transaction(
+        self,
+        scope: ObservationScope,
+        records: Sequence[HistoryRecord],
+        *,
+        transaction_id: str = "",
+        expected_head_digest: str | None = None,
+    ) -> HistoryTransactionReceipt:
+        """Atomically expose a causal batch through the durable history head.
+
+        Segment bytes are appended before the head is replaced. Readers cap
+        visibility at that head, so a crash during the write leaves only an
+        uncommitted tail. The next writer truncates that tail and rebuilds the
+        derived index. This makes tool call/result pairs and stream terminal
+        records visible together without creating another history owner.
+        """
+
+        if not records:
+            raise ValueError("history transaction requires at least one record")
+        if any(item.scope != scope for item in records):
+            raise BrowserHistoryScopeMismatch(
+                "history transaction records cross observation scopes"
+            )
+        transaction_id = transaction_id or new_observation_id("browser-history-tx")
+        with self._scope_lock(scope.key):
+            self._ensure_scope_metadata(scope)
+            self._repair_uncommitted_tail(scope)
+            head = self.head(scope)
+            previous_digest = head.content_digest if head else ""
+            transaction_digest = digest_value(
+                {
+                    "transaction_id": transaction_id,
+                    "scope_key": scope.key,
+                    "records": [
+                        {
+                            "record_id": item.record_id,
+                            "kind": str(item.kind),
+                            "payload": dict(item.payload),
+                            "causal_event_ids": list(item.causal_event_ids),
+                            "artifact_ids": list(item.artifact_ids),
+                            "tool_call_id": item.tool_call_id,
+                            "branch_id": item.branch_id,
+                        }
+                        for item in records
+                    ],
+                }
+            )
+            existing = self._read_transaction(scope, transaction_id)
+            if existing:
+                if existing.get("transaction_digest") != transaction_digest:
+                    raise BrowserHistoryConflict(
+                        f"transaction id {transaction_id!r} was reused"
+                    )
+                committed_records: list[HistoryRecord] = []
+                for record_id in existing.get("record_ids", ()):
+                    record = self._find_record(scope, str(record_id))
+                    if record is None:
+                        raise BrowserHistoryCorruption(
+                            f"transaction record {record_id!r} is missing"
+                        )
+                    committed_records.append(record)
+                receipts = tuple(
+                    self._receipt_for_existing(scope, item)
+                    for item in committed_records
+                )
+                return HistoryTransactionReceipt(
+                    transaction_id=transaction_id,
+                    scope_key=scope.key,
+                    transaction_digest=transaction_digest,
+                    records=tuple(committed_records),
+                    receipts=receipts,
+                    previous_head_digest=str(
+                        existing.get("previous_head_digest") or ""
+                    ),
+                    committed_head_digest=str(
+                        existing.get("committed_head_digest") or ""
+                    ),
+                    idempotent=True,
+                )
+            if (
+                expected_head_digest is not None
+                and expected_head_digest != previous_digest
+            ):
+                raise BrowserHistoryConflict(
+                    "history transaction head changed: "
+                    f"expected {expected_head_digest!r}, got {previous_digest!r}"
+                )
+            prepared = self._prepare_transaction_records(scope, records, head)
+            payloads = tuple(
+                canonical_json(item.to_dict()).encode("utf-8") + b"\n"
+                for item in prepared
+            )
+            if any(len(item) > self.policy.max_record_bytes for item in payloads):
+                raise BrowserHistoryStoreError(
+                    f"history record exceeds {self.policy.max_record_bytes} bytes"
+                )
+            if prepared[-1].sequence > self.policy.max_records_per_scope:
+                raise BrowserHistoryStoreError("history record limit exceeded")
+            total_bytes = sum(len(item) for item in payloads)
+            segment = self._select_segment(scope, total_bytes)
+            path = self._segment_path(scope, segment)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            initial_offset = path.stat().st_size if path.exists() else 0
+            block = b"".join(payloads)
+            self._append_bytes(path, block)
+            receipts: list[HistoryAppendReceipt] = []
+            offset = initial_offset
+            for record, payload in zip(prepared, payloads, strict=True):
+                receipts.append(
+                    HistoryAppendReceipt(
+                        scope_key=scope.key,
+                        record_id=record.record_id,
+                        sequence=record.sequence,
+                        content_digest=record.content_digest,
+                        segment=segment,
+                        offset=offset,
+                        length=len(payload),
+                    )
+                )
+                offset += len(payload)
+            final_receipt = receipts[-1]
+            # Head replacement is the visibility/commit point.
+            self._write_head(
+                scope,
+                HistoryHead(
+                    scope_key=scope.key,
+                    sequence=prepared[-1].sequence,
+                    record_id=prepared[-1].record_id,
+                    content_digest=prepared[-1].content_digest,
+                    updated_at=prepared[-1].created_at,
+                    segment=segment,
+                    offset=final_receipt.offset,
+                ),
+            )
+            for receipt in receipts:
+                self._write_index_entry(scope, receipt)
+            result = HistoryTransactionReceipt(
+                transaction_id=transaction_id,
+                scope_key=scope.key,
+                transaction_digest=transaction_digest,
+                records=prepared,
+                receipts=tuple(receipts),
+                previous_head_digest=previous_digest,
+                committed_head_digest=prepared[-1].content_digest,
+            )
+            self._atomic_json(
+                self._transaction_path(scope, transaction_id),
+                result.to_dict(),
+            )
+            return result
 
     def next_record(
         self,
@@ -503,9 +679,14 @@ class BrowserHistoryStore:
         )
 
     def _iter_records(self, scope: ObservationScope) -> Iterator[HistoryRecord]:
+        head = self.head(scope)
+        visible_sequence = head.sequence if head else 0
+        emitted = 0
         for path in self._segment_paths(scope):
             with path.open("rb") as handle:
                 for line_number, line in enumerate(handle, start=1):
+                    if emitted >= visible_sequence:
+                        return
                     if not line.endswith(b"\n"):
                         raise BrowserHistoryCorruption(
                             f"partial record in {path.name}:{line_number}"
@@ -521,7 +702,151 @@ class BrowserHistoryStore:
                         raise BrowserHistoryScopeMismatch(
                             f"record {item.record_id} belongs to another scope"
                         )
+                    emitted += 1
                     yield item
+
+    def _prepare_transaction_records(
+        self,
+        scope: ObservationScope,
+        records: Sequence[HistoryRecord],
+        head: HistoryHead | None,
+    ) -> tuple[HistoryRecord, ...]:
+        sequence = 1 if head is None else head.sequence + 1
+        previous_digest = "" if head is None else head.content_digest
+        previous_record_id = "" if head is None else head.record_id
+        prepared: list[HistoryRecord] = []
+        for original in records:
+            parent_record_id = original.parent_record_id
+            if not parent_record_id or parent_record_id == (
+                records[0].parent_record_id if records else ""
+            ):
+                parent_record_id = previous_record_id
+            record = replace(
+                original,
+                scope=scope,
+                sequence=sequence,
+                previous_digest=previous_digest,
+                parent_record_id=parent_record_id,
+            )
+            prepared.append(record)
+            sequence += 1
+            previous_digest = record.content_digest
+            previous_record_id = record.record_id
+        return tuple(prepared)
+
+    def _repair_uncommitted_tail(self, scope: ObservationScope) -> int:
+        """Remove bytes beyond the committed head and rebuild the derived index."""
+
+        paths = self._segment_paths(scope)
+        if not paths:
+            return 0
+        head = self.head(scope)
+        repaired = 0
+        if head is None:
+            for path in paths:
+                repaired += path.stat().st_size
+                path.unlink(missing_ok=True)
+            self._index_path(scope).unlink(missing_ok=True)
+            return repaired
+        for path in paths:
+            segment = int(path.stem.split("-")[-1])
+            if segment < head.segment:
+                continue
+            if segment > head.segment:
+                repaired += path.stat().st_size
+                path.unlink(missing_ok=True)
+                continue
+            with path.open("r+b") as handle:
+                handle.seek(head.offset)
+                committed_line = handle.readline()
+                if not committed_line.endswith(b"\n"):
+                    raise BrowserHistoryCorruption(
+                        "committed history head points at a partial record"
+                    )
+                committed_end = head.offset + len(committed_line)
+                handle.seek(0, os.SEEK_END)
+                current_end = handle.tell()
+                if current_end > committed_end:
+                    repaired += current_end - committed_end
+                    handle.truncate(committed_end)
+                    handle.flush()
+                    if self.policy.fsync:
+                        os.fsync(handle.fileno())
+        self._rebuild_index(scope)
+        return repaired
+
+    def _rebuild_index(self, scope: ObservationScope) -> None:
+        target = self._index_path(scope)
+        temporary = target.with_suffix(".jsonl.tmp")
+        temporary.parent.mkdir(parents=True, exist_ok=True)
+        head = self.head(scope)
+        visible = head.sequence if head else 0
+        sequence = 0
+        with temporary.open("wb") as output:
+            for path in self._segment_paths(scope):
+                segment = int(path.stem.split("-")[-1])
+                with path.open("rb") as handle:
+                    while sequence < visible:
+                        offset = handle.tell()
+                        line = handle.readline()
+                        if not line:
+                            break
+                        record = history_record_from_mapping(json.loads(line))
+                        sequence += 1
+                        receipt = HistoryAppendReceipt(
+                            scope_key=scope.key,
+                            record_id=record.record_id,
+                            sequence=record.sequence,
+                            content_digest=record.content_digest,
+                            segment=segment,
+                            offset=offset,
+                            length=len(line),
+                        )
+                        output.write(
+                            canonical_json(receipt.to_dict()).encode("utf-8")
+                            + b"\n"
+                        )
+            output.flush()
+            if self.policy.fsync:
+                os.fsync(output.fileno())
+        os.replace(temporary, target)
+
+    def _read_transaction(
+        self,
+        scope: ObservationScope,
+        transaction_id: str,
+    ) -> dict[str, Any]:
+        path = self._transaction_path(scope, transaction_id)
+        if not path.exists():
+            return {}
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise BrowserHistoryCorruption(
+                f"invalid history transaction receipt: {error}"
+            ) from error
+        return dict(value) if isinstance(value, Mapping) else {}
+
+    def _receipt_for_existing(
+        self,
+        scope: ObservationScope,
+        record: HistoryRecord,
+    ) -> HistoryAppendReceipt:
+        location = self._location_for_record(scope, record.record_id)
+        if not location:
+            raise BrowserHistoryCorruption(
+                f"committed transaction record {record.record_id!r} is missing"
+            )
+        return HistoryAppendReceipt(
+            scope_key=scope.key,
+            record_id=record.record_id,
+            sequence=record.sequence,
+            content_digest=record.content_digest,
+            segment=int(location["segment"]),
+            offset=int(location["offset"]),
+            length=int(location["length"]),
+            idempotent=True,
+        )
 
     def _find_record(
         self,
@@ -652,6 +977,13 @@ class BrowserHistoryStore:
 
     def _index_path(self, scope: ObservationScope) -> Path:
         return self._scope_dir(scope) / "index.jsonl"
+
+    def _transaction_path(
+        self,
+        scope: ObservationScope,
+        transaction_id: str,
+    ) -> Path:
+        return self._scope_dir(scope) / "transactions" / f"{transaction_id}.json"
 
     def _scope_dir(self, scope: ObservationScope) -> Path:
         return self.root / scope.task_id / scope.key

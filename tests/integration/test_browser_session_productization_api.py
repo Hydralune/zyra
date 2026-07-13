@@ -168,6 +168,41 @@ class BrowserSessionProductizationApiTests(unittest.TestCase):
                 self.assertEqual(action["worker_result"]["metadata"]["browser_action_execution_count"], "2")
                 self.assertTrue(any("browser_action" in event.get("payload", {}) for event in action["events"]))
                 self.assertGreaterEqual(action["task"]["budget"]["tool_calls"], 2)
+                self.assertEqual(
+                    action["browser_observability"]["observation_commit"]["phase"],
+                    "checkpoint_committed",
+                )
+                commits = _get(
+                    base_url,
+                    f"/tasks/{task_id}/browser-observability?view=commits",
+                )["browser_observability"]
+                self.assertGreaterEqual(commits["scope_count"], 1)
+                action_commits = next(
+                    item
+                    for item in commits["scopes"]
+                    if item["scope"]["worker_request_id"]
+                    == action["worker_request"]["request_id"]
+                )
+                self.assertEqual(action_commits["pending_count"], 0)
+                self.assertGreaterEqual(
+                    action_commits["phases"].get("checkpoint_committed", 0),
+                    1,
+                )
+                durable_artifacts = _get(
+                    base_url,
+                    f"/tasks/{task_id}/browser-observability?view=artifacts",
+                )["browser_observability"]
+                action_artifacts = next(
+                    item
+                    for item in durable_artifacts["scopes"]
+                    if item["scope"]["worker_request_id"]
+                    == action["worker_request"]["request_id"]
+                )
+                self.assertFalse(action_artifacts["raw_filesystem_paths_exposed"])
+                self.assertTrue(action_artifacts["artifacts"])
+                self.assertTrue(
+                    all("uri" not in item for item in action_artifacts["artifacts"])
+                )
                 custody_token = action["permission_session"]["custody_token"]
                 self.assertTrue(custody_token)
 

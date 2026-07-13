@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +58,7 @@ class LocalArtifactStore:
         directory.mkdir(parents=True, exist_ok=True)
         filename = f"{artifact_id}{extension if extension.startswith('.') else f'.{extension}'}"
         target = directory / filename
-        target.write_text(content, encoding="utf-8")
+        self._atomic_write(target, content.encode("utf-8"))
         return ArtifactRef(
             artifact_id=artifact_id,
             kind=kind,
@@ -84,7 +85,7 @@ class LocalArtifactStore:
         directory.mkdir(parents=True, exist_ok=True)
         filename = f"{artifact_id}{extension if extension.startswith('.') else f'.{extension}'}"
         target = directory / filename
-        target.write_bytes(content)
+        self._atomic_write(target, bytes(content))
         artifact_metadata = {
             "storage": "local",
             "relative_path": str(target.relative_to(self.root)),
@@ -148,6 +149,38 @@ class LocalArtifactStore:
 
         path.relative_to(self.root)
         return path
+
+    @staticmethod
+    def _atomic_write(target: Path, content: bytes) -> None:
+        """Commit artifact bytes without exposing a partial final file.
+
+        The temporary file lives beside the destination so ``os.replace`` is
+        an atomic same-filesystem rename.  A failed write or replace removes
+        the temporary file and leaves an existing destination untouched.
+        """
+
+        temporary = target.with_name(f".{target.name}.tmp")
+        try:
+            with temporary.open("xb") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+            # Persist the directory entry on platforms that support opening a
+            # directory descriptor.  Windows raises OSError and already gives
+            # atomic replace semantics for the file entry.
+            try:
+                descriptor = os.open(target.parent, os.O_RDONLY)
+            except OSError:
+                descriptor = -1
+            if descriptor >= 0:
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            raise
 
 
 def _is_text_artifact(artifact: ArtifactRef, path: Path) -> bool:

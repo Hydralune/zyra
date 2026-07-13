@@ -10,6 +10,7 @@ from typing import Any, Protocol
 
 from zyra_core import ArtifactKind
 
+from ..browser_session.screenshot_capture import HighlightFreeScreenshotCapture
 from .file_policy import BrowserFilePolicy, FileReceipt
 from .event_port import ArtifactPort, causal_metadata
 from .form_policy import FormReceipt
@@ -569,23 +570,17 @@ class BrowserSideEffectFence:
 
     def _screenshot(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
         image_format = str(arguments.get("format", "png"))
-        params: dict[str, Any] = {
-            "format": image_format,
-            "captureBeyondViewport": bool(
+        capture = HighlightFreeScreenshotCapture().capture(
+            lambda method, params: self._send(method, params, context),
+            image_format=image_format,
+            capture_beyond_viewport=bool(
                 arguments.get("capture_beyond_viewport", arguments.get("full_page", False))
             ),
-            "fromSurface": bool(arguments.get("from_surface", True)),
-        }
-        if image_format in {"jpeg", "webp"}:
-            params["quality"] = int(arguments.get("quality", 90))
-        response = self._send("Page.captureScreenshot", params, context)
-        encoded = str(response.get("data", ""))
-        try:
-            data = base64.b64decode(encoded, validate=True)
-        except (ValueError, TypeError) as exc:
-            raise BrowserExecutionError("screenshot_payload_invalid", "CDP screenshot payload is invalid base64") from exc
-        if not data:
-            raise BrowserExecutionError("screenshot_payload_empty", "CDP screenshot returned no image bytes")
+            from_surface=bool(arguments.get("from_surface", True)),
+            quality=(int(arguments.get("quality", 90)) if image_format in {"jpeg", "webp"} else None),
+            cdp_session_id=context.bindings.selector.binding.cdp_session_id if context.bindings.selector else "",
+        )
+        data = capture.content
         if self.artifact_port is None:
             raise BrowserExecutionError(
                 "screenshot_artifact_port_missing",
@@ -596,13 +591,22 @@ class BrowserSideEffectFence:
             kind=ArtifactKind.SCREENSHOT,
             title=title,
             content=data,
-            metadata=causal_metadata(context.request.identity, context.receipt),
+            metadata={
+                **causal_metadata(context.request.identity, context.receipt),
+                "highlight_removed": capture.highlight_removed,
+                "highlight_restored": capture.highlight_restored,
+                "screenshot_capture_id": capture.capture_id,
+                "screenshot_sha256": capture.sha256,
+            },
         )
         return {
             "artifact_id": artifact.artifact_id,
             "bytes": len(data),
-            "sha256": digest_value(data.hex()).removeprefix("sha256:"),
+            "sha256": capture.sha256.removeprefix("sha256:"),
             "format": image_format,
+            "highlight_removed": capture.highlight_removed,
+            "highlight_restored": capture.highlight_restored,
+            "capture_id": capture.capture_id,
         }, "Screenshot captured to owned artifact", (artifact.artifact_id,), 0, 1
 
     def _print_pdf(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:

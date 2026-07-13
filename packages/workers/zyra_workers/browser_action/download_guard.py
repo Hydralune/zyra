@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -100,6 +101,30 @@ class DownloadProgress:
     received_bytes: int = 0
     total_bytes: int = 0
     events: list[DownloadEvent] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class DownloadAbortReceipt:
+    lease_id: str
+    action_id: str
+    reason: str
+    cancelled_guids: tuple[str, ...]
+    removed_paths: tuple[str, ...]
+    control_disarmed: bool
+    cleanup_complete: bool
+
+    def public_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "zyra.browser-action.download-abort.v1",
+            "lease_id": self.lease_id,
+            "action_id": self.action_id,
+            "reason": self.reason,
+            "cancelled_guids": list(self.cancelled_guids),
+            "removed_paths": list(self.removed_paths),
+            "control_disarmed": self.control_disarmed,
+            "cleanup_complete": self.cleanup_complete,
+            "canonical_download_owner": "M1-S04C-02",
+        }
 
 
 class DownloadControlPort(Protocol):
@@ -254,12 +279,111 @@ class BrowserDownloadGuard:
         return None
 
     def disarm(self, lease: DownloadLease) -> None:
+        self.abort(lease, reason="download_lease_disarmed", cancel_active=True)
+
+    def abort(
+        self,
+        lease: DownloadLease,
+        *,
+        reason: str,
+        cancel_active: bool = True,
+    ) -> DownloadAbortReceipt:
+        """Cancel active native downloads and remove all lease-owned transients."""
+
         self._require_lease(lease)
+        quarantine = Path(lease.quarantine_root).resolve(strict=False)
+        assert_contained(quarantine, self.quarantine_parent, resolve_leaf=False)
+        with self._lock:
+            progress = tuple(
+                item
+                for item in self._progress.values()
+                if _is_within(item.path, quarantine)
+            )
+        cancelled: list[str] = []
+        removed: list[str] = []
+        for item in progress:
+            if cancel_active and item.state not in {
+                DownloadState.COMPLETED,
+                DownloadState.CANCELLED,
+                DownloadState.REJECTED,
+            }:
+                try:
+                    self.control_port.cancel(item.guid)
+                    cancelled.append(item.guid)
+                except Exception:
+                    # Disarm and filesystem cleanup still proceed. The caller
+                    # receives cleanup_complete=False through the final scan.
+                    pass
+            for candidate in (
+                item.path,
+                item.path.with_suffix(item.path.suffix + ".crdownload"),
+                item.path.with_suffix(item.path.suffix + ".part"),
+                item.path.with_suffix(item.path.suffix + ".tmp"),
+            ):
+                if candidate.is_file():
+                    candidate.unlink(missing_ok=True)
+                    removed.append(str(candidate))
+            with self._lock:
+                self._progress.pop(item.guid, None)
+        control_disarmed = False
         try:
             self.control_port.disarm(browser_context_id=lease.browser_context_id)
+            control_disarmed = True
         finally:
             with self._lock:
                 self._leases.pop(lease.lease_id, None)
+            if quarantine.exists():
+                for path in sorted(quarantine.rglob("*"), reverse=True):
+                    if path.is_file():
+                        path.unlink(missing_ok=True)
+                        removed.append(str(path))
+                shutil.rmtree(quarantine, ignore_errors=True)
+        cleanup_complete = (
+            not quarantine.exists()
+            and not any(
+                _is_within(item.path, quarantine)
+                for item in self._progress.values()
+            )
+        )
+        return DownloadAbortReceipt(
+            lease_id=lease.lease_id,
+            action_id=lease.action_id,
+            reason=reason,
+            cancelled_guids=tuple(dict.fromkeys(cancelled)),
+            removed_paths=tuple(dict.fromkeys(removed)),
+            control_disarmed=control_disarmed,
+            cleanup_complete=cleanup_complete,
+        )
+
+    def active_progress(self, lease: DownloadLease) -> tuple[DownloadProgress, ...]:
+        self._require_lease(lease)
+        quarantine = Path(lease.quarantine_root).resolve(strict=False)
+        with self._lock:
+            return tuple(
+                item for item in self._progress.values() if _is_within(item.path, quarantine)
+            )
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            leases = tuple(self._leases.values())
+            progress = tuple(self._progress.values())
+        return {
+            "runtime_id": "zyra-browser-download-guard",
+            "owner_unit": "M1-S04C-02",
+            "disabled": self.disabled,
+            "active_leases": [item.public_dict() for item in leases],
+            "active_progress": [
+                {
+                    "guid": item.guid,
+                    "filename": item.filename,
+                    "state": str(item.state),
+                    "received_bytes": item.received_bytes,
+                    "total_bytes": item.total_bytes,
+                    "event_count": len(item.events),
+                }
+                for item in progress
+            ],
+        }
 
     def _import_completed(self, lease: DownloadLease, progress: DownloadProgress) -> CompletedFile:
         source = progress.path
@@ -298,3 +422,11 @@ class BrowserDownloadGuard:
             stored = self._leases.get(lease.lease_id)
         if stored != lease:
             raise DownloadGuardError("download_lease_invalid", "browser download lease is missing or stale")
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(root.resolve(strict=False))
+        return True
+    except ValueError:
+        return False
