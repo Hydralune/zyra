@@ -264,6 +264,7 @@ class BrowserMessageTurn:
     metrics: BrowserLowEntropyMetrics
     status: BrowserProjectionStatus = BrowserProjectionStatus.READY
     findings: tuple[str, ...] = ()
+    ablation: Mapping[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=now_iso)
 
     @property
@@ -294,6 +295,7 @@ class BrowserMessageTurn:
             "status": str(self.status),
             "ok": self.ok,
             "findings": list(self.findings),
+            "ablation": to_jsonable(dict(self.ablation)),
             "created_at": self.created_at,
         }
 

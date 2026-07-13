@@ -4,7 +4,7 @@ import json
 import threading
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 from .contracts import (
@@ -26,6 +26,12 @@ from .errors import (
 from .serializer import DOMTreeSerializer
 from .snapshot_decoder import decode_snapshot, snapshot_node_count, validate_snapshot_payload
 from .text import estimate_tokens, finite_number
+from .frame_capture import (
+    BrowserFrameCaptureRuntime,
+    merge_frame_roots,
+    merge_oopif_serialized_states,
+    merged_raw_payloads,
+)
 
 
 class BrowserCdpRequestPort(Protocol):
@@ -59,6 +65,7 @@ class BrowserDomRuntimeSnapshot:
     last_capture_id: str
     last_error: str
     last_duration_ms: float
+    frame_runtime: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -72,6 +79,7 @@ class BrowserDomRuntimeSnapshot:
             "last_capture_id": self.last_capture_id,
             "last_error": self.last_error,
             "last_duration_ms": self.last_duration_ms,
+            "frame_runtime": dict(self.frame_runtime),
         }
 
 
@@ -94,6 +102,7 @@ class BrowserDomStateRuntime:
             "cursor", "pointer-events", "position", "background-color",
         ),
         capture_policy: BrowserDomCapturePolicy | None = None,
+        frame_runtime: BrowserFrameCaptureRuntime | None = None,
     ) -> None:
         if request_timeout_seconds <= 0:
             raise ValueError("DOM capture timeout must be positive")
@@ -103,6 +112,12 @@ class BrowserDomStateRuntime:
         self.max_iframes = max(0, int(max_iframes))
         self.computed_styles = tuple(dict.fromkeys(str(item) for item in computed_styles if str(item)))
         self.capture_policy = capture_policy or BrowserDomCapturePolicy(disabled=disabled)
+        self.frame_runtime = frame_runtime or BrowserFrameCaptureRuntime(
+            request_timeout_seconds=self.request_timeout_seconds,
+            max_iframes=self.max_iframes,
+            computed_styles=self.computed_styles,
+            disabled=disabled,
+        )
         self._lock = threading.RLock()
         self._captures = 0
         self._failures = 0
@@ -275,6 +290,21 @@ class BrowserDomStateRuntime:
         if loader_id and not request.document_loader_id:
             request = replace(request, document_loader_id=loader_id)
 
+        frame_composition = self.frame_runtime.capture(
+            request,
+            root_frame_tree=frame_tree,
+            cdp_runtime=cdp_runtime,
+            target_runtime=target_runtime,
+        )
+        if frame_composition.same_origin_ax:
+            ax = {
+                **ax,
+                "nodes": [
+                    *_sequence(ax.get("nodes")),
+                    *_sequence(frame_composition.same_origin_ax.get("nodes")),
+                ],
+            }
+
         policy_decision = self.capture_policy.inspect_responses(
             request,
             dom=dom,
@@ -308,33 +338,62 @@ class BrowserDomStateRuntime:
             default_frame_id=_root_frame_id(frame_tree),
             sensitive_values=_sensitive_values(request.constraints),
         )
+        merged_root = merge_frame_roots(build_report.root, frame_composition)
         serializer = DOMTreeSerializer(
-            build_report.root,
+            merged_root,
             previous_cached_state=None,
             enable_bbox_filtering=True,
             paint_order_filtering=True,
             session_id=request.browser_session_id,
         )
         serialized, serializer_timing = serializer.serialize_accessible_elements()
+        serialized = merge_oopif_serialized_states(serialized, frame_composition)
         compose_ms = _elapsed_ms(compose_started)
         if serialized._root is None:
             raise BrowserDomRootMissing("DOM serializer returned no root state")
-        frames = _frames(frame_tree, request)
+        root_frames = _frames(frame_tree, request)
+        frame_index: dict[tuple[str, str, str], BrowserFrameState] = {
+            (item.target_id, item.cdp_session_id, item.frame_id): item for item in root_frames
+        }
+        for item in frame_composition.frames:
+            frame_index[(item.target_id, item.cdp_session_id, item.frame_id)] = item
+        frames = tuple(frame_index.values())
         warnings = list(build_report.warnings)
+        warnings.extend(frame_composition.warnings)
+        for child_capture in frame_composition.oopif_captures:
+            warnings.extend(child_capture.warnings)
         warnings.extend(policy_decision.warnings)
         warnings.extend(str(item) for item in serializer_timing.get("warnings", ()) if item)
         completeness = CaptureCompleteness.DEGRADED if warnings else CaptureCompleteness.COMPLETE
-        raw_payload = {"dom": dom, "ax": ax, "snapshot": snapshot, "frames": frame_tree}
+        composite_dom, composite_ax, composite_snapshot = merged_raw_payloads(
+            root_dom=dom,
+            root_ax=ax,
+            root_snapshot=snapshot,
+            composition=frame_composition,
+        )
+        raw_payload = {
+            "dom": composite_dom,
+            "ax": composite_ax,
+            "snapshot": composite_snapshot,
+            "frames": frame_tree,
+            "frame_composition": frame_composition.to_dict(),
+        }
         encoded = json.dumps(raw_payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+        child_dom_nodes = sum(item.dom_nodes for item in frame_composition.oopif_captures)
+        child_ax_nodes = sum(item.ax_nodes for item in frame_composition.oopif_captures)
+        child_snapshot_nodes = sum(item.snapshot_nodes for item in frame_composition.oopif_captures)
         metrics = BrowserCaptureMetrics(
             full_state_bytes=len(encoded),
             full_state_tokens=estimate_tokens(encoded),
-            dom_nodes=build_report.node_count,
-            ax_nodes=len(_sequence(ax.get("nodes"))),
-            snapshot_nodes=snapshot_node_count(snapshot),
+            dom_nodes=build_report.node_count + child_dom_nodes,
+            ax_nodes=len(_sequence(ax.get("nodes"))) + child_ax_nodes,
+            snapshot_nodes=snapshot_node_count(snapshot) + child_snapshot_nodes,
             selector_candidates=len(serialized.selector_map),
             frames=len(frames),
-            omitted_frames=sum(not frame.complete for frame in frames),
+            omitted_frames=max(
+                sum(not frame.complete for frame in frames),
+                frame_composition.omitted_count,
+            ),
             capture_duration_ms=0.0,
             dom_duration_ms=dom_ms,
             ax_duration_ms=ax_ms,
@@ -344,11 +403,11 @@ class BrowserDomStateRuntime:
         )
         return BrowserDomCapture(
             request=request,
-            root=build_report.root,
+            root=merged_root,
             serialized_state=serialized,
-            raw_dom=dom,
-            raw_ax=ax,
-            raw_snapshot=snapshot,
+            raw_dom=composite_dom,
+            raw_ax=composite_ax,
+            raw_snapshot=composite_snapshot,
             frames=frames,
             viewport=viewport,
             metrics=metrics,
@@ -476,6 +535,7 @@ class BrowserDomStateRuntime:
                 last_capture_id=self._last_capture_id,
                 last_error=self._last_error,
                 last_duration_ms=self._last_duration_ms,
+                frame_runtime=self.frame_runtime.snapshot(),
             )
 
 

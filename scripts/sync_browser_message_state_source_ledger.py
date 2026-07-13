@@ -59,6 +59,8 @@ BEHAVIOR_COMMAND = (
 
 class SourceDisposition(StrEnum):
     MIGRATED = "zyra_module_migrated"
+    CONFORMANCE_ONLY = "conformance_only"
+    EXPERIMENTAL = "experimental"
     REFERENCE_ONLY = "reference_only"
     DEFERRED = "deferred"
 
@@ -72,6 +74,12 @@ class BrowserMessageStateSourceDecision:
     strategy: MigrationStrategy = MigrationStrategy.DIRECT_PORT
     rationale: str = ""
     next_owner: str = ""
+    source_repo: str = SOURCE_REPO
+    source_role: str = "primary"
+    source_graph_ref: str = SOURCE_GRAPH_REF
+    slice_id: str = SLICE_ID
+    behavior_test: str = BEHAVIOR_TEST
+    behavior_command: str = BEHAVIOR_COMMAND
 
     @property
     def claims_runtime_ownership(self) -> bool:
@@ -170,8 +178,15 @@ SOURCE_DECISIONS = (
             "packages/workers/zyra_workers/browser_context/message_manager.py",
             "packages/workers/zyra_workers/browser_context/compressor.py",
             "packages/workers/zyra_workers/browser_context/application.py",
+            "packages/workers/zyra_workers/browser_context/task_integration.py",
+            "packages/workers/zyra_workers/browser_context/api_projection.py",
         ),
-        ("message projection", "context compression", "turn application service"),
+        (
+            "message projection",
+            "context compression",
+            "turn application service",
+            "read-once task checkpoint and provider delivery",
+        ),
         SourceDisposition.MIGRATED,
         MigrationStrategy.REIMPLEMENTED_PATTERN,
     ),
@@ -233,6 +248,168 @@ SOURCE_DECISIONS = (
         ("DOM node contracts", "selector map revision contracts"),
         SourceDisposition.MIGRATED,
     ),
+    BrowserMessageStateSourceDecision(
+        "browser_use/browser/watchdogs/dom_watchdog.py",
+        (
+            "packages/workers/zyra_workers/browser_state/frame_capture.py",
+            "packages/workers/zyra_workers/browser_state/selector_probe.py",
+        ),
+        (
+            "same-origin and OOPIF target/session capture",
+            "live backend-node generation and focus guard",
+        ),
+        SourceDisposition.MIGRATED,
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.REIMPLEMENTED_PATTERN,
+    ),
+    BrowserMessageStateSourceDecision(
+        "src/query.ts",
+        (
+            "packages/workers/zyra_workers/browser_context/task_integration.py",
+            "packages/workers/zyra_workers/code_worker_runtime.py",
+            "apps/api/zyra_api/main.py",
+        ),
+        (
+            "provider-envelope context selection",
+            "tool result budget custody",
+            "checkpointed compact/restore boundary",
+        ),
+        SourceDisposition.MIGRATED,
+        source_repo="claude-code-best",
+        source_role="supplementary",
+        source_graph_ref="source-graphs/claude-code-best/batch-02-query-tool-loop.md",
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.REIMPLEMENTED_PATTERN,
+    ),
+    BrowserMessageStateSourceDecision(
+        "packages/agent/src/agent-loop.ts",
+        (
+            "packages/workers/zyra_workers/browser_context/action_envelope.py",
+            "packages/workers/zyra_workers/browser_context/causal_runtime.py",
+        ),
+        (
+            "malformed and partial tool result normalization",
+            "atomic action/result causation",
+            "oversize result artifact handoff",
+        ),
+        SourceDisposition.MIGRATED,
+        source_repo="oh-my-pi",
+        source_role="supplementary",
+        source_graph_ref="source-graphs/oh-my-pi/batch-01-agent-loop-session.md",
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.REIMPLEMENTED_PATTERN,
+    ),
+    BrowserMessageStateSourceDecision(
+        "packages/agent/src/append-only-context.ts",
+        ("packages/workers/zyra_workers/browser_context/task_integration.py",),
+        ("append-only typed browser disclosure delivery", "read-once provider selection"),
+        SourceDisposition.MIGRATED,
+        source_repo="oh-my-pi",
+        source_role="supplementary",
+        source_graph_ref="source-graphs/oh-my-pi/batch-01-agent-loop-session.md",
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.REIMPLEMENTED_PATTERN,
+    ),
+    BrowserMessageStateSourceDecision(
+        "packages/snapcompact/src/index.ts",
+        ("packages/workers/zyra_workers/browser_context/ablation.py",),
+        ("default-off bitmap compression fidelity ablation",),
+        SourceDisposition.EXPERIMENTAL,
+        source_repo="oh-my-pi",
+        source_role="experimental",
+        source_graph_ref="source-graphs/oh-my-pi/batch-04-memory-compaction.md",
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.NOT_SELECTED,
+        rationale=(
+            "Snapcompact remains default-off and non-authoritative; it only supplies the bounded "
+            "bitmap comparison lane and cannot own DOM, selector, context, or restore state."
+        ),
+    ),
+    BrowserMessageStateSourceDecision(
+        "python/packages/core/agent_framework/_harness/_loop.py",
+        ("tests/integration/test_browser_message_state_compression_integration.py",),
+        ("fresh-context and session snapshot behavior comparison",),
+        SourceDisposition.CONFORMANCE_ONLY,
+        source_repo="agent-framework",
+        source_role="conformance_only",
+        source_graph_ref="source-graphs/agent-framework/batch-05-harness-control-memory.md",
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.NOT_SELECTED,
+        rationale=(
+            "Agent Framework remains a conformance oracle for session/history behavior; the protected "
+            "02D context owner already supplies the selected canonical implementation."
+        ),
+    ),
+    BrowserMessageStateSourceDecision(
+        "packages/core/src/session/compaction.ts",
+        ("tests/integration/test_browser_message_state_compression_integration.py",),
+        ("session event and context epoch behavior comparison",),
+        SourceDisposition.CONFORMANCE_ONLY,
+        source_repo="opencode",
+        source_role="conformance_only",
+        source_graph_ref="source-graphs/opencode/source-graph.md",
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.NOT_SELECTED,
+        rationale=(
+            "opencode session/context epoch semantics are conformance-only here; adding its state model "
+            "would duplicate TaskState and the M1-02D context checkpoint owner."
+        ),
+    ),
+    BrowserMessageStateSourceDecision(
+        "agent/context_compressor.py",
+        ("tests/integration/test_browser_message_state_compression_integration.py",),
+        ("long-session compression failure and anti-thrash comparison",),
+        SourceDisposition.CONFORMANCE_ONLY,
+        source_repo="hermes-agent",
+        source_role="reference_only",
+        source_graph_ref="source-graphs/hermes-agent/batch-03-session-memory-context-compression.md",
+        slice_id="M1-S04B-02",
+        behavior_test="tests/integration/test_browser_message_state_compression_integration.py",
+        behavior_command=(
+            "python -m pytest -p no:cacheprovider "
+            "tests/integration/test_browser_message_state_compression_integration.py"
+        ),
+        strategy=MigrationStrategy.NOT_SELECTED,
+        rationale=(
+            "Hermes long-session compression remains reference-only for 04B; global compact locks, "
+            "cooldowns, and memory ownership remain with M1-02D and the M1-06 units."
+        ),
+    ),
 )
 
 
@@ -262,7 +439,7 @@ def _runtime_entry(decision: BrowserMessageStateSourceDecision) -> RuntimeEntry:
             module="zyra_workers.browser_worker",
             function="BrowserWorkerRuntime.run",
             protocol="zyra-browser-message-state-v1",
-            health_check=BEHAVIOR_COMMAND,
+            health_check=decision.behavior_command,
             config_refs=[
                 "packages/workers/zyra_workers/browser_context/application.py",
                 "packages/workers/zyra_workers/browser_state/runtime.py",
@@ -273,15 +450,15 @@ def _runtime_entry(decision: BrowserMessageStateSourceDecision) -> RuntimeEntry:
         function="BrowserMessageStateApplication.snapshot",
         protocol="zyra-browser-message-state-source-decision-v1",
         health_check="python scripts/sync_browser_message_state_source_ledger.py --check",
-        config_refs=[SOURCE_GRAPH_REF],
+        config_refs=[decision.source_graph_ref],
     )
 
 
 def _test_entry(decision: BrowserMessageStateSourceDecision) -> TestEntry:
     if decision.claims_runtime_ownership:
         return TestEntry(
-            path=BEHAVIOR_TEST,
-            command=BEHAVIOR_COMMAND,
+            path=decision.behavior_test,
+            command=decision.behavior_command,
             kind="integration",
             expected_signal=(
                 "real BrowserWorkerRuntime capture changes events, artifacts, selector state, "
@@ -351,13 +528,13 @@ def build_entry(decision: BrowserMessageStateSourceDecision) -> InternalizationL
     ]
     entry = InternalizationLedgerEntry(
         ledger_id=InternalizationLedgerEntry.new(
-            source_repo=SOURCE_REPO,
+            source_repo=decision.source_repo,
             source_path=decision.source_path,
             capability_name=capability_name,
             capability_summary=", ".join(decision.mechanisms),
             target_paths=[decision.target_paths[0]],
         ).ledger_id,
-        source_repo=SOURCE_REPO,
+        source_repo=decision.source_repo,
         source_path=decision.source_path,
         capability_name=capability_name,
         capability_summary=", ".join(decision.mechanisms),
@@ -374,7 +551,7 @@ def build_entry(decision: BrowserMessageStateSourceDecision) -> InternalizationL
             else LineCountPolicy.EXCLUDED_INVENTORY_ONLY
         ),
         license_notice=LicenseNotice(
-            source_repo=SOURCE_REPO,
+            source_repo=decision.source_repo,
             status=NoticeStatus.RECORDED,
             license_hint="Source mechanism recorded for Zyra-owned browser state internalization.",
             notice_path="third_party/NOTICE.md",
@@ -385,15 +562,21 @@ def build_entry(decision: BrowserMessageStateSourceDecision) -> InternalizationL
         downstream_units=["M1-04C", "M1-04D", "M1-06B", "M2-01A"],
         dependencies=["M1-04A", "M1-02D"] if decision.claims_runtime_ownership else [],
         source_evidence=[SourceEvidence(
-            source_repo=SOURCE_REPO,
+            source_repo=decision.source_repo,
             source_path=decision.source_path,
             exists_in_workspace=True,
             source_kind="file",
-            reason=f"{SLICE_ID} browser message/state source-to-target decision",
+            reason=f"{decision.slice_id} browser message/state source-to-target decision",
             symbols=[],
             tags=["browser-state", decision.disposition.value],
         )],
-        tags=["m1-04b", "slice-04b-01", "browser-message-state", decision.disposition.value],
+        tags=[
+            "m1-04b",
+            decision.slice_id.lower().replace("m1-s", "slice-"),
+            "browser-message-state",
+            decision.source_role,
+            decision.disposition.value,
+        ],
         blockers=[],
         risk_notes=([decision.rationale] if decision.rationale else []),
         replacement_plan=_replacement_plan(decision),
@@ -401,9 +584,10 @@ def build_entry(decision: BrowserMessageStateSourceDecision) -> InternalizationL
         updated_at=STAMP,
         metadata={
             "source_disposition": decision.disposition.value,
-            "source_graph_ref": SOURCE_GRAPH_REF,
+            "source_graph_ref": decision.source_graph_ref,
+            "source_role": decision.source_role,
             "next_owner": decision.next_owner,
-            "slice_id": SLICE_ID,
+            "slice_id": decision.slice_id,
         },
     )
     errors = entry.validate()
@@ -462,7 +646,7 @@ def synchronize(path: Path, *, write: bool) -> tuple[bool, int, int]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Synchronize M1-S04B-01 browser message-state source decisions."
+        description="Synchronize M1-04B browser message-state source decisions."
     )
     parser.add_argument("--ledger-path", type=Path, default=DEFAULT_LEDGER_PATH)
     mode = parser.add_mutually_exclusive_group()
@@ -474,11 +658,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     aligned, count, changed = synchronize(path, write=args.write)
     migrated = sum(item.disposition is SourceDisposition.MIGRATED for item in SOURCE_DECISIONS)
     references = sum(item.disposition is SourceDisposition.REFERENCE_ONLY for item in SOURCE_DECISIONS)
+    experimental = sum(item.disposition is SourceDisposition.EXPERIMENTAL for item in SOURCE_DECISIONS)
+    conformance = sum(item.disposition is SourceDisposition.CONFORMANCE_ONLY for item in SOURCE_DECISIONS)
     deferred = sum(item.disposition is SourceDisposition.DEFERRED for item in SOURCE_DECISIONS)
     print(f"browser_message_state_source_ledger_aligned={str(aligned).lower()}")
     print(f"browser_message_state_source_decision_count={count}")
     print(f"browser_message_state_migrated_count={migrated}")
     print(f"browser_message_state_reference_count={references}")
+    print(f"browser_message_state_experimental_count={experimental}")
+    print(f"browser_message_state_conformance_count={conformance}")
     print(f"browser_message_state_deferred_count={deferred}")
     print(f"browser_message_state_owner_groups_changed={changed}")
     print(f"ledger_path={path}")

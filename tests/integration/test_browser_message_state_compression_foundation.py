@@ -149,6 +149,12 @@ class BrowserMessageStateCompressionFoundationTests(unittest.TestCase):
             self.assertIn("full_state_bytes", payload["browser_low_entropy_metrics"])
             self.assertIn("disclosure_bytes", payload["browser_low_entropy_metrics"])
             self.assertIn("artifact_offload_ratio", payload["browser_low_entropy_metrics"])
+            selector_probe = payload["browser_live_selector_probe"]
+            self.assertGreater(selector_probe["attempted"], 0)
+            self.assertEqual(
+                selector_probe["resolved"] + selector_probe["failed"],
+                selector_probe["attempted"],
+            )
 
             artifact_ids = {item.artifact_id for item in result.worker_result.artifacts}
             disclosure_artifacts = set(payload["browser_context_disclosure"]["artifact_ids"])
@@ -170,7 +176,9 @@ class BrowserMessageStateCompressionFoundationTests(unittest.TestCase):
             self.assertEqual(resolution.revision.revision_id, revision.revision_id)
             snapshot = application.snapshot()
             self.assertEqual(snapshot["turn_store"]["records"], 1)
-            self.assertEqual(snapshot["selector_store"]["resolutions"], 1)
+            # 04B-02 performs bounded live CDP validation for selector entries
+            # during read-state construction before this explicit preflight.
+            self.assertGreaterEqual(snapshot["selector_store"]["resolutions"], 1)
             self.assertEqual(snapshot["watchdog"]["accepted"], 1)
 
     def test_second_read_reuses_previous_facts_and_projection_index_survives_restart(self) -> None:
@@ -209,7 +217,10 @@ class BrowserMessageStateCompressionFoundationTests(unittest.TestCase):
             self.assertEqual(restored.snapshot().records, 2)
             history = restored.history("canonical-04b-history")
             self.assertEqual([item.sequence for item in history], [2, 1])
-            self.assertTrue(all(item.read_once_consumed for item in history))
+            # 04B-02 corrected the foundation's false-positive semantics:
+            # browser capture only enqueues context. Consumption happens after
+            # a subsequent 02D provider envelope selects the disclosure.
+            self.assertFalse(any(item.read_once_consumed for item in history))
             self.assertNotEqual(history[0].worker_request_id, history[1].worker_request_id)
             self.assertEqual(restored.by_request(history[0].worker_request_id), history[0])
             self.assertEqual(restored.by_disclosure(history[0].disclosure_id), history[0])

@@ -278,7 +278,10 @@ class BrowserTurnProjectionStore:
                 event_ids=tuple(item.event_id for item in turn.events),
                 next_context_receipt_id=turn.next_context.receipt_id,
                 next_context_accepted=turn.next_context.accepted,
-                read_once_consumed=turn.next_context.accepted,
+                # Browser capture only enqueues a read-once disclosure.  The
+                # canonical task/context delivery bridge marks it consumed
+                # after a subsequent 02D provider request returns.
+                read_once_consumed=False,
                 status=str(turn.status),
                 findings=turn.findings,
                 sequence=sequence,

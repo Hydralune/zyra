@@ -1136,7 +1136,35 @@ class CodeWorkerRuntime:
                 custody_receipt=custody_receipt,
             )
         query_entry_messages = query_session_integration.packet.request_messages()
+        # Browser disclosures are TaskState-owned, read-once external context.
+        # They must cross the final QueryEngine boundary in addition to the
+        # 02B query-entry packet; ToolSessionBridge consumes WorkerRequest
+        # messages for tool turns and is not a model-context handoff.  Restrict
+        # this extension to the typed browser marker so existing arbitrary
+        # WorkerRequest message behavior and tool pairing stay unchanged.
+        browser_external_messages = []
+        for request_message in request.messages:
+            projected_message = to_jsonable(request_message)
+            if not isinstance(projected_message, Mapping):
+                continue
+            projected_metadata = projected_message.get("metadata")
+            projected_metadata = projected_metadata if isinstance(projected_metadata, Mapping) else {}
+            source_id = str(
+                projected_message.get("browser_context_source_id")
+                or projected_metadata.get("browser_context_source_id")
+                or ""
+            )
+            if not source_id.startswith("browser-disclosure:"):
+                continue
+            browser_external_messages.append(dict(projected_message))
+        if browser_external_messages:
+            query_entry_messages = [*query_entry_messages, *browser_external_messages]
         query_entry_metadata = query_session_integration.metadata_values()
+        query_entry_metadata = {
+            **query_entry_metadata,
+            "browser_external_context_message_count": str(len(browser_external_messages)),
+            "browser_external_context_owner": "M1-S04B-02.BrowserContextTaskIntegrationRuntime",
+        }
         restored_runtime_state = None
         if runtime_state_load.found:
             restored_runtime_state = {

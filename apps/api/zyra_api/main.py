@@ -41,6 +41,7 @@ from zyra_core import (
     MessageIntent,
     create_task_state,
     new_id,
+    now_iso,
     to_jsonable,
 )
 from zyra_core.event_log import append_event as append_jsonl_event
@@ -188,6 +189,9 @@ from zyra_workers import (
     LogicalFanoutRuntime,
     BrowserRuntimeConfig,
     BrowserRuntimeRegistry,
+    BrowserContextScope,
+    BrowserContextTaskIntegrationRuntime,
+    BrowserContextApiProjectionRuntime,
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
     CodeWorkerSubagentExecutionPort,
@@ -481,6 +485,7 @@ _SUBAGENT_RUNTIME_KEY: str | None = None
 _FANOUT_RUNTIME_INSTANCES: dict[str, LogicalFanoutRuntime] = {}
 _BROWSER_RUNTIME_LOCK = threading.RLock()
 _BROWSER_RUNTIME_REGISTRY = BrowserRuntimeRegistry()
+_BROWSER_CONTEXT_TASK_INTEGRATION = BrowserContextTaskIntegrationRuntime()
 
 
 def browser_runtime_config() -> BrowserRuntimeConfig:
@@ -2694,6 +2699,51 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, {"events": store.task_events(parts[1])})
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "browser-context":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            session_id = str(state.metadata.get("query_session_id") or f"task:{state.task_id}")
+            scope = BrowserContextScope(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                session_id=session_id,
+            )
+            try:
+                checkpoint = _BROWSER_CONTEXT_TASK_INTEGRATION.checkpoint_from_metadata(
+                    state.metadata,
+                    scope=scope,
+                )
+            except Exception as error:  # noqa: BLE001 - projection route returns typed corruption.
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": getattr(error, "code", "browser_context_checkpoint_invalid"),
+                        "message": str(error),
+                        "details": to_jsonable(getattr(error, "details", {})),
+                    },
+                )
+                return
+            projection = BrowserContextApiProjectionRuntime().build(
+                checkpoint,
+                events=store.task_events(parts[1]),
+                task_artifact_ids=tuple(item.artifact_id for item in state.artifacts),
+            )
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "browser_context": _BROWSER_CONTEXT_TASK_INTEGRATION.public_projection(checkpoint),
+                    "projection": projection.to_dict(),
+                    "memory_candidates": list(checkpoint.memory_candidates),
+                    "history_messages": list(checkpoint.history_messages[-64:]),
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+            return
+
         if len(parts) == 5 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "code":
             state = store.load_task(parts[1])
             if state is None:
@@ -3553,34 +3603,145 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "browser":
-            state = store.load_task(parts[1])
+            self._execute_browser_worker_post(store, parts[1], payload)
+            return
+
+        self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
+
+    def _execute_browser_worker_post(
+        self,
+        store: SQLiteStore,
+        task_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Run browser state/action/context as one task-checkpoint transaction."""
+
+        with _task_lock(task_id):
+            state = store.load_task(task_id)
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
             constraints = payload.get("constraints")
-            if not isinstance(constraints, dict):
-                constraints = {}
+            constraints = dict(constraints) if isinstance(constraints, dict) else {}
             if "browser_plan" in payload and "browser_plan" not in constraints:
                 constraints["browser_plan"] = payload["browser_plan"]
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=str(payload.get("node_id") or state.root_node_id),
-                worker_name="BrowserWorker",
-                constraints=constraints,
+            session_id = str(
+                constraints.get("session_id")
+                or constraints.get("canonical_session_id")
+                or payload.get("session_id")
+                or state.metadata.get("query_session_id")
+                or f"task:{state.task_id}"
             )
-            try:
-                _runtime, browser_worker = get_browser_runtime_services()
-                run_result = browser_worker.run(request)
-            except Exception as error:  # noqa: BLE001 - API must report browser worker startup/runtime failures.
+            constraints["session_id"] = session_id
+            constraints["canonical_session_id"] = session_id
+            state.metadata["query_session_id"] = session_id
+            node_id = str(payload.get("node_id") or state.root_node_id)
+            if node_id not in _task_node_ids(state):
                 self._send_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"error": "browser_worker_failed", "message": str(error)},
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "invalid_task_node", "task_id": task_id, "node_id": node_id},
                 )
                 return
 
-            if run_result.worker_result.artifacts:
-                state.artifacts.extend(run_result.worker_result.artifacts)
+            idempotency_key = str(
+                self.headers.get("Idempotency-Key")
+                or payload.get("idempotency_key")
+                or ""
+            ).strip()
+            if len(idempotency_key) > 200:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "invalid_idempotency_key", "message": "Idempotency-Key exceeds 200 characters."},
+                )
+                return
+            request_fingerprint_payload = json.dumps(
+                {
+                    "task_id": task_id,
+                    "node_id": node_id,
+                    "session_id": session_id,
+                    "constraints": constraints,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+                default=str,
+            ).encode("utf-8")
+            request_fingerprint = "sha256:" + hashlib.sha256(request_fingerprint_payload).hexdigest()
+            idempotency_records = state.metadata.setdefault("browser_worker_idempotency", {})
+            if not isinstance(idempotency_records, dict):
+                idempotency_records = {}
+                state.metadata["browser_worker_idempotency"] = idempotency_records
+            prior = idempotency_records.get(idempotency_key) if idempotency_key else None
+            if isinstance(prior, dict):
+                if str(prior.get("request_fingerprint") or "") != request_fingerprint:
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {
+                            "error": "browser_worker_idempotency_conflict",
+                            "idempotency_key": idempotency_key,
+                            "request_fingerprint": request_fingerprint,
+                        },
+                    )
+                    return
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "task": to_jsonable(state),
+                        "idempotent_replay": True,
+                        "idempotency_key": idempotency_key,
+                        "browser_context": prior.get("browser_context", {}),
+                        "worker_result": prior.get("worker_result", {}),
+                        "event_ids": prior.get("event_ids", []),
+                        "permission_session": {
+                            "created": False,
+                            "custody_token": "",
+                            "cacheable": False,
+                            "must_not_persist": True,
+                        },
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"},
+                )
+                return
+
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=node_id,
+                worker_name="BrowserWorker",
+                constraints=constraints,
+                request_id=new_id("browser-worker-request"),
+                metadata={"browser_context_owner": "M1-02D.ClaudeContextWindowManager"},
+            )
+            checkpoint = state.metadata.get("browser_context_runtime_state")
+            checkpoint = checkpoint if isinstance(checkpoint, dict) else None
+            try:
+                _runtime, browser_worker = get_browser_runtime_services()
+                run_result = browser_worker.run(
+                    request,
+                    browser_context_checkpoint=checkpoint,
+                )
+            except Exception as error:  # noqa: BLE001 - no partial checkpoint is persisted.
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {
+                        "error": "browser_worker_failed",
+                        "message": str(error),
+                        "exception_type": type(error).__name__,
+                    },
+                )
+                return
+
+            if run_result.browser_context_checkpoint:
+                restored = _BROWSER_CONTEXT_TASK_INTEGRATION.checkpoint_from_metadata(
+                    {"browser_context_runtime_state": run_result.browser_context_checkpoint},
+                    scope=BrowserContextScope(
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        session_id=session_id,
+                    ),
+                )
+                _BROWSER_CONTEXT_TASK_INTEGRATION.persist_checkpoint(state.metadata, restored)
+            _attach_artifacts(state, list(run_result.worker_result.artifacts))
             state.budget.tool_calls += sum(
                 1
                 for event in run_result.event_records
@@ -3588,6 +3749,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             if run_result.event_records:
                 state.updated_at = run_result.event_records[-1].created_at
+            if idempotency_key:
+                idempotency_records[idempotency_key] = {
+                    "request_fingerprint": request_fingerprint,
+                    "worker_request_id": request.request_id,
+                    "worker_result": to_jsonable(run_result.worker_result),
+                    "browser_context": run_result.browser_context_projection,
+                    "event_ids": [event.event_id for event in run_result.event_records],
+                    "created_at": now_iso(),
+                }
+                if len(idempotency_records) > 128:
+                    oldest = sorted(
+                        idempotency_records,
+                        key=lambda key: str(idempotency_records[key].get("created_at") or ""),
+                    )[:-128]
+                    for key in oldest:
+                        idempotency_records.pop(key, None)
             persist_events(store, run_result.event_records)
             store.save_checkpoint(state)
             status = HTTPStatus.CREATED if run_result.worker_result.ok else HTTPStatus.CONFLICT
@@ -3599,17 +3776,17 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "worker_request": _worker_request_projection(request),
                     "worker_result": to_jsonable(run_result.worker_result),
                     "events": [to_jsonable(event) for event in run_result.event_records],
+                    "browser_context": run_result.browser_context_projection,
+                    "idempotency_key": idempotency_key,
                     "permission_session": permission_session,
                 },
                 headers={
                     "Cache-Control": "no-store, max-age=0",
                     "Pragma": "no-cache",
                     "X-Zyra-Permission-State-Owner": "PermissionStateStore",
+                    "X-Zyra-Context-State-Owner": "ClaudeContextWindowManager/M1-02D",
                 },
             )
-            return
-
-        self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
 
     def _execute_skill_runtime_post(
         self,
@@ -4280,6 +4457,31 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 state,
                 worker_request_id=worker_request_id,
             )
+            parent_session_id = str(
+                constraints.get("session_id")
+                or state.metadata.get("query_session_id")
+                or f"task:{state.task_id}"
+            )
+            constraints["session_id"] = parent_session_id
+            state.metadata["query_session_id"] = parent_session_id
+            browser_context_scope = BrowserContextScope(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                session_id=parent_session_id,
+            )
+            browser_context_batch = _BROWSER_CONTEXT_TASK_INTEGRATION.prepare_delivery(
+                state.metadata,
+                scope=browser_context_scope,
+                consumer_worker_request_id=worker_request_id,
+                max_items=1,
+                max_chars=int(constraints.get("browser_context_delivery_max_chars") or 24000),
+            )
+            if browser_context_batch.messages:
+                worker_messages = tuple((*worker_messages, *browser_context_batch.messages))
+            # Persist the claim before provider dispatch. Exact retry binds an
+            # indeterminate claim to the same worker request rather than
+            # delivering it concurrently to a new request.
+            store.save_checkpoint(state)
             request = WorkerRequest(
                 run_id=state.run_id,
                 task_id=state.task_id,
@@ -4289,11 +4491,6 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 request_id=worker_request_id,
                 constraints=constraints,
                 metadata={"skill_context_owner": "M1-03C.SkillSessionBridge"},
-            )
-            parent_session_id = str(
-                constraints.get("session_id")
-                or state.metadata.get("query_session_id")
-                or f"task:{state.task_id}"
             )
             parent_scope = _issue_parent_subagent_scope(state, session_id=parent_session_id)
             agent_tool = AgentToolRuntime(
@@ -4331,6 +4528,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     dynamic_handlers=agent_tool_binding.handlers,
                 ).run(request)
             except Exception as error:  # noqa: BLE001 - keep internal exception details out of API responses.
+                _BROWSER_CONTEXT_TASK_INTEGRATION.release_delivery(
+                    state.metadata,
+                    batch=browser_context_batch,
+                    reason=f"CodeWorker raised {type(error).__name__} after context claim",
+                    indeterminate=bool(browser_context_batch.source_ids),
+                )
+                store.save_checkpoint(state)
                 if skill_disclosure_batch is not None:
                     SkillTaskIntegrationRuntime().abort_disclosures(
                         metadata=state.metadata,
@@ -4348,6 +4552,47 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
 
             _attach_artifacts(state, list(run_result.worker_result.artifacts))
+            browser_context_selection = _BROWSER_CONTEXT_TASK_INTEGRATION.verify_provider_selection(
+                browser_context_batch,
+                run_result.event_records,
+            )
+            browser_context_delivery_ok = browser_context_batch.empty or browser_context_selection.valid
+            if browser_context_delivery_ok:
+                browser_context_checkpoint = _BROWSER_CONTEXT_TASK_INTEGRATION.commit_delivery(
+                    state.metadata,
+                    batch=browser_context_batch,
+                    worker_event_ids=tuple(event.event_id for event in run_result.event_records),
+                )
+            else:
+                browser_context_checkpoint = _BROWSER_CONTEXT_TASK_INTEGRATION.release_delivery(
+                    state.metadata,
+                    batch=browser_context_batch,
+                    reason="02D provider envelope did not select the claimed browser disclosure exactly once",
+                    indeterminate=False,
+                )
+            browser_context_event = _BROWSER_CONTEXT_TASK_INTEGRATION.event_for_delivery(
+                browser_context_batch,
+                node_id=node_id,
+                operation=(
+                    "consumed"
+                    if browser_context_batch.source_ids and browser_context_delivery_ok
+                    else "provider_selection_failed"
+                    if browser_context_batch.source_ids
+                    else "no_pending_context"
+                ),
+                worker_event_ids=tuple(event.event_id for event in run_result.event_records),
+                reason="" if browser_context_delivery_ok else ";".join(browser_context_selection.findings),
+            )
+            if browser_context_batch.source_ids and browser_context_delivery_ok:
+                try:
+                    _runtime, browser_worker = get_browser_runtime_services()
+                    projection_store = browser_worker.browser_message_state_application.turn_store
+                    for disclosure_id in browser_context_batch.disclosure_ids:
+                        projection_store.mark_consumed(disclosure_id)
+                except Exception:
+                    # The turn projection is explicitly a reconstructable read
+                    # model. Canonical consumption remains in TaskState.
+                    pass
             skill_task_bridge = SkillTaskIntegrationRuntime()
             skill_ingest_receipt = skill_task_bridge.ingest_worker_events(
                 metadata=state.metadata,
@@ -4380,7 +4625,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 task_id=state.task_id,
                 node_id=node_id,
             )
-            projected_events = [*run_result.event_records, projection_event]
+            projected_events = [*run_result.event_records, browser_context_event, projection_event]
             state.metadata["last_code_worker_api_projection"] = codeworker_api_projection.to_dict()
             response_payload = {
                 "task": to_jsonable(state),
@@ -4391,6 +4636,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 "tool_trace": codeworker_api_projection.tool_trace.to_dict(),
                 "events": [to_jsonable(event) for event in projected_events],
                 "skill_task_ingest": skill_ingest_receipt.to_dict(),
+                "browser_context_delivery": browser_context_batch.to_dict(),
+                "browser_context_provider_selection": browser_context_selection.to_dict(),
+                "browser_context": _BROWSER_CONTEXT_TASK_INTEGRATION.public_projection(
+                    browser_context_checkpoint
+                ),
             }
             contract_runtime = CodeWorkerTaskApiContractRuntime()
             route_contract = contract_runtime.build_report(
@@ -4421,7 +4671,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             store.save_checkpoint(state)
             status = (
                 HTTPStatus.CREATED
-                if run_result.worker_result.ok and route_contract.ok
+                if run_result.worker_result.ok and route_contract.ok and browser_context_delivery_ok
                 else HTTPStatus.CONFLICT
             )
             permission_session = {

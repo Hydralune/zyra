@@ -16,8 +16,11 @@ from ..browser_state.semantic_sections import BrowserSemanticOutlineBuilder
 from ..browser_state.state_delta import BrowserDomDelta
 from ..browser_state.text import estimate_tokens
 from .action_result import BrowserActionResultProjector
+from .action_envelope import BrowserActionEnvelopeNormalizer, BrowserActionOutputExternalizer
+from .ablation import BrowserCompressionAblationRuntime
 from .compressor import BrowserStateCompressor
 from .context_port import BrowserNextContextPort
+from .causal_runtime import BrowserTurnCausalRuntime
 from .externalizer import BrowserStateArtifactExternalizer
 from .fidelity import BrowserDisclosureFidelityAuditor
 from .history import BrowserHistoryNormalizer, BrowserHistoryPolicy
@@ -50,6 +53,9 @@ class BrowserMessageManagerRuntime:
         outline_builder: BrowserSemanticOutlineBuilder | None = None,
         fidelity_auditor: BrowserDisclosureFidelityAuditor | None = None,
         history_normalizer: BrowserHistoryNormalizer | None = None,
+        action_envelope_normalizer: BrowserActionEnvelopeNormalizer | None = None,
+        ablation_runtime: BrowserCompressionAblationRuntime | None = None,
+        causal_runtime: BrowserTurnCausalRuntime | None = None,
         disabled: bool = False,
     ) -> None:
         self.externalizer = externalizer
@@ -60,6 +66,13 @@ class BrowserMessageManagerRuntime:
         self.outline_builder = outline_builder or BrowserSemanticOutlineBuilder()
         self.fidelity_auditor = fidelity_auditor or BrowserDisclosureFidelityAuditor()
         self.history_normalizer = history_normalizer or BrowserHistoryNormalizer()
+        self.action_envelope_normalizer = action_envelope_normalizer or BrowserActionEnvelopeNormalizer(
+            externalizer=BrowserActionOutputExternalizer(externalizer.artifact_store),
+        )
+        self.ablation_runtime = ablation_runtime or BrowserCompressionAblationRuntime(
+            externalizer.artifact_store,
+        )
+        self.causal_runtime = causal_runtime or BrowserTurnCausalRuntime(externalizer.artifact_store)
         self.disabled = disabled
         self._turns = 0
         self._blocked = 0
@@ -78,6 +91,7 @@ class BrowserMessageManagerRuntime:
         context_window: Any | None = None,
         source_event_id: str = "",
         dom_delta: BrowserDomDelta | None = None,
+        selector_probe_audit: Mapping[str, Any] | None = None,
     ) -> BrowserMessageTurn:
         if self.disabled:
             raise BrowserMessageManagerDisabled("browser message manager is disabled")
@@ -85,8 +99,18 @@ class BrowserMessageManagerRuntime:
             capture,
             selector_revision=selector_revision,
         )
-        actions = self.action_projector.project_many(
+        action_batch = self.action_envelope_normalizer.normalize_many(
             action_receipts,
+            run_id=capture.request.run_id,
+            task_id=capture.request.task_id,
+            node_id=capture.request.node_id,
+            browser_session_id=capture.request.browser_session_id,
+            worker_request_id=capture.request.worker_request_id,
+            budget=budget,
+        )
+        action_artifacts = tuple(item.artifact for item in action_batch.artifacts)
+        actions = self.action_projector.project_many(
+            action_batch.receipts,
             budget=budget,
             selector_revision=selector_revision,
             capture_id=capture.capture_id,
@@ -117,6 +141,14 @@ class BrowserMessageManagerRuntime:
             disclosure,
         )
         self.fidelity_auditor.require_valid(fidelity_audit)
+        ablation_report = None
+        if self.ablation_runtime.enabled(capture.request.constraints):
+            ablation_report = self.ablation_runtime.run(
+                capture,
+                selector_revision,
+                disclosure,
+                constraints=capture.request.constraints,
+            )
         context_receipt = self.next_context.append_disclosure(
             disclosure,
             context_window=context_window,
@@ -164,18 +196,29 @@ class BrowserMessageManagerRuntime:
             actions,
             source_event_id=source_event_id,
         )
-        events = list(self._events(
-            capture,
-            selector_revision,
-            disclosure,
-            actions,
-            context_receipt.to_dict(),
+        turn_artifacts = tuple((
+            *externalization.artifacts,
+            *action_artifacts,
+            *((ablation_report.bitmap_artifact,) if ablation_report and ablation_report.bitmap_artifact else ()),
+            *((ablation_report.report_artifact,) if ablation_report and ablation_report.report_artifact else ()),
+        ))
+        causal_bundle = self.causal_runtime.build(
+            capture=capture,
+            revision=selector_revision,
+            artifacts=turn_artifacts,
+            disclosure=disclosure.to_dict(),
+            actions=[item.to_dict() for item in actions],
+            context_receipt=context_receipt.to_dict(),
             source_event_id=source_event_id,
             fidelity_audit=fidelity_audit.to_dict(),
             history_projection=history_projection.to_dict(),
             semantic_outline=semantic_outline.to_dict(section_limit=12),
             dom_delta=dom_delta.to_dict(change_limit=16) if dom_delta else {},
-        ))
+            action_envelope=action_batch.to_dict(),
+            ablation=ablation_report.to_dict() if ablation_report else {},
+            selector_probe_audit=dict(selector_probe_audit or {}),
+        )
+        events = list(causal_bundle.events)
         events.extend(self.memory_bridge.events(
             run_id=capture.request.run_id,
             task_id=capture.request.task_id,
@@ -186,6 +229,12 @@ class BrowserMessageManagerRuntime:
         ))
         status = BrowserProjectionStatus.READY
         findings = list(capture.warnings)
+        findings.extend(action_batch.findings)
+        if ablation_report and not ablation_report.structured_wins_tokens:
+            findings.append("structured_ablation_lane_did_not_reduce_tokens")
+        if selector_probe_audit and int(selector_probe_audit.get("failed") or 0):
+            findings.append("live_selector_probe_degraded")
+        findings.extend(item.code for item in causal_bundle.audit.findings)
         if findings or not externalization.complete:
             status = BrowserProjectionStatus.DEGRADED
             self._degraded += 1
@@ -201,13 +250,14 @@ class BrowserMessageManagerRuntime:
             disclosure=disclosure,
             action_results=actions,
             messages=tuple(messages),
-            artifacts=externalization.artifacts,
+            artifacts=turn_artifacts,
             memory_candidates=candidates,
             next_context=context_receipt,
             events=tuple(events),
             metrics=disclosure.metrics,
             status=status,
             findings=tuple(findings),
+            ablation=ablation_report.to_dict() if ablation_report else {},
         )
 
     def _events(
@@ -223,6 +273,9 @@ class BrowserMessageManagerRuntime:
         history_projection: Mapping[str, Any],
         semantic_outline: Mapping[str, Any],
         dom_delta: Mapping[str, Any],
+        action_envelope: Mapping[str, Any],
+        ablation: Mapping[str, Any],
+        selector_probe_audit: Mapping[str, Any],
     ) -> tuple[EventRecord, ...]:
         capture_event = EventRecord(
             run_id=capture.request.run_id,
@@ -255,6 +308,9 @@ class BrowserMessageManagerRuntime:
                 "browser_history_projection": dict(history_projection),
                 "browser_semantic_outline": dict(semantic_outline),
                 "browser_dom_delta": dict(dom_delta),
+                "browser_action_envelope": dict(action_envelope),
+                "browser_context_ablation": dict(ablation),
+                "browser_live_selector_probe": dict(selector_probe_audit),
                 "cause_event_id": capture_event.event_id,
             },
         )
@@ -276,4 +332,7 @@ class BrowserMessageManagerRuntime:
             "externalizer": self.externalizer.snapshot(),
             "fidelity_auditor": self.fidelity_auditor.snapshot(),
             "history_normalizer": self.history_normalizer.snapshot(),
+            "action_envelope_normalizer": self.action_envelope_normalizer.snapshot(),
+            "ablation_runtime": self.ablation_runtime.snapshot(),
+            "causal_runtime": self.causal_runtime.snapshot(),
         }

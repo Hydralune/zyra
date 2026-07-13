@@ -19,6 +19,12 @@ from .browser_use_runtime import (
 )
 from .browser_worker import BrowserWorkerRun, BrowserWorkerRuntime
 from .browser_context import (
+    BrowserContextDeliveryBatch,
+    BrowserContextScope,
+    BrowserContextTaskCheckpoint,
+    BrowserContextTaskIntegrationRuntime,
+    BrowserContextApiProjectionRuntime,
+    BrowserMemoryCandidateConsumerPort,
     BrowserMessageManagerRuntime,
     BrowserMessageStateApplication,
     BrowserStateCompressor,
@@ -116,6 +122,12 @@ from .subagents import (
 __all__ = [
     "BrowserWorkerRun",
     "BrowserWorkerRuntime",
+    "BrowserContextDeliveryBatch",
+    "BrowserContextScope",
+    "BrowserContextTaskCheckpoint",
+    "BrowserContextTaskIntegrationRuntime",
+    "BrowserContextApiProjectionRuntime",
+    "BrowserMemoryCandidateConsumerPort",
     "BrowserDomStateRuntime",
     "BrowserDomWatchdog",
     "BrowserMessageManagerRuntime",

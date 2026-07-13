@@ -100335,7 +100335,8 @@
         "next_owner": "M1-S04C-01",
         "slice_id": "M1-S04B-01",
         "source_disposition": "reference_only",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "not_selected",
       "milestone": "M1",
@@ -100375,6 +100376,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "reference_only"
       ],
       "target_bindings": [
@@ -100457,7 +100459,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -100496,6 +100499,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -100592,7 +100596,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -100631,6 +100636,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -100727,7 +100733,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "reference_only",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "not_selected",
       "milestone": "M1",
@@ -100767,6 +100774,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "reference_only"
       ],
       "target_bindings": [
@@ -100835,7 +100843,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "reference_only",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "not_selected",
       "milestone": "M1",
@@ -100875,6 +100884,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "reference_only"
       ],
       "target_bindings": [
@@ -100957,7 +100967,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -100996,6 +101007,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -101078,7 +101090,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -101117,6 +101130,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -101185,7 +101199,8 @@
         "next_owner": "M1-S04D-01",
         "slice_id": "M1-S04B-01",
         "source_disposition": "deferred",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "planned_adapter",
       "milestone": "M1",
@@ -101225,6 +101240,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "deferred"
       ],
       "target_bindings": [
@@ -101307,7 +101323,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -101346,6 +101363,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -101442,7 +101460,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -101481,6 +101500,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -101541,7 +101561,7 @@
     {
       "blockers": [],
       "capability_name": "message-manager-state: service",
-      "capability_summary": "message projection, context compression, turn application service",
+      "capability_summary": "message projection, context compression, turn application service, read-once task checkpoint and provider delivery",
       "created_at": "2026-07-13T06:00:00.000Z",
       "dependencies": [
         "M1-04A",
@@ -101591,7 +101611,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -101630,6 +101651,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -101674,6 +101696,34 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/workers/zyra_workers/browser_context/application.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_context/task_integration.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_context/api_projection.py"
         }
       ],
       "test_entries": [
@@ -101740,7 +101790,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -101779,6 +101830,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -101861,7 +101913,8 @@
         "next_owner": "M1-S04C-01",
         "slice_id": "M1-S04B-01",
         "source_disposition": "reference_only",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "not_selected",
       "milestone": "M1",
@@ -101901,6 +101954,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "reference_only"
       ],
       "target_bindings": [
@@ -101997,7 +102051,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -102036,6 +102091,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -102132,7 +102188,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -102171,6 +102228,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -102253,7 +102311,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "reimplemented_pattern",
       "milestone": "M1",
@@ -102292,6 +102351,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -102388,7 +102448,8 @@
         "next_owner": "",
         "slice_id": "M1-S04B-01",
         "source_disposition": "zyra_module_migrated",
-        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md"
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
       },
       "migration_strategy": "direct_port",
       "milestone": "M1",
@@ -102427,6 +102488,7 @@
         "m1-04b",
         "slice-04b-01",
         "browser-message-state",
+        "primary",
         "zyra_module_migrated"
       ],
       "target_bindings": [
@@ -102465,6 +102527,994 @@
           "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
           "kind": "integration",
           "path": "tests/integration/test_browser_message_state_compression_foundation.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: dom_watchdog",
+      "capability_summary": "same-origin and OOPIF target/session capture, live backend-node generation and focus guard",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_browser_use_7d61d7c487a05ce1",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/browser-use/batch-03-dom-state-serializer-extraction.md",
+        "source_role": "primary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
+      "risk_notes": [],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+        "module": "zyra_workers.browser_worker",
+        "protocol": "zyra-browser-message-state-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "browser_use/browser/watchdogs/dom_watchdog.py",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "browser_use/browser/watchdogs/dom_watchdog.py",
+      "source_repo": "browser-use",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "primary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_state/frame_capture.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_state/selector_probe.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_message_state_compression_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: query",
+      "capability_summary": "provider-envelope context selection, tool result budget custody, checkpointed compact/restore boundary",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_claude_code_best_d62a6ff830b8569f",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "claude-code-best",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/claude-code-best/batch-02-query-tool-loop.md",
+        "source_role": "supplementary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
+      "risk_notes": [],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+        "module": "zyra_workers.browser_worker",
+        "protocol": "zyra-browser-message-state-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "src/query.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "src/query.ts",
+      "source_repo": "claude-code-best",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "supplementary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_context/task_integration.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/code_worker_runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/main.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_message_state_compression_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: agent-loop",
+      "capability_summary": "malformed and partial tool result normalization, atomic action/result causation, oversize result artifact handoff",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_oh_my_pi_741783bf7b71583f",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/oh-my-pi/batch-01-agent-loop-session.md",
+        "source_role": "supplementary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
+      "risk_notes": [],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+        "module": "zyra_workers.browser_worker",
+        "protocol": "zyra-browser-message-state-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/agent/src/agent-loop.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "packages/agent/src/agent-loop.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "supplementary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_context/action_envelope.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_context/causal_runtime.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_message_state_compression_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: append-only-context",
+      "capability_summary": "append-only typed browser disclosure delivery, read-once provider selection",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [
+        "M1-04A",
+        "M1-02D"
+      ],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_oh_my_pi_b4cc12782a765376",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_when_productized",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "browser_dom_state",
+          "browser_dom_html",
+          "browser_fidelity_report"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message"
+        ],
+        "surfaces": [
+          "browser_worker",
+          "browser_dom_state",
+          "browser_context_projection",
+          "artifact_store",
+          "memory_candidate_boundary"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserWorkerRuntime.run -> BrowserMessageStateApplication.capture_after_action"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "zyra_module_migrated",
+        "source_graph_ref": "source-graphs/oh-my-pi/batch-01-agent-loop-session.md",
+        "source_role": "supplementary"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Selected mechanisms were decomposed into Zyra browser_state and browser_context modules. The runtime uses Zyra session, event, artifact, memory-candidate, compact, and failure boundaries without importing the parent browser-use repository.",
+      "risk_notes": [],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/workers/zyra_workers/browser_context/application.py",
+          "packages/workers/zyra_workers/browser_state/runtime.py"
+        ],
+        "environment_refs": [],
+        "function": "BrowserWorkerRuntime.run",
+        "health_check": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+        "module": "zyra_workers.browser_worker",
+        "protocol": "zyra-browser-message-state-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/agent/src/append-only-context.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "zyra_module_migrated"
+          ]
+        }
+      ],
+      "source_path": "packages/agent/src/append-only-context.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "supplementary",
+        "zyra_module_migrated"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_context/task_integration.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -p no:cacheprovider tests/integration/test_browser_message_state_compression_integration.py",
+          "expected_signal": "real BrowserWorkerRuntime capture changes events, artifacts, selector state, next context, and candidate memory",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_message_state_compression_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: index",
+      "capability_summary": "default-off bitmap compression fidelity ablation",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_oh_my_pi_28be264ec4325d61",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "browser_message_state_source_decision"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "experimental; behavior is owned by packages/workers/zyra_workers/browser_context/ablation.py"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "experimental",
+        "source_graph_ref": "source-graphs/oh-my-pi/batch-04-memory-compaction.md",
+        "source_role": "experimental"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Reference only: Snapcompact remains default-off and non-authoritative; it only supplies the bounded bitmap comparison lane and cannot own DOM, selector, context, or restore state. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "Snapcompact remains default-off and non-authoritative; it only supplies the bounded bitmap comparison lane and cannot own DOM, selector, context, or restore state."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "source-graphs/oh-my-pi/batch-04-memory-compaction.md"
+        ],
+        "environment_refs": [],
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/snapcompact/src/index.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "experimental"
+          ]
+        }
+      ],
+      "source_path": "packages/snapcompact/src/index.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "experimental",
+        "experimental"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/workers/zyra_workers/browser_context/ablation.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: _loop",
+      "capability_summary": "fresh-context and session snapshot behavior comparison",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_agent_framework_9baa1577ed8a5b13",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agent-framework",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "browser_message_state_source_decision"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "conformance_only; behavior is owned by tests/integration/test_browser_message_state_compression_integration.py"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "conformance_only",
+        "source_graph_ref": "source-graphs/agent-framework/batch-05-harness-control-memory.md",
+        "source_role": "conformance_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Reference only: Agent Framework remains a conformance oracle for session/history behavior; the protected 02D context owner already supplies the selected canonical implementation. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "Agent Framework remains a conformance oracle for session/history behavior; the protected 02D context owner already supplies the selected canonical implementation."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "source-graphs/agent-framework/batch-05-harness-control-memory.md"
+        ],
+        "environment_refs": [],
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "python/packages/core/agent_framework/_harness/_loop.py",
+          "source_repo": "agent-framework",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "python/packages/core/agent_framework/_harness/_loop.py",
+      "source_repo": "agent-framework",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "conformance_only",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "tests/integration/test_browser_message_state_compression_integration.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: compaction",
+      "capability_summary": "session event and context epoch behavior comparison",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_opencode_fb4c883e56805c90",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "browser_message_state_source_decision"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "conformance_only; behavior is owned by tests/integration/test_browser_message_state_compression_integration.py"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "conformance_only",
+        "source_graph_ref": "source-graphs/opencode/source-graph.md",
+        "source_role": "conformance_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Reference only: opencode session/context epoch semantics are conformance-only here; adding its state model would duplicate TaskState and the M1-02D context checkpoint owner. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "opencode session/context epoch semantics are conformance-only here; adding its state model would duplicate TaskState and the M1-02D context checkpoint owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "source-graphs/opencode/source-graph.md"
+        ],
+        "environment_refs": [],
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/core/src/session/compaction.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "packages/core/src/session/compaction.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "conformance_only",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "tests/integration/test_browser_message_state_compression_integration.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-13T06:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "message-manager-state: context_compressor",
+      "capability_summary": "long-session compression failure and anti-thrash comparison",
+      "created_at": "2026-07-13T06:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M1-04C",
+        "M1-04D",
+        "M1-06B",
+        "M2-01A"
+      ],
+      "ledger_id": "ile_hermes_agent_3b0e1d92cfc55929",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned browser state internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "hermes-agent",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "browser_message_state_source_decision"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "conformance_only; behavior is owned by tests/integration/test_browser_message_state_compression_integration.py"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "next_owner": "",
+        "slice_id": "M1-S04B-02",
+        "source_disposition": "conformance_only",
+        "source_graph_ref": "source-graphs/hermes-agent/batch-03-session-memory-context-compression.md",
+        "source_role": "reference_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M1",
+      "owner_unit": "M1-04B",
+      "replacement_plan": "Reference only: Hermes long-session compression remains reference-only for 04B; global compact locks, cooldowns, and memory ownership remain with M1-02D and the M1-06 units. The source is not a runtime dependency and its lines are excluded from internalized production code.",
+      "risk_notes": [
+        "Hermes long-session compression remains reference-only for 04B; global compact locks, cooldowns, and memory ownership remain with M1-02D and the M1-06 units."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "source-graphs/hermes-agent/batch-03-session-memory-context-compression.md"
+        ],
+        "environment_refs": [],
+        "function": "BrowserMessageStateApplication.snapshot",
+        "health_check": "python scripts/sync_browser_message_state_source_ledger.py --check",
+        "module": "zyra_workers.browser_context.application",
+        "protocol": "zyra-browser-message-state-source-decision-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M1-S04B-02 browser message/state source-to-target decision",
+          "source_kind": "file",
+          "source_path": "agent/context_compressor.py",
+          "source_repo": "hermes-agent",
+          "symbols": [],
+          "tags": [
+            "browser-state",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "agent/context_compressor.py",
+      "source_repo": "hermes-agent",
+      "tags": [
+        "m1-04b",
+        "slice-04b-02",
+        "browser-message-state",
+        "reference_only",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "tests/integration/test_browser_message_state_compression_integration.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python scripts/sync_browser_message_state_source_ledger.py --check",
+          "expected_signal": "the source disposition is explicit and cannot claim runtime ownership",
+          "kind": "audit",
+          "path": "scripts/sync_browser_message_state_source_ledger.py",
           "required": true
         }
       ],
@@ -169216,22 +170266,22 @@
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 405,
+    "active_or_internalized": 409,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 26,
+      "candidate": 30,
       "deferred": 8,
       "planned": 698,
-      "productized": 350
+      "productized": 354
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 26,
+      "inventoried": 30,
       "planned": 503,
-      "tested_main_path": 111,
+      "tested_main_path": 115,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -169246,7 +170296,7 @@
       "M1-03C": 52,
       "M1-03D": 48,
       "M1-04A": 45,
-      "M1-04B": 17,
+      "M1-04B": 25,
       "M1-04D": 38,
       "M1-05A": 48,
       "M1-05B": 4,
@@ -169264,25 +170314,26 @@
     },
     "by_source_repo": {
       "OpenHands": 81,
-      "agent-framework": 92,
+      "agent-framework": 93,
       "agentscope": 98,
-      "browser-use": 100,
-      "claude-code-best": 506,
-      "hermes-agent": 79,
+      "browser-use": 101,
+      "claude-code-best": 507,
+      "hermes-agent": 80,
       "langgraph": 85,
+      "oh-my-pi": 3,
       "openclaw": 85,
-      "opencode": 11
+      "opencode": 12
     },
     "by_strategy": {
       "adapter": 80,
       "candidate_review": 7,
       "direct_port": 11,
-      "not_selected": 4,
+      "not_selected": 8,
       "planned_adapter": 378,
-      "reimplemented_pattern": 212,
+      "reimplemented_pattern": 216,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 724,
+    "planned_or_candidate": 728,
     "primary_target_prefixes": {
       "apps/api": 31,
       "apps/code-worker": 34,
@@ -169295,9 +170346,10 @@
       "packages/scheduler": 78,
       "packages/skills": 48,
       "packages/symbolic": 1,
-      "packages/workers": 142,
+      "packages/workers": 147,
+      "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1137
+    "total_entries": 1145
   }
 }

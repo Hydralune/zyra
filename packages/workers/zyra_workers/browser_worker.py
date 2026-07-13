@@ -6,6 +6,7 @@ import json
 import os
 import re
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 from pathlib import Path
@@ -26,6 +27,12 @@ from zyra_runtime.permission.custody import PermissionSessionCustodyStore
 
 from .browser_actions import BrowserActionRegistry, default_browser_action_registry
 from .browser_context import BrowserMessageStateApplication
+from .browser_context.task_integration import (
+    BrowserContextScope,
+    BrowserContextTaskCheckpoint,
+    BrowserContextTaskIntegrationRuntime,
+)
+from .browser_context.integration_audit import BrowserMessageIntegrationAuditRuntime
 from .browser_session import (
     BrowserRuntime,
     BrowserRuntimeConfig,
@@ -52,6 +59,8 @@ class BrowserWorkerRun:
     worker_result: WorkerResult
     event_records: list[EventRecord]
     permission_session_custody_token: str = field(default="", repr=False)
+    browser_context_checkpoint: dict[str, Any] = field(default_factory=dict)
+    browser_context_projection: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -96,6 +105,18 @@ LIVE_BROWSER_USE_FILE_ACTIONS = {
 LIVE_BROWSER_USE_ONLY_ACTIONS = LIVE_BROWSER_USE_TOOL_ACTIONS | LIVE_BROWSER_USE_ARTIFACT_ACTIONS | LIVE_BROWSER_USE_FILE_ACTIONS
 
 
+def _browser_context_max_chars(request: WorkerRequest) -> int:
+    constraints = request.constraints if isinstance(request.constraints, Mapping) else {}
+    budget = constraints.get("browser_context_budget")
+    budget = budget if isinstance(budget, Mapping) else {}
+    value = budget.get("max_context_bytes") or constraints.get("browser_context_max_chars") or 32000
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        result = 32000
+    return max(4096, min(2_000_000, result))
+
+
 class BrowserWorkerRuntime:
     """Zyra-owned browser worker with a productized session lifecycle."""
 
@@ -113,6 +134,8 @@ class BrowserWorkerRuntime:
         browser_session_control: BrowserSessionControlRuntime | None = None,
         browser_session_resume: BrowserSessionResumeRuntime | None = None,
         browser_message_state_application: BrowserMessageStateApplication | None = None,
+        browser_context_integration: BrowserContextTaskIntegrationRuntime | None = None,
+        browser_message_integration_audit: BrowserMessageIntegrationAuditRuntime | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -187,6 +210,10 @@ class BrowserWorkerRuntime:
             "_browser_message_state_application",
             self.browser_message_state_application,
         )
+        self.browser_context_integration = browser_context_integration or BrowserContextTaskIntegrationRuntime()
+        self.browser_message_integration_audit = (
+            browser_message_integration_audit or BrowserMessageIntegrationAuditRuntime()
+        )
 
     def _capture_browser_resume_capsule(self, session_id: str) -> Any:
         if self._browser_registry_config is not None:
@@ -244,7 +271,12 @@ class BrowserWorkerRuntime:
             "browser_session_revision": str(session.revision),
         }
 
-    def run(self, request: WorkerRequest) -> BrowserWorkerRun:
+    def run(
+        self,
+        request: WorkerRequest,
+        *,
+        browser_context_checkpoint: Mapping[str, Any] | None = None,
+    ) -> BrowserWorkerRun:
         if _request_contains_permission_capability_echo(request):
             # Shared permission preflight; this path rejects before backend selection
             # and does not execute a legacy browser action.
@@ -340,6 +372,38 @@ class BrowserWorkerRuntime:
 
         start_payload = to_jsonable(started)
         start_event = _browser_session_event(request, "session_attached", start_payload)
+        context_scope = BrowserContextScope(
+            run_id=request.run_id,
+            task_id=request.task_id,
+            session_id=started.session.canonical_session_id,
+        )
+        try:
+            if browser_context_checkpoint:
+                context_checkpoint = BrowserContextTaskCheckpoint.from_mapping(
+                    browser_context_checkpoint,
+                    expected_scope=context_scope,
+                )
+            else:
+                context_checkpoint = BrowserContextTaskCheckpoint.empty(
+                    context_scope,
+                    max_chars=_browser_context_max_chars(request),
+                )
+            context_turn_session = self.browser_context_integration.begin_browser_turn(
+                context_checkpoint,
+                worker_request_id=request.request_id,
+                max_chars=_browser_context_max_chars(request),
+            )
+        except Exception as error:  # noqa: BLE001 - corrupt/foreign context fails before actions.
+            return _browser_productized_failure(
+                request,
+                code=getattr(error, "code", type(error).__name__),
+                summary="BrowserWorker refused an invalid browser context checkpoint.",
+                details=f"{type(error).__name__}: {error}",
+                metadata={
+                    "browser_context_scope": json.dumps(context_scope.to_dict(), sort_keys=True),
+                    "browser_context_checkpoint_required": "true",
+                },
+            )
         try:
             action_run = self.browser_session_application.execute_plan(
                 request,
@@ -363,6 +427,7 @@ class BrowserWorkerRuntime:
                     request=request,
                     session_start=started,
                     action_receipts=action_receipts,
+                    context_window=context_turn_session.context_window,
                     source_event_id=start_event.event_id,
                 )
             except Exception as error:  # noqa: BLE001 - authoritative read-state fails closed.
@@ -425,12 +490,36 @@ class BrowserWorkerRuntime:
             getattr(application_worker_result, "artifacts", getattr(action_run, "artifacts", ()))
         ) if action_run is not None else []
         application_receipts = action_receipts
+        committed_context_checkpoint = context_checkpoint
+        context_enqueue_event: EventRecord | None = None
+        integration_audit = None
         if message_turn is not None:
+            committed_context_checkpoint = self.browser_context_integration.commit_browser_turn(
+                context_turn_session,
+                message_turn,
+            )
+            context_enqueue_event = self.browser_context_integration.event_for_enqueue(
+                committed_context_checkpoint,
+                message_turn,
+                node_id=request.node_id or "",
+            )
             application_events.extend(message_turn.events)
+            application_events.append(context_enqueue_event)
             known_artifact_ids = {item.artifact_id for item in application_artifacts}
             application_artifacts.extend(
                 item for item in message_turn.artifacts
                 if item.artifact_id not in known_artifact_ids
+            )
+            integration_audit = self.browser_message_integration_audit.audit(
+                message_turn,
+                committed_context_checkpoint,
+                events=(start_event, *application_events),
+            )
+            application_events.append(
+                self.browser_message_integration_audit.event_for_audit(
+                    integration_audit,
+                    node_id=request.node_id or "",
+                )
             )
         failed_receipts = [
             receipt for receipt in application_receipts
@@ -441,6 +530,7 @@ class BrowserWorkerRuntime:
             and not failed_receipts
             and message_turn is not None
             and message_turn.ok
+            and bool(integration_audit and integration_audit.valid)
             if action_run is not None
             else False
         )
@@ -486,6 +576,15 @@ class BrowserWorkerRuntime:
                 "browser_memory_candidate_count": str(len(message_turn.memory_candidates)),
                 "browser_state_artifact_count": str(len(message_turn.artifacts)),
                 "browser_message_turn_status": str(message_turn.status),
+                "browser_context_checkpoint_revision": str(committed_context_checkpoint.revision),
+                "browser_context_pending_count": str(committed_context_checkpoint.pending_count),
+                "browser_context_consumed_count": str(committed_context_checkpoint.consumed_count),
+                "browser_message_integration_audit_valid": str(
+                    bool(integration_audit and integration_audit.valid)
+                ).lower(),
+                "browser_message_integration_audit_id": (
+                    integration_audit.audit_id if integration_audit else ""
+                ),
             })
         elif message_state_error:
             application_metadata["browser_message_state_error"] = message_state_error
@@ -519,6 +618,10 @@ class BrowserWorkerRuntime:
             worker_result=worker_result,
             event_records=events,
             permission_session_custody_token=permission_gate.custody_token,
+            browser_context_checkpoint=committed_context_checkpoint.to_dict(),
+            browser_context_projection=self.browser_context_integration.public_projection(
+                committed_context_checkpoint
+            ),
         )
 
     def _run_browser_lifecycle(self, request: WorkerRequest, command_name: str) -> BrowserWorkerRun:

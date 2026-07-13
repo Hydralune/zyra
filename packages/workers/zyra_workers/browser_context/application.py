@@ -10,6 +10,7 @@ from ..browser_state.runtime import BrowserDomStateRuntime
 from ..browser_state.selector_store import BrowserSelectorMapStore
 from ..browser_state.state_delta import compare_selector_revisions
 from ..browser_state.watchdog import BrowserDomWatchdog
+from ..browser_state.selector_probe import BrowserLiveSelectorProbeRuntime
 from .externalizer import BrowserStateArtifactExternalizer
 from .message_manager import BrowserMessageManagerRuntime
 from .models import BrowserMessageTurn
@@ -39,6 +40,7 @@ class BrowserMessageStateApplication:
         message_manager: BrowserMessageManagerRuntime | None = None,
         watchdog: BrowserDomWatchdog | None = None,
         turn_store: BrowserTurnProjectionStore | None = None,
+        live_selector_probe: BrowserLiveSelectorProbeRuntime | None = None,
         disabled: bool = False,
     ) -> None:
         if getattr(self, "_initialized", False):
@@ -56,6 +58,10 @@ class BrowserMessageStateApplication:
             disabled=disabled,
         )
         self.watchdog = watchdog or BrowserDomWatchdog(disabled=disabled)
+        self.live_selector_probe = live_selector_probe or BrowserLiveSelectorProbeRuntime(
+            timeout_seconds=browser_runtime.config.request_timeout_seconds,
+            disabled=disabled,
+        )
         self.message_manager = message_manager or BrowserMessageManagerRuntime(
             externalizer=BrowserStateArtifactExternalizer(artifact_store, disabled=disabled),
             disabled=disabled,
@@ -115,6 +121,16 @@ class BrowserMessageStateApplication:
             )
             dom_delta = compare_selector_revisions(previous, revision)
             self.watchdog.observe(capture, revision, delta=dom_delta)
+            target_runtime = self.browser_runtime.target_runtime(session.session_id)
+            cdp_runtime = self.browser_runtime.cdp_runtime(session.session_id)
+            selector_probe_audit = self.live_selector_probe.audit_revision(
+                revision,
+                resolve_from_store=self.selector_store.resolve,
+                cdp_runtime=cdp_runtime,
+                target_runtime=target_runtime,
+                max_entries=max(1, min(32, int(constraints.get("browser_live_selector_probe_limit") or 4))),
+                fail_closed=bool(constraints.get("browser_live_selector_probe_fail_closed", False)),
+            )
             turn = self.message_manager.build_turn(
                 capture,
                 revision,
@@ -126,6 +142,7 @@ class BrowserMessageStateApplication:
                 context_window=context_window,
                 source_event_id=source_event_id,
                 dom_delta=dom_delta,
+                selector_probe_audit=selector_probe_audit.to_dict(),
             )
             previous_turn = self.turn_store.latest(
                 session.canonical_session_id,
@@ -155,13 +172,21 @@ class BrowserMessageStateApplication:
         *,
         browser_session_id: str,
         target_id: str,
+        require_live: bool = False,
     ) -> Any:
         revision = self.selector_store.latest(browser_session_id, target_id)
         self.watchdog.assert_selector_revision(browser_session_id, revision)
-        return self.selector_store.resolve(
+        resolution = self.selector_store.resolve(
             selector_ref,
             expected_identity=revision.identity,
             require_current=True,
+        )
+        if not require_live:
+            return resolution
+        return self.live_selector_probe.resolve(
+            resolution,
+            cdp_runtime=self.browser_runtime.cdp_runtime(browser_session_id),
+            target_runtime=self.browser_runtime.target_runtime(browser_session_id),
         )
 
     def snapshot(self) -> dict[str, Any]:
@@ -177,6 +202,7 @@ class BrowserMessageStateApplication:
             "message_manager": self.message_manager.snapshot(),
             "watchdog": self.watchdog.snapshot(),
             "turn_store": self.turn_store.snapshot().to_dict(),
+            "live_selector_probe": self.live_selector_probe.snapshot(),
         }
 
 
