@@ -96,7 +96,7 @@
 - 普通 slice 只执行增量门禁：当前 diff 与相邻受影响路径的测试、真实行为、失败路径、动态可达性、语义效果、必要的断开即失败，以及增量 source-to-target/ledger、有效行数、依赖、状态 owner、事件因果和 fallback 自审。
 - 父级最后一个 slice 累计收口父级目标、最低有效行数、跨 slice 主路径和 source-to-target 完整性；不默认额外启动一次重复的全量独立审查。
 - 同一数字阶段全部 sibling units 完成后执行一次独立聚合审查，例如 M1-04A 到 M1-04D 完成后一次；该层负责跨 unit 回归、完整 cleanroom、全量 ledger/source-to-target audit、适用的全仓测试和批判式复审。
-- 里程碑退出负责端到端默认主路径、全仓与打包、正式 live 场景、赛题证据、性能和交付排期。
+- 里程碑退出负责端到端默认主路径、全仓与打包、正式 live 场景、赛题证据、性能和交付排期。最后一个数字阶段聚合可在同一最终 commit 和 cleanroom 上与里程碑退出合并，只要同一报告覆盖两层矩阵；其间有代码变化时只重跑受影响项。
 - 只有不兼容的跨模块 public schema/event/persistence 迁移、既有 canonical state owner 转移或其事务/lease/idempotency/restore 语义变化、全局默认 permission/scheduler/recovery/compact 策略或 fallback 变化、默认主路径新增外部依赖/MCP/plugin/子进程/端口/Docker/动态 import、工作区/来源/打包边界变化，或已经出现跨 slice 回归时，才触发全量升级。按计划首次实现当前 unit 已分配的 owner 不算 owner 转移；在既有 contract 和 owner 内的模块内部实现也不自动升级。命中时只运行与具体风险匹配的全仓测试、cleanroom、全量 ledger audit 或独立复审。
 - “增量”不允许降级真实行为验证，也不允许用 import smoke、静态 ledger 或固定 fixture 代替语义效果。未运行的全量项必须记录理由、影响和后续强制执行层级。
 - 普通 slice 的验证按 30 分钟 wall-clock 预算目标组织；无直接关联的长耗时套件移到数字阶段聚合。若核心语义确实需要超过该预算，必须记录实际命令、耗时和不能后移的原因，不能无说明地恢复为每片 1-2 小时全量流程。
