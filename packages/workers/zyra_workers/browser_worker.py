@@ -35,6 +35,7 @@ from .browser_context.task_integration import (
 from .browser_context.integration_audit import BrowserMessageIntegrationAuditRuntime
 from .browser_action.application import BrowserActionApplication
 from .browser_action.control_runtime import BrowserActionControlCommand
+from .browser_observability import BrowserObservabilityApplication
 from .browser_session import (
     BrowserRuntime,
     BrowserRuntimeConfig,
@@ -62,6 +63,7 @@ class BrowserWorkerRun:
     permission_session_custody_token: str = field(default="", repr=False)
     browser_context_checkpoint: dict[str, Any] = field(default_factory=dict)
     browser_context_projection: dict[str, Any] = field(default_factory=dict)
+    browser_observability_projection: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -138,6 +140,7 @@ class BrowserWorkerRuntime:
         browser_message_state_application: BrowserMessageStateApplication | None = None,
         browser_context_integration: BrowserContextTaskIntegrationRuntime | None = None,
         browser_message_integration_audit: BrowserMessageIntegrationAuditRuntime | None = None,
+        browser_observability_application: BrowserObservabilityApplication | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -234,6 +237,23 @@ class BrowserWorkerRuntime:
         self.browser_context_integration = browser_context_integration or BrowserContextTaskIntegrationRuntime()
         self.browser_message_integration_audit = (
             browser_message_integration_audit or BrowserMessageIntegrationAuditRuntime()
+        )
+        shared_observability = getattr(
+            self.browser_session_runtime,
+            "_browser_observability_application",
+            None,
+        )
+        self.browser_observability_application = (
+            browser_observability_application
+            or shared_observability
+            or BrowserObservabilityApplication(
+                artifact_store=self.artifact_store,
+            )
+        )
+        setattr(
+            self.browser_session_runtime,
+            "_browser_observability_application",
+            self.browser_observability_application,
         )
 
     def _capture_browser_resume_capsule(self, session_id: str) -> Any:
@@ -561,24 +581,128 @@ class BrowserWorkerRuntime:
             if action_run is not None
             else action_error or "browser_application_failed"
         )
-        events = [start_event, *application_events]
-        if not application_ok and not action_pending:
+        try:
+            observability = self.browser_observability_application.observe(
+                request=request,
+                session_start=started,
+                action_run=action_run,
+                message_turn=message_turn,
+                start_event=start_event,
+                application_events=tuple(application_events),
+                application_artifacts=tuple(application_artifacts),
+                stop_event=stop_event,
+                stop_error=stop_error,
+                application_ok=application_ok,
+                application_error=application_error,
+                action_pending=action_pending,
+                runtime=self.browser_session_runtime,
+            )
+        except Exception as error:  # noqa: BLE001 - observability is mandatory and fail-closed.
+            observability = None
+            observability_error = f"{type(error).__name__}: {error}"
+            application_ok = False
+            application_error = "browser_observability_failed"
+            observability_events = [
+                EventRecord(
+                    run_id=request.run_id,
+                    task_id=request.task_id,
+                    node_id=request.node_id,
+                    event_type=EventType.WORKER_HEALTH,
+                    payload={
+                        "worker_health_signal": {
+                            "schema": "zyra.browser-observability.worker-health-signal.v1",
+                            "watchdog": "observability_application",
+                            "kind": "history_corruption",
+                            "status": "unhealthy",
+                            "severity": "critical",
+                            "summary": "Browser observability failed on the mandatory main path.",
+                            "error": observability_error,
+                            "fallback_allowed": False,
+                        }
+                    },
+                ),
+                EventRecord(
+                    run_id=request.run_id,
+                    task_id=request.task_id,
+                    node_id=request.node_id,
+                    event_type=EventType.AGENT_MESSAGE,
+                    payload={
+                        "browser_recovery_input": {
+                            "schema": "zyra.browser-observability.recovery-input.v1",
+                            "reason": "history_failure",
+                            "summary": "Mandatory browser observability failed.",
+                            "error": observability_error,
+                            "worker_request_id": request.request_id,
+                            "browser_session_id": started.session.session_id,
+                            "planner_owner": "M1-07C",
+                            "is_recovery_plan": False,
+                            "fallback_allowed": False,
+                        }
+                    },
+                ),
+            ]
+            observability_projection = {
+                "schema": "zyra.browser-observability.worker-projection.v1",
+                "scope": {
+                    "run_id": request.run_id,
+                    "task_id": request.task_id,
+                    "node_id": request.node_id or "",
+                    "browser_session_id": started.session.session_id,
+                    "canonical_session_id": started.session.canonical_session_id,
+                    "worker_request_id": request.request_id,
+                },
+                "error": observability_error,
+                "default_route": True,
+                "fallback_allowed": False,
+                "recovery_handoff": {
+                    "planner_owner": "M1-07C",
+                    "recovery_planned_emitted": False,
+                },
+            }
+        else:
+            observability_error = ""
+            observability_events = list(observability.events)
+            observability_projection = dict(observability.projection)
+            known_artifact_ids = {item.artifact_id for item in application_artifacts}
+            application_artifacts.extend(
+                item
+                for item in observability.artifacts
+                if item.artifact_id not in known_artifact_ids
+            )
+        events = [start_event, *application_events, *observability_events]
+        if (
+            not application_ok
+            and not action_pending
+            and not any("browser_recovery_input" in event.payload for event in observability_events)
+        ):
             events.append(EventRecord(
                 run_id=request.run_id,
                 task_id=request.task_id,
                 node_id=request.node_id,
-                event_type=EventType.RECOVERY_PLANNED,
-                payload={"browser_recovery_input": {
-                    "browser_session_id": started.session.session_id,
-                    "worker_request_id": request.request_id,
-                    "error": application_error or "browser_action_failed",
-                    "failed_receipt_ids": [str(getattr(item, "receipt_id", "")) for item in failed_receipts],
-                    "fallback_allowed": False,
-                }},
+                event_type=EventType.AGENT_MESSAGE,
+                payload={
+                    "browser_recovery_input": {
+                        "schema": "zyra.browser-observability.recovery-input.v1",
+                        "reason": "action_failure",
+                        "summary": application_error or "browser_action_failed",
+                        "browser_session_id": started.session.session_id,
+                        "worker_request_id": request.request_id,
+                        "failed_receipt_ids": [
+                            str(getattr(item, "receipt_id", ""))
+                            for item in failed_receipts
+                        ],
+                        "planner_owner": "M1-07C",
+                        "is_recovery_plan": False,
+                        "fallback_allowed": False,
+                    }
+                },
             ))
         if stop_event is not None:
             events.append(stop_event)
-        result_events = [to_jsonable(event) for event in application_events]
+        result_events = [
+            to_jsonable(event)
+            for event in [*application_events, *observability_events]
+        ]
         result_events.append({"browser_session": start_payload})
         if stop_payload:
             result_events.append({"browser_session_stop": stop_payload})
@@ -606,6 +730,18 @@ class BrowserWorkerRuntime:
                 "browser_message_integration_audit_id": (
                     integration_audit.audit_id if integration_audit else ""
                 ),
+                "browser_observability_owner_unit": "M1-S04D-01",
+                "browser_observability_history_head": str(
+                    observability_projection.get("history", {}).get("head_digest", "")
+                    if isinstance(observability_projection.get("history"), dict)
+                    else ""
+                ),
+                "browser_observability_signal_count": str(
+                    observability_projection.get("health", {}).get("signal_count", 0)
+                    if isinstance(observability_projection.get("health"), dict)
+                    else 0
+                ),
+                "browser_observability_recovery_planned_emitted": "false",
             })
         elif message_state_error:
             application_metadata["browser_message_state_error"] = message_state_error
@@ -631,6 +767,7 @@ class BrowserWorkerRuntime:
                 **session_metadata,
                 **permission_gate.metadata(),
                 **({"browser_session_stop_error": stop_error} if stop_error else {}),
+                **({"browser_observability_error": observability_error} if observability_error else {}),
                 "browser_permission_action_execution_count": str(
                     sum(1 for receipt in application_receipts if bool(getattr(receipt, "ok", False)))
                     if action_run is not None else 0
@@ -645,6 +782,7 @@ class BrowserWorkerRuntime:
             browser_context_projection=self.browser_context_integration.public_projection(
                 committed_context_checkpoint
             ),
+            browser_observability_projection=observability_projection,
         )
 
     def _run_browser_lifecycle(self, request: WorkerRequest, command_name: str) -> BrowserWorkerRun:

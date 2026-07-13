@@ -1769,6 +1769,66 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if (
+            len(parts) == 3
+            and parts[0] == "tasks"
+            and parts[2] == "browser-observability"
+        ):
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "task_not_found"},
+                )
+                return
+            query = parse_qs(parsed.query)
+            view = str((query.get("view") or ["summary"])[0]).strip() or "summary"
+            browser_session_id = str(
+                (query.get("browser_session_id") or [""])[0]
+            ).strip()
+            worker_request_id = str(
+                (query.get("worker_request_id") or [""])[0]
+            ).strip()
+            limit = _positive_int(
+                (query.get("limit") or ["100"])[0],
+                default=100,
+            )
+            after_sequence = max(
+                0,
+                int((query.get("after_sequence") or ["0"])[0] or 0),
+            )
+            try:
+                _runtime, browser_worker = get_browser_runtime_services()
+                projection = browser_worker.browser_observability_application.query(
+                    task_id=state.task_id,
+                    browser_session_id=browser_session_id,
+                    worker_request_id=worker_request_id,
+                    view=view,
+                    limit=min(limit, 5_000),
+                    after_sequence=after_sequence,
+                )
+            except (TypeError, ValueError) as error:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": "invalid_browser_observability_query",
+                        "message": str(error),
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task_id": state.task_id,
+                    "browser_observability": projection,
+                },
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                },
+            )
+            return
+
         if parts == ["schema", "sample-task"]:
             state, event = make_task_created_event("Inspect a long-horizon task.")
             graph_events = ensure_default_graph(state)
@@ -3698,6 +3758,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "idempotent_replay": True,
                         "idempotency_key": idempotency_key,
                         "browser_context": prior.get("browser_context", {}),
+                        "browser_observability": prior.get("browser_observability", {}),
                         "worker_result": prior.get("worker_result", {}),
                         "event_ids": prior.get("event_ids", []),
                         "permission_session": {
@@ -3779,6 +3840,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     ),
                 )
                 _BROWSER_CONTEXT_TASK_INTEGRATION.persist_checkpoint(state.metadata, restored)
+            state.metadata["browser_observability"] = dict(
+                run_result.browser_observability_projection
+            )
             _attach_artifacts(state, list(run_result.worker_result.artifacts))
             state.budget.tool_calls += sum(
                 1
@@ -3810,6 +3874,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "worker_request_id": request.request_id,
                     "worker_result": to_jsonable(run_result.worker_result),
                     "browser_context": run_result.browser_context_projection,
+                    "browser_observability": run_result.browser_observability_projection,
                     "event_ids": [event.event_id for event in run_result.event_records],
                     "created_at": now_iso(),
                 }
@@ -3838,6 +3903,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "worker_result": to_jsonable(run_result.worker_result),
                     "events": [to_jsonable(event) for event in run_result.event_records],
                     "browser_context": run_result.browser_context_projection,
+                    "browser_observability": run_result.browser_observability_projection,
                     "idempotency_key": idempotency_key,
                     "permission_session": permission_session,
                     "browser_action_continuation": {
