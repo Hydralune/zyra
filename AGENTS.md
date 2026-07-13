@@ -77,7 +77,7 @@
 - 目录位置不能证明内化。把上游整仓、上游主要目录或保持上游模块边界的源码改名放入 `packages/**`、`apps/**`、`runtime/**`、`productized/**`、`third_party/**`、`runtime-sources/**`、`source-pool/**` 等任何目录，只要仍保留上游目录结构、入口、依赖图、状态模型或核心控制流，就只能计为 migration pool/source pool/reference runtime，不得计为深度内化有效代码。
 - 多个薄 adapter 不能拆散黑箱。多个 adapter、manager、service、bridge、gateway、panel 或 API route 如果最终都委托同一个上游 CLI、sidecar、Docker 镜像、npm/pip package、外部进程或原样 runtime 执行核心决策，应整体视为一个黑箱依赖；只有 Zyra 侧协议转换、状态接管、错误处理、事件写入、权限裁决、预算控制、测试和主路径接入代码可以计入有效实现。
 - 机械改写不是内化。批量改名、改 import、格式化、语言转换、生成式 port、bundle/minify、wheel/tarball 打包、把 JSON/YAML 伪装成 `.py`/`.ts` 常量、把上游示例或品牌 UI 搬入正式目录，都不能证明内化；只要语义边界和运行责任没有被 Zyra 接管，应按原样迁移池或生成物排除。
-- 必须做干净目录验证。执行单元验收时应能在不包含根目录来源仓库的干净 `zyra` 副本中运行本单元核心测试；任何运行期依赖 `../claude-code-best`、`../browser-use`、`../OpenHands` 或其它根目录来源仓库、环境变量、npm link、pip editable path、Docker build context 的能力，都不能判定完成。
+- 必须具备干净目录可复现性。每个 slice 先对当前 diff 做增量依赖/路径检查；完整 cleanroom 默认在同一数字阶段聚合审查（例如 M1-04A 到 04D）、里程碑退出或高风险 slice 中执行。任何已经确认依赖根目录来源仓库、npm link、pip editable path、外部 Docker build context、缓存或残留状态的能力，不能因尚未到聚合审查而判定完成。
 - 必须做动态可达性验证。声称内化的模块必须能从真实任务流、API route、CLI command、worker runtime、event type、artifact kind、control command 或 UI panel 触发；只被 import smoke、ledger 查询、source map、health 固定返回、示例脚本或 fixture replay 触发的代码，不得计入主路径内化。
 - 必须做断开即失败验证。对每个声称完成的核心能力，应有测试或审计说明证明：禁用、删除或断开对应 Zyra 模块后，相关真实行为会失败或明显改变。只证明禁用 vendor/sidecar 后失败，不能证明 Zyra 已经完成深度内化。
 - 必须做语义效果验证。permission 必须真实阻断或放行工具，scheduler 必须真实改变 worker/route，memory/compact 必须真实影响后续上下文或决策，watchdog/fault recovery 必须真实中止、恢复、重试或改路由，MCP/SkillTool/AgentTool 必须真实执行调用和边界约束，UI command/approval 必须真实改变后端 session；只写日志、event、ACK、建议值、静态面板或回放流，一律不算完成。
@@ -90,6 +90,15 @@
 - 上述红线在 M1/M2 中主要通过自审、针对性测试和证据说明落实；不要求每个执行单元都实现完整自动化审计系统。但只要当前单元已经违反这些红线，就不得以“后续 M3 工具化”作为通过理由。
 - M3 负责把这些红线工具化和收束：依赖/进程审计、默认配置主路径 trace、干净缓存/干净目录场景、state custody map、event 因果校验、有效行数分桶报告、opaque bundle/binary 检查、source similarity 或 semantic port 风险提示，都应在 M3 source map、测试评测、打包健康检查和冻结报告中落地。
 - 第二阶段再强化为 CI 级质量门禁：更严格的 AST/call graph 相似度审查、mutation/disable 测试、长期依赖治理、鲁棒性矩阵、安全边界和性能回归。第二阶段强化不能替代第一阶段对明显伪内化的即时失败判定。
+
+## 分层审查与验证频率
+
+- 普通 slice 只执行增量门禁：当前 diff 与相邻受影响路径的测试、真实行为、失败路径、动态可达性、语义效果、必要的断开即失败，以及增量 source-to-target/ledger、有效行数、依赖、状态 owner、事件因果和 fallback 自审。
+- 父级最后一个 slice 累计收口父级目标、最低有效行数、跨 slice 主路径和 source-to-target 完整性；不默认额外启动一次重复的全量独立审查。
+- 同一数字阶段全部 sibling units 完成后执行一次独立聚合审查，例如 M1-04A 到 M1-04D 完成后一次；该层负责跨 unit 回归、完整 cleanroom、全量 ledger/source-to-target audit、适用的全仓测试和批判式复审。
+- 里程碑退出负责端到端默认主路径、全仓与打包、正式 live 场景、赛题证据、性能和交付排期。
+- 修改公共 schema/event/persistence、session/permission/scheduler/recovery/compact、默认主路径或 fallback，新增依赖/MCP/plugin/子进程/端口/Docker/动态 import，改变状态 owner/外部路径/打包边界，或出现跨 slice 回归时，当前 slice 必须升级执行与风险匹配的全仓测试、cleanroom、全量 ledger audit 或独立复审。
+- “增量”不允许降级真实行为验证，也不允许用 import smoke、静态 ledger 或固定 fixture 代替语义效果。未运行的全量项必须记录理由、影响和后续强制执行层级。
 
 ## 重型内化目标
 
