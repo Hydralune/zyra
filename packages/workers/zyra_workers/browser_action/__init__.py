@@ -14,6 +14,7 @@ No module in this package scans or imports a root source repository at runtime.
 """
 
 from .catalog import default_action_definitions
+from .application import BrowserActionApplication
 from .cdp_probe import CdpElementProbePort, ProbeConfig
 from .clipboard_guard import (
     BrowserClipboardGuard,
@@ -30,12 +31,34 @@ from .download_guard import (
     DownloadState,
     RecordingDownloadControlPort,
 )
+from .continuation_runtime import (
+    BrowserActionContinuationRuntime,
+    BrowserContinuationClaim,
+    BrowserContinuationPayload,
+    BrowserContinuationPayloadStore,
+)
+from .control_runtime import (
+    BrowserActionControlCommand,
+    BrowserActionControlKind,
+    BrowserActionControlResult,
+    BrowserActionControlRuntime,
+    BrowserActionControlStatus,
+)
+from .deadline_runtime import (
+    ActionDeadline,
+    BrowserActionCancellationRegistry,
+    BrowserActionDeadlineRuntime,
+    CancellationRecord,
+    CancellationState,
+)
+from .download_runtime import BrowserDownloadLedger, BrowserNativeDownloadRuntime, CompletedBrowserDownload
 from .event_port import (
     BrowserActionEventPort,
     BrowserActionResultProjector,
     MemoryArtifactPort,
     ResultProjection,
 )
+from .event_writer import BrowserActionContextReceipt, BrowserActionEventWriter
 from .executor import (
     BrowserSideEffectFence,
     CdpCommand,
@@ -100,6 +123,20 @@ from .models import (
     ActionRiskAssessment,
     SelectorBinding,
 )
+from .integration_models import (
+    BrowserActionIntegrationError,
+    BrowserActionPlan,
+    DispatchBoundary,
+    PendingActionCheckpoint,
+    PlanAdmission,
+    PlanAdmissionIssue,
+    PlanAdmissionIssueKind,
+    PlanExecutionResult,
+    PlanPhase,
+    PlanStep,
+    StepOutcome,
+    StepState,
+)
 from .network_policy import (
     BrowserNetworkPolicy,
     NetworkPolicyConfig,
@@ -110,6 +147,7 @@ from .network_policy import (
     compile_patterns,
 )
 from .permission_bridge import BrowserActionPermissionBridge
+from .plan_adapter import BrowserActionPlanAdapter, PlanAdapterConfig
 from .redirect_guard import (
     BrowserRedirectGuard,
     InterceptedRequest,
@@ -141,6 +179,16 @@ from .selector_guard import (
     SelectorGuardError,
     SelectorReceipt,
 )
+from .semantic_probe import CdpElementSemanticProbe, LiveSemanticEvidence
+from .session_adapter import (
+    BrowserActionArtifactPort,
+    BrowserNetworkInterception,
+    CdpClipboardPort,
+    CdpCommandOutcome,
+    CdpDownloadControlPort,
+    SessionBoundCdpTransport,
+    SessionTransportConfig,
+)
 from .sensitive_policy import (
     BrowserSensitiveActionClassifier,
     ExecutionMode,
@@ -152,6 +200,7 @@ from .source_audit import BrowserActionSourceAuditor, SourceAuditFinding, Source
 
 __all__ = [
     "ActionArgumentValidator",
+    "ActionDeadline",
     "ActionDefinition",
     "ActionExecutionResult",
     "ActionIdentity",
@@ -160,39 +209,68 @@ __all__ = [
     "ActionRiskAssessment",
     "AuthorizedBrowserAction",
     "AuthorizedSequence",
+    "BrowserActionApplication",
+    "BrowserActionArtifactPort",
+    "BrowserActionCancellationRegistry",
+    "BrowserActionControlCommand",
+    "BrowserActionControlKind",
+    "BrowserActionControlResult",
+    "BrowserActionControlRuntime",
+    "BrowserActionControlStatus",
+    "BrowserActionContextReceipt",
+    "BrowserActionContinuationRuntime",
+    "BrowserActionDeadlineRuntime",
     "BrowserActionEventPort",
+    "BrowserActionEventWriter",
     "BrowserActionFoundation",
     "BrowserActionFoundationFactory",
     "BrowserActionFoundationOptions",
     "BrowserActionGateway",
     "BrowserActionGatewayConfig",
     "BrowserActionGatewayError",
+    "BrowserActionIntegrationError",
     "BrowserActionPermissionBridge",
+    "BrowserActionPlan",
+    "BrowserActionPlanAdapter",
     "BrowserActionRegistry",
     "BrowserActionResultProjector",
     "BrowserActionSchemaProjector",
     "BrowserActionSequenceCoordinator",
     "BrowserActionSourceAuditor",
     "BrowserClipboardGuard",
+    "BrowserContinuationClaim",
+    "BrowserContinuationPayload",
+    "BrowserContinuationPayloadStore",
+    "BrowserDownloadLedger",
     "BrowserDownloadGuard",
     "BrowserFilePolicy",
     "BrowserFilePolicyError",
     "BrowserFormPolicy",
     "BrowserGeometryGuard",
     "BrowserNetworkPolicy",
+    "BrowserNativeDownloadRuntime",
+    "BrowserNetworkInterception",
     "BrowserPreflightHookRegistry",
     "BrowserRedirectGuard",
     "BrowserSecretPolicy",
     "BrowserSelectorGuard",
     "BrowserSensitiveActionClassifier",
     "BrowserSideEffectFence",
+    "CdpClipboardPort",
     "CdpCommand",
+    "CdpCommandOutcome",
+    "CdpDownloadControlPort",
     "CdpElementProbePort",
+    "CdpElementSemanticProbe",
+    "CancellationRecord",
+    "CancellationState",
     "ClipboardAccess",
     "ClipboardGuardError",
     "ClipboardReceipt",
     "CompletedBrowserAction",
+    "CompletedBrowserDownload",
     "CompletedSequence",
+    "DispatchBoundary",
     "DownloadEvent",
     "DownloadGuardError",
     "DownloadLease",
@@ -219,11 +297,20 @@ __all__ = [
     "InterceptedRequest",
     "InterceptionDecision",
     "LiveElementProbe",
+    "LiveSemanticEvidence",
     "MemoryArtifactPort",
     "NetworkPolicyConfig",
     "NetworkPolicyError",
     "NetworkReceipt",
     "Point",
+    "PendingActionCheckpoint",
+    "PlanAdapterConfig",
+    "PlanAdmission",
+    "PlanAdmissionIssue",
+    "PlanAdmissionIssueKind",
+    "PlanExecutionResult",
+    "PlanPhase",
+    "PlanStep",
     "PreparedBrowserAction",
     "PreflightedSequence",
     "ProbeConfig",
@@ -240,6 +327,8 @@ __all__ = [
     "SecretPolicyError",
     "SecretPurpose",
     "SecretRedactor",
+    "SessionBoundCdpTransport",
+    "SessionTransportConfig",
     "SecurityReceipts",
     "SequenceAdmissionError",
     "SequenceState",
@@ -251,6 +340,8 @@ __all__ = [
     "StaticHostResolver",
     "SourceAuditFinding",
     "SourceAuditReport",
+    "StepOutcome",
+    "StepState",
     "SystemHostResolver",
     "Viewport",
     "compile_patterns",

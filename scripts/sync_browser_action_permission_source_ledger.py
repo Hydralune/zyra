@@ -34,10 +34,12 @@ from zyra_integrations.ledger_models import to_jsonable  # noqa: E402
 
 LEDGER_PATH = PROJECT_ROOT / "packages" / "integrations" / "zyra_integrations" / "data" / "internalization_ledger_seed.json"
 OWNER_UNIT = "M1-04C"
-SLICE_ID = "M1-S04C-01"
-STAMP = "2026-07-13T12:00:00.000Z"
-BEHAVIOR_TEST = "tests/unit/test_browser_action_registry_permission_foundation.py"
-BEHAVIOR_COMMAND = "python -m unittest tests.unit.test_browser_action_registry_permission_foundation"
+SLICE_ID = "M1-S04C-02"
+STAMP = "2026-07-13T14:30:00.000Z"
+FOUNDATION_TEST = "tests/unit/test_browser_action_registry_permission_foundation.py"
+FOUNDATION_COMMAND = "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q"
+INTEGRATION_TEST = "tests/integration/test_browser_session_productization_integration.py"
+INTEGRATION_COMMAND = "python -m pytest tests/integration/test_browser_session_productization_integration.py -q"
 
 
 class Disposition(StrEnum):
@@ -88,6 +90,11 @@ DECISIONS = (
             "packages/workers/zyra_workers/browser_action/gateway.py",
             "packages/workers/zyra_workers/browser_action/executor.py",
             "packages/workers/zyra_workers/browser_action/sequence.py",
+            "packages/workers/zyra_workers/browser_action/application.py",
+            "packages/workers/zyra_workers/browser_action/plan_adapter.py",
+            "packages/workers/zyra_workers/browser_action/integration_models.py",
+            "packages/workers/zyra_workers/browser_action/event_writer.py",
+            "packages/workers/zyra_workers/browser_action/session_adapter.py",
         ),
         "typed action gateway, side-effect fence and all-actions-first preflight",
         Disposition.MIGRATED,
@@ -104,6 +111,7 @@ DECISIONS = (
             "packages/workers/zyra_workers/browser_action/geometry_guard.py",
             "packages/workers/zyra_workers/browser_action/keyboard_codec.py",
             "packages/workers/zyra_workers/browser_action/executor.py",
+            "packages/workers/zyra_workers/browser_action/semantic_probe.py",
         ),
         "frame-correct CDP geometry, occlusion, scroll, pointer and keyboard mechanics",
         Disposition.MIGRATED,
@@ -118,6 +126,7 @@ DECISIONS = (
         (
             "packages/workers/zyra_workers/browser_action/file_policy.py",
             "packages/workers/zyra_workers/browser_action/download_guard.py",
+            "packages/workers/zyra_workers/browser_action/download_runtime.py",
         ),
         "upload identity/containment and grant-scoped download quarantine",
         Disposition.MIGRATED,
@@ -132,6 +141,7 @@ DECISIONS = (
         (
             "packages/workers/zyra_workers/browser_action/network_policy.py",
             "packages/workers/zyra_workers/browser_action/redirect_guard.py",
+            "packages/workers/zyra_workers/browser_action/session_adapter.py",
         ),
         "canonical URL/domain/DNS-IP policy and pre-network redirect interception",
         Disposition.MIGRATED,
@@ -146,6 +156,8 @@ DECISIONS = (
         (
             "packages/workers/zyra_workers/browser_action/permission_bridge.py",
             "packages/runtime/zyra_runtime/permission/action_gate.py",
+            "packages/workers/zyra_workers/browser_action/continuation_runtime.py",
+            "packages/workers/zyra_workers/browser_action/deadline_runtime.py",
         ),
         "exact browser action permission bridge to the existing one-use grant owner",
         Disposition.SUPPLEMENT,
@@ -160,6 +172,7 @@ DECISIONS = (
         (
             "packages/workers/zyra_workers/browser_action/hook_preflight.py",
             "packages/workers/zyra_workers/browser_action/sequence.py",
+            "packages/workers/zyra_workers/browser_action/plan_adapter.py",
         ),
         "deny-first typed hooks, argument hashes and all-sections preflight",
         Disposition.MIGRATED,
@@ -226,24 +239,34 @@ def build_entry(decision: Decision) -> InternalizationLedgerEntry:
         main_path_status=MainPathStatus.TESTED_MAIN_PATH if decision.productized else MainPathStatus.INVENTORIED,
         lifecycle=LedgerLifecycle.PRODUCTIZED if decision.productized else LedgerLifecycle.CANDIDATE,
         runtime_entry=RuntimeEntry(
-            module="zyra_workers.browser_action.gateway",
-            function="BrowserActionGateway.run" if decision.productized else "BrowserActionSourceAuditor.audit",
+            module="zyra_workers.browser_action.application",
+            function="BrowserActionApplication.execute_plan" if decision.productized else "BrowserActionSourceAuditor.audit",
             protocol="zyra-browser-action-v1",
-            health_check=BEHAVIOR_COMMAND,
+            health_check=INTEGRATION_COMMAND,
             config_refs=list(decision.targets),
         ),
-        test_entries=[TestEntry(
-            path=BEHAVIOR_TEST,
-            command=BEHAVIOR_COMMAND,
-            kind="integration",
-            expected_signal="real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-            required=True,
-        )],
+        test_entries=[
+            TestEntry(
+                path=FOUNDATION_TEST,
+                command=FOUNDATION_COMMAND,
+                kind="unit",
+                expected_signal="denied/stale/schema paths have zero browser, network and file effects",
+                required=True,
+            ),
+            TestEntry(
+                path=INTEGRATION_TEST,
+                command=INTEGRATION_COMMAND,
+                kind="integration",
+                expected_signal="default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+                required=decision.productized,
+            ),
+        ],
         main_path=MainPathBinding(
-            surfaces=["browser_worker", "browser_action_gateway", "permission_runtime", "event_log", "artifact_store"] if decision.productized else ["source_conformance"],
+            surfaces=["browser_api", "browser_worker", "browser_action_application", "permission_runtime", "event_log", "artifact_store"] if decision.productized else ["source_conformance"],
             event_types=["agent_message", "artifact_written", "recovery_planned"] if decision.productized else [],
+            api_routes=["POST /tasks/{task_id}/workers/browser"] if decision.productized else [],
             artifact_kinds=["structured_data", "screenshot", "file"] if decision.productized else [],
-            worker_runtime="BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence" if decision.productized else decision.disposition.value,
+            worker_runtime="BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence" if decision.productized else decision.disposition.value,
         ),
         line_count_policy=LineCountPolicy.COUNTS_WHEN_PRODUCTIZED if decision.productized else LineCountPolicy.EXCLUDED_INVENTORY_ONLY,
         license_notice=LicenseNotice(
@@ -255,7 +278,7 @@ def build_entry(decision: Decision) -> InternalizationLedgerEntry:
         ),
         owner_unit=OWNER_UNIT,
         milestone="M1",
-        downstream_units=["M1-S04C-02", "M1-04D", "M2-01A"],
+        downstream_units=["M1-04D", "M2-01A"],
         dependencies=["M1-03A", "M1-04A", "M1-04B"] if decision.productized else [],
         source_evidence=[SourceEvidence(
             source_repo=decision.repo,
@@ -266,7 +289,7 @@ def build_entry(decision: Decision) -> InternalizationLedgerEntry:
             symbols=[],
             tags=["browser-action", decision.role, decision.disposition.value],
         )],
-        tags=["m1-04c", "slice-04c-01", "browser-action", decision.role, decision.disposition.value],
+        tags=["m1-04c", "slice-04c-01", "slice-04c-02", "browser-action", decision.role, decision.disposition.value],
         blockers=[],
         risk_notes=[decision.rationale],
         replacement_plan=decision.rationale,
@@ -274,6 +297,8 @@ def build_entry(decision: Decision) -> InternalizationLedgerEntry:
         updated_at=STAMP,
         metadata={
             "slice_id": SLICE_ID,
+            "foundation_slice_id": "M1-S04C-01",
+            "parent_unit_closed": True,
             "source_role": decision.role,
             "source_disposition": decision.disposition.value,
             "source_graph_ref": decision.source_graph_ref,
@@ -314,7 +339,7 @@ def synchronize(path: Path, *, write: bool) -> tuple[bool, int]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Synchronize M1-S04C-01 browser action source decisions.")
+    parser = argparse.ArgumentParser(description="Synchronize completed M1-04C browser action source decisions.")
     parser.add_argument("--ledger-path", type=Path, default=LEDGER_PATH)
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--check", action="store_true")

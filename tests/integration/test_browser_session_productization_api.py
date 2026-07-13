@@ -20,6 +20,10 @@ for package_path in sorted((ROOT / "packages").iterdir()):
     if package_path.is_dir() and str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
+from zyra_integrations.browser_use import BrowserEventBus  # noqa: E402
+from zyra_workers.browser_session import CdpRequestRuntime, MemoryCdpTransport  # noqa: E402
+from tests.integration.test_browser_session_productization_integration import _CdpResponder  # noqa: E402
+
 
 class _CdpHandler(BaseHTTPRequestHandler):
     def log_message(self, _format: str, *_args: object) -> None:
@@ -81,6 +85,7 @@ class BrowserSessionProductizationApiTests(unittest.TestCase):
             api_thread = threading.Thread(target=api.serve_forever, daemon=True)
             api_thread.start()
             base_url = f"http://127.0.0.1:{api.server_address[1]}"
+            event_bus: BrowserEventBus | None = None
             try:
                 from apps.api.zyra_api import main as api_main
 
@@ -128,7 +133,18 @@ class BrowserSessionProductizationApiTests(unittest.TestCase):
                 self.assertEqual(metadata["browser_session_status"], "running")
                 self.assertGreaterEqual(int(metadata["browser_session_revision"]), 1)
                 self.assertTrue(any("browser_session" in event.get("payload", {}) for event in started["events"]))
-
+                browser_runtime = api_main.get_browser_runtime()
+                browser_runtime._runtime._cdp[session_id].close()  # type: ignore[attr-defined]
+                event_bus = BrowserEventBus()
+                event_bus.start()
+                memory_cdp = CdpRequestRuntime(
+                    session_id,
+                    0.2,
+                    event_bus,
+                    transport_factory=lambda: MemoryCdpTransport(_CdpResponder()),
+                )
+                memory_cdp.connect()
+                browser_runtime._runtime._cdp[session_id] = memory_cdp  # type: ignore[attr-defined]
                 action_status, action = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/workers/browser",
@@ -148,9 +164,12 @@ class BrowserSessionProductizationApiTests(unittest.TestCase):
                 )
                 self.assertEqual(action_status, 201, action)
                 self.assertEqual(action["worker_result"]["metadata"]["browser_session_id"], session_id)
-                self.assertTrue(action["worker_result"]["artifacts"])
+                self.assertEqual(action["worker_result"]["metadata"]["browser_action_default_gateway"], "true")
+                self.assertEqual(action["worker_result"]["metadata"]["browser_action_execution_count"], "2")
                 self.assertTrue(any("browser_action" in event.get("payload", {}) for event in action["events"]))
                 self.assertGreaterEqual(action["task"]["budget"]["tool_calls"], 2)
+                custody_token = action["permission_session"]["custody_token"]
+                self.assertTrue(custody_token)
 
                 sessions = _get(base_url, "/workers/browser/sessions")
                 self.assertTrue(any(item["session_id"] == session_id for item in sessions["sessions"]))
@@ -183,6 +202,38 @@ class BrowserSessionProductizationApiTests(unittest.TestCase):
                 self.assertEqual(resume_status, 201, resumed)
                 self.assertEqual(resumed["worker_result"]["metadata"]["browser_session_id"], session_id)
 
+                pending_status, pending = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/workers/browser",
+                    {
+                        "browser_plan": [
+                            {"action": "evaluate_js", "arguments": {"code": "document.title"}},
+                        ],
+                        "constraints": {
+                            "browser_endpoint_url": endpoint,
+                            "browser_transport": "memory",
+                            "canonical_session_id": canonical_session_id,
+                            "keep_alive": True,
+                            "permission_mode": "default",
+                            "permission_session_custody_token": custody_token,
+                        },
+                    },
+                )
+                self.assertEqual(pending_status, 202, pending)
+                self.assertFalse(pending["worker_result"]["ok"])
+                self.assertEqual(pending["worker_result"]["error"], "browser_action_permission_pending")
+                self.assertTrue(pending["browser_action_continuation"]["pending"])
+                self.assertTrue(pending["browser_action_continuation"]["checkpoint_id"])
+                self.assertTrue(pending["browser_action_continuation"]["permission_request_id"])
+                self.assertEqual(
+                    pending["worker_result"]["metadata"]["browser_action_side_effect_count"],
+                    "0",
+                )
+                self.assertEqual(
+                    pending["worker_result"]["metadata"]["browser_session_status"],
+                    "running",
+                )
+
                 stop_status, stopped = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/workers/browser",
@@ -199,6 +250,8 @@ class BrowserSessionProductizationApiTests(unittest.TestCase):
                 stopped_detail = _get(base_url, f"/workers/browser/sessions/{session_id}")
                 self.assertEqual(stopped_detail["session"]["status"], "stopped")
             finally:
+                if event_bus is not None:
+                    event_bus.stop()
                 api.shutdown()
                 api.server_close()
                 api_thread.join(timeout=3)

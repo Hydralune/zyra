@@ -128,6 +128,17 @@ class DnsResolution:
         return digest_value(self.to_dict())
 
     @property
+    def binding_digest(self) -> str:
+        """Stable identity of the resolved address set.
+
+        ``epoch`` is an observation sequence used for revalidation, not part of
+        the approved destination.  Including it in permission arguments would
+        make every mandatory DNS refresh look like a different tool use and
+        would prevent an exact ASK continuation from ever resuming.
+        """
+        return digest_value(self.binding_dict())
+
+    @property
     def address_set(self) -> frozenset[str]:
         return frozenset(item.address for item in self.addresses)
 
@@ -141,6 +152,17 @@ class DnsResolution:
             "epoch": self.epoch,
             "addresses": [item.to_dict() for item in self.addresses],
             "aliases": list(self.aliases),
+            "resolver_id": self.resolver_id,
+        }
+
+    def binding_dict(self) -> dict[str, Any]:
+        return {
+            "host": self.host,
+            "addresses": sorted(
+                (item.to_dict() for item in self.addresses),
+                key=lambda item: (str(item.get("address") or ""), str(item.get("family") or "")),
+            ),
+            "aliases": sorted(self.aliases),
             "resolver_id": self.resolver_id,
         }
 
@@ -277,7 +299,9 @@ class NetworkReceipt:
                 "policy": self.policy_digest,
                 "action": self.action_id,
                 "url": self.canonical_url.to_dict(),
-                "dns": self.resolution.to_dict(),
+                # Bind the approved address set while allowing the resolver to
+                # advance its observation epoch during TOCTOU revalidation.
+                "dns": self.resolution.binding_dict(),
                 "redirect_depth": self.redirect_depth,
                 "parent": self.parent_receipt_id,
                 "creator_origin": self.creator_origin,

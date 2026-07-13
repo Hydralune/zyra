@@ -111,6 +111,10 @@ class ElementSemantics:
     inferred_effects: tuple[str, ...]
     stable_hash: str
     attributes_digest: str
+    live_probe_digest: str = ""
+    form_owner_backend_node_id: int = 0
+    form_enctype: str = ""
+    form_target: str = ""
 
     @property
     def digest(self) -> str:
@@ -130,6 +134,10 @@ class ElementSemantics:
             "inferred_effects": list(self.inferred_effects),
             "stable_hash": self.stable_hash,
             "attributes_digest": self.attributes_digest,
+            "live_probe_digest": self.live_probe_digest,
+            "form_owner_backend_node_id": self.form_owner_backend_node_id,
+            "form_enctype": self.form_enctype,
+            "form_target": self.form_target,
         }
 
 
@@ -172,6 +180,17 @@ class SelectorStore(Protocol):
     ) -> BrowserSelectorResolution: ...
 
 
+class ElementSemanticProbe(Protocol):
+    def enrich(
+        self,
+        entry: BrowserSelectorEntry,
+        semantics: ElementSemantics,
+        *,
+        action: str,
+        current_url: str,
+    ) -> ElementSemantics: ...
+
+
 class BrowserSelectorGuard:
     """Adapter to the authoritative 04B selector-map owner.
 
@@ -181,8 +200,15 @@ class BrowserSelectorGuard:
     action by itself.
     """
 
-    def __init__(self, store: SelectorStore, *, disabled: bool = False) -> None:
+    def __init__(
+        self,
+        store: SelectorStore,
+        *,
+        semantic_probe: ElementSemanticProbe | None = None,
+        disabled: bool = False,
+    ) -> None:
         self.store = store
+        self.semantic_probe = semantic_probe
         self.disabled = disabled
 
     def resolve(
@@ -212,6 +238,22 @@ class BrowserSelectorGuard:
         entry = resolution.entry
         revision = resolution.revision
         semantics = derive_semantics(entry, action=action, current_url=current_url, secret_input=secret_input)
+        if self.semantic_probe is not None:
+            try:
+                semantics = self.semantic_probe.enrich(
+                    entry,
+                    semantics,
+                    action=action,
+                    current_url=current_url,
+                )
+            except SelectorGuardError:
+                raise
+            except Exception as exc:
+                raise SelectorGuardError(
+                    "selector_semantic_probe_failed",
+                    f"browser element semantics could not be read from the live DOM: {type(exc).__name__}: {exc}",
+                    details={"selector_ref": expectation.selector_ref},
+                ) from exc
         self._enforce_action_compatibility(action, entry, semantics)
         binding = SelectorBinding(
             browser_session_id=revision.identity.browser_session_id,

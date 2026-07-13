@@ -170266,14 +170266,13 @@
       "blockers": [],
       "capability_name": "browser action immutable registry and strict ToolSpec projection",
       "capability_summary": "Runtime reflection and vendor AST discovery were replaced by a closed Zyra-owned catalog.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [
         "M1-03A",
         "M1-04A",
         "M1-04B"
       ],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -170289,7 +170288,9 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
         "artifact_kinds": [
           "structured_data",
           "screenshot",
@@ -170302,18 +170303,21 @@
           "recovery_planned"
         ],
         "surfaces": [
+          "browser_api",
           "browser_worker",
-          "browser_action_gateway",
+          "browser_action_application",
           "permission_runtime",
           "event_log",
           "artifact_store"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "zyra_module_migrated",
         "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
         "source_role": "primary"
@@ -170333,15 +170337,15 @@
           "packages/workers/zyra_workers/browser_action/catalog.py"
         ],
         "environment_refs": [],
-        "function": "BrowserActionGateway.run",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "function": "BrowserActionApplication.execute_plan",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "browser_use/tools/registry/service.py;browser_use/tools/registry/views.py;browser_use/tools/views.py",
           "source_repo": "browser-use",
@@ -170358,6 +170362,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "primary",
         "zyra_module_migrated"
@@ -170408,27 +170413,33 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "typed action gateway, side-effect fence and all-actions-first preflight",
       "capability_summary": "Action branches were decomposed around Zyra permission, selector, event and artifact owners.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [
         "M1-03A",
         "M1-04A",
         "M1-04B"
       ],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -170444,7 +170455,9 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
         "artifact_kinds": [
           "structured_data",
           "screenshot",
@@ -170457,18 +170470,21 @@
           "recovery_planned"
         ],
         "surfaces": [
+          "browser_api",
           "browser_worker",
-          "browser_action_gateway",
+          "browser_action_application",
           "permission_runtime",
           "event_log",
           "artifact_store"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "zyra_module_migrated",
         "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
         "source_role": "primary"
@@ -170485,18 +170501,23 @@
         "config_refs": [
           "packages/workers/zyra_workers/browser_action/gateway.py",
           "packages/workers/zyra_workers/browser_action/executor.py",
-          "packages/workers/zyra_workers/browser_action/sequence.py"
+          "packages/workers/zyra_workers/browser_action/sequence.py",
+          "packages/workers/zyra_workers/browser_action/application.py",
+          "packages/workers/zyra_workers/browser_action/plan_adapter.py",
+          "packages/workers/zyra_workers/browser_action/integration_models.py",
+          "packages/workers/zyra_workers/browser_action/event_writer.py",
+          "packages/workers/zyra_workers/browser_action/session_adapter.py"
         ],
         "environment_refs": [],
-        "function": "BrowserActionGateway.run",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "function": "BrowserActionApplication.execute_plan",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "browser_use/tools/service.py",
           "source_repo": "browser-use",
@@ -170513,6 +170534,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "primary",
         "zyra_module_migrated"
@@ -170559,31 +170581,107 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/workers/zyra_workers/browser_action/sequence.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/application.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/plan_adapter.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/integration_models.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/event_writer.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/session_adapter.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "frame-correct CDP geometry, occlusion, scroll, pointer and keyboard mechanics",
       "capability_summary": "Blind JavaScript click, nearest-element fallback and public actor bypasses were removed.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [
         "M1-03A",
         "M1-04A",
         "M1-04B"
       ],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -170599,7 +170697,9 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
         "artifact_kinds": [
           "structured_data",
           "screenshot",
@@ -170612,18 +170712,21 @@
           "recovery_planned"
         ],
         "surfaces": [
+          "browser_api",
           "browser_worker",
-          "browser_action_gateway",
+          "browser_action_application",
           "permission_runtime",
           "event_log",
           "artifact_store"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "zyra_module_migrated",
         "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
         "source_role": "primary"
@@ -170641,18 +170744,19 @@
           "packages/workers/zyra_workers/browser_action/cdp_probe.py",
           "packages/workers/zyra_workers/browser_action/geometry_guard.py",
           "packages/workers/zyra_workers/browser_action/keyboard_codec.py",
-          "packages/workers/zyra_workers/browser_action/executor.py"
+          "packages/workers/zyra_workers/browser_action/executor.py",
+          "packages/workers/zyra_workers/browser_action/semantic_probe.py"
         ],
         "environment_refs": [],
-        "function": "BrowserActionGateway.run",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "function": "BrowserActionApplication.execute_plan",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "browser_use/actor/page.py;browser_use/actor/element.py;browser_use/actor/mouse.py;browser_use/actor/utils.py;browser_use/browser/watchdogs/default_action_watchdog.py",
           "source_repo": "browser-use",
@@ -170669,6 +170773,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "primary",
         "zyra_module_migrated"
@@ -170729,31 +170834,51 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/workers/zyra_workers/browser_action/executor.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/semantic_probe.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "upload identity/containment and grant-scoped download quarantine",
       "capability_summary": "Zyra workspace/artifact roots replace the upstream parallel filesystem state owner.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [
         "M1-03A",
         "M1-04A",
         "M1-04B"
       ],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -170769,7 +170894,9 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
         "artifact_kinds": [
           "structured_data",
           "screenshot",
@@ -170782,18 +170909,21 @@
           "recovery_planned"
         ],
         "surfaces": [
+          "browser_api",
           "browser_worker",
-          "browser_action_gateway",
+          "browser_action_application",
           "permission_runtime",
           "event_log",
           "artifact_store"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "zyra_module_migrated",
         "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
         "source_role": "primary"
@@ -170809,18 +170939,19 @@
         "command": "",
         "config_refs": [
           "packages/workers/zyra_workers/browser_action/file_policy.py",
-          "packages/workers/zyra_workers/browser_action/download_guard.py"
+          "packages/workers/zyra_workers/browser_action/download_guard.py",
+          "packages/workers/zyra_workers/browser_action/download_runtime.py"
         ],
         "environment_refs": [],
-        "function": "BrowserActionGateway.run",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "function": "BrowserActionApplication.execute_plan",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "browser_use/filesystem/file_system.py;browser_use/browser/watchdogs/downloads_watchdog.py",
           "source_repo": "browser-use",
@@ -170837,6 +170968,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "primary",
         "zyra_module_migrated"
@@ -170869,31 +171001,51 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/workers/zyra_workers/browser_action/download_guard.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/download_runtime.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "canonical URL/domain/DNS-IP policy and pre-network redirect interception",
       "capability_summary": "Post-navigation observation was strengthened with DNS pinning and request-paused denial.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [
         "M1-03A",
         "M1-04A",
         "M1-04B"
       ],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -170909,7 +171061,9 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
         "artifact_kinds": [
           "structured_data",
           "screenshot",
@@ -170922,18 +171076,21 @@
           "recovery_planned"
         ],
         "surfaces": [
+          "browser_api",
           "browser_worker",
-          "browser_action_gateway",
+          "browser_action_application",
           "permission_runtime",
           "event_log",
           "artifact_store"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "zyra_module_migrated",
         "source_graph_ref": "source-graphs/browser-use/batch-04-tools-security-filesystem.md",
         "source_role": "primary"
@@ -170949,18 +171106,19 @@
         "command": "",
         "config_refs": [
           "packages/workers/zyra_workers/browser_action/network_policy.py",
-          "packages/workers/zyra_workers/browser_action/redirect_guard.py"
+          "packages/workers/zyra_workers/browser_action/redirect_guard.py",
+          "packages/workers/zyra_workers/browser_action/session_adapter.py"
         ],
         "environment_refs": [],
-        "function": "BrowserActionGateway.run",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "function": "BrowserActionApplication.execute_plan",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "browser_use/browser/watchdogs/security_watchdog.py",
           "source_repo": "browser-use",
@@ -170977,6 +171135,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "primary",
         "zyra_module_migrated"
@@ -171009,31 +171168,51 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/workers/zyra_workers/browser_action/redirect_guard.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/session_adapter.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "exact browser action permission bridge to the existing one-use grant owner",
       "capability_summary": "M1-03A remains the only decision/request/grant owner; 04C contributes browser binding material.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [
         "M1-03A",
         "M1-04A",
         "M1-04B"
       ],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -171049,7 +171228,9 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
         "artifact_kinds": [
           "structured_data",
           "screenshot",
@@ -171062,18 +171243,21 @@
           "recovery_planned"
         ],
         "surfaces": [
+          "browser_api",
           "browser_worker",
-          "browser_action_gateway",
+          "browser_action_application",
           "permission_runtime",
           "event_log",
           "artifact_store"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "supplementary_existing_owner_bridge",
         "source_graph_ref": "source-graphs/claude-code-best/batch-03-permission-runtime.md",
         "source_role": "supplementary"
@@ -171089,18 +171273,20 @@
         "command": "",
         "config_refs": [
           "packages/workers/zyra_workers/browser_action/permission_bridge.py",
-          "packages/runtime/zyra_runtime/permission/action_gate.py"
+          "packages/runtime/zyra_runtime/permission/action_gate.py",
+          "packages/workers/zyra_workers/browser_action/continuation_runtime.py",
+          "packages/workers/zyra_workers/browser_action/deadline_runtime.py"
         ],
         "environment_refs": [],
-        "function": "BrowserActionGateway.run",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "function": "BrowserActionApplication.execute_plan",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "src/cli/src/utils/permissions/*;src/QueryEngine.ts;src/tools/*",
           "source_repo": "claude-code-best",
@@ -171117,6 +171303,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "supplementary",
         "supplementary_existing_owner_bridge"
@@ -171149,31 +171336,65 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/runtime/zyra_runtime/permission/action_gate.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/continuation_runtime.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/deadline_runtime.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "deny-first typed hooks, argument hashes and all-sections preflight",
       "capability_summary": "Dynamic extension execution and yolo/bypass semantics are intentionally absent.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [
         "M1-03A",
         "M1-04A",
         "M1-04B"
       ],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -171189,7 +171410,9 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_when_productized",
       "main_path": {
-        "api_routes": [],
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
         "artifact_kinds": [
           "structured_data",
           "screenshot",
@@ -171202,18 +171425,21 @@
           "recovery_planned"
         ],
         "surfaces": [
+          "browser_api",
           "browser_worker",
-          "browser_action_gateway",
+          "browser_action_application",
           "permission_runtime",
           "event_log",
           "artifact_store"
         ],
         "ui_panels": [],
-        "worker_runtime": "BrowserWorkerRuntime registry -> BrowserActionGateway -> 03A -> side-effect fence"
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserActionApplication -> all-plan preflight -> 03A continuation -> session-bound side-effect fence"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "zyra_module_migrated",
         "source_graph_ref": "source-graphs/oh-my-pi/batch-02-tool-runtime-permission-hooks.md",
         "source_role": "supplementary"
@@ -171229,18 +171455,19 @@
         "command": "",
         "config_refs": [
           "packages/workers/zyra_workers/browser_action/hook_preflight.py",
-          "packages/workers/zyra_workers/browser_action/sequence.py"
+          "packages/workers/zyra_workers/browser_action/sequence.py",
+          "packages/workers/zyra_workers/browser_action/plan_adapter.py"
         ],
         "environment_refs": [],
-        "function": "BrowserActionGateway.run",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "function": "BrowserActionApplication.execute_plan",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "packages/coding-agent/src/tools/**;packages/hashline/**",
           "source_repo": "oh-my-pi",
@@ -171257,6 +171484,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "supplementary",
         "zyra_module_migrated"
@@ -171289,27 +171517,47 @@
           "required_for_main_path": true,
           "role": "supporting",
           "target_path": "packages/workers/zyra_workers/browser_action/sequence.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/workers/zyra_workers/browser_action/plan_adapter.py"
         }
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
           "required": true
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "permission question behavior comparison",
       "capability_summary": "Used only to compare ASK presentation; it cannot become a parallel BrowserPermissionRuntime.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -171337,7 +171585,9 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "conformance_only",
         "source_graph_ref": "source-graphs/opencode/batch-05-tools-permissions-mcp-skills.md",
         "source_role": "conformance_only"
@@ -171356,14 +171606,14 @@
         ],
         "environment_refs": [],
         "function": "BrowserActionSourceAuditor.audit",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "packages/opencode/src/permission/**",
           "source_repo": "opencode",
@@ -171380,6 +171630,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "conformance_only",
         "conformance_only"
@@ -171402,23 +171653,29 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
           "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": false
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "browser policy and safe-bin reference",
       "capability_summary": "No production migration quota; deterministic browser policy remains Zyra-owned.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -171446,7 +171703,9 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "reference_only",
         "source_graph_ref": "source-graphs/openclaw/batch-03-tools-policy-exec-approval.md",
         "source_role": "reference_only"
@@ -171465,14 +171724,14 @@
         ],
         "environment_refs": [],
         "function": "BrowserActionSourceAuditor.audit",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "src/security/**;src/agents/tools/**",
           "source_repo": "openclaw",
@@ -171489,6 +171748,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "reference_only",
         "reference_only"
@@ -171511,23 +171771,29 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
           "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": false
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     },
     {
       "blockers": [],
       "capability_name": "permission engine reference",
       "capability_summary": "The overlapping permission state machine is rejected to preserve the M1-03A owner.",
-      "created_at": "2026-07-13T12:00:00.000Z",
+      "created_at": "2026-07-13T14:30:00.000Z",
       "dependencies": [],
       "downstream_units": [
-        "M1-S04C-02",
         "M1-04D",
         "M2-01A"
       ],
@@ -171555,7 +171821,9 @@
       },
       "main_path_status": "inventoried",
       "metadata": {
-        "slice_id": "M1-S04C-01",
+        "foundation_slice_id": "M1-S04C-01",
+        "parent_unit_closed": true,
+        "slice_id": "M1-S04C-02",
         "source_disposition": "reference_only",
         "source_graph_ref": "source-graphs/agentscope/batch-06-runtime-tools-memory.md",
         "source_role": "reference_only"
@@ -171574,14 +171842,14 @@
         ],
         "environment_refs": [],
         "function": "BrowserActionSourceAuditor.audit",
-        "health_check": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-        "module": "zyra_workers.browser_action.gateway",
+        "health_check": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+        "module": "zyra_workers.browser_action.application",
         "protocol": "zyra-browser-action-v1"
       },
       "source_evidence": [
         {
           "exists_in_workspace": true,
-          "reason": "M1-S04C-01 source-to-target decision",
+          "reason": "M1-S04C-02 source-to-target decision",
           "source_kind": "source_graph_decision",
           "source_path": "src/agentscope/tool/**/permission*",
           "source_repo": "agentscope",
@@ -171598,6 +171866,7 @@
       "tags": [
         "m1-04c",
         "slice-04c-01",
+        "slice-04c-02",
         "browser-action",
         "reference_only",
         "reference_only"
@@ -171620,14 +171889,21 @@
       ],
       "test_entries": [
         {
-          "command": "python -m unittest tests.unit.test_browser_action_registry_permission_foundation",
-          "expected_signal": "real 03A grant changes CDP reachability; denied/stale paths have zero browser, network and file effects",
-          "kind": "integration",
+          "command": "python -m pytest tests/unit/test_browser_action_registry_permission_foundation.py -q",
+          "expected_signal": "denied/stale/schema paths have zero browser, network and file effects",
+          "kind": "unit",
           "path": "tests/unit/test_browser_action_registry_permission_foundation.py",
           "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_browser_session_productization_integration.py -q",
+          "expected_signal": "default BrowserWorker route parks ASK, resumes exact approval once and emits paired tool/action events",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_integration.py",
+          "required": false
         }
       ],
-      "updated_at": "2026-07-13T12:00:00.000Z"
+      "updated_at": "2026-07-13T14:30:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",

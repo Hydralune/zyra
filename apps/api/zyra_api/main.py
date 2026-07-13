@@ -3654,12 +3654,20 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     {"error": "invalid_idempotency_key", "message": "Idempotency-Key exceeds 200 characters."},
                 )
                 return
+            fingerprint_constraints = dict(constraints)
+            for custody_key in (
+                "permission_session_id",
+                "permission_session_custody_id",
+                "permission_session_custody_token",
+                "permission_session_custody_fingerprint",
+            ):
+                fingerprint_constraints.pop(custody_key, None)
             request_fingerprint_payload = json.dumps(
                 {
                     "task_id": task_id,
                     "node_id": node_id,
                     "session_id": session_id,
-                    "constraints": constraints,
+                    "constraints": fingerprint_constraints,
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -3703,13 +3711,39 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            pending_records = state.metadata.setdefault("browser_worker_pending_idempotency", {})
+            if not isinstance(pending_records, dict):
+                pending_records = {}
+                state.metadata["browser_worker_pending_idempotency"] = pending_records
+            prior_pending = pending_records.get(idempotency_key) if idempotency_key else None
+            if isinstance(prior_pending, dict):
+                if str(prior_pending.get("request_fingerprint") or "") != request_fingerprint:
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {
+                            "error": "browser_worker_pending_idempotency_conflict",
+                            "idempotency_key": idempotency_key,
+                            "request_fingerprint": request_fingerprint,
+                        },
+                    )
+                    return
+                pending_request_id = str(prior_pending.get("worker_request_id") or "")
+                if not pending_request_id:
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {"error": "browser_worker_pending_identity_missing", "idempotency_key": idempotency_key},
+                    )
+                    return
+            else:
+                pending_request_id = ""
+
             request = WorkerRequest(
                 run_id=state.run_id,
                 task_id=state.task_id,
                 node_id=node_id,
                 worker_name="BrowserWorker",
                 constraints=constraints,
-                request_id=new_id("browser-worker-request"),
+                request_id=pending_request_id or new_id("browser-worker-request"),
                 metadata={"browser_context_owner": "M1-02D.ClaudeContextWindowManager"},
             )
             checkpoint = state.metadata.get("browser_context_runtime_state")
@@ -3731,7 +3765,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            if run_result.browser_context_checkpoint:
+            browser_action_pending = (
+                str(run_result.worker_result.metadata.get("browser_permission_pending") or "").lower()
+                == "true"
+            )
+            if run_result.browser_context_checkpoint and not browser_action_pending:
                 restored = _BROWSER_CONTEXT_TASK_INTEGRATION.checkpoint_from_metadata(
                     {"browser_context_runtime_state": run_result.browser_context_checkpoint},
                     scope=BrowserContextScope(
@@ -3749,7 +3787,24 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             if run_result.event_records:
                 state.updated_at = run_result.event_records[-1].created_at
-            if idempotency_key:
+            if idempotency_key and browser_action_pending:
+                pending_records[idempotency_key] = {
+                    "request_fingerprint": request_fingerprint,
+                    "worker_request_id": request.request_id,
+                    "browser_session_id": run_result.worker_result.metadata.get("browser_session_id", ""),
+                    "permission_request_id": run_result.worker_result.metadata.get(
+                        "browser_pending_permission_request_id", ""
+                    ),
+                    "permission_tool_use_id": run_result.worker_result.metadata.get(
+                        "browser_pending_permission_tool_use_id", ""
+                    ),
+                    "checkpoint_id": run_result.worker_result.metadata.get(
+                        "browser_pending_checkpoint_id", ""
+                    ),
+                    "updated_at": now_iso(),
+                }
+            elif idempotency_key:
+                pending_records.pop(idempotency_key, None)
                 idempotency_records[idempotency_key] = {
                     "request_fingerprint": request_fingerprint,
                     "worker_request_id": request.request_id,
@@ -3767,7 +3822,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         idempotency_records.pop(key, None)
             persist_events(store, run_result.event_records)
             store.save_checkpoint(state)
-            status = HTTPStatus.CREATED if run_result.worker_result.ok else HTTPStatus.CONFLICT
+            status = (
+                HTTPStatus.ACCEPTED
+                if browser_action_pending
+                else HTTPStatus.CREATED
+                if run_result.worker_result.ok
+                else HTTPStatus.CONFLICT
+            )
             permission_session = _browser_permission_session_envelope(run_result)
             self._send_json(
                 status,
@@ -3779,6 +3840,19 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "browser_context": run_result.browser_context_projection,
                     "idempotency_key": idempotency_key,
                     "permission_session": permission_session,
+                    "browser_action_continuation": {
+                        "pending": browser_action_pending,
+                        "checkpoint_id": run_result.worker_result.metadata.get(
+                            "browser_pending_checkpoint_id", ""
+                        ),
+                        "permission_request_id": run_result.worker_result.metadata.get(
+                            "browser_pending_permission_request_id", ""
+                        ),
+                        "permission_tool_use_id": run_result.worker_result.metadata.get(
+                            "browser_pending_permission_tool_use_id", ""
+                        ),
+                        "resume_method": "POST same endpoint with same Idempotency-Key after permission resolution",
+                    },
                 },
                 headers={
                     "Cache-Control": "no-store, max-age=0",

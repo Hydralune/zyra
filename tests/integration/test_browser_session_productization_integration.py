@@ -36,6 +36,13 @@ from zyra_workers.browser_session import (  # noqa: E402
 )
 from zyra_workers.browser_session.application import BrowserSessionApplication  # noqa: E402
 from zyra_workers.browser_session.runtime_registry import BrowserRuntimeRegistry  # noqa: E402
+from zyra_workers.browser_action import (  # noqa: E402
+    ActionIdentity,
+    ActionRequest,
+    BrowserActionIntegrationError,
+    PlanPhase,
+    StaticHostResolver,
+)
 from zyra_workers.browser_worker import BrowserWorkerRuntime  # noqa: E402
 
 
@@ -416,6 +423,7 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
                 project_root=ROOT, workspace_root=root / "workspace", artifact_root=root / "artifacts",
                 permission_state_path=permission_state, browser_session_runtime=runtime,
             )
+            worker.browser_action_application.resolver = StaticHostResolver({"example.test": ["8.8.8.8"]})
             base_constraints = {
                 "browser_endpoint_url": discovery.endpoint,
                 "browser_transport": "memory",
@@ -425,15 +433,28 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             }
             first = worker.run(WorkerRequest(
                 run_id="run-productized-approval", task_id="task-productized-approval", node_id="node-browser",
-                worker_name="BrowserWorker", constraints=base_constraints,
+                worker_name="BrowserWorker", request_id="request-productized-approval", constraints=base_constraints,
             ))
             self.assertFalse(first.worker_result.ok)
             self.assertEqual(first.worker_result.metadata["browser_permission_action_execution_count"], "0")
-            pending = _find_pending([to_jsonable(event) for event in first.event_records])
+            pending_request_id = first.worker_result.metadata["browser_pending_permission_request_id"]
+            pending = PermissionStateStore(permission_state).get_request(pending_request_id)
             self.assertIsNotNone(pending)
             assert pending is not None
-            _approve_exact(permission_state, pending)
             session_id = first.worker_result.metadata["browser_session_id"]
+            self.assertEqual(runtime.get_session(session_id).status, "running")
+            self.assertEqual(runtime._runtime._cdp[session_id].snapshot().completed_requests, 0)
+            continuation_root = root / "state" / "action-continuations" / session_id
+            self.assertTrue(any(continuation_root.glob("*.json")))
+            pending_tool_results = [
+                event.payload["tool_result"]
+                for event in first.event_records
+                if isinstance(event.payload.get("tool_result"), dict)
+            ]
+            self.assertEqual(len(pending_tool_results), 1)
+            self.assertTrue(pending_tool_results[0]["partial"])
+            self.assertFalse(pending_tool_results[0]["final"])
+            _approve_exact(permission_state, pending)
             runtime._runtime._cdp[session_id].close()
             responder = _CdpResponder()
             bus = _install_memory_cdp(runtime, session_id, responder)
@@ -444,11 +465,13 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             try:
                 approved = worker.run(WorkerRequest(
                     run_id="run-productized-approval", task_id="task-productized-approval", node_id="node-browser",
-                    worker_name="BrowserWorker", constraints={**base_constraints, **authority},
+                    worker_name="BrowserWorker", request_id="request-productized-approval",
+                    constraints={**base_constraints, **authority},
                 ))
                 replay = worker.run(WorkerRequest(
                     run_id="run-productized-approval", task_id="task-productized-approval", node_id="node-browser",
-                    worker_name="BrowserWorker", constraints={**base_constraints, **authority},
+                    worker_name="BrowserWorker", request_id="request-productized-approval",
+                    constraints={**base_constraints, **authority},
                 ))
             finally:
                 bus.stop()
@@ -456,8 +479,159 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             self.assertTrue(approved.worker_result.ok, approved.worker_result.error)
             self.assertEqual(approved.worker_result.metadata["browser_permission_action_execution_count"], "1")
             self.assertEqual(responder.methods.count("Page.navigate"), 1)
+            approved_tool_results = [
+                event.payload["tool_result"]
+                for event in approved.event_records
+                if isinstance(event.payload.get("tool_result"), dict)
+            ]
+            self.assertEqual(len(approved_tool_results), 1)
+            self.assertTrue(approved_tool_results[0]["final"])
+            self.assertFalse(approved_tool_results[0]["partial"])
+            self.assertEqual(
+                approved_tool_results[0]["action_id"],
+                pending_tool_results[0]["action_id"],
+            )
+            self.assertTrue(approved_tool_results[0]["cause_event_id"])
+            self.assertFalse(approved_tool_results[0]["automatic_replay_allowed"])
             self.assertFalse(replay.worker_result.ok)
             self.assertEqual(responder.methods.count("Page.navigate"), 1)
+
+    def test_default_route_rejects_entire_plan_before_any_cdp_side_effect(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, _DiscoveryFixture() as discovery:
+            root = Path(directory)
+            runtime = BrowserRuntimeRegistry().get_or_create(
+                BrowserRuntimeConfig(root / "state", root / "runtime", root / "artifacts")
+            )
+            worker = BrowserWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=root / "workspace",
+                artifact_root=root / "artifacts",
+                permission_state_path=root / "permission-state.json",
+                browser_session_runtime=runtime,
+            )
+            prepared = runtime.ensure_started(BrowserSessionCommand(
+                run_id="run-atomic-admission",
+                task_id="task-atomic-admission",
+                worker_request_id="request-atomic-setup",
+                canonical_session_id="canonical-atomic-admission",
+                node_id="node-browser",
+                workspace_root=root / "workspace",
+                artifact_root=root / "artifacts",
+                endpoint_url=discovery.endpoint,
+                keep_alive=True,
+                constraints={"browser_transport": "memory"},
+            ))
+            runtime._runtime._cdp[prepared.session.session_id].close()
+            responder = _CdpResponder()
+            bus = _install_memory_cdp(runtime, prepared.session.session_id, responder)
+            try:
+                run = worker.run(WorkerRequest(
+                    run_id="run-atomic-admission",
+                    task_id="task-atomic-admission",
+                    node_id="node-browser",
+                    worker_name="BrowserWorker",
+                    request_id="request-atomic-admission",
+                    constraints={
+                        "browser_endpoint_url": discovery.endpoint,
+                        "browser_transport": "memory",
+                        "canonical_session_id": "canonical-atomic-admission",
+                        "keep_alive": True,
+                        "permission_mode": "sealed",
+                        "browser_plan": [
+                            {"action": "list_targets", "arguments": {}},
+                            {"action": "unknown_raw_cdp", "arguments": {"method": "Page.navigate"}},
+                        ],
+                    },
+                ))
+            finally:
+                bus.stop()
+                runtime.stop(prepared.session.session_id, force=True, reason="atomic_admission_complete")
+            self.assertFalse(run.worker_result.ok)
+            self.assertEqual(run.worker_result.error, "browser_plan_admission_failed")
+            self.assertEqual(run.worker_result.metadata["browser_action_default_gateway"], "true")
+            self.assertEqual(run.worker_result.metadata["browser_action_fallback_allowed"], "false")
+            self.assertEqual(responder.methods, [])
+            payload = json.dumps([to_jsonable(event) for event in run.event_records], sort_keys=True)
+            self.assertIn("unknown_action", payload)
+            self.assertNotIn('"tool_result"', payload)
+
+    def test_worker_control_command_cancels_only_the_exact_active_action_and_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = BrowserRuntimeRegistry().get_or_create(
+                BrowserRuntimeConfig(root / "state", root / "runtime", root / "artifacts")
+            )
+            worker = BrowserWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=root / "workspace",
+                artifact_root=root / "artifacts",
+                permission_state_path=root / "permission-state.json",
+                browser_session_runtime=runtime,
+            )
+            action_id = "browser-action-control-target"
+            action_request = ActionRequest(
+                identity=ActionIdentity(
+                    run_id="run-action-control",
+                    task_id="task-action-control",
+                    worker_request_id="request-action-target",
+                    session_id="permission-action-control",
+                    browser_session_id="browser-action-control",
+                    step_index=1,
+                    action_id=action_id,
+                ),
+                action="list_targets",
+                arguments={},
+                backend="zyra-browser-productized",
+            )
+            deadline = worker.browser_action_application.deadlines.begin(action_request)
+            base_control = {
+                "command": "cancel",
+                "command_id": "control-exact-action",
+                "action_id": action_id,
+                "browser_session_id": "browser-action-control",
+                "reason": "operator cancelled the exact action",
+            }
+            first = worker.run(WorkerRequest(
+                run_id="run-action-control",
+                task_id="task-action-control",
+                worker_name="BrowserWorker",
+                request_id="request-action-control",
+                constraints={"browser_action_control": base_control},
+            ))
+            self.assertTrue(first.worker_result.ok, first.worker_result.error)
+            self.assertEqual(first.worker_result.metadata["browser_action_control_status"], "applied")
+            self.assertEqual(first.worker_result.metadata["browser_action_control_record_count"], "1")
+            self.assertEqual(first.event_records[0].event_type, "control_command")
+            with self.assertRaises(BrowserActionIntegrationError) as cancelled:
+                deadline.checkpoint(PlanPhase.DISPATCH)
+            self.assertEqual(cancelled.exception.code, "browser_action_cancelled")
+
+            replay = worker.run(WorkerRequest(
+                run_id="run-action-control",
+                task_id="task-action-control",
+                worker_name="BrowserWorker",
+                request_id="request-action-control-replay",
+                constraints={"browser_action_control": base_control},
+            ))
+            self.assertTrue(replay.worker_result.ok, replay.worker_result.error)
+            self.assertEqual(replay.worker_result.metadata["browser_action_control_status"], "replayed")
+            self.assertEqual(replay.worker_result.metadata["browser_action_control_replayed"], "true")
+
+            conflict = worker.run(WorkerRequest(
+                run_id="run-action-control",
+                task_id="task-action-control",
+                worker_name="BrowserWorker",
+                request_id="request-action-control-conflict",
+                constraints={
+                    "browser_action_control": {
+                        **base_control,
+                        "reason": "conflicting reuse",
+                    }
+                },
+            ))
+            self.assertFalse(conflict.worker_result.ok)
+            self.assertEqual(conflict.worker_result.error, "browser_action_control_idempotency_conflict")
+            worker.browser_action_application.deadlines.finish(action_id, failed=True, cancelled=True)
 
     def test_productized_network_permission_blocks_before_cdp_without_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory, _DiscoveryFixture() as discovery:
@@ -542,7 +716,11 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
                 ))
                 second = worker.run(WorkerRequest(
                     run_id="run-worker-default", task_id="task-worker-default", node_id="node-browser",
-                    worker_name="BrowserWorker", constraints=constraints,
+                    worker_name="BrowserWorker", constraints={
+                        **constraints,
+                        "permission_session_id": first.worker_result.metadata["permission_runtime_session_id"],
+                        "permission_session_custody_token": first.permission_session_custody_token,
+                    },
                 ))
             finally:
                 bus.stop()
@@ -554,7 +732,9 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
                 second.worker_result.metadata["browser_session_id"],
             )
             self.assertEqual(second.worker_result.metadata["browser_session_reused"], "true")
-            self.assertTrue(any(artifact.kind == "trace" for artifact in first.worker_result.artifacts))
+            self.assertEqual(first.worker_result.metadata["browser_action_default_gateway"], "true")
+            self.assertEqual(first.worker_result.metadata["browser_action_execution_count"], "2")
+            self.assertIn("Page.getFrameTree", responder.methods)
             cancel = worker.run(WorkerRequest(
                 run_id="run-worker-default", task_id="task-worker-default", node_id="node-browser",
                 worker_name="BrowserWorker", constraints={
@@ -582,8 +762,6 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             started = runtime.start(_command(root, discovery.endpoint))
             responder = _CdpResponder()
             bus = _install_memory_cdp(runtime, started.session.session_id, responder)
-            page = root / "workspace" / "page.html"
-            page.write_text("<html><body>productized</body></html>", encoding="utf-8")
             request = _request(root)
             application = BrowserSessionApplication(runtime)
             try:
@@ -591,9 +769,8 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
                     request,
                     started,
                     [
-                        {"action": "navigate", "arguments": {"url": page.resolve().as_uri()}},
                         {"action": "list_targets", "arguments": {}},
-                        {"action": "take_screenshot", "arguments": {"name": "productized.png"}},
+                        {"action": "capture_trace", "arguments": {}},
                     ],
                     _permission_gate(request, root),
                 )
@@ -605,10 +782,8 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             self.assertEqual(result.metadata["browser_backend"], "zyra-browser-productized")
             self.assertEqual(result.metadata["browser_session_id"], started.session.session_id)
             self.assertEqual(result.metadata["browser_canonical_session_id"], "canonical-productized")
-            self.assertEqual(len(result.action_receipts), 3)
-            self.assertIn("Page.navigate", responder.methods)
-            self.assertIn("Page.captureScreenshot", responder.methods)
-            self.assertTrue(any(artifact.kind == "screenshot" for artifact in result.artifacts))
+            self.assertEqual(len(result.action_receipts), 2)
+            self.assertTrue(any(artifact.kind == "trace" for artifact in result.artifacts))
             projected = json.dumps(result.metadata, sort_keys=True)
             self.assertNotIn("productized-secret", projected)
 
@@ -619,6 +794,7 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             runtime = BrowserRuntimeRegistry().get_or_create(config)
             started = runtime.start(_command(root, discovery.endpoint))
             request = _request(root)
+            request.constraints["permission_mode"] = "default"
             gate = _permission_gate(request, root)
             disabled = BrowserSessionApplication(runtime, disabled=True).execute_plan(
                 request,
@@ -640,13 +816,22 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
                 bus,
                 disabled=True,
             )
+            page = root / "workspace" / "disabled.html"
+            page.write_text("<html><body>disabled transport</body></html>", encoding="utf-8")
+            plan = [{"action": "navigate", "arguments": {"url": page.resolve().as_uri()}}]
             try:
-                failed = BrowserSessionApplication(runtime).execute_plan(
+                pending = BrowserSessionApplication(runtime).execute_plan(
                     request,
                     started,
-                    [{"action": "take_screenshot", "arguments": {}}],
+                    plan,
                     gate,
                 )
+                permission_request = _find_pending(to_jsonable(pending.domain_result))
+                if permission_request is None:
+                    failed = pending
+                else:
+                    _approve_exact(root / "permission-state.json", permission_request)
+                    failed = BrowserSessionApplication(runtime).execute_plan(request, started, plan, gate)
             finally:
                 bus.stop()
                 runtime.stop(started.session.session_id, reason="disabled_cdp_complete")

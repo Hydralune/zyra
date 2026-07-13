@@ -163,6 +163,7 @@ class BrowserActionEventPort:
         self.disabled = disabled
         self._transitions: dict[str, list[ActionTransition]] = {}
         self._events: dict[str, list[EventRecord]] = {}
+        self._external_causes: dict[str, str] = {}
         self._lock = threading.RLock()
 
     def ensure_available(self) -> None:
@@ -197,7 +198,7 @@ class BrowserActionEventPort:
         with self._lock:
             transitions = self._transitions.setdefault(identity.action_id, [])
             events = self._events.setdefault(identity.action_id, [])
-            expected_cause = events[-1].event_id if events else ""
+            expected_cause = events[-1].event_id if events else self._external_causes.get(identity.action_id, "")
             if cause_event_id and expected_cause and cause_event_id != expected_cause:
                 raise BrowserActionEventError(
                     "invalid_causal_edge",
@@ -239,6 +240,11 @@ class BrowserActionEventPort:
         self.ensure_available()
         output: list[EventRecord] = []
         for event in events:
+            if event.run_id != identity.run_id or event.task_id != identity.task_id:
+                raise BrowserActionEventError(
+                    "permission_event_identity_mismatch",
+                    "permission event belongs to another browser action run/task",
+                )
             safe = EventRecord(
                 run_id=event.run_id,
                 task_id=event.task_id,
@@ -251,6 +257,32 @@ class BrowserActionEventPort:
             output.append(safe)
             if self.sink is not None:
                 self.sink(safe)
+            with self._lock:
+                action_events = self._events.setdefault(identity.action_id, [])
+                cause_event_id = action_events[-1].event_id if action_events else ""
+                linked = EventRecord(
+                    run_id=identity.run_id,
+                    task_id=identity.task_id,
+                    node_id=identity.node_id or None,
+                    event_type=EventType.AGENT_MESSAGE,
+                    payload={
+                        "browser_action": {
+                            "schema": "zyra.browser-action.permission-link.v1",
+                            "identity": identity.to_dict(),
+                            "action_id": identity.action_id,
+                            "worker_request_id": identity.worker_request_id,
+                            "browser_session_id": identity.browser_session_id,
+                            "cause_event_id": cause_event_id,
+                            "permission_event_id": safe.event_id,
+                            "permission_event_type": str(safe.event_type),
+                            "permission_payload_digest": digest_value(safe.payload),
+                        }
+                    },
+                )
+                action_events.append(linked)
+            output.append(linked)
+            if self.sink is not None:
+                self.sink(linked)
         return tuple(output)
 
     def success(
@@ -309,6 +341,8 @@ class BrowserActionEventPort:
         message: str,
         details: Mapping[str, Any] | None = None,
         blocked: bool = True,
+        side_effect_count: int = 0,
+        outcome_unknown: bool = False,
     ) -> tuple[EventRecord, EventRecord]:
         redactor = SecretRedactor()
         failure = self.transition(
@@ -319,7 +353,8 @@ class BrowserActionEventPort:
                 "code": code,
                 "message": redactor.redact(message),
                 "details": redactor.redact(dict(details or {})),
-                "side_effect_count": 0 if blocked else None,
+                "side_effect_count": max(0, int(side_effect_count)),
+                "outcome_unknown": bool(outcome_unknown),
             },
         )
         recovery = EventRecord(
@@ -336,6 +371,8 @@ class BrowserActionEventPort:
                     "code": code,
                     "retry_requires_new_preflight": True,
                     "reuse_permission_grant": False,
+                    "outcome_unknown": bool(outcome_unknown),
+                    "automatic_replay_allowed": not outcome_unknown and side_effect_count == 0,
                 }
             },
         )
@@ -346,6 +383,34 @@ class BrowserActionEventPort:
     def events(self, action_id: str) -> tuple[EventRecord, ...]:
         with self._lock:
             return tuple(self._events.get(action_id, ()))
+
+    def seed_cause(self, identity: ActionIdentity, event_id: str) -> None:
+        self.ensure_available()
+        if not event_id:
+            raise BrowserActionEventError("external_cause_missing", "browser action external cause id is required")
+        with self._lock:
+            if identity.action_id in self._events or identity.action_id in self._transitions:
+                raise BrowserActionEventError(
+                    "external_cause_too_late",
+                    "browser action external cause must be seeded before its first transition",
+                )
+            existing = self._external_causes.get(identity.action_id)
+            if existing and existing != event_id:
+                raise BrowserActionEventError(
+                    "external_cause_changed",
+                    "browser action external cause changed before start",
+                )
+            self._external_causes[identity.action_id] = event_id
+
+    def latest_event_id(self, action_id: str) -> str:
+        with self._lock:
+            events = self._events.get(action_id, ())
+            return events[-1].event_id if events else self._external_causes.get(action_id, "")
+
+    def latest_phase(self, action_id: str) -> ActionPhase | None:
+        with self._lock:
+            transitions = self._transitions.get(action_id, ())
+            return transitions[-1].phase if transitions else None
 
     @staticmethod
     def _validate_phase(existing: Sequence[ActionTransition], phase: ActionPhase) -> None:
@@ -363,6 +428,7 @@ def causal_metadata(identity: ActionIdentity, receipt: ActionPreflightReceipt) -
         "worker_request_id": identity.worker_request_id,
         "browser_session_id": identity.browser_session_id,
         "receipt_id": receipt.receipt_id,
+        "preflight_receipt_id": receipt.receipt_id,
         "permission_decision_id": receipt.permission_decision_id,
         "permission_request_id": receipt.permission_request_id,
         "permission_tool_use_id": receipt.permission_tool_use_id,

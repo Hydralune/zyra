@@ -8,7 +8,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from zyra_core import ArtifactKind
+
 from .file_policy import BrowserFilePolicy, FileReceipt
+from .event_port import ArtifactPort, causal_metadata
 from .form_policy import FormReceipt
 from .clipboard_guard import BrowserClipboardGuard, ClipboardReceipt
 from .geometry_guard import GeometryReceipt, Point
@@ -18,6 +21,7 @@ from .models import (
     ActionFailureKind,
     ActionPreflightReceipt,
     ActionRequest,
+    digest_value,
 )
 from .permission_bridge import PermissionBridgeConsumption
 from .secret_policy import BrowserSecretPolicy, SecretLease, SecretReceipt, SecretRedactor
@@ -33,6 +37,33 @@ class BrowserExecutionError(RuntimeError):
 
 class CdpTransport(Protocol):
     def send(self, method: str, params: Mapping[str, Any], *, cdp_session_id: str = "") -> Mapping[str, Any]: ...
+
+
+class NativeDownloadRuntime(Protocol):
+    def download(
+        self,
+        context: "ExecutionContext",
+        arguments: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], tuple[str, ...]]: ...
+
+    def collect(
+        self,
+        context: "ExecutionContext",
+        arguments: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], tuple[str, ...]]: ...
+
+
+class NetworkDispatchScope(Protocol):
+    @property
+    def effect_count(self) -> int: ...
+
+    def __enter__(self) -> "NetworkDispatchScope": ...
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> bool: ...
+
+
+class NetworkDispatchScopeFactory(Protocol):
+    def __call__(self, context: "ExecutionContext") -> NetworkDispatchScope: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +154,7 @@ class ExecutionBindings:
     selector: SelectorReceipt | None = None
     geometry: GeometryReceipt | None = None
     network_receipt_id: str = ""
+    network_receipt: Any = None
     file_receipt: FileReceipt | None = None
     secret_receipt: SecretReceipt | None = None
     clipboard_receipt: ClipboardReceipt | None = None
@@ -155,12 +187,20 @@ class BrowserSideEffectFence:
         file_policy: BrowserFilePolicy | None = None,
         secret_policy: BrowserSecretPolicy | None = None,
         clipboard_guard: BrowserClipboardGuard | None = None,
+        artifact_port: ArtifactPort | None = None,
+        download_runtime: NativeDownloadRuntime | None = None,
+        network_scope_factory: NetworkDispatchScopeFactory | None = None,
+        require_network_scope: bool = False,
         disabled: bool = False,
     ) -> None:
         self.transport = transport
         self.file_policy = file_policy
         self.secret_policy = secret_policy
         self.clipboard_guard = clipboard_guard
+        self.artifact_port = artifact_port
+        self.download_runtime = download_runtime
+        self.network_scope_factory = network_scope_factory
+        self.require_network_scope = require_network_scope
         self.disabled = disabled
         self.execution_count = 0
 
@@ -186,7 +226,22 @@ class BrowserSideEffectFence:
                 arguments = lease.resolved_arguments
             before = command_effect_count(self.transport)
             self.execution_count += 1
-            output, summary, artifacts, network_effects, file_effects = self._dispatch_action(context, arguments)
+            scope = (
+                self.network_scope_factory(context)
+                if context.bindings.network_receipt is not None and self.network_scope_factory is not None
+                else None
+            )
+            if context.bindings.network_receipt is not None and scope is None and self.require_network_scope:
+                raise BrowserExecutionError(
+                    "network_interception_unavailable",
+                    "network browser action requires live redirect interception",
+                )
+            if scope is None:
+                output, summary, artifacts, network_effects, file_effects = self._dispatch_action(context, arguments)
+            else:
+                with scope:
+                    output, summary, artifacts, network_effects, file_effects = self._dispatch_action(context, arguments)
+                network_effects += max(0, int(scope.effect_count))
             after = command_effect_count(self.transport)
             cdp_effects = max(0, after - before)
             redactor = SecretRedactor(tuple(lease.values.values()) if lease else ())
@@ -255,12 +310,15 @@ class BrowserSideEffectFence:
             "input_text": self._input_text,
             "submit_form": self._submit,
             "upload_file": self._upload,
+            "download_file": self._download,
+            "collect_downloads": self._collect_downloads,
             "select_dropdown": self._select,
             "get_dropdown_options": self._dropdown_options,
             "check_element": self._check,
             "drag_element": self._drag,
             "hover_element": self._hover,
             "scroll_page": self._scroll_page,
+            "scroll_to_text": self._scroll_to_text,
             "send_keys": self._send_keys,
             "take_screenshot": self._screenshot,
             "save_as_pdf": self._print_pdf,
@@ -336,6 +394,19 @@ class BrowserSideEffectFence:
             raise BrowserExecutionError("upload_policy_missing", "upload requires file policy and selector receipts")
         receipt = context.bindings.file_receipt
         with self.file_policy.open_uploads(receipt) as opened:
+            maximum = int(arguments.get("max_bytes") or 0)
+            if maximum and sum(item.size for item in opened) > maximum:
+                raise BrowserExecutionError(
+                    "upload_requested_quota_exceeded",
+                    "opened upload bytes exceed the action-specific limit",
+                )
+            expected_sha256 = str(arguments.get("expected_sha256") or "").casefold().removeprefix("sha256:")
+            if expected_sha256:
+                if len(opened) != 1 or opened[0].sha256.casefold() != expected_sha256:
+                    raise BrowserExecutionError(
+                        "upload_digest_mismatch",
+                        "opened upload content differs from the approved expected digest",
+                    )
             paths = [item.candidate.identity.real_path for item in opened]
             self._send(
                 "DOM.setFileInputFiles",
@@ -348,6 +419,24 @@ class BrowserSideEffectFence:
                 for item in opened
             ]
         return {"files": public_files}, "Files attached to exact approved input", (), 1, len(public_files)
+
+    def _download(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
+        if self.download_runtime is None:
+            raise BrowserExecutionError(
+                "download_runtime_missing",
+                "native download requires the grant-scoped download runtime",
+            )
+        output, artifact_ids = self.download_runtime.download(context, arguments)
+        return output, "Browser download completed through quarantine", artifact_ids, 1, len(artifact_ids)
+
+    def _collect_downloads(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
+        if self.download_runtime is None:
+            raise BrowserExecutionError(
+                "download_runtime_missing",
+                "collect_downloads requires the session-owned download runtime",
+            )
+        output, artifact_ids = self.download_runtime.collect(context, arguments)
+        return output, f"Projected {len(artifact_ids)} completed browser download(s)", artifact_ids, 0, len(artifact_ids)
 
     def _select(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
         object_id = self._resolve_object(context)
@@ -429,6 +518,48 @@ class BrowserSideEffectFence:
         self._send("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": 1, "y": 1, "deltaX": delta_x, "deltaY": delta_y}, context)
         return {"delta_x": delta_x, "delta_y": delta_y}, "Page scrolled", (), 0, 0
 
+    def _scroll_to_text(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
+        text = str(arguments["text"])
+        occurrence = max(1, int(arguments.get("occurrence", 1)))
+        query = text if bool(arguments.get("case_sensitive", False)) else text.casefold()
+        response = self._send(
+            "DOM.performSearch",
+            {"query": query, "includeUserAgentShadowDOM": True},
+            context,
+        )
+        search_id = str(response.get("searchId", ""))
+        result_count = int(response.get("resultCount", 0))
+        if not search_id or result_count < occurrence:
+            if search_id:
+                self._send("DOM.discardSearchResults", {"searchId": search_id}, context)
+            raise BrowserExecutionError(
+                "scroll_text_not_found",
+                "requested text occurrence was not found in the current DOM",
+                details={"occurrence": occurrence, "result_count": result_count},
+            )
+        try:
+            selected = self._send(
+                "DOM.getSearchResults",
+                {"searchId": search_id, "fromIndex": occurrence - 1, "toIndex": occurrence},
+                context,
+            )
+            node_ids = list(selected.get("nodeIds", []))
+            if len(node_ids) != 1 or int(node_ids[0]) <= 0:
+                raise BrowserExecutionError(
+                    "scroll_text_node_missing",
+                    "DOM search did not return one current node",
+                )
+            node_id = int(node_ids[0])
+            self._send("DOM.scrollIntoViewIfNeeded", {"nodeId": node_id}, context)
+        finally:
+            self._send("DOM.discardSearchResults", {"searchId": search_id}, context)
+        return {
+            "query_digest": digest_value(text),
+            "occurrence": occurrence,
+            "result_count": result_count,
+            "node_id": node_id,
+        }, "Scrolled requested text occurrence into view", (), 0, 0
+
     def _send_keys(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
         keys = arguments.get("keys")
         selected = keys if isinstance(keys, list) else [keys]
@@ -437,15 +568,71 @@ class BrowserSideEffectFence:
         return {"key_count": len(selected)}, "Keyboard sequence dispatched", (), 0, 0
 
     def _screenshot(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
-        response = self._send("Page.captureScreenshot", {"format": arguments.get("format", "png"), "captureBeyondViewport": bool(arguments.get("full_page", False))}, context)
-        data = str(response.get("data", ""))
-        return {"image_base64": data, "encoded_bytes": len(data)}, "Screenshot captured", (), 0, 0
+        image_format = str(arguments.get("format", "png"))
+        params: dict[str, Any] = {
+            "format": image_format,
+            "captureBeyondViewport": bool(
+                arguments.get("capture_beyond_viewport", arguments.get("full_page", False))
+            ),
+            "fromSurface": bool(arguments.get("from_surface", True)),
+        }
+        if image_format in {"jpeg", "webp"}:
+            params["quality"] = int(arguments.get("quality", 90))
+        response = self._send("Page.captureScreenshot", params, context)
+        encoded = str(response.get("data", ""))
+        try:
+            data = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError) as exc:
+            raise BrowserExecutionError("screenshot_payload_invalid", "CDP screenshot payload is invalid base64") from exc
+        if not data:
+            raise BrowserExecutionError("screenshot_payload_empty", "CDP screenshot returned no image bytes")
+        if self.artifact_port is None:
+            raise BrowserExecutionError(
+                "screenshot_artifact_port_missing",
+                "screenshot bytes require the canonical artifact port",
+            )
+        title = str(arguments.get("file_name") or f"browser-action-{context.request.identity.action_id}.{image_format}")
+        artifact = self.artifact_port.write(
+            kind=ArtifactKind.SCREENSHOT,
+            title=title,
+            content=data,
+            metadata=causal_metadata(context.request.identity, context.receipt),
+        )
+        return {
+            "artifact_id": artifact.artifact_id,
+            "bytes": len(data),
+            "sha256": digest_value(data.hex()).removeprefix("sha256:"),
+            "format": image_format,
+        }, "Screenshot captured to owned artifact", (artifact.artifact_id,), 0, 1
 
     def _print_pdf(self, context: ExecutionContext, arguments: Mapping[str, Any]) -> tuple[dict[str, Any], str, tuple[str, ...], int, int]:
-        response = self._send("Page.printToPDF", {"printBackground": bool(arguments.get("print_background", True)), "preferCSSPageSize": True}, context)
+        response = self._send(
+            "Page.printToPDF",
+            {
+                "printBackground": bool(arguments.get("print_background", True)),
+                "landscape": bool(arguments.get("landscape", False)),
+                "scale": float(arguments.get("scale", 1.0)),
+                "preferCSSPageSize": True,
+                "displayHeaderFooter": bool(arguments.get("display_header_footer", False)),
+            },
+            context,
+        )
         data = base64.b64decode(str(response.get("data", "")), validate=True)
+        if self.artifact_port is not None:
+            title = str(arguments.get("file_name") or f"browser-action-{context.request.identity.action_id}.pdf")
+            artifact = self.artifact_port.write(
+                kind=ArtifactKind.FILE,
+                title=title,
+                content=data,
+                metadata=causal_metadata(context.request.identity, context.receipt),
+            )
+            return {
+                "artifact_id": artifact.artifact_id,
+                "size": len(data),
+                "sha256": digest_value(data.hex()).removeprefix("sha256:"),
+            }, "PDF rendered to owned artifact", (artifact.artifact_id,), 0, 1
         if self.file_policy is None or context.bindings.file_receipt is None:
-            return {"pdf_base64": base64.b64encode(data).decode("ascii"), "size": len(data)}, "PDF rendered", (), 0, 0
+            raise BrowserExecutionError("pdf_artifact_port_missing", "PDF bytes require the canonical artifact port")
         with self.file_policy.open_download(context.bindings.file_receipt) as writer:
             writer.write(data)
             completed = writer.complete()

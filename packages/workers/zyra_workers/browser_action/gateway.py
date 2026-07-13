@@ -562,6 +562,7 @@ class BrowserActionGateway:
                         selector=fresh.security.selector,
                         geometry=geometry,
                         network_receipt_id=fresh.security.network.receipt_id if fresh.security.network else "",
+                        network_receipt=fresh.security.network,
                         file_receipt=fresh.security.file,
                         secret_receipt=fresh.security.secret,
                         clipboard_receipt=fresh.security.clipboard,
@@ -768,8 +769,26 @@ class BrowserActionGateway:
             return None
         if action == "upload_file":
             paths = arguments.get("paths") or ([arguments.get("path")] if arguments.get("path") else [])
-            return self.file_policy.preflight_upload(action_id=request.identity.action_id, paths=paths)
-        filename = str(arguments.get("filename") or arguments.get("path") or default_filename(action, arguments))
+            receipt = self.file_policy.preflight_upload(action_id=request.identity.action_id, paths=paths)
+            requested_max = int(arguments.get("max_bytes") or 0)
+            if requested_max and sum(item.identity.size for item in receipt.uploads) > requested_max:
+                raise BrowserActionGatewayError(
+                    "upload_requested_quota_exceeded",
+                    "upload files exceed the action-specific byte limit",
+                    failure_kind=ActionFailureKind.FILE_CONTAINMENT,
+                    details={
+                        "maximum": requested_max,
+                        "actual": sum(item.identity.size for item in receipt.uploads),
+                    },
+                )
+            return receipt
+        filename = str(
+            arguments.get("filename")
+            or arguments.get("suggested_filename")
+            or arguments.get("file_name")
+            or arguments.get("path")
+            or default_filename(action, arguments)
+        )
         intent = FileIntent.PDF if action == "save_as_pdf" else FileIntent.SCREENSHOT if action == "take_screenshot" else FileIntent.DOWNLOAD
         return self.file_policy.preflight_destination(action_id=request.identity.action_id, filename=filename, intent=intent)
 
@@ -839,6 +858,31 @@ class BrowserActionGateway:
             details = getattr(exc, "details", {})
             message = str(exc)
             embedded_events = ()
+        latest_phase = self.event_port.latest_phase(identity.action_id)
+        after_grant = latest_phase in {
+            ActionPhase.GRANT_CONSUMED,
+            ActionPhase.GEOMETRY_CHECKED,
+            ActionPhase.EXECUTING,
+            ActionPhase.FAILED,
+        }
+        side_effect_count = max(
+            0,
+            int(
+                getattr(exc, "side_effect_count", 0)
+                or getattr(exc, "details", {}).get("side_effect_count", 0)
+                if isinstance(getattr(exc, "details", {}), Mapping)
+                else 0
+            ),
+        )
+        blocked = not after_grant
+        outcome_unknown = after_grant and latest_phase == ActionPhase.EXECUTING
+        details = {
+            **dict(details),
+            "latest_phase": str(latest_phase) if latest_phase else "",
+            "blocked_before_grant": blocked,
+            "outcome_unknown": outcome_unknown,
+            "side_effect_count": side_effect_count,
+        }
         events: tuple[EventRecord, ...] = tuple(embedded_events)
         try:
             terminal = self.event_port.failure(
@@ -847,11 +891,14 @@ class BrowserActionGateway:
                 code=code,
                 message=message,
                 details=details,
-                blocked=True,
+                blocked=blocked,
+                side_effect_count=side_effect_count,
+                outcome_unknown=outcome_unknown,
             )
             events = (*events, *terminal)
-        except Exception:
-            pass
+        except Exception as event_error:
+            details["event_projection_error"] = f"{type(event_error).__name__}: {event_error}"
+            details["outcome_unknown"] = after_grant
         return BrowserActionGatewayError(
             code,
             message,

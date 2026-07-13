@@ -8,8 +8,9 @@ from typing import Any
 from zyra_runtime.permission.action_gate import BrowserActionPermissionGate
 
 from .cdp_probe import CdpElementProbePort
+from .clipboard_guard import BrowserClipboardGuard, ClipboardPort
 from .event_port import ArtifactPort, BrowserActionEventPort, BrowserActionResultProjector
-from .executor import BrowserSideEffectFence, CdpTransport
+from .executor import BrowserSideEffectFence, CdpTransport, NetworkDispatchScopeFactory
 from .file_policy import BrowserFilePolicy, FilePolicyConfig
 from .form_policy import BrowserFormPolicy
 from .gateway import BrowserActionGateway, BrowserActionGatewayConfig
@@ -25,7 +26,7 @@ from .network_policy import (
 from .permission_bridge import BrowserActionPermissionBridge
 from .registry import default_browser_action_registry
 from .secret_policy import BrowserSecretPolicy, SecretProvider
-from .selector_guard import BrowserSelectorGuard, SelectorStore
+from .selector_guard import BrowserSelectorGuard, ElementSemanticProbe, SelectorStore
 from .sensitive_policy import BrowserSensitiveActionClassifier, ExecutionMode, SensitivePolicyConfig
 
 
@@ -43,6 +44,8 @@ class BrowserActionFoundationOptions:
     execution_mode: ExecutionMode = ExecutionMode.INTERACTIVE
     receipt_ttl_seconds: float = 30.0
     maximum_scroll_attempts: int = 2
+    browser_context_id: str = "default"
+    clipboard_maximum_chars: int = 100_000
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "workspace_root", str(Path(self.workspace_root).resolve(strict=False)))
@@ -50,6 +53,10 @@ class BrowserActionFoundationOptions:
         object.__setattr__(self, "downloads_root", str(Path(self.downloads_root).resolve(strict=False)))
         object.__setattr__(self, "allowed_domains", tuple(self.allowed_domains))
         object.__setattr__(self, "denied_domains", tuple(self.denied_domains))
+        if not self.browser_context_id:
+            raise ValueError("browser action foundation requires browser_context_id")
+        if self.clipboard_maximum_chars < 1:
+            raise ValueError("browser clipboard maximum characters must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +68,8 @@ class BrowserActionFoundation:
     network_policy: BrowserNetworkPolicy
     selector_guard: BrowserSelectorGuard
     geometry_guard: BrowserGeometryGuard
+    clipboard_guard: BrowserClipboardGuard | None
+    semantic_probe: ElementSemanticProbe | None
 
 
 class BrowserActionFoundationFactory:
@@ -76,6 +85,10 @@ class BrowserActionFoundationFactory:
         artifact_port: ArtifactPort,
         resolver: HostResolver | None = None,
         secret_provider: SecretProvider | None = None,
+        clipboard_port: ClipboardPort | None = None,
+        semantic_probe: ElementSemanticProbe | None = None,
+        network_scope_factory: NetworkDispatchScopeFactory | None = None,
+        require_network_scope: bool = False,
         event_sink: Any = None,
     ) -> BrowserActionFoundation:
         workspace = Path(options.workspace_root)
@@ -103,12 +116,20 @@ class BrowserActionFoundationFactory:
             ),
             resolver or SystemHostResolver(),
         )
-        selector_guard = BrowserSelectorGuard(selector_store)
+        selector_guard = BrowserSelectorGuard(selector_store, semantic_probe=semantic_probe)
         geometry_guard = BrowserGeometryGuard(
             CdpElementProbePort(cdp_transport),
             maximum_scroll_attempts=options.maximum_scroll_attempts,
         )
         secret_policy = BrowserSecretPolicy(secret_provider) if secret_provider is not None else None
+        clipboard_guard = (
+            BrowserClipboardGuard(
+                clipboard_port,
+                maximum_chars=options.clipboard_maximum_chars,
+            )
+            if clipboard_port is not None
+            else None
+        )
         form_policy = BrowserFormPolicy()
         event_port = BrowserActionEventPort(event_sink)
         projector = BrowserActionResultProjector(artifact_port)
@@ -116,6 +137,10 @@ class BrowserActionFoundationFactory:
             cdp_transport,
             file_policy=file_policy,
             secret_policy=secret_policy,
+            clipboard_guard=clipboard_guard,
+            artifact_port=artifact_port,
+            network_scope_factory=network_scope_factory,
+            require_network_scope=require_network_scope,
         )
         gateway = BrowserActionGateway(
             registry=registry,
@@ -130,6 +155,7 @@ class BrowserActionFoundationFactory:
             file_policy=file_policy,
             secret_policy=secret_policy,
             geometry_guard=geometry_guard,
+            clipboard_guard=clipboard_guard,
             form_policy=form_policy,
             config=BrowserActionGatewayConfig(
                 execution_mode=options.execution_mode,
@@ -144,4 +170,6 @@ class BrowserActionFoundationFactory:
             network_policy=network_policy,
             selector_guard=selector_guard,
             geometry_guard=geometry_guard,
+            clipboard_guard=clipboard_guard,
+            semantic_probe=semantic_probe,
         )

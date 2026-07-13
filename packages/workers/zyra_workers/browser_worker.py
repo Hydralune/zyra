@@ -33,6 +33,8 @@ from .browser_context.task_integration import (
     BrowserContextTaskIntegrationRuntime,
 )
 from .browser_context.integration_audit import BrowserMessageIntegrationAuditRuntime
+from .browser_action.application import BrowserActionApplication
+from .browser_action.control_runtime import BrowserActionControlCommand
 from .browser_session import (
     BrowserRuntime,
     BrowserRuntimeConfig,
@@ -40,7 +42,6 @@ from .browser_session import (
     BrowserSessionControlRuntime,
     BrowserRuntimeRegistry,
     default_browser_runtime_registry,
-    validate_plan as validate_productized_browser_plan,
 )
 from .browser_session.application import BrowserSessionApplication
 from .browser_session.resume_runtime import BrowserSessionResumeRuntime
@@ -130,6 +131,7 @@ class BrowserWorkerRuntime:
         timeout_seconds: int = 15,
         browser_session_runtime: BrowserRuntime | None = None,
         browser_session_application: BrowserSessionApplication | None = None,
+        browser_action_application: BrowserActionApplication | None = None,
         browser_runtime_registry: BrowserRuntimeRegistry | None = None,
         browser_session_control: BrowserSessionControlRuntime | None = None,
         browser_session_resume: BrowserSessionResumeRuntime | None = None,
@@ -209,6 +211,25 @@ class BrowserWorkerRuntime:
             self.browser_session_runtime,
             "_browser_message_state_application",
             self.browser_message_state_application,
+        )
+        shared_action_application = getattr(
+            self.browser_session_runtime,
+            "_browser_action_application",
+            None,
+        )
+        self.browser_action_application = (
+            browser_action_application
+            or shared_action_application
+            or BrowserActionApplication(
+                self.browser_session_runtime,
+                artifact_store=self.artifact_store,
+                message_state_application=self.browser_message_state_application,
+            )
+        )
+        setattr(
+            self.browser_session_runtime,
+            "_browser_action_application",
+            self.browser_action_application,
         )
         self.browser_context_integration = browser_context_integration or BrowserContextTaskIntegrationRuntime()
         self.browser_message_integration_audit = (
@@ -295,6 +316,18 @@ class BrowserWorkerRuntime:
                 summary=f"BrowserWorker rejected unknown browser backend: {backend}",
             )
 
+        try:
+            action_control = BrowserActionControlCommand.from_worker_request(request)
+        except Exception as error:  # noqa: BLE001 - typed control parse boundary.
+            return _browser_productized_failure(
+                request,
+                code=str(getattr(error, "code", "browser_action_control_invalid")),
+                summary="BrowserWorker rejected an invalid browser action control command.",
+                details=str(error),
+            )
+        if action_control is not None:
+            return self._run_browser_action_control(request, action_control)
+
         snapshot = browser_use_snapshot(self.project_root)
         plan = _browser_plan_from_request(request)
         if not plan:
@@ -314,26 +347,6 @@ class BrowserWorkerRuntime:
                 worker_result=worker_result,
                 event_records=[_worker_result_event(request, worker_result)],
             )
-        validation_issues = validate_productized_browser_plan(plan)
-        if validation_issues:
-            worker_result = WorkerResult(
-                request_id=request.request_id,
-                ok=False,
-                summary="BrowserWorker rejected an invalid browser_plan.",
-                error="invalid_browser_plan",
-                events=[to_jsonable(issue) for issue in validation_issues],
-                metadata={
-                    **_snapshot_metadata(snapshot),
-                    **_action_registry_metadata(self.action_registry),
-                    "browser_backend": "zyra-browser-productized",
-                    "browser_runtime_vendor_required": "false",
-                },
-            )
-            return BrowserWorkerRun(
-                worker_result=worker_result,
-                event_records=[_worker_result_event(request, worker_result)],
-            )
-
         permission_gate_or_failure = self._permission_gate(
             request,
             snapshot,
@@ -405,7 +418,7 @@ class BrowserWorkerRuntime:
                 },
             )
         try:
-            action_run = self.browser_session_application.execute_plan(
+            action_run = self.browser_action_application.execute_plan(
                 request,
                 started,
                 plan,
@@ -419,9 +432,17 @@ class BrowserWorkerRuntime:
         action_receipts = tuple(
             getattr(action_run, "receipts", getattr(action_run, "action_receipts", ()))
         ) if action_run is not None else ()
+        action_worker_result = getattr(action_run, "worker_result", None)
+        action_metadata = dict(getattr(action_worker_result, "metadata", {}) or {})
+        action_pending = action_metadata.get("browser_permission_pending") == "true"
+        action_partial = action_metadata.get("browser_action_partial") == "true"
         message_turn = None
         message_state_error = ""
-        if action_run is not None:
+        if (
+            action_run is not None
+            and not action_pending
+            and (bool(getattr(action_worker_result, "ok", False)) or action_partial)
+        ):
             try:
                 message_turn = self.browser_message_state_application.read_state(
                     request=request,
@@ -443,7 +464,7 @@ class BrowserWorkerRuntime:
         stop_payload: dict[str, Any] = {}
         stop_event: EventRecord | None = None
         stop_error = ""
-        if not command.keep_alive:
+        if not command.keep_alive and not action_pending:
             try:
                 stop_control = self.browser_session_control.execute(
                     ControlCommand(
@@ -475,7 +496,7 @@ class BrowserWorkerRuntime:
             "browser_canonical_session_id": started.session.canonical_session_id,
             "browser_session_status": str(started.session.status),
             "browser_session_revision": str(started.session.revision),
-            "browser_session_keep_alive": str(command.keep_alive).lower(),
+            "browser_session_keep_alive": str(command.keep_alive or action_pending).lower(),
             "browser_session_created": str(started.created).lower(),
             "browser_session_reused": str(started.reused).lower(),
             "browser_resume_capsule_revision": str(resume_capsule.session_revision),
@@ -541,7 +562,7 @@ class BrowserWorkerRuntime:
             else action_error or "browser_application_failed"
         )
         events = [start_event, *application_events]
-        if not application_ok:
+        if not application_ok and not action_pending:
             events.append(EventRecord(
                 run_id=request.run_id,
                 task_id=request.task_id,
@@ -594,13 +615,15 @@ class BrowserWorkerRuntime:
             summary=(
                 "BrowserWorker completed the productized browser plan."
                 if application_ok and not stop_error
+                else "BrowserWorker parked the productized browser plan pending permission."
+                if action_pending and not stop_error
                 else "BrowserWorker stopped on a productized browser session failure."
             ),
             artifacts=application_artifacts,
             events=result_events,
             error=(
-                None
-                if application_ok and not stop_error
+                None if application_ok and not stop_error
+                else "browser_action_permission_pending" if action_pending and not stop_error
                 else application_error or ("browser_session_stop_failed" if stop_error else "browser_action_failed")
             ),
             metadata={
@@ -736,6 +759,43 @@ class BrowserWorkerRuntime:
             },
         )
         return BrowserWorkerRun(worker_result=worker_result, event_records=lifecycle_events)
+
+    def _run_browser_action_control(
+        self,
+        request: WorkerRequest,
+        command: BrowserActionControlCommand,
+    ) -> BrowserWorkerRun:
+        result = self.browser_action_application.apply_control(command)
+        payload = result.public_dict()
+        metadata = {
+            "browser_backend": "zyra-browser-productized",
+            "browser_action_control_runtime": "zyra-browser-action-control-runtime",
+            "browser_action_control_command_id": command.command_id,
+            "browser_action_control_kind": str(command.kind),
+            "browser_action_control_status": str(result.status),
+            "browser_action_control_replayed": str(result.replayed).lower(),
+            "browser_action_control_record_count": str(len(result.records)),
+            "browser_action_control_active_count": str(len(result.active_action_ids)),
+            "browser_action_fallback_allowed": "false",
+            "browser_runtime_vendor_required": "false",
+        }
+        worker_result = WorkerResult(
+            request_id=request.request_id,
+            ok=result.ok,
+            summary=(
+                f"Browser action control {command.kind} {result.status}."
+                if result.ok
+                else "Browser action control was rejected."
+            ),
+            error=None if result.ok else result.error_code or "browser_action_control_rejected",
+            events=[to_jsonable(event) for event in result.events],
+            metadata=metadata,
+        )
+        return BrowserWorkerRun(
+            worker_result=worker_result,
+            event_records=list(result.events),
+            browser_context_projection={"browser_action_control": payload},
+        )
 
     def _browser_session_command(self, request: WorkerRequest) -> BrowserSessionCommand:
         constraints = PermissionSessionCustodyStore.redact_constraints(request.constraints)

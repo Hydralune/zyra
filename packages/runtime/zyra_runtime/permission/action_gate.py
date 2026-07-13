@@ -660,10 +660,16 @@ def _browser_action_capabilities(action: BrowserActionPermissionInput) -> tuple[
         "capture_trace",
     }
     local_virtual_actions = {"click_element", "input_text", "send_keys"}
+    # These actions only inspect the already-owned 04A browser session.  They
+    # do not initiate network dispatch, even when the active page URL is
+    # https://.  Content capture and topology mutation are intentionally absent
+    # so their 04C risk classifications cannot inherit the low-risk read path.
     session_read_actions = {
+        "snapshot_state",
+        "search_page",
+        "get_dropdown_options",
         "list_targets",
-        "focus_target",
-        "take_screenshot",
+        "wait",
         "capture_trace",
     }
     capabilities: list[str] = ["browser_action"]
