@@ -112,6 +112,49 @@ class TypeScriptClaudeQueryEngine:
                 "runtime_protocol": RUNTIME_PROTOCOL_VERSION,
             },
         )
+        disabled_component = next(
+            (
+                component
+                for disabled, component in (
+                    (self.config.disable_tool_permission_runtime, "ToolPermissionRuntime"),
+                    (self.config.disable_permission_rule_store, "PermissionRuleStore"),
+                    (self.config.disable_permission_request_queue, "PermissionRequestQueue"),
+                    (self.config.disable_permission_decision_log, "PermissionDecisionLog"),
+                )
+                if disabled
+            ),
+            "",
+        )
+        if disabled_component:
+            self._host_events.append(
+                EventRecord(
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    event_type=EventType.NODE_FAILED,
+                    payload={
+                        "query_session": {
+                            "phase": "tool_loop_foundation_disabled",
+                            "session_id": session_id,
+                            "canonical_owner": "typescript",
+                            "disabled_component": disabled_component,
+                        }
+                    },
+                )
+            )
+            failed = self._failed_result(
+                error=TypeScriptRuntimeError(
+                    "tool_loop_foundation_disabled",
+                    f"Required durable permission component is disabled: {disabled_component}",
+                ),
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                session_id=session_id,
+                projection=projection,
+            )
+            failed.metadata["tool_foundation_disabled_component"] = disabled_component
+            return failed
         try:
             return self._run_process(
                 run_id=run_id,
@@ -194,9 +237,92 @@ class TypeScriptClaudeQueryEngine:
         deadline = time.monotonic() + timeout_seconds
         outbound_sequence = 1
         inbound_sequence = 1
+        raw_restored_runtime_state = self.config.restored_runtime_state or {}
+        nested_session_snapshot = raw_restored_runtime_state.get("session_snapshot")
+        restored_runtime_state = (
+            dict(nested_session_snapshot)
+            if isinstance(nested_session_snapshot, Mapping)
+            else dict(raw_restored_runtime_state)
+        )
+        restored_session_id = str(restored_runtime_state.get("session_id") or "")
+        if restored_session_id and restored_session_id != session_id:
+            restored_runtime_state.pop("permission_runtime", None)
+            restored_runtime_state.pop("permission_continuation", None)
+            restored_runtime_state.pop("permission_continuation_payloads", None)
+        restored_permission_value = restored_runtime_state.get("permission_runtime")
+        restored_mode_value = (
+            dict(restored_permission_value.get("mode") or {}).get("mode")
+            if isinstance(restored_permission_value, Mapping)
+            else ""
+        )
         permission_runtime = self._permission_runtime(
             session_id=session_id,
-            restored_state=self.config.restored_runtime_state or {},
+            restored_state=restored_runtime_state,
+        )
+        from zyra_runtime.claude_query_engine_runtime import (
+            _permission_continuation_payloads,
+            _reconcile_permission_continuation_payloads,
+            _synchronize_permission_continuations,
+        )
+        from zyra_runtime.permission.continuation import PermissionContinuationRuntime
+
+        continuation_payloads = _permission_continuation_payloads(restored_runtime_state)
+        permission_continuation = PermissionContinuationRuntime(
+            permission_runtime.state_store,
+            session_id=session_id,
+            payload_resolver=lambda record: continuation_payloads.get(
+                record.payload_locator
+            ),
+            disabled=self.config.disable_permission_continuation_runtime,
+        )
+        restored_continuation = restored_runtime_state.get("permission_continuation")
+        if isinstance(restored_continuation, Mapping) and restored_continuation:
+            permission_continuation.restore(restored_continuation)
+        _synchronize_permission_continuations(
+            permission_continuation,
+            permission_runtime,
+            continuation_payloads,
+            payload_tombstoner=self.config.permission_continuation_payload_tombstoner,
+        )
+        _reconcile_permission_continuation_payloads(
+            permission_continuation,
+            continuation_payloads,
+            payload_tombstoner=self.config.permission_continuation_payload_tombstoner,
+        )
+        continuation_sequence = [
+            int(permission_continuation.snapshot().get("session_sequence") or 0)
+        ]
+        pending_typescript_settlements: dict[str, Any] = {}
+        self._host_events.append(
+            EventRecord(
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                event_type=EventType.AGENT_MESSAGE,
+                payload={
+                    "query_session": {
+                        "phase": "permission_runtime_attached",
+                        "canonical_owner": "typescript",
+                        "session_id": session_id,
+                        "worker_request_id": worker_request_id,
+                        "permission_runtime": {
+                            "policy_owner": "typescript",
+                            "durable_state_owner": "python",
+                            "mode": str(permission_runtime.mode_runtime.mode),
+                            "python_policy_fallback": False,
+                        },
+                        "permission_mode_reconciliation": {
+                            "changed": bool(restored_mode_value)
+                            and str(restored_mode_value)
+                            != str(permission_runtime.mode_runtime.mode),
+                            "from_mode": str(
+                                restored_mode_value or self.config.permission_mode
+                            ),
+                            "to_mode": str(permission_runtime.mode_runtime.mode),
+                        },
+                    }
+                },
+            )
         )
         executor = ToolExecutor(
             self.context,
@@ -215,7 +341,7 @@ class TypeScriptClaudeQueryEngine:
                 "messages": to_jsonable(list(request_messages)),
                 "turns": to_jsonable(list(turns)),
                 "tools": [to_jsonable(spec) for spec in self.context.registry.list()],
-                "config": self._typescript_config(),
+                "config": self._typescript_config(permission_runtime),
                 "session_seed": to_jsonable(self.config.session_seed or {}),
                 "context_snapshot": to_jsonable(self.config.context_snapshot or {}),
                 "restored_state": to_jsonable(self.config.restored_runtime_state or {}),
@@ -280,6 +406,10 @@ class TypeScriptClaudeQueryEngine:
                     session_id=session_id,
                     executor=executor,
                     permission_runtime=permission_runtime,
+                    permission_continuation=permission_continuation,
+                    continuation_payloads=continuation_payloads,
+                    continuation_sequence=continuation_sequence,
+                    pending_typescript_settlements=pending_typescript_settlements,
                 )
                 self._write_frame(
                     process,
@@ -287,6 +417,27 @@ class TypeScriptClaudeQueryEngine:
                     sequence=outbound_sequence,
                     kind="tool.result",
                     payload=tool_result,
+                    correlation_id=correlation_id,
+                )
+                outbound_sequence += 1
+                continue
+            if kind == "tool.settle":
+                settlement = self._settle_typescript_capability(
+                    payload=payload,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    worker_request_id=worker_request_id,
+                    permission_continuation=permission_continuation,
+                    continuation_payloads=continuation_payloads,
+                    pending_settlements=pending_typescript_settlements,
+                )
+                self._write_frame(
+                    process,
+                    run_id=run_id,
+                    sequence=outbound_sequence,
+                    kind="tool.settle.result",
+                    payload=settlement,
                     correlation_id=correlation_id,
                 )
                 outbound_sequence += 1
@@ -315,6 +466,27 @@ class TypeScriptClaudeQueryEngine:
                     str(payload.get("message") or "TypeScript runtime reported an error."),
                 )
             if kind == "run.result":
+                if pending_typescript_settlements:
+                    for pending_tool_call_id in list(pending_typescript_settlements):
+                        self._settle_typescript_capability(
+                            payload={
+                                "tool_call_id": pending_tool_call_id,
+                                "ok": False,
+                                "error": "typescript_capability_settlement_missing",
+                            },
+                            run_id=run_id,
+                            task_id=task_id,
+                            node_id=node_id,
+                            worker_request_id=worker_request_id,
+                            permission_continuation=permission_continuation,
+                            continuation_payloads=continuation_payloads,
+                            pending_settlements=pending_typescript_settlements,
+                        )
+                    self._terminate(process)
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_protocol_error",
+                        "TypeScript runtime completed with unsettled capability executions.",
+                    )
                 result_payload = dict(payload.get("result") or {})
                 break
             self._terminate(process)
@@ -359,6 +531,37 @@ class TypeScriptClaudeQueryEngine:
             },
         )
         session_snapshot = to_jsonable(projection.snapshot())
+        session_snapshot["typescript_runtime_snapshot"] = to_jsonable(
+            dict(result_payload.get("sessionSnapshot") or {})
+        )
+        session_snapshot["permission_runtime"] = to_jsonable(
+            permission_runtime.snapshot()
+        )
+        session_snapshot["permission_continuation"] = to_jsonable(
+            permission_continuation.snapshot()
+        )
+        session_snapshot["permission_continuation_payloads"] = to_jsonable(
+            continuation_payloads
+        )
+        session_snapshot["runtime_state"] = {
+            "schema_version": 1,
+            "query_session_id": session_id,
+            "query_session_resume_token": str(
+                session_snapshot.get("resume_token") or session_id
+            ),
+            "session_snapshot": {
+                key: value
+                for key, value in session_snapshot.items()
+                if key != "runtime_state"
+            },
+            "permission_runtime": session_snapshot["permission_runtime"],
+            "permission_continuation": session_snapshot[
+                "permission_continuation"
+            ],
+            "permission_continuation_payloads": session_snapshot[
+                "permission_continuation_payloads"
+            ],
+        }
         snapshot_artifact = self.context.artifact_store.write_text(
             run_id=run_id,
             task_id=task_id,
@@ -450,8 +653,29 @@ class TypeScriptClaudeQueryEngine:
                 "query_session_resume_token": str(
                     session_snapshot.get("resume_token") or session_id
                 ),
+                "permission_continuation_pending": str(
+                    len(permission_continuation.pending())
+                ),
+                "permission_continuation_payload_count": str(
+                    len(continuation_payloads)
+                ),
+                "permission_continuation_suspended": str(
+                    stopped_reason == "permission_suspended"
+                ).lower(),
             }
         )
+        metadata.update(permission_runtime.metadata())
+        metadata.update(
+            {
+                "canonical_permission_owner": "typescript",
+                "python_policy_fallback": "false",
+                "permission_mode_from_state_owner": str(
+                    permission_runtime.mode_runtime.mode
+                ),
+            }
+        )
+        if self.config.permission_extension_registry is not None:
+            metadata.update(self.config.permission_extension_registry.metadata())
         result_artifacts = [
             self._artifact_from_mapping(item)
             for item in list(result_payload.get("artifacts") or [])
@@ -503,7 +727,13 @@ class TypeScriptClaudeQueryEngine:
         environment["ZYRA_TYPESCRIPT_RUNTIME_PROTOCOL"] = RUNTIME_PROTOCOL_VERSION
         return environment
 
-    def _typescript_config(self) -> dict[str, Any]:
+    def _typescript_config(
+        self,
+        permission_runtime: ToolPermissionRuntime,
+    ) -> dict[str, Any]:
+        runtime_constraints = dict(self.config.runtime_constraints)
+        runtime_constraints.setdefault("workspaceRoot", str(self.context.workspace_root))
+        runtime_constraints.setdefault("projectRoot", str(self.project_root))
         return {
             "maxTurns": self.config.max_turns,
             "maxToolResultChars": self.config.max_tool_result_chars,
@@ -514,8 +744,11 @@ class TypeScriptClaudeQueryEngine:
             "emitToolUseSummaries": self.config.emit_tool_use_summaries,
             "allowEmptyTurns": self.config.allow_empty_turns,
             "modelName": self.config.model_name,
-            "runtimeConstraints": to_jsonable(dict(self.config.runtime_constraints)),
+            "runtimeConstraints": to_jsonable(runtime_constraints),
             "controlCommands": to_jsonable(list(self.config.control_commands)),
+            "permissionPolicy": to_jsonable(
+                permission_runtime.typescript_policy_snapshot()
+            ),
         }
 
     def _permission_runtime(
@@ -532,7 +765,7 @@ class TypeScriptClaudeQueryEngine:
         restored_permission = restored_state.get("permission_runtime")
         restored_snapshot = (
             dict(restored_permission)
-            if isinstance(restored_permission, Mapping)
+            if isinstance(restored_permission, Mapping) and not state_path.exists()
             else None
         )
         seed = dict(self.config.session_seed or {})
@@ -575,16 +808,21 @@ class TypeScriptClaudeQueryEngine:
         session_id: str,
         executor: ToolExecutor,
         permission_runtime: ToolPermissionRuntime,
+        permission_continuation: Any,
+        continuation_payloads: dict[str, dict[str, Any]],
+        continuation_sequence: list[int],
+        pending_typescript_settlements: dict[str, Any],
     ) -> dict[str, Any]:
         tool_name = str(payload.get("tool_name") or "")
         tool_call_id = str(payload.get("tool_call_id") or "")
         arguments = dict(payload.get("arguments") or {})
-        metadata = {
-            str(key): str(value)
-            for key, value in dict(payload.get("metadata") or {}).items()
-        }
+        raw_metadata = dict(payload.get("metadata") or {})
+        metadata = {str(key): str(value) for key, value in raw_metadata.items()}
+        decision_payload = dict(payload.get("permission_decision") or {})
+        permission_only = bool(payload.get("permission_only"))
+        execution_owner = str(payload.get("execution_owner") or "python-tool-executor")
         spec = self.context.registry.get(tool_name)
-        if spec is None:
+        if spec is None and not (permission_only and execution_owner.startswith("typescript-")):
             return to_jsonable(
                 ToolResult(
                     tool_call_id=tool_call_id,
@@ -594,10 +832,11 @@ class TypeScriptClaudeQueryEngine:
                     metadata={"canonical_request_owner": "typescript"},
                 )
             )
-        provenance = spec.execution_provenance
-        namespace = provenance.namespace if provenance is not None else "builtin"
-        server_id = provenance.server_id if provenance is not None else ""
-        version = provenance.version if provenance is not None else ""
+        binding = dict(decision_payload.get("request_binding") or {})
+        namespace = str(binding.get("namespace") or "builtin")
+        server_id = str(binding.get("server_id") or "")
+        version = str(binding.get("version") or "")
+        schema_digest = str(binding.get("schema_digest") or "")
         metadata.update(
             {
                 "tool_namespace": namespace,
@@ -606,6 +845,8 @@ class TypeScriptClaudeQueryEngine:
                 "server_name": server_id,
                 "tool_version": version,
                 "canonical_request_owner": "typescript",
+                "canonical_permission_owner": "typescript",
+                "execution_owner": execution_owner,
             }
         )
         call = ToolCall(
@@ -630,17 +871,22 @@ class TypeScriptClaudeQueryEngine:
                 name=tool_name,
                 server_id=server_id,
                 version=version,
+                schema_digest=schema_digest,
             ),
             arguments=arguments,
-            operation=str(spec.metadata.get("access_mode") or "execute"),
+            operation=(
+                str(spec.metadata.get("access_mode") or "execute")
+                if spec is not None
+                else str(dict(decision_payload.get("metadata") or {}).get("operation") or "execute")
+            ),
             mode=self._permission_mode(self.config.permission_mode),
             workspace_root=str(self.context.workspace_root),
             interactive=self.config.permission_interactive,
             headless=self.config.permission_headless,
             requires_interaction=tool_name in {"shell", "browser"},
             attributes={
-                "tool_source": spec.source,
-                "tool_metadata": dict(spec.metadata),
+                "tool_source": spec.source if spec is not None else execution_owner,
+                "tool_metadata": dict(spec.metadata) if spec is not None else {},
                 "canonical_request_owner": "typescript",
             },
             metadata={
@@ -648,17 +894,136 @@ class TypeScriptClaudeQueryEngine:
                 "execution_mode": str(payload.get("execution_mode") or ""),
             },
         )
-        guard = permission_runtime.guard(
+        continuation_fence = self._permission_continuation_fence(
+            permission_continuation,
             permission_request,
-            workspace_state=self._workspace_safety_state(tool_name, arguments),
         )
-        self._host_events.extend(guard.events)
-        if guard.execution_grant is None:
-            effect = str(guard.decision.effect)
+        if continuation_fence:
+            fenced_record = next(
+                (
+                    record
+                    for record in permission_continuation.records()
+                    if record.tool_use_id == permission_request.tool_use_id
+                    or (
+                        record.tool_identity.namespace
+                        == permission_request.tool_identity.namespace
+                        and record.tool_identity.name
+                        == permission_request.tool_identity.name
+                        and record.arguments_digest
+                        == permission_request.arguments_digest
+                    )
+                ),
+                None,
+            )
+            if fenced_record is not None:
+                self._host_events.append(
+                    self._permission_continuation_event(
+                        continuation_fence,
+                        run_id=run_id,
+                        task_id=task_id,
+                        node_id=node_id,
+                        worker_request_id=worker_request_id,
+                        record=fenced_record,
+                    )
+                )
+            return to_jsonable(
+                ToolResult(
+                    tool_call_id=tool_call_id,
+                    ok=False,
+                    summary=(
+                        "A consumed approval has an unknown execution outcome"
+                        if continuation_fence == "permission_continuation_outcome_unknown"
+                        else (
+                            "The exact permission continuation replay was rejected"
+                            if continuation_fence
+                            == "permission_continuation_replay_rejected"
+                            else "The exact permission continuation was denied"
+                        )
+                    ),
+                    error=continuation_fence,
+                    metadata={
+                        "permission_effect": "deny",
+                        "canonical_permission_owner": "typescript",
+                        "continuation_fence": "true",
+                    },
+                )
+            )
+        continuation_claim = None
+        approval = permission_runtime._approved_request_for(permission_request)
+        if approval is not None:
+            try:
+                continuation_claim = self._claim_permission_continuation(
+                    permission_continuation,
+                    continuation_payloads,
+                    approval.request_id,
+                    worker_request_id=worker_request_id,
+                )
+            except Exception as exc:
+                from zyra_runtime.permission.continuation import (
+                    PermissionContinuationAlreadyClaimed,
+                )
+
+                error = (
+                    "permission_continuation_claim_in_progress"
+                    if isinstance(exc, PermissionContinuationAlreadyClaimed)
+                    else "permission_continuation_replay_rejected"
+                )
+                return to_jsonable(
+                    ToolResult(
+                        tool_call_id=tool_call_id,
+                        ok=False,
+                        summary=f"Permission continuation claim rejected: {exc}",
+                        error=error,
+                        metadata={
+                            "permission_effect": "deny",
+                            "canonical_permission_owner": "typescript",
+                            "continuation_fence": "true",
+                        },
+                    )
+                )
+            self._host_events.append(
+                self._permission_continuation_event(
+                    "permission_continuation_claimed",
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    worker_request_id=worker_request_id,
+                    record=continuation_claim.record,
+                )
+            )
+        try:
+            receipt = permission_runtime.commit_typescript_decision(
+                permission_request,
+                decision_payload,
+            )
+        except Exception as exc:
+            return to_jsonable(
+                ToolResult(
+                    tool_call_id=tool_call_id,
+                    ok=False,
+                    summary=f"TypeScript permission receipt rejected: {exc}",
+                    error="permission_binding_rejected",
+                    metadata={
+                        "permission_effect": "deny",
+                        "canonical_permission_owner": "typescript",
+                        "python_policy_fallback": "false",
+                    },
+                )
+            )
+        self._host_events.extend(receipt.events)
+        if receipt.execution_grant is None:
+            effect = str(receipt.decision.effect)
             result = ToolResult(
                 tool_call_id=tool_call_id,
                 ok=False,
-                summary=str(guard.decision.reason),
+                summary=str(receipt.decision.reason),
+                output={
+                    "pending_request": (
+                        receipt.pending_request.to_dict()
+                        if receipt.pending_request is not None
+                        else None
+                    )
+                },
                 error=(
                     "permission_approval_required"
                     if effect == "ask"
@@ -666,15 +1031,469 @@ class TypeScriptClaudeQueryEngine:
                 ),
                 metadata={
                     "permission_effect": effect,
-                    "permission_decision_id": guard.decision.decision_id,
+                    "permission_decision_id": receipt.decision.decision_id,
+                    "permission_reason_code": receipt.decision.reason_code,
+                    "permission_abort_loop": str(receipt.abort_loop).lower(),
+                    "human_intervention_count": str(
+                        receipt.decision.metadata.get("human_intervention_count", 0)
+                    ),
+                    "raw_approved_argument_ignored": str(
+                        "approved" in arguments
+                    ).lower(),
                     "canonical_request_owner": "typescript",
+                    "canonical_permission_owner": "typescript",
+                    "python_policy_fallback": "false",
                 },
             )
+            if receipt.pending_request is not None:
+                parked = self._park_permission_continuation(
+                    permission_continuation,
+                    continuation_payloads,
+                    receipt.pending_request,
+                    arguments,
+                    turn_id=str(payload.get("turn_index") or ""),
+                    batch_index=int(payload.get("batch_index") or 0),
+                    step_index=int(payload.get("step_index") or 0),
+                    tool_name=tool_name,
+                    continuation_sequence=continuation_sequence,
+                )
+                self._host_events.append(
+                    self._permission_continuation_event(
+                        "permission_continuation_parked",
+                        run_id=run_id,
+                        task_id=task_id,
+                        node_id=node_id,
+                        worker_request_id=worker_request_id,
+                        record=parked,
+                    )
+                )
             return to_jsonable(result)
-        result = executor.execute(call, permission_grant=guard.execution_grant)
+        if permission_only:
+            accepted = permission_runtime.validate_and_consume(
+                call,
+                receipt.execution_grant,
+                self.context,
+            )
+            self._host_events.extend(
+                permission_runtime.drain_execution_events(tool_call_id)
+            )
+            if accepted:
+                pending_typescript_settlements[tool_call_id] = continuation_claim
+            elif continuation_claim is not None:
+                terminal = self._complete_permission_continuation(
+                    permission_continuation,
+                    continuation_payloads,
+                    continuation_claim,
+                    ok=accepted,
+                    failure_code="permission_grant_rejected",
+                )
+                self._host_events.append(
+                    self._permission_continuation_event(
+                        "permission_continuation_finished"
+                        if accepted
+                        else "permission_continuation_failed",
+                        run_id=run_id,
+                        task_id=task_id,
+                        node_id=node_id,
+                        worker_request_id=worker_request_id,
+                        record=terminal,
+                    )
+                )
+                if terminal.payload_locator in continuation_payloads:
+                    self._host_events.append(
+                        self._permission_continuation_event(
+                            "permission_continuation_cleanup_deferred",
+                            run_id=run_id,
+                            task_id=task_id,
+                            node_id=node_id,
+                            worker_request_id=worker_request_id,
+                            record=terminal,
+                        )
+                    )
+            return to_jsonable(
+                ToolResult(
+                    tool_call_id=tool_call_id,
+                    ok=accepted,
+                    summary=(
+                        "TypeScript capability permission committed"
+                        if accepted
+                        else "TypeScript capability grant consumption failed"
+                    ),
+                    output={
+                        "permission_committed": accepted,
+                        "execution_owner": execution_owner,
+                    },
+                    error=None if accepted else "permission_grant_rejected",
+                    metadata={
+                        "permission_effect": "allow" if accepted else "deny",
+                        "permission_decision_id": receipt.decision.decision_id,
+                        "permission_commit_only": "true",
+                        "canonical_permission_owner": "typescript",
+                        "canonical_capability_owner": execution_owner,
+                        "python_policy_fallback": "false",
+                    },
+                )
+            )
+        result = executor.execute(call, permission_grant=receipt.execution_grant)
         self._host_events.extend(permission_runtime.drain_execution_events(tool_call_id))
+        if (
+            continuation_claim is not None
+            and result.ok
+            and bool(
+                self.config.runtime_constraints.get(
+                    "simulate_typescript_host_loss_after_tool_side_effect"
+                )
+            )
+        ):
+            record = continuation_claim.record
+            terminal = permission_continuation.fail(
+                record.request_id,
+                claim_id=record.claim_id,
+                failure_code="approval_consumed_outcome_unknown",
+                expected_record_revision=record.revision,
+                metadata={
+                    "canonical_policy_owner": "typescript",
+                    "execution_outcome_unknown": True,
+                    "permission_guard_reentered": True,
+                    "execution_grant_required": True,
+                    "failure_injection": "typescript_host_loss_after_side_effect",
+                },
+            )
+            self._host_events.append(
+                self._permission_continuation_event(
+                    "permission_continuation_outcome_unknown",
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    worker_request_id=worker_request_id,
+                    record=terminal,
+                )
+            )
+            return to_jsonable(
+                ToolResult(
+                    tool_call_id=tool_call_id,
+                    ok=False,
+                    summary="Tool side effect completed but the TypeScript host receipt was lost",
+                    artifacts=result.artifacts,
+                    error="permission_continuation_execution_ambiguous",
+                    metadata={
+                        "permission_effect": "allow",
+                        "canonical_permission_owner": "typescript",
+                        "execution_outcome_unknown": "true",
+                    },
+                )
+            )
+        if continuation_claim is not None:
+            terminal = self._complete_permission_continuation(
+                permission_continuation,
+                continuation_payloads,
+                continuation_claim,
+                ok=bool(result.ok),
+                failure_code=str(result.error or "tool_execution_failed"),
+            )
+            self._host_events.append(
+                self._permission_continuation_event(
+                    "permission_continuation_finished"
+                    if result.ok
+                    else "permission_continuation_failed",
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    worker_request_id=worker_request_id,
+                    record=terminal,
+                )
+            )
+            if terminal.payload_locator in continuation_payloads:
+                self._host_events.append(
+                    self._permission_continuation_event(
+                        "permission_continuation_cleanup_deferred",
+                        run_id=run_id,
+                        task_id=task_id,
+                        node_id=node_id,
+                        worker_request_id=worker_request_id,
+                        record=terminal,
+                    )
+                )
         self._host_artifacts.extend(result.artifacts)
         return to_jsonable(result)
+
+    def _settle_typescript_capability(
+        self,
+        *,
+        payload: Mapping[str, Any],
+        run_id: str,
+        task_id: str,
+        node_id: str | None,
+        worker_request_id: str,
+        permission_continuation: Any,
+        continuation_payloads: dict[str, dict[str, Any]],
+        pending_settlements: dict[str, Any],
+    ) -> dict[str, Any]:
+        tool_call_id = str(payload.get("tool_call_id") or "")
+        if not tool_call_id or tool_call_id not in pending_settlements:
+            return {
+                "accepted": False,
+                "tool_call_id": tool_call_id,
+                "error": "unknown_or_duplicate_capability_settlement",
+            }
+        continuation_claim = pending_settlements.pop(tool_call_id)
+        ok = payload.get("ok") is True
+        settled = continuation_claim is not None
+        if continuation_claim is not None:
+            terminal = self._complete_permission_continuation(
+                permission_continuation,
+                continuation_payloads,
+                continuation_claim,
+                ok=ok,
+                failure_code=str(
+                    payload.get("error") or "typescript_capability_execution_failed"
+                ),
+            )
+            self._host_events.append(
+                self._permission_continuation_event(
+                    "permission_continuation_finished"
+                    if ok
+                    else "permission_continuation_failed",
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    worker_request_id=worker_request_id,
+                    record=terminal,
+                )
+            )
+            if terminal.payload_locator in continuation_payloads:
+                self._host_events.append(
+                    self._permission_continuation_event(
+                        "permission_continuation_cleanup_deferred",
+                        run_id=run_id,
+                        task_id=task_id,
+                        node_id=node_id,
+                        worker_request_id=worker_request_id,
+                        record=terminal,
+                    )
+                )
+        return {
+            "accepted": True,
+            "tool_call_id": tool_call_id,
+            "settled": settled,
+            "ok": ok,
+            "canonical_capability_owner": "typescript",
+        }
+
+    def _park_permission_continuation(
+        self,
+        continuation: Any,
+        payloads: dict[str, dict[str, Any]],
+        pending: Any,
+        arguments: Mapping[str, Any],
+        *,
+        turn_id: str,
+        batch_index: int,
+        step_index: int,
+        tool_name: str,
+        continuation_sequence: list[int],
+    ) -> Any:
+        from zyra_runtime.permission.canonical import (
+            arguments_digest,
+            canonical_arguments_json,
+        )
+        from zyra_runtime.permission.continuation import PermissionContinuationReplay
+
+        locator = "query-session:" + arguments_digest(
+            {
+                "request_id": pending.request_id,
+                "session_id": pending.session_id,
+                "tool_use_id": pending.tool_use_id,
+                "request_fingerprint": pending.request_fingerprint,
+            }
+        )
+        try:
+            existing = continuation.get(pending.request_id)
+        except KeyError:
+            existing = None
+        if existing is None:
+            continuation_sequence[0] += 1
+            sequence = continuation_sequence[0]
+        else:
+            sequence = existing.session_sequence
+            if existing.payload_locator != locator:
+                raise RuntimeError("permission continuation locator mismatch")
+        replay_payload = {
+            "session_id": pending.session_id,
+            "task_id": pending.task_id,
+            "run_id": pending.run_id,
+            "tool_use_id": pending.tool_use_id,
+            "tool_identity": pending.tool_identity.to_dict(),
+            "arguments": to_jsonable(dict(arguments)),
+            "arguments_digest": pending.arguments_digest,
+            "request_fingerprint": pending.request_fingerprint,
+            "scope": pending.scope.to_dict(),
+            "payload_locator": locator,
+            "session_sequence": sequence,
+            "source": "CodeWorkerSessionStore.runtime_state",
+            "metadata": {
+                "request_id": pending.request_id,
+                "permission_guard_required": True,
+                "canonical_policy_owner": "typescript",
+            },
+        }
+        PermissionContinuationReplay.from_value(replay_payload, source="typescript_runtime")
+        current = payloads.get(locator)
+        if current is not None:
+            if canonical_arguments_json(current) != canonical_arguments_json(replay_payload):
+                raise RuntimeError("permission continuation payload collision")
+        else:
+            if self.config.permission_continuation_payload_writer is not None:
+                self.config.permission_continuation_payload_writer(
+                    pending.request_id,
+                    locator,
+                    replay_payload,
+                )
+            payloads[locator] = replay_payload
+        if existing is None:
+            existing = continuation.park(
+                pending,
+                payload_locator=locator,
+                session_sequence=sequence,
+                metadata={
+                    "turn_id": turn_id,
+                    "batch_index": batch_index,
+                    "step_index": step_index,
+                    "tool_name": tool_name,
+                    "payload_owner": "CodeWorkerSessionStore.permission_continuation_wal",
+                    "payload_write_ahead": self.config.permission_continuation_payload_writer
+                    is not None,
+                    "raw_arguments_persisted_in_permission_state": False,
+                    "canonical_policy_owner": "typescript",
+                },
+            )
+        return existing
+
+    @staticmethod
+    def _permission_continuation_fence(
+        continuation: Any,
+        request: PermissionEvaluationRequest,
+    ) -> str:
+        for record in continuation.records():
+            if (
+                record.tool_use_id == request.tool_use_id
+                and record.request_fingerprint != request.request_fingerprint
+                and str(record.resolution_effect or "") == "allow"
+            ):
+                return "permission_continuation_replay_rejected"
+            same_action = (
+                record.tool_identity.namespace == request.tool_identity.namespace
+                and record.tool_identity.name == request.tool_identity.name
+                and record.tool_identity.server_id == request.tool_identity.server_id
+                and record.arguments_digest == request.arguments_digest
+            )
+            if not same_action:
+                continue
+            if record.failure_code == "approval_consumed_outcome_unknown":
+                return "permission_continuation_outcome_unknown"
+            if str(record.resolution_effect or "") == "deny":
+                return "permission_denied"
+        return ""
+
+    @staticmethod
+    def _claim_permission_continuation(
+        continuation: Any,
+        payloads: Mapping[str, Mapping[str, Any]],
+        request_id: str,
+        *,
+        worker_request_id: str,
+    ) -> Any:
+        record = continuation.get(request_id)
+        replay = payloads.get(record.payload_locator)
+        if replay is None:
+            raise RuntimeError("permission continuation replay payload is missing")
+        return continuation.prepare_resume(
+            request_id,
+            replay,
+            claimant=worker_request_id,
+            idempotency_key=f"typescript:{worker_request_id}:{record.tool_use_id}",
+            expected_record_revision=record.revision,
+            payload_resolver=lambda _: replay,
+        )
+
+    def _complete_permission_continuation(
+        self,
+        continuation: Any,
+        payloads: dict[str, dict[str, Any]],
+        claim: Any,
+        *,
+        ok: bool,
+        failure_code: str,
+    ) -> Any:
+        record = claim.record
+        if ok:
+            terminal = continuation.complete(
+                record.request_id,
+                claim_id=record.claim_id,
+                expected_record_revision=record.revision,
+                metadata={
+                    "canonical_policy_owner": "typescript",
+                    "execution_outcome_unknown": False,
+                    "permission_guard_reentered": True,
+                    "execution_grant_required": True,
+                },
+            )
+        else:
+            terminal = continuation.fail(
+                record.request_id,
+                claim_id=record.claim_id,
+                failure_code=failure_code,
+                expected_record_revision=record.revision,
+                metadata={
+                    "canonical_policy_owner": "typescript",
+                    "execution_outcome_unknown": False,
+                    "permission_guard_reentered": True,
+                    "execution_grant_required": True,
+                },
+            )
+        if self.config.permission_continuation_payload_tombstoner is not None:
+            try:
+                self.config.permission_continuation_payload_tombstoner(
+                    terminal.request_id,
+                    terminal.payload_locator,
+                    "permission_execution_completed" if ok else failure_code,
+                )
+            except Exception:
+                return terminal
+        payloads.pop(terminal.payload_locator, None)
+        return terminal
+
+    @staticmethod
+    def _permission_continuation_event(
+        phase: str,
+        *,
+        run_id: str,
+        task_id: str,
+        node_id: str | None,
+        worker_request_id: str,
+        record: Any,
+    ) -> EventRecord:
+        return EventRecord(
+            run_id=run_id,
+            task_id=task_id,
+            node_id=node_id,
+            event_type=EventType.AGENT_MESSAGE,
+            payload={
+                "query_session": {
+                    "phase": phase,
+                    "canonical_owner": "typescript",
+                    "session_id": record.session_id,
+                    "worker_request_id": worker_request_id,
+                    "request_id": record.request_id,
+                    "continuation_id": record.continuation_id,
+                    "continuation_revision": record.revision,
+                    "continuation_phase": str(record.phase),
+                    "tool_call_id": record.tool_use_id,
+                    "payload_locator": record.payload_locator,
+                    "session_sequence": record.session_sequence,
+                }
+            },
+        )
 
     def _workspace_safety_state(
         self,

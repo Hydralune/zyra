@@ -5,6 +5,7 @@ import {
   asString,
   type ArtifactReceipt,
   type ArtifactRequest,
+  type CapabilitySettlement,
   type JsonObject,
   type RuntimeEvent,
   type RuntimeHost,
@@ -14,6 +15,8 @@ import {
   type ToolExecutionResponse,
 } from "./contracts.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
+import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
+import { PermissionedCapabilityHost } from "./capability-host.ts";
 import {
   createFrame,
   decodeFrame,
@@ -65,6 +68,9 @@ class JsonlRuntimeHost implements RuntimeHost {
           batch_size: request.batchSize,
           execution_mode: request.executionMode,
           metadata: request.metadata,
+          permission_decision: request.permissionDecision ?? {},
+          execution_owner: request.executionOwner ?? "python-tool-executor",
+          permission_only: request.permissionOnly === true,
         },
         request.toolCallId,
       );
@@ -100,6 +106,27 @@ class JsonlRuntimeHost implements RuntimeHost {
       );
     }
     return artifact as unknown as ArtifactReceipt;
+  }
+
+  async settleCapability(settlement: CapabilitySettlement): Promise<void> {
+    this.send(
+      "tool.settle",
+      {
+        tool_call_id: settlement.toolCallId,
+        tool_name: settlement.toolName,
+        ok: settlement.ok,
+        error: settlement.error,
+        metadata: settlement.metadata,
+      },
+      settlement.toolCallId,
+    );
+    const frame = await this.read("tool.settle.result", settlement.toolCallId);
+    if (frame.payload.accepted !== true) {
+      throw new RuntimeProtocolError(
+        "capability_settlement_rejected",
+        asString(frame.payload.error) || "Python durable host rejected capability settlement",
+      );
+    }
   }
 
   isAborted(): boolean {
@@ -160,6 +187,7 @@ export async function runStdioRuntime(): Promise<void> {
     throw new RuntimeProtocolError("missing_run_start", "first runtime frame must be run.start");
   }
   const host = new JsonlRuntimeHost(start.run_id, lines, start.sequence);
+  let capabilities: TypeScriptCapabilityRuntime | null = null;
   host.send("run.accepted", {
     runtime_id: "zyra-typescript-claude-runtime",
     canonical_owner: "typescript",
@@ -167,9 +195,28 @@ export async function runStdioRuntime(): Promise<void> {
   });
   try {
     const input = normalizeRunInput(start.payload, start.run_id);
-    const result = await new ClaudeRuntimeCore().run(input, host);
+    capabilities = await TypeScriptCapabilityRuntime.open(input);
+    const runtimeInput: RuntimeRunInput = {
+      ...input,
+      tools: capabilities.mergeToolSpecs(input.tools),
+    };
+    const permissionedHost = new PermissionedCapabilityHost(host, runtimeInput, capabilities);
+    const result = await new ClaudeRuntimeCore().run(runtimeInput, permissionedHost);
     host.send("run.result", {
-      result: result as unknown as JsonObject,
+      result: {
+        ...result,
+        sessionSnapshot: {
+          ...result.sessionSnapshot,
+          typescriptCapabilities: permissionedHost.snapshot(),
+        },
+        metadata: {
+          ...result.metadata,
+          canonical_permission_owner: "typescript",
+          canonical_mcp_owner: "typescript",
+          canonical_skill_owner: "typescript",
+          python_policy_fallback: "false",
+        },
+      } as unknown as JsonObject,
     });
   } catch (error) {
     const protocolError = error instanceof RuntimeProtocolError ? error : null;
@@ -180,6 +227,7 @@ export async function runStdioRuntime(): Promise<void> {
     });
     process.exitCode = 1;
   } finally {
+    await capabilities?.close();
     reader.close();
   }
 }
@@ -294,8 +342,10 @@ export function runtimeContract(
         postCompactRestore: true,
       },
       permissionRuntime: {
-        owner: "python-tool-gateway",
+        policyOwner: "typescript",
+        durableReceiptOwner: "python-tool-gateway",
         tracksPermissionDenials: true,
+        pythonPolicyFallback: false,
       },
     };
   }
@@ -314,7 +364,10 @@ export function runtimeContract(
     readOnlyConcurrent: true,
     writeSerial: true,
     resultBudgetOwner: "typescript",
-    sideEffectOwner: "python-tool-gateway",
+    sideEffectOwner: "python-tool-gateway-or-typescript-capability",
+    permissionPolicyOwner: "typescript",
+    mcpRuntimeOwner: "typescript",
+    skillRuntimeOwner: "typescript",
   };
 }
 

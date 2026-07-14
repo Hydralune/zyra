@@ -1513,7 +1513,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 retryable=False,
             )
 
-        facade = get_permission_api_facade()
+        facade = get_permission_api_facade(
+            task_id=task_id,
+            session_id=session_id,
+        )
         try:
             authority = self._permission_authority(
                 facade,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import threading
@@ -531,16 +532,28 @@ class McpCodeWorkerPermissionIntegrationTests(unittest.TestCase):
             workspace = root / "worker-workspace"
             artifact_root = root / "worker-artifacts"
             workspace.mkdir()
-            runtime, peer = self._connected_runtime(root, suffix="worker-mcp")
-            state = create_task_state("Project a live MCP tool into CodeWorkerRuntime.")
+            peer_state = root / "typescript-mcp-peer-state.json"
+            permission_state = root / "worker-permission-state.json"
+            server_config = [{
+                "id": "typescript-peer",
+                "transport": "stdio",
+                "command": [
+                    sys.executable,
+                    str(ROOT / "tests" / "support" / "fake_mcp_server.py"),
+                    "--state",
+                    str(peer_state),
+                ],
+                "request_timeout_ms": 5000,
+            }]
+            state = create_task_state("Run a live TypeScript MCP tool in CodeWorkerRuntime.")
             session_id = "mcp-codeworker-session"
             worker = CodeWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
                 artifact_root=artifact_root,
-                permission_state_path=root / "worker-permission-state.json",
-                mcp_runtime=runtime,
+                permission_state_path=permission_state,
             )
+            tool_name = "mcp__typescript-peer__echo"
             request = WorkerRequest(
                 run_id=state.run_id,
                 task_id=state.task_id,
@@ -548,12 +561,13 @@ class McpCodeWorkerPermissionIntegrationTests(unittest.TestCase):
                 worker_name="CodeWorkerRuntime",
                 constraints={
                     "session_id": session_id,
+                    "typescript_mcp_servers": server_config,
                     "query_turns": [
                         [
                             {
-                                "tool_name": self.TOOL_NAME,
+                                "tool_name": tool_name,
                                 "tool_call_id": "mcp-codeworker-call-1",
-                                "arguments": {"value": "worker-path"},
+                                "arguments": {"message": "worker-path"},
                             }
                         ]
                     ],
@@ -564,20 +578,35 @@ class McpCodeWorkerPermissionIntegrationTests(unittest.TestCase):
 
             self.assertFalse(run.worker_result.ok)
             self.assertEqual(run.worker_result.error, "permission_suspended")
-            self.assertEqual(peer.count("tools/call"), 0)
-            materialized = [
-                event.payload["query_session"]
-                for event in run.event_records
-                if isinstance(event.payload.get("query_session"), dict)
-                and event.payload["query_session"].get("phase") == "tool_registry_materialized"
-            ]
-            self.assertEqual(len(materialized), 1)
-            self.assertIn(self.TOOL_NAME, materialized[0]["active_tool_names"])
-            self.assertEqual(materialized[0]["active_tool_count"], 13)
-            self.assertTrue(
-                {"skill", "read_skill_resource", "list_skills"}.issubset(
-                    set(materialized[0]["active_tool_names"])
+            self.assertEqual(
+                json.loads(peer_state.read_text(encoding="utf-8"))["tool_calls"].get(
+                    "echo", 0
+                ),
+                0,
+            )
+
+            durable_permission = ToolPermissionRuntime.for_session(
+                session_id=session_id,
+                state_path=permission_state,
+                workspace_root=workspace,
+                custody_fingerprint=run.session_custody_fingerprint,
+            )
+            self._allow_pending(durable_permission)
+            approved = worker.run(
+                replace(
+                    request,
+                    constraints={
+                        **request.constraints,
+                        "session_custody_token": run.session_custody_token,
+                    },
                 )
+            )
+            self.assertTrue(approved.worker_result.ok, approved.worker_result.error)
+            self.assertEqual(approved.worker_result.metadata["canonical_mcp_owner"], "typescript")
+            self.assertEqual(approved.worker_result.metadata["python_policy_fallback"], "false")
+            self.assertEqual(
+                json.loads(peer_state.read_text(encoding="utf-8"))["tool_calls"]["echo"],
+                1,
             )
 
             loaded = CodeWorkerSessionStore(artifact_root).load_runtime_state(
@@ -587,21 +616,17 @@ class McpCodeWorkerPermissionIntegrationTests(unittest.TestCase):
             )
             self.assertTrue(loaded.ok, loaded)
             self.assertTrue(loaded.found, loaded)
-            self.assertIn("mcp_runtime", loaded.runtime_state)
-            mcp_state = loaded.runtime_state["mcp_runtime"]
-            self.assertEqual(mcp_state["schema"], "zyra.mcp-session-state.v1")
-            self.assertEqual(mcp_state["session_id"], session_id)
-            self.assertFalse(mcp_state["credentials_included"])
-            self.assertFalse(mcp_state["live_transports_included"])
+            self.assertNotIn("mcp_runtime", loaded.runtime_state)
+            runtime_snapshot = loaded.runtime_state["session_snapshot"][
+                "typescript_runtime_snapshot"
+            ]
+            mcp_state = runtime_snapshot["typescriptCapabilities"]["capabilities"]["mcp"]
+            self.assertEqual(mcp_state["canonical_owner"], "typescript")
+            self.assertEqual(mcp_state["version"], "zyra.typescript-mcp-runtime.v1")
             self.assertTrue(
-                any(
-                    connection["server_id"] == "permission-peer"
-                    and connection["state"] == "connected"
-                    for connection in mcp_state["connections"]
-                )
+                any(item["server_id"] == "typescript-peer" for item in mcp_state["catalogs"])
             )
-            self.assertIn("permission-peer", str(mcp_state["catalog"]))
-            self.assertIn("record_effect", str(mcp_state["catalog"]))
+            self.assertNotIn("worker-path", json.dumps(mcp_state, sort_keys=True))
 
 
 if __name__ == "__main__":

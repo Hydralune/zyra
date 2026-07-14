@@ -123,16 +123,35 @@ class SkillToolMainPathTests(unittest.TestCase):
                     },
                 )
             )
-            self.assertFalse(run.worker_result.ok)
-            self.assertEqual(run.worker_result.error, "permission_suspended")
-            self.assertEqual(run.worker_result.metadata["skill_tool_projection"], "active")
+            self.assertTrue(run.worker_result.ok, run.worker_result.error)
+            self.assertIsNone(run.worker_result.error)
+            self.assertEqual(
+                run.worker_result.metadata["skill_tool_projection"],
+                "typescript_runtime_owner",
+            )
+            self.assertEqual(run.worker_result.metadata["canonical_skill_owner"], "typescript")
+            self.assertEqual(
+                run.worker_result.metadata["python_skill_projection_used"],
+                "false",
+            )
             tool_results = [
                 event.payload["tool_result"]
                 for event in run.event_records
                 if isinstance(event.payload, dict) and isinstance(event.payload.get("tool_result"), dict)
             ]
             self.assertTrue(any(item["tool_call_id"] == "skill-list-call" for item in tool_results))
-            self.assertTrue(any(item.get("error") == "permission_required" for item in tool_results))
+            completed = next(
+                item for item in tool_results if item["tool_call_id"] == "skill-list-call"
+            )
+            self.assertTrue(completed["ok"])
+            self.assertEqual(
+                completed["metadata"]["capability_owner"],
+                "typescript-skill",
+            )
+            self.assertEqual(
+                completed["metadata"]["python_capability_fallback"],
+                "false",
+            )
 
     def test_projected_handler_discloses_inline_body_and_not_fork_body(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

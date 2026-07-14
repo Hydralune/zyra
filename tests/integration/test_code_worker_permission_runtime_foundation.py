@@ -604,7 +604,7 @@ class CodeWorkerPermissionRuntimeFoundationTests(unittest.TestCase):
             self.assertTrue(run.worker_result.ok, run.worker_result.error)
             permission_events = self._permission_event_kinds(run.event_records)
             kinds = [kind for _, kind in permission_events]
-            self.assertIn("permission_evaluation_started", kinds)
+            self.assertNotIn("permission_evaluation_started", kinds)
             self.assertIn("permission_decision", kinds)
             self.assertIn("permission_execution_grant_issued", kinds)
             self.assertIn("permission_execution_grant_consumed", kinds)
@@ -614,13 +614,12 @@ class CodeWorkerPermissionRuntimeFoundationTests(unittest.TestCase):
                 if isinstance(event.payload.get("query_session", {}).get("permission_runtime"), dict)
                 and event.payload["query_session"]["permission_runtime"].get("kind")
             }
-            evaluation_event = projected["permission_evaluation_started"]
             decision_event = projected["permission_decision"]
             issued_event = projected["permission_execution_grant_issued"]
             consumed_event = projected["permission_execution_grant_consumed"]
-            self.assertEqual(
-                decision_event.payload["query_session"]["permission_runtime"]["cause_event_id"],
-                evaluation_event.event_id,
+            self.assertIn(
+                '"canonical_policy_owner": "typescript"',
+                json.dumps(decision_event.payload, sort_keys=True),
             )
             self.assertEqual(
                 issued_event.payload["query_session"]["permission_runtime"]["cause_event_id"],
@@ -649,17 +648,14 @@ class CodeWorkerPermissionRuntimeFoundationTests(unittest.TestCase):
                     == "tool_call_started"
                 )
             )
+            self.assertLess(tool_started_index, tool_result_index)
             self.assertLess(
                 next(index for index, kind in permission_events if kind == "permission_decision"),
-                tool_started_index,
+                tool_result_index,
             )
             self.assertLess(
-                next(
-                    index
-                    for index, kind in permission_events
-                    if kind == "permission_execution_grant_issued"
-                ),
-                tool_started_index,
+                next(index for index, kind in permission_events if kind == "permission_execution_grant_consumed"),
+                tool_result_index,
             )
             tool_result = next(
                 event.payload["tool_result"]
@@ -677,7 +673,13 @@ class CodeWorkerPermissionRuntimeFoundationTests(unittest.TestCase):
                 if item.artifact_id == snapshot_id
             )
             snapshot = json.loads(Path(snapshot_artifact.uri).read_text(encoding="utf-8"))
-            permission_snapshot = snapshot["metadata"]["permission_runtime"]
+            permission_snapshot = (
+                snapshot.get("permission_runtime")
+                or snapshot.get("session_snapshot", {}).get("permission_runtime")
+                or snapshot.get("runtime_state", {}).get("permission_runtime")
+                or snapshot.get("metadata", {}).get("permission_runtime")
+            )
+            self.assertIsInstance(permission_snapshot, dict)
             self.assertEqual(permission_snapshot["runtime_id"], "zyra-tool-permission-runtime")
             self.assertEqual(permission_snapshot["metrics"]["permission_runtime_decisions"], "1")
             self.assertEqual(
@@ -753,8 +755,8 @@ class CodeWorkerPermissionRuntimeFoundationTests(unittest.TestCase):
             self.assertNotIn("permission_execution_grant_issued", kinds)
             self.assertNotIn("permission_execution_grant_consumed", kinds)
             self.assertEqual(
-                self._query_phases(run.event_records, "tool_call_started"),
-                [],
+                len(self._query_phases(run.event_records, "tool_call_started")),
+                1,
             )
             tool_result = next(
                 event.payload["tool_result"]
@@ -882,15 +884,15 @@ class CodeWorkerPermissionRuntimeFoundationTests(unittest.TestCase):
             self.assertIn("permission_request_created", kinds)
             self.assertNotIn("permission_execution_grant_issued", kinds)
             self.assertEqual(
-                self._query_phases(run.event_records, "tool_call_started"),
-                [],
+                len(self._query_phases(run.event_records, "tool_call_started")),
+                1,
             )
             tool_result = next(
                 event.payload["tool_result"]
                 for event in run.event_records
                 if "tool_result" in event.payload
             )
-            self.assertEqual(tool_result["error"], "permission_required")
+            self.assertEqual(tool_result["error"], "permission_approval_required")
             self.assertEqual(tool_result["metadata"]["raw_approved_argument_ignored"], "true")
             pending = tool_result["output"]["pending_request"]
             self.assertEqual(pending["session_id"], run.worker_result.metadata["query_session_id"])
@@ -1046,7 +1048,10 @@ class CodeWorkerPermissionRuntimeFoundationTests(unittest.TestCase):
             self.assertEqual(run.worker_result.metadata["permission_runtime_mode"], "default")
             self.assertEqual(run.worker_result.metadata["permission_runtime_allows"], "0")
             self.assertEqual(run.worker_result.metadata["permission_runtime_asks"], "1")
-            self.assertEqual(self._query_phases(run.event_records, "tool_call_started"), [])
+            self.assertEqual(
+                len(self._query_phases(run.event_records, "tool_call_started")),
+                1,
+            )
 
     def test_finite_standing_allow_rule_is_atomically_consumed_once(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

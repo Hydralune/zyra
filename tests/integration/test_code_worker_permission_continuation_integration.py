@@ -1246,7 +1246,6 @@ class CodeWorkerPermissionContinuationIntegrationTests(unittest.TestCase):
             )
 
             original_continuation_init = PermissionContinuationRuntime.__init__
-            original_execute_batch = ToolStreamingRuntime.execute_batch
 
             def short_claim_lease(
                 runtime_self: PermissionContinuationRuntime,
@@ -1256,28 +1255,19 @@ class CodeWorkerPermissionContinuationIntegrationTests(unittest.TestCase):
                 kwargs["claim_lease_seconds"] = 1
                 original_continuation_init(runtime_self, *args, **kwargs)
 
-            def execute_then_lose_receipt(
-                streaming_self: ToolStreamingRuntime,
-                *args: Any,
-                **kwargs: Any,
-            ) -> Any:
-                original_execute_batch(streaming_self, *args, **kwargs)
-                raise RuntimeError("injected_process_loss_after_tool_side_effect")
-
             with patch.object(
                 PermissionContinuationRuntime,
                 "__init__",
                 new=short_claim_lease,
-            ), patch.object(
-                ToolStreamingRuntime,
-                "execute_batch",
-                new=execute_then_lose_receipt,
             ):
                 ambiguous = runtime.run(
                     self._request(
                         state,
                         session_id=session_id,
-                        constraints=dangerous_plan,
+                        constraints={
+                            **dangerous_plan,
+                            "simulate_typescript_host_loss_after_tool_side_effect": True,
+                        },
                         custody_token=first.session_custody_token,
                     )
                 )
@@ -1426,7 +1416,15 @@ class CodeWorkerPermissionContinuationIntegrationTests(unittest.TestCase):
             )
             self.assertFalse((workspace / "original-must-not-exist.txt").exists())
             self.assertFalse((workspace / "tampered-must-not-exist.txt").exists())
-            self.assertEqual(self._query_phases(second, "tool_call_started"), [])
+            self.assertNotIn(
+                "permission_execution_grant_issued",
+                [
+                    event.payload.get("query_session", {})
+                    .get("permission_runtime", {})
+                    .get("kind")
+                    for event in second.event_records
+                ],
+            )
             rejected = self._query_phases(
                 second,
                 "permission_continuation_replay_rejected",
@@ -1479,7 +1477,15 @@ class CodeWorkerPermissionContinuationIntegrationTests(unittest.TestCase):
             self.assertFalse(exact.worker_result.ok)
             self.assertEqual(exact.worker_result.error, "permission_denied")
             self.assertFalse((workspace / "denied-must-not-exist.txt").exists())
-            self.assertEqual(self._query_phases(exact, "tool_call_started"), [])
+            self.assertNotIn(
+                "permission_execution_grant_issued",
+                [
+                    event.payload.get("query_session", {})
+                    .get("permission_runtime", {})
+                    .get("kind")
+                    for event in exact.event_records
+                ],
+            )
             continuation = PermissionContinuationRuntime(
                 PermissionStateStore(artifact_root / ".permission" / "state.json"),
                 session_id=session_id,

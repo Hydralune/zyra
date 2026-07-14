@@ -71,6 +71,7 @@ export class ClaudeRuntimeCore {
     let ok = true;
     let stoppedReason: string | null = null;
     let continuedFailureReason: string | null = null;
+    let permissionSuspended = false;
     const mutationTargets = new Set<string>();
     let modelMetadata: Record<string, string> = {
       model_stream_ok: "false",
@@ -452,6 +453,12 @@ export class ClaudeRuntimeCore {
           });
           if (!result.ok) {
             turnOk = false;
+            const permissionAbortLoop = asString(
+              result.metadata.permission_abort_loop,
+            ).toLowerCase() === "true";
+            if (result.error === "permission_approval_required" || permissionAbortLoop) {
+              permissionSuspended = true;
+            }
             turnError = result.error === "permission_approval_required"
               ? "permission_suspended"
               : result.error || "tool_error";
@@ -461,6 +468,7 @@ export class ClaudeRuntimeCore {
               toolSchemaErrors += 1;
             }
             const failureKind = result.error === "permission_approval_required"
+              || result.error === "permission_denied"
               ? "permission_denied"
               : result.error || "tool_error";
             const failureRoute = failureKind === "permission_denied"
@@ -487,10 +495,10 @@ export class ClaudeRuntimeCore {
               watchdog_signal: {
                 kind: failureKind,
                 route: failureRoute,
-                action: config.continueOnError ? "continue" : "stop",
+                action: config.continueOnError && !permissionSuspended ? "continue" : "stop",
               },
             });
-            if (config.continueOnError) {
+            if (config.continueOnError && !permissionSuspended) {
               await emit("continue", {
                 turn_id: turn.turn_id,
                 turn_index: turnIndex,
@@ -520,7 +528,7 @@ export class ClaudeRuntimeCore {
             ok: turnOk,
           });
         }
-        if (!turnOk && !config.continueOnError) {
+        if (!turnOk && (!config.continueOnError || permissionSuspended)) {
           break;
         }
       }
@@ -578,7 +586,7 @@ export class ClaudeRuntimeCore {
         ok: turnOk,
         error: turnError,
       });
-      if (!turnOk && !config.continueOnError) {
+      if (!turnOk && (!config.continueOnError || permissionSuspended)) {
         ok = false;
         stoppedReason = turnError || "tool_error";
       }

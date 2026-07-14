@@ -40,6 +40,9 @@ export interface ToolExecutionRequest {
   batchSize: number;
   executionMode: ToolBatch["executionMode"];
   metadata: JsonObject;
+  permissionDecision?: JsonObject;
+  executionOwner?: string;
+  permissionOnly?: boolean;
 }
 
 export interface ArtifactReceipt {
@@ -63,6 +66,14 @@ export interface ToolExecutionResponse {
   metadata: Record<string, string>;
 }
 
+export interface CapabilitySettlement {
+  toolCallId: string;
+  toolName: string;
+  ok: boolean;
+  error: string;
+  metadata: JsonObject;
+}
+
 export interface ArtifactRequest {
   requestId: string;
   title: string;
@@ -84,6 +95,7 @@ export interface RuntimeHost {
   emitEvent(event: RuntimeEvent): Promise<void>;
   executeBatch(batch: ToolBatch, requests: ToolExecutionRequest[]): Promise<ToolExecutionResponse[]>;
   externalize(request: ArtifactRequest): Promise<ArtifactReceipt>;
+  settleCapability?(settlement: CapabilitySettlement): Promise<void>;
   isAborted(): boolean;
 }
 
@@ -99,6 +111,7 @@ export interface RuntimeConfig {
   modelName: string;
   runtimeConstraints: JsonObject;
   controlCommands: JsonValue[];
+  permissionPolicy: JsonObject;
 }
 
 export interface RuntimeRunInput {

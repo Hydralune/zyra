@@ -140,6 +140,54 @@ class PermissionGuardResult:
 
 
 @dataclass(frozen=True, slots=True)
+class TypeScriptPermissionCommitResult:
+    """Durable receipt for a policy decision made by the TypeScript runtime."""
+
+    request: PermissionEvaluationRequest
+    decision: PermissionDecisionRecord
+    execution_grant: ExecutionGrant | None = field(default=None, repr=False)
+    pending_request: PermissionRequestRecord | None = None
+    events: tuple[EventRecord, ...] = ()
+    restored_approval: bool = False
+    abort_loop: bool = False
+
+    @property
+    def effect(self) -> PermissionEffect:
+        return self.decision.effect
+
+    @property
+    def allowed(self) -> bool:
+        return self.effect is PermissionEffect.ALLOW and self.execution_grant is not None
+
+    @property
+    def blocked(self) -> bool:
+        return not self.allowed
+
+    @property
+    def ask_pending(self) -> bool:
+        return self.effect is PermissionEffect.ASK and self.pending_request is not None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request": self.request.to_dict(include_arguments=False),
+            "decision": self.decision.to_dict(),
+            "execution_grant": self.execution_grant.to_dict()
+            if self.execution_grant
+            else None,
+            "pending_request": self.pending_request.to_dict()
+            if self.pending_request
+            else None,
+            "event_ids": [event.event_id for event in self.events],
+            "restored_approval": self.restored_approval,
+            "abort_loop": self.abort_loop,
+            "allowed": self.allowed,
+            "blocked": self.blocked,
+            "ask_pending": self.ask_pending,
+            "canonical_policy_owner": "typescript",
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class PermissionGrantConsumption:
     accepted: bool
     validation: GrantValidation
@@ -643,6 +691,340 @@ class ToolPermissionRuntime:
             if validation.accepted:
                 self._discard_grant_context(grant.grant_id)
         return validation.accepted
+
+    def typescript_policy_snapshot(self) -> dict[str, Any]:
+        """Return durable rules and mode facts without assigning policy ownership to Python."""
+
+        self._ensure_available()
+        with self._lock:
+            rules = list(self.state_store.effective_rules(self.session_id))
+            mode = _model_mode(self.mode_runtime.mode)
+            snapshot = {
+                "version": "zyra.typescript-permission-policy-input.v1",
+                "canonical_owner": "typescript",
+                "durable_store_owner": "python",
+                "session_id": self.session_id,
+                "workspace_root": str(self.workspace_root or ""),
+                "mode": str(mode),
+                # Denial counters are execution state, not policy revision. A
+                # same-run batch may commit several decisions against one
+                # TypeScript policy snapshot; mode/rule changes still alter the
+                # digest through their semantic fields.
+                "mode_revision": 0,
+                "rule_snapshot_id": "",
+                "interactive": bool(self.config.interactive),
+                "headless": bool(self.config.headless),
+                "rules": [rule.to_dict() for rule in rules],
+                "python_policy_fallback": False,
+            }
+            from .canonical import arguments_digest
+
+            snapshot["policy_digest"] = arguments_digest(snapshot)
+            return snapshot
+
+    def commit_typescript_decision(
+        self,
+        request: PermissionEvaluationRequest,
+        decision_payload: Mapping[str, Any],
+    ) -> TypeScriptPermissionCommitResult:
+        """Persist a bound TypeScript decision and mint at most one exact grant.
+
+        This method deliberately does not call ``PermissionPolicyEvaluator``. Python owns
+        durable state, approval receipts, CAS, and grant signing; TypeScript owns the
+        in-run allow/deny/ask decision.
+        """
+
+        from datetime import datetime, timedelta, timezone
+
+        from .models import (
+            PermissionRecoveryInput,
+            PermissionScope,
+            PermissionScopeKind,
+        )
+        from .modes import DenialAction
+
+        self._ensure_available()
+        if request.session_id != self.session_id:
+            raise PermissionRuntimeIdentityError(
+                "TypeScript permission decision session does not match runtime session"
+            )
+        request_workspace = str(Path(request.workspace_root).resolve()) if request.workspace_root else ""
+        if request_workspace and self.workspace_root and request_workspace != str(self.workspace_root):
+            raise PermissionRuntimeIdentityError(
+                "TypeScript permission decision workspace does not match runtime workspace"
+            )
+        effective_request = replace(
+            request,
+            workspace_root=str(self.workspace_root or request_workspace),
+            mode=_model_mode(self.mode_runtime.mode),
+            interactive=bool(self.config.interactive),
+            headless=bool(self.config.headless),
+        )
+        payload = dict(decision_payload)
+        if str(payload.get("canonical_owner") or "") != "typescript":
+            raise PermissionRuntimeIdentityError("permission decision owner must be TypeScript")
+        binding = dict(payload.get("request_binding") or {})
+        expected_binding = {
+            "session_id": effective_request.session_id,
+            "run_id": effective_request.run_id,
+            "task_id": effective_request.task_id,
+            "tool_use_id": effective_request.tool_use_id,
+            "namespace": effective_request.tool_identity.namespace,
+            "tool_name": effective_request.tool_identity.name,
+            "server_id": effective_request.tool_identity.server_id,
+            "version": effective_request.tool_identity.version,
+            "schema_digest": effective_request.tool_identity.schema_digest,
+            "arguments_digest": effective_request.arguments_digest,
+            "request_fingerprint": effective_request.request_fingerprint,
+        }
+        for key, expected in expected_binding.items():
+            if str(binding.get(key) or "") != str(expected or ""):
+                raise PermissionRuntimeIdentityError(
+                    f"TypeScript permission binding mismatch for {key}"
+                )
+        if str(payload.get("arguments_digest") or "") != effective_request.arguments_digest:
+            raise PermissionRuntimeIdentityError("TypeScript arguments digest mismatch")
+        if str(payload.get("request_fingerprint") or "") != effective_request.request_fingerprint:
+            raise PermissionRuntimeIdentityError("TypeScript request fingerprint mismatch")
+        try:
+            effect = PermissionEffect(str(payload.get("effect") or ""))
+        except ValueError as exc:
+            raise PermissionRuntimeIdentityError("invalid TypeScript permission effect") from exc
+        if str(payload.get("mode") or "") != str(effective_request.mode):
+            raise PermissionRuntimeIdentityError("TypeScript permission mode snapshot is stale")
+        current_policy_digest = str(
+            self.typescript_policy_snapshot().get("policy_digest") or ""
+        )
+        if str(payload.get("policy_digest") or "") != current_policy_digest:
+            raise PermissionRuntimeIdentityError(
+                "TypeScript permission policy snapshot no longer matches durable state"
+            )
+        matched_rule_ids = tuple(
+            str(value) for value in payload.get("matched_rule_ids", ()) if str(value)
+        )
+        durable_rules = {
+            rule.rule_id: rule for rule in self.state_store.effective_rules(self.session_id)
+        }
+        for rule_id in matched_rule_ids:
+            if rule_id not in durable_rules:
+                raise PermissionRuntimeIdentityError(
+                    f"TypeScript decision references unavailable durable rule {rule_id}"
+                )
+        restored_approval = False
+        approval = self._approved_request_for(effective_request) if effect == PermissionEffect.ASK else None
+        if approval is not None:
+            effect = PermissionEffect.ALLOW
+            restored_approval = True
+        reason_code = str(payload.get("reason_code") or "typescript_permission_decision")
+        reason = str(payload.get("reason") or "TypeScript runtime permission decision")
+        if restored_approval:
+            reason_code = "typescript_exact_approval_consumed"
+            reason = "Exact durable user approval consumed by the TypeScript permission runtime"
+        recovery_alternatives = tuple(
+            str(value)
+            for value in payload.get("recovery_alternatives", ())
+            if str(value)
+        )
+        scope = PermissionScope(
+            kind=PermissionScopeKind.ACTION,
+            session_id=effective_request.session_id,
+            task_id=effective_request.task_id,
+            run_id=effective_request.run_id,
+            workspace_root=effective_request.workspace_root,
+            tool_namespace=effective_request.tool_identity.namespace,
+            tool_name=effective_request.tool_identity.name,
+            server_id=effective_request.tool_identity.server_id,
+            argument_digest=effective_request.arguments_digest,
+            request_fingerprint=effective_request.request_fingerprint,
+            metadata={"canonical_policy_owner": "typescript"},
+        )
+        with self._lock:
+            self.request_queue.expire_due()
+            abort_loop = False
+            if effect == PermissionEffect.DENY:
+                denial_outcome = self.mode_runtime.record_denial(
+                    headless=effective_request.headless
+                )
+                if denial_outcome.action is DenialAction.ABORT:
+                    abort_loop = True
+                    reason_code = "denial.limit_abort"
+                    reason = f"{reason}; denial limit requires loop abort"
+            elif effect == PermissionEffect.ALLOW:
+                self.mode_runtime.record_success()
+            pending: PermissionRequestRecord | None = None
+            if effect == PermissionEffect.ASK:
+                expiry = datetime.now(timezone.utc) + timedelta(
+                    seconds=self.config.approval_ttl_seconds
+                )
+                pending = self.request_queue.create(
+                    PermissionRequestRecord(
+                        session_id=effective_request.session_id,
+                        task_id=effective_request.task_id,
+                        run_id=effective_request.run_id,
+                        worker_request_id=effective_request.worker_request_id,
+                        tool_use_id=effective_request.tool_use_id,
+                        tool_identity=effective_request.tool_identity,
+                        arguments_digest=effective_request.arguments_digest,
+                        request_fingerprint=effective_request.request_fingerprint,
+                        scope=scope,
+                        expires_at=expiry.isoformat(),
+                        reason_code=reason_code,
+                        reason=reason,
+                        rule_snapshot_id=str(payload.get("rule_snapshot_id") or ""),
+                        mode=effective_request.mode,
+                        metadata={
+                            "canonical_policy_owner": "typescript",
+                            "policy_digest": str(payload.get("policy_digest") or ""),
+                            "no_python_policy_fallback": True,
+                        },
+                    )
+                )
+            decision = PermissionDecisionRecord(
+                effect=effect,
+                mode=effective_request.mode,
+                request_fingerprint=effective_request.request_fingerprint,
+                arguments_digest=effective_request.arguments_digest,
+                tool_use_id=effective_request.tool_use_id,
+                tool_identity=effective_request.tool_identity,
+                session_id=effective_request.session_id,
+                task_id=effective_request.task_id,
+                run_id=effective_request.run_id,
+                worker_request_id=effective_request.worker_request_id,
+                request_id=(approval.request_id if approval is not None else pending.request_id if pending else ""),
+                reason_code=reason_code,
+                reason=reason,
+                scope=scope,
+                matched_rule_ids=matched_rule_ids,
+                rule_snapshot_id=str(payload.get("rule_snapshot_id") or ""),
+                mode_revision=int(payload.get("mode_revision") or 0),
+                metadata={
+                    "canonical_policy_owner": "typescript",
+                    "policy_digest": str(payload.get("policy_digest") or ""),
+                    "evaluated_at": str(payload.get("evaluated_at") or ""),
+                    "no_python_policy_fallback": True,
+                    "approval_restored": restored_approval,
+                    "abort_loop": abort_loop,
+                    "human_intervention_count": 0,
+                    "human_intervention_delta": 0,
+                },
+            )
+            consume_rule_id = matched_rule_ids[0] if matched_rule_ids and effect == PermissionEffect.ALLOW else ""
+            committed = self.state_store.commit_decision(
+                decision,
+                consume_rule_id=consume_rule_id,
+                consume_approval_request_id=(approval.request_id if approval is not None else ""),
+            )
+            winning_rule = durable_rules.get(consume_rule_id)
+            self.decision_log.append(
+                session_id=committed.session_id,
+                run_id=committed.run_id,
+                task_id=committed.task_id,
+                node_id=effective_request.node_id,
+                worker_request_id=committed.worker_request_id,
+                turn_id=effective_request.turn_id,
+                tool_call_id=committed.tool_use_id,
+                tool_name=committed.tool_identity.name,
+                namespace=committed.tool_identity.namespace,
+                server_name=committed.tool_identity.server_id,
+                arguments_digest=committed.arguments_digest,
+                scope_digest=committed.request_fingerprint,
+                effect=committed.effect,
+                reason=committed.reason,
+                mode=str(committed.mode),
+                risk="typescript_policy",
+                request_id=committed.request_id,
+                rule_id=consume_rule_id,
+                rule_source=(str(winning_rule.source) if winning_rule is not None else "typescript"),
+                recovery_alternatives=recovery_alternatives,
+                evidence=(),
+                metadata=committed.metadata,
+                decision_id=committed.decision_id,
+            )
+            grant = (
+                self._issue_grant(committed, effective_request)
+                if committed.effect == PermissionEffect.ALLOW
+                else None
+            )
+            events: list[EventRecord] = []
+            if pending is not None:
+                events.append(
+                    self.event_projector.request_event(
+                        pending,
+                        kind=PermissionRuntimeEventKind.REQUEST_CREATED,
+                        run_id=effective_request.run_id,
+                        task_id=effective_request.task_id,
+                        node_id=effective_request.node_id,
+                        worker_request_id=effective_request.worker_request_id,
+                    )
+                )
+            recovery = (
+                PermissionRecoveryInput(
+                    decision_id=committed.decision_id,
+                    session_id=effective_request.session_id,
+                    task_id=effective_request.task_id,
+                    run_id=effective_request.run_id,
+                    tool_use_id=effective_request.tool_use_id,
+                    reason_code=committed.reason_code,
+                    retryable=bool(recovery_alternatives),
+                    alternatives=tuple(
+                        {
+                            "kind": "permission_alternative",
+                            "instruction": alternative,
+                        }
+                        for alternative in recovery_alternatives
+                    ),
+                    constraints={
+                        "arguments_digest": effective_request.arguments_digest,
+                        "tool_identity": effective_request.tool_identity.to_dict(),
+                        "scope": scope.to_dict(),
+                    },
+                    metadata={"canonical_policy_owner": "typescript"},
+                )
+                if committed.effect == PermissionEffect.DENY
+                else None
+            )
+            decision_events = self.event_projector.decision_events(
+                committed,
+                run_id=effective_request.run_id,
+                task_id=effective_request.task_id,
+                node_id=effective_request.node_id,
+                worker_request_id=effective_request.worker_request_id,
+                recovery=recovery,
+            )
+            events.extend(decision_events)
+            decision_event = decision_events[0]
+            if grant is not None:
+                issued_event = self.event_projector.grant_event(
+                    grant,
+                    consumed=False,
+                    accepted=True,
+                    run_id=effective_request.run_id,
+                    task_id=effective_request.task_id,
+                    node_id=effective_request.node_id,
+                    worker_request_id=effective_request.worker_request_id,
+                    reason="typescript_permission_decision",
+                    cause_event_id=decision_event.event_id,
+                )
+                events.append(issued_event)
+                self._grant_context.setdefault(grant.grant_id, {})[
+                    "issued_event_id"
+                ] = issued_event.event_id
+            self._decision_count += 1
+            if committed.effect == PermissionEffect.ALLOW:
+                self._allow_count += 1
+            elif committed.effect == PermissionEffect.ASK:
+                self._ask_count += 1
+            else:
+                self._deny_count += 1
+            return TypeScriptPermissionCommitResult(
+                request=effective_request,
+                decision=committed,
+                execution_grant=grant,
+                pending_request=pending,
+                events=tuple(events),
+                restored_approval=restored_approval,
+                abort_loop=abort_loop,
+            )
 
     def drain_execution_events(self, tool_call_id: str) -> tuple[EventRecord, ...]:
         with self._lock:

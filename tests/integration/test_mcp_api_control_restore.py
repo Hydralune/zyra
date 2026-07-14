@@ -541,28 +541,30 @@ class McpApiControlRestoreIntegrationTests(unittest.TestCase):
                 )
                 self.assertTrue(state_load.ok)
                 self.assertTrue(state_load.found)
-                self.assertIn("mcp_runtime", state_load.runtime_state)
-                mcp_state = state_load.runtime_state["mcp_runtime"]
-                self.assertEqual(mcp_state["schema"], "zyra.mcp-session-state.v1")
-                restore_contract = mcp_state["instructions"]["restore_constraints"]
-                self.assertEqual(len(restore_contract), 1)
-                self.assertEqual(restore_contract[0]["source_provenance"], "mcp_instruction_delta")
-                self.assertEqual(restore_contract[0]["trust_level"], "external_untrusted")
-                self.assertTrue(restore_contract[0]["untrusted"])
+                self.assertNotIn("mcp_runtime", state_load.runtime_state)
+                typescript_snapshot = state_load.runtime_state.get(
+                    "typescript_runtime_snapshot"
+                ) or state_load.runtime_state.get("session_snapshot", {}).get(
+                    "typescript_runtime_snapshot"
+                )
+                self.assertIsInstance(typescript_snapshot, dict)
+                capability_snapshot = typescript_snapshot[
+                    "typescriptCapabilities"
+                ]["capabilities"]
+                self.assertEqual(capability_snapshot["canonical_owner"], "typescript")
+                self.assertEqual(
+                    capability_snapshot["mcp"]["canonical_owner"],
+                    "typescript",
+                )
+                self.assertFalse(capability_snapshot["python_runtime_fallback"])
 
+                # The API exercise above intentionally uses a legacy in-process
+                # peer, which cannot become a hidden CodeWorker execution path.
+                # Real stdio MCP ownership is covered by the TypeScript MCP main-
+                # path integration test; this test proves the control-plane peer
+                # is not silently reintroduced through Python restore projection.
                 restored_messages = _restored_mcp_messages(executed["events"])
-                self.assertTrue(restored_messages, "MCP instructions did not enter the 02D restore envelope")
-                self.assertTrue(all(item["role"] == "user" for item in restored_messages))
-                self.assertTrue(
-                    all(item["metadata"]["trust_level"] == "external_untrusted" for item in restored_messages)
-                )
-                self.assertTrue(
-                    all(item["metadata"]["source_provenance"] == "mcp_instruction" for item in restored_messages)
-                )
-                self.assertTrue(
-                    all(item["metadata"]["secret_redaction_state"] == "redacted" for item in restored_messages)
-                )
-                self.assertNotIn("abcdefghijklmnop", json.dumps(restored_messages))
+                self.assertFalse(restored_messages)
 
                 # A second, genuinely failed connection makes health false;
                 # this rejects a fixed ``ok: true`` implementation.

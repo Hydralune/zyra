@@ -242,12 +242,15 @@ class CodeWorkerRuntime:
                 event_records=[*integration_events, _worker_result_event(request, worker_result)],
             )
         execution_context = self.execution_context
+        typescript_capability_owner = (
+            self.query_engine_factory is TypeScriptClaudeQueryEngine
+        )
         mcp_projection = None
         skill_projection = None
         mcp_skill_sources: tuple[Any, ...] = ()
         mcp_skill_discovery_receipt = None
         mcp_skill_discovery_events: list[EventRecord] = []
-        if self.mcp_runtime is not None:
+        if self.mcp_runtime is not None and not typescript_capability_owner:
             included_mcp_servers = tuple(
                 str(item) for item in request.constraints.get("mcp_include_servers") or () if str(item)
             )
@@ -320,7 +323,10 @@ class CodeWorkerRuntime:
             or request.constraints.get("session_id")
             or f"skill:{request.task_id}:{request.request_id}"
         )
-        if request.constraints.get("disable_skill_tool_projection") is not True:
+        if (
+            not typescript_capability_owner
+            and request.constraints.get("disable_skill_tool_projection") is not True
+        ):
             skill_open = SkillToolProjectionRuntime.open_for_worker(
                 execution_context,
                 project_root=self.project_root,
@@ -1414,7 +1420,7 @@ class CodeWorkerRuntime:
                     runtime_state_checkpoint["context_window_state"] = context_state
                 if pending_restore_state:
                     runtime_state_checkpoint["pending_restore_contract"] = pending_restore_state
-        if self.mcp_runtime is not None:
+        if self.mcp_runtime is not None and not typescript_capability_owner:
             runtime_state_checkpoint["mcp_runtime"] = self.mcp_runtime.prepare_session_checkpoint(
                 session_store,
                 session_id=session_seed.session_id,
@@ -1666,6 +1672,18 @@ class CodeWorkerRuntime:
                 "skill_projection_event_count": str(skill_projection_snapshot.event_count),
                 "skill_projection_snapshot_digest": skill_projection_snapshot.digest,
             }
+        elif typescript_capability_owner:
+            skill_projection_events = []
+            skill_projection_metadata = {
+                "skill_tool_projection": "typescript_runtime_owner",
+                "skill_tool_projection_id": "",
+                "skill_registry_generation": "0",
+                "skill_invocation_count": "0",
+                "skill_projection_event_count": "0",
+                "skill_projection_snapshot_digest": "",
+                "canonical_skill_owner": "typescript",
+                "python_skill_projection_used": "false",
+            }
         else:
             # A server-signed child scope may deliberately disable SkillTool
             # projection.  This is a real isolation mode, not a failed open:
@@ -1774,7 +1792,7 @@ class CodeWorkerRuntime:
         )
         mcp_events = (
             list(self.mcp_runtime.drain_events(run_id=request.run_id, task_id=request.task_id))
-            if self.mcp_runtime is not None
+            if self.mcp_runtime is not None and not typescript_capability_owner
             else []
         )
         return _custodied_code_worker_run(
