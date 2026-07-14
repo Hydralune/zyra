@@ -1651,6 +1651,17 @@ class BrowserWorkerRuntime:
             raise ValueError("url is required")
         _validate_allowed_url(url, request.constraints)
         parsed = urlparse(url)
+        if parsed.scheme == "workspace":
+            if parsed.netloc not in {"", "task"}:
+                raise ValueError("workspace URL authority must be empty or 'task'")
+            relative = unquote(parsed.path).replace("\\", "/").lstrip("/")
+            if not relative or ".." in Path(relative).parts or ":" in relative:
+                raise ValueError("workspace URL must contain a traversal-free task-relative path")
+            resolved = self.workspace_root.joinpath(*Path(relative).parts).resolve()
+            resolved.relative_to(self.workspace_root)
+            if resolved.is_symlink() or not resolved.is_file():
+                raise ValueError("workspace URL target must be a real task file")
+            return resolved.read_text(encoding="utf-8")
         if parsed.scheme == "file":
             path = Path(urllib.request.url2pathname(unquote(parsed.path)))
             if parsed.netloc:

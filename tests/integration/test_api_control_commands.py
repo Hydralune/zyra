@@ -54,7 +54,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     f"/tasks/{task['task_id']}/skill-updates",
                     payload,
                 )
-                self.assertEqual(first_status, 409, first)
+                self.assertEqual(first_status, 409)
                 self.assertEqual(first["error"], "skill_plugin_update_pending")
                 self.assertEqual(first["update_id"], "api-update-1")
                 session = first["permission_session"]
@@ -206,7 +206,6 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
             workspace = Path(tmpdir) / "workspace"
             workspace.mkdir()
-            (workspace / "skill-input.txt").write_text("skill worker context", encoding="utf-8")
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
 
             from apps.api.zyra_api.main import ZyraRequestHandler
@@ -218,6 +217,20 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Record skill invocation.", "auto_run": False})
                 task_id = created["task"]["task_id"]
+                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
+                _get(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files?path=skill-input.txt&read=true&encoding=utf-8",
+                )
+                _post(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files",
+                    {
+                        "path": "skill-input.txt",
+                        "encoding": "utf-8",
+                        "content": "skill worker context",
+                    },
+                )
                 invoked = _post(
                     base_url,
                     f"/tasks/{task_id}/skills",
@@ -860,7 +873,12 @@ class ApiControlCommandTests(unittest.TestCase):
                     executed["task"]["metadata"]["last_code_worker_session"]["session_id"],
                     metadata["query_session_id"],
                 )
-                self.assertTrue((Path(tmpdir) / "workspace" / "worker" / "output.txt").exists())
+                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
+                workspace_file = _get(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files?path=worker%2Foutput.txt&read=true&encoding=utf-8",
+                )
+                self.assertEqual(workspace_file["content"], "from worker")
                 self.assertGreaterEqual(len(_get(base_url, f"/tasks/{task_id}/events")["events"]), 4)
 
                 artifacts = _get(base_url, f"/tasks/{task_id}/artifacts")["artifacts"]
@@ -905,15 +923,29 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Run BrowserWorker.", "auto_run": False})
                 task_id = created["task"]["task_id"]
+                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
+                _get(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files?path=page.html&read=true&encoding=utf-8",
+                )
+                _post(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files",
+                    {
+                        "path": "page.html",
+                        "encoding": "utf-8",
+                        "content": page.read_text(encoding="utf-8"),
+                    },
+                )
                 executed = _post(
                     base_url,
                     f"/tasks/{task_id}/workers/browser",
                     {
                         "browser_plan": [
-                            {"action": "open_url", "arguments": {"url": page.resolve().as_uri()}},
+                            {"action": "open_url", "arguments": {"url": "workspace:///page.html"}},
                             {"action": "extract_text"},
                         ],
-                        "constraints": {"browser_backend": "static", "allowed_schemes": ["file"]},
+                        "constraints": {"browser_backend": "static", "allowed_schemes": ["workspace"]},
                     },
                 )
 
@@ -988,7 +1020,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     {"browser_plan": plan, "constraints": {"browser_backend": "static"}},
                 )
 
-                self.assertEqual(first_status, 409)
+                self.assertEqual(first_status, 409, first)
                 self.assertEqual(PageHandler.hit_count, 0)
                 first_browser_events = [
                     event
@@ -1359,7 +1391,7 @@ class ApiControlCommandTests(unittest.TestCase):
                     f"/tasks/{task['task_id']}/workers/code",
                     {"constraints": {"session_id": session_id, "tool_plan": plan}},
                 )
-                self.assertEqual(first_status, 409)
+                self.assertEqual(first_status, 409, first)
                 self.assertEqual(first["worker_result"]["error"], "permission_suspended")
                 session = first["permission_session"]
                 token = session["session_custody_token"]
@@ -1409,10 +1441,13 @@ class ApiControlCommandTests(unittest.TestCase):
                     second["worker_request"]["constraints"]["session_custody_token"],
                     "<redacted>",
                 )
-                self.assertEqual(
-                    (root / "workspace" / "api-code-approved.txt").read_text(encoding="utf-8"),
-                    "approved",
+                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
+                workspace_file = _get(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files?path=api-code-approved.txt&read=true&encoding=utf-8",
                 )
+                self.assertEqual(workspace_file["content"], "approved")
+                self.assertFalse((root / "workspace" / "api-code-approved.txt").exists())
                 for path in root.rglob("*"):
                     if path.is_file():
                         self.assertNotIn(token.encode("utf-8"), path.read_bytes(), str(path))

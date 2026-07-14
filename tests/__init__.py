@@ -13,6 +13,7 @@ for package in (
     "commands",
     "memory",
     "scheduler",
+    "workspace",
 ):
     path = ROOT / "packages" / package
     if path.exists() and str(path) not in sys.path:

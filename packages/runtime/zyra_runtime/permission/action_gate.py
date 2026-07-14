@@ -640,7 +640,10 @@ def _browser_action_capabilities(action: BrowserActionPermissionInput) -> tuple[
     normalized = action.normalized_action
     target_url = action.target_url or str(action.arguments.get("url") or action.current_url or "")
     scheme = urlparse(target_url).scheme.casefold() if target_url else ""
-    local_resource = scheme in {"", "file"}
+    # ``workspace://`` is resolved by BrowserWorker only beneath its
+    # manager-issued task mount, so it has the same local read-only risk as a
+    # validated in-workspace file URL without exposing a host path.
+    local_resource = scheme in {"", "file", "workspace"}
     local_read_actions = {
         "open_url",
         "navigate",
@@ -677,7 +680,7 @@ def _browser_action_capabilities(action: BrowserActionPermissionInput) -> tuple[
         action.backend == "static" and local_resource and normalized in local_virtual_actions
     ):
         # The static backend cannot submit forms or execute page JavaScript;
-        # file:// navigation and its virtual inputs are local simulation only.
+        # file:// or workspace:// navigation and virtual inputs are local simulation only.
         capabilities.extend(("read_only", "local_browser_state"))
     else:
         capabilities.append("network")

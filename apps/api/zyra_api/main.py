@@ -26,6 +26,7 @@ PACKAGE_PATHS = [
     PROJECT_ROOT / "packages" / "symbolic",
     PROJECT_ROOT / "packages" / "scheduler",
     PROJECT_ROOT / "packages" / "evaluation",
+    PROJECT_ROOT / "packages" / "workspace",
 ]
 for package_path in PACKAGE_PATHS:
     if str(package_path) not in sys.path:
@@ -45,6 +46,14 @@ from zyra_core import (
     to_jsonable,
 )
 from zyra_core.event_log import append_event as append_jsonl_event
+from zyra_workspace import (
+    WorkspaceApiService,
+    WorkspaceError,
+    WorkspaceKind,
+    WorkspaceManagerConfig,
+    WorkspaceManagerRuntime,
+    workspace_error_response,
+)
 from zyra_memory import CompactPolicy, MemoryFabric, SQLiteStore
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
@@ -303,10 +312,121 @@ def sqlite_path() -> Path:
 
 
 def tool_workspace_path() -> Path:
+    """Legacy non-task tooling root.
+
+    CodeWorkerRuntime and BrowserWorker no longer use this path for task work;
+    they receive an epoch-fenced task mount from WorkspaceManagerRuntime.
+    """
+
     configured = Path(os.environ.get("ZYRA_TOOL_WORKSPACE", "tmp/workspace"))
     if configured.is_absolute():
         return configured
     return PROJECT_ROOT / configured
+
+
+_WORKSPACE_RUNTIME_LOCK = threading.RLock()
+_WORKSPACE_RUNTIME_INSTANCE: WorkspaceManagerRuntime | None = None
+_WORKSPACE_RUNTIME_KEY: tuple[str, str, bool] | None = None
+_WORKSPACE_EVENT_LOCK = threading.RLock()
+_WORKSPACE_PENDING_EVENTS: dict[str, list[EventRecord]] = {}
+
+
+def workspace_manager_config() -> WorkspaceManagerConfig:
+    # The default is isolated beside the configured legacy tool path so test,
+    # local, and packaged instances do not share workspace state accidentally.
+    # It is not a fallback workspace: task workers only receive manager-owned
+    # mounts below this separate service root.
+    return WorkspaceManagerConfig.from_environment(
+        base_root=tool_workspace_path().parent / ".zyra-workspace-manager"
+    )
+
+
+def _queue_workspace_event(event_type: str, payload: Any) -> None:
+    value = dict(payload or {})
+    task_id = str(value.get("task_id") or "")
+    run_id = str(value.get("run_id") or "")
+    if not task_id or not run_id:
+        raise ValueError("workspace events require canonical run/task identity")
+    event = EventRecord(
+        run_id=run_id,
+        task_id=task_id,
+        event_type=EventType.SYSTEM_NOTICE,
+        node_id=None,
+        payload={
+            "workspace_event": {
+                "event_type": event_type,
+                **value,
+            }
+        },
+    )
+    with _WORKSPACE_EVENT_LOCK:
+        _WORKSPACE_PENDING_EVENTS.setdefault(task_id, []).append(event)
+
+
+def drain_workspace_events(task_id: str) -> list[EventRecord]:
+    with _WORKSPACE_EVENT_LOCK:
+        return list(_WORKSPACE_PENDING_EVENTS.pop(task_id, ()))
+
+
+def persist_workspace_events(
+    store: SQLiteStore,
+    *,
+    task_id: str = "",
+    workspace_id: str = "",
+) -> list[EventRecord]:
+    selected_task_id = task_id
+    if not selected_task_id and workspace_id:
+        binding = get_workspace_manager().store.get_binding(workspace_id)
+        selected_task_id = binding.task_id if binding is not None else ""
+    events = drain_workspace_events(selected_task_id) if selected_task_id else []
+    if events:
+        persist_events(store, events)
+    return events
+
+
+def get_workspace_manager() -> WorkspaceManagerRuntime:
+    global _WORKSPACE_RUNTIME_INSTANCE, _WORKSPACE_RUNTIME_KEY
+    config = workspace_manager_config()
+    key = (str(config.state_root), str(config.data_root), config.local_enabled)
+    with _WORKSPACE_RUNTIME_LOCK:
+        if _WORKSPACE_RUNTIME_INSTANCE is None or _WORKSPACE_RUNTIME_KEY != key:
+            _WORKSPACE_RUNTIME_INSTANCE = WorkspaceManagerRuntime(
+                config,
+                event_sink=_queue_workspace_event,
+            )
+            _WORKSPACE_RUNTIME_INSTANCE.recover_on_startup()
+            _WORKSPACE_RUNTIME_KEY = key
+        return _WORKSPACE_RUNTIME_INSTANCE
+
+
+def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> None:
+    global _WORKSPACE_RUNTIME_INSTANCE, _WORKSPACE_RUNTIME_KEY
+    with _WORKSPACE_RUNTIME_LOCK:
+        _WORKSPACE_RUNTIME_INSTANCE = runtime
+        if runtime is None:
+            _WORKSPACE_RUNTIME_KEY = None
+        else:
+            _WORKSPACE_RUNTIME_KEY = (
+                str(runtime.config.state_root),
+                str(runtime.config.data_root),
+                runtime.config.local_enabled,
+            )
+    with _WORKSPACE_EVENT_LOCK:
+        _WORKSPACE_PENDING_EVENTS.clear()
+
+
+def task_workspace_root(*, task_id: str, session_id: str, worker_id: str) -> Path:
+    manager = get_workspace_manager()
+    # A worker's query/permission session can rotate while the task workspace
+    # remains the same canonical binding.  Resolve by task here; the binding's
+    # persisted session identity is still returned by the workspace API and is
+    # never overwritten by a per-request worker session.
+    access = manager.acquire_for_worker(
+        task_id=task_id,
+        session_id="",
+        worker_id=worker_id,
+    )
+    return manager.internal_task_root(access)
 
 
 def artifact_root_path() -> Path:
@@ -510,13 +630,23 @@ def get_browser_runtime() -> Any:
         return _BROWSER_RUNTIME_REGISTRY.get_or_create(browser_runtime_config())
 
 
-def get_browser_runtime_services() -> tuple[Any, BrowserWorkerRuntime]:
+def get_browser_runtime_services(
+    *,
+    task_id: str = "",
+    session_id: str = "",
+    worker_id: str = "BrowserWorker",
+) -> tuple[Any, BrowserWorkerRuntime]:
     """Bind API requests to one registry runtime and its shared services."""
 
     runtime = get_browser_runtime()
+    workspace_root = (
+        task_workspace_root(task_id=task_id, session_id=session_id, worker_id=worker_id)
+        if task_id
+        else tool_workspace_path()
+    )
     worker = BrowserWorkerRuntime(
         project_root=PROJECT_ROOT,
-        workspace_root=tool_workspace_path(),
+        workspace_root=workspace_root,
         artifact_root=artifact_root_path(),
         permission_state_path=permission_state_path(),
         browser_session_runtime=runtime,
@@ -899,10 +1029,44 @@ def get_permission_control_plane() -> PermissionControlPlane:
     )
 
 
-def get_permission_api_facade() -> PermissionApiFacade:
+def permission_workspace_root(task_id: str = "") -> Path:
+    """Resolve the internal root used in permission-custody fingerprints."""
+
+    if not task_id:
+        return tool_workspace_path()
+    manager = get_workspace_manager()
+    binding = manager.store.find_binding(task_id=task_id, workspace_kind="task")
+    if binding is None:
+        return tool_workspace_path()
+    manager.backend.open(binding)
+    return manager.backend.mount_root(binding, WorkspaceKind.TASK)
+
+
+def permission_session_workspace_root(*, task_id: str = "", session_id: str = "") -> Path:
+    """Use the server-owned custody binding when a session already exists."""
+
+    if session_id:
+        state = get_permission_control_plane().state_store.read_state()
+        metadata = state.get("metadata") if isinstance(state, dict) else None
+        custody = metadata.get("session_custody") if isinstance(metadata, dict) else None
+        records = custody.get("records") if isinstance(custody, dict) else None
+        record = records.get(session_id) if isinstance(records, dict) else None
+        binding = record.get("binding") if isinstance(record, dict) else None
+        if isinstance(binding, dict):
+            bound_task_id = str(binding.get("task_id") or "")
+            bound_root = str(binding.get("workspace_root") or "")
+            if bound_root and (not task_id or bound_task_id == task_id):
+                return Path(bound_root).resolve()
+    return permission_workspace_root(task_id)
+
+
+def get_permission_api_facade(*, task_id: str = "", session_id: str = "") -> PermissionApiFacade:
     return PermissionApiFacade(
         get_permission_control_plane(),
-        workspace_root=tool_workspace_path(),
+        workspace_root=permission_session_workspace_root(
+            task_id=task_id,
+            session_id=session_id,
+        ),
         service_token=os.environ.get("ZYRA_PERMISSION_SERVICE_TOKEN", ""),
         expose_custody_token_in_body=True,
     )
@@ -1507,8 +1671,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
     ) -> bool:
         if not parts or parts[0] != "permissions":
             return False
-        facade = get_permission_api_facade()
         parameters = _flatten_query(parse_qs(parsed.query, keep_blank_values=True))
+        facade = get_permission_api_facade(
+            task_id=str(parameters.get("task_id") or ""),
+            session_id=str(parameters.get("session_id") or ""),
+        )
         operation = PermissionApiOperation.HEALTH
         try:
             if parts == ["permissions", "health"]:
@@ -1610,7 +1777,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
     ) -> bool:
         if not parts or parts[0] != "permissions":
             return False
-        facade = get_permission_api_facade()
+        facade = get_permission_api_facade(
+            task_id=str(payload.get("task_id") or ""),
+            session_id=str(payload.get("session_id") or ""),
+        )
         operation = PermissionApiOperation.REQUEST_CREATE
         try:
             if parts == ["permissions", "sessions", "open"]:
@@ -1753,6 +1923,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(status, body, headers=headers)
             return
 
+        try:
+            workspace_response = WorkspaceApiService(get_workspace_manager()).route_get(
+                tuple(parts),
+                _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+            )
+        except WorkspaceError as error:
+            workspace_response = workspace_error_response(error)
+        if workspace_response is not None:
+            workspace_id = parts[1] if len(parts) > 1 and parts[0] == "workspaces" else ""
+            persist_workspace_events(store, workspace_id=workspace_id)
+            self._send_json(
+                workspace_response.status,
+                workspace_response.body,
+                headers=dict(workspace_response.headers),
+            )
+            return
+
         if parts == ["health"]:
             self._send_json(
                 HTTPStatus.OK,
@@ -1765,6 +1952,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "tool_workspace": str(tool_workspace_path()),
                     "artifact_root": str(artifact_root_path()),
                     "permission_store": str(permission_store_path()),
+                    "workspace": get_workspace_manager().health(),
                 },
             )
             return
@@ -3003,11 +3191,56 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(status, body, headers=headers)
             return
 
+        try:
+            workspace_response = WorkspaceApiService(get_workspace_manager()).route_post(
+                tuple(parts),
+                payload,
+            )
+        except WorkspaceError as error:
+            workspace_response = workspace_error_response(error)
+        if workspace_response is not None:
+            workspace_id = parts[1] if len(parts) > 1 and parts[0] == "workspaces" else ""
+            events = persist_workspace_events(store, workspace_id=workspace_id)
+            body = dict(workspace_response.body)
+            if events:
+                body["events"] = [to_jsonable(event) for event in events]
+            self._send_json(
+                workspace_response.status,
+                body,
+                headers=dict(workspace_response.headers),
+            )
+            return
+
         if parts == ["tasks"]:
             user_goal = str(payload.get("goal") or "Unspecified long-horizon task")
             auto_run = payload.get("auto_run", True) is not False
             state, created_event = make_task_created_event(user_goal)
-            events = [created_event, *ensure_default_graph(state)]
+            session_id = str(payload.get("session_id") or f"task:{state.task_id}")
+            state.metadata["query_session_id"] = session_id
+            try:
+                workspace_result = get_workspace_manager().create_for_task(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    session_id=session_id,
+                    worker_id="task-runtime",
+                    idempotency_key=str(
+                        self.headers.get("Idempotency-Key")
+                        or payload.get("idempotency_key")
+                        or f"task-create:{state.task_id}"
+                    ),
+                    causation_id=created_event.event_id,
+                )
+            except WorkspaceError as error:
+                drain_workspace_events(state.task_id)
+                response = workspace_error_response(error)
+                self._send_json(response.status, response.body, headers=dict(response.headers))
+                return
+            state.metadata["workspace_ref"] = workspace_result.projection.to_dict()
+            events = [
+                created_event,
+                *ensure_default_graph(state),
+                *drain_workspace_events(state.task_id),
+            ]
             if auto_run:
                 events.extend(run_task_graph(state, execution_context=graph_execution_context()))
             persist_events(store, events)
@@ -3810,12 +4043,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             checkpoint = state.metadata.get("browser_context_runtime_state")
             checkpoint = checkpoint if isinstance(checkpoint, dict) else None
             try:
-                _runtime, browser_worker = get_browser_runtime_services()
+                _runtime, browser_worker = get_browser_runtime_services(
+                    task_id=state.task_id,
+                    session_id=session_id,
+                    worker_id="BrowserWorker",
+                )
                 run_result = browser_worker.run(
                     request,
                     browser_context_checkpoint=checkpoint,
                 )
+            except WorkspaceError as error:
+                response = workspace_error_response(error)
+                self._send_json(response.status, response.body, headers=dict(response.headers))
+                return
             except Exception as error:  # noqa: BLE001 - no partial checkpoint is persisted.
+                persist_workspace_events(store, task_id=state.task_id)
                 self._send_json(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     {
@@ -3885,7 +4127,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     )[:-128]
                     for key in oldest:
                         idempotency_records.pop(key, None)
-            persist_events(store, run_result.event_records)
+            workspace_events = drain_workspace_events(state.task_id)
+            persist_events(store, [*workspace_events, *run_result.event_records])
             run_result = replace(
                 run_result,
                 browser_observability_projection=(
@@ -3927,7 +4170,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "task": to_jsonable(state),
                     "worker_request": _worker_request_projection(request),
                     "worker_result": to_jsonable(run_result.worker_result),
-                    "events": [to_jsonable(event) for event in run_result.event_records],
+                    "events": [
+                        to_jsonable(event)
+                        for event in [*workspace_events, *run_result.event_records]
+                    ],
                     "browser_context": run_result.browser_context_projection,
                     "browser_observability": run_result.browser_observability_projection,
                     "idempotency_key": idempotency_key,
@@ -4630,6 +4876,25 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             constraints["session_id"] = parent_session_id
             state.metadata["query_session_id"] = parent_session_id
+            try:
+                workspace_manager = get_workspace_manager()
+                workspace_access = workspace_manager.acquire_for_worker(
+                    task_id=state.task_id,
+                    # The CodeWorker query session can be replaced for an
+                    # approval/resume turn; task workspace ownership does not
+                    # move with that conversational session.
+                    session_id="",
+                    worker_id="CodeWorkerRuntime",
+                )
+                worker_workspace_root = workspace_manager.internal_task_root(workspace_access)
+            except WorkspaceError as error:
+                response = workspace_error_response(error)
+                self._send_json(response.status, response.body, headers=dict(response.headers))
+                return
+            constraints["workspace_ref"] = workspace_access.to_public_dict()
+            state.metadata["workspace_ref"] = workspace_manager.project(
+                workspace_access.workspace_id
+            ).to_dict()
             browser_context_scope = BrowserContextScope(
                 run_id=state.run_id,
                 task_id=state.task_id,
@@ -4666,7 +4931,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     task_id=state.task_id,
                     session_id=parent_session_id,
                     worker_request_id=worker_request_id,
-                    workspace_root=str(tool_workspace_path()),
+                    workspace_root=str(worker_workspace_root),
                     parent_scope=parent_scope,
                     context_payload={
                         "messages": [],
@@ -4685,7 +4950,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             try:
                 run_result = CodeWorkerRuntime(
                     project_root=PROJECT_ROOT,
-                    workspace_root=tool_workspace_path(),
+                    workspace_root=worker_workspace_root,
                     artifact_root=artifact_root_path(),
                     permission_store=get_permission_store(),
                     permission_state_path=permission_state_path(),
@@ -4694,6 +4959,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     dynamic_handlers=agent_tool_binding.handlers,
                 ).run(request)
             except Exception as error:  # noqa: BLE001 - keep internal exception details out of API responses.
+                persist_workspace_events(store, task_id=state.task_id)
                 _BROWSER_CONTEXT_TASK_INTEGRATION.release_delivery(
                     state.metadata,
                     batch=browser_context_batch,
@@ -4824,7 +5090,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 session_id=codeworker_api_projection.session.session_id,
                 worker_request_id=codeworker_api_projection.session.worker_request_id,
             )
-            persisted_events = [*projected_events, contract_event]
+            persisted_events = [
+                *drain_workspace_events(state.task_id),
+                *projected_events,
+                contract_event,
+            ]
             response_payload["events"] = [to_jsonable(event) for event in persisted_events]
             response_payload["route_contract"] = route_contract.to_dict()
             state.metadata["last_code_worker_api_route_contract"] = route_contract.to_dict()
