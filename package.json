@@ -4,7 +4,8 @@
   "type": "module",
   "workspaces": [
     "apps/code-worker",
-    "packages/runtime/claude-runtime"
+    "packages/runtime/claude-runtime",
+    "packages/runtime/sandbox-gateway-control"
   ],
   "scripts": {
     "runtime:health": "node --experimental-strip-types apps/code-worker/src/main.ts --health",
