@@ -270,9 +270,11 @@ Artifact/patch port direct-write 扫描只命中：
 
 | Bucket | Files | Lines | 是否计入 8,000 生产门禁 |
 |---|---:|---:|---|
-| Python production internalization | 30 | 8,961 | 是 |
-| TypeScript production supplement | 12 | 3,440 | 是 |
-| Production total | 42 | 12,401 | 是 |
+| Python production directory raw | 30 | 8,961 | 分桶后计入 |
+| TypeScript production directory raw | 12 | 3,440 | 分桶后计入 |
+| Production directory raw total | 42 | 12,401 | 否，先扣除 export-only |
+| Package export-only excluded | 3 | 367 | 否 |
+| Conservative effective production | 39 | 12,034 | 是 |
 | Python tests | 4 | 793 | 否 |
 | TypeScript tests | 4 | 458 | 否 |
 | Test total | 8 | 1,251 | 否 |
@@ -283,9 +285,9 @@ Artifact/patch port direct-write 扫描只命中：
 | Standalone thin adapter-only files | 0 | 0 | 否 |
 | Mock/fixture-only production files | 0 | 0 | 否 |
 
-判定：12,401 >= 8,000，通过 slice 生产有效行数门禁。
+判定：12,034 >= 8,000，通过 slice 生产有效行数门禁。
 
-注：callback port class 位于 substantive permission/credential production modules 内，只负责连接既有 owner；没有单独以薄 adapter 文件抵扣行数。生产统计没有包含 tests、review、manifest data 或 vendor。
+注：callback port class 位于 substantive permission/credential production modules 内，只负责连接既有 owner；没有单独以薄 adapter 文件抵扣行数。保守有效统计排除了 Python __init__/__main__ 与 TypeScript index export-only 行，也没有包含 tests、review、manifest data 或 vendor。
 
 ## 10. 对抗问题
 
