@@ -114,6 +114,95 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         ),
     },
     {
+        "source_repo": "OpenHands",
+        "source_path": (
+            "openhands/app_server/app_conversation/app_conversation_start_task_service.py;"
+            "openhands/app_server/sandbox/sandbox_service.py;"
+            "openhands/app_server/sandbox/workspace_archive.py"
+        ),
+        "capability_name": "workspace_transaction_rebind_recovery_integration",
+        "capability_summary": (
+            "Ready/freeze/snapshot/rebind/resume lifecycle coordination, durable mutation journal, "
+            "rollback recovery inputs and path-free API/worker projections."
+        ),
+        "target_paths": [
+            "packages/workspace/zyra_workspace/transactions.py",
+            "packages/workspace/zyra_workspace/integration_store.py",
+            "packages/workspace/zyra_workspace/rebind.py",
+            "packages/workspace/zyra_workspace/recovery.py",
+            "packages/workspace/zyra_workspace/api_service.py",
+            "apps/api/zyra_api/main.py",
+        ],
+        "source_role": "primary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "runtime_required": True,
+        "owner_unit": "M1-S05A-02",
+        "runtime_module": "zyra_workspace.transactions",
+        "runtime_function": "WorkspacePatchTransactionRuntime.execute",
+        "rationale": (
+            "OpenHands lifecycle ordering was decomposed into Zyra transaction, binding CAS, recovery, "
+            "artifact and event owners; no OpenHands server, store, archive process or source path runs at runtime."
+        ),
+    },
+    {
+        "source_repo": "agentscope",
+        "source_path": (
+            "src/agentscope/app/workspace_manager/_base.py;"
+            "src/agentscope/app/workspace_manager/_local_workspace_manager.py;"
+            "src/agentscope/workspace/_local.py"
+        ),
+        "capability_name": "workspace_backend_refresh_endpoint_rebind",
+        "capability_summary": (
+            "Backend-aware endpoint registration, local workspace refresh, explicit disabled semantics "
+            "and recoverable endpoint rebinding without a second canonical workspace owner."
+        ),
+        "target_paths": [
+            "packages/workspace/zyra_workspace/rebind.py",
+            "packages/workspace/zyra_workspace/manager.py",
+            "packages/workspace/zyra_workspace/integration_store.py",
+        ],
+        "source_role": "supplementary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "runtime_required": True,
+        "owner_unit": "M1-S05A-02",
+        "runtime_module": "zyra_workspace.rebind",
+        "runtime_function": "WorkspaceRebindRuntime.rebind",
+        "rationale": (
+            "Only backend refresh and lifecycle failure semantics supplement the OpenHands primary; "
+            "AgentScope routers, Docker/E2B workspaces and framework state owners remain excluded."
+        ),
+    },
+    {
+        "source_repo": "oh-my-pi",
+        "source_path": (
+            "packages/coding-agent/src/task/isolation-runner.ts;"
+            "packages/coding-agent/src/task/worktree.ts;"
+            "packages/coding-agent/src/edit/hashline/execute.ts"
+        ),
+        "capability_name": "workspace_isolation_three_way_merge_nested_outcomes",
+        "capability_summary": (
+            "Dirty-baseline child workspace isolation, deterministic tree delta, user-WIP-preserving "
+            "three-way merge, nested repository outcomes, conflict records and duplicate-delivery fencing."
+        ),
+        "target_paths": [
+            "packages/workspace/zyra_workspace/isolation.py",
+            "packages/workspace/zyra_workspace/tree_state.py",
+            "packages/workspace/zyra_workspace/transactions.py",
+            "packages/workspace/zyra_workspace/handoff.py",
+            "packages/runtime/zyra_runtime/executor.py",
+        ],
+        "source_role": "supplementary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "runtime_required": True,
+        "owner_unit": "M1-S05A-02",
+        "runtime_module": "zyra_workspace.isolation",
+        "runtime_function": "WorkspaceIsolationRuntime.merge",
+        "rationale": (
+            "OMP baseline/merge rules were rewritten against Zyra bindings, read evidence, dirty ownership, "
+            "transactions and receipts; no OMP subprocess, CLI, worktree owner or TypeScript runtime is used."
+        ),
+    },
+    {
         "source_repo": "claude-code-best",
         "source_path": "src/tools/**;src/utils/permissions/**;src/bridge/**",
         "capability_name": "workspace_tool_context_permission_conformance",
@@ -156,6 +245,13 @@ def ledger_id(decision: dict[str, Any]) -> str:
 def entry(decision: dict[str, Any]) -> dict[str, Any]:
     targets = list(decision["target_paths"])
     runtime_required = bool(decision["runtime_required"])
+    owner_unit = str(decision.get("owner_unit") or "M1-S05A-01")
+    integration = owner_unit == "M1-S05A-02"
+    runtime_module = str(decision.get("runtime_module") or "zyra_workspace.manager")
+    runtime_function = str(
+        decision.get("runtime_function")
+        or ("WorkspaceManagerRuntime.create_for_task" if runtime_required else "WorkspaceManagerRuntime.health")
+    )
     return {
         "ledger_id": ledger_id(decision),
         "source_repo": decision["source_repo"],
@@ -173,9 +269,20 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
         "migration_strategy": decision["migration_strategy"],
         "main_path_status": "tested_main_path" if runtime_required else "inventoried",
         "lifecycle": "productized" if runtime_required else "candidate",
-        "owner_unit": "M1-S05A-01",
+        "owner_unit": owner_unit,
         "main_path": {
-            "surfaces": ["workspace_manager", "task_api", "code_worker", "browser_worker"]
+            "surfaces": (
+                [
+                    "workspace_manager",
+                    "task_api",
+                    "code_worker",
+                    "browser_worker",
+                    "subagent_isolation",
+                    "workspace_rebind",
+                ]
+                if integration
+                else ["workspace_manager", "task_api", "code_worker", "browser_worker"]
+            )
             if runtime_required
             else [],
             "event_types": ["system_notice"] if runtime_required else [],
@@ -185,27 +292,55 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
                 "POST /workspaces/{workspace_id}/snapshot",
                 "POST /tasks/{task_id}/workers/code",
                 "POST /tasks/{task_id}/workers/browser",
+                *( ["POST /workspaces/{workspace_id}/rebind"] if integration else [] ),
             ]
             if runtime_required
             else [],
             "control_commands": [],
             "artifact_kinds": [],
-            "worker_runtime": "WorkspaceManagerRuntime.create_for_task"
+            "worker_runtime": runtime_function
             if runtime_required
             else "",
             "ui_panels": [],
         },
         "line_count_policy": "counts_as_runtime" if runtime_required else "excluded_inventory_only",
         "runtime_entry": {
-            "module": "zyra_workspace.manager",
-            "function": "WorkspaceManagerRuntime.create_for_task"
-            if runtime_required
-            else "WorkspaceManagerRuntime.health",
-            "protocol": "zyra-workspace-manager-v1",
-            "health_check": "python -m pytest tests/unit/test_workspace_manager_foundation.py -q",
+            "module": runtime_module,
+            "function": runtime_function,
+            "protocol": "zyra-workspace-integration-v1" if integration else "zyra-workspace-manager-v1",
+            "health_check": (
+                "python -m pytest tests/unit/test_workspace_manager_integration.py "
+                "tests/integration/test_workspace_worker_gateway.py -q"
+                if integration
+                else "python -m pytest tests/unit/test_workspace_manager_foundation.py -q"
+            ),
             "config_refs": targets,
         },
         "test_entries": [
+            *(
+                [
+                    {
+                        "path": "tests/unit/test_workspace_manager_integration.py",
+                        "command": "python -m pytest tests/unit/test_workspace_manager_integration.py -q",
+                        "kind": "unit",
+                        "expected_signal": (
+                            "transaction rollback, isolation merge/conflict, rebind CAS/recovery and handoff redaction are real"
+                        ),
+                        "required": True,
+                    },
+                    {
+                        "path": "tests/integration/test_workspace_worker_gateway.py",
+                        "command": "python -m pytest tests/integration/test_workspace_worker_gateway.py -q",
+                        "kind": "integration",
+                        "expected_signal": (
+                            "CodeWorker and BrowserWorker use the edit gateway and fail closed without it"
+                        ),
+                        "required": True,
+                    },
+                ]
+                if integration
+                else []
+            ),
             {
                 "path": "tests/unit/test_workspace_manager_foundation.py",
                 "command": "python -m pytest tests/unit/test_workspace_manager_foundation.py -q",
@@ -227,7 +362,7 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             f"{decision['rationale']}"
         ),
         "metadata": {
-            "owner_unit": "M1-S05A-01",
+            "owner_unit": owner_unit,
             "source_role": decision["source_role"],
             "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceBindingStore",
             "canonical_task_owner": "SQLiteStore/TaskState",
@@ -284,7 +419,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     aligned, count = synchronize(args.ledger.resolve(), write=write)
     print(f"workspace_manager_source_ledger_aligned={str(aligned).lower()}")
     print(f"workspace_manager_source_decision_count={count}")
-    print("workspace_manager_owner_unit=M1-S05A-01")
+    print("workspace_manager_owner_units=M1-S05A-01,M1-S05A-02")
     print(f"ledger_path={args.ledger.resolve()}")
     return 0 if aligned or not args.check else 1
 

@@ -8,6 +8,8 @@ from typing import Any, Mapping
 from .errors import WorkspaceError, WorkspaceErrorCode
 from .manager import WorkspaceManagerRuntime
 from .models import WorkspaceKind, WorkspaceOperation, WorkspaceReadMode
+from .rebind import WorkspaceRebindRuntime
+from .transactions import WorkspaceEditPort
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +62,18 @@ class WorkspaceApiService:
                 "recoveries": [
                     item.to_dict()
                     for item in self.manager.store.list_recoveries(workspace_id)
+                ],
+                "integration": self.manager.integration_store.workspace_summary(workspace_id),
+                "integration_receipts": list(
+                    self.manager.integration_store.list_receipts(workspace_id)
+                )[-100:],
+                "merge_conflicts": [
+                    item.to_dict()
+                    for item in self.manager.integration_store.list_conflicts(workspace_id)
+                ],
+                "recovery_inputs": [
+                    item.to_dict()
+                    for item in self.manager.integration_store.list_recovery_inputs(workspace_id)
                 ],
             }
         )
@@ -168,20 +182,74 @@ class WorkspaceApiService:
             session_id=binding.session_id,
             worker_id="workspace-api",
         )
-        result = self.manager.backend.write_after_read(
+        port = WorkspaceEditPort(
+            self.manager,
             handle,
-            mount_kind=_mount_kind(payload.get("mount")),
-            path=path,
-            content=content,
-            service=str(payload.get("service") or "worker"),
+            worker_id="workspace-api",
+            run_id=binding.run_id,
+            task_id=binding.task_id,
         )
+        mount_kind = _mount_kind(payload.get("mount"))
+        result = port.write_bytes(
+            path,
+            content,
+            mount_kind=mount_kind,
+            publish_artifact=False,
+            idempotency_key=str(payload.get("idempotency_key") or ""),
+            causation_id=str(payload.get("causation_id") or ""),
+        )
+        path_result = result.transaction.path_results[-1]
         return WorkspaceApiResponse.ok(
             {
-                "write": result.to_dict(),
+                "write": {
+                    "workspace_id": workspace_id,
+                    "mount_kind": mount_kind.value,
+                    "path": path,
+                    "bytes_written": path_result.bytes_after,
+                    "prior_bytes": path_result.bytes_before,
+                    "created": path_result.disposition in {"created", "download_externalized", "temp_externalized"},
+                    "content_hash": path_result.after_hash,
+                    "owner_epoch": result.access.owner_epoch,
+                    "transaction_id": result.transaction.transaction_id,
+                    "receipt_id": result.receipt.receipt_id,
+                },
+                "workspace_access": result.access.to_public_dict(),
                 "physical_location_redacted": True,
             },
-            status=201 if result.created else 200,
+            status=201 if path_result.disposition == "created" else 200,
         )
+
+    def rebind(self, workspace_id: str, payload: Mapping[str, Any]) -> WorkspaceApiResponse:
+        target_endpoint_id = _required_string(payload, "target_endpoint_id")
+        runtime = WorkspaceRebindRuntime(self.manager)
+        target_relative_root = str(payload.get("target_relative_root") or "").strip()
+        if target_relative_root:
+            runtime.register_endpoint(
+                target_endpoint_id,
+                relative_root=target_relative_root,
+                capability_revision=_bounded_int(
+                    payload.get("capability_revision"),
+                    default=1,
+                    minimum=1,
+                    maximum=2**31 - 1,
+                ),
+            )
+        binding = self.manager.store.require_binding(workspace_id)
+        access = self.manager.acquire_for_worker(
+            task_id=binding.task_id,
+            session_id=binding.session_id,
+            worker_id="workspace-api",
+        )
+        result = runtime.rebind(
+            access,
+            target_endpoint_id=target_endpoint_id,
+            worker_id="workspace-api",
+            idempotency_key=str(payload.get("idempotency_key") or ""),
+            causation_id=str(payload.get("causation_id") or ""),
+            artifact_refs=tuple(str(item) for item in payload.get("artifact_refs") or ()),
+            event_refs=tuple(str(item) for item in payload.get("event_refs") or ()),
+        )
+        return WorkspaceApiResponse.ok(result.to_public_dict())
 
     def snapshot(self, workspace_id: str, payload: Mapping[str, Any] | None = None) -> WorkspaceApiResponse:
         values = payload or {}
@@ -256,6 +324,8 @@ class WorkspaceApiService:
             return self.restore(workspace_id, payload)
         if action == "cleanup":
             return self.cleanup(workspace_id, payload)
+        if action == "rebind":
+            return self.rebind(workspace_id, payload)
         return None
 
 

@@ -114,6 +114,11 @@ class ToolExecutor:
         # permission identity that was approved for this exact ToolSpec.
         self._dynamic_handlers = dict(context.dynamic_handlers)
         self._cancellation_check = context.runtime_services.get("cancellation_check")
+        self._workspace_edit_port = context.runtime_services.get("workspace_edit_port")
+        self._workspace_isolation_runtime = context.runtime_services.get("workspace_isolation_runtime")
+        self._workspace_gateway_required = bool(
+            context.runtime_services.get("workspace_gateway_required", False)
+        )
         self._permission_execution_view = _PermissionExecutionView(
             workspace_root=self._workspace_root,
             registry=self._registry,
@@ -295,12 +300,19 @@ class ToolExecutor:
                 },
             )
         except Exception as error:  # noqa: BLE001 - execution errors must become traceable results.
+            error_code = getattr(getattr(error, "code", None), "value", None)
+            if error_code is None:
+                error_code = str(getattr(error, "code", "") or type(error).__name__)
             return ToolResult(
                 tool_call_id=call.tool_call_id,
                 ok=False,
                 summary=f"{call.tool_name} failed",
-                error=type(error).__name__,
-                metadata={"message": str(error)},
+                error=error_code,
+                metadata={
+                    "message": str(error),
+                    "exception_type": type(error).__name__,
+                    "workspace_gateway_required": str(self._workspace_gateway_required).lower(),
+                },
             )
 
         return ToolResult(
@@ -317,6 +329,53 @@ class ToolExecutor:
         blocked = None if authorized else self._blocked_result(call, permission, PermissionOperation.READ, str(target))
         if blocked is not None:
             return blocked
+
+        if self._workspace_edit_port is not None:
+            logical_path = self._gateway_logical_path(call.arguments.get("path"))
+            encoding = str(call.arguments.get("encoding") or "utf-8")
+            read = self._workspace_edit_port.read_text(logical_path, encoding=encoding)
+            content = read.text(encoding)
+            output: dict[str, Any] = {
+                "path": logical_path,
+                "relative_path": logical_path,
+                "chars": len(content),
+                "workspace_id": read.workspace_id,
+                "read_evidence_id": read.evidence.evidence_id,
+                "read_owner_epoch": read.evidence.owner_epoch,
+                "read_complete": read.evidence.complete,
+                "physical_location_redacted": True,
+            }
+            artifacts = []
+            if len(content) > self._max_inline_chars:
+                artifact = self._artifact_store.write_text(
+                    run_id=call.run_id,
+                    task_id=call.task_id,
+                    content=content,
+                    title=f"file_read:{logical_path}",
+                    kind=ArtifactKind.TEXT,
+                    extension=".txt",
+                    producer_node_id=call.node_id,
+                )
+                artifacts.append(artifact)
+                output["content_preview"] = content[: self._max_inline_chars]
+                output["truncated"] = True
+            else:
+                output["content"] = content
+                output["truncated"] = False
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=True,
+                summary=f"Read {logical_path} through workspace gateway",
+                output=output,
+                artifacts=artifacts,
+                metadata={
+                    "permission_effect": str(permission.effect),
+                    "workspace_gateway": "WorkspaceEditPort",
+                    "raw_path_fallback": "false",
+                },
+            )
+        if self._workspace_gateway_required:
+            return self._workspace_gateway_missing(call, operation="read")
 
         content = target.read_text(encoding=str(call.arguments.get("encoding") or "utf-8"))
         output: dict[str, Any] = {
@@ -361,6 +420,41 @@ class ToolExecutor:
             return self._missing_grant_result(call)
 
         content = str(call.arguments.get("content") or "")
+        if self._workspace_edit_port is not None:
+            logical_path = self._gateway_logical_path(call.arguments.get("path"))
+            result = self._workspace_edit_port.write_text(
+                logical_path,
+                content,
+                encoding=str(call.arguments.get("encoding") or "utf-8"),
+                publish_artifact=bool(call.arguments.get("publish_artifact", False)),
+                idempotency_key=str(call.arguments.get("idempotency_key") or call.tool_call_id),
+                causation_id=call.tool_call_id,
+            )
+            public = result.to_public_dict()
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=result.ok,
+                summary=f"Wrote {logical_path} through workspace patch transaction",
+                output={
+                    "path": logical_path,
+                    "relative_path": logical_path,
+                    "chars": len(content),
+                    "transaction_id": result.transaction.transaction_id,
+                    "receipt_id": result.receipt.receipt_id,
+                    "workspace_access": public["workspace_access"],
+                    "publications": public["publications"],
+                    "physical_location_redacted": True,
+                },
+                artifacts=list(result.artifact_refs),
+                metadata={
+                    "permission_effect": str(permission.effect),
+                    "workspace_gateway": "WorkspaceEditPort",
+                    "raw_path_fallback": "false",
+                    "owner_epoch_after": str(result.access.owner_epoch),
+                },
+            )
+        if self._workspace_gateway_required:
+            return self._workspace_gateway_missing(call, operation="write")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding=str(call.arguments.get("encoding") or "utf-8"))
         return ToolResult(
@@ -399,6 +493,45 @@ class ToolExecutor:
         old_text = str(old)
         new_text = str(call.arguments.get("new") or "")
         replace_all = bool(call.arguments.get("replace_all", False))
+        if self._workspace_edit_port is not None:
+            logical_path = self._gateway_logical_path(call.arguments.get("path"))
+            result = self._workspace_edit_port.edit_text(
+                logical_path,
+                old=old_text,
+                new=new_text,
+                replace_all=replace_all,
+                encoding=str(call.arguments.get("encoding") or "utf-8"),
+                publish_artifact=bool(call.arguments.get("publish_artifact", False)),
+                idempotency_key=str(call.arguments.get("idempotency_key") or call.tool_call_id),
+                causation_id=call.tool_call_id,
+            )
+            path_result = result.transaction.path_results[-1]
+            replacements = 1
+            if path_result.disposition.startswith("edited:"):
+                replacements = int(path_result.disposition.split(":", 1)[1])
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=result.ok,
+                summary=f"Edited {logical_path} through workspace patch transaction",
+                output={
+                    "path": logical_path,
+                    "relative_path": logical_path,
+                    "replacements": replacements,
+                    "transaction_id": result.transaction.transaction_id,
+                    "receipt_id": result.receipt.receipt_id,
+                    "workspace_access": result.access.to_public_dict(),
+                    "physical_location_redacted": True,
+                },
+                artifacts=list(result.artifact_refs),
+                metadata={
+                    "permission_effect": str(write_permission.effect),
+                    "workspace_gateway": "WorkspaceEditPort",
+                    "raw_path_fallback": "false",
+                    "owner_epoch_after": str(result.access.owner_epoch),
+                },
+            )
+        if self._workspace_gateway_required:
+            return self._workspace_gateway_missing(call, operation="edit")
         content = target.read_text(encoding=str(call.arguments.get("encoding") or "utf-8"))
         occurrences = content.count(old_text)
         if occurrences == 0:
@@ -450,6 +583,54 @@ class ToolExecutor:
             return blocked
         if not authorized:
             return self._missing_grant_result(call)
+
+        if self._workspace_gateway_required:
+            if self._workspace_edit_port is None or self._workspace_isolation_runtime is None:
+                return self._workspace_gateway_missing(call, operation="isolated_shell")
+            shell_result = self._workspace_isolation_runtime.run_shell_and_merge(
+                self._workspace_edit_port.current_access(),
+                command=command,
+                parent_worker_id=self._workspace_edit_port.worker_id,
+                child_worker_id=f"{self._workspace_edit_port.worker_id}-shell",
+                timeout_seconds=int(call.arguments.get("timeout_seconds") or self._shell_timeout_seconds),
+                causation_id=call.tool_call_id,
+            )
+            if shell_result.merge is not None and shell_result.merge.ok:
+                binding = self._workspace_isolation_runtime.manager.store.require_binding(
+                    self._workspace_edit_port.workspace_id
+                )
+                fresh_access = self._workspace_isolation_runtime.manager.acquire_for_worker(
+                    task_id=binding.task_id,
+                    session_id=binding.session_id,
+                    worker_id=self._workspace_edit_port.worker_id,
+                )
+                self._workspace_edit_port.adopt_access(fresh_access)
+            public = shell_result.to_public_dict(max_inline_chars=self._max_inline_chars)
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=shell_result.ok,
+                summary=(
+                    f"Isolated shell exited with code {shell_result.returncode} and merged"
+                    if shell_result.merge is not None and shell_result.merge.ok
+                    else f"Isolated shell exited with code {shell_result.returncode} without a clean merge"
+                ),
+                output=public,
+                error=(
+                    None
+                    if shell_result.ok
+                    else "tool_timeout"
+                    if shell_result.timed_out
+                    else "workspace_isolation_merge_failed"
+                    if shell_result.merge is not None and not shell_result.merge.ok
+                    else "non_zero_exit"
+                ),
+                metadata={
+                    "permission_effect": str(permission.effect),
+                    "workspace_gateway": "WorkspaceIsolationRuntime",
+                    "raw_parent_cwd_execution": "false",
+                    "permission_execution_grant_present": str(authorized).lower(),
+                },
+            )
 
         completed = subprocess.run(
             command,
@@ -771,6 +952,31 @@ class ToolExecutor:
         if not path.is_absolute():
             path = self._workspace_root / path
         return path.resolve()
+
+    def _gateway_logical_path(self, value: Any) -> str:
+        if value is None:
+            raise ValueError("path is required")
+        raw = Path(str(value))
+        if raw.is_absolute():
+            resolved = raw.resolve()
+            try:
+                return resolved.relative_to(self._workspace_root).as_posix()
+            except ValueError:
+                return str(value)
+        return str(value).replace("\\", "/")
+
+    def _workspace_gateway_missing(self, call: ToolCall, *, operation: str) -> ToolResult:
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=False,
+            summary="Workspace gateway is required but unavailable; direct filesystem fallback is disabled.",
+            error="workspace_gateway_unavailable",
+            metadata={
+                "operation": operation,
+                "workspace_gateway_required": "true",
+                "raw_path_fallback": "false",
+            },
+        )
 
     def _relative_path(self, path: Path) -> str:
         try:

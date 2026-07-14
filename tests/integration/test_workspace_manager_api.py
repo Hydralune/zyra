@@ -65,6 +65,8 @@ class WorkspaceManagerApiTests(unittest.TestCase):
                     {"path": "notes/progress.txt", "encoding": "utf-8", "content": "version one"},
                 )
                 self.assertTrue(write["write"]["created"])
+                self.assertTrue(write["write"]["transaction_id"].startswith("workspace-txn_"))
+                self.assertTrue(write["write"]["receipt_id"].startswith("workspace-receipt_"))
                 read = _get(
                     base_url,
                     f"/workspaces/{workspace_id}/files?"
@@ -97,6 +99,30 @@ class WorkspaceManagerApiTests(unittest.TestCase):
                 )
                 self.assertEqual(after["content"], "version one")
 
+                rebound = _post(
+                    base_url,
+                    f"/workspaces/{workspace_id}/rebind",
+                    {
+                        "target_endpoint_id": "api-secondary",
+                        "target_relative_root": "api-secondary",
+                        "idempotency_key": "api-rebind-secondary",
+                        "artifact_refs": ["artifact://api-rebind"],
+                    },
+                )
+                self.assertEqual(rebound["rebind"]["state"], "committed")
+                self.assertTrue(rebound["receipt"]["ok"])
+                self.assertEqual(rebound["rebind"]["target_endpoint_id"], "api-secondary")
+                self.assertTrue(rebound["workspace_access"]["physical_location_redacted"])
+                self.assertNotIn(str(root), json.dumps(rebound, sort_keys=True))
+                after_rebind = _get(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files?"
+                    + urllib.parse.urlencode(
+                        {"path": "notes/progress.txt", "read": "true", "encoding": "utf-8"}
+                    ),
+                )
+                self.assertEqual(after_rebind["content"], "version one")
+
                 trace = _get(base_url, f"/tasks/{task_id}/events")
                 event_types = [
                     item["payload"]["workspace_event"]["event_type"]
@@ -105,6 +131,7 @@ class WorkspaceManagerApiTests(unittest.TestCase):
                 ]
                 self.assertIn("workspace.snapshot.committed", event_types)
                 self.assertIn("workspace.restore.committed", event_types)
+                self.assertIn("workspace.rebind.committed", event_types)
 
     def test_disabled_local_workspace_rejects_task_without_legacy_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

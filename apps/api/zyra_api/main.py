@@ -48,7 +48,9 @@ from zyra_core import (
 from zyra_core.event_log import append_event as append_jsonl_event
 from zyra_workspace import (
     WorkspaceApiService,
+    WorkspaceEditPort,
     WorkspaceError,
+    WorkspaceIsolationRuntime,
     WorkspaceKind,
     WorkspaceManagerConfig,
     WorkspaceManagerRuntime,
@@ -639,11 +641,28 @@ def get_browser_runtime_services(
     """Bind API requests to one registry runtime and its shared services."""
 
     runtime = get_browser_runtime()
-    workspace_root = (
-        task_workspace_root(task_id=task_id, session_id=session_id, worker_id=worker_id)
-        if task_id
-        else tool_workspace_path()
-    )
+    workspace_edit_port = None
+    workspace_gateway_required = False
+    if task_id:
+        manager = get_workspace_manager()
+        workspace_access = manager.acquire_for_worker(
+            task_id=task_id,
+            session_id=session_id,
+            worker_id=worker_id,
+        )
+        workspace_root = manager.internal_task_root(workspace_access)
+        binding = manager.store.require_binding(workspace_access.workspace_id)
+        workspace_edit_port = WorkspaceEditPort(
+            manager,
+            workspace_access,
+            worker_id=worker_id,
+            run_id=binding.run_id,
+            task_id=binding.task_id,
+            artifact_store=LocalArtifactStore(artifact_root_path()),
+        )
+        workspace_gateway_required = True
+    else:
+        workspace_root = tool_workspace_path()
     worker = BrowserWorkerRuntime(
         project_root=PROJECT_ROOT,
         workspace_root=workspace_root,
@@ -651,6 +670,8 @@ def get_browser_runtime_services(
         permission_state_path=permission_state_path(),
         browser_session_runtime=runtime,
         browser_runtime_registry=_BROWSER_RUNTIME_REGISTRY,
+        workspace_edit_port=workspace_edit_port,
+        workspace_gateway_required=workspace_gateway_required,
     )
     return runtime, worker
 
@@ -4957,6 +4978,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     mcp_runtime=get_mcp_runtime(),
                     tool_registry=agent_tool_binding.registry,
                     dynamic_handlers=agent_tool_binding.handlers,
+                    runtime_services={
+                        "workspace_edit_port": WorkspaceEditPort(
+                            workspace_manager,
+                            workspace_access,
+                            worker_id="CodeWorkerRuntime",
+                            run_id=state.run_id,
+                            task_id=state.task_id,
+                            node_id=node_id,
+                            artifact_store=LocalArtifactStore(artifact_root_path()),
+                        ),
+                        "workspace_isolation_runtime": WorkspaceIsolationRuntime(
+                            workspace_manager,
+                            artifact_store=LocalArtifactStore(artifact_root_path()),
+                        ),
+                        "workspace_gateway_required": True,
+                    },
                 ).run(request)
             except Exception as error:  # noqa: BLE001 - keep internal exception details out of API responses.
                 persist_workspace_events(store, task_id=state.task_id)

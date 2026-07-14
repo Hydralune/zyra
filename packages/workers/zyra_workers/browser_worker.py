@@ -152,11 +152,15 @@ class BrowserWorkerRuntime:
         browser_context_integration: BrowserContextTaskIntegrationRuntime | None = None,
         browser_message_integration_audit: BrowserMessageIntegrationAuditRuntime | None = None,
         browser_observability_application: BrowserObservabilityApplication | None = None,
+        workspace_edit_port: Any | None = None,
+        workspace_gateway_required: bool = False,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
         self.workspace_root.mkdir(parents=True, exist_ok=True)
         self.artifact_store = LocalArtifactStore(artifact_root)
+        self.workspace_edit_port = workspace_edit_port
+        self.workspace_gateway_required = bool(workspace_gateway_required)
         self.permission_state_path = (
             Path(permission_state_path).resolve()
             if permission_state_path is not None
@@ -1657,6 +1661,10 @@ class BrowserWorkerRuntime:
             relative = unquote(parsed.path).replace("\\", "/").lstrip("/")
             if not relative or ".." in Path(relative).parts or ":" in relative:
                 raise ValueError("workspace URL must contain a traversal-free task-relative path")
+            if self.workspace_edit_port is not None:
+                return self.workspace_edit_port.read_text(relative, encoding="utf-8").text("utf-8")
+            if self.workspace_gateway_required:
+                raise RuntimeError("workspace_gateway_unavailable")
             resolved = self.workspace_root.joinpath(*Path(relative).parts).resolve()
             resolved.relative_to(self.workspace_root)
             if resolved.is_symlink() or not resolved.is_file():
@@ -2390,6 +2398,22 @@ class BrowserWorkerRuntime:
                             if downloaded_path in collected_download_paths:
                                 continue
                             content = downloaded_path.read_bytes()
+                            workspace_download_uri = ""
+                            workspace_transaction_id = ""
+                            if self.workspace_edit_port is not None:
+                                from zyra_workspace import WorkspaceKind
+
+                                workspace_result = self.workspace_edit_port.write_bytes(
+                                    downloaded_path.name,
+                                    content,
+                                    mount_kind=WorkspaceKind.DOWNLOAD,
+                                    idempotency_key=f"browser-download:{request.request_id}:{downloaded_path.name}",
+                                    causation_id=f"browser-download:{request.request_id}",
+                                )
+                                workspace_download_uri = f"workspace://download/{downloaded_path.name}"
+                                workspace_transaction_id = workspace_result.transaction.transaction_id
+                            elif self.workspace_gateway_required:
+                                raise RuntimeError("workspace_gateway_unavailable")
                             download_artifact = self.artifact_store.write_bytes(
                                 run_id=request.run_id,
                                 task_id=request.task_id,
@@ -2401,8 +2425,10 @@ class BrowserWorkerRuntime:
                                 metadata={
                                     "browser_backend": "browser-use-live",
                                     "downloaded_file_name": downloaded_path.name,
-                                    "source_download_path": str(downloaded_path),
                                     "download_size_bytes": len(content),
+                                    "workspace_download_uri": workspace_download_uri,
+                                    "workspace_transaction_id": workspace_transaction_id,
+                                    "physical_source_persisted": False,
                                 },
                             )
                             artifacts.append(download_artifact)
@@ -2410,17 +2436,20 @@ class BrowserWorkerRuntime:
                             collected_download_paths.add(downloaded_path)
                             downloaded_files.append(
                                 {
-                                    "path": str(downloaded_path),
+                                    "uri": workspace_download_uri or f"artifact://{download_artifact.artifact_id}",
                                     "name": downloaded_path.name,
                                     "size_bytes": len(content),
                                     "artifact_id": download_artifact.artifact_id,
+                                    "workspace_transaction_id": workspace_transaction_id,
+                                    "physical_location_redacted": True,
                                 }
                             )
                         _state, output = await _browser_use_live_state(session)
                         output["download_count"] = len(downloaded_files)
                         output["downloaded_files"] = downloaded_files
                         output["download_artifact_ids"] = [artifact.artifact_id for artifact in download_artifacts]
-                        output["downloads_dir"] = str(downloads_dir)
+                        output["download_mount"] = "workspace://download/"
+                        output["physical_location_redacted"] = True
                         state_artifact = self.artifact_store.write_text(
                             run_id=request.run_id,
                             task_id=request.task_id,

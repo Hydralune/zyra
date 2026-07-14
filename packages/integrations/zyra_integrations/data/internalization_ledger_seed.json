@@ -172995,19 +172995,367 @@
           "required": false
         }
       ]
+    },
+    {
+      "capability_name": "workspace_transaction_rebind_recovery_integration",
+      "capability_summary": "Ready/freeze/snapshot/rebind/resume lifecycle coordination, durable mutation journal, rollback recovery inputs and path-free API/worker projections.",
+      "ledger_id": "ledger_e892c10a2ef9e93d",
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks",
+          "GET /workspaces/{workspace_id}",
+          "POST /workspaces/{workspace_id}/snapshot",
+          "POST /tasks/{task_id}/workers/code",
+          "POST /tasks/{task_id}/workers/browser",
+          "POST /workspaces/{workspace_id}/rebind"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "system_notice"
+        ],
+        "surfaces": [
+          "workspace_manager",
+          "task_api",
+          "code_worker",
+          "browser_worker",
+          "subagent_isolation",
+          "workspace_rebind"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "WorkspacePatchTransactionRuntime.execute"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceBindingStore",
+        "owner_unit": "M1-S05A-02",
+        "physical_worker_lease_owner": "M1-07A-deferred",
+        "root_source_runtime_dependency": false,
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=primary_implementation; runtime_required=true; OpenHands lifecycle ordering was decomposed into Zyra transaction, binding CAS, recovery, artifact and event owners; no OpenHands server, store, archive process or source path runs at runtime.",
+      "owner_unit": "M1-S05A-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/workspace/zyra_workspace/transactions.py",
+          "packages/workspace/zyra_workspace/integration_store.py",
+          "packages/workspace/zyra_workspace/rebind.py",
+          "packages/workspace/zyra_workspace/recovery.py",
+          "packages/workspace/zyra_workspace/api_service.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "WorkspacePatchTransactionRuntime.execute",
+        "health_check": "python -m pytest tests/unit/test_workspace_manager_integration.py tests/integration/test_workspace_worker_gateway.py -q",
+        "module": "zyra_workspace.transactions",
+        "protocol": "zyra-workspace-integration-v1"
+      },
+      "source_path": "openhands/app_server/app_conversation/app_conversation_start_task_service.py;openhands/app_server/sandbox/sandbox_service.py;openhands/app_server/sandbox/workspace_archive.py",
+      "source_repo": "OpenHands",
+      "target_bindings": [
+        {
+          "path": "packages/workspace/zyra_workspace/transactions.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/integration_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/rebind.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/recovery.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/api_service.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/unit/test_workspace_manager_integration.py -q",
+          "expected_signal": "transaction rollback, isolation merge/conflict, rebind CAS/recovery and handoff redaction are real",
+          "kind": "unit",
+          "path": "tests/unit/test_workspace_manager_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_workspace_worker_gateway.py -q",
+          "expected_signal": "CodeWorker and BrowserWorker use the edit gateway and fail closed without it",
+          "kind": "integration",
+          "path": "tests/integration/test_workspace_worker_gateway.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_workspace_manager_foundation.py -q",
+          "expected_signal": "workspace lifecycle, fencing, snapshot, restore, quota and cleanup are real",
+          "kind": "unit",
+          "path": "tests/unit/test_workspace_manager_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_workspace_manager_api.py -q",
+          "expected_signal": "task API and worker handoff use redacted task-scoped workspace bindings",
+          "kind": "integration",
+          "path": "tests/integration/test_workspace_manager_api.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "workspace_backend_refresh_endpoint_rebind",
+      "capability_summary": "Backend-aware endpoint registration, local workspace refresh, explicit disabled semantics and recoverable endpoint rebinding without a second canonical workspace owner.",
+      "ledger_id": "ledger_8eabe7f786dacbb5",
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks",
+          "GET /workspaces/{workspace_id}",
+          "POST /workspaces/{workspace_id}/snapshot",
+          "POST /tasks/{task_id}/workers/code",
+          "POST /tasks/{task_id}/workers/browser",
+          "POST /workspaces/{workspace_id}/rebind"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "system_notice"
+        ],
+        "surfaces": [
+          "workspace_manager",
+          "task_api",
+          "code_worker",
+          "browser_worker",
+          "subagent_isolation",
+          "workspace_rebind"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "WorkspaceRebindRuntime.rebind"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceBindingStore",
+        "owner_unit": "M1-S05A-02",
+        "physical_worker_lease_owner": "M1-07A-deferred",
+        "root_source_runtime_dependency": false,
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=supplementary_implementation; runtime_required=true; Only backend refresh and lifecycle failure semantics supplement the OpenHands primary; AgentScope routers, Docker/E2B workspaces and framework state owners remain excluded.",
+      "owner_unit": "M1-S05A-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/workspace/zyra_workspace/rebind.py",
+          "packages/workspace/zyra_workspace/manager.py",
+          "packages/workspace/zyra_workspace/integration_store.py"
+        ],
+        "function": "WorkspaceRebindRuntime.rebind",
+        "health_check": "python -m pytest tests/unit/test_workspace_manager_integration.py tests/integration/test_workspace_worker_gateway.py -q",
+        "module": "zyra_workspace.rebind",
+        "protocol": "zyra-workspace-integration-v1"
+      },
+      "source_path": "src/agentscope/app/workspace_manager/_base.py;src/agentscope/app/workspace_manager/_local_workspace_manager.py;src/agentscope/workspace/_local.py",
+      "source_repo": "agentscope",
+      "target_bindings": [
+        {
+          "path": "packages/workspace/zyra_workspace/rebind.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/manager.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/integration_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/unit/test_workspace_manager_integration.py -q",
+          "expected_signal": "transaction rollback, isolation merge/conflict, rebind CAS/recovery and handoff redaction are real",
+          "kind": "unit",
+          "path": "tests/unit/test_workspace_manager_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_workspace_worker_gateway.py -q",
+          "expected_signal": "CodeWorker and BrowserWorker use the edit gateway and fail closed without it",
+          "kind": "integration",
+          "path": "tests/integration/test_workspace_worker_gateway.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_workspace_manager_foundation.py -q",
+          "expected_signal": "workspace lifecycle, fencing, snapshot, restore, quota and cleanup are real",
+          "kind": "unit",
+          "path": "tests/unit/test_workspace_manager_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_workspace_manager_api.py -q",
+          "expected_signal": "task API and worker handoff use redacted task-scoped workspace bindings",
+          "kind": "integration",
+          "path": "tests/integration/test_workspace_manager_api.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "workspace_isolation_three_way_merge_nested_outcomes",
+      "capability_summary": "Dirty-baseline child workspace isolation, deterministic tree delta, user-WIP-preserving three-way merge, nested repository outcomes, conflict records and duplicate-delivery fencing.",
+      "ledger_id": "ledger_27c397a41775e7fd",
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks",
+          "GET /workspaces/{workspace_id}",
+          "POST /workspaces/{workspace_id}/snapshot",
+          "POST /tasks/{task_id}/workers/code",
+          "POST /tasks/{task_id}/workers/browser",
+          "POST /workspaces/{workspace_id}/rebind"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "system_notice"
+        ],
+        "surfaces": [
+          "workspace_manager",
+          "task_api",
+          "code_worker",
+          "browser_worker",
+          "subagent_isolation",
+          "workspace_rebind"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "WorkspaceIsolationRuntime.merge"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceBindingStore",
+        "owner_unit": "M1-S05A-02",
+        "physical_worker_lease_owner": "M1-07A-deferred",
+        "root_source_runtime_dependency": false,
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=supplementary_implementation; runtime_required=true; OMP baseline/merge rules were rewritten against Zyra bindings, read evidence, dirty ownership, transactions and receipts; no OMP subprocess, CLI, worktree owner or TypeScript runtime is used.",
+      "owner_unit": "M1-S05A-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/workspace/zyra_workspace/isolation.py",
+          "packages/workspace/zyra_workspace/tree_state.py",
+          "packages/workspace/zyra_workspace/transactions.py",
+          "packages/workspace/zyra_workspace/handoff.py",
+          "packages/runtime/zyra_runtime/executor.py"
+        ],
+        "function": "WorkspaceIsolationRuntime.merge",
+        "health_check": "python -m pytest tests/unit/test_workspace_manager_integration.py tests/integration/test_workspace_worker_gateway.py -q",
+        "module": "zyra_workspace.isolation",
+        "protocol": "zyra-workspace-integration-v1"
+      },
+      "source_path": "packages/coding-agent/src/task/isolation-runner.ts;packages/coding-agent/src/task/worktree.ts;packages/coding-agent/src/edit/hashline/execute.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/workspace/zyra_workspace/isolation.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/tree_state.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/transactions.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workspace/zyra_workspace/handoff.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/zyra_runtime/executor.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/unit/test_workspace_manager_integration.py -q",
+          "expected_signal": "transaction rollback, isolation merge/conflict, rebind CAS/recovery and handoff redaction are real",
+          "kind": "unit",
+          "path": "tests/unit/test_workspace_manager_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_workspace_worker_gateway.py -q",
+          "expected_signal": "CodeWorker and BrowserWorker use the edit gateway and fail closed without it",
+          "kind": "integration",
+          "path": "tests/integration/test_workspace_worker_gateway.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_workspace_manager_foundation.py -q",
+          "expected_signal": "workspace lifecycle, fencing, snapshot, restore, quota and cleanup are real",
+          "kind": "unit",
+          "path": "tests/unit/test_workspace_manager_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_workspace_manager_api.py -q",
+          "expected_signal": "task API and worker handoff use redacted task-scoped workspace bindings",
+          "kind": "integration",
+          "path": "tests/integration/test_workspace_manager_api.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 425,
+    "active_or_internalized": 428,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 370
+      "productized": 373
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -173015,7 +173363,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 131,
+      "tested_main_path": 134,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -173047,18 +173395,19 @@
       "M1-S04D-01": 4,
       "M1-S04D-02": 3,
       "M1-S05A-01": 5,
+      "M1-S05A-02": 3,
       "M2-01A": 46,
       "M2-03B": 30
     },
     "by_source_repo": {
-      "OpenHands": 84,
+      "OpenHands": 85,
       "agent-framework": 93,
-      "agentscope": 100,
+      "agentscope": 101,
       "browser-use": 109,
       "claude-code-best": 509,
       "hermes-agent": 80,
       "langgraph": 85,
-      "oh-my-pi": 7,
+      "oh-my-pi": 8,
       "openclaw": 86,
       "opencode": 14
     },
@@ -173068,7 +173417,7 @@
       "direct_port": 13,
       "not_selected": 14,
       "planned_adapter": 378,
-      "reimplemented_pattern": 229,
+      "reimplemented_pattern": 232,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 734,
@@ -173085,10 +173434,10 @@
       "packages/skills": 48,
       "packages/symbolic": 1,
       "packages/workers": 164,
-      "packages/workspace": 5,
+      "packages/workspace": 8,
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1167
+    "total_entries": 1170
   }
 }

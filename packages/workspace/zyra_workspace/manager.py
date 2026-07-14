@@ -11,6 +11,7 @@ from typing import Any, Callable, Mapping
 
 from .dirty_state import DirtyOwnershipStore, WorkspaceDirtyStateRuntime
 from .errors import WorkspaceError, WorkspaceErrorCode
+from .integration_store import WorkspaceIntegrationStore
 from .local_backend import LocalWorkspaceBackend, WorkspaceAccessHandle
 from .models import (
     LocalWorkspaceLocation,
@@ -151,6 +152,11 @@ class WorkspaceManagerRuntime:
             disabled=not config.local_enabled,
             max_receipts=config.max_receipts,
         )
+        self.integration_store = WorkspaceIntegrationStore(
+            config.state_root / "integration",
+            disabled=not config.local_enabled,
+            max_receipts_per_workspace=config.max_receipts,
+        )
         self.reservation_store = QuotaReservationStore(
             config.state_root / "quota-reservations.json",
             disabled=not config.local_enabled,
@@ -237,6 +243,7 @@ class WorkspaceManagerRuntime:
                 "canonical_owner": "WorkspaceManagerRuntime",
                 "physical_location_public": False,
                 "artifact_byte_owner": "LocalArtifactStore",
+                "endpoint_id": self.config.default_backend_id,
             },
         )
         started_at = utc_now()
@@ -310,6 +317,24 @@ class WorkspaceManagerRuntime:
             raise
 
     def acquire_for_worker(
+        self,
+        *,
+        task_id: str,
+        session_id: str = "",
+        worker_id: str,
+        operations: tuple[WorkspaceOperation, ...] | None = None,
+    ) -> WorkspaceAccessHandle:
+        binding = self.store.find_binding(task_id=task_id, session_id=session_id, workspace_kind="task")
+        lock_keys = (f"task:{task_id}",) if binding is None else (f"task:{task_id}", binding.workspace_id)
+        with self.integration_store.workspace_locks.acquire_many(lock_keys):
+            return self._acquire_for_worker_unlocked(
+                task_id=task_id,
+                session_id=session_id,
+                worker_id=worker_id,
+                operations=operations,
+            )
+
+    def _acquire_for_worker_unlocked(
         self,
         *,
         task_id: str,
@@ -408,11 +433,29 @@ class WorkspaceManagerRuntime:
         causation_id: str = "",
         include_dirty_state: bool = True,
     ) -> WorkspaceSnapshot:
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            return self._snapshot_unlocked(
+                workspace_id,
+                causation_id=causation_id,
+                include_dirty_state=include_dirty_state,
+            )
+
+    def _snapshot_unlocked(
+        self,
+        workspace_id: str,
+        *,
+        causation_id: str = "",
+        include_dirty_state: bool = True,
+    ) -> WorkspaceSnapshot:
         self._require_enabled()
         started_at = utc_now()
         binding = self.store.require_binding(workspace_id)
         previous_state = binding.lifecycle_state
-        if previous_state not in {WorkspaceLifecycleState.OPEN, WorkspaceLifecycleState.READY}:
+        if previous_state not in {
+            WorkspaceLifecycleState.OPEN,
+            WorkspaceLifecycleState.READY,
+            WorkspaceLifecycleState.WRITE_FROZEN,
+        }:
             raise WorkspaceError(
                 WorkspaceErrorCode.INVALID_TRANSITION,
                 "Workspace snapshots require a ready or open binding.",
@@ -452,11 +495,16 @@ class WorkspaceManagerRuntime:
                 metadata={"workspace_kind": binding.workspace_kind.value},
             )
             self.store.put_snapshot(snapshot)
+            after_state = (
+                WorkspaceLifecycleState.WRITE_FROZEN
+                if previous_state is WorkspaceLifecycleState.WRITE_FROZEN
+                else WorkspaceLifecycleState.OPEN
+            )
             opened = self._transition(
                 frozen,
-                WorkspaceLifecycleState.OPEN,
+                after_state,
                 active_snapshot_id=snapshot.snapshot_id,
-                write_frozen_reason="",
+                write_frozen_reason=(binding.write_frozen_reason if after_state is WorkspaceLifecycleState.WRITE_FROZEN else ""),
             )
             receipt = self._receipt(
                 binding=opened,
@@ -490,6 +538,20 @@ class WorkspaceManagerRuntime:
             raise
 
     def restore(
+        self,
+        workspace_id: str,
+        snapshot_id: str,
+        *,
+        causation_id: str = "",
+    ) -> SnapshotRestoreResult:
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            return self._restore_unlocked(
+                workspace_id,
+                snapshot_id,
+                causation_id=causation_id,
+            )
+
+    def _restore_unlocked(
         self,
         workspace_id: str,
         snapshot_id: str,
@@ -562,6 +624,38 @@ class WorkspaceManagerRuntime:
                 metadata={"exception_type": type(error).__name__},
             )
             self.store.put_recovery(recovery)
+            from .integration_models import (
+                IntegrationOperation,
+                RecoverySeverity,
+                WorkspaceRecoveryInput,
+            )
+
+            recovery_input = self.integration_store.put_recovery_input(
+                WorkspaceRecoveryInput(
+                    recovery_input_id=new_workspace_id("workspace-recovery-input"),
+                    workspace_id=workspace_id,
+                    operation=IntegrationOperation.RESTORE,
+                    severity=RecoverySeverity.BACKEND_UNAVAILABLE_CANDIDATE,
+                    reason_code="snapshot_restore_failed",
+                    owner_epoch=latest.owner_epoch,
+                    binding_revision=latest.binding_revision,
+                    snapshot_id=snapshot_id,
+                    retryable=True,
+                    evidence_refs=(
+                        f"workspace-snapshot://{snapshot_id}",
+                        f"workspace-recovery://{recovery.recovery_id}",
+                    ),
+                    recommended_actions=(
+                        "verify_snapshot",
+                        "fence_workspace_writes",
+                        "replan_backend_placement",
+                    ),
+                    metadata={
+                        "exception_type": type(error).__name__,
+                        "downstream_consumers": ["M1-05C", "M1-07C"],
+                    },
+                )
+            )
             failed = self._transition(
                 latest,
                 WorkspaceLifecycleState.RECOVERY_REQUIRED,
@@ -580,9 +674,33 @@ class WorkspaceManagerRuntime:
                 error=error,
                 message="workspace restore failed and requires recovery",
             )
+            self._emit(
+                "workspace.backend_unavailable_candidate",
+                failed,
+                causation_id=causation_id,
+                metadata={
+                    "snapshot_id": snapshot_id,
+                    "recovery_input_id": recovery_input.recovery_input_id,
+                    "reason_code": recovery_input.reason_code,
+                },
+            )
             raise
 
     def cleanup(
+        self,
+        workspace_id: str,
+        *,
+        causation_id: str = "",
+        archive: bool = True,
+    ) -> WorkspaceOperationReceipt:
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            return self._cleanup_unlocked(
+                workspace_id,
+                causation_id=causation_id,
+                archive=archive,
+            )
+
+    def _cleanup_unlocked(
         self,
         workspace_id: str,
         *,
@@ -657,6 +775,52 @@ class WorkspaceManagerRuntime:
         self.snapshot_runtime.prune_uncommitted()
         recoveries: list[WorkspaceRecoveryRecord] = []
         for binding in self.store.list_bindings(include_deleted=False):
+            if (
+                binding.lifecycle_state is WorkspaceLifecycleState.CLEANING
+                and binding.active_snapshot_id
+            ):
+                try:
+                    root = self.backend.physical_root(binding)
+                    quarantine_ref = "already_absent_after_interrupted_cleanup"
+                    if root.exists():
+                        quarantine_ref = self.backend.archive_and_cleanup_root(
+                            binding,
+                            archived_snapshot_id=binding.active_snapshot_id,
+                        )
+                    deleted = self._transition(
+                        binding,
+                        WorkspaceLifecycleState.DELETED,
+                        write_frozen_reason="",
+                        metadata={
+                            **dict(binding.metadata),
+                            "cleanup_quarantine_ref": quarantine_ref,
+                            "cleanup_resumed_on_startup": True,
+                        },
+                    )
+                    recovery = WorkspaceRecoveryRecord(
+                        recovery_id=new_workspace_id("recovery"),
+                        workspace_id=binding.workspace_id,
+                        state=RecoveryState.RESTORED,
+                        reason="interrupted_cleanup_resumed",
+                        source_snapshot_id=binding.active_snapshot_id,
+                        owner_epoch_before=binding.owner_epoch,
+                        owner_epoch_after=deleted.owner_epoch,
+                        completed_at=utc_now(),
+                        outcome="cleanup_completed",
+                        retryable=False,
+                        metadata={"quarantine_ref": quarantine_ref},
+                    )
+                    self.store.put_recovery(recovery)
+                    self._emit(
+                        "workspace.cleanup.recovered",
+                        deleted,
+                        metadata={"recovery_id": recovery.recovery_id},
+                    )
+                    recoveries.append(recovery)
+                    continue
+                except WorkspaceError:
+                    # Fall through to the generic recovery-required record.
+                    pass
             try:
                 self.backend.open(binding)
                 if binding.lifecycle_state in {
@@ -695,7 +859,252 @@ class WorkspaceManagerRuntime:
                         write_frozen_reason="startup_recovery",
                     )
                 recoveries.append(recovery)
+        from .recovery import WorkspaceOperationRecoveryRuntime
+
+        for recovery_input in WorkspaceOperationRecoveryRuntime(self).recover():
+            self.emit_integration_event(
+                "workspace.recovery_input",
+                recovery_input.workspace_id,
+                metadata={
+                    "recovery_input_id": recovery_input.recovery_input_id,
+                    "reason_code": recovery_input.reason_code,
+                    "severity": recovery_input.severity.value,
+                },
+            )
         return tuple(recoveries)
+
+    def freeze_for_integration(
+        self,
+        workspace_id: str,
+        *,
+        reason: str,
+        causation_id: str = "",
+    ) -> WorkspaceBinding:
+        """Freeze writes under the shared workspace coordination guard."""
+
+        self._require_enabled()
+        reason_text = str(reason or "").strip()
+        if not reason_text:
+            raise WorkspaceError(
+                WorkspaceErrorCode.INVALID_ARGUMENT,
+                "Workspace integration freeze requires a reason.",
+                workspace_id=workspace_id,
+                operation="freeze_workspace_integration",
+            )
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            binding = self.store.require_binding(workspace_id)
+            if binding.lifecycle_state is WorkspaceLifecycleState.WRITE_FROZEN:
+                if binding.write_frozen_reason != reason_text:
+                    raise WorkspaceError(
+                        WorkspaceErrorCode.OPERATION_IN_PROGRESS,
+                        "Workspace is frozen by a different integration operation.",
+                        workspace_id=workspace_id,
+                        operation="freeze_workspace_integration",
+                        expected=binding.write_frozen_reason,
+                        actual=reason_text,
+                    )
+                return binding
+            if binding.lifecycle_state is not WorkspaceLifecycleState.OPEN:
+                raise WorkspaceError(
+                    WorkspaceErrorCode.INVALID_TRANSITION,
+                    "Workspace integration freeze requires an open binding.",
+                    workspace_id=workspace_id,
+                    operation="freeze_workspace_integration",
+                    actual=binding.lifecycle_state.value,
+                )
+            frozen = self._transition(
+                binding,
+                WorkspaceLifecycleState.WRITE_FROZEN,
+                write_frozen_reason=reason_text,
+            )
+            self._emit(
+                "workspace.write.frozen",
+                frozen,
+                causation_id=causation_id,
+                metadata={"reason": reason_text},
+            )
+            return frozen
+
+    def resume_after_integration_failure(
+        self,
+        workspace_id: str,
+        *,
+        worker_id: str,
+        reason: str,
+        causation_id: str = "",
+    ) -> WorkspaceAccessHandle:
+        """Reopen the canonical source and rotate stale access after rollback."""
+
+        self._require_enabled()
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            binding = self.store.require_binding(workspace_id)
+            if binding.lifecycle_state is WorkspaceLifecycleState.WRITE_FROZEN:
+                binding = self._transition(
+                    binding,
+                    WorkspaceLifecycleState.OPEN,
+                    write_frozen_reason="",
+                )
+            elif binding.lifecycle_state is WorkspaceLifecycleState.RECOVERY_REQUIRED:
+                binding = self._transition(
+                    binding,
+                    WorkspaceLifecycleState.OPEN,
+                    write_frozen_reason="",
+                    recovery_record_id="",
+                )
+            elif binding.lifecycle_state is not WorkspaceLifecycleState.OPEN:
+                raise WorkspaceError(
+                    WorkspaceErrorCode.INVALID_TRANSITION,
+                    "Workspace cannot resume from its current lifecycle state.",
+                    workspace_id=workspace_id,
+                    operation="resume_workspace_integration",
+                    actual=binding.lifecycle_state.value,
+                )
+            access = self._transfer_lease(binding, worker_id=worker_id, operations=None)
+            self._emit(
+                "workspace.integration.resumed",
+                self.store.require_binding(workspace_id),
+                causation_id=causation_id,
+                metadata={"reason": str(reason or "integration_failure")},
+            )
+            return access
+
+    def rotate_after_integration(
+        self,
+        workspace_id: str,
+        *,
+        worker_id: str,
+        active_snapshot_id: str = "",
+        causation_id: str = "",
+        reason: str = "integration_commit",
+    ) -> WorkspaceAccessHandle:
+        """Fence stale handles after a composite mutation commits."""
+
+        self._require_enabled()
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            binding = self.store.require_binding(workspace_id)
+            if binding.lifecycle_state is not WorkspaceLifecycleState.OPEN:
+                raise WorkspaceError(
+                    WorkspaceErrorCode.INVALID_TRANSITION,
+                    "Workspace epoch rotation requires an open binding.",
+                    workspace_id=workspace_id,
+                    operation="rotate_workspace_integration_epoch",
+                    actual=binding.lifecycle_state.value,
+                )
+            old_leases = self.store.list_leases(workspace_id)
+            updated, access = self._rotate_after_mutation(
+                binding,
+                worker_id=worker_id,
+                active_snapshot_id=active_snapshot_id or binding.active_snapshot_id,
+            )
+            for lease in old_leases:
+                if lease.lease_id == updated.lease_id:
+                    continue
+                if lease.state is WorkspaceLeaseState.ACTIVE:
+                    self.store.update_lease(replace(lease, state=WorkspaceLeaseState.REVOKED))
+                self._tokens.pop(lease.lease_id, None)
+            self.backend.file_state.invalidate(workspace_id)
+            self._emit(
+                "workspace.integration.epoch.rotated",
+                updated,
+                causation_id=causation_id,
+                metadata={"worker_id": worker_id, "reason": reason},
+            )
+            return access
+
+    def commit_local_rebind(
+        self,
+        workspace_id: str,
+        *,
+        expected_revision: int,
+        expected_owner_epoch: int,
+        target_location: LocalWorkspaceLocation,
+        target_endpoint_id: str,
+        target_backend_id: str,
+        target_capability_revision: int,
+        worker_id: str,
+        active_snapshot_id: str,
+        rebind_id: str,
+        causation_id: str = "",
+    ) -> WorkspaceAccessHandle:
+        """Commit the sole local rebind switch through one binding CAS."""
+
+        self._require_enabled()
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            current = self.store.require_binding(workspace_id)
+            if current.lifecycle_state is not WorkspaceLifecycleState.WRITE_FROZEN:
+                raise WorkspaceError(
+                    WorkspaceErrorCode.INVALID_TRANSITION,
+                    "Workspace rebind commit requires a frozen source binding.",
+                    workspace_id=workspace_id,
+                    operation="commit_workspace_rebind",
+                    actual=current.lifecycle_state.value,
+                )
+            new_lease_id = new_workspace_id("lease")
+            fence_token = secrets.token_urlsafe(32)
+            updated = self.store.compare_and_swap_binding(
+                workspace_id,
+                expected_revision=expected_revision,
+                expected_owner_epoch=expected_owner_epoch,
+                update=lambda binding: replace(
+                    binding,
+                    location=target_location,
+                    backend_id=target_backend_id,
+                    capability_revision=int(target_capability_revision),
+                    owner_epoch=binding.owner_epoch + 1,
+                    lease_id=new_lease_id,
+                    fence_token_hash=_fence_hash(fence_token),
+                    lifecycle_state=WorkspaceLifecycleState.OPEN,
+                    active_snapshot_id=active_snapshot_id,
+                    write_frozen_reason="",
+                    binding_revision=binding.binding_revision + 1,
+                    updated_at=utc_now(),
+                    metadata={
+                        **dict(binding.metadata),
+                        "endpoint_id": str(target_endpoint_id),
+                        "rebind_id": rebind_id,
+                        "physical_location_public": False,
+                    },
+                ),
+            )
+            old_leases = self.store.list_leases(workspace_id)
+            for lease in old_leases:
+                if lease.state is WorkspaceLeaseState.ACTIVE:
+                    self.store.update_lease(replace(lease, state=WorkspaceLeaseState.REVOKED))
+                self._tokens.pop(lease.lease_id, None)
+            lease = self._new_lease(
+                updated,
+                worker_id=worker_id,
+                lease_id=new_lease_id,
+                fence_token=fence_token,
+            )
+            self.store.put_lease(lease)
+            self._tokens[new_lease_id] = fence_token
+            self.backend.file_state.invalidate(workspace_id)
+            usage = self.backend.scan_usage(updated)
+            self.quota_runtime.reconcile_usage(workspace_id, usage)
+            self._emit(
+                "workspace.rebind.binding_switched",
+                updated,
+                causation_id=causation_id,
+                metadata={"rebind_id": rebind_id, "worker_id": worker_id},
+            )
+            return self.backend.access_handle(updated, lease, fence_token=fence_token)
+
+    def emit_integration_event(
+        self,
+        event_type: str,
+        workspace_id: str,
+        *,
+        causation_id: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        binding = self.store.require_binding(workspace_id)
+        self._emit(
+            str(event_type),
+            binding,
+            causation_id=causation_id,
+            metadata=metadata,
+        )
 
     def health(self) -> dict[str, Any]:
         return {
@@ -703,6 +1112,7 @@ class WorkspaceManagerRuntime:
             "state_owner": "WorkspaceManagerRuntime+WorkspaceBindingStore",
             "default_backend": self.backend.health(),
             "store": self.store.health(),
+            "integration_store": self.integration_store.health(),
             "binding_count": len(self.store.list_bindings(include_deleted=True)) if self.config.local_enabled else 0,
             "physical_paths_public": False,
             "fallback_backend": None,
@@ -935,7 +1345,12 @@ ALLOWED_TRANSITIONS: Mapping[WorkspaceLifecycleState, frozenset[WorkspaceLifecyc
         }
     ),
     WorkspaceLifecycleState.SNAPSHOTTING: frozenset(
-        {WorkspaceLifecycleState.OPEN, WorkspaceLifecycleState.READY, WorkspaceLifecycleState.RECOVERY_REQUIRED}
+        {
+            WorkspaceLifecycleState.OPEN,
+            WorkspaceLifecycleState.READY,
+            WorkspaceLifecycleState.WRITE_FROZEN,
+            WorkspaceLifecycleState.RECOVERY_REQUIRED,
+        }
     ),
     WorkspaceLifecycleState.RESTORING: frozenset(
         {WorkspaceLifecycleState.OPEN, WorkspaceLifecycleState.RECOVERY_REQUIRED}
