@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Any
+
+from zyra_runtime.sandbox_gateway.command_policy import StructuredCommandPolicy
+from zyra_runtime.sandbox_gateway.file_policy import GatewayFilePolicy
+from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRuntime
+from zyra_runtime.sandbox_gateway.integration_policy import (
+    GatewayPolicyConfig,
+    GatewayPolicyRuntime,
+)
 
 
 def code_worker_entrypoint(project_root: str | Path) -> Path:
@@ -12,11 +19,25 @@ def code_worker_entrypoint(project_root: str | Path) -> Path:
 
 
 class CodeWorkerSidecarClient:
-    def __init__(self, project_root: str | Path, node_executable: str | None = None) -> None:
+    def __init__(
+        self,
+        project_root: str | Path,
+        node_executable: str | None = None,
+        *,
+        host_process_runtime: GatewayHostProcessRuntime | None = None,
+    ) -> None:
         self.project_root = Path(project_root)
         self.bun_executable = shutil.which("bun")
         self.node_executable = node_executable or shutil.which("node") or "node"
         self.entrypoint = code_worker_entrypoint(self.project_root)
+        self.host_process_runtime = host_process_runtime or GatewayHostProcessRuntime(
+            GatewayPolicyRuntime(
+                GatewayPolicyConfig(workspace_root=self.project_root.resolve()),
+                command_policy=StructuredCommandPolicy(),
+                file_policy=GatewayFilePolicy(),
+            ),
+            allowed_roots=(self.project_root,),
+        )
 
     def health(self) -> dict[str, Any]:
         return self._run_one_shot("--health")
@@ -47,14 +68,20 @@ class CodeWorkerSidecarClient:
                 flag,
             ]
         )
-        completed = subprocess.run(
-            command,
+        completed = self.host_process_runtime.run(
+            executable=command[0],
+            argv=command[1:],
             cwd=self.project_root,
-            check=True,
-            capture_output=True,
-            text=True,
+            timeout_seconds=30.0,
+            operation_name=f"code-worker-{flag.lstrip('-')}",
         )
-        first_line = completed.stdout.splitlines()[0]
+        if not completed.ok:
+            raise RuntimeError(
+                completed.stderr.decode("utf-8", errors="replace")
+                or completed.failure_code
+                or "code worker control process failed"
+            )
+        first_line = completed.stdout.decode("utf-8", errors="replace").splitlines()[0]
         payload = json.loads(first_line)
         if not payload.get("ok", True):
             raise RuntimeError(str(payload.get("error") or "code worker sidecar failed"))

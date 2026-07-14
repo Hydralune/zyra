@@ -85,6 +85,9 @@ from zyra_runtime.permission.extensions import (
 )
 
 from .code_worker_bridge import CodeWorkerSidecarClient
+from zyra_runtime.sandbox_gateway.integration_factory import (
+    install_gateway_runtime_services,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,7 +160,13 @@ class CodeWorkerRuntime:
         )
         self.mcp_runtime = mcp_runtime
         self.skill_fork_port = skill_fork_port
-        self.runtime_services = dict(runtime_services or {})
+        self.runtime_services = install_gateway_runtime_services(
+            runtime_services,
+            workspace_root=workspace_root,
+            artifact_root=artifact_root,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=dict(runtime_services or {}).get("workspace_edit_port"),
+        )
         self.execution_context = ToolExecutionContext.for_workspace(
             workspace_root=workspace_root,
             artifact_root=artifact_root,

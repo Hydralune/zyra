@@ -156,6 +156,40 @@ class ToolExecutor:
                 metadata={"tool_name": call.tool_name},
             )
 
+        gateway_router = self.context.runtime_services.get("sandbox_gateway_router")
+        gateway_required = bool(
+            self.context.runtime_services.get("sandbox_gateway_required", False)
+        )
+        gateway_owned_tools = {
+            "shell",
+            "file_read",
+            "file_write",
+            "file_edit",
+            "file_delete",
+            "artifact_write",
+        }
+        if gateway_router is not None and callable(getattr(gateway_router, "handles", None)):
+            if gateway_router.handles(call.tool_name):
+                return gateway_router.execute(
+                    call,
+                    permission_grant=permission_grant,
+                    permission_authority=self._permission_authority,
+                    permission_execution_context=self._permission_execution_view,
+                )
+        if gateway_required and call.tool_name in gateway_owned_tools:
+            return ToolResult(
+                tool_call_id=call.tool_call_id,
+                ok=False,
+                summary="SandboxGateway is required but unavailable.",
+                error="sandbox_gateway_unavailable",
+                metadata={
+                    "tool_name": call.tool_name,
+                    "sandbox_gateway_required": "true",
+                    "sandbox_gateway_routed": "false",
+                    "fallback_used": "false",
+                },
+            )
+
         dynamic_handler = self._dynamic_handlers.get(call.tool_name)
         dynamic_provenance: DynamicToolProvenance | None = None
         if dynamic_handler is not None:
@@ -276,7 +310,38 @@ class ToolExecutor:
                 )
                 if not authorized and not internal_protocol:
                     return self._missing_grant_result(call)
-                result = dynamic_handler(call)
+                mcp_boundary = self.context.runtime_services.get(
+                    "sandbox_gateway_mcp_boundary"
+                )
+                if (
+                    dynamic_provenance is not None
+                    and dynamic_provenance.external_boundary
+                    and mcp_boundary is not None
+                ):
+                    result = mcp_boundary.execute(
+                        call,
+                        dynamic_handler,
+                        provenance=dynamic_provenance,
+                        authorized=authorized,
+                    )
+                elif (
+                    dynamic_provenance is not None
+                    and dynamic_provenance.external_boundary
+                    and gateway_required
+                ):
+                    return ToolResult(
+                        tool_call_id=call.tool_call_id,
+                        ok=False,
+                        summary="External dynamic tool has no SandboxGateway boundary.",
+                        error="sandbox_gateway_mcp_boundary_unavailable",
+                        metadata={
+                            "tool_name": call.tool_name,
+                            "sandbox_gateway_required": "true",
+                            "fallback_used": "false",
+                        },
+                    )
+                else:
+                    result = dynamic_handler(call)
                 if not isinstance(result, ToolResult):
                     raise TypeError(
                         f"dynamic handler for {call.tool_name!r} returned "
@@ -632,35 +697,16 @@ class ToolExecutor:
                 },
             )
 
-        completed = subprocess.run(
-            command,
-            cwd=self._workspace_root,
-            shell=True,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=int(call.arguments.get("timeout_seconds") or self._shell_timeout_seconds),
-        )
-        stdout_artifact = self._large_output_artifact(call, "stdout", completed.stdout)
-        stderr_artifact = self._large_output_artifact(call, "stderr", completed.stderr)
         return ToolResult(
             tool_call_id=call.tool_call_id,
-            ok=completed.returncode == 0,
-            summary=f"Shell exited with code {completed.returncode}",
-            output={
-                "command": command,
-                "returncode": completed.returncode,
-                "stdout": self._inline_text(completed.stdout),
-                "stderr": self._inline_text(completed.stderr),
-                "stdout_truncated": stdout_artifact is not None,
-                "stderr_truncated": stderr_artifact is not None,
-            },
-            artifacts=[item for item in [stdout_artifact, stderr_artifact] if item is not None],
-            error=None if completed.returncode == 0 else "non_zero_exit",
+            ok=False,
+            summary="Shell execution requires SandboxGateway.",
+            error="sandbox_gateway_unavailable",
             metadata={
                 "permission_effect": str(permission.effect),
                 "permission_execution_grant_present": str(authorized).lower(),
                 "raw_approved_argument_ignored": str(call.arguments.get("approved") is True).lower(),
+                "raw_shell_fallback": "disabled",
             },
         )
 

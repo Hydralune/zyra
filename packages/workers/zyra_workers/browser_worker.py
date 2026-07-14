@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from zyra_runtime.sandbox_gateway.integration_factory import (
+    install_gateway_runtime_services,
+)
+
 import html
 import asyncio
 import json
 import os
 import re
-import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
@@ -154,6 +157,7 @@ class BrowserWorkerRuntime:
         browser_observability_application: BrowserObservabilityApplication | None = None,
         workspace_edit_port: Any | None = None,
         workspace_gateway_required: bool = False,
+        sandbox_gateway_boundary: Any | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -161,6 +165,21 @@ class BrowserWorkerRuntime:
         self.artifact_store = LocalArtifactStore(artifact_root)
         self.workspace_edit_port = workspace_edit_port
         self.workspace_gateway_required = bool(workspace_gateway_required)
+        gateway_services = install_gateway_runtime_services(
+            {
+                "workspace_edit_port": workspace_edit_port,
+                "workspace_gateway_required": workspace_gateway_required,
+                "sandbox_gateway_required": workspace_gateway_required,
+            },
+            workspace_root=self.workspace_root,
+            artifact_root=self.artifact_store.root,
+            worker_id="BrowserWorker",
+            workspace_edit_port=workspace_edit_port,
+        )
+        self.sandbox_gateway_boundary = (
+            sandbox_gateway_boundary
+            or gateway_services.get("sandbox_gateway_browser_boundary")
+        )
         self.permission_state_path = (
             Path(permission_state_path).resolve()
             if permission_state_path is not None
@@ -1654,35 +1673,9 @@ class BrowserWorkerRuntime:
         if not url:
             raise ValueError("url is required")
         _validate_allowed_url(url, request.constraints)
-        parsed = urlparse(url)
-        if parsed.scheme == "workspace":
-            if parsed.netloc not in {"", "task"}:
-                raise ValueError("workspace URL authority must be empty or 'task'")
-            relative = unquote(parsed.path).replace("\\", "/").lstrip("/")
-            if not relative or ".." in Path(relative).parts or ":" in relative:
-                raise ValueError("workspace URL must contain a traversal-free task-relative path")
-            if self.workspace_edit_port is not None:
-                return self.workspace_edit_port.read_text(relative, encoding="utf-8").text("utf-8")
-            if self.workspace_gateway_required:
-                raise RuntimeError("workspace_gateway_unavailable")
-            resolved = self.workspace_root.joinpath(*Path(relative).parts).resolve()
-            resolved.relative_to(self.workspace_root)
-            if resolved.is_symlink() or not resolved.is_file():
-                raise ValueError("workspace URL target must be a real task file")
-            return resolved.read_text(encoding="utf-8")
-        if parsed.scheme == "file":
-            path = Path(urllib.request.url2pathname(unquote(parsed.path)))
-            if parsed.netloc:
-                path = Path(f"//{parsed.netloc}{urllib.request.url2pathname(unquote(parsed.path))}")
-            resolved = path.resolve()
-            resolved.relative_to(self.workspace_root)
-            return resolved.read_text(encoding="utf-8")
-        if parsed.scheme in {"http", "https"}:
-            request_obj = urllib.request.Request(url, headers={"User-Agent": "ZyraBrowserWorker/0.1"})
-            with urllib.request.urlopen(request_obj, timeout=self.timeout_seconds) as response:
-                charset = response.headers.get_content_charset() or "utf-8"
-                return response.read().decode(charset, errors="replace")
-        raise ValueError(f"unsupported URL scheme: {parsed.scheme}")
+        if self.sandbox_gateway_boundary is not None:
+            return self.sandbox_gateway_boundary.load_url(url, request)
+        raise RuntimeError("sandbox_gateway_unavailable")
 
     def _run_browser_use_live(
         self,
@@ -1691,6 +1684,47 @@ class BrowserWorkerRuntime:
         plan: list[dict[str, Any]],
         permission_gate: BrowserActionPermissionGate,
     ) -> BrowserWorkerRun:
+        if self.sandbox_gateway_boundary is None and self.workspace_gateway_required:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary="Browser live execution requires SandboxGateway.",
+                error="sandbox_gateway_unavailable",
+                metadata={
+                    **_snapshot_metadata(snapshot),
+                    **permission_gate.metadata(),
+                    "browser_backend": "browser-use-live",
+                    "sandbox_gateway_required": "true",
+                    "fallback_used": "false",
+                },
+            )
+            return BrowserWorkerRun(
+                worker_result=worker_result,
+                event_records=[_worker_result_event(request, worker_result)],
+                permission_session_custody_token=permission_gate.custody_token,
+            )
+        if self.sandbox_gateway_boundary is not None:
+            plan_receipt = self.sandbox_gateway_boundary.preflight_plan(request, plan)
+            if not plan_receipt.allowed:
+                worker_result = WorkerResult(
+                    request_id=request.request_id,
+                    ok=False,
+                    summary="Browser plan was denied by SandboxGateway.",
+                    error="browser_gateway_plan_denied",
+                    metadata={
+                        **_snapshot_metadata(snapshot),
+                        **permission_gate.metadata(),
+                        "browser_backend": "browser-use-live",
+                        "sandbox_gateway_plan_receipt_id": plan_receipt.receipt_id,
+                        "sandbox_gateway_policy_digest": plan_receipt.policy_digest,
+                        "fallback_used": "false",
+                    },
+                )
+                return BrowserWorkerRun(
+                    worker_result=worker_result,
+                    event_records=[_worker_result_event(request, worker_result)],
+                    permission_session_custody_token=permission_gate.custody_token,
+                )
         if not self.browser_use_health.importable:
             worker_result = WorkerResult(
                 request_id=request.request_id,
