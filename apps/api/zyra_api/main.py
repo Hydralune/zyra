@@ -96,6 +96,44 @@ from zyra_commands.runtime import (
     deterministic_owner_authorization,
     snapshot_from_state,
 )
+import threading as _runtime_event_threading
+from pathlib import Path as _RuntimeEventPath
+
+from zyra_runtime.runtime_events import (
+    RuntimeEventApiFacade,
+    RuntimeEventProcessError,
+    get_runtime_event_spine,
+    reset_runtime_event_spines,
+)
+
+_RUNTIME_EVENT_SPINE_LOCK = _runtime_event_threading.RLock()
+_RUNTIME_EVENT_SPINE = None
+_RUNTIME_EVENT_SPINE_KEY = None
+
+
+def get_runtime_event_spine_bridge():
+    """Return the unique TypeScript event spine bound to the API database."""
+
+    global _RUNTIME_EVENT_SPINE, _RUNTIME_EVENT_SPINE_KEY
+    database = _RuntimeEventPath(sqlite_path()).expanduser().resolve()
+    artifact_root = database.parent / "runtime-event-artifacts"
+    key = (str(database), str(artifact_root))
+    with _RUNTIME_EVENT_SPINE_LOCK:
+        if _RUNTIME_EVENT_SPINE is None or _RUNTIME_EVENT_SPINE_KEY != key:
+            if _RUNTIME_EVENT_SPINE is not None:
+                _RUNTIME_EVENT_SPINE.close()
+            _RUNTIME_EVENT_SPINE = get_runtime_event_spine(
+                database_path=database,
+                artifact_root=artifact_root,
+            )
+            _RUNTIME_EVENT_SPINE_KEY = key
+        return _RUNTIME_EVENT_SPINE
+
+
+def get_runtime_event_api() -> RuntimeEventApiFacade:
+    return RuntimeEventApiFacade(get_runtime_event_spine_bridge())
+
+
 from zyra_runtime import (
     ContextAssemblyRuntime,
     ContextSessionRuntime,
@@ -1334,7 +1372,9 @@ def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
 def persist_events(store: SQLiteStore, events: list[EventRecord]) -> None:
     for event in events:
         append_jsonl_event(event, event_log_path())
-    store.append_events(events)
+    # The TypeScript spine owns sequence/idempotency/projection and atomically
+    # writes the legacy `events` compatibility rows in the same SQLite commit.
+    get_runtime_event_spine_bridge().append_legacy_events(events)
 
 
 class JsonRequestError(ValueError):
@@ -1992,6 +2032,125 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "events": [to_jsonable(item) for item in [event, *graph_events]],
                 },
             )
+            return
+
+        if parts == ["runtime-events"]:
+            try:
+                result = get_runtime_event_api().list_events(
+                    _flatten_query(parse_qs(parsed.query, keep_blank_values=True))
+                )
+            except (ValueError, RuntimeEventProcessError) as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if isinstance(error, RuntimeEventProcessError)
+                    else HTTPStatus.BAD_REQUEST,
+                    {
+                        "error": getattr(error, "code", "invalid_runtime_event_query"),
+                        "message": str(error),
+                    },
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if parts == ["runtime-events", "health"]:
+            try:
+                result = get_runtime_event_api().health()
+            except RuntimeEventProcessError as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": error.code, "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if parts == ["runtime-events", "metrics"]:
+            try:
+                result = get_runtime_event_api().metrics()
+            except RuntimeEventProcessError as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": error.code, "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if len(parts) == 2 and parts[0] == "runtime-events":
+            try:
+                result = get_runtime_event_api().get_event(parts[1])
+            except RuntimeEventProcessError as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": error.code, "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if len(parts) == 3 and parts[0] == "runtime-events" and parts[2] == "causal-chain":
+            query = _flatten_query(parse_qs(parsed.query, keep_blank_values=True))
+            try:
+                result = get_runtime_event_api().causal_chain(
+                    parts[1],
+                    max_depth=_positive_int(str(query.get("max_depth", "256")), default=256),
+                )
+            except (ValueError, RuntimeEventProcessError) as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if isinstance(error, RuntimeEventProcessError)
+                    else HTTPStatus.BAD_REQUEST,
+                    {"error": getattr(error, "code", "invalid_causal_chain_query"), "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "runtime-events":
+            try:
+                result = get_runtime_event_api().list_task_events(
+                    parts[1],
+                    _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+                )
+            except (ValueError, RuntimeEventProcessError) as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if isinstance(error, RuntimeEventProcessError)
+                    else HTTPStatus.BAD_REQUEST,
+                    {"error": getattr(error, "code", "invalid_runtime_event_query"), "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "runtime-event-history":
+            try:
+                result = get_runtime_event_api().get_task_history(
+                    parts[1],
+                    _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+                )
+            except (ValueError, RuntimeEventProcessError) as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if isinstance(error, RuntimeEventProcessError)
+                    else HTTPStatus.BAD_REQUEST,
+                    {"error": getattr(error, "code", "invalid_runtime_event_history_query"), "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "runtime-event-projection":
+            try:
+                result = get_runtime_event_api().get_task_projection(parts[1])
+            except RuntimeEventProcessError as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": error.code, "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
             return
 
         if parts == ["events"]:

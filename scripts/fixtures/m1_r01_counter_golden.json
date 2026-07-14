@@ -1,0 +1,197 @@
+{
+  "schema_version": 2,
+  "fixture_id": "m1-r01-counter-golden-v2",
+  "toolchain": {
+    "bun": "1.2.15",
+    "typescript": "5.8.3",
+    "python": "3.12"
+  },
+  "typescript_cases": [
+    {
+      "case_id": "ts-type-only",
+      "node_kind": "ModuleRange",
+      "source": "import type { Shape } from \"./types\";\ntype Alias = Shape;\ninterface Box { value: string }\n",
+      "expected_executable_sloc": 0,
+      "expected_executable_lines": []
+    },
+    {
+      "case_id": "ts-import-export-only",
+      "node_kind": "ModuleRange",
+      "source": "import { value, type Shape } from \"./runtime\";\nexport { value };\n",
+      "expected_executable_sloc": 0,
+      "expected_executable_lines": []
+    },
+    {
+      "case_id": "ts-comment-only",
+      "node_kind": "ModuleRange",
+      "source": "// ignored\n/* ignored too */\n",
+      "expected_executable_sloc": 0,
+      "expected_executable_lines": []
+    },
+    {
+      "case_id": "ts-multiline-runtime",
+      "node_kind": "ModuleRange",
+      "source": "const value =\n  call(\n    1,\n  );\n",
+      "expected_executable_sloc": 4,
+      "expected_executable_lines": [1, 2, 3, 4]
+    },
+    {
+      "case_id": "ts-decorator-runtime",
+      "node_kind": "ModuleRange",
+      "source": "@sealed\nclass Worker {\n  run() {\n    return 1;\n  }\n}\n",
+      "expected_executable_sloc": 6,
+      "expected_executable_lines": [1, 2, 3, 4, 5, 6]
+    },
+    {
+      "case_id": "ts-move-original",
+      "node_kind": "FunctionDeclaration",
+      "source": "function alpha(input: number): number {\n  if (input > 0) {\n    return input + 1;\n  }\n  return 0;\n}\n",
+      "expected_executable_sloc": 6,
+      "expected_executable_lines": [1, 2, 3, 4, 5, 6]
+    },
+    {
+      "case_id": "ts-move-renamed",
+      "node_kind": "FunctionDeclaration",
+      "source": "function beta(value: number): number {\n  if (value > 0) {\n    return value + 1;\n  }\n  return 0;\n}\n",
+      "expected_executable_sloc": 6,
+      "expected_executable_lines": [1, 2, 3, 4, 5, 6]
+    },
+    {
+      "case_id": "ts-changed",
+      "node_kind": "FunctionDeclaration",
+      "source": "function beta(value: number): number {\n  if (value > 0) {\n    return value + 2;\n  }\n  return 0;\n}\n",
+      "expected_executable_sloc": 6,
+      "expected_executable_lines": [1, 2, 3, 4, 5, 6]
+    }
+  ],
+  "python_cases": [
+    {
+      "case_id": "py-docstring-only",
+      "node_kind": "ModuleRange",
+      "source": "\"\"\"documentation\nonly\"\"\"\n",
+      "expected_executable_sloc": 0,
+      "expected_executable_lines": []
+    },
+    {
+      "case_id": "py-import-only",
+      "node_kind": "ModuleRange",
+      "source": "import os\nfrom pathlib import Path\n",
+      "expected_executable_sloc": 0,
+      "expected_executable_lines": []
+    },
+    {
+      "case_id": "py-function-original",
+      "node_kind": "FunctionDef",
+      "source": "def run(value: int) -> int:\n    return value + 1\n",
+      "expected_executable_sloc": 2,
+      "expected_executable_lines": [1, 2]
+    },
+    {
+      "case_id": "py-function-renamed",
+      "node_kind": "FunctionDef",
+      "source": "def execute(item: int) -> int:\n    return item + 1\n",
+      "expected_executable_sloc": 2,
+      "expected_executable_lines": [1, 2]
+    },
+    {
+      "case_id": "py-function-changed",
+      "node_kind": "FunctionDef",
+      "source": "def execute(item: int) -> int:\n    return item + 2\n",
+      "expected_executable_sloc": 2,
+      "expected_executable_lines": [1, 2]
+    },
+    {
+      "case_id": "py-decorator-docstring",
+      "node_kind": "FunctionDef",
+      "source": "@registered\ndef run(value: int) -> int:\n    \"\"\"ignored\"\"\"\n    return value\n",
+      "expected_executable_sloc": 3,
+      "expected_executable_lines": [1, 2, 4]
+    },
+    {
+      "case_id": "py-control",
+      "node_kind": "If",
+      "source": "if ready:\n    work()\nelse:\n    stop()\n",
+      "expected_executable_sloc": 4,
+      "expected_executable_lines": [1, 2, 3, 4]
+    },
+    {
+      "case_id": "py-pass-only",
+      "node_kind": "ModuleRange",
+      "source": "pass\n",
+      "expected_executable_sloc": 0,
+      "expected_executable_lines": []
+    },
+    {
+      "case_id": "py-type-only",
+      "node_kind": "ModuleRange",
+      "source": "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    import optional_runtime\nvalue: int\n",
+      "expected_executable_sloc": 0,
+      "expected_executable_lines": []
+    },
+    {
+      "case_id": "py-multiline-runtime",
+      "node_kind": "Assign",
+      "source": "value = call(\n    first,\n    second,\n)\n",
+      "expected_executable_sloc": 4,
+      "expected_executable_lines": [1, 2, 3, 4]
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "ts-move-does-not-count-as-change",
+      "language": "typescript",
+      "kind": "move",
+      "left_case_id": "ts-move-original",
+      "right_case_id": "ts-move-renamed",
+      "expected_same_hash": true,
+      "expected_changed_sloc": 0
+    },
+    {
+      "relation_id": "ts-renamed-clone-counts-once",
+      "language": "typescript",
+      "kind": "duplicate",
+      "left_case_id": "ts-move-original",
+      "right_case_id": "ts-move-renamed",
+      "expected_same_hash": true,
+      "expected_raw_sloc": 12,
+      "expected_unique_sloc": 6
+    },
+    {
+      "relation_id": "ts-semantic-change-has-new-hash",
+      "language": "typescript",
+      "kind": "change",
+      "left_case_id": "ts-move-renamed",
+      "right_case_id": "ts-changed",
+      "expected_same_hash": false,
+      "expected_changed_sloc": 6
+    },
+    {
+      "relation_id": "py-move-does-not-count-as-change",
+      "language": "python",
+      "kind": "move",
+      "left_case_id": "py-function-original",
+      "right_case_id": "py-function-renamed",
+      "expected_same_hash": true,
+      "expected_changed_sloc": 0
+    },
+    {
+      "relation_id": "py-renamed-clone-counts-once",
+      "language": "python",
+      "kind": "duplicate",
+      "left_case_id": "py-function-original",
+      "right_case_id": "py-function-renamed",
+      "expected_same_hash": true,
+      "expected_raw_sloc": 4,
+      "expected_unique_sloc": 2
+    },
+    {
+      "relation_id": "py-semantic-change-has-new-hash",
+      "language": "python",
+      "kind": "change",
+      "left_case_id": "py-function-renamed",
+      "right_case_id": "py-function-changed",
+      "expected_same_hash": false,
+      "expected_changed_sloc": 2
+    }
+  ]
+}

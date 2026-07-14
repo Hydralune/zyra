@@ -12,11 +12,11 @@ current strict internalization policy was added. This pass therefore treats old
 M1-02A productized Claude Code rows as source-pool evidence, not as completed
 deep internalization.
 
-## Implemented
+## Historical Python-First Implementation; Forward Source-Language Owner: M1-R01
 
-- Added a Zyra-owned Claude QueryEngine foundation:
+- Added a historical Python semantic reimplementation of the Claude QueryEngine foundation. It remains useful as executable behavior, Zyra state/event integration, and transition scaffolding, but it does not satisfy the corrected requirement to migrate and productize the Claude TypeScript core:
   - `zyra_runtime.claude_query_engine_runtime` is now the default `CodeWorkerRuntime` loop.
-  - It executes structured query turns without the Node sidecar by default.
+  - It executes structured query turns without the Node runtime by default; this is a historical implementation fact, not evidence that avoiding Node/TypeScript is a productization success criterion.
   - It binds query plan normalization, session lifecycle, tool orchestration, tool result budgeting, context compaction, control commands, and runtime state custody to Zyra stores/events/artifacts.
 
 - Added runtime modules used by the default path:
@@ -144,14 +144,14 @@ completion is judged from the targeted foundation, clean-source, ledger,
 submission-boundary, scenario, and CodeWorker runtime gates listed above rather
 than a fresh full-suite pass in this review.
 
-## Completion Decision
+## Historical Completion Decision Superseded For Source-Language Custody
 
-This remediation now passes the current `slice-02a-01` completion gates:
+This remediation passed the historical Python-first behavioral gates, but it does not close source-language custody or direct Claude TypeScript migration; the forward owner is the continuous M1-R01 remediation plan. The following evidence remains valid only for behavior and transition scaffolding:
 
 - M1-02A no longer treats productized/source-pool Claude Code files or the legacy vendored CodeWorker inventory as connected runtime completion.
 - `CodeWorkerRuntime` default path is backed by Zyra-owned QueryEngine/tool/session runtime modules.
 - The CodeWorker API inventory endpoint no longer presents the legacy vendor/source-pool inventory as the default runtime inventory.
-- Clean-source verification passes with an empty source workspace and no sidecar contracts.
+- Clean-source verification passes without root source repositories or vendor pools; this proves self-containment of the historical Python path, not correctness of replacing the Claude TypeScript runtime.
 - Clean project-copy verification passes without `vendor`, `vendor-runtimes`, or parent source repositories.
 - Disconnecting the productized QueryEngine fails the task.
 - Permission denial, context compaction, session restore, control commands, tool-use semantics, query plan audit, and runtime state custody are covered by behavior tests.

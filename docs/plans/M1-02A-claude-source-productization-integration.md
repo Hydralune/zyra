@@ -7,12 +7,12 @@ Date: 2026-07-07
 This review covers
 `docs/milestones/M1-runtime-memory-scheduler-fault/slice-02a-02-claude-source-productization-integration.md`.
 
-The slice builds on `M1-02A` foundation and turns the Claude source graph into
+The slice historically builds on the Python-first `M1-02A` foundation and turns the Claude source graph into
 default-path runtime contracts, gates, API inventory, state custody, downstream
 handoff packages, and behavior tests. No `vendor/**` or `vendor-runtimes/**`
 code is added or required for completion.
 
-## Implemented
+## Historical Python-First Integration; Forward Source-Language Owner: M1-R01
 
 - Added `ClaudeSourceGraphCrosswalk` and integration reports for all nine
   `claude-code-best` source graph batches.
@@ -107,7 +107,7 @@ git diff --cached --numstat 9121227d25a0209945fe1193b24fd2ffebbd0410 -- tests
 git diff --cached --numstat 9121227d25a0209945fe1193b24fd2ffebbd0410 -- vendor vendor-runtimes
 ```
 
-## Critical Self-Review
+## Historical Critical Self-Review And Current Limitation
 
 - Main path reachability: pass. `CodeWorkerRuntime.run` calls integration,
   RuntimeContext assembly, source graph audit, and worker gate before
@@ -121,7 +121,7 @@ git diff --cached --numstat 9121227d25a0209945fe1193b24fd2ffebbd0410 -- vendor v
 - State custody: pass for this slice. Runtime state owners are declared and
   observed through RuntimeContext/source graph audit. Deeper permission/MCP/skill
   state ownership remains with downstream owner units.
-- Source-to-target honesty: pass. Downstream-only capabilities are explicit
+- Source-to-target honesty under the historical Python-first criteria: partial. Downstream-only capabilities are explicit
   handoff contracts, not marked as completed deep internalization.
 - Residual risk: API inventory contract currently validates route payload shape
   and runtime readiness, not the future M2 UI rendering path. That is expected
