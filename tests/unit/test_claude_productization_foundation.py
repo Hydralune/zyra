@@ -104,7 +104,7 @@ class ClaudeProductizationFoundationTests(unittest.TestCase):
             capability_name="Legacy M0 CodeWorker sidecar inventory",
             capability_summary="legacy vendored connected seed row",
             target_paths=[
-                "apps/code-worker/src/main.mjs",
+                "apps/code-worker/src/main.ts",
                 "packages/workers/zyra_workers/code_worker_bridge.py",
             ],
             migration_strategy=MigrationStrategy.VENDORED_RUNTIME,

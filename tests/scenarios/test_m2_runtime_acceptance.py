@@ -82,7 +82,7 @@ class M2RuntimeAcceptanceScenario(unittest.TestCase):
                 code_run.worker_result.ok,
                 f"{code_run.worker_result.error}: {code_run.worker_result.metadata}",
             )
-            self.assertEqual(code_run.worker_result.metadata["loop"], "zyra_claude_query_engine_runtime")
+            self.assertEqual(code_run.worker_result.metadata["loop"], "zyra_typescript_query_engine_runtime")
             self.assertEqual(code_run.worker_result.metadata["query_contract_source"], "zyra-claude-productized")
             self.assertEqual(code_run.worker_result.metadata["sidecar_contracts_used"], "false")
             self.assertEqual(code_run.worker_result.metadata["tool_steps"], "3")

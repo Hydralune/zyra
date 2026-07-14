@@ -279,6 +279,9 @@ class ClaudeCleanRuntimeAuditor:
     def _scan_runtime_files_for_parent_refs(self) -> list[CleanRuntimeCheck]:
         files = [
             self.project_root / "packages" / "workers" / "zyra_workers" / "code_worker_runtime.py",
+            self.project_root / "packages" / "workers" / "zyra_workers" / "typescript_claude_runtime.py",
+            self.project_root / "packages" / "runtime" / "claude-runtime" / "src" / "query-engine.ts",
+            self.project_root / "packages" / "runtime" / "claude-runtime" / "src" / "stdio.ts",
             self.project_root / "packages" / "runtime" / "zyra_runtime" / "claude_query_engine_runtime.py",
             self.project_root / "packages" / "runtime" / "zyra_runtime" / "claude_runtime_contracts.py",
             self.project_root / "scripts" / "verify_claude_productization_foundation.py",
@@ -290,6 +293,7 @@ class ClaudeCleanRuntimeAuditor:
             "..\\" + claude_repo,
             f'ROOT.parent / "{claude_repo}"',
             "vendor-runtimes/claude-code-runtime/productized",
+            "vendor/claude-code-best",
         ]
         for path in files:
             if not path.exists():

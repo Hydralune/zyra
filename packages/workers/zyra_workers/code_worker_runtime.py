@@ -34,7 +34,6 @@ from zyra_runtime import (
     ToolSessionBridgeRuntime,
     WorkerRequest,
     WorkerResult,
-    ZyraClaudeQueryEngine,
     assemble_claude_runtime_context,
     build_worker_execution_gate_inputs,
     build_worker_execution_gate_report,
@@ -75,6 +74,7 @@ from zyra_runtime import (
     worker_execution_gate_event,
     worker_execution_gate_markdown,
 )
+from .typescript_claude_runtime import TypeScriptClaudeQueryEngine
 from zyra_skills import (
     SkillToolProjectionRuntime,
     default_mcp_skill_discovery_runtime,
@@ -133,7 +133,7 @@ class CodeWorkerRuntime:
         artifact_root: str | Path,
         sidecar_client: CodeWorkerSidecarClient | None = None,
         permission_store: JsonPermissionStore | None = None,
-        query_engine_factory: Any | None = ZyraClaudeQueryEngine,
+        query_engine_factory: Any | None = TypeScriptClaudeQueryEngine,
         permission_bypass_available: bool = False,
         permission_auto_available: bool = False,
         permission_accept_edits_available: bool = False,

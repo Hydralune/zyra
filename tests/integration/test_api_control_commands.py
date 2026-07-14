@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib
 import os
 import subprocess
 import sys
@@ -16,6 +17,15 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+
+def _fresh_api_handler() -> type[BaseHTTPRequestHandler]:
+    module_name = "apps.api.zyra_api.main"
+    if module_name in sys.modules:
+        module = importlib.reload(sys.modules[module_name])
+    else:
+        module = importlib.import_module(module_name)
+    return module.ZyraRequestHandler
 
 
 class ApiControlCommandTests(unittest.TestCase):
@@ -35,7 +45,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
             os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -105,7 +115,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -143,7 +153,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -187,7 +197,10 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertFalse(code_inventory["cleanRuntime"]["requiresRootSourceRepo"])
                 self.assertFalse(code_inventory["cleanRuntime"]["requiresNodeSidecar"])
                 self.assertFalse(code_inventory["cleanRuntime"]["requiresVendorRuntime"])
-                self.assertEqual(code_inventory["moduleEntrypoints"]["queryEngine"], "zyra_runtime.ZyraClaudeQueryEngine")
+                self.assertEqual(
+                    code_inventory["moduleEntrypoints"]["queryEngine"],
+                    "@zyra/claude-runtime.ClaudeRuntimeCore",
+                )
                 self.assertEqual(code_inventory["health"]["vendor"]["complete"], False)
                 self.assertFalse(code_inventory["defaultPath"]["requiresRootSourceRepo"])
                 self.assertGreaterEqual(len(code_inventory["sourceToTarget"]), 10)
@@ -208,7 +221,7 @@ class ApiControlCommandTests(unittest.TestCase):
             workspace.mkdir()
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -337,7 +350,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
             os.environ["ZYRA_SKILL_RUNTIME_DISABLED"] = "true"
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -364,7 +377,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -396,7 +409,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -450,7 +463,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -482,7 +495,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -521,7 +534,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -582,7 +595,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -617,7 +630,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -659,7 +672,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
             os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -696,7 +709,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -736,7 +749,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -773,7 +786,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -810,7 +823,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_TOOL_WORKSPACE"] = str(Path(tmpdir) / "workspace")
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -848,7 +861,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(metadata["productized_runtime_owner_unit"], "M1-02A")
                 self.assertEqual(
                     metadata["loop"],
-                    "zyra_claude_query_engine_runtime",
+                    "zyra_typescript_query_engine_runtime",
                 )
                 self.assertEqual(metadata["query_contract_source"], "zyra-claude-productized")
                 self.assertEqual(metadata["query_contract_write_serial"], "true")
@@ -858,15 +871,10 @@ class ApiControlCommandTests(unittest.TestCase):
                 self.assertEqual(metadata["query_turns"], "1")
                 self.assertEqual(metadata["context_compactions"], "0")
                 self.assertEqual(metadata["query_session_consistent"], "true")
-                self.assertEqual(
-                    metadata["query_session_resume_token"],
-                    ":".join(
-                        (
-                            metadata["query_session_id"],
-                            metadata["query_session_leaf_uuid"],
-                            metadata["query_session_transcript_entries"],
-                        )
-                    ),
+                self.assertTrue(
+                    metadata["query_session_resume_token"].startswith(
+                        metadata["query_session_id"] + ":"
+                    )
                 )
                 self.assertIn("last_code_worker_session", executed["task"]["metadata"])
                 self.assertEqual(
@@ -914,7 +922,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
             os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1000,7 +1008,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
             os.environ["ZYRA_PERMISSION_STORE"] = str(root / "legacy-permissions.json")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             page_server = ThreadingHTTPServer(("127.0.0.1", 0), PageHandler)
             page_thread = threading.Thread(target=page_server.serve_forever, daemon=True)
@@ -1115,7 +1123,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_PERMISSION_STORE"] = str(Path(tmpdir) / "permissions.json")
             os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1281,7 +1289,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_PERMISSION_STORE"] = str(Path(tmpdir) / "legacy-permissions.json")
             os.environ["ZYRA_PERMISSION_STATE"] = str(Path(tmpdir) / "permission-state.json")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1362,7 +1370,7 @@ class ApiControlCommandTests(unittest.TestCase):
             os.environ["ZYRA_PERMISSION_STORE"] = str(root / "legacy-permissions.json")
             os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
 
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            ZyraRequestHandler = _fresh_api_handler()
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)

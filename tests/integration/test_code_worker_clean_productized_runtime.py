@@ -67,7 +67,7 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
             self.assertTrue(run.worker_result.ok)
             self.assertEqual(run.worker_result.metadata["sidecar_contracts_used"], "false")
             self.assertEqual(run.worker_result.metadata["query_contract_source"], "zyra-claude-productized")
-            self.assertEqual(run.worker_result.metadata["loop"], "zyra_claude_query_engine_runtime")
+            self.assertEqual(run.worker_result.metadata["loop"], "zyra_typescript_query_engine_runtime")
             self.assertEqual(run.worker_result.metadata["query_plan_ok"], "true")
             self.assertEqual(run.worker_result.metadata["query_plan_tool_steps"], "2")
             self.assertEqual(run.worker_result.metadata["runtime_state_ok"], "true")

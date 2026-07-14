@@ -1,0 +1,758 @@
+import {
+  asBoolean,
+  asObject,
+  asString,
+  positiveInteger,
+  runtimeId,
+  uniqueArtifacts,
+  type ArtifactReceipt,
+  type JsonObject,
+  type RuntimeConfig,
+  type RuntimeEvent,
+  type RuntimeHost,
+  type RuntimeRunInput,
+  type RuntimeRunResult,
+  type ToolExecutionRequest,
+  type ToolExecutionResponse,
+} from "./contracts.ts";
+import { applyToolResultBudget } from "./budget.ts";
+import { resolveModelTurns } from "./model-stream.ts";
+import { RuntimeSession } from "./session.ts";
+import {
+  normalizeTurns,
+  RuntimeToolRegistry,
+  scheduleToolBatches,
+} from "./tools.ts";
+
+const DEFAULT_CONFIG: RuntimeConfig = {
+  maxTurns: null,
+  maxToolResultChars: 8000,
+  maxTurnToolResultChars: null,
+  maxQueryContextChars: 32000,
+  continueOnError: false,
+  maxReadOnlyConcurrency: 10,
+  emitToolUseSummaries: true,
+  allowEmptyTurns: false,
+  modelName: "zyra-local-code-model",
+  runtimeConstraints: {},
+  controlCommands: [],
+};
+
+export class ClaudeRuntimeCore {
+  async run(input: RuntimeRunInput, host: RuntimeHost): Promise<RuntimeRunResult> {
+    const config = normalizeConfig(input.config);
+    const registry = new RuntimeToolRegistry(input.tools);
+    let turns = normalizeTurns(input.turns);
+    const restored = selectRestoredSnapshot(input.restoredState);
+    const session = restored
+      ? RuntimeSession.restore(restored, {
+        sessionId: input.sessionId,
+        runId: input.runId,
+        taskId: input.taskId,
+        workerRequestId: input.workerRequestId,
+      })
+      : RuntimeSession.create(
+        input.sessionId,
+        input.runId,
+        input.taskId,
+        input.workerRequestId,
+        input.messages,
+      );
+    const artifacts: ArtifactReceipt[] = [];
+    const stepSummaries: string[] = [];
+    let eventSequence = 0;
+    let toolCallCount = 0;
+    let mutatingToolCount = 0;
+    let turnCount = 0;
+    let toolResultExternalizations = 0;
+    let toolFailureSignals = 0;
+    let toolSchemaErrors = 0;
+    let toolConflictProtected = 0;
+    let ok = true;
+    let stoppedReason: string | null = null;
+    let continuedFailureReason: string | null = null;
+    const mutationTargets = new Set<string>();
+    let modelMetadata: Record<string, string> = {
+      model_stream_ok: "false",
+      api_retry_ok: "false",
+      api_retry_recovered: "false",
+    };
+
+    const emit = async (phase: string, payload: JsonObject = {}): Promise<void> => {
+      eventSequence += 1;
+      const event: RuntimeEvent = {
+        phase,
+        sequence: eventSequence,
+        canonical_owner: "typescript",
+        runtime_id: "zyra-typescript-claude-runtime",
+        session_id: input.sessionId,
+        run_id: input.runId,
+        task_id: input.taskId,
+        worker_request_id: input.workerRequestId,
+        ...payload,
+      };
+      await host.emitEvent(event);
+    };
+
+    await emit(restored ? "context_restored" : "session_started", {
+      restored: Boolean(restored),
+      model_name: config.modelName,
+      registry_size: registry.list().length,
+    });
+
+    let controlCommandFailed = 0;
+    let resumePlanCount = 0;
+    for (const rawCommand of config.controlCommands) {
+      const command = asObject(rawCommand);
+      const name = asString(command.name).trim();
+      const supported = new Set([
+        "context",
+        "tools",
+        "resume",
+        "doctor",
+        "compact",
+        "permissions",
+      ]);
+      const status = supported.has(name) ? "ok" : "unsupported";
+      if (status !== "ok") {
+        controlCommandFailed += 1;
+      }
+      if (name === "resume" && status === "ok") {
+        resumePlanCount += 1;
+      }
+      let artifactId = "";
+      if (command.artifact_policy === "artifact") {
+        const artifact = await host.externalize({
+          requestId: runtimeId("control_artifact_request"),
+          title: "Claude control command: " + name,
+          kind: "structured_data",
+          extension: ".json",
+          content: JSON.stringify({
+            name,
+            status,
+            canonical_owner: "typescript",
+            runtime_id: "zyra-typescript-claude-runtime",
+            session_id: input.sessionId,
+          }),
+          metadata: {
+            source: "typescript_control_command",
+            command_name: name,
+            command_status: status,
+          },
+        });
+        artifacts.push(artifact);
+        artifactId = artifact.artifact_id;
+      }
+      await emit("control_command", {
+        name,
+        status,
+        artifact_id: artifactId,
+        control_owner: "typescript",
+      });
+    }
+
+    const disabledComponents = [
+      "disable_tool_registry_runtime",
+      "disable_tool_execution_runtime",
+      "disable_tool_result_budget_runtime",
+      "disable_tool_permission_handoff_runtime",
+      "disable_compact_restore_runtime",
+      "disable_model_stream_runtime",
+      "disable_runtime_budget_state",
+    ].filter((name) => asBoolean(config.runtimeConstraints[name]));
+    if (disabledComponents.length > 0) {
+      ok = false;
+      stoppedReason = disabledComponents.some((name) => name.startsWith("disable_tool_"))
+        ? "tool_loop_foundation_disabled"
+        : "codeworker_api_foundation_disabled";
+      await emit("codeworker_api_foundation", {
+        ok: false,
+        stopped_reason: stoppedReason,
+        disabled_components: disabledComponents,
+      });
+      await emit("runtime_budget_replay", {
+        runtime_budget_replay: { ok: false, disabled_components: disabledComponents },
+      });
+      await emit("error", {
+        error: stoppedReason,
+        disabled_components: disabledComponents,
+      });
+    }
+
+    if (ok && asBoolean(config.runtimeConstraints.simulate_model_error)) {
+      ok = false;
+      stoppedReason = "model_error";
+      await emit("error", {
+        error: stoppedReason,
+        source: "model_stream",
+      });
+    }
+
+    if (ok) {
+      const model = await resolveModelTurns(input, config, turns, registry.list(), emit);
+      turns = model.turns;
+      modelMetadata = model.metadata;
+      if (!model.ok) {
+        ok = false;
+        stoppedReason = "model_stream_failed";
+        await emit("error", {
+          error: stoppedReason,
+          detail: model.error || "model stream failed",
+          source: "model_stream",
+        });
+      }
+    }
+
+    const turnLimit = config.maxTurns ?? turns.length;
+    for (let turnIndex = 0; ok && turnIndex < turns.length; turnIndex += 1) {
+      if (turnIndex >= turnLimit) {
+        ok = false;
+        stoppedReason = "max_turns_exceeded";
+        await emit("error", {
+          error: stoppedReason,
+          max_turns: turnLimit,
+        });
+        break;
+      }
+      if (
+        host.isAborted()
+        || asBoolean(config.runtimeConstraints.abort_before_turn)
+        || Number(config.runtimeConstraints.abort_at_turn) === turnIndex
+      ) {
+        ok = false;
+        stoppedReason = "user_cancelled";
+        await emit("error", {
+          error: stoppedReason,
+          turn_index: turnIndex,
+        });
+        break;
+      }
+
+      const steps = turns[turnIndex];
+      if (steps.length === 0 && !config.allowEmptyTurns) {
+        ok = false;
+        stoppedReason = "empty_query_turn";
+        await emit("error", {
+          error: stoppedReason,
+          turn_index: turnIndex,
+        });
+        break;
+      }
+
+      const prompt = steps.map((step) => step.prompt ?? "").filter(Boolean).join("\n");
+      const turn = session.beginTurn(turnIndex, prompt);
+      turnCount += 1;
+      await emit("turn_started", {
+        turn_id: turn.turn_id,
+        turn_index: turnIndex,
+        tool_count: steps.length,
+        user_content: prompt,
+      });
+      await emit("turn_start", {
+        turn_id: turn.turn_id,
+        turn_index: turnIndex,
+        tool_count: steps.length,
+      });
+      await emit("stream_request_start", {
+        turn_id: turn.turn_id,
+        turn_index: turnIndex,
+        model_name: config.modelName,
+      });
+      await emit("message_delta", {
+        turn_id: turn.turn_id,
+        turn_index: turnIndex,
+        delta: prompt || "Tool execution turn started.",
+        delta_kind: "planning",
+      });
+
+      const batches = scheduleToolBatches(
+        registry,
+        steps,
+        turnIndex,
+        config.maxReadOnlyConcurrency,
+      );
+      await emit("tool_loop_plan", {
+        turn_id: turn.turn_id,
+        turn_index: turnIndex,
+        batch_count: batches.length,
+        tool_count: steps.length,
+      });
+
+      let turnResultChars = 0;
+      let turnOk = true;
+      let turnError: string | null = null;
+      for (const batch of batches) {
+        let conflictProtected = false;
+        for (const step of batch.steps) {
+          if (registry.readOnly(step.tool_name)) {
+            continue;
+          }
+          const target = mutationTarget(step);
+          if (target && mutationTargets.has(target)) {
+            conflictProtected = true;
+            toolConflictProtected += 1;
+          }
+          if (target) {
+            mutationTargets.add(target);
+          }
+        }
+        await emit("tool_batch_started", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          batch_id: batch.batchId,
+          execution_mode: batch.executionMode,
+          tool_count: batch.steps.length,
+          conflict_protected: String(conflictProtected),
+        });
+
+        const hostRequests: ToolExecutionRequest[] = [];
+        const immediateResults = new Map<string, ToolExecutionResponse>();
+        const callIds = new Map<(typeof batch.steps)[number], string>();
+        batch.steps.forEach((step, batchIndex) => {
+          const toolCallId = step.step_id || runtimeId("toolcall");
+          callIds.set(step, toolCallId);
+          toolCallCount += 1;
+          if (!registry.readOnly(step.tool_name)) {
+            mutatingToolCount += 1;
+          }
+          session.recordToolCall(toolCallId, step.tool_name);
+          const failures = registry.validate(step);
+          if (failures.length > 0) {
+            immediateResults.set(toolCallId, {
+              tool_call_id: toolCallId,
+              ok: false,
+              summary: "Tool arguments failed schema validation.",
+              output: {
+                schema_failures: failures as unknown as JsonObject,
+              },
+              artifacts: [],
+              error: failures[0].code === "unknown_tool" ? "unknown_tool" : "schema_error",
+              metadata: {
+                canonical_owner: "typescript",
+                schema_validated: "false",
+                conflict_protected: String(conflictProtected),
+              },
+            });
+          } else {
+            hostRequests.push({
+              toolCallId,
+              toolName: step.tool_name,
+              arguments: step.arguments,
+              turnIndex,
+              stepIndex: batchIndex,
+              batchId: batch.batchId,
+              batchIndex,
+              batchSize: batch.steps.length,
+              executionMode: batch.executionMode,
+              metadata: {
+                canonical_owner: "typescript",
+                schema_validated: true,
+                conflict_protected: conflictProtected,
+                ...asObject(step.metadata),
+              },
+            });
+          }
+        });
+
+        for (const request of hostRequests) {
+          await emit("tool_call_started", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            batch_id: batch.batchId,
+            tool_call_id: request.toolCallId,
+            tool_name: request.toolName,
+            execution_mode: batch.executionMode,
+          });
+        }
+
+        const hostResults = hostRequests.length > 0
+          ? await host.executeBatch(batch, hostRequests)
+          : [];
+        const byCallId = new Map<string, ToolExecutionResponse>(
+          hostResults.map((result) => [result.tool_call_id, result]),
+        );
+
+        for (const step of batch.steps) {
+          const toolCallId = callIds.get(step) || "";
+          let result = immediateResults.get(toolCallId) || byCallId.get(toolCallId);
+          if (!result) {
+            result = {
+              tool_call_id: toolCallId || runtimeId("missing_tool_result"),
+              ok: false,
+              summary: "Python host did not return the requested tool result.",
+              output: {},
+              artifacts: [],
+              error: "missing_tool_result",
+              metadata: {
+                canonical_owner: "typescript",
+              },
+            };
+          }
+
+          const remainingTurnBudget = config.maxTurnToolResultChars === null
+            ? config.maxToolResultChars
+            : Math.max(1, config.maxTurnToolResultChars - turnResultChars);
+          const budget = Math.min(config.maxToolResultChars, remainingTurnBudget);
+          const budgeted = await applyToolResultBudget(host, result, budget);
+          result = budgeted.result;
+          turnResultChars += budgeted.originalChars;
+          if (budgeted.artifact) {
+            artifacts.push(budgeted.artifact);
+            toolResultExternalizations += 1;
+            toolFailureSignals += 1;
+            await emit("tool_result_budget_exceeded", {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              tool_call_id: result.tool_call_id,
+              original_chars: budgeted.originalChars,
+              budget_chars: budget,
+              artifact_id: budgeted.artifact.artifact_id,
+            });
+            await emit("tool_failure_signal", {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              tool_call_id: result.tool_call_id,
+              tool_name: step.tool_name,
+              signal: {
+                kind: "budget_exceeded",
+                route: "artifact_externalized",
+                error: "tool_result_budget_exceeded",
+              },
+            });
+            await emit("watchdog_signal", {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              tool_call_id: result.tool_call_id,
+              tool_name: step.tool_name,
+              watchdog_signal: {
+                kind: "budget_exceeded",
+                route: "artifact_externalized",
+                action: "continue",
+              },
+            });
+          }
+          artifacts.push(...result.artifacts);
+          session.recordToolResult(step.tool_name, result);
+          stepSummaries.push(result.tool_call_id + ":" + result.summary);
+          await emit("tool_call_completed", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            batch_id: batch.batchId,
+            tool_call_id: result.tool_call_id,
+            tool_name: step.tool_name,
+            execution_mode: batch.executionMode,
+            tool_result: result as unknown as JsonObject,
+          });
+          await emit("message_delta", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            tool_call_id: result.tool_call_id,
+            delta: result.summary,
+            delta_kind: "tool_result",
+          });
+          if (!result.ok) {
+            turnOk = false;
+            turnError = result.error === "permission_approval_required"
+              ? "permission_suspended"
+              : result.error || "tool_error";
+            continuedFailureReason = turnError;
+            toolFailureSignals += 1;
+            if (result.error === "schema_error" || result.error === "tool_schema_validation_failed") {
+              toolSchemaErrors += 1;
+            }
+            const failureKind = result.error === "permission_approval_required"
+              ? "permission_denied"
+              : result.error || "tool_error";
+            const failureRoute = failureKind === "permission_denied"
+              ? "permission_runtime"
+              : failureKind === "tool_schema_validation_failed" || failureKind === "schema_error"
+                ? "repair_tool_arguments"
+                : "recovery_planner";
+            await emit("tool_failure_signal", {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              tool_call_id: result.tool_call_id,
+              tool_name: step.tool_name,
+              signal: {
+                kind: failureKind,
+                route: failureRoute,
+                error: result.error || "tool_error",
+              },
+            });
+            await emit("watchdog_signal", {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              tool_call_id: result.tool_call_id,
+              tool_name: step.tool_name,
+              watchdog_signal: {
+                kind: failureKind,
+                route: failureRoute,
+                action: config.continueOnError ? "continue" : "stop",
+              },
+            });
+            if (config.continueOnError) {
+              await emit("continue", {
+                turn_id: turn.turn_id,
+                turn_index: turnIndex,
+                tool_call_id: result.tool_call_id,
+                reason: failureKind,
+              });
+            }
+          }
+        }
+
+        await emit("tool_batch_completed", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          batch_id: batch.batchId,
+          execution_mode: batch.executionMode,
+          tool_count: batch.steps.length,
+          ok: turnOk,
+          conflict_protected: String(conflictProtected),
+        });
+        if (config.emitToolUseSummaries) {
+          await emit("tool_use_summary", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            batch_id: batch.batchId,
+            execution_mode: batch.executionMode,
+            tool_count: batch.steps.length,
+            ok: turnOk,
+          });
+        }
+        if (!turnOk && !config.continueOnError) {
+          break;
+        }
+      }
+
+      if (
+        session.compactionCount === 0
+        && (
+          session.contextChars() > config.maxQueryContextChars
+          || asBoolean(config.runtimeConstraints.force_compact_restore)
+        )
+      ) {
+        const compact = session.compactCandidates();
+        const artifact = await host.externalize({
+          requestId: runtimeId("compact_request"),
+          title: "CodeWorker context compaction",
+          kind: "structured_data",
+          extension: ".json",
+          content: compact.content,
+          metadata: {
+            source: "typescript_auto_compact",
+            session_id: input.sessionId,
+            turn_index: turnIndex,
+            removed_message_count: compact.removedCount,
+          },
+        });
+        artifacts.push(artifact);
+        session.compact(compact.summary, artifact.artifact_id, compact.preserved);
+        await emit("context_compacted", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          artifact_id: artifact.artifact_id,
+          removed_message_count: compact.removedCount,
+          context_chars_after: session.contextChars(),
+          compact_owner: "typescript",
+        });
+        await emit("next_turn_restore_contract", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          artifact_id: artifact.artifact_id,
+          restore_owner: "typescript",
+          status: "ready",
+        });
+      }
+
+      session.completeTurn(turnOk, turnError);
+      await emit("turn_completed", {
+        turn_id: turn.turn_id,
+        turn_index: turnIndex,
+        ok: turnOk,
+        error: turnError,
+      });
+      await emit("turn_end", {
+        turn_id: turn.turn_id,
+        turn_index: turnIndex,
+        ok: turnOk,
+        error: turnError,
+      });
+      if (!turnOk && !config.continueOnError) {
+        ok = false;
+        stoppedReason = turnError || "tool_error";
+      }
+      if (asBoolean(config.runtimeConstraints.abort_after_turn)) {
+        ok = false;
+        stoppedReason = "user_cancelled";
+      }
+    }
+
+    if (ok && turns.length > turnLimit) {
+      ok = false;
+      stoppedReason = "max_turns_exceeded";
+    }
+    if (ok && continuedFailureReason) {
+      ok = false;
+      stoppedReason = continuedFailureReason;
+    }
+    const compactRestoreOk = !asBoolean(config.runtimeConstraints.disable_compact_restore_runtime);
+    const runtimeBudgetStateOk = !asBoolean(config.runtimeConstraints.disable_runtime_budget_state);
+    const modelStreamOk = modelMetadata.model_stream_ok === "true";
+    const codeworkerApiFoundationOk = compactRestoreOk && runtimeBudgetStateOk && modelStreamOk;
+    const restoreContractId = "compact_restore_" + input.sessionId;
+    await emit("compact_restore_report", {
+      compact_restore: {
+        ok: compactRestoreOk,
+        restore_contract_id: restoreContractId,
+        compaction_count: session.compactionCount,
+        owner: "typescript",
+      },
+    });
+    await emit("codeworker_restore_integration", {
+      codeworker_restore_integration: {
+        ok: compactRestoreOk,
+        restore_contract_id: restoreContractId,
+        owner: "typescript",
+      },
+    });
+    await emit("compact_state_projection", {
+      compact_state: {
+        ok: codeworkerApiFoundationOk,
+        restore_contract_id: restoreContractId,
+        compaction_count: session.compactionCount,
+      },
+    });
+    await emit("runtime_budget_replay", {
+      runtime_budget_replay: {
+        ok: runtimeBudgetStateOk && modelStreamOk,
+        retry_count: Number(modelMetadata.runtime_budget_state_retry_count || "0"),
+      },
+    });
+    await emit("codeworker_api_foundation", {
+      ok: codeworkerApiFoundationOk,
+      compact_restore_ok: compactRestoreOk,
+      model_stream_ok: modelStreamOk,
+      runtime_budget_state_ok: runtimeBudgetStateOk,
+    });
+    session.finish(ok);
+    await emit(ok ? "session_completed" : "session_failed", {
+      ok,
+      stopped_reason: stoppedReason,
+      turn_count: turnCount,
+      tool_call_count: toolCallCount,
+      context_compaction_count: session.compactionCount,
+    });
+    const snapshot = session.snapshot();
+    await emit("query_session_snapshot", {
+      snapshot_version: snapshot.version,
+      snapshot_checksum: snapshot.checksum,
+      snapshot_revision: snapshot.revision,
+    });
+    return {
+      ok,
+      stoppedReason,
+      turnCount,
+      toolCallCount,
+      contextCompactionCount: session.compactionCount,
+      stepSummaries,
+      artifacts: uniqueArtifacts(artifacts),
+      sessionSnapshot: snapshot,
+      metadata: {
+        loop: "zyra_typescript_query_engine_runtime",
+        canonical_runtime_owner: "typescript",
+        runtime_id: "zyra-typescript-claude-runtime",
+        query_turns: String(turnCount),
+        tool_steps: String(toolCallCount),
+        context_compactions: String(session.compactionCount),
+        max_read_only_concurrency: String(config.maxReadOnlyConcurrency),
+        tool_use_summaries: String(config.emitToolUseSummaries
+          ? scheduleToolBatches(registry, turns.flat(), 0, config.maxReadOnlyConcurrency).length
+          : 0),
+        runtime_protocol: "zyra.claude-runtime.v1",
+        restored: String(session.restored),
+        runtime_state_ok: "true",
+        runtime_state_mutations: String(snapshot.revision),
+        runtime_state_control_mutations: String(config.controlCommands.length),
+        control_command_count: String(config.controlCommands.length),
+        control_command_failed: String(controlCommandFailed),
+        tool_runtime_planned: String(toolCallCount),
+        tool_runtime_completed: String(toolCallCount),
+        tool_runtime_mutating: String(mutatingToolCount),
+        session_lifecycle_resume_plans: String(resumePlanCount),
+        session_lifecycle_latest_resume_status: resumePlanCount > 0 ? "ready" : "",
+        tool_result_externalizations: String(toolResultExternalizations),
+        tool_failure_signals: String(toolFailureSignals),
+        tool_schema_errors: String(toolSchemaErrors),
+        tool_conflict_protected: String(toolConflictProtected),
+        compact_restore_ok: String(compactRestoreOk),
+        runtime_budget_state_ok: String(runtimeBudgetStateOk),
+        codeworker_api_foundation_ok: String(codeworkerApiFoundationOk),
+        compact_state_projection_ok: String(codeworkerApiFoundationOk),
+        compact_restore_contract_id: restoreContractId,
+        tool_runtime_gate_failures: disabledComponents.length > 0
+          ? disabledComponents.join(",")
+          : "",
+        ...modelMetadata,
+      },
+    };
+  }
+}
+
+function mutationTarget(step: { tool_name: string; arguments: JsonObject }): string {
+  const path = asString(step.arguments.path || step.arguments.file_path).trim();
+  if (path) {
+    return "workspace_path:" + path.replaceAll("\\", "/").toLowerCase();
+  }
+  return step.tool_name + ":" + JSON.stringify(step.arguments);
+}
+
+function normalizeConfig(value: Partial<RuntimeConfig>): RuntimeConfig {
+  return {
+    maxTurns: typeof value.maxTurns === "number" && value.maxTurns > 0
+      ? Math.floor(value.maxTurns)
+      : null,
+    maxToolResultChars: positiveInteger(
+      value.maxToolResultChars,
+      DEFAULT_CONFIG.maxToolResultChars,
+    ),
+    maxTurnToolResultChars: typeof value.maxTurnToolResultChars === "number"
+      && value.maxTurnToolResultChars > 0
+      ? Math.floor(value.maxTurnToolResultChars)
+      : null,
+    maxQueryContextChars: positiveInteger(
+      value.maxQueryContextChars,
+      DEFAULT_CONFIG.maxQueryContextChars,
+    ),
+    continueOnError: value.continueOnError ?? DEFAULT_CONFIG.continueOnError,
+    maxReadOnlyConcurrency: positiveInteger(
+      value.maxReadOnlyConcurrency,
+      DEFAULT_CONFIG.maxReadOnlyConcurrency,
+    ),
+    emitToolUseSummaries: value.emitToolUseSummaries ?? DEFAULT_CONFIG.emitToolUseSummaries,
+    allowEmptyTurns: value.allowEmptyTurns ?? DEFAULT_CONFIG.allowEmptyTurns,
+    modelName: asString(value.modelName, DEFAULT_CONFIG.modelName),
+    runtimeConstraints: asObject(value.runtimeConstraints),
+    controlCommands: Array.isArray(value.controlCommands)
+      ? value.controlCommands
+      : [],
+  };
+}
+
+function selectRestoredSnapshot(value: JsonObject | null | undefined): JsonObject | null {
+  const root = asObject(value);
+  if (root.version === "zyra.typescript-query-session.v1") {
+    return root;
+  }
+  const direct = asObject(root.typescript_runtime);
+  if (direct.version === "zyra.typescript-query-session.v1") {
+    return direct;
+  }
+  const queryEngine = asObject(root.query_engine);
+  if (queryEngine.version === "zyra.typescript-query-session.v1") {
+    return queryEngine;
+  }
+  const metadata = asObject(root.metadata);
+  const projected = asObject(metadata.typescript_runtime_snapshot);
+  return projected.version === "zyra.typescript-query-session.v1" ? projected : null;
+}

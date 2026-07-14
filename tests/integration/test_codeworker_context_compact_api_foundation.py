@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import importlib
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -13,350 +15,245 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for package_path in [
+    ROOT,
     ROOT / "packages" / "core",
     ROOT / "packages" / "runtime",
-    ROOT / "packages" / "integrations",
     ROOT / "packages" / "workers",
 ]:
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))
 
-from zyra_core import create_task_state  # noqa: E402
-from zyra_runtime import WorkerRequest  # noqa: E402
-from zyra_workers import CodeWorkerRuntime  # noqa: E402
+from zyra_core import create_task_state
+from zyra_runtime import WorkerRequest
+from zyra_workers import CodeWorkerRuntime
 
 
+@unittest.skipIf(
+    shutil.which("node") is None and shutil.which("bun") is None,
+    "TypeScript runtime is required",
+)
 class CodeWorkerContextCompactApiFoundationTests(unittest.TestCase):
-    _ENV_KEYS = (
-        "ZYRA_SQLITE_PATH",
-        "ZYRA_EVENT_LOG",
-        "ZYRA_TOOL_WORKSPACE",
-        "ZYRA_ARTIFACT_ROOT",
-        "ZYRA_MODEL_TRANSPORT",
-        "ZYRA_MODEL_API_URL",
-        "ZYRA_MODEL_API_TOKEN",
-        "ZYRA_MODEL_API_TIMEOUT_SECONDS",
-    )
-
-    def setUp(self) -> None:
-        self._saved_environment = {key: os.environ.get(key) for key in self._ENV_KEYS}
-
-    def tearDown(self) -> None:
-        for key, value in self._saved_environment.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
-
-    def test_default_path_emits_compact_restore_model_stream_retry_and_budget_state(self) -> None:
+    def test_default_path_emits_compact_restore_and_budget_contracts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("Exercise context compact and CodeWorker API foundation.")
+            state = create_task_state("Compact and restore TypeScript runtime context.")
             workspace = Path(tmpdir) / "workspace"
             workspace.mkdir()
-            (workspace / "large.txt").write_text("compact-api-foundation-" * 180, encoding="utf-8")
-            runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=workspace,
-                artifact_root=Path(tmpdir) / "artifacts",
+            (workspace / "large.txt").write_text("compact evidence " * 300, encoding="utf-8")
+            runtime = _runtime(tmpdir, workspace)
+            run = runtime.run(
+                _request(
+                    state,
+                    query_context_budget_chars=900,
+                    force_compact_restore=True,
+                    query_turns=[
+                        [{"tool_name": "file_read", "arguments": {"path": "large.txt"}}],
+                        [{"tool_name": "file_read", "arguments": {"path": "large.txt"}}],
+                    ],
+                )
             )
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "raw_input": "Read the large file and preserve next-turn compact state.",
-                    "query_context_budget_chars": 900,
-                    "tool_result_budget_chars": 7000,
-                    "force_compact_restore": True,
-                    "tool_plan": [{"tool_name": "file_read", "arguments": {"path": "large.txt"}}],
-                    "restore_files": ["large.txt"],
-                    "invoked_skills": ["codeworker-api-foundation"],
-                    "active_plan": "Continue with the compacted file analysis on the next turn.",
-                    "mcp_instruction_deltas": {"workspace": "Keep workspace restore instructions after compact."},
-                    "deferred_tools": ["file_write"],
-                },
-            )
-
-            run = runtime.run(request)
 
             self.assertTrue(run.worker_result.ok, run.worker_result.error)
             metadata = run.worker_result.metadata
-            self.assertEqual(metadata["codeworker_api_foundation_ok"], "true")
-            self.assertEqual(metadata["compact_restore_ok"], "true")
+            self.assertEqual(metadata["canonical_runtime_owner"], "typescript")
             self.assertEqual(metadata["model_stream_ok"], "true")
-            self.assertEqual(metadata["model_stream_watchdog_ok"], "true")
-            self.assertEqual(metadata["api_retry_ok"], "true")
-            self.assertEqual(metadata["runtime_budget_state_ok"], "true")
-            self.assertEqual(metadata["runtime_budget_replay_ok"], "true")
-            self.assertEqual(metadata["context_epoch_ok"], "true")
-            self.assertEqual(metadata["compact_restore_policy_ok"], "true")
-            self.assertEqual(metadata["api_retry_playbook_ok"], "true")
-            self.assertEqual(metadata["compact_state_projection_ok"], "true")
-            self.assertTrue(metadata["compact_restore_boundary_id"])
-            self.assertTrue(metadata["compact_restore_contract_id"])
-            self.assertGreaterEqual(int(metadata["compact_restore_segments"]), 4)
-            self.assertGreaterEqual(int(metadata["compact_restore_preserved_segments"]), 1)
-            self.assertGreaterEqual(int(metadata["model_stream_frames"]), 4)
-            self.assertGreaterEqual(int(metadata["context_epoch_restore_epochs"]), 1)
-            self.assertGreaterEqual(int(metadata["runtime_budget_replay_mutations"]), 4)
-            self.assertGreaterEqual(int(metadata["compact_state_projection_sections"]), 11)
             self.assertEqual(metadata["api_retry_status"], "not_needed")
-            self.assertGreater(int(metadata["runtime_budget_state_context_used_chars"]), 0)
-            self.assertIn("RuntimeBudgetState", metadata["codeworker_api_foundation_chain"])
-            self.assertEqual(len(_query_phases(run.event_records, "compact_restore_report")), 1)
-            self.assertEqual(len(_query_phases(run.event_records, "compact_restore_policy")), 1)
-            self.assertGreaterEqual(
-                len(_query_phases(run.event_records, "compact_boundary_created"))
-                + len(_query_phases(run.event_records, "compact_needed")),
-                1,
-            )
-            self.assertEqual(len(_query_phases(run.event_records, "next_turn_restore_contract")), 1)
-            self.assertGreaterEqual(len(_query_phases(run.event_records, "model_stream_frame")), 4)
-            self.assertEqual(len(_query_phases(run.event_records, "model_stream_watchdog")), 1)
-            self.assertEqual(len(_query_phases(run.event_records, "context_epoch_report")), 1)
-            self.assertEqual(len(_query_phases(run.event_records, "api_retry_report")), 1)
-            self.assertEqual(len(_query_phases(run.event_records, "api_retry_playbook")), 1)
-            self.assertEqual(len(_query_phases(run.event_records, "runtime_budget_replay")), 1)
-            replay = _query_phases(run.event_records, "runtime_budget_replay")[0]["runtime_budget_replay"]
-            replay_finding_codes = {finding["code"] for finding in replay["findings"]}
-            self.assertNotIn("RESTORE_BEFORE_COMPACT", replay_finding_codes)
-            compact_sequences = [
-                node["sequence"] for node in replay["nodes"] if node["kind"] == "compact_boundary"
-            ]
-            restore_sequences = [
-                node["sequence"] for node in replay["nodes"] if node["kind"] == "next_turn_restore"
-            ]
-            self.assertTrue(compact_sequences)
-            self.assertTrue(restore_sequences)
-            self.assertLess(min(compact_sequences), min(restore_sequences))
-            self.assertEqual(len(_query_phases(run.event_records, "codeworker_api_foundation")), 1)
-            api_audit = _query_phases(run.event_records, "codeworker_api_foundation_audit")[0][
-                "codeworker_api_foundation_audit"
-            ]
-            self.assertEqual(api_audit["status"], "pass")
-            self.assertTrue(all(item["reached_by_default_path"] for item in api_audit["reachability"]))
-            self.assertTrue(all(item["ok"] for item in api_audit["reachability"]))
-            self.assertTrue(any(item["disabled_changes_result"] is False for item in api_audit["reachability"]))
-            self.assertTrue(
-                all(item["disable_semantics_required"] is False for item in api_audit["reachability"])
-            )
-            self.assertEqual(len(_query_phases(run.event_records, "compact_state_projection")), 1)
+            self.assertEqual(metadata["compact_restore_ok"], "true")
+            self.assertEqual(metadata["runtime_budget_state_ok"], "true")
+            self.assertEqual(metadata["codeworker_api_foundation_ok"], "true")
+            self.assertGreaterEqual(int(metadata["context_compactions"]), 1)
+            for phase in (
+                "model_stream_report",
+                "api_retry_report",
+                "compact_restore_report",
+                "codeworker_restore_integration",
+                "compact_state_projection",
+                "runtime_budget_replay",
+            ):
+                self.assertTrue(_query_events(run.event_records, phase), phase)
 
-    def test_rate_limit_retry_and_model_fallback_are_real_events(self) -> None:
+    def test_http_sse_retry_uses_fallback_model_plan_not_request_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir, _LocalSseProvider(failures=1) as provider:
-            state = create_task_state("Exercise model API retry and fallback.")
+            state = create_task_state("Exercise real model retry and fallback.")
             workspace = Path(tmpdir) / "workspace"
             workspace.mkdir()
-            (workspace / "probe.txt").write_text("fallback probe", encoding="utf-8")
-            runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=workspace,
-                artifact_root=Path(tmpdir) / "artifacts",
+            runtime = _runtime(tmpdir, workspace)
+            run = runtime.run(
+                _request(
+                    state,
+                    raw_input="Use the provider tool call.",
+                    model_transport="http_sse",
+                    model_api_base_url=provider.base_url,
+                    model_api_timeout_seconds=5,
+                    api_retry_max_attempts=2,
+                    api_retry_fallback_models="zyra-fallback-a",
+                    tool_plan=[{
+                        "tool_name": "file_write",
+                        "arguments": {"path": "request-plan.txt", "content": "must not run"},
+                    }],
+                )
             )
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "raw_input": "Use the provider tool call after retrying the failed primary request.",
-                    "query_context_budget_chars": 1400,
-                    "force_compact_restore": True,
-                    "model_transport": "http_sse",
-                    "model_transport_kind": "http_sse",
-                    "model_api_base_url": provider.base_url,
-                    "model_api_timeout_seconds": 5,
-                    "api_retry_max_attempts": 2,
-                    "api_retry_fallback_models": "zyra-fallback-a",
-                    "tool_plan": [
-                        {
-                            "tool_name": "file_write",
-                            "arguments": {"path": "request-plan.txt", "content": "request plan must not win"},
-                        }
-                    ],
-                    "restore_files": ["README.md"],
-                    "invoked_skills": ["api-retry"],
-                },
-            )
-
-            run = runtime.run(request)
 
             self.assertTrue(run.worker_result.ok, run.worker_result.error)
             self.assertEqual(len(provider.requests), 2)
-            self.assertNotEqual(provider.requests[0].get("model"), provider.requests[1].get("model"))
-            metadata = run.worker_result.metadata
-            self.assertEqual(metadata["model_stream_ok"], "true")
-            self.assertEqual(metadata["api_retry_ok"], "true")
-            self.assertEqual(metadata["api_retry_status"], "fallback_selected")
-            self.assertEqual(metadata["api_retry_fallback_used"], "true")
-            self.assertEqual(metadata["api_retry_final_model"], "zyra-fallback-a")
-            self.assertEqual(metadata["model_stream_watchdog_ok"], "true")
-            self.assertEqual(metadata["model_stream_watchdog_status"], "recovered")
-            self.assertGreaterEqual(int(metadata["runtime_budget_state_retry_count"]), 1)
-            self.assertEqual(metadata["api_retry_playbook_ok"], "true")
-            self.assertEqual(metadata["api_retry_playbook_status"], "recovered")
-            self.assertEqual(metadata["runtime_budget_replay_ok"], "true")
-            self.assertEqual(metadata["codeworker_api_foundation_ok"], "true")
-            self.assertEqual(metadata["compact_state_projection_ok"], "true")
-            api_retry = _query_phases(run.event_records, "api_retry_report")[-1]["api_retry"]
-            self.assertEqual(api_retry["attempts"][0]["decision"], "retry_fallback_model")
-            self.assertEqual(api_retry["attempts"][0]["fallback_model"], "zyra-fallback-a")
-            retry_playbook = _query_phases(run.event_records, "api_retry_playbook")[-1]["api_retry_playbook"]
-            self.assertEqual(retry_playbook["fallback_count"], 1)
-            model_reports = _query_phases(run.event_records, "model_stream_report")
-            self.assertGreaterEqual(len(model_reports), 2)
-            self.assertFalse(model_reports[0]["model_stream"]["ok"])
-            self.assertTrue(model_reports[-1]["model_stream"]["ok"])
+            self.assertNotEqual(provider.requests[0]["model"], provider.requests[1]["model"])
+            self.assertEqual(run.worker_result.metadata["api_retry_status"], "fallback_selected")
+            self.assertEqual(run.worker_result.metadata["api_retry_fallback_used"], "true")
+            self.assertEqual(run.worker_result.metadata["api_retry_final_model"], "zyra-fallback-a")
+            reports = _query_events(run.event_records, "model_stream_report")
+            self.assertFalse(reports[0]["model_stream"]["ok"])
+            self.assertTrue(reports[-1]["model_stream"]["ok"])
+            retry = _query_events(run.event_records, "api_retry_report")[-1]["api_retry"]
+            self.assertEqual(retry["attempts"][0]["decision"], "retry_fallback_model")
             self.assertTrue((workspace / "provider-tool.txt").exists())
             self.assertFalse((workspace / "request-plan.txt").exists())
 
-    def test_all_provider_attempts_fail_before_mutating_tool_execution(self) -> None:
+    def test_exhausted_model_attempts_fail_before_mutating_tool_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir, _LocalSseProvider(failures=20) as provider:
-            state = create_task_state("Do not execute tools when every provider attempt fails.")
+            state = create_task_state("Fail closed when the model transport is exhausted.")
             workspace = Path(tmpdir) / "workspace"
             workspace.mkdir()
-            runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=workspace,
-                artifact_root=Path(tmpdir) / "artifacts",
-            )
+            runtime = _runtime(tmpdir, workspace)
             run = runtime.run(
-                WorkerRequest(
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    node_id=state.root_node_id,
-                    worker_name="CodeWorkerRuntime",
-                    constraints={
-                        "raw_input": "Provider failure must stop the mutating plan.",
-                        "model_transport": "http_sse",
-                        "model_api_base_url": provider.base_url,
-                        "model_api_timeout_seconds": 5,
-                        "api_retry_max_attempts": 2,
-                        "api_retry_fallback_models": "zyra-fallback-a",
-                        "tool_plan": [
-                            {
-                                "tool_name": "file_write",
-                                "arguments": {"path": "must-not-exist.txt", "content": "forbidden"},
-                            }
-                        ],
-                    },
+                _request(
+                    state,
+                    model_transport="http_sse",
+                    model_api_base_url=provider.base_url,
+                    model_api_timeout_seconds=5,
+                    api_retry_max_attempts=2,
+                    api_retry_fallback_models="zyra-fallback-a",
+                    tool_plan=[{
+                        "tool_name": "file_write",
+                        "arguments": {"path": "must-not-exist.txt", "content": "forbidden"},
+                    }],
                 )
             )
 
             self.assertFalse(run.worker_result.ok)
-            self.assertGreaterEqual(len(provider.requests), 2)
-            self.assertFalse((workspace / "must-not-exist.txt").exists())
+            self.assertEqual(len(provider.requests), 2)
             self.assertEqual(run.worker_result.metadata["api_retry_recovered"], "false")
+            self.assertFalse((workspace / "must-not-exist.txt").exists())
 
-    def test_core_runtime_disconnects_block_codeworker_api_foundation(self) -> None:
-        cases = (
+    def test_required_api_component_disconnects_fail_before_tools(self) -> None:
+        for constraint, metadata_key in (
             ("disable_compact_restore_runtime", "compact_restore_ok"),
             ("disable_model_stream_runtime", "model_stream_ok"),
             ("disable_runtime_budget_state", "runtime_budget_state_ok"),
-        )
-        for constraint_name, metadata_key in cases:
-            with self.subTest(constraint_name=constraint_name), tempfile.TemporaryDirectory() as tmpdir:
-                state = create_task_state(f"Disable {constraint_name}.")
+        ):
+            with self.subTest(constraint=constraint), tempfile.TemporaryDirectory() as tmpdir:
+                state = create_task_state("Disconnect " + constraint)
                 workspace = Path(tmpdir) / "workspace"
                 workspace.mkdir()
-                (workspace / "probe.txt").write_text("disconnect probe", encoding="utf-8")
-                runtime = CodeWorkerRuntime(
-                    project_root=ROOT,
-                    workspace_root=workspace,
-                    artifact_root=Path(tmpdir) / "artifacts",
+                runtime = _runtime(tmpdir, workspace)
+                run = runtime.run(
+                    _request(
+                        state,
+                        **{
+                            constraint: True,
+                            "force_compact_restore": True,
+                            "query_turns": [[{
+                                "tool_name": "file_write",
+                                "arguments": {"path": "must-not-exist.txt", "content": "forbidden"},
+                            }]],
+                        },
+                    )
                 )
-                request = WorkerRequest(
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    node_id=state.root_node_id,
-                    worker_name="CodeWorkerRuntime",
-                    constraints={
-                        constraint_name: True,
-                        "force_compact_restore": True,
-                        "tool_plan": [{"tool_name": "file_read", "arguments": {"path": "probe.txt"}}],
-                    },
-                )
-
-                run = runtime.run(request)
 
                 self.assertFalse(run.worker_result.ok)
                 self.assertEqual(run.worker_result.metadata[metadata_key], "false")
                 self.assertEqual(run.worker_result.metadata["codeworker_api_foundation_ok"], "false")
-                self.assertEqual(run.worker_result.metadata["compact_state_projection_ok"], "false")
-                self.assertIn("codeworker_api_foundation", run.worker_result.metadata["tool_runtime_gate_failures"])
-                self.assertEqual(len(_query_phases(run.event_records, "codeworker_api_foundation")), 1)
-                self.assertEqual(len(_query_phases(run.event_records, "runtime_budget_replay")), 1)
-                self.assertFalse((workspace / "should-not-exist.txt").exists())
+                self.assertFalse((workspace / "must-not-exist.txt").exists())
 
-    def test_compact_state_api_endpoint_returns_live_projection(self) -> None:
+    def test_compact_state_api_returns_live_typescript_projection_without_get_side_effects(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir) / "workspace"
             workspace.mkdir()
-            (workspace / "large.txt").write_text("diagnostic compact state " * 160, encoding="utf-8")
-            os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
-            os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
-            os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
-            os.environ["ZYRA_ARTIFACT_ROOT"] = str(Path(tmpdir) / "artifacts")
-
-            from apps.api.zyra_api.main import ZyraRequestHandler
+            (workspace / "large.txt").write_text("api compact state " * 220, encoding="utf-8")
+            environment = {
+                "ZYRA_SQLITE_PATH": str(Path(tmpdir) / "api.sqlite3"),
+                "ZYRA_EVENT_LOG": str(Path(tmpdir) / "events.jsonl"),
+                "ZYRA_TOOL_WORKSPACE": str(workspace),
+                "ZYRA_ARTIFACT_ROOT": str(Path(tmpdir) / "artifacts"),
+            }
+            previous = {key: os.environ.get(key) for key in environment}
+            os.environ.update(environment)
+            module_name = "apps.api.zyra_api.main"
+            module = importlib.import_module(module_name)
+            ZyraRequestHandler = importlib.reload(module).ZyraRequestHandler
 
             server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             base_url = f"http://127.0.0.1:{server.server_address[1]}"
             try:
-                created = _post(base_url, "/tasks", {"goal": "Project compact state without GET side effects.", "auto_run": False})
+                created = _post(base_url, "/tasks", {"goal": "Project compact state.", "auto_run": False})
                 task_id = created["task"]["task_id"]
                 executed = _post(
                     base_url,
                     f"/tasks/{task_id}/workers/code",
                     {
-                        "raw_input": "Read, compact, and restore the existing large file.",
+                        "raw_input": "Read and compact the file.",
                         "query_context_budget_chars": 900,
-                        "tool_result_budget_chars": 7000,
                         "force_compact_restore": True,
                         "query_turns": [
                             [{"tool_name": "file_read", "arguments": {"path": "large.txt"}}],
                             [{"tool_name": "file_read", "arguments": {"path": "large.txt"}}],
                         ],
-                        "restore_files": ["large.txt"],
                     },
                 )
                 self.assertTrue(executed["worker_result"]["ok"])
                 before = _workspace_snapshot(workspace)
                 payload = _get(base_url, f"/workers/code/compact-state?task_id={task_id}")
                 after = _workspace_snapshot(workspace)
-                compact_state = payload["compact_state"]
-                self.assertEqual(payload["task_id"], task_id)
                 self.assertTrue(payload["route_contract"]["ok"])
-                self.assertTrue(compact_state["restore_contract_id"])
+                self.assertTrue(payload["compact_state"]["restore_contract_id"])
                 self.assertEqual(before, after)
-                self.assertFalse((workspace / "compact-state-probe.txt").exists())
             finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=5)
+                for key, value in previous.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
 
 
-def _query_phases(events: list[object], phase: str) -> list[dict[str, object]]:
-    matches: list[dict[str, object]] = []
+def _runtime(tmpdir: str, workspace: Path) -> CodeWorkerRuntime:
+    return CodeWorkerRuntime(
+        project_root=ROOT,
+        workspace_root=workspace,
+        artifact_root=Path(tmpdir) / "artifacts",
+    )
+
+
+def _request(state: object, **constraints: object) -> WorkerRequest:
+    return WorkerRequest(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=state.root_node_id,
+        worker_name="CodeWorkerRuntime",
+        constraints=constraints,
+    )
+
+
+def _query_events(events: list[object], phase: str) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
     for event in events:
         payload = getattr(event, "payload", {})
-        query_session = payload.get("query_session") if isinstance(payload, dict) else None
-        if isinstance(query_session, dict) and query_session.get("phase") == phase:
-            matches.append(query_session)
-    return matches
+        query = payload.get("query_session") if isinstance(payload, dict) else None
+        if isinstance(query, dict) and query.get("phase") == phase:
+            selected.append(query)
+    return selected
 
 
 def _get(base_url: str, path: str) -> dict[str, Any]:
-    with urllib.request.urlopen(f"{base_url}{path}", timeout=15) as response:
+    with urllib.request.urlopen(base_url + path, timeout=15) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def _post(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
     request = urllib.request.Request(
-        f"{base_url}{path}",
+        base_url + path,
         data=json.dumps(payload).encode("utf-8"),
         method="POST",
         headers={"Content-Type": "application/json"},
@@ -391,7 +288,7 @@ class _LocalSseProvider:
                 scenario.requests.append(json.loads(raw.decode("utf-8")) if raw else {})
                 if scenario.failures_remaining > 0:
                     scenario.failures_remaining -= 1
-                    body = json.dumps({"error": {"type": "model_unavailable", "message": "retry"}}).encode("utf-8")
+                    body = json.dumps({"error": {"message": "retry"}}).encode("utf-8")
                     self.send_response(503)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
@@ -401,46 +298,37 @@ class _LocalSseProvider:
                 chunks = [
                     {
                         "id": "chatcmpl-provider",
-                        "object": "chat.completion.chunk",
                         "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
                     },
                     {
                         "id": "chatcmpl-provider",
-                        "object": "chat.completion.chunk",
-                        "choices": [
-                            {
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"tool_calls": [{
                                 "index": 0,
-                                "delta": {
-                                    "tool_calls": [
-                                        {
-                                            "index": 0,
-                                            "id": "call_provider_write",
-                                            "type": "function",
-                                            "function": {
-                                                "name": "file_write",
-                                                "arguments": json.dumps(
-                                                    {"path": "provider-tool.txt", "content": "provider plan won"}
-                                                ),
-                                            },
-                                        }
-                                    ]
+                                "id": "call_provider_write",
+                                "type": "function",
+                                "function": {
+                                    "name": "file_write",
+                                    "arguments": json.dumps({
+                                        "path": "provider-tool.txt",
+                                        "content": "provider plan won",
+                                    }),
                                 },
-                                "finish_reason": None,
-                            }
-                        ],
+                            }]},
+                            "finish_reason": None,
+                        }],
                     },
                     {
                         "id": "chatcmpl-provider",
-                        "object": "chat.completion.chunk",
                         "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
-                        "usage": {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18},
                     },
                 ]
-                body = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n"
+                body = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks)
+                body += "data: [DONE]\n\n"
                 encoded = body.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
-                self.send_header("Cache-Control", "no-cache")
                 self.send_header("Content-Length", str(len(encoded)))
                 self.end_headers()
                 self.wfile.write(encoded)

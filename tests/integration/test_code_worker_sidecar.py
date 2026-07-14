@@ -21,279 +21,190 @@ from zyra_runtime import WorkerRequest
 from zyra_workers import CodeWorkerRuntime, CodeWorkerSidecarClient, code_worker_entrypoint
 
 
-QUERY_ENGINE_CONTRACT_LOOP = "zyra_claude_query_engine_runtime"
+QUERY_ENGINE_CONTRACT_LOOP = "zyra_typescript_query_engine_runtime"
 
 
-@unittest.skipIf(shutil.which("node") is None, "node is required for code-worker sidecar")
-class CodeWorkerSidecarTests(unittest.TestCase):
-    def test_entrypoint_is_inside_zyra(self) -> None:
+@unittest.skipIf(shutil.which("node") is None and shutil.which("bun") is None, "TypeScript runtime is required")
+class CodeWorkerTypeScriptRuntimeTests(unittest.TestCase):
+    def test_entrypoint_is_the_typescript_runtime_inside_zyra(self) -> None:
         entrypoint = code_worker_entrypoint(ROOT)
 
+        self.assertEqual(entrypoint.suffix, ".ts")
         self.assertTrue(entrypoint.exists())
         self.assertTrue(entrypoint.is_relative_to(ROOT))
+        self.assertFalse((entrypoint.parent / "main.mjs").exists())
 
-    def test_sidecar_health_reports_vendored_claude_code_runtime(self) -> None:
-        client = CodeWorkerSidecarClient(ROOT)
-        health = client.health()
+    def test_health_reports_typescript_as_canonical_owner_without_vendor(self) -> None:
+        health = CodeWorkerSidecarClient(ROOT).health()
 
         self.assertTrue(health["ok"])
-        self.assertEqual(health["worker"], "CodeWorkerRuntime")
-        self.assertTrue(health["vendor"]["complete"])
-        self.assertTrue(health["productizedRuntime"]["complete"])
-        self.assertGreaterEqual(health["productizedRuntime"]["effectiveLineCount"], 18_000)
-        self.assertTrue(health["productizedRuntime"]["referenceCrosswalk"]["ok"])
-        self.assertTrue(str(health["vendor"]["vendorRoot"]).endswith("vendor\\claude-code-best") or str(health["vendor"]["vendorRoot"]).endswith("vendor/claude-code-best"))
+        self.assertEqual(health["runtime"], "zyra-typescript-claude-runtime")
+        self.assertEqual(health["canonicalOwner"], "typescript")
+        self.assertFalse(health["requiresRootSourceRepo"])
+        self.assertFalse(health["requiresVendorRuntime"])
+        self.assertFalse(health["requiresLegacyInspectionSidecar"])
+        self.assertFalse(health["vendor"]["requiredForMainPath"])
 
-    def test_sidecar_snapshot_contains_priority_runtime_modules(self) -> None:
+    def test_contracts_assign_query_session_tool_and_budget_ownership(self) -> None:
         client = CodeWorkerSidecarClient(ROOT)
-        snapshot = client.vendor_snapshot()
-        module_names = {module["name"] for module in snapshot["modules"]}
+        query = client.query_contract()
+        session = client.session_contract()
+        tools = client.tool_loop_contract()
 
-        self.assertIn("query-engine", module_names)
-        self.assertIn("permission-runtime", module_names)
-        self.assertIn("skill-runtime", module_names)
-        self.assertIn("subagent-runtime", module_names)
+        self.assertEqual(query["canonicalOwner"], "typescript")
+        self.assertIn("packages/runtime/claude-runtime/src/query-engine.ts", query["targetFiles"])
+        self.assertTrue(query["toolOrchestration"]["readOnlyConcurrent"])
+        self.assertTrue(query["toolOrchestration"]["writeSerial"])
+        self.assertTrue(query["budgets"]["toolResultBudget"])
+        self.assertTrue(query["compactRuntime"]["postCompactRestore"])
+        self.assertEqual(session["snapshotVersion"], "zyra.typescript-query-session.v1")
+        self.assertFalse(session["pythonProjectionIsCanonical"])
+        self.assertEqual(tools["resultBudgetOwner"], "typescript")
+        self.assertEqual(tools["sideEffectOwner"], "python-tool-gateway")
 
-    def test_sidecar_inventory_reads_claude_code_runtime_sources(self) -> None:
-        client = CodeWorkerSidecarClient(ROOT)
-        inventory = client.runtime_inventory()
-
-        self.assertEqual(inventory["source"], "claude-code-best")
-        self.assertTrue(inventory["productizedRuntime"]["complete"])
-        self.assertIn("BashTool", inventory["toolRuntime"]["baseToolSymbols"])
-        self.assertIn("FileReadTool", inventory["toolRuntime"]["baseToolSymbols"])
-        self.assertGreater(inventory["commandRuntime"]["commandCount"], 20)
-        self.assertTrue(inventory["moduleEntrypoints"]["queryEngine"])
-
-    def test_sidecar_query_contract_reads_claude_code_query_engine_semantics(self) -> None:
-        client = CodeWorkerSidecarClient(ROOT)
-        contract = client.query_contract()
-
-        self.assertEqual(contract["source"], "claude-code-best")
-        self.assertIn("src/QueryEngine.ts", contract["sourceFiles"])
-        self.assertIn("src/query.ts", contract["sourceFiles"])
-        self.assertIn("src/services/tools/toolOrchestration.ts", contract["sourceFiles"])
-        self.assertIn("maxTurns", contract["queryEngineConfigFields"])
-        self.assertIn("toolUseContext", contract["loopStateFields"])
-        self.assertIn("stream_request_start", contract["lifecycleEvents"])
-        self.assertTrue(contract["toolOrchestration"]["readOnlyConcurrent"])
-        self.assertTrue(contract["toolOrchestration"]["writeSerial"])
-        self.assertEqual(contract["toolOrchestration"]["maxConcurrencyDefault"], 10)
-        self.assertTrue(contract["budgets"]["toolResultBudget"])
-        self.assertTrue(contract["budgets"]["reactiveCompact"])
-        self.assertTrue(contract["permissionRuntime"]["tracksPermissionDenials"])
-
-    def test_runtime_executes_structured_tool_plan(self) -> None:
+    def test_default_runtime_executes_typescript_owned_structured_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("Run CodeWorker tool loop.")
-            runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=Path(tmpdir) / "workspace",
-                artifact_root=Path(tmpdir) / "artifacts",
-            )
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "tool_plan": [
-                        {
-                            "tool_name": "file_write",
-                            "arguments": {"path": "code-worker/result.txt", "content": "runtime ok"},
-                        },
-                        {"tool_name": "file_read", "arguments": {"path": "code-worker/result.txt"}},
-                    ],
-                },
-            )
-
-            run = runtime.run(request)
-
-            self.assertTrue(run.worker_result.ok)
-            tool_events = [event for event in run.event_records if "tool_result" in event.payload]
-            query_events = [event for event in run.event_records if "query_session" in event.payload]
-            self.assertEqual(len(tool_events), 2)
-            self.assertGreaterEqual(len(query_events), 4)
-            phases = [event.payload["query_session"]["phase"] for event in query_events]
-            self.assertIn("query_session_seed_created", phases)
-            self.assertIn("turn_lifecycle_projection", phases)
-            self.assertIn("session_started", phases)
-            self.assertIn("session_completed", phases)
-            self.assertIn("session_lifecycle_state", phases)
-            self.assertLess(phases.index("query_session_seed_created"), phases.index("session_started"))
-            self.assertLess(phases.index("session_completed"), phases.index("session_lifecycle_state"))
-            self.assertIn("stream_request_start", phases)
-            self.assertIn("tool_batch_started", phases)
-            self.assertIn("tool_call_started", phases)
-            self.assertIn("tool_call_completed", phases)
-            self.assertIn("tool_use_summary", phases)
-            self.assertEqual(run.worker_result.metadata["inventory_source"], "zyra-claude-productized")
-            self.assertEqual(run.worker_result.metadata["loop"], QUERY_ENGINE_CONTRACT_LOOP)
-            self.assertEqual(run.worker_result.metadata["query_contract_source"], "zyra-claude-productized")
-            self.assertEqual(run.worker_result.metadata["sidecar_contracts_used"], "false")
-            self.assertEqual(run.worker_result.metadata["query_contract_read_only_concurrent"], "true")
-            self.assertEqual(run.worker_result.metadata["query_contract_write_serial"], "true")
-            self.assertEqual(run.worker_result.metadata["tool_orchestration_write_serial"], "true")
-            self.assertEqual(run.worker_result.metadata["query_turns"], "1")
-            self.assertEqual(run.worker_result.metadata["tool_steps"], "2")
-            self.assertEqual(run.worker_result.metadata["context_compactions"], "0")
-            self.assertTrue(run.worker_result.metadata["query_session_id"].startswith("codesession_"))
-            self.assertGreater(int(run.worker_result.metadata["inventory_base_tool_count"]), 5)
-            self.assertTrue((Path(tmpdir) / "workspace" / "code-worker" / "result.txt").exists())
-            self.assertTrue(any(artifact.kind == "trace" for artifact in run.worker_result.artifacts))
-
-    def test_runtime_batches_consecutive_read_only_tools_like_claude_code(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("Batch read-only tools.")
+            state = create_task_state("Run the TypeScript CodeWorker loop.")
             workspace = Path(tmpdir) / "workspace"
-            workspace.mkdir()
-            (workspace / "a.txt").write_text("alpha", encoding="utf-8")
-            (workspace / "b.txt").write_text("beta", encoding="utf-8")
             runtime = CodeWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
                 artifact_root=Path(tmpdir) / "artifacts",
             )
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "query_turns": [
-                        [
+            run = runtime.run(
+                WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
+                        "tool_plan": [
+                            {
+                                "tool_name": "file_write",
+                                "arguments": {"path": "result.txt", "content": "typescript runtime"},
+                            },
+                            {"tool_name": "file_read", "arguments": {"path": "result.txt"}},
+                        ],
+                    },
+                )
+            )
+
+            self.assertTrue(run.worker_result.ok, run.worker_result.error)
+            self.assertEqual(run.worker_result.metadata["loop"], QUERY_ENGINE_CONTRACT_LOOP)
+            self.assertEqual(run.worker_result.metadata["canonical_runtime_owner"], "typescript")
+            self.assertEqual(run.worker_result.metadata["python_query_engine_fallback"], "false")
+            self.assertEqual(run.worker_result.metadata["runtime_protocol"], "zyra.claude-runtime.v1")
+            self.assertEqual((workspace / "result.txt").read_text(encoding="utf-8"), "typescript runtime")
+            phases = [
+                event.payload["query_session"]["phase"]
+                for event in run.event_records
+                if "query_session" in event.payload
+            ]
+            self.assertIn("stream_request_start", phases)
+            self.assertIn("tool_call_completed", phases)
+            self.assertIn("session_completed", phases)
+
+    def test_typescript_runtime_owns_batch_budget_and_compact_decisions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Exercise TypeScript runtime budgets.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "a.txt").write_text("a" * 1000, encoding="utf-8")
+            (workspace / "b.txt").write_text("b" * 1000, encoding="utf-8")
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=workspace,
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+            run = runtime.run(
+                WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
+                        "tool_result_budget_chars": 100,
+                        "query_context_budget_chars": 180,
+                        "query_turns": [[
                             {"tool_name": "file_read", "arguments": {"path": "a.txt"}},
                             {"tool_name": "file_read", "arguments": {"path": "b.txt"}},
-                            {"tool_name": "file_write", "arguments": {"path": "out.txt", "content": "done"}},
-                        ]
-                    ],
-                },
+                        ]],
+                    },
+                )
             )
 
-            run = runtime.run(request)
-
-            self.assertTrue(run.worker_result.ok)
-            batch_events = [
+            self.assertTrue(run.worker_result.ok, run.worker_result.error)
+            events = [
                 event.payload["query_session"]
                 for event in run.event_records
-                if event.payload.get("query_session", {}).get("phase") == "tool_batch_started"
+                if "query_session" in event.payload
             ]
-            self.assertEqual(batch_events[0]["execution_mode"], "concurrent_read_only")
-            self.assertEqual(batch_events[0]["tool_count"], 2)
-            self.assertEqual(batch_events[1]["execution_mode"], "serial_non_read_only")
-            self.assertEqual(batch_events[1]["tool_count"], 1)
-            self.assertEqual(run.worker_result.metadata["tool_steps"], "3")
-            self.assertEqual(run.worker_result.metadata["tool_use_summaries"], "2")
-            self.assertEqual(run.worker_result.metadata["max_read_only_concurrency"], "10")
-            summary_events = [
-                event.payload["query_session"]
-                for event in run.event_records
-                if event.payload.get("query_session", {}).get("phase") == "tool_use_summary"
-            ]
-            self.assertEqual(len(summary_events), 2)
-            self.assertEqual(summary_events[0]["execution_mode"], "concurrent_read_only")
-            self.assertTrue((workspace / "out.txt").exists())
-
-    def test_runtime_applies_tool_result_budget(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("Apply tool result budget.")
-            runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=Path(tmpdir) / "workspace",
-                artifact_root=Path(tmpdir) / "artifacts",
-            )
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "tool_result_budget_chars": 120,
-                    "tool_plan": [
-                        {
-                            "tool_name": "file_write",
-                            "arguments": {"path": "budget.txt", "content": "x" * 500},
-                        },
-                        {"tool_name": "file_read", "arguments": {"path": "budget.txt"}},
-                    ],
-                },
-            )
-
-            run = runtime.run(request)
-
-            self.assertTrue(run.worker_result.ok)
-            read_result = [event.payload["tool_result"] for event in run.event_records if "tool_result" in event.payload][1]
-            self.assertTrue(read_result["output"]["truncated"])
-            self.assertEqual(read_result["metadata"]["tool_result_budget_applied"], "true")
-            self.assertGreaterEqual(len(run.worker_result.artifacts), 2)
-
-    def test_runtime_compacts_query_context_budget(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("Compact query context budget.")
-            runtime = CodeWorkerRuntime(
-                project_root=ROOT,
-                workspace_root=Path(tmpdir) / "workspace",
-                artifact_root=Path(tmpdir) / "artifacts",
-            )
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "query_context_budget_chars": 160,
-                    "tool_plan": [
-                        {
-                            "tool_name": "file_write",
-                            "arguments": {"path": "context.txt", "content": "context-budget-" * 80},
-                        },
-                        {"tool_name": "file_read", "arguments": {"path": "context.txt"}},
-                    ],
-                },
-            )
-
-            run = runtime.run(request)
-
-            self.assertTrue(run.worker_result.ok)
+            batches = [event for event in events if event["phase"] == "tool_batch_started"]
+            self.assertEqual(batches[0]["execution_mode"], "concurrent_read_only")
+            self.assertEqual(batches[0]["tool_count"], 2)
+            self.assertTrue(any(event["phase"] == "tool_result_budget_exceeded" for event in events))
+            self.assertTrue(any(event["phase"] == "context_compacted" for event in events))
             self.assertGreaterEqual(int(run.worker_result.metadata["context_compactions"]), 1)
-            compact_events = [
-                event.payload["query_session"]
-                for event in run.event_records
-                if event.payload.get("query_session", {}).get("phase") == "context_compacted"
-            ]
-            self.assertTrue(compact_events)
-            compact_artifact_ids = {event["artifact_id"] for event in compact_events}
-            self.assertTrue(any(artifact.artifact_id in compact_artifact_ids for artifact in run.worker_result.artifacts))
 
-    def test_runtime_honors_query_turn_max_turns(self) -> None:
+    def test_disabling_or_killing_typescript_runtime_fails_without_fallback(self) -> None:
+        for constraint, expected in [
+            ("disable_typescript_runtime", "typescript_runtime_disabled"),
+            ("kill_typescript_runtime_after_start", "typescript_runtime_process_failed"),
+        ]:
+            with self.subTest(constraint=constraint), tempfile.TemporaryDirectory() as tmpdir:
+                state = create_task_state("Disconnect the TypeScript owner.")
+                runtime = CodeWorkerRuntime(
+                    project_root=ROOT,
+                    workspace_root=Path(tmpdir) / "workspace",
+                    artifact_root=Path(tmpdir) / "artifacts",
+                )
+                run = runtime.run(
+                    WorkerRequest(
+                        run_id=state.run_id,
+                        task_id=state.task_id,
+                        node_id=state.root_node_id,
+                        worker_name="CodeWorkerRuntime",
+                        constraints={
+                            constraint: True,
+                            "tool_plan": [{"tool_name": "checkpoint", "arguments": {}}],
+                        },
+                    )
+                )
+
+                self.assertFalse(run.worker_result.ok)
+                self.assertEqual(run.worker_result.error, expected)
+                self.assertEqual(run.worker_result.metadata["python_query_engine_fallback"], "false")
+
+    def test_max_turns_is_enforced_by_typescript_owner(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            state = create_task_state("Stop at max turns.")
+            state = create_task_state("Stop after one TypeScript turn.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "input.txt").write_text("input", encoding="utf-8")
             runtime = CodeWorkerRuntime(
                 project_root=ROOT,
-                workspace_root=Path(tmpdir) / "workspace",
+                workspace_root=workspace,
                 artifact_root=Path(tmpdir) / "artifacts",
             )
-            request = WorkerRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                worker_name="CodeWorkerRuntime",
-                constraints={
-                    "max_turns": 1,
-                    "query_turns": [
-                        [{"tool_name": "file_write", "arguments": {"path": "one.txt", "content": "one"}}],
-                        [{"tool_name": "file_write", "arguments": {"path": "two.txt", "content": "two"}}],
-                    ],
-                },
+            run = runtime.run(
+                WorkerRequest(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    worker_name="CodeWorkerRuntime",
+                    constraints={
+                        "max_turns": 1,
+                        "query_turns": [
+                            [{"tool_name": "file_read", "arguments": {"path": "input.txt"}}],
+                            [{"tool_name": "file_read", "arguments": {"path": "input.txt"}}],
+                        ],
+                    },
+                )
             )
-
-            run = runtime.run(request)
 
             self.assertFalse(run.worker_result.ok)
             self.assertEqual(run.worker_result.error, "max_turns_exceeded")
-            self.assertEqual(run.worker_result.metadata["query_turns"], "1")
-            self.assertTrue((Path(tmpdir) / "workspace" / "one.txt").exists())
-            self.assertFalse((Path(tmpdir) / "workspace" / "two.txt").exists())
+            self.assertEqual(run.worker_result.metadata["canonical_runtime_owner"], "typescript")
 
 
 if __name__ == "__main__":

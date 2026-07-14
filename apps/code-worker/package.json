@@ -1,10 +1,12 @@
 {
   "name": "zyra-code-worker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "health": "node src/main.mjs --health",
-    "snapshot": "node src/main.mjs --snapshot"
+    "health": "node --experimental-strip-types src/main.ts --health",
+    "runtime:node": "node --experimental-strip-types src/main.ts --stdio",
+    "runtime:bun": "bun src/main.ts --stdio",
+    "test": "node --experimental-strip-types --test ../../packages/runtime/claude-runtime/test/protocol.test.ts ../../packages/runtime/claude-runtime/test/runtime.test.ts"
   }
 }

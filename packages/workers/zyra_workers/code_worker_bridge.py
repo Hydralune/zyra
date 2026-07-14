@@ -8,12 +8,13 @@ from typing import Any
 
 
 def code_worker_entrypoint(project_root: str | Path) -> Path:
-    return Path(project_root) / "apps" / "code-worker" / "src" / "main.mjs"
+    return Path(project_root) / "apps" / "code-worker" / "src" / "main.ts"
 
 
 class CodeWorkerSidecarClient:
     def __init__(self, project_root: str | Path, node_executable: str | None = None) -> None:
         self.project_root = Path(project_root)
+        self.bun_executable = shutil.which("bun")
         self.node_executable = node_executable or shutil.which("node") or "node"
         self.entrypoint = code_worker_entrypoint(self.project_root)
 
@@ -36,8 +37,18 @@ class CodeWorkerSidecarClient:
         return self._run_one_shot("--tool-loop-contract")
 
     def _run_one_shot(self, flag: str) -> dict[str, Any]:
+        command = (
+            [self.bun_executable, str(self.entrypoint), flag]
+            if self.bun_executable
+            else [
+                self.node_executable,
+                "--experimental-strip-types",
+                str(self.entrypoint),
+                flag,
+            ]
+        )
         completed = subprocess.run(
-            [self.node_executable, str(self.entrypoint), flag],
+            command,
             cwd=self.project_root,
             check=True,
             capture_output=True,

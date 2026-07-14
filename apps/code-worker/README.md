@@ -1,17 +1,28 @@
-# Zyra Code Worker Sidecar
+# Zyra CodeWorker TypeScript Runtime
 
-This sidecar is the TypeScript/Node boundary for the vendored `claude-code-best` runtime.
+The application entrypoint is the canonical in-repository TypeScript runtime for
+CodeWorker query execution. It is not an upstream inspection sidecar.
 
-Current M2 status:
+Runtime command:
 
-- Uses Node standard library so the boundary can be verified without Bun.
-- Reads only `zyra/vendor/claude-code-best`.
-- Exposes a JSON-line protocol for health and vendor snapshot checks.
-- Is used by `packages/workers/zyra_workers/CodeWorkerRuntime` before executing a Zyra tool plan, so the Python worker loop stays tied to the vendored Claude Code runtime boundary.
+    bun src/main.ts --stdio
 
-Next migration steps:
+Node 22 strip-types is the supported cleanroom fallback when Bun is unavailable:
 
-- Replace the inspection-only snapshot with a narrowed adapter around `QueryEngine`.
-- Route tool calls through Zyra `ToolPermissionRuntime`.
-- Emit Zyra `EventRecord`, `ArtifactRef`, and `ToolResult` payloads.
-- Keep runtime code inside `zyra`; never import from `../claude-code-best`.
+    node --experimental-strip-types src/main.ts --stdio
+
+The JSONL boundary is versioned as zyra.claude-runtime.v1. TypeScript owns query
+turns, session lifecycle, tool registry and batch decisions, result budgets, and
+compact/restore state. Python owns process supervision, durable Zyra stores,
+permission enforcement, exact tool side effects, EventRecord projection and
+ArtifactRef persistence. Protocol failure or process loss fails the worker; there
+is no Python QueryEngine fallback.
+
+The health and contract flags report only the internalized runtime:
+
+    node --experimental-strip-types src/main.ts --health
+    node --experimental-strip-types src/main.ts --query-contract
+    node --experimental-strip-types src/main.ts --session-contract
+    node --experimental-strip-types src/main.ts --tool-loop-contract
+
+No command scans or loads vendor, vendor-runtimes, or a sibling source repository.

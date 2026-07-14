@@ -1,0 +1,13 @@
+{
+  "name": "zyra",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/code-worker",
+    "packages/runtime/claude-runtime"
+  ],
+  "scripts": {
+    "runtime:health": "node --experimental-strip-types apps/code-worker/src/main.ts --health",
+    "runtime:test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts"
+  }
+}

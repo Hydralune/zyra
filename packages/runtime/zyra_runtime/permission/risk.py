@@ -205,6 +205,7 @@ _EDIT_NAMES = frozenset(
         "file_edit",
         "write",
         "write_file",
+        "file_write",
         "apply_patch",
         "patch",
         "replace",
