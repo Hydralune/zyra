@@ -60,12 +60,14 @@ class CodeWorkerTypeScriptRuntimeTests(unittest.TestCase):
         self.assertEqual(session["snapshotVersion"], "zyra.typescript-query-session.v1")
         self.assertFalse(session["pythonProjectionIsCanonical"])
         self.assertEqual(tools["resultBudgetOwner"], "typescript")
-        self.assertEqual(tools["sideEffectOwner"], "python-tool-gateway")
+        self.assertEqual(tools["sideEffectOwner"], "python-tool-gateway-or-typescript-capability")
 
     def test_default_runtime_executes_typescript_owned_structured_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Run the TypeScript CodeWorker loop.")
             workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "result.txt").write_text("typescript runtime", encoding="utf-8")
             runtime = CodeWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
@@ -79,10 +81,7 @@ class CodeWorkerTypeScriptRuntimeTests(unittest.TestCase):
                     worker_name="CodeWorkerRuntime",
                     constraints={
                         "tool_plan": [
-                            {
-                                "tool_name": "file_write",
-                                "arguments": {"path": "result.txt", "content": "typescript runtime"},
-                            },
+                            {"tool_name": "file_read", "arguments": {"path": "result.txt"}},
                             {"tool_name": "file_read", "arguments": {"path": "result.txt"}},
                         ],
                     },

@@ -3,6 +3,8 @@ import { createInterface } from "node:readline";
 import {
   asObject,
   asString,
+  type AgentMutationReceipt,
+  type AgentMutationRequest,
   type ArtifactReceipt,
   type ArtifactRequest,
   type CapabilitySettlement,
@@ -129,6 +131,20 @@ class JsonlRuntimeHost implements RuntimeHost {
     }
   }
 
+  async mutateAgent(request: AgentMutationRequest): Promise<AgentMutationReceipt> {
+    const correlationId = request.task_id + ":" + request.action;
+    this.send("agent.mutate", request, correlationId);
+    const frame = await this.read("agent.mutate.result", correlationId);
+    return {
+      ...frame.payload,
+      accepted: frame.payload.accepted === true,
+      task_id: asString(frame.payload.task_id),
+      status: asString(frame.payload.status),
+      revision: typeof frame.payload.revision === "number" ? frame.payload.revision : -1,
+      error: asString(frame.payload.error),
+    } as AgentMutationReceipt;
+  }
+
   isAborted(): boolean {
     return this.aborted;
   }
@@ -202,6 +218,14 @@ export async function runStdioRuntime(): Promise<void> {
     };
     const permissionedHost = new PermissionedCapabilityHost(host, runtimeInput, capabilities);
     const result = await new ClaudeRuntimeCore().run(runtimeInput, permissionedHost);
+    await capabilities.drainBackground({
+      parentInput: runtimeInput,
+      host: permissionedHost,
+      runChild: async (childInput) => new ClaudeRuntimeCore().run(
+        childInput,
+        new PermissionedCapabilityHost(host, childInput, capabilities),
+      ),
+    });
     host.send("run.result", {
       result: {
         ...result,
@@ -214,7 +238,10 @@ export async function runStdioRuntime(): Promise<void> {
           canonical_permission_owner: "typescript",
           canonical_mcp_owner: "typescript",
           canonical_skill_owner: "typescript",
+          canonical_agent_owner: "typescript",
+          canonical_control_owner: "typescript",
           python_policy_fallback: "false",
+          python_agent_fallback: "false",
         },
       } as unknown as JsonObject,
     });
@@ -286,11 +313,13 @@ export function runtimeContract(
         { name: "tool-runtime", path: "src/tools.ts" },
         { name: "context-budget", path: "src/budget.ts" },
         { name: "jsonl-protocol", path: "src/protocol.ts" },
+        { name: "agent-tool-runtime", path: "src/agents/agent-tool.ts" },
+        { name: "control-runtime", path: "src/control/runtime.ts" },
       ],
       toolRuntime: {
         baseToolSymbols: ["file_read", "file_write", "file_edit", "shell"],
       },
-      commandRuntime: { commandCount: 0 },
+      commandRuntime: { commandCount: 12, canonicalOwner: "typescript" },
       moduleEntrypoints: { queryEngine: "ClaudeRuntimeCore" },
     };
   }
@@ -368,6 +397,8 @@ export function runtimeContract(
     permissionPolicyOwner: "typescript",
     mcpRuntimeOwner: "typescript",
     skillRuntimeOwner: "typescript",
+    agentRuntimeOwner: "typescript",
+    controlRuntimeOwner: "typescript",
   };
 }
 

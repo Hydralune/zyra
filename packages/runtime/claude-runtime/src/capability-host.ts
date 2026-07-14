@@ -1,4 +1,6 @@
 import type {
+  AgentMutationReceipt,
+  AgentMutationRequest,
   ArtifactReceipt,
   ArtifactRequest,
   JsonObject,
@@ -15,6 +17,7 @@ import {
   TypeScriptPermissionEvaluator,
   type PermissionToolContext,
 } from "./permission/index.ts";
+import { ClaudeRuntimeCore } from "./query-engine.ts";
 
 export class PermissionedCapabilityHost implements RuntimeHost {
   private readonly delegate: RuntimeHost;
@@ -97,7 +100,18 @@ export class PermissionedCapabilityHost implements RuntimeHost {
       }
       let settlementAttempted = false;
       try {
-        const result = await this.capabilities.execute(request.toolName, request.arguments);
+        const result = await this.capabilities.execute(
+          request.toolName,
+          request.arguments,
+          {
+            parentInput: this.input,
+            host: this,
+            runChild: async (childInput) => new ClaudeRuntimeCore().run(
+              childInput,
+              new PermissionedCapabilityHost(this.delegate, childInput, this.capabilities),
+            ),
+          },
+        );
         settlementAttempted = true;
         await this.delegate.settleCapability?.({
           toolCallId: request.toolCallId,
@@ -163,6 +177,13 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     return this.delegate.externalize(request);
   }
 
+  mutateAgent(request: AgentMutationRequest): Promise<AgentMutationReceipt> {
+    if (!this.delegate.mutateAgent) {
+      throw new Error("Python durable/physical agent port is disconnected");
+    }
+    return this.delegate.mutateAgent(request);
+  }
+
   isAborted(): boolean {
     return this.delegate.isAborted();
   }
@@ -221,6 +242,21 @@ function inferToolIdentity(
       schemaDigest,
     };
   }
+  if ([
+    "Agent",
+    "Task",
+    "agent_status",
+    "agent_cancel",
+    "agent_resume",
+    "agent_message",
+  ].includes(toolName)) {
+    return {
+      namespace: asString(provenance.namespace) || "agent",
+      serverId: asString(provenance.server_id),
+      version,
+      schemaDigest,
+    };
+  }
   return {
     namespace: asString(provenance.namespace) || "builtin",
     serverId: asString(provenance.server_id),
@@ -232,6 +268,7 @@ function inferToolIdentity(
 function inferOperation(toolName: string): string {
   if ([
     "file_read",
+    "agent_status",
     "list_skills",
     "read_skill_resource",
     "list_commands",

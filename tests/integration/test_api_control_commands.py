@@ -816,7 +816,7 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
-    def test_code_worker_endpoint_executes_tool_plan_and_records_events(self) -> None:
+    def test_code_worker_endpoint_suspends_unapproved_workspace_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["ZYRA_SQLITE_PATH"] = str(Path(tmpdir) / "api.sqlite3")
             os.environ["ZYRA_EVENT_LOG"] = str(Path(tmpdir) / "events.jsonl")
@@ -832,7 +832,7 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Run CodeWorker.", "auto_run": False})
                 task_id = created["task"]["task_id"]
-                executed = _post(
+                status, blocked = _post_with_status(
                     base_url,
                     f"/tasks/{task_id}/workers/code",
                     {
@@ -846,62 +846,16 @@ class ApiControlCommandTests(unittest.TestCase):
                     },
                 )
 
-                self.assertTrue(executed["worker_result"]["ok"])
-                tool_events = [event for event in executed["events"] if "tool_result" in event["payload"]]
-                query_events = [event for event in executed["events"] if "query_session" in event["payload"]]
-                worker_events = [event for event in executed["events"] if "worker_result" in event["payload"]]
-                self.assertEqual(len(tool_events), 2)
-                self.assertGreaterEqual(len(query_events), 4)
-                self.assertEqual(len(worker_events), 1)
-                self.assertEqual(executed["task"]["budget"]["tool_calls"], 2)
-                metadata = executed["worker_result"]["metadata"]
-                self.assertEqual(metadata["vendor_complete"], "false")
-                self.assertEqual(metadata["sidecar_contracts_used"], "false")
-                self.assertEqual(metadata["productized_runtime_clean_safe"], "true")
-                self.assertEqual(metadata["productized_runtime_owner_unit"], "M1-02A")
-                self.assertEqual(
-                    metadata["loop"],
-                    "zyra_typescript_query_engine_runtime",
-                )
-                self.assertEqual(metadata["query_contract_source"], "zyra-claude-productized")
-                self.assertEqual(metadata["query_contract_write_serial"], "true")
-                self.assertEqual(metadata["tool_runtime_completed"], "2")
+                self.assertEqual(status, 409, blocked)
+                self.assertEqual(blocked["worker_result"]["error"], "permission_suspended")
+                metadata = blocked["worker_result"]["metadata"]
+                self.assertEqual(metadata["canonical_runtime_owner"], "typescript")
+                self.assertEqual(metadata["loop"], "zyra_typescript_query_engine_runtime")
+                self.assertEqual(metadata["tool_runtime_completed"], "1")
                 self.assertEqual(metadata["query_plan_ok"], "true")
-                self.assertEqual(metadata["runtime_state_ok"], "true")
-                self.assertEqual(metadata["query_turns"], "1")
-                self.assertEqual(metadata["context_compactions"], "0")
-                self.assertEqual(metadata["query_session_consistent"], "true")
-                self.assertTrue(
-                    metadata["query_session_resume_token"].startswith(
-                        metadata["query_session_id"] + ":"
-                    )
-                )
-                self.assertIn("last_code_worker_session", executed["task"]["metadata"])
-                self.assertEqual(
-                    executed["task"]["metadata"]["last_code_worker_session"]["session_id"],
-                    metadata["query_session_id"],
-                )
-                workspace_id = created["task"]["metadata"]["workspace_ref"]["workspace_id"]
-                workspace_file = _get(
-                    base_url,
-                    f"/workspaces/{workspace_id}/files?path=worker%2Foutput.txt&read=true&encoding=utf-8",
-                )
-                self.assertEqual(workspace_file["content"], "from worker")
-                self.assertGreaterEqual(len(_get(base_url, f"/tasks/{task_id}/events")["events"]), 4)
-
-                artifacts = _get(base_url, f"/tasks/{task_id}/artifacts")["artifacts"]
-                self.assertGreaterEqual(len(artifacts), 3)
-                by_title = {item["artifact"]["title"]: item["artifact"]["artifact_id"] for item in artifacts}
-                trace_id = next(artifact_id for title, artifact_id in by_title.items() if "CodeWorker trace" in title)
-                snapshot_id = metadata["query_session_snapshot_artifact_id"]
-                transcript_id = metadata["query_session_transcript_artifact_id"]
-                preview = _get(base_url, f"/artifacts/{trace_id}")["artifact"]
-                snapshot = _get(base_url, f"/artifacts/{snapshot_id}")["artifact"]
-                transcript = _get(base_url, f"/artifacts/{transcript_id}")["artifact"]
-                self.assertIn("CodeWorker Runtime Trace", preview["content"])
-                self.assertIn("Query Session Contract Sources", preview["content"])
-                self.assertIn('"consistency"', snapshot["content"])
-                self.assertIn('"type": "session_metadata"', transcript["content"])
+                self.assertIn("permission_session", blocked)
+                self.assertTrue(blocked["permission_session"]["session_custody_token_included"])
+                self.assertFalse((Path(tmpdir) / "workspace" / "worker" / "output.txt").exists())
             finally:
                 server.shutdown()
                 server.server_close()

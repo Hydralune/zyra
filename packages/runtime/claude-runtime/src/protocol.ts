@@ -15,6 +15,8 @@ export type RuntimeFrameKind =
   | "tool.result"
   | "tool.settle"
   | "tool.settle.result"
+  | "agent.mutate"
+  | "agent.mutate.result"
   | "artifact.request"
   | "artifact.result"
   | "run.result"
@@ -47,6 +49,8 @@ const FRAME_KINDS = new Set<RuntimeFrameKind>([
   "tool.result",
   "tool.settle",
   "tool.settle.result",
+  "agent.mutate",
+  "agent.mutate.result",
   "artifact.request",
   "artifact.result",
   "run.result",

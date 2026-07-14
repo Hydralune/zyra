@@ -43,6 +43,8 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Clean productized CodeWorker path.")
             workspace = Path(tmpdir) / "workspace"
+            (workspace / "clean").mkdir(parents=True)
+            (workspace / "clean" / "result.txt").write_text("clean ok", encoding="utf-8")
             runtime = CodeWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
@@ -56,7 +58,7 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
                 worker_name="CodeWorkerRuntime",
                 constraints={
                     "tool_plan": [
-                        {"tool_name": "file_write", "arguments": {"path": "clean/result.txt", "content": "clean ok"}},
+                        {"tool_name": "file_read", "arguments": {"path": "clean/result.txt"}},
                         {"tool_name": "file_read", "arguments": {"path": "clean/result.txt"}},
                     ],
                 },
@@ -147,6 +149,8 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Context budget must trigger compact artifact.")
             workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "large.txt").write_text("context-" * 100, encoding="utf-8")
             runtime = CodeWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
@@ -161,7 +165,7 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
                 constraints={
                     "query_context_budget_chars": 160,
                     "tool_plan": [
-                        {"tool_name": "file_write", "arguments": {"path": "large.txt", "content": "context-" * 100}},
+                        {"tool_name": "file_read", "arguments": {"path": "large.txt"}},
                         {"tool_name": "file_read", "arguments": {"path": "large.txt"}},
                     ],
                 },
@@ -183,9 +187,12 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
     def test_session_snapshot_restores_without_sidecar(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Session snapshot restore.")
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            (workspace / "restore.txt").write_text("restore ok", encoding="utf-8")
             runtime = CodeWorkerRuntime(
                 project_root=ROOT,
-                workspace_root=Path(tmpdir) / "workspace",
+                workspace_root=workspace,
                 artifact_root=Path(tmpdir) / "artifacts",
                 sidecar_client=ExplodingSidecarClient(),
             )
@@ -196,7 +203,7 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
                 worker_name="CodeWorkerRuntime",
                 constraints={
                     "query_turns": [
-                        [{"tool_name": "file_write", "arguments": {"path": "restore.txt", "content": "restore ok"}}],
+                        [{"tool_name": "file_read", "arguments": {"path": "restore.txt"}}],
                         [{"tool_name": "file_read", "arguments": {"path": "restore.txt"}}],
                     ],
                 },
@@ -222,6 +229,8 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Control commands on productized runtime.")
             workspace = Path(tmpdir) / "workspace"
+            (workspace / "control").mkdir(parents=True)
+            (workspace / "control" / "result.txt").write_text("control ok", encoding="utf-8")
             runtime = CodeWorkerRuntime(
                 project_root=ROOT,
                 workspace_root=workspace,
@@ -235,7 +244,7 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
                 worker_name="CodeWorkerRuntime",
                 constraints={
                     "tool_plan": [
-                        {"tool_name": "file_write", "arguments": {"path": "control/result.txt", "content": "control ok"}},
+                        {"tool_name": "file_read", "arguments": {"path": "control/result.txt"}},
                         {"tool_name": "file_read", "arguments": {"path": "control/result.txt"}},
                     ],
                     "control_commands": [
@@ -253,7 +262,7 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
             self.assertEqual(run.worker_result.metadata["control_command_count"], "4")
             self.assertEqual(run.worker_result.metadata["control_command_failed"], "0")
             self.assertEqual(run.worker_result.metadata["tool_runtime_planned"], "2")
-            self.assertEqual(run.worker_result.metadata["tool_runtime_mutating"], "1")
+            self.assertEqual(run.worker_result.metadata["tool_runtime_mutating"], "0")
             self.assertEqual(run.worker_result.metadata["runtime_state_control_mutations"], "4")
             self.assertEqual(run.worker_result.metadata["session_lifecycle_resume_plans"], "1")
             self.assertEqual(run.worker_result.metadata["session_lifecycle_latest_resume_status"], "ready")

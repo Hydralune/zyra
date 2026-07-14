@@ -18,11 +18,25 @@ REQUIRED_FILES = (
     "packages/runtime/claude-runtime/src/session.ts",
     "packages/runtime/claude-runtime/src/tools.ts",
     "packages/runtime/claude-runtime/src/budget.ts",
+    "packages/runtime/claude-runtime/src/agents/contracts.ts",
+    "packages/runtime/claude-runtime/src/agents/memory.ts",
+    "packages/runtime/claude-runtime/src/agents/definitions.ts",
+    "packages/runtime/claude-runtime/src/agents/scope.ts",
+    "packages/runtime/claude-runtime/src/agents/fork.ts",
+    "packages/runtime/claude-runtime/src/agents/run-agent.ts",
+    "packages/runtime/claude-runtime/src/agents/resume.ts",
+    "packages/runtime/claude-runtime/src/agents/lifecycle.ts",
+    "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+    "packages/runtime/claude-runtime/src/agents/index.ts",
+    "packages/runtime/claude-runtime/src/control/contracts.ts",
+    "packages/runtime/claude-runtime/src/control/runtime.ts",
+    "packages/runtime/claude-runtime/src/control/index.ts",
     "packages/runtime/claude-runtime/src/permission/canonical.ts",
     "packages/runtime/claude-runtime/src/permission/policy.ts",
     "packages/runtime/claude-runtime/src/skills/frontmatter.ts",
     "packages/runtime/claude-runtime/src/skills/runtime.ts",
     "packages/workers/zyra_workers/typescript_claude_runtime.py",
+    "packages/workers/zyra_workers/subagents/typescript_port.py",
 )
 
 
@@ -41,6 +55,17 @@ def audit(project_root: Path) -> dict[str, Any]:
         / "workers"
         / "zyra_workers"
         / "typescript_claude_runtime.py"
+    ).read_text(encoding="utf-8")
+    api_text = (
+        project_root / "apps" / "api" / "zyra_api" / "main.py"
+    ).read_text(encoding="utf-8")
+    agent_port_text = (
+        project_root
+        / "packages"
+        / "workers"
+        / "zyra_workers"
+        / "subagents"
+        / "typescript_port.py"
     ).read_text(encoding="utf-8")
     permission_text = (
         project_root
@@ -118,11 +143,49 @@ def audit(project_root: Path) -> dict[str, Any]:
             "packages/workers/zyra_workers/code_worker_runtime.py",
             "not typescript_capability_owner",
         ),
+        "typescript_agent_tool_owner": (
+            "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+            "class TypeScriptAgentRuntime",
+        ),
+        "typescript_agent_mutation_protocol": (
+            "packages/runtime/claude-runtime/src/protocol.ts",
+            '"agent.mutate"',
+        ),
+        "typescript_control_state_owner": (
+            "packages/runtime/claude-runtime/src/query-engine.ts",
+            "control_state_revision",
+        ),
+        "python_agent_durable_port": (
+            "packages/workers/zyra_workers/subagents/typescript_port.py",
+            "class TypeScriptAgentDurablePort",
+        ),
+        "python_agent_mutation_transport": (
+            "packages/workers/zyra_workers/typescript_claude_runtime.py",
+            '"agent.mutate"',
+        ),
+        "typescript_agent_durable_hydration": (
+            "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+            'action: "load"',
+        ),
+        "typescript_agent_api_control_route": (
+            "apps/api/zyra_api/main.py",
+            '"resume": "agent_resume"',
+        ),
+        "agent_child_event_domain_separation": (
+            "packages/workers/zyra_workers/typescript_claude_runtime.py",
+            '"agent_child_query_session"',
+        ),
+        "python_agent_shared_cas_lock": (
+            "packages/workers/zyra_workers/subagents/typescript_port.py",
+            "_shared_port_lock",
+        ),
     }
     marker_sources = {
         "packages/workers/zyra_workers/code_worker_runtime.py": worker_text,
         "packages/workers/zyra_workers/typescript_claude_runtime.py": host_text,
         "packages/runtime/zyra_runtime/permission/runtime.py": permission_text,
+        "packages/workers/zyra_workers/subagents/typescript_port.py": agent_port_text,
+        "apps/api/zyra_api/main.py": api_text,
         **{
             path: (project_root / path).read_text(encoding="utf-8")
             for path in REQUIRED_FILES
@@ -149,6 +212,27 @@ def audit(project_root: Path) -> dict[str, Any]:
             {
                 "code": "typescript_capability_settlement_not_durable",
                 "message": "Permission commit is not held pending until TypeScript capability settlement.",
+            }
+        )
+    for constructor in (
+        "AgentToolRuntime(",
+        "SubagentRuntime(",
+        "CodeWorkerSubagentExecutionPort(",
+        "LogicalFanoutRuntime(",
+        "ParentScopeBuilder(",
+    ):
+        if constructor in worker_text or constructor in api_text:
+            findings.append(
+                {
+                    "code": "python_agent_default_owner_present",
+                    "message": f"Default CodeWorker/API path still constructs legacy Python owner: {constructor}",
+                }
+            )
+    if "get_typescript_agent_port().handle(" in api_text:
+        findings.append(
+            {
+                "code": "python_agent_api_mutation_bypass",
+                "message": "API invokes the Python durable port as a logical Agent control runtime.",
             }
         )
     for marker in (
@@ -179,12 +263,17 @@ def audit(project_root: Path) -> dict[str, Any]:
             "permission_policy_and_request_binding": "typescript",
             "mcp_transport_catalog_and_execution": "typescript",
             "skill_command_discovery_and_execution": "typescript",
+            "agent_definition_scope_fork_run_resume_fanout": "typescript",
+            "codeworker_local_control_state": "typescript",
             "permission_durable_commit_and_continuation": "python",
+            "agent_durable_record_and_workspace_validation": "python",
             "builtin_tool_side_effects": "python",
             "event_artifact_checkpoint_projection": "python",
             "python_query_engine_fallback": False,
             "python_permission_policy_fallback": False,
             "python_mcp_skill_execution_fallback": False,
+            "python_agent_logical_runtime_fallback": False,
+            "legacy_python_agent_modules": "retained_non_default_compatibility_only",
         },
     }
 

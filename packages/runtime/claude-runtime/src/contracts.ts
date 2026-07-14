@@ -74,6 +74,19 @@ export interface CapabilitySettlement {
   metadata: JsonObject;
 }
 
+export interface AgentMutationRequest extends JsonObject {
+  action: string;
+  task_id: string;
+}
+
+export interface AgentMutationReceipt extends JsonObject {
+  accepted: boolean;
+  task_id: string;
+  status: string;
+  revision: number;
+  error: string;
+}
+
 export interface ArtifactRequest {
   requestId: string;
   title: string;
@@ -96,6 +109,7 @@ export interface RuntimeHost {
   executeBatch(batch: ToolBatch, requests: ToolExecutionRequest[]): Promise<ToolExecutionResponse[]>;
   externalize(request: ArtifactRequest): Promise<ArtifactReceipt>;
   settleCapability?(settlement: CapabilitySettlement): Promise<void>;
+  mutateAgent?(request: AgentMutationRequest): Promise<AgentMutationReceipt>;
   isAborted(): boolean;
 }
 

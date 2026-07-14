@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test test/protocol.test.ts test/runtime.test.ts test/permission.test.ts test/skills.test.ts",
+    "test": "node --experimental-strip-types --test test/protocol.test.ts test/runtime.test.ts test/permission.test.ts test/skills.test.ts test/agents.test.ts test/control.test.ts",
     "stdio:node": "node --experimental-strip-types ../../../apps/code-worker/src/main.ts --stdio",
     "stdio:bun": "bun ../../../apps/code-worker/src/main.ts --stdio"
   }

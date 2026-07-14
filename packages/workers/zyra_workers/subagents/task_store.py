@@ -109,6 +109,13 @@ class SubagentTaskStore:
                 raise SubagentTaskNotFound(task_id)
             return copy.deepcopy(record)
 
+    def refresh(self) -> None:
+        """Reload durable state written by another runtime process/port."""
+
+        self._require_enabled()
+        with self._lock:
+            self._load()
+
     def list(
         self,
         *,

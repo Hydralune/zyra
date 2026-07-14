@@ -18,16 +18,31 @@ import {
   TypeScriptSkillRuntime,
   type SkillExecutionResult,
 } from "./skills/index.ts";
+import {
+  isLegacyAgentTool,
+  TypeScriptAgentRuntime,
+  type AgentCapabilityResult,
+  type AgentExecutionContext,
+} from "./agents/index.ts";
 
-export type CapabilityExecutionResult = McpExecutionResult | SkillExecutionResult;
+export type CapabilityExecutionResult =
+  | McpExecutionResult
+  | SkillExecutionResult
+  | AgentCapabilityResult;
 
 export class TypeScriptCapabilityRuntime {
   private readonly mcp: TypeScriptMcpRuntime;
   private readonly skills: TypeScriptSkillRuntime;
+  private readonly agents: TypeScriptAgentRuntime;
 
-  private constructor(mcp: TypeScriptMcpRuntime, skills: TypeScriptSkillRuntime) {
+  private constructor(
+    mcp: TypeScriptMcpRuntime,
+    skills: TypeScriptSkillRuntime,
+    agents: TypeScriptAgentRuntime,
+  ) {
     this.mcp = mcp;
     this.skills = skills;
+    this.agents = agents;
   }
 
   static async open(input: RuntimeRunInput): Promise<TypeScriptCapabilityRuntime> {
@@ -51,17 +66,21 @@ export class TypeScriptCapabilityRuntime {
     const runtime = new TypeScriptCapabilityRuntime(
       new TypeScriptMcpRuntime(mcpConfigs),
       new TypeScriptSkillRuntime(skillRoots),
+      new TypeScriptAgentRuntime(input),
     );
     await Promise.all([runtime.mcp.open(), runtime.skills.open()]);
     return runtime;
   }
 
   mergeToolSpecs(existing: ToolSpecContract[]): ToolSpecContract[] {
-    const retained = existing.filter((tool) => !isLegacyMcpTool(tool) && !isLegacySkillTool(tool));
+    const retained = existing.filter(
+      (tool) => !isLegacyMcpTool(tool) && !isLegacySkillTool(tool) && !isLegacyAgentTool(tool),
+    );
     const local = [
       ...this.mcp.toolSpecs(),
       ...this.mcp.catalogToolSpecs(),
       ...this.skills.toolSpecs(),
+      ...this.agents.toolSpecs(),
     ] as ToolSpecContract[];
     const byName = new Map<string, ToolSpecContract>();
     for (const tool of [...retained, ...local]) {
@@ -71,18 +90,35 @@ export class TypeScriptCapabilityRuntime {
   }
 
   owns(toolName: string): boolean {
-    return this.mcp.owns(toolName) || this.skills.owns(toolName);
+    return this.mcp.owns(toolName) || this.skills.owns(toolName) || this.agents.owns(toolName);
   }
 
   owner(toolName: string): string {
-    return this.mcp.owns(toolName) ? "typescript-mcp" : "typescript-skill";
+    if (this.mcp.owns(toolName)) {
+      return "typescript-mcp";
+    }
+    return this.agents.owns(toolName) ? "typescript-agent" : "typescript-skill";
   }
 
-  async execute(toolName: string, argumentsValue: JsonObject): Promise<CapabilityExecutionResult> {
+  async execute(
+    toolName: string,
+    argumentsValue: JsonObject,
+    agentContext?: AgentExecutionContext,
+  ): Promise<CapabilityExecutionResult> {
     if (this.mcp.owns(toolName)) {
       return this.mcp.execute(toolName, argumentsValue);
     }
+    if (this.agents.owns(toolName)) {
+      if (!agentContext) {
+        throw new Error("AgentTool execution requires a child QueryEngine context");
+      }
+      return this.agents.execute(toolName, argumentsValue, agentContext);
+    }
     return this.skills.execute(toolName, argumentsValue);
+  }
+
+  async drainBackground(context: AgentExecutionContext): Promise<void> {
+    await this.agents.drainBackground(context);
   }
 
   snapshot(): JsonObject {
@@ -91,6 +127,7 @@ export class TypeScriptCapabilityRuntime {
       canonical_owner: "typescript",
       mcp: this.mcp.snapshot(),
       skills: this.skills.snapshot(),
+      agents: this.agents.snapshot(),
       python_runtime_fallback: false,
     };
   }

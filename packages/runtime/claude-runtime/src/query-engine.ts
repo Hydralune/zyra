@@ -23,6 +23,7 @@ import {
   RuntimeToolRegistry,
   scheduleToolBatches,
 } from "./tools.ts";
+import { TypeScriptControlRuntime } from "./control/index.ts";
 
 const DEFAULT_CONFIG: RuntimeConfig = {
   maxTurns: null,
@@ -101,24 +102,19 @@ export class ClaudeRuntimeCore {
       registry_size: registry.list().length,
     });
 
+    const restoredControl = asObject(asObject(input.restoredState).typescriptControl);
+    const controlRuntime = new TypeScriptControlRuntime(config.modelName, restoredControl);
     let controlCommandFailed = 0;
     let resumePlanCount = 0;
     for (const rawCommand of config.controlCommands) {
       const command = asObject(rawCommand);
-      const name = asString(command.name).trim();
-      const supported = new Set([
-        "context",
-        "tools",
-        "resume",
-        "doctor",
-        "compact",
-        "permissions",
-      ]);
-      const status = supported.has(name) ? "ok" : "unsupported";
-      if (status !== "ok") {
+      const receipt = controlRuntime.apply(rawCommand);
+      const name = receipt.name;
+      const status = receipt.status;
+      if (!receipt.accepted) {
         controlCommandFailed += 1;
       }
-      if (name === "resume" && status === "ok") {
+      if (name === "resume" && receipt.accepted) {
         resumePlanCount += 1;
       }
       let artifactId = "";
@@ -134,6 +130,10 @@ export class ClaudeRuntimeCore {
             canonical_owner: "typescript",
             runtime_id: "zyra-typescript-claude-runtime",
             session_id: input.sessionId,
+            request_id: receipt.requestId,
+            revision_before: receipt.revisionBefore,
+            revision_after: receipt.revisionAfter,
+            effect: receipt.effect,
           }),
           metadata: {
             source: "typescript_control_command",
@@ -147,9 +147,24 @@ export class ClaudeRuntimeCore {
       await emit("control_command", {
         name,
         status,
+        accepted: receipt.accepted,
+        changed: receipt.changed,
+        request_id: receipt.requestId,
+        revision_before: receipt.revisionBefore,
+        revision_after: receipt.revisionAfter,
+        effect: receipt.effect,
+        error: receipt.error,
         artifact_id: artifactId,
         control_owner: "typescript",
       });
+    }
+    config.modelName = controlRuntime.modelName;
+    if (controlRuntime.compactRequested) {
+      config.runtimeConstraints.force_compact_restore = true;
+    }
+    if (controlRuntime.cancelled) {
+      ok = false;
+      stoppedReason = "user_cancelled";
     }
 
     const disabledComponents = [
@@ -651,7 +666,10 @@ export class ClaudeRuntimeCore {
       tool_call_count: toolCallCount,
       context_compaction_count: session.compactionCount,
     });
-    const snapshot = session.snapshot();
+    const snapshot = {
+      ...session.snapshot(),
+      typescriptControl: controlRuntime.snapshot(),
+    };
     await emit("query_session_snapshot", {
       snapshot_version: snapshot.version,
       snapshot_checksum: snapshot.checksum,
@@ -682,6 +700,7 @@ export class ClaudeRuntimeCore {
         runtime_state_ok: "true",
         runtime_state_mutations: String(snapshot.revision),
         runtime_state_control_mutations: String(config.controlCommands.length),
+        control_state_revision: String(controlRuntime.revision),
         control_command_count: String(config.controlCommands.length),
         control_command_failed: String(controlCommandFailed),
         tool_runtime_planned: String(toolCallCount),
@@ -750,17 +769,25 @@ function normalizeConfig(value: Partial<RuntimeConfig>): RuntimeConfig {
 function selectRestoredSnapshot(value: JsonObject | null | undefined): JsonObject | null {
   const root = asObject(value);
   if (root.version === "zyra.typescript-query-session.v1") {
-    return root;
+    return sessionChecksumPayload(root);
   }
   const direct = asObject(root.typescript_runtime);
   if (direct.version === "zyra.typescript-query-session.v1") {
-    return direct;
+    return sessionChecksumPayload(direct);
   }
   const queryEngine = asObject(root.query_engine);
   if (queryEngine.version === "zyra.typescript-query-session.v1") {
-    return queryEngine;
+    return sessionChecksumPayload(queryEngine);
   }
   const metadata = asObject(root.metadata);
   const projected = asObject(metadata.typescript_runtime_snapshot);
-  return projected.version === "zyra.typescript-query-session.v1" ? projected : null;
+  return projected.version === "zyra.typescript-query-session.v1"
+    ? sessionChecksumPayload(projected)
+    : null;
+}
+
+function sessionChecksumPayload(value: JsonObject): JsonObject {
+  const selected = { ...value };
+  delete selected.typescriptControl;
+  return selected;
 }

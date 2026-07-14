@@ -29,6 +29,7 @@ from zyra_runtime.permission.runtime import (
 from zyra_runtime.tools import ToolCall, ToolResult
 
 from .code_worker_bridge import code_worker_entrypoint
+from .subagents.typescript_port import TypeScriptAgentDurablePort
 
 
 RUNTIME_PROTOCOL_VERSION = "zyra.claude-runtime.v1"
@@ -293,6 +294,16 @@ class TypeScriptClaudeQueryEngine:
             int(permission_continuation.snapshot().get("session_sequence") or 0)
         ]
         pending_typescript_settlements: dict[str, Any] = {}
+        raw_agent_state_root = (
+            constraints.get("typescriptAgentStatePath")
+            or constraints.get("typescript_agent_state_path")
+            or self.context.artifact_store.root / ".subagents"
+        )
+        agent_port = TypeScriptAgentDurablePort(
+            raw_agent_state_root,
+            workspace_root=self.context.workspace_root,
+            event_sink=self._host_events.append,
+        )
         self._host_events.append(
             EventRecord(
                 run_id=run_id,
@@ -387,10 +398,15 @@ class TypeScriptClaudeQueryEngine:
                         run_id=run_id,
                         task_id=task_id,
                         node_id=node_id,
+                        parent_session_id=session_id,
                         payload=payload,
                     )
                 )
-                if not projection_error:
+                payload_session_id = str(payload.get("session_id") or "")
+                is_child_event = bool(
+                    payload_session_id and payload_session_id != session_id
+                )
+                if not is_child_event and not projection_error:
                     try:
                         self._project_event(projection, payload)
                     except Exception as error:  # noqa: BLE001 - noncanonical compatibility projection.
@@ -438,6 +454,23 @@ class TypeScriptClaudeQueryEngine:
                     sequence=outbound_sequence,
                     kind="tool.settle.result",
                     payload=settlement,
+                    correlation_id=correlation_id,
+                )
+                outbound_sequence += 1
+                continue
+            if kind == "agent.mutate":
+                mutation = agent_port.handle(
+                    payload,
+                    run_id=run_id,
+                    parent_task_id=task_id,
+                    parent_session_id=session_id,
+                )
+                self._write_frame(
+                    process,
+                    run_id=run_id,
+                    sequence=outbound_sequence,
+                    kind="agent.mutate.result",
+                    payload=mutation,
                     correlation_id=correlation_id,
                 )
                 outbound_sequence += 1
@@ -1573,21 +1606,34 @@ class TypeScriptClaudeQueryEngine:
         run_id: str,
         task_id: str,
         node_id: str | None,
+        parent_session_id: str,
         payload: Mapping[str, Any],
     ) -> EventRecord:
         phase = str(payload.get("phase") or "runtime_event")
+        payload_session_id = str(payload.get("session_id") or "")
+        is_child_event = bool(
+            payload_session_id and payload_session_id != parent_session_id
+        )
+        session_domain = (
+            "agent_child_query_session" if is_child_event else "query_session"
+        )
         event_payload: dict[str, Any] = {
-            "query_session": dict(payload),
+            session_domain: dict(payload),
             "typescript_runtime": {
                 "runtime_id": TYPESCRIPT_RUNTIME_ID,
                 "protocol": RUNTIME_PROTOCOL_VERSION,
                 "canonical_owner": "typescript",
                 "phase": phase,
+                "scope": "agent_child" if is_child_event else "parent_session",
+                "parent_session_id": parent_session_id,
+                "effective_session_id": payload_session_id or parent_session_id,
             },
         }
         tool_result = payload.get("tool_result")
         if isinstance(tool_result, Mapping):
-            event_payload["tool_result"] = dict(tool_result)
+            event_payload[
+                "agent_child_tool_result" if is_child_event else "tool_result"
+            ] = dict(tool_result)
         return EventRecord(
             run_id=run_id,
             task_id=task_id,
