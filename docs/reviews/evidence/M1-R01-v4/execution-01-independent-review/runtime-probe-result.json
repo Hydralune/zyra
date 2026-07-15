@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "reviewer_nonce": "a7668cb1855e0a364ba77563f627b157f8182a0a7f040c465cd5d0068dfe1172",
+  "random_suffix": "969f7876-deec-4b18-bf0c-d0f3201ebf28",
+  "provider_stop_reasons": [
+    "tool_use",
+    "end_turn"
+  ],
+  "provider_round_count": 2,
+  "tool_count": 1,
+  "observation_budget_plan_count": 1,
+  "observation_replaced": true,
+  "raw_tool_output_preserved": true,
+  "observation_budget_has_raw_receipt_collections": [],
+  "resume_added_transition_count": 1,
+  "resume_replayed_transition_count": 0,
+  "permission_gateway_delegations": 0,
+  "permission_effects": [
+    "deny",
+    "ask"
+  ],
+  "malformed_sse_rejected": true,
+  "transport_active_after_failure": 0,
+  "transport_queued_after_failure": 0,
+  "committed_resume_probe": {
+    "process_restart_count": 2,
+    "revisions": [
+      2,
+      4,
+      6
+    ],
+    "restart_epochs": [
+      0,
+      1,
+      2
+    ],
+    "replayed_transition_ids": []
+  },
+  "committed_lost_ack_probe": {
+    "duplicate_retry": true,
+    "revision_at_commit": 1,
+    "revision_after_retries": 1,
+    "repeated_effect_count": 0
+  }
+}

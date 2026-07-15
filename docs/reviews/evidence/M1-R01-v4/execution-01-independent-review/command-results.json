@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "implementation_candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+  "commands": [
+    {
+      "name": "v4_verifier",
+      "command": "bun scripts/remediation/verify_m1_r01_e01_v4.ts --candidate cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+      "exit_code": 0,
+      "reported_ok": true,
+      "reviewer_override": "Verifier omits accepted source_role conformance and semantic equivalence."
+    },
+    {
+      "name": "typecheck_e01",
+      "command": "bun run typecheck:e01",
+      "exit_code": 0
+    },
+    {
+      "name": "build",
+      "command": "bun run build",
+      "exit_code": 0,
+      "bundled_modules": 78,
+      "entry_size": "1.16 MB"
+    },
+    {
+      "name": "runtime_e01_test",
+      "command": "bun run runtime:e01:test",
+      "exit_code": 0,
+      "passed": 384,
+      "failed": 0,
+      "assertions": 1219,
+      "files": 12
+    },
+    {
+      "name": "source_bun_health",
+      "command": "bun apps/code-worker/src/main.ts --health",
+      "exit_code": 0
+    },
+    {
+      "name": "source_node_health",
+      "command": "node --experimental-strip-types apps/code-worker/src/main.ts --health",
+      "exit_code": 1,
+      "node_version": "22.17.0",
+      "error_code": "ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX",
+      "error": "TypeScript parameter property is not supported in strip-only mode"
+    },
+    {
+      "name": "built_bun_health",
+      "command": "bun dist/code-worker/main.js --health",
+      "exit_code": 0
+    },
+    {
+      "name": "built_node_health",
+      "command": "node dist/code-worker/main.js --health",
+      "exit_code": 0
+    },
+    {
+      "name": "mutation_runner",
+      "command": "bun scripts/remediation/run_m1_r01_e01_mutations.ts",
+      "exit_code": 0,
+      "killed": 46,
+      "declared": 46,
+      "frozen_patch_fingerprint_mismatches": 11
+    },
+    {
+      "name": "same_session_resume_probe",
+      "command": "bun scripts/remediation/probe_m1_r01_e01.ts resume",
+      "exit_code": 0,
+      "replayed_transition_ids": 0
+    },
+    {
+      "name": "lost_ack_probe",
+      "command": "bun scripts/remediation/probe_m1_r01_e01.ts lost-ack",
+      "exit_code": 0,
+      "repeated_effect_count": 0
+    },
+    {
+      "name": "dependency_probe",
+      "command": "bun scripts/remediation/probe_m1_r01_e01.ts dependencies",
+      "exit_code": 0,
+      "scanned_file_count": 95,
+      "forbidden_runtime_path_violations": 0,
+      "runtime_symlinks": 0,
+      "relative_package_links": 0
+    },
+    {
+      "name": "exact_i_cleanroom",
+      "command": "bun scripts/remediation/probe_m1_r01_e01.ts cleanroom",
+      "exit_code": 1,
+      "archive_target": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+      "archive_source": "git archive",
+      "bun_version_exit_code": 0,
+      "bun_version": "1.2.15",
+      "frozen_install_exit_code": 1,
+      "frozen_install_error": "bun: command not found: node; postinstall script from bun exited with 1",
+      "typecheck": "not_run",
+      "build": "not_run",
+      "tests": "not_run",
+      "built_health": "not_run",
+      "cleaned_after_run": true,
+      "candidate_frozen_receipt_claimed_pass": true
+    }
+  ]
+}

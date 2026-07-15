@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "reviewer_nonce": "a7668cb1855e0a364ba77563f627b157f8182a0a7f040c465cd5d0068dfe1172",
+  "raw_git_blob_audit": {
+    "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "command_semantics": "git cat-file blob <snapshot>:<path>",
+    "source_rows": 360,
+    "unique_source_paths": 21,
+    "raw_blob_hash_mismatches": 0,
+    "range_bound_errors": 0,
+    "checkout_hashes_differing_from_raw_blob": 21
+  },
+  "closure": {
+    "source_rows": 360,
+    "accepted": 295,
+    "rejected": 65,
+    "target_rows": 295,
+    "missing_target_ids": [],
+    "extra_target_ids": [],
+    "duplicate_source_ids": [],
+    "duplicate_target_ids": [],
+    "overlapping_source_ranges": [],
+    "source_sorted": true,
+    "target_sorted": true,
+    "mutation_sorted": true
+  },
+  "target_audit": {
+    "unique_target_paths": 14,
+    "missing_target_paths": [],
+    "target_hash_mismatches": [],
+    "default_entry_id": "e01.default-code-worker",
+    "default_entry_path": "apps/code-worker/src/main.ts",
+    "default_entry_symbol": "main",
+    "default_entry_command": "bun apps/code-worker/src/main.ts"
+  },
+  "accepted_invalid_source_roles": [
+    "e01-rej-0001",
+    "e01-rej-0002",
+    "e01-rej-0003",
+    "e01-rej-0011",
+    "e01-rej-0019",
+    "e01-rej-0022",
+    "e01-rej-0023",
+    "e01-rej-0028",
+    "e01-rej-0029",
+    "e01-rej-0030",
+    "e01-rej-0031",
+    "e01-rej-0036",
+    "e01-rej-0037",
+    "e01-rej-0038"
+  ],
+  "invalid_role_value": "reference_only",
+  "allowed_role_values": [
+    "primary",
+    "supplementary"
+  ],
+  "nonce_sample": {
+    "query": [
+      "e01-src-0002",
+      "e01-src-0017",
+      "e01-src-0011",
+      "e01-src-0004"
+    ],
+    "tool": [
+      "e01-src-0258",
+      "e01-src-0271",
+      "e01-src-0246",
+      "e01-src-0264"
+    ],
+    "context": [
+      "e01-src-0227",
+      "e01-src-0229",
+      "e01-rej-0038",
+      "e01-src-0226"
+    ],
+    "compact": [
+      "e01-src-0203",
+      "e01-src-0201",
+      "e01-src-0225",
+      "e01-src-0151"
+    ],
+    "provider": [
+      "e01-src-0137",
+      "e01-rej-0028",
+      "e01-src-0103",
+      "e01-src-0101"
+    ],
+    "session": [
+      "e01-src-0307",
+      "e01-src-0296",
+      "e01-src-0310",
+      "e01-src-0305"
+    ],
+    "rejected": [
+      "e01-src-0298",
+      "e01-src-0300",
+      "e01-src-0248",
+      "e01-rej-0010"
+    ]
+  },
+  "false_accepted_equivalence": [
+    {
+      "mapping_id": "e01-src-0011",
+      "source_symbol": "src/query.ts::snipModule",
+      "target_symbol": "E01RuntimeCoordinator.decideQuery"
+    },
+    {
+      "mapping_id": "e01-src-0004",
+      "source_symbol": "src/QueryEngine.ts::snipProjection",
+      "target_symbol": "E01RuntimeCoordinator.decideQuery"
+    },
+    {
+      "mapping_id": "e01-src-0151",
+      "source_symbol": "src/services/compact/microCompact.ts::cachedMCModule",
+      "target_symbol": "ContextCompactionRuntime.compactConversation"
+    },
+    {
+      "mapping_id": "e01-src-0264",
+      "source_symbol": "src/utils/toolResultStorage.ts::buildToolNameMap",
+      "target_symbol": "ToolResultRuntime.deliver"
+    }
+  ],
+  "known_prior_false_symbols": [
+    {
+      "mapping_id": "e01-src-0243",
+      "symbol": "getPersistenceThreshold",
+      "accepted": false
+    },
+    {
+      "mapping_id": "e01-src-0301",
+      "symbol": "formatImageRef",
+      "accepted": false
+    },
+    {
+      "mapping_id": "e01-src-0289",
+      "symbol": "restoreSessionStateFromLog",
+      "accepted": false
+    },
+    {
+      "mapping_id": "e01-src-0313",
+      "symbol": "currentFlushPromise",
+      "accepted": false
+    },
+    {
+      "mapping_id": "e01-src-0228",
+      "symbol": "createBudgetTracker",
+      "accepted": false
+    }
+  ]
+}

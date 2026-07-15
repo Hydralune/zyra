@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "review_protocol": "M1-R01-v4",
+  "verdict": "FAIL",
+  "reviewer_nonce": "a7668cb1855e0a364ba77563f627b157f8182a0a7f040c465cd5d0068dfe1172",
+  "target_identity": {
+    "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+    "implementation_candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+    "candidate_evidence_commit": "4e7ae6d721fb7be85a590d4a1ef2fa4fd1bf92a6",
+    "independent_review_target": "a6b9a8679170fa834265f941f281a3fd45d30022",
+    "candidate_metadata_commit": "fe4792171e6c2a10bc6f528b77366cc2320b8ff7",
+    "candidate_verified_complete": false
+  },
+  "blocking_findings": [
+    {
+      "id": "P0-1",
+      "kind": "false_source_semantic_equivalence",
+      "affected_mapping_ids": [
+        "e01-src-0011",
+        "e01-src-0004",
+        "e01-src-0151",
+        "e01-src-0264"
+      ]
+    },
+    {
+      "id": "P0-2",
+      "kind": "accepted_source_role_schema_violation",
+      "affected_count": 14
+    },
+    {
+      "id": "P0-3",
+      "kind": "mutation_frozen_patch_fingerprint_mismatch",
+      "affected_count": 11
+    },
+    {
+      "id": "P1-1",
+      "kind": "independent_cleanroom_failure",
+      "failed_command": "bun install --frozen-lockfile",
+      "exit_code": 1
+    }
+  ],
+  "passing_gates": [
+    "I/E/A/M identity and ancestry",
+    "0cd21 diff baseline with zero preexisting E01 credit",
+    "raw Claude Git blob hashes",
+    "360 source row and 295/65 structural closure",
+    "real default Bun entry",
+    "five previously false symbols rejected",
+    "conservative 26902 effective changed TypeScript lines",
+    "Bun 1.2.15 and TypeScript 5.8.3",
+    "typecheck and build",
+    "384 of 384 behavior tests",
+    "46 of 46 mutation kills and source restoration",
+    "provider-tool-observation-provider runtime path",
+    "deny/ask zero gateway delegation",
+    "malformed SSE cleanup",
+    "same-session resume zero replay",
+    "observation-budget dynamic reachability and separate receipt custody"
+  ],
+  "state_update_performed": false,
+  "production_files_modified": false
+}

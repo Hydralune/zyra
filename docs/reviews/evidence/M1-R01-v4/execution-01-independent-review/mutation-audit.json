@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "implementation_candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+  "execution_environment": "fresh detached Git worktree",
+  "summary": {
+    "declared": 46,
+    "applied": 46,
+    "compile_survived": 46,
+    "killed": 46,
+    "survived": 0,
+    "invalid": 0,
+    "unique_mutant_hashes": 46,
+    "restored_sha_match": true,
+    "frozen_patch_sha_match": 35,
+    "frozen_patch_sha_mismatch": 11
+  },
+  "fingerprint_mismatches": [
+    {
+      "mutation_id": "e01-mut-001-restore-before-bootstrap",
+      "target_path": "packages/runtime/claude-runtime/src/e01/kernel.ts",
+      "frozen_lf_sha256": "cbbe8d7a5639168fa821de90b463c41010019d3efecf36d41a3ec4d2076aeadd",
+      "actual_crlf_sha256": "b2f17dbdaf46440ec2b5a965b622867f94a713a2d3bdf80893a1b9394562930f"
+    },
+    {
+      "mutation_id": "e01-mut-002-revision-monotonic",
+      "target_path": "packages/runtime/claude-runtime/src/e01/kernel.ts",
+      "frozen_lf_sha256": "e51151f469f97f47e065085b82f37a0bfb427d788e7589a58fd09710c9d82a53",
+      "actual_crlf_sha256": "d7d3207e9bed4616c8bd8229de540a3f3c311f7308ebf736168b47432fd3d0a7"
+    },
+    {
+      "mutation_id": "e01-mut-003-transition-unique",
+      "target_path": "packages/runtime/claude-runtime/src/e01/kernel.ts",
+      "frozen_lf_sha256": "e69fc00209c505a029b65490b0083620c804ea96dc73b436be9b85b23ca9cd7d",
+      "actual_crlf_sha256": "ed012a03d09a30541dbb9a040f09c9ffd210afc7da6ea023e637ebb9f8043289"
+    },
+    {
+      "mutation_id": "e01-mut-007-lost-ack",
+      "target_path": "packages/runtime/claude-runtime/src/e01/kernel.ts",
+      "frozen_lf_sha256": "1e5eb85c923f03f7949bea516572aa784c5da0b27b7e2315199f79f924546005",
+      "actual_crlf_sha256": "f24976d141f4883342188ac890740a7982738d8b43430539f626b29850eb8e8b"
+    },
+    {
+      "mutation_id": "e01-mut-014-query-revision",
+      "target_path": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
+      "frozen_lf_sha256": "ae90760fc3a021d4135a26b376e37e6ffeabc23cb4347fa846df4ea7cfd09af7",
+      "actual_crlf_sha256": "4011e0f1521e92c35add0df1d91dafb59b2be658d07bf5bf2e6770b81e5364f5"
+    },
+    {
+      "mutation_id": "e01-mut-017-compact-tool-pair",
+      "target_path": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+      "frozen_lf_sha256": "4c98f12662e8fa5af4416470cc43a7f0ba33575f45d21796a4924b788233ce69",
+      "actual_crlf_sha256": "b899699b1d486c9300a8d54cd499d65e5ae76505ce90dc2e9e3be5fcaa418231"
+    },
+    {
+      "mutation_id": "e01-mut-021-retry-delay",
+      "target_path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+      "frozen_lf_sha256": "72a643cd92662d9c14e6e47c5303f08cd33ef4f775a3a9361209e60d2af64c75",
+      "actual_crlf_sha256": "3f3e49d31b4c7b85637e0617f555cd26b858b5e8015cf0498804a06e050873b5"
+    },
+    {
+      "mutation_id": "e01-mut-026-usage",
+      "target_path": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+      "frozen_lf_sha256": "dac2a5d5b4c41cca80b8a05667fd277c4c5da4a4ded24f0d00f37841474cca74",
+      "actual_crlf_sha256": "37120e5219ab558a19d29d2f4aac73d017e86d3668905d7ef64a91d37ffa603a"
+    },
+    {
+      "mutation_id": "e01-mut-029-write-serialization",
+      "target_path": "packages/runtime/claude-runtime/src/tools.ts",
+      "frozen_lf_sha256": "a2804201ef2c1a501e5ab852e1cf7833536078a7d11503935d539d1208c509a4",
+      "actual_crlf_sha256": "af3b4dcc4dc954a9033297187a1427ae179af19391747fb5ace8e1243d5466da"
+    },
+    {
+      "mutation_id": "e01-mut-031-recovery-planner-custody",
+      "target_path": "packages/runtime/claude-runtime/src/query-engine.ts",
+      "frozen_lf_sha256": "852d658efa859e31f2c1c2dd4980809c876c2d779903b7fc2b95c9128a5d4f4b",
+      "actual_crlf_sha256": "4197df65d19291e3a9d615e4b15150cd436abd0e69b0635946999f532a83d77c"
+    },
+    {
+      "mutation_id": "e01-mut-033-provider-execution-callback",
+      "target_path": "packages/runtime/claude-runtime/src/query-engine.ts",
+      "frozen_lf_sha256": "60a2275b5c839a3414ba04a92ca6bf4ff01cddc5b0d4e1775ecde5713491a2ee",
+      "actual_crlf_sha256": "2f5e0473d7b7ee81142144aef08da9792d338b9c6ff69fbb530749f991c573b2"
+    }
+  ],
+  "runner_gap": "The runner records frozen_patch_sha256 and actual_patch_sha256 but does not compare them before declaring a kill valid."
+}

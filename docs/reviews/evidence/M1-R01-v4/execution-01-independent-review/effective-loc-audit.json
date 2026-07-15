@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "implementation_candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+  "physical_added_typescript_lines": 32569,
+  "changed_files": 43,
+  "reviewer_method": {
+    "parser": "TypeScript scanner over exact candidate Git blobs",
+    "shingle_tokens": 5,
+    "window_shingles": 8,
+    "minimum_length_ratio": 0.8,
+    "minimum_jaccard": 0.8,
+    "token_normalization": "identifiers and literals normalized; syntax tokens preserved",
+    "unit_selection": "top-level statements and class members",
+    "conservatism": "includes and deducts repeated type/property skeletons"
+  },
+  "gross_token_bearing_added_lines": 31697,
+  "compared_units": 2514,
+  "duplicate_units": 1022,
+  "deducted_lines": 4795,
+  "effective_changed_lines": 26902,
+  "required_floor": 25416,
+  "passes_floor": true,
+  "candidate_verifier_comparison": {
+    "gross_changed_executable_typescript": 31423,
+    "deducted_lines": 654,
+    "effective_changed_typescript": 30769,
+    "final_production_typescript": 48348,
+    "final_test_typescript": 10553,
+    "python_deleted_lines": 35151
+  }
+}
