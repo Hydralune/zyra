@@ -174,7 +174,10 @@ export class ProviderTransportRuntime implements ProviderTransport {
   async execute(request: ProviderTransportRequest): Promise<ProviderTransportResponse> {
     const url = new URL(request.url);
     let endpoint = [...this.endpoints.values()].find((item) => item.origin === url.origin);
-    if (!endpoint) endpoint = this.registerEndpoint({ origin: url.origin });
+    if (!endpoint) {
+      const registered = this.registerEndpoint({ origin: url.origin });
+      endpoint = this.requireEndpoint(registered.endpointId);
+    }
     const record: TransportRequestRecord = {
       requestId: header(request.headers, "x-client-request-id") ?? randomUUID(),
       endpointId: endpoint.endpointId,
