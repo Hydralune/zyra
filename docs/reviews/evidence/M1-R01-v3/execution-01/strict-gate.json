@@ -2,35 +2,35 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+  "candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
   "ok": true,
   "checks": {
     "source_manifest": {
       "total": 360,
-      "accepted": 295,
-      "rejected": 65,
-      "accepted_executable_lines": 10735,
+      "accepted": 290,
+      "rejected": 70,
+      "accepted_executable_lines": 10711,
       "hash_semantics": "immutable-git-blob-bytes"
     },
     "source_to_target": {
-      "target_mappings": 295,
-      "five_hop_mappings": 295,
+      "target_mappings": 290,
+      "five_hop_mappings": 290,
       "default_entries": 1
     },
     "scope": {
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39"
+      "candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c"
     },
     "effective_lines": {
-      "gross_changed_executable_typescript": 31423,
+      "gross_changed_executable_typescript": 31495,
       "token_winnowing": {
         "shingle_tokens": 5,
         "window_shingles": 8,
         "minimum_length_ratio": 0.8,
         "minimum_jaccard": 0.8,
-        "compared_units": 2154,
+        "compared_units": 2159,
         "duplicate_pairs": [
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
@@ -819,13 +819,14 @@
         ],
         "deducted_lines": 654
       },
-      "effective_changed_typescript": 30769,
-      "final_production_typescript": 48348,
-      "final_test_typescript": 10553,
+      "effective_changed_typescript": 30841,
+      "final_production_typescript": 48420,
+      "final_test_typescript": 10614,
       "python_deleted_lines": 35151
     },
     "mutations": {
-      "declared": 46
+      "declared": 46,
+      "canonical_frozen_patch_fingerprints": 46
     }
   },
   "failures": []

@@ -1,0 +1,124 @@
+{
+  "schema_version": "5.0",
+  "execution_id": "E01",
+  "generated_at_utc": "2026-07-15T20:49:00.000Z",
+  "verdict": "READY_FOR_INDEPENDENT_REVIEW",
+  "identity": {
+    "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+    "implementation_candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+    "cleanroom_target": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+    "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "verification_contract_version": "zyra.e01-verification/v5"
+  },
+  "source_custody": {
+    "total": 360,
+    "accepted": 290,
+    "rejected": 70,
+    "accepted_executable_lines": 10711,
+    "target_mappings": 290,
+    "five_hop_mappings": 290,
+    "default_entries": 1,
+    "hash_semantics": "immutable-git-blob-bytes",
+    "accepted_roles": [
+      "primary",
+      "supplementary"
+    ]
+  },
+  "effective_lines": {
+    "gross_changed_executable_typescript": 31495,
+    "token_winnowing_deduction": 654,
+    "effective_changed_typescript": 30841,
+    "effective_floor": 25416,
+    "final_production_typescript": 48420,
+    "final_test_typescript": 10614,
+    "python_deleted_lines": 35151
+  },
+  "toolchain": {
+    "bun": "1.2.15",
+    "typescript": "5.8.3",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "build_modules": 78,
+    "bun_source_health": "PASS",
+    "bun_built_health": "PASS",
+    "node_built_health": "PASS"
+  },
+  "tests": {
+    "passed": 386,
+    "failed": 0,
+    "assertions": 1225,
+    "files": 13
+  },
+  "mutations": {
+    "declared": 46,
+    "applied": 46,
+    "compile_survived": 46,
+    "killed": 46,
+    "invalid": 0,
+    "frozen_patch_matches": 46,
+    "restored_sha_match": true
+  },
+  "probes": {
+    "runtime_origin": "PASS",
+    "write_path": "PASS",
+    "same_session_resume": {
+      "result": "PASS",
+      "forced_kills": 3,
+      "restart_epochs": [
+        0,
+        1,
+        2
+      ],
+      "replayed_transition_ids": []
+    },
+    "lost_ack": {
+      "result": "PASS",
+      "repeated_effect_count": 0
+    },
+    "disable": {
+      "result": "PASS",
+      "default_entry_failed": true
+    },
+    "dependencies": {
+      "result": "PASS",
+      "scanned_files": 96,
+      "violations": 0,
+      "symlinks": 0,
+      "relative_package_links": 0
+    }
+  },
+  "cleanroom": {
+    "result": "PASS",
+    "source": "git archive",
+    "fresh_tree": true,
+    "fresh_cache": true,
+    "frozen_install": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "tests": "386/386",
+    "built_health": "PASS",
+    "inherited_node_path": false,
+    "cleaned_after_run": true,
+    "pre_evidence_health_status": "candidate_metadata_contract_mismatch"
+  },
+  "authoritative_evidence": [
+    "docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/mutation-results.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/toolchain-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/cleanroom-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/runtime-origin-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/write-path-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/same-session-resume-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/lost-ack-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/disable-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/dependencies-result.json"
+  ],
+  "superseded_evidence": [
+    "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-gate-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-01/validation-summary-v4.json"
+  ],
+  "independent_review_required": true,
+  "verified_complete": false
+}
