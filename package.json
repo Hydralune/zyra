@@ -11,12 +11,17 @@
     "packages/runtime/runtime-event-spine"
   ],
   "scripts": {
-    "runtime:health": "node --experimental-strip-types apps/code-worker/src/main.ts --health",
-    "runtime:test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts packages/runtime/claude-runtime/test/e01/*.test.ts",
-    "runtime:e01:test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/e01/runtime-core.behavior.test.ts packages/runtime/claude-runtime/test/e01/crash-matrix.behavior.test.ts"
+    "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json",
+    "build": "bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun",
+    "runtime:health": "bun apps/code-worker/src/main.ts --health",
+    "runtime:built:health": "bun dist/code-worker/main.js --health",
+    "runtime:test": "bun test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts packages/runtime/claude-runtime/test/e01",
+    "runtime:e01:test": "bun test packages/runtime/claude-runtime/test/e01",
+    "e01:gate": "bun scripts/remediation/verify_m1_r01_e01_v3.ts --require-targets"
   },
   "devDependencies": {
     "@types/node": "22.15.29",
+    "bun": "1.2.15",
     "typescript": "5.8.3"
   }
 }
