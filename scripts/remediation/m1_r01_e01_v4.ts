@@ -99,7 +99,6 @@ const toolResultExternalizationAccepted = new Set([
   "PERSISTED_OUTPUT_CLOSING_TAG",
   "TOOL_RESULT_CLEARED_MESSAGE",
   "PERSIST_THRESHOLD_OVERRIDE_FLAG",
-  "getPersistenceThreshold",
   "PREVIEW_SIZE_BYTES",
   "persistToolResult",
   "buildLargeToolResultMessage",
@@ -127,7 +126,6 @@ const historyAccepted = new Set([
 ]);
 const sessionStateAccepted = new Set(["hasPendingAction", "getSessionState"]);
 const sessionRestoreAccepted = new Set([
-  "restoreSessionStateFromLog",
   "processResumedConversation",
 ]);
 
@@ -444,6 +442,14 @@ for (const record of sourceRecords) {
     record.accepted = false;
     record.migration_mode = "rejected";
     record.exclusion_reason = reason;
+  } else if (
+    String(record.mapping_id).startsWith("e01-rej-") &&
+    String(record.exclusion_reason).startsWith("statement tail is outside")
+  ) {
+    record.accepted = true;
+    record.migration_mode = "adapted";
+    record.exclusion_reason = null;
+    record.continuation_of_source_symbol = record.source_symbol;
   }
   sourceById.set(String(record.mapping_id), record);
 }
@@ -451,7 +457,7 @@ const orderedSources = [...sourceById.values()].sort((left, right) =>
   String(left.mapping_id).localeCompare(String(right.mapping_id)),
 );
 
-const targetRecords = readJsonLines(targetManifestPath)
+const routedTargets = readJsonLines(targetManifestPath)
   .filter((target) => sourceById.get(String(target.mapping_id))?.accepted === true)
   .map((target) => {
     const source = sourceById.get(String(target.mapping_id));
@@ -472,8 +478,27 @@ const targetRecords = readJsonLines(targetManifestPath)
     const targetPath = String(target.target_path);
     target.target_sha256 = sha256(gitBytes(repoRoot, ["show", `${implementationHead}:${targetPath}`]));
     return target;
-  })
-  .sort((left, right) => String(left.mapping_id).localeCompare(String(right.mapping_id)));
+  });
+const targetById = new Map(routedTargets.map((target) => [String(target.mapping_id), target]));
+for (const source of orderedSources.filter((record) => record.accepted === true)) {
+  const id = String(source.mapping_id);
+  if (targetById.has(id)) continue;
+  const template = routedTargets.find(
+    (target) => String(target.source_symbol) === String(source.source_symbol),
+  );
+  if (!template) {
+    throw new Error(`accepted continuation ${id} has no target template for ${String(source.source_symbol)}`);
+  }
+  const target = JSON.parse(JSON.stringify(template)) as JsonRecord;
+  target.mapping_id = id;
+  target.source_symbol = source.source_symbol;
+  target.source_behavior_claim = `${String(source.source_symbol)} continuation lines complete the same executable source behavior as its accepted leading range`;
+  target.state_effect_assertion = `assert.${id}.${String(target.state_effect_kind)}`;
+  targetById.set(id, target);
+}
+const targetRecords = [...targetById.values()].sort((left, right) =>
+  String(left.mapping_id).localeCompare(String(right.mapping_id)),
+);
 
 const mutationRecords = addStrictMutations(readJsonLines(mutationManifestPath));
 writeJsonLines(sourceManifestPath, orderedSources);

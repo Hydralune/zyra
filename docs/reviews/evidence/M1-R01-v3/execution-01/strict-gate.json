@@ -2,26 +2,26 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "101f7ebbaadaab396add856484e01a9230c9bc41",
+  "candidate": "20dae4eb0809d1b0e9eed0e9b914d1f3c4550091",
   "ok": false,
   "checks": {
     "source_manifest": {
       "total": 360,
-      "accepted": 260,
-      "rejected": 100,
-      "accepted_executable_lines": 9895,
+      "accepted": 283,
+      "rejected": 77,
+      "accepted_executable_lines": 10362,
       "hash_semantics": "immutable-git-blob-bytes"
     },
     "source_to_target": {
-      "target_mappings": 260,
-      "five_hop_mappings": 260,
+      "target_mappings": 283,
+      "five_hop_mappings": 283,
       "default_entries": 1
     },
     "scope": {
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "101f7ebbaadaab396add856484e01a9230c9bc41"
+      "candidate": "20dae4eb0809d1b0e9eed0e9b914d1f3c4550091"
     },
     "effective_lines": {
       "gross_changed_executable_typescript": 31423,
@@ -829,9 +829,8 @@
     }
   },
   "failures": [
-    "default callsite symbol is absent: e01-src-0307",
-    "default callsite symbol is absent: e01-src-0308",
-    "default callsite symbol is absent: e01-src-0320",
-    "accepted frozen source executable lines 9895 < 10587"
+    "known unmigrated source behavior was accepted: src/utils/toolResultStorage.ts::getPersistenceThreshold",
+    "known unmigrated source behavior was accepted: src/utils/sessionRestore.ts::restoreSessionStateFromLog",
+    "accepted frozen source executable lines 10362 < 10587"
   ]
 }
