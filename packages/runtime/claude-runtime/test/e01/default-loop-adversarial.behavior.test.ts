@@ -320,7 +320,6 @@ describe("compatible provider protocol", () => {
       timeoutMs: 1_000,
     });
     await expect(consumeCompatibleStream(response.stream!)).rejects.toThrow("invalid JSON");
-    response.settle?.(false);
     const snapshot = transport.snapshot();
     expect(snapshot.endpoints[0]?.activeRequests).toBe(0);
     expect(snapshot.endpoints[0]?.queuedRequests).toBe(0);

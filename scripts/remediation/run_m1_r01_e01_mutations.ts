@@ -236,8 +236,8 @@ export const mutationSpecs: Record<string, MutationSpec> = {
   ),
   "e01-mut-033-provider-execution-callback": spec(
     runtimeTests,
-    "        (requestId) => e01.executePreparedProvider(requestId),",
-    "        undefined,",
+    "        (requestId) => e01.executePreparedProvider(requestId),\n        providerRoundIndex,\n        providerMessages,\n      );\n      providerRoundIndex += modelTransport === \"http_sse\" ? 1 : 0;",
+    "        undefined,\n        providerRoundIndex,\n        providerMessages,\n      );\n      providerRoundIndex += modelTransport === \"http_sse\" ? 1 : 0;",
   ),
   "e01-mut-034-execution-custody": spec(
     runtimeTests,
