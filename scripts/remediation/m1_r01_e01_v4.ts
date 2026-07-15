@@ -160,10 +160,18 @@ const independentlyRejectedMappings = new Map([
   ],
 ]);
 
+const independentlyRejectedSymbols = new Map([
+  ["snipProjection", "conditional snipProjection module binding has no migrated projection or module-loading effect in E01"],
+  ["snipModule", "conditional snipModule binding has no migrated snip loading or compaction effect in E01"],
+  ["cachedMCModule", "process-local cachedMCModule slot is deliberately rejected; no module-cache state is owned by ContextCompactionRuntime"],
+  ["buildToolNameMap", "assistant-history tool-name reconstruction is not implemented by ToolResultRuntime delivery custody"],
+]);
+
 const rejectionReason = (record: JsonRecord): string | null => {
   const path = String(record.source_path ?? "").replaceAll("\\", "/");
   const name = symbolName(record);
-  const independentReason = independentlyRejectedMappings.get(String(record.mapping_id));
+  const independentReason =
+    independentlyRejectedMappings.get(String(record.mapping_id)) ?? independentlyRejectedSymbols.get(name);
   if (independentReason) return independentReason;
   if (path.endsWith("/tokenBudget.ts") && name === "createBudgetTracker") {
     return "factory shape is not migrated; Zyra owns budget construction inside ContextTokenRuntime";
