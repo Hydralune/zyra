@@ -1,0 +1,263 @@
+{
+  "schema": "zyra.m1-r01.execution-01.independent-review-final.v1",
+  "execution": "M1-R01-v3-Execution-01",
+  "review_date": "2026-07-16",
+  "verdict": "FAIL",
+  "reviewer_nonce": "c3d43d3e269ee30e962dd89293fef3c4cffe997e01f0ffcd05db28cacdcdaf91",
+  "target_identity": {
+    "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "implementation_commit": "6dc12a5cd68f18a85c286331fcb784b05434a2aa",
+    "candidate_evidence_commit": "30be0d0ad7a55cf4d71d870d0e17d4191dc2b9dd",
+    "independent_review_target": "be5a0fae9eaecb6a225f6eb1c9e781ed72761f5e",
+    "historical_failed_candidate": "df2937406e639862ec6a29795016b51651ee9cc0",
+    "ancestry": {
+      "baseline_to_implementation": true,
+      "implementation_to_evidence": true,
+      "evidence_to_review_target": true
+    }
+  },
+  "manifest_audit": {
+    "source_records": 360,
+    "accepted_records": 322,
+    "rejected_records": 38,
+    "target_records": 322,
+    "mutation_records": 44,
+    "source_manifest_sorted_by_mapping_id": false,
+    "defined_default_entry_ids": [],
+    "referenced_default_entry_ids": [
+      "e01.default-code-worker"
+    ],
+    "undefined_default_entry_reference_count": 322,
+    "frozen_source_hash": {
+      "snapshot_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+      "records_checked": 360,
+      "blob_hash_matches": 0,
+      "blob_hash_mismatches": 360,
+      "working_tree_hash_matches": 360,
+      "example": {
+        "mapping_id": "e01-src-0001",
+        "source_path": "src/QueryEngine.ts",
+        "manifest_sha256": "a670af8657f66d31d18d2ee7ff452131b94ed2e4b318f5d84749e2db80cc8ae4",
+        "snapshot_blob_sha256": "3b0d95a1f6b08239d269af9926d7e90a450e7d9904cb07fd88784283808636d6",
+        "current_checkout_sha256": "a670af8657f66d31d18d2ee7ff452131b94ed2e4b318f5d84749e2db80cc8ae4"
+      },
+      "cause": "The verifier hashes checkout bytes after checking HEAD instead of hashing immutable commit blobs. CRLF checkout conversion makes every recorded hash differ from the frozen snapshot blob."
+    },
+    "scope_violation": {
+      "commit": "0cd21bff5171607680c11f2652c46e55a8a5a983",
+      "listed_as_allowed_control_plane_commit": true,
+      "review_only": false,
+      "production_paths_present": [
+        "apps/api/zyra_api/main.py",
+        "packages/runtime/runtime-event-spine/**",
+        "packages/runtime/zyra_runtime/runtime_events/**",
+        "package.json",
+        "scripts/**"
+      ]
+    }
+  },
+  "source_language_five_hop": {
+    "selection_algorithm": "For each accepted mapping compute SHA256(reviewer_nonce + ':' + mapping_id), rank inside the declared query/tool/context/compact/provider/session bucket, and take four per bucket. Apply the same ranking to rejected mappings and take four.",
+    "accepted_sample_count": 24,
+    "rejected_sample_count": 4,
+    "accepted_samples": {
+      "query": [
+        "e01-src-0004",
+        "e01-src-0005",
+        "e01-src-0007",
+        "e01-src-0006"
+      ],
+      "tool": [
+        "e01-src-0243",
+        "e01-src-0265",
+        "e01-src-0246",
+        "e01-src-0232"
+      ],
+      "context": [
+        "e01-src-0227",
+        "e01-src-0228",
+        "e01-src-0226",
+        "e01-src-0229"
+      ],
+      "compact": [
+        "e01-src-0191",
+        "e01-src-0161",
+        "e01-src-0171",
+        "e01-src-0163"
+      ],
+      "provider": [
+        "e01-src-0062",
+        "e01-src-0145",
+        "e01-src-0026",
+        "e01-src-0130"
+      ],
+      "session": [
+        "e01-src-0301",
+        "e01-src-0289",
+        "e01-src-0313",
+        "e01-src-0290"
+      ]
+    },
+    "rejected_samples": [
+      "e01-rej-0024",
+      "e01-rej-0005",
+      "e01-rej-0006",
+      "e01-rej-0009"
+    ],
+    "rejected_target_presence": {
+      "e01-rej-0024": false,
+      "e01-rej-0005": false,
+      "e01-rej-0006": false,
+      "e01-rej-0009": false
+    },
+    "broken_accepted_examples": [
+      {
+        "mapping_id": "e01-src-0243",
+        "source": "src/utils/toolResultStorage.ts:getPersistenceThreshold",
+        "target": "ToolExecutionSettlementRuntime.appendProgress",
+        "reason": "The source chooses a persistence threshold using feature flags, opt-out, and declared/default minima. The target appends ordered bounded progress chunks and implements none of that threshold policy."
+      },
+      {
+        "mapping_id": "e01-src-0265",
+        "source": "src/utils/toolResultStorage.ts:collectCandidatesFromMessage",
+        "target": "ModelIterationRuntime.recordToolObservation",
+        "reason": "The source filters compactable tool-result candidates. The target records a single tool observation and settles a model round; candidate selection is absent."
+      },
+      {
+        "mapping_id": "e01-src-0228",
+        "source": "src/utils/tokenBudget.ts:createBudgetTracker",
+        "target": "ContextTokenRuntime.estimate",
+        "reason": "The source initializes continuation counters and time state. The target estimates and caches token counts; continuation tracking is absent."
+      },
+      {
+        "mapping_id": "e01-src-0301",
+        "source": "src/utils/history.ts:formatImageRef",
+        "target": "ModelIterationRuntime.restore",
+        "reason": "The source formats an image reference string. The target restores model rounds, tool calls, and transcript state; no image-reference behavior exists."
+      },
+      {
+        "mapping_id": "e01-src-0289",
+        "source": "src/utils/sessionRestore.ts:restoreSessionStateFromLog",
+        "target": "ModelIterationRuntime.restore",
+        "reason": "The source restores file history, attribution, collapsed context, and todos. The target restores only model-iteration state and does not own those source state domains."
+      },
+      {
+        "mapping_id": "e01-src-0313",
+        "source": "src/utils/history.ts:currentFlushPromise",
+        "target": "ModelIterationRuntime.restore",
+        "reason": "A mutable flush-promise synchronization field is claimed by a snapshot restore method with no flush-promise synchronization mechanism."
+      }
+    ],
+    "result": "FAIL"
+  },
+  "effective_loc": {
+    "candidate_reported": {
+      "changed_effective": 25722,
+      "changed_threshold": 25416,
+      "final_physical": 35575,
+      "test_physical": 8664
+    },
+    "independent_substantive": {
+      "changed_before_clone_deduction": 25688,
+      "final": 33447,
+      "tests": 8150
+    },
+    "token_winnowing": {
+      "ast_units": 1296,
+      "shingle_width_tokens": 5,
+      "minimum_length_ratio": 0.8,
+      "minimum_jaccard": 0.8,
+      "near_clone_or_shared_skeleton_units": 79,
+      "shared_line_deduction": 777,
+      "conservative_changed_lower_bound": 24943,
+      "threshold": 25416,
+      "shortfall": 473,
+      "result": "FAIL"
+    },
+    "other_floors": {
+      "final_substantive_threshold": 28000,
+      "final_substantive_result": "PASS",
+      "test_substantive_threshold": 7000,
+      "test_substantive_result": "PASS",
+      "python_owner_physical_lines_deleted": 31840,
+      "python_owner_paths_remaining": 0
+    }
+  },
+  "mutation_receipt_audit": {
+    "manifest_records": 44,
+    "result_records": 44,
+    "unique_ids": 44,
+    "declared_killed": 44,
+    "declared_survived": 0,
+    "declared_invalid": 0,
+    "patch_fingerprints_matching_manifest": 44,
+    "original_and_restored_hashes_matching_current_target": 44,
+    "independent_runner_execution": false,
+    "reason_not_rerun": "The candidate already failed immutable-source, manifest, five-hop, LOC, and independent test gates. The parent reviewer directed bounded closeout rather than a verdict-irrelevant 44-run suite."
+  },
+  "reviewer_owned_runtime_probe": {
+    "command": ".\\node_modules\\bun\\bin\\bun.exe %TEMP%\\m1-r01-e01-independent-review-final-probe.ts",
+    "temporary_probe_removed": true,
+    "default_loop": {
+      "ok": true,
+      "provider_calls": 2,
+      "gateway_calls": 1,
+      "second_request_has_tool_observation": true
+    },
+    "permission": {
+      "deny_and_ask_gateway_calls": 0,
+      "blocked_effects": [
+        "deny",
+        "ask"
+      ]
+    },
+    "malformed_transport": {
+      "ok": false,
+      "stopped_reason": "model_stream_failed",
+      "inflight_values_after_failure": [
+        0,
+        0
+      ]
+    },
+    "result": "PASS"
+  },
+  "independent_toolchain": {
+    "bun_version": "1.2.15",
+    "typecheck_e01_exit_code": 0,
+    "build_exit_code": 0,
+    "build_modules": 77,
+    "built_entry_bytes_reported": "1.14 MB",
+    "runtime_e01_test_exit_code": 1,
+    "runtime_e01_tests_passed": 380,
+    "runtime_e01_tests_failed": 1,
+    "runtime_e01_assertions": 1219,
+    "failure": {
+      "test": "runtime commits provider prompt usage and recovery state through default loop",
+      "file_line": "packages/runtime/claude-runtime/test/runtime.test.ts:317",
+      "expected_stop_reason_order": [
+        "tool_use",
+        "end_turn"
+      ],
+      "actual_stop_reason_order": [
+        "end_turn",
+        "tool_use"
+      ]
+    },
+    "built_health_independently_run": false,
+    "built_health_skip_reason": "The chained command stopped on the behavior-test failure.",
+    "frozen_install_independently_run": false,
+    "cleanroom_independently_run": false,
+    "candidate_receipts_inspected": [
+      "toolchain-result.json",
+      "cleanroom-result.json",
+      "dependencies-result.json"
+    ],
+    "result": "FAIL"
+  },
+  "state_recommendation": {
+    "execution_01": "implementation_complete_review_failed",
+    "execution_02": "remain_blocked",
+    "execution_03": "remain_blocked",
+    "execution_state_modified_by_reviewer": false
+  }
+}
