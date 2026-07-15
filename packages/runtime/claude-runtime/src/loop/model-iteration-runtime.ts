@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { asObject, asString, type JsonObject, type JsonValue, type ToolStep } from "../contracts.ts";
+import {
+  ToolObservationBudgetRuntime,
+  type ToolObservationBudgetSnapshot,
+} from "./tool-observation-budget-runtime.ts";
 
 export const MODEL_ITERATION_SNAPSHOT_VERSION = "zyra.model-iteration/v1";
 
@@ -111,6 +115,7 @@ export interface ModelIterationSnapshot {
   tools: IterationToolRecord[];
   transcript: JsonObject[];
   transitions: IterationTransition[];
+  toolObservationBudget: ToolObservationBudgetSnapshot;
   activeRoundId: string | null;
   finalText: string;
   terminalError: string | null;
@@ -154,6 +159,7 @@ export class ModelIterationRuntime {
   private readonly tools = new Map<string, IterationToolRecord>();
   private readonly transcript: JsonObject[] = [];
   private readonly transitions: IterationTransition[] = [];
+  private readonly toolObservationBudget = new ToolObservationBudgetRuntime();
   private activeRoundId: string | null = null;
   private finalText = "";
   private terminalError: string | null = null;
@@ -391,6 +397,18 @@ export class ModelIterationRuntime {
   buildRevisionMessages(roundId: string): JsonObject[] {
     const round = this.requireActiveRound(roundId, "observation_ready");
     if (round.toolCallIds.length === 0) throw new Error("revision requires at least one tool observation");
+    for (const callId of round.toolCallIds) {
+      const tool = this.requireTool(callId);
+      if (!isToolTerminal(tool.state) || !tool.resultDigest) throw new Error(`tool result is unsettled: ${callId}`);
+      this.toolObservationBudget.register({
+        callId,
+        roundId: round.roundId,
+        toolName: tool.toolName,
+        content: toolResultContent(tool),
+        isError: tool.state !== "succeeded",
+      });
+    }
+    const budgetPlan = this.toolObservationBudget.enforceRound(round.roundId);
     const resultContent: JsonValue[] = [];
     for (const callId of round.toolCallIds) {
       const tool = this.requireTool(callId);
@@ -398,7 +416,7 @@ export class ModelIterationRuntime {
       resultContent.push({
         type: "tool_result",
         tool_use_id: callId,
-        content: toolResultContent(tool),
+        content: this.toolObservationBudget.contentFor(callId) as JsonValue,
         is_error: tool.state !== "succeeded",
       });
     }
@@ -408,6 +426,7 @@ export class ModelIterationRuntime {
       metadata: {
         model_round_id: round.roundId,
         observation_count: resultContent.length,
+        observation_budget_plan_digest: budgetPlan.digest,
         canonical_owner: "model_iteration_runtime",
       },
     });
@@ -527,6 +546,11 @@ export class ModelIterationRuntime {
 
   audit(): ModelIterationAudit {
     const failures: string[] = [];
+    try {
+      this.toolObservationBudget.audit();
+    } catch (error) {
+      failures.push(`tool observation budget: ${error instanceof Error ? error.message : String(error)}`);
+    }
     const unsettledRoundIds: string[] = [];
     const unsettledToolIds: string[] = [];
     const orphanToolIds: string[] = [];
@@ -624,6 +648,7 @@ export class ModelIterationRuntime {
     }
     this.transcript.splice(0, this.transcript.length, ...normalizeTranscript(snapshot.transcript));
     this.transitions.splice(0, this.transitions.length, ...snapshot.transitions.map(clone));
+    this.toolObservationBudget.restore(snapshot.toolObservationBudget);
     this.activeRoundId = snapshot.activeRoundId;
     this.finalText = snapshot.finalText;
     this.terminalError = snapshot.terminalError;
@@ -764,6 +789,7 @@ export class ModelIterationRuntime {
       tools: [...this.tools.values()].map(clone).sort((left, right) => left.callId.localeCompare(right.callId)),
       transcript: clone(this.transcript),
       transitions: includeTransitions ? this.transitions.map(clone) : [],
+      toolObservationBudget: this.toolObservationBudget.snapshot(),
       activeRoundId: this.activeRoundId,
       finalText: this.finalText,
       terminalError: this.terminalError,

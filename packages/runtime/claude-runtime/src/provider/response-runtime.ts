@@ -414,7 +414,7 @@ export class ProviderResponseRuntime {
         this.events,
         (value) => `${value.responseId}:${String(value.sequence).padStart(12, "0")}`,
       ),
-      responses: sorted(this.responses, (value) => value.responseId),
+      responses: [...this.responses.values()].map((value) => deepClone(value)),
     };
     return { ...body, checksum: digestJson(body) };
   }
