@@ -608,6 +608,14 @@ export class E01RuntimeCoordinator {
     );
   }
 
+  completeProviderRecovery(input: {
+    recoveryContextId: string;
+    provider: string;
+    model: string;
+  }): void {
+    this.recovery.recordSuccess(input.recoveryContextId, input.provider, input.model);
+  }
+
   recordTool(operation: string, payload: O, effect = false): TransitionReceipt {
     const json = payload as unknown as JsonObject;
     const toolName = asRuntimeString(json.tool_name, asRuntimeString(json.name, ""));

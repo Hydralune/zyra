@@ -218,6 +218,7 @@ export class ClaudeRuntimeCore {
         emit,
         (observation) => e01.decideProviderRecovery(observation),
         e01.journal.restartEpoch,
+        (observation) => e01.completeProviderRecovery(observation),
       );
       turns = model.turns;
       modelMetadata = model.metadata;

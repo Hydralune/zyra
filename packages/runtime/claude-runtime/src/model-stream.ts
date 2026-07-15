@@ -35,6 +35,12 @@ type DecideModelRecovery = (
   observation: ModelRecoveryObservation,
 ) => ModelRecoveryDecision | Promise<ModelRecoveryDecision>;
 
+type CompleteModelRecovery = (input: {
+  recoveryContextId: string;
+  provider: string;
+  model: string;
+}) => void | Promise<void>;
+
 export interface ModelStreamResolution {
   ok: boolean;
   turns: ToolStep[][];
@@ -60,6 +66,7 @@ export async function resolveModelTurns(
   emit: EmitRuntimeEvent,
   decideRecovery?: DecideModelRecovery,
   requestEpoch = 0,
+  completeRecovery?: CompleteModelRecovery,
 ): Promise<ModelStreamResolution> {
   const constraints = config.runtimeConstraints;
   const transport = asString(
@@ -324,6 +331,9 @@ export async function resolveModelTurns(
       });
       const fallbackUsed = model !== config.modelName;
       const status = fallbackUsed ? "fallback_selected" : "primary_selected";
+      if (attempts.some((item) => !item.ok) && completeRecovery) {
+        await completeRecovery({ recoveryContextId, provider: "compatible", model });
+      }
       await emitFinalReports(
         emit,
         attempts,

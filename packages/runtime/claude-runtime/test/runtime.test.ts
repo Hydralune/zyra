@@ -242,6 +242,56 @@ test("runtime lets canonical recovery policy stop a non-retryable provider reque
   }
 });
 
+test("runtime clears canonical recovery state after a retry succeeds", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      return new Response("temporary provider failure", {
+        status: 503,
+        headers: { "retry-after": "0" },
+      });
+    }
+    const chunk = JSON.stringify({
+      choices: [{
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "retry-tool-call",
+            function: { name: "read", arguments: "{\"path\":\"a\"}" },
+          }],
+        },
+      }],
+    });
+    return new Response(`data: ${chunk}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "provider-retry-run",
+      sessionId: "provider-retry-session",
+      workerRequestId: "provider-retry-request",
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          api_retry_max_attempts: 2,
+        },
+      },
+    }), new MemoryHost());
+    const state = e01State(result);
+    assert.equal(result.ok, true);
+    assert.equal(requestCount, 2);
+    assert.equal(state.recovery.contexts.length, 0);
+    assert.ok((state.journal.state.provider?.revision ?? 0) > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("runtime restores its exact TypeScript snapshot", async () => {
   const firstHost = new MemoryHost();
   const first = await new ClaudeRuntimeCore().run(input({

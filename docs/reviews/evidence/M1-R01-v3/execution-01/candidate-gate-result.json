@@ -1,7 +1,7 @@
 {
   "schema_version": "3.0",
   "execution_id": "E01",
-  "generated_at_utc": "2026-07-15T14:33:56.558Z",
+  "generated_at_utc": "2026-07-15T14:40:49.742Z",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "enforce_gates": true,
   "pass": true,
@@ -22,8 +22,8 @@
   },
   "actual": {
     "accepted_source_physical_sloc": 11027,
-    "effective_changed_typescript_sloc": 28478,
-    "final_non_test_typescript_sloc": 38046,
+    "effective_changed_typescript_sloc": 28495,
+    "final_non_test_typescript_sloc": 38065,
     "effective_behavior_test_sloc": 8099,
     "adapter_ratio": 0,
     "source_to_target_chain_count": 229,

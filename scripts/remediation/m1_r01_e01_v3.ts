@@ -91,6 +91,12 @@ const behaviorTests = {
     anchor: "ClaudeRuntimeCore",
     assertion_tokens: ["requestCount", "state.recovery.contexts", "journal.state.provider"],
   },
+  recoverySuccess: {
+    path: RUNTIME_TEST_PATH,
+    name: "runtime clears canonical recovery state after a retry succeeds",
+    anchor: "ClaudeRuntimeCore",
+    assertion_tokens: ["requestCount", "state.recovery.contexts.length", "journal.state.provider"],
+  },
 } as const;
 
 function edge(
@@ -215,7 +221,7 @@ function recoveryRoute(source: Obj): Obj {
     snapshotProperty: "recovery",
     stateObservation: "recovery.contexts + journal.state.provider.revision",
     effect: "retry-stop-fallback-plan",
-    behavior: [behaviorTests.recovery],
+    behavior: [behaviorTests.recovery, behaviorTests.recoverySuccess],
     mutations: [selectedMutation, mutationIds.recoveryPlannerCustody],
     adaptation: "Upstream retry and error helpers are consolidated behind the canonical ProviderRecoveryRuntime plan consumed by the real model loop; provider-SDK credential refresh side effects remain cropped.",
   };
