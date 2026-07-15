@@ -3,12 +3,12 @@
   "candidate_status": "implementation_generated_pending_validation",
   "cleanroom_target": null,
   "execution_id": "E01",
-  "implementation_candidate": "51ed3b5a38d73ef5b79d2eefefe241f6c390e34f",
-  "implementation_diff_baseline": "0cd21bff5171607680c11f2652c46e55a8a5a983",
+  "implementation_candidate": "101f7ebbaadaab396add856484e01a9230c9bc41",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
   "independent_review_target": null,
   "independent_review_verdict": "PENDING",
   "notes": [
-    "The implementation diff starts after the pre-E01 0cd21b checkpoint; that checkpoint receives zero E01 line credit.",
+    "The implementation diff starts after the pre-E01 0cd21bff5e2d checkpoint; that checkpoint receives zero E01 line credit.",
     "Source hashes bind immutable Git blob bytes at the declared Claude snapshot, not checkout line endings.",
     "Evidence and independent-review commits are populated only after validation and candidate freeze."
   ],

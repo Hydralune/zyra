@@ -94,8 +94,42 @@ const toolResultAccepted = new Set([
   "generatePreview",
 ]);
 
-const historyAccepted = new Set(["getTimestampedHistory", "getHistory", "addToHistory"]);
+const toolResultExternalizationAccepted = new Set([
+  "PERSISTED_OUTPUT_TAG",
+  "PERSISTED_OUTPUT_CLOSING_TAG",
+  "TOOL_RESULT_CLEARED_MESSAGE",
+  "PERSIST_THRESHOLD_OVERRIDE_FLAG",
+  "getPersistenceThreshold",
+  "PREVIEW_SIZE_BYTES",
+  "persistToolResult",
+  "buildLargeToolResultMessage",
+  "processToolResultBlock",
+  "processPreMappedToolResultBlock",
+  "maybePersistLargeToolResult",
+  "isPersistError",
+  "buildToolNameMap",
+]);
+
+for (const name of toolResultExternalizationAccepted) toolResultAccepted.add(name);
+
+const historyAccepted = new Set([
+  "deserializeLogEntry",
+  "makeLogEntryReader",
+  "makeHistoryReader",
+  "getTimestampedHistory",
+  "getHistory",
+  "resolveStoredPastedContent",
+  "logEntryToHistoryEntry",
+  "immediateFlushHistory",
+  "flushPromptHistory",
+  "addToPromptHistory",
+  "addToHistory",
+]);
 const sessionStateAccepted = new Set(["hasPendingAction", "getSessionState"]);
+const sessionRestoreAccepted = new Set([
+  "restoreSessionStateFromLog",
+  "processResumedConversation",
+]);
 
 const rejectionReason = (record: JsonRecord): string | null => {
   const path = String(record.source_path ?? "").replaceAll("\\", "/");
@@ -106,7 +140,7 @@ const rejectionReason = (record: JsonRecord): string | null => {
   if (path.endsWith("/toolResultStorage.ts") && !toolResultAccepted.has(name)) {
     return "filesystem persistence and process-global replacement state are deliberately not migrated";
   }
-  if (path.endsWith("/sessionRestore.ts")) {
+  if (path.endsWith("/sessionRestore.ts") && !sessionRestoreAccepted.has(name)) {
     return "Claude process-global restore choreography is rejected in favor of Zyra durable session restore";
   }
   if (path.endsWith("/history.ts") && !historyAccepted.has(name)) {
@@ -144,6 +178,33 @@ const defaultEntryEdges = (callsitePath: string, callsiteSymbol: string): JsonRe
 
 const routeToolResult = (target: JsonRecord, source: JsonRecord): void => {
   const name = symbolName(source);
+  if (toolResultExternalizationAccepted.has(name)) {
+    const targetPath = "packages/runtime/claude-runtime/src/tools/result-runtime.ts";
+    const callsitePath = "packages/runtime/claude-runtime/src/e01/coordinator.ts";
+    const callsiteSymbol = "E01RuntimeCoordinator.completeToolExecution";
+    Object.assign(target, {
+      target_path: targetPath,
+      target_symbol: "ToolResultRuntime.deliver",
+      planned_method: "deliver",
+      default_callsite_path: callsitePath,
+      default_callsite_symbol: callsiteSymbol,
+      default_entry_edges: defaultEntryEdges(callsitePath, callsiteSymbol),
+      canonical_owner_id: "e01.tool-result-receipt",
+      state_store: "E01RuntimeSnapshot.toolResults",
+      state_snapshot_property: "toolResults",
+      state_effect_kind: "tool-result-externalization",
+      state_observation: "toolResults.receipts[].delivery",
+      state_effect_assertion: `assert.${String(source.mapping_id)}.tool-result-externalization`,
+      adaptation:
+        "Claude filesystem result persistence is adapted to ToolResultRuntime delivery and the Zyra artifact writer; source path helpers are excluded while threshold, block processing and externalization effects are retained.",
+      source_behavior_claim: `${name} contributes threshold-driven externalization of a large tool result before it reaches model context`,
+      target_behavior_claim:
+        "ToolResultRuntime.deliver enforces result budgets, writes oversized payloads through the artifact port and persists delivery metadata in the canonical receipt",
+      semantic_equivalence:
+        "Both mechanisms replace oversized inline results with durable references; Zyra delegates physical paths to its artifact boundary.",
+    });
+    return;
+  }
   const methodBySource: Record<string, string> = {
     isToolResultContentEmpty: "candidate",
     createContentReplacementState: "snapshot",
@@ -219,8 +280,22 @@ const routeSession = (target: JsonRecord, source: JsonRecord): void => {
   let callsiteSymbol: string;
   if (path.endsWith("/history.ts")) {
     targetPath = "packages/runtime/claude-runtime/src/session/history-runtime.ts";
-    targetSymbol = name === "addToHistory" ? "SessionHistoryRuntime.append" : "SessionHistoryRuntime.transcript";
-    callsiteSymbol = "E01RuntimeCoordinator.appendHistory";
+    if (name === "addToHistory" || name === "addToPromptHistory") {
+      targetSymbol = "SessionHistoryRuntime.append";
+      callsiteSymbol = "E01RuntimeCoordinator.beginCanonicalTurn";
+    } else if (
+      name === "deserializeLogEntry" ||
+      name === "makeLogEntryReader" ||
+      name === "makeHistoryReader" ||
+      name === "resolveStoredPastedContent" ||
+      name === "logEntryToHistoryEntry"
+    ) {
+      targetSymbol = "SessionHistoryRuntime.restore";
+      callsiteSymbol = "E01RuntimeCoordinator.restore";
+    } else {
+      targetSymbol = "SessionHistoryRuntime.snapshot";
+      callsiteSymbol = "E01RuntimeCoordinator.snapshot";
+    }
   } else {
     targetPath = "packages/runtime/claude-runtime/src/session/durable-runtime.ts";
     targetSymbol = "DurableSessionRuntime.project";
@@ -247,6 +322,33 @@ const routeSession = (target: JsonRecord, source: JsonRecord): void => {
     source_behavior_claim: `${name} reads or appends session history/state used by a resumed query`,
     target_behavior_claim: `${targetSymbol} changes or exposes the canonical session snapshot restored by the coordinator`,
     semantic_equivalence: "Both sides preserve query-visible session continuity; Zyra supplies explicit snapshot custody and checksums.",
+  });
+};
+
+const routeSessionRestore = (target: JsonRecord, source: JsonRecord): void => {
+  const targetPath = "packages/runtime/claude-runtime/src/e01/coordinator.ts";
+  const callsitePath = "packages/runtime/claude-runtime/src/query-engine.ts";
+  const callsiteSymbol = "ClaudeRuntimeCore.restore";
+  Object.assign(target, {
+    target_path: targetPath,
+    target_symbol: "E01RuntimeCoordinator.restore",
+    planned_method: "restore",
+    default_callsite_path: callsitePath,
+    default_callsite_symbol: callsiteSymbol,
+    default_entry_edges: defaultEntryEdges(callsitePath, callsiteSymbol),
+    canonical_owner_id: "e01.session-restore-coordinator",
+    state_store: "E01RuntimeSnapshot",
+    state_snapshot_property: "session",
+    state_effect_kind: "same-session-resume",
+    state_observation: "journal.transitions[].transitionId",
+    state_effect_assertion: `assert.${String(source.mapping_id)}.same-session-resume`,
+    adaptation:
+      "Claude resume orchestration is adapted to the Zyra coordinator's checksum-verified restoration of session, history, model iteration, tool receipts and journal state; worktree and process-global restoration remain excluded.",
+    source_behavior_claim: `${symbolName(source)} reconstructs a resumable conversation from durable session evidence`,
+    target_behavior_claim:
+      "E01RuntimeCoordinator.restore atomically reconstructs all E01 canonical owners and rejects identity, checksum or replay conflicts",
+    semantic_equivalence:
+      "Both mechanisms resume the same conversation without replaying completed effects; Zyra replaces process globals with explicit snapshot owners.",
   });
 };
 
@@ -364,6 +466,8 @@ const targetRecords = readJsonLines(targetManifestPath)
     if (sourcePath.endsWith("/toolResultStorage.ts")) routeToolResult(target, source);
     else if (sourcePath.endsWith("/history.ts") || sourcePath.endsWith("/sessionState.ts")) {
       routeSession(target, source);
+    } else if (sourcePath.endsWith("/sessionRestore.ts")) {
+      routeSessionRestore(target, source);
     } else if (sourcePath.endsWith("/tokenBudget.ts")) routeContextBudget(target, source);
     const targetPath = String(target.target_path);
     target.target_sha256 = sha256(gitBytes(repoRoot, ["show", `${implementationHead}:${targetPath}`]));
