@@ -26,6 +26,7 @@ const SOURCE_SNAPSHOT = "c57f5a29e88e9a814bea47abeb9a0a6f725dc102";
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
+const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v5";
 const GENERATOR = "scripts/remediation/m1_r01_e01_v4.ts";
 const SCHEMA_VERIFIER = "scripts/remediation/verify_m1_r01_e01_v4.ts";
 
@@ -620,6 +621,7 @@ writeJson(receiptPath, receipt);
 writeJson(candidateMetadataPath, {
   schema_version: "3.0",
   execution_id: "E01",
+  verification_contract_version: VERIFICATION_CONTRACT_VERSION,
   verified_baseline: VERIFIED_BASELINE,
   implementation_diff_baseline: IMPLEMENTATION_DIFF_BASELINE,
   implementation_candidate: implementationHead,

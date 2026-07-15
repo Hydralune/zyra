@@ -35,6 +35,7 @@ describe("E01 health verification projection", () => {
       writeFileSync(
         join(directory, "candidate-metadata.json"),
         JSON.stringify({
+          verification_contract_version: "zyra.e01-verification/v5",
           implementation_candidate: candidate,
           cleanroom_target: candidate,
           candidate_evidence_commit: "b".repeat(40),

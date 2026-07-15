@@ -37,6 +37,7 @@ const CANDIDATE_METADATA_PATH =
   "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json";
 const STRICT_GATE_PATH =
   "docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json";
+const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v5";
 
 function verificationObject(root: string, path: string): Record<string, unknown> | null {
   try {
@@ -54,7 +55,11 @@ function commit(value: unknown): string | null {
 }
 
 export function runtimeVerificationProjection(root = process.cwd()): JsonObject {
-  const metadata = verificationObject(root, CANDIDATE_METADATA_PATH);
+  const discoveredMetadata = verificationObject(root, CANDIDATE_METADATA_PATH);
+  const metadata =
+    discoveredMetadata?.verification_contract_version === VERIFICATION_CONTRACT_VERSION
+      ? discoveredMetadata
+      : null;
   const strictGate = verificationObject(root, STRICT_GATE_PATH);
   const implementationCandidate = commit(metadata?.implementation_candidate);
   const evidenceCommit = commit(metadata?.candidate_evidence_commit);
@@ -91,13 +96,16 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
       ? "independent_review_passed"
       : typeof metadata?.candidate_status === "string"
         ? metadata.candidate_status
-        : "candidate_metadata_unavailable",
+        : discoveredMetadata === null
+          ? "candidate_metadata_unavailable"
+          : "candidate_metadata_contract_mismatch",
     effectiveLineCount: lineCountMatches ? effectiveLineCount : null,
     implementationCandidate,
     evidenceCommit,
     reviewTarget,
     reviewCommit,
     metadataSource: CANDIDATE_METADATA_PATH,
+    verificationContractVersion: VERIFICATION_CONTRACT_VERSION,
     lineCountSource: STRICT_GATE_PATH,
     lineCountComputedAtRuntime: false,
   };
