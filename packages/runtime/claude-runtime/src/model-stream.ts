@@ -105,6 +105,7 @@ export async function resolveModelTurns(
     await emit("model_stream_report", {
       model_stream: {
         request_id: requestId,
+        provider: transport === "http_sse" ? "compatible" : "local",
         ok: false,
         transport,
         model: config.modelName,
@@ -145,17 +146,21 @@ export async function resolveModelTurns(
     });
     await emit("model_stream_frame", {
       model_stream_frame: {
+        request_id: requestId,
         kind: "scripted_turn_contract",
         model: config.modelName,
+        response_status: 200,
         turn_count: scriptedTurns.length,
       },
     });
     await emit("model_stream_report", {
       model_stream: {
         request_id: requestId,
+        provider: "local",
         ok: true,
         transport: "scripted",
         model: config.modelName,
+        status: 200,
         tool_call_count: scriptedTurns.flat().length,
         usage: {
           input_tokens: 0,
@@ -243,6 +248,7 @@ export async function resolveModelTurns(
     });
     await emit("model_stream_frame", {
       model_stream_frame: {
+        request_id: requestId,
         kind: "request_started",
         attempt: index + 1,
         model,
@@ -297,6 +303,8 @@ export async function resolveModelTurns(
             ...record,
             request_id: requestId,
             provider: "compatible",
+            transport: "http_sse",
+            response_headers: Object.fromEntries(response.headers.entries()),
             usage: emptyUsage(),
             recovery_context_id: recoveryContextId,
             recovery_plan: recoveryPlan as unknown as JsonObject | null,
@@ -308,7 +316,7 @@ export async function resolveModelTurns(
         continue;
       }
 
-      const parsed = await parseSseToolCalls(response, index + 1, model, emit);
+      const parsed = await parseSseToolCalls(response, requestId, index + 1, model, emit);
       const record: AttemptRecord = {
         attempt: index + 1,
         model,
@@ -324,6 +332,8 @@ export async function resolveModelTurns(
           ...record,
           request_id: requestId,
           provider: "compatible",
+          transport: "http_sse",
+          response_headers: Object.fromEntries(response.headers.entries()),
           frame_count: parsed.frameCount,
           tool_call_count: parsed.steps.length,
           usage: parsed.usage,
@@ -387,9 +397,10 @@ export async function resolveModelTurns(
       await emit("model_stream_report", {
         model_stream: {
           ...record,
-          request_id: requestId,
-          provider: "compatible",
-          usage: emptyUsage(),
+            request_id: requestId,
+            provider: "compatible",
+            transport: "http_sse",
+            usage: emptyUsage(),
           recovery_context_id: recoveryContextId,
           recovery_plan: recoveryPlan as unknown as JsonObject | null,
         },
@@ -484,6 +495,7 @@ async function emitFinalReports(
 
 async function parseSseToolCalls(
   response: Response,
+  requestId: string,
   attempt: number,
   model: string,
   emit: EmitRuntimeEvent,
@@ -512,9 +524,11 @@ async function parseSseToolCalls(
     frameCount += 1;
     await emit("model_stream_frame", {
       model_stream_frame: {
+        request_id: requestId,
         kind: "sse_chunk",
         attempt,
         model,
+        response_status: response.status,
         frame_index: frameCount,
         chunk,
       },

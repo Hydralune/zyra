@@ -20,6 +20,18 @@ const productionRoots = [
   "packages/runtime/runtime-event-spine/src",
 ];
 const testRoot = "packages/runtime/claude-runtime/test/e01";
+const semanticallyDormantProductionPaths = new Map<string, string>([
+  ["packages/runtime/claude-runtime/src/provider/model-runtime.ts", "Only inspect/snapshot/restore custody is connected; the executable request path remains model-stream.ts."],
+  ["packages/runtime/claude-runtime/src/provider/transport-runtime.ts", "Only snapshot/restore custody is connected; fetch execution remains model-stream.ts."],
+  ["packages/runtime/claude-runtime/src/provider/credential-runtime.ts", "Only snapshot/restore custody is connected; no credential selection affects the default request."],
+]);
+const providerActivationContracts = [
+  { path: "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts", owner: "providerPrompt", method: "build", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerPrompt", assertion: "providerPrompt.lastPrompt" },
+  { path: "packages/runtime/claude-runtime/src/provider/request-runtime.ts", owner: "providerRequests", method: "create", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerRequests", assertion: "providerRequests.requests" },
+  { path: "packages/runtime/claude-runtime/src/provider/response-runtime.ts", owner: "providerResponses", method: "begin", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerResponses", assertion: "providerResponses.responses" },
+  { path: "packages/runtime/claude-runtime/src/provider/routing-runtime.ts", owner: "providerRouting", method: "decide", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerRouting", assertion: "providerRouting.states" },
+  { path: "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts", owner: "providerRateLimits", method: "reserve", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerRateLimits", assertion: "providerRateLimits.reservations" },
+] as const;
 
 function hash(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -263,25 +275,29 @@ function main(): void {
   if (packageJson.devDependencies.typescript !== profile.toolchain.typescript_version) failures.push("TypeScript pin mismatch");
 
   const productionFiles = productionRoots.flatMap(walk).filter((path) => path.endsWith(".ts") && !/\.(?:test|spec)\.ts$/.test(path));
+  const countedProductionFiles = productionFiles.filter((path) => !semanticallyDormantProductionPaths.has(path));
+  const dormantProductionFiles = productionFiles.filter((path) => semanticallyDormantProductionPaths.has(path));
   const testFiles = walk(testRoot).filter((path) => path.endsWith(".behavior.test.ts"));
   const productionText = new Map(productionFiles.map((path) => [path, readFileSync(join(zyra, path), "utf8")]));
-  const finalPhysical = [...productionText.values()].reduce((sum, text) => sum + physicalLines(text), 0);
+  const rawFinalPhysical = [...productionText.values()].reduce((sum, text) => sum + physicalLines(text), 0);
+  const finalPhysical = countedProductionFiles.reduce((sum, path) => sum + physicalLines(productionText.get(path) ?? ""), 0);
+  const dormantPhysical = dormantProductionFiles.reduce((sum, path) => sum + physicalLines(productionText.get(path) ?? ""), 0);
   const baselineHashes = new Set<string>();
   const baselineStructuralHashes = new Set<string>();
-  for (const path of productionFiles) {
+  for (const path of countedProductionFiles) {
     const previous = baselineText(path);
     if (previous !== null) for (const unit of astUnits(path, previous)) {
       baselineHashes.add(unit.hash);
       baselineStructuralHashes.add(unit.structuralHash);
     }
   }
-  const currentUnits = productionFiles.flatMap((path) => astUnits(path, productionText.get(path) ?? ""));
+  const currentUnits = countedProductionFiles.flatMap((path) => astUnits(path, productionText.get(path) ?? ""));
   const exactChanged = deduplicatedLines(currentUnits, baselineHashes, new Set(), false);
   const changed = deduplicatedLines(currentUnits, baselineHashes, baselineStructuralHashes);
   const testUnits = testFiles.flatMap((path) => astUnits(path, readFileSync(join(zyra, path), "utf8")));
   const exactTests = deduplicatedLines(testUnits, new Set(), new Set(), false);
   const effectiveTests = deduplicatedLines(testUnits, new Set(), new Set());
-  const adapterFiles = productionFiles.filter((path) => /(?:adapter|bridge|gateway)/i.test(basename(path)));
+  const adapterFiles = countedProductionFiles.filter((path) => /(?:adapter|bridge|gateway)/i.test(basename(path)));
   const adapterLines = adapterFiles.reduce((sum, path) => sum + physicalLines(productionText.get(path) ?? ""), 0);
   const adapterRatio = finalPhysical === 0 ? 1 : adapterLines / finalPhysical;
 
@@ -299,6 +315,24 @@ function main(): void {
   const coordinatorPath = "packages/runtime/claude-runtime/src/e01/coordinator.ts";
   const rootCallsiteText = readFileSync(join(zyra, "packages/runtime/claude-runtime/src/query-engine.ts"), "utf8");
   if (!rootCallsiteText.includes("E01RuntimeCoordinator") || !rootCallsiteText.includes("await e01.bootstrap()")) failures.push("default E01 callsite is not wired");
+  const recordProviderDeclaration = declarationText(coordinatorPath, "E01RuntimeCoordinator.recordProvider") ?? "";
+  const lifecycleDeclaration = declarationText(coordinatorPath, "E01RuntimeCoordinator.applyProviderLifecycle") ?? "";
+  const snapshotDeclarationForActivation = declarationText(coordinatorPath, "E01RuntimeCoordinator.snapshot") ?? "";
+  const providerBehaviorBody = testBody(
+    "packages/runtime/claude-runtime/test/runtime.test.ts",
+    "runtime commits provider prompt usage and recovery state through default loop",
+  ) ?? "";
+  const providerActivation = providerActivationContracts.map((contract) => {
+    const caller = declarationText(coordinatorPath, contract.caller) ?? "";
+    const callerName = contract.caller.split(".").at(-1) ?? contract.caller;
+    const entryConnected = new RegExp(`(?:\\.|\\b)${escaped(callerName)}\\s*\\(`).test(lifecycleDeclaration);
+    const ownerInvoked = new RegExp(`this\\.${escaped(contract.owner)}\\.${escaped(contract.method)}\\s*\\(`).test(caller);
+    const snapshotOwned = new RegExp(`\\b${escaped(contract.snapshot)}\\s*:\\s*this\\.${escaped(contract.snapshot)}\\.snapshot\\s*\\(`).test(snapshotDeclarationForActivation);
+    const behaviorAsserted = providerBehaviorBody.includes(contract.assertion);
+    return { ...contract, entry_connected: entryConnected, owner_invoked: ownerInvoked, snapshot_owned: snapshotOwned, behavior_asserted: behaviorAsserted, complete: entryConnected && ownerInvoked && snapshotOwned && behaviorAsserted };
+  });
+  if (!recordProviderDeclaration.includes("this.applyProviderLifecycle(")) failures.push("provider lifecycle is disconnected from recordProvider");
+  for (const contract of providerActivation) if (!contract.complete) failures.push(`incomplete provider activation contract: ${contract.path}`);
   const mutationEvidencePath = join(evidenceRoot, "mutation-results.json");
   const mutationEvidence = existsSync(mutationEvidencePath) ? JSON.parse(readFileSync(mutationEvidencePath, "utf8")) : null;
   const killedMutationIds = new Set<string>(
@@ -429,7 +463,7 @@ function main(): void {
     failures.push(`maximum mappings per target symbol ${maximumMappingsPerTargetSymbol} above gate`);
   }
   if (enforce && (!mutationEvidence || mutationEvidence.summary.killed !== mutations.length || mutationEvidence.summary.invalid !== 0)) {
-    failures.push("30/30 executable mutation evidence missing or failed");
+    failures.push(`${mutations.length}/${mutations.length} executable mutation evidence missing or failed`);
   }
   const requiredEvidence = ["runtime-origin", "write-path", "same-session-resume", "lost-ack", "disable", "dependencies", "toolchain"];
   const evidenceStatus = Object.fromEntries(requiredEvidence.map((name) => [name, readEvidence(name)]));
@@ -441,7 +475,13 @@ function main(): void {
     verified_baseline: VERIFIED,
     production_roots: productionRoots,
     production_file_count: productionFiles.length,
+    semantically_counted_production_file_count: countedProductionFiles.length,
+    semantically_counted_production_files: countedProductionFiles,
+    raw_non_test_typescript_physical_sloc: rawFinalPhysical,
     final_non_test_typescript_physical_sloc: finalPhysical,
+    semantically_dormant_production_sloc: dormantPhysical,
+    semantically_dormant_production: dormantProductionFiles.map((path) => ({ path, reason: semanticallyDormantProductionPaths.get(path) })),
+    provider_activation_contracts: providerActivation,
     baseline_ast_unit_hash_count: baselineHashes.size,
     baseline_ast_structural_hash_count: baselineStructuralHashes.size,
     current_ast_unit_count: currentUnits.length,
@@ -460,7 +500,7 @@ function main(): void {
     adapter_files: adapterFiles,
     adapter_sloc: adapterLines,
     adapter_ratio: adapterRatio,
-    algorithm: "TypeScript AST declaration/member units; exact hashes plus identifier/literal-normalized structural hashes; baseline and repeated structural units excluded",
+    algorithm: "TypeScript AST declaration/member units from semantically active production modules; exact hashes plus identifier/literal-normalized structural hashes; baseline, repeated structural units, and inspect/snapshot/restore-only modules excluded",
   };
   writeJson(join(evidenceRoot, "effective-loc-report.json"), locReport);
   writeJsonl(join(evidenceRoot, "source-to-target-five-hop.jsonl"), chains);

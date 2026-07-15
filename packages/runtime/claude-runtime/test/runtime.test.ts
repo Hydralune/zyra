@@ -72,6 +72,23 @@ interface E01RuntimeView {
   compact: { boundaries: unknown[] };
   telemetry: { prompts: unknown[]; samples: unknown[] };
   recovery: { contexts: unknown[] };
+  providerPrompt: { lastPrompt: { fingerprint: string } | null };
+  providerRequests: {
+    requests: Array<{ requestId: string; status: string }>;
+    attempts: Array<{ requestId: string; status: string }>;
+    chunks: Array<{ attemptId: string; sequence: number }>;
+  };
+  providerResponses: {
+    builders: Array<{ requestId: string; status: string }>;
+    responses: Array<{ requestId: string; stopReason: string }>;
+  };
+  providerRouting: {
+    states: Array<{ routeId: string; status: string; inFlight: number; successes: number; failures: number }>;
+  };
+  providerRateLimits: {
+    buckets: Array<{ limitId: string; reserved: number; consumed: number }>;
+    reservations: Array<{ requestId: string; status: string }>;
+  };
 }
 
 function e01State(result: Awaited<ReturnType<ClaudeRuntimeCore["run"]>>): E01RuntimeView {
@@ -192,6 +209,15 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.equal(success.ok, true);
   assert.equal(successState.telemetry.prompts.length, 1);
   assert.equal(successState.telemetry.samples.length, 1);
+  assert.ok(successState.providerPrompt.lastPrompt?.fingerprint);
+  assert.deepEqual(successState.providerRequests.requests.map((item) => item.status), ["completed"]);
+  assert.deepEqual(successState.providerRequests.attempts.map((item) => item.status), ["succeeded"]);
+  assert.equal(successState.providerRequests.chunks.length, 1);
+  assert.deepEqual(successState.providerResponses.responses.map((item) => item.stopReason), ["tool_use"]);
+  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "local-default")?.successes, 1);
+  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "local-default")?.inFlight, 0);
+  assert.deepEqual(successState.providerRateLimits.reservations.map((item) => item.status), ["committed"]);
+  assert.equal(successState.providerRateLimits.buckets.find((item) => item.limitId === "local-default-requests")?.consumed, 1);
   assert.ok((successState.journal.state.provider?.revision ?? 0) > 0);
   assert.ok(successHost.events.some((event) => event.phase === "model_request_prepared"));
   assert.ok(successHost.events.some((event) => event.phase === "model_stream_report"));
@@ -207,6 +233,11 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.equal(failure.ok, false);
   assert.equal(failure.stoppedReason, "model_error");
   assert.ok(failureState.recovery.contexts.length >= 1);
+  assert.deepEqual(failureState.providerRequests.requests.map((item) => item.status), ["failed"]);
+  assert.deepEqual(failureState.providerRequests.attempts.map((item) => item.status), ["failed"]);
+  assert.deepEqual(failureState.providerResponses.builders.map((item) => item.status), ["failed"]);
+  assert.equal(failureState.providerRouting.states.find((item) => item.routeId === "local-default")?.failures, 1);
+  assert.deepEqual(failureState.providerRateLimits.reservations.map((item) => item.status), ["released"]);
   assert.ok((failureState.journal.state.provider?.revision ?? 0) > 0);
   assert.ok(failureHost.events.some((event) => event.phase === "api_retry_report"));
 });

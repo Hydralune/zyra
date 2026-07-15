@@ -64,6 +64,7 @@ const mutationIds = {
   usage: "e01-mut-026-usage",
   cacheLineage: "e01-mut-027-cache-lineage",
   recoveryPlannerCustody: "e01-mut-031-recovery-planner-custody",
+  providerLifecycleCustody: "e01-mut-032-provider-lifecycle-custody",
 } as const;
 
 const behaviorTests = {
@@ -83,7 +84,7 @@ const behaviorTests = {
     path: RUNTIME_TEST_PATH,
     name: "runtime commits provider prompt usage and recovery state through default loop",
     anchor: "ClaudeRuntimeCore",
-    assertion_tokens: ["telemetry.prompts", "telemetry.samples", "recovery.contexts", "journal.state.provider"],
+    assertion_tokens: ["providerPrompt.lastPrompt", "providerRequests.requests", "providerResponses.responses", "providerRouting.states", "providerRateLimits.reservations", "journal.state.provider"],
   },
   recovery: {
     path: RUNTIME_TEST_PATH,
@@ -165,6 +166,7 @@ function modelRoute(source: Obj): Obj {
   edges.push(
     edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", "callback"),
     edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider"),
+    edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider", COORDINATOR_PATH, "E01RuntimeCoordinator.applyProviderLifecycle"),
   );
   return {
     path: MODEL_PATH,
@@ -172,13 +174,13 @@ function modelRoute(source: Obj): Obj {
     callsitePath: direct ? QUERY_PATH : MODEL_PATH,
     callsiteSymbol: direct ? "ClaudeRuntimeCore.run" : "resolveModelTurns",
     entryEdges: edges,
-    store: "E01RuntimeSnapshot.journal.state.provider + telemetry",
-    snapshotProperty: "telemetry",
-    stateObservation: "telemetry.prompts/samples + journal.state.provider.revision",
+    store: "E01RuntimeSnapshot.providerPrompt/providerRequests/providerResponses/providerRouting/providerRateLimits + journal.state.provider",
+    snapshotProperty: "providerRequests",
+    stateObservation: "provider prompt fingerprint + durable request/attempt/chunk/response + route lease/outcome + quota reservation/settlement",
     effect: "provider-request-stream",
     behavior: [behaviorTests.provider],
-    mutations: [/Usage|usage|cleanupStream/.test(name) ? mutationIds.usage : mutationIds.streamFinal],
-    adaptation: "Provider request and stream responsibilities are normalized to the OpenAI-compatible model stream; SDK-specific wrappers are cropped while request, frame, usage, and failure effects remain durable.",
+    mutations: [/Usage|usage|cleanupStream/.test(name) ? mutationIds.usage : mutationIds.streamFinal, mutationIds.providerLifecycleCustody],
+    adaptation: "Provider request and stream responsibilities are normalized to the OpenAI-compatible model stream and committed through the prompt, request, response, routing, and rate-limit owners; SDK-specific wrappers are cropped while request, frame, usage, quota, route, and failure effects remain durable.",
   };
 }
 
@@ -432,6 +434,7 @@ const mutations = [
   ["write-serialization", "src/tools.ts", "scheduleToolBatches", "parallel-write", "tool"],
   ["result-budget", "src/budget.ts", "applyToolResultBudget", "skip-externalize", "budget"],
   ["recovery-planner-custody", "src/query-engine.ts", "ClaudeRuntimeCore.run", "disconnect-planner", "recovery"],
+  ["provider-lifecycle-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.recordProvider", "disconnect-provider-lifecycle", "provider"],
 ] as const;
 
 function hash(value: string | Uint8Array): string {
@@ -606,6 +609,8 @@ function mutationManifest(): Obj[] {
       semantic_risk: risk,
       expected_killer_test_ids: [name === "recovery-planner-custody"
         ? "runtime lets canonical recovery policy stop a non-retryable provider request"
+        : name === "provider-lifecycle-custody"
+        ? "runtime commits provider prompt usage and recovery state through default loop"
         : "e01.mutation." + name],
       compile_survives: true,
       frozen_patch_sha256: hash(path + "\0" + symbol + "\0" + operator),

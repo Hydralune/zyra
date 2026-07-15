@@ -228,6 +228,11 @@ const specs: Record<string, MutationSpec> = {
     "        (observation) => e01.decideProviderRecovery(observation),\n        e01.journal.restartEpoch,",
     "        undefined,\n        e01.journal.restartEpoch,",
   ),
+  "e01-mut-032-provider-lifecycle-custody": spec(
+    runtimeTests,
+    "    this.applyProviderLifecycle(operation, json, canonicalPayload);",
+    "    void canonicalPayload;",
+  ),
 };
 
 function hash(value: string | Uint8Array): string {

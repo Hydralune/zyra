@@ -14,13 +14,19 @@ import {
   ProviderCredentialRuntime,
   type SecretVaultPort,
 } from "../provider/credential-runtime.ts";
-import { ProviderModelRuntime } from "../provider/model-runtime.ts";
+import {
+  ProviderModelRuntime,
+  type ProviderMessage,
+} from "../provider/model-runtime.ts";
 import { ProviderPromptRuntime } from "../provider/prompt-runtime.ts";
 import { ProviderRateLimitRuntime } from "../provider/rate-limit-runtime.ts";
 import { ProviderRecoveryRuntime, type RetryPlan } from "../provider/recovery-runtime.ts";
 import { ProviderRequestRuntime } from "../provider/request-runtime.ts";
 import { ProviderResponseRuntime } from "../provider/response-runtime.ts";
-import { ProviderRoutingRuntime } from "../provider/routing-runtime.ts";
+import {
+  ProviderRoutingRuntime,
+  type ProviderFailureClass,
+} from "../provider/routing-runtime.ts";
 import { ProviderTelemetryRuntime } from "../provider/telemetry-runtime.ts";
 import { ProviderTransportRuntime } from "../provider/transport-runtime.ts";
 import { QueryExecutionPlanRuntime } from "../query/execution-plan-runtime.ts";
@@ -484,9 +490,6 @@ export class E01RuntimeCoordinator {
   recordProvider(operation: string, payload: O): TransitionReceipt {
     const json = payload as unknown as JsonObject;
     const canonicalPayload: O = { ...payload };
-    this.provider.claude_module({ action: "inspect", operation, payload: json });
-    this.providerPrompt.prompt_module({ action: "inspect" });
-    this.providerTransport.transport_module({ action: "inspect" });
     this.telemetry.logging_module({
       action: "log",
       level: /error|fail/i.test(operation) ? "error" : "debug",
@@ -497,6 +500,7 @@ export class E01RuntimeCoordinator {
       summary: `provider ${operation}`,
       attributes: json,
     });
+    this.applyProviderLifecycle(operation, json, canonicalPayload);
     const prepared = asRuntimeObject(json.provider_request);
     if (operation === "model_request_prepared" && Object.keys(prepared).length > 0) {
       const prompt = this.telemetry.recordPromptState({
@@ -969,6 +973,477 @@ export class E01RuntimeCoordinator {
     });
   }
 
+  private applyProviderLifecycle(
+    operation: string,
+    payload: JsonObject,
+    canonicalPayload: O,
+  ): void {
+    if (operation === "model_request_prepared") {
+      const prepared = asRuntimeObject(payload.provider_request);
+      if (Object.keys(prepared).length > 0) {
+        this.prepareProviderLifecycle(prepared, canonicalPayload);
+      }
+      return;
+    }
+    if (operation === "model_stream_frame") {
+      const frame = asRuntimeObject(payload.model_stream_frame);
+      if (Object.keys(frame).length > 0) {
+        this.advanceProviderLifecycle(frame, canonicalPayload);
+      }
+      return;
+    }
+    if (operation === "model_stream_report") {
+      const report = asRuntimeObject(payload.model_stream);
+      if (Object.keys(report).length > 0) {
+        this.settleProviderLifecycle(report, canonicalPayload);
+      }
+    }
+  }
+
+  private prepareProviderLifecycle(prepared: JsonObject, canonicalPayload: O): void {
+    const requestId = asRuntimeString(prepared.request_id, "");
+    if (!requestId) return;
+    const existing = this.providerRequestOrNull(requestId);
+    if (existing) {
+      canonicalPayload.provider_lifecycle = {
+        request_id: requestId,
+        request_status: existing.status,
+        replayed: true,
+      };
+      return;
+    }
+    const providerId = normalizeProviderId(asRuntimeString(prepared.provider, "compatible"));
+    const modelId = asRuntimeString(prepared.model, "unknown");
+    const messages = providerMessages(prepared.messages);
+    for (const rawTool of asRuntimeArray(prepared.tools)) {
+      const tool = asRuntimeObject(rawTool);
+      const definition = asRuntimeObject(tool.function);
+      const name = asRuntimeString(definition.name, "");
+      if (!name) continue;
+      this.providerPrompt.upsertTool({
+        name,
+        description: asRuntimeString(definition.description, `Runtime tool ${name}`),
+        inputSchema: asRuntimeObject(definition.parameters),
+        deferred: false,
+        strict: false,
+        priority: 0,
+        usedRecently: true,
+        required: false,
+      });
+    }
+    const systemText = providerText(prepared.system);
+    if (systemText) {
+      this.providerPrompt.upsertSection({
+        sectionId: "default-provider-system",
+        kind: "runtime",
+        title: "Default provider system prompt",
+        content: systemText,
+        priority: 1_000,
+        stable: true,
+        cacheTtl: "5m",
+        metadata: { canonical_owner: "typescript" },
+      });
+    }
+    const builtPrompt = this.providerPrompt.build(messages, {
+      model: modelId,
+      cacheEnabled: this.providerPrompt.getPromptCachingEnabled(modelId),
+      cacheStrategy: "system_prompt",
+      cacheTtl: "5m",
+      maximumSystemChars: 250_000,
+      maximumToolsChars: 250_000,
+      maximumMedia: 20,
+      enableDeferredTools: true,
+      preserveLastUserMessage: true,
+    });
+    this.ensureProviderPolicy(providerId);
+    const estimatedInputTokens = Math.max(
+      1,
+      Math.ceil((builtPrompt.systemChars + builtPrompt.messagesChars + builtPrompt.toolsChars) / 4),
+    );
+    const deadlineAt = Date.now() + 120_000;
+    const route = this.providerRouting.decide({
+      requestId,
+      sessionId: this.sessionId,
+      requiredCapabilities: ["text", "streaming"],
+      privacyClass: "internal",
+      estimatedInputTokens,
+      requestedOutputTokens: 16_000,
+      maximumCost: null,
+      maximumLatencyMilliseconds: null,
+      preferredProviderIds: [providerId],
+      excludedRouteIds: [],
+      stickyRouteId: null,
+      allowDegraded: true,
+      metadata: { model_id: modelId, canonical_owner: "typescript" },
+    });
+    this.providerRouting.acquire(route);
+    let reservationId = "";
+    try {
+      const reservation = this.providerRateLimits.reserve({
+        requestId,
+        sessionId: this.sessionId,
+        providerId,
+        credentialId: `${providerId}:runtime`,
+        modelId,
+        requests: 1,
+        inputTokens: estimatedInputTokens,
+        outputTokens: 16_000,
+        estimatedCost: route.estimatedCost,
+        priority: 100,
+        deadlineAt,
+      });
+      reservationId = reservation.reservationId;
+      const request = this.providerRequests.create({
+        requestId,
+        sessionId: this.sessionId,
+        runId: this.runId,
+        queryId: `${this.sessionId}:query`,
+        turnId: `${requestId}:turn`,
+        idempotencyKey: requestId,
+        modelPreference: modelId,
+        payload: prepared,
+        contextDigest: digest(builtPrompt.messages),
+        toolSetDigest: digest(builtPrompt.tools),
+        budget: {
+          maximumAttempts: 1,
+          maximumInputTokens: Math.max(estimatedInputTokens, 1_000_000),
+          maximumOutputTokens: 128_000,
+          maximumCost: null,
+          deadlineAt,
+        },
+        correlationId: requestId,
+        metadata: {
+          provider_id: providerId,
+          prompt_id: builtPrompt.promptId,
+          prompt_fingerprint: builtPrompt.fingerprint,
+          route_decision_digest: route.decisionDigest,
+        },
+      });
+      const attempt = this.providerRequests.prepareAttempt({
+        requestId,
+        routeId: route.routeId,
+        providerId,
+        modelId,
+        endpointId: route.endpointId,
+        credentialId: `${providerId}:runtime`,
+        requestBody: prepared,
+        requestHeaders: {},
+        correlationId: `${requestId}:prepare`,
+      });
+      this.providerRequests.dispatch({
+        requestId,
+        attemptId: attempt.attemptId,
+        correlationId: `${requestId}:dispatch`,
+      });
+      const response = this.providerResponses.begin({
+        requestId,
+        attemptId: attempt.attemptId,
+        providerId,
+        modelId,
+      });
+      this.providerResponses.apply({
+        responseId: response.responseId,
+        eventId: `${requestId}:response:start`,
+        sequence: 1,
+        kind: "message_start",
+        payload: { messageId: requestId },
+      });
+      canonicalPayload.provider_lifecycle = {
+        request_id: request.requestId,
+        request_status: "dispatched",
+        attempt_id: attempt.attemptId,
+        response_id: response.responseId,
+        route_id: route.routeId,
+        route_decision_digest: route.decisionDigest,
+        reservation_id: reservation.reservationId,
+        prompt_id: builtPrompt.promptId,
+        prompt_fingerprint: builtPrompt.fingerprint,
+      };
+    } catch (error) {
+      if (reservationId) {
+        const reservation = this.providerRateLimits.snapshot().reservations.find(
+          (item) => item.reservationId === reservationId,
+        );
+        if (reservation?.status === "held") this.providerRateLimits.release(reservationId);
+      }
+      this.providerRouting.abandon(requestId);
+      const request = this.providerRequestOrNull(requestId);
+      if (request && !/completed|failed|cancelled/.test(request.status)) {
+        this.providerRequests.cancel(requestId, "provider_prepare_failed", `${requestId}:prepare-failed`);
+      }
+      throw error;
+    }
+  }
+
+  private advanceProviderLifecycle(frame: JsonObject, canonicalPayload: O): void {
+    const requestId = asRuntimeString(frame.request_id, "");
+    const request = requestId ? this.providerRequestOrNull(requestId) : null;
+    if (!request || /completed|failed|cancelled/.test(request.status)) return;
+    const attemptId = request.activeAttemptId;
+    if (!attemptId) return;
+    const kind = asRuntimeString(frame.kind, "provider_frame");
+    if (kind === "request_started") {
+      canonicalPayload.provider_lifecycle = {
+        request_id: requestId,
+        request_status: request.status,
+        attempt_id: attemptId,
+        frame_kind: kind,
+      };
+      return;
+    }
+    if (request.status === "dispatched") {
+      this.providerRequests.responseStarted({
+        requestId,
+        attemptId,
+        responseStatus: asRuntimeNumber(frame.response_status) || 200,
+        providerRequestId: requestId,
+        correlationId: `${requestId}:response-started`,
+      });
+    }
+    const attempt = this.providerRequests.getAttempt(attemptId);
+    const sequence = attempt.expectedChunkSequence;
+    const serialized = JSON.stringify(frame);
+    const chunk = this.providerRequests.appendChunk({
+      requestId,
+      attemptId,
+      chunkId: `${requestId}:chunk:${sequence}`,
+      sequence,
+      channel: /tool_call/u.test(serialized) ? "tool" : kind === "sse_chunk" ? "text" : "control",
+      payload: frame,
+      final: false,
+    });
+    const response = this.providerResponseForAttempt(attemptId);
+    if (response && response.status === "open") {
+      this.providerResponses.apply({
+        responseId: response.responseId,
+        eventId: `${requestId}:response:frame:${sequence}`,
+        sequence: response.expectedSequence,
+        kind: "usage",
+        payload: {
+          providerFields: {
+            frame_kind: kind,
+            frame_sequence: sequence,
+            frame_digest: chunk.payloadDigest,
+          },
+        },
+      });
+    }
+    canonicalPayload.provider_lifecycle = {
+      request_id: requestId,
+      request_status: "streaming",
+      attempt_id: attemptId,
+      chunk_id: chunk.chunkId,
+      chunk_sequence: chunk.sequence,
+      response_id: response?.responseId ?? null,
+    };
+  }
+
+  private settleProviderLifecycle(report: JsonObject, canonicalPayload: O): void {
+    const requestId = asRuntimeString(report.request_id, "");
+    const request = requestId ? this.providerRequestOrNull(requestId) : null;
+    if (!request) return;
+    if (/completed|failed|cancelled/.test(request.status)) {
+      canonicalPayload.provider_lifecycle = {
+        request_id: requestId,
+        request_status: request.status,
+        replayed: true,
+      };
+      return;
+    }
+    const attemptId = request.activeAttemptId;
+    if (!attemptId) return;
+    const attempt = this.providerRequests.getAttempt(attemptId);
+    const response = this.providerResponseForAttempt(attemptId);
+    const reservation = this.providerRateLimits.snapshot().reservations.find(
+      (item) => item.requestId === requestId && item.status === "held",
+    );
+    const usage = providerUsage(asRuntimeObject(report.usage));
+    const providerId = attempt.providerId;
+    const modelId = attempt.modelId;
+    this.applyProviderRateHeaders(providerId, modelId, report);
+    if (report.ok === true) {
+      if (request.status === "dispatched") {
+        this.providerRequests.responseStarted({
+          requestId,
+          attemptId,
+          responseStatus: asRuntimeNumber(report.status) || 200,
+          providerRequestId: requestId,
+          correlationId: `${requestId}:response-started`,
+        });
+      }
+      let normalizedResponse: JsonValue = report;
+      if (response && response.status === "open") {
+        this.providerResponses.apply({
+          responseId: response.responseId,
+          eventId: `${requestId}:response:usage`,
+          sequence: response.expectedSequence,
+          kind: "usage",
+          payload: {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheReadTokens: usage.cacheReadTokens,
+            cacheWriteTokens: usage.cacheWriteTokens,
+            providerFields: { transport: asRuntimeString(report.transport, "unknown") },
+          },
+        });
+        const next = this.providerResponseForAttempt(attemptId);
+        if (next) {
+          this.providerResponses.apply({
+            responseId: next.responseId,
+            eventId: `${requestId}:response:stop`,
+            sequence: next.expectedSequence,
+            kind: "message_stop",
+            payload: {
+              stopReason: asRuntimeNumber(report.tool_call_count) > 0 ? "tool_use" : "end_turn",
+              stopSequence: null,
+            },
+          });
+          normalizedResponse = this.providerResponses.finalize(next.responseId) as unknown as JsonValue;
+        }
+      }
+      const completed = this.providerRequests.complete({
+        requestId,
+        attemptId,
+        output: normalizedResponse,
+        usage,
+        stopReason: asRuntimeString(report.decision, "end_turn"),
+        correlationId: `${requestId}:complete`,
+      });
+      const route = this.providerRouting.recordSuccess(
+        requestId,
+        Math.floor(asRuntimeNumber(report.duration_ms)),
+        this.sessionId,
+      );
+      const committedReservation = reservation
+        ? this.providerRateLimits.commit(reservation.reservationId, {
+          requests: 1,
+          input_tokens: usage.inputTokens,
+          output_tokens: usage.outputTokens,
+          cost: usage.cost ?? 0,
+        })
+        : null;
+      canonicalPayload.provider_lifecycle = {
+        request_id: requestId,
+        request_status: completed.status,
+        attempt_id: attemptId,
+        attempt_status: "succeeded",
+        response_id: response?.responseId ?? null,
+        response_status: "complete",
+        route_id: route.routeId,
+        route_status: route.status,
+        reservation_id: committedReservation?.reservationId ?? null,
+        reservation_status: committedReservation?.status ?? null,
+      };
+      return;
+    }
+    const status = asRuntimeNumber(report.status);
+    const errorMessage = asRuntimeString(report.error, `provider_http_${status}`);
+    const plan = asRuntimeObject(report.recovery_plan);
+    const retryable = ["retry", "fallback", "reduce_output"].includes(
+      asRuntimeString(plan.action, "stop"),
+    );
+    const failureClass = providerFailureClass(status, errorMessage);
+    const failed = this.providerRequests.failAttempt({
+      requestId,
+      attemptId,
+      errorClass: failureClass,
+      errorMessage,
+      retryable,
+      retryAfterMilliseconds: asRuntimeNumber(plan.delayMs ?? plan.delay_ms),
+      correlationId: `${requestId}:failed`,
+    });
+    if (response?.status === "open") {
+      this.providerResponses.fail(response.responseId, failureClass, errorMessage);
+    }
+    const route = this.providerRouting.recordFailure(requestId, failureClass);
+    const releasedReservation = reservation
+      ? this.providerRateLimits.release(reservation.reservationId)
+      : null;
+    canonicalPayload.provider_lifecycle = {
+      request_id: requestId,
+      request_status: failed.status,
+      attempt_id: attemptId,
+      attempt_status: "failed",
+      response_id: response?.responseId ?? null,
+      response_status: "failed",
+      route_id: route.routeId,
+      route_status: route.status,
+      failure_class: failureClass,
+      reservation_id: releasedReservation?.reservationId ?? null,
+      reservation_status: releasedReservation?.status ?? null,
+    };
+  }
+
+  private providerRequestOrNull(requestId: string): ReturnType<ProviderRequestRuntime["get"]> | null {
+    try {
+      return this.providerRequests.get(requestId);
+    } catch {
+      return null;
+    }
+  }
+
+  private providerResponseForAttempt(attemptId: string): ReturnType<ProviderResponseRuntime["snapshot"]>["builders"][number] | null {
+    return this.providerResponses.snapshot().builders.find((item) => item.attemptId === attemptId) ?? null;
+  }
+
+  private applyProviderRateHeaders(providerId: string, modelId: string, report: JsonObject): void {
+    const headers = asRuntimeObject(report.response_headers);
+    if (Object.keys(headers).length === 0) return;
+    this.providerRateLimits.applyProviderHeaders({
+      providerId,
+      credentialId: `${providerId}:runtime`,
+      modelId,
+      headers: {
+        remainingRequests: nullableHeaderNumber(headers, "x-ratelimit-remaining-requests"),
+        remainingInputTokens: nullableHeaderNumber(headers, "x-ratelimit-remaining-input-tokens"),
+        remainingOutputTokens: nullableHeaderNumber(headers, "x-ratelimit-remaining-output-tokens"),
+        resetRequestsAt: nullableHeaderNumber(headers, "x-ratelimit-reset-requests"),
+        resetTokensAt: nullableHeaderNumber(headers, "x-ratelimit-reset-tokens"),
+        retryAfterMilliseconds: retryAfterMilliseconds(headers),
+      },
+    });
+  }
+
+  private ensureProviderPolicy(providerId: "anthropic" | "compatible" | "local"): void {
+    const routeId = `${providerId}-default`;
+    if (!this.providerRouting.snapshot().definitions.some((item) => item.routeId === routeId)) {
+      this.providerRouting.register({
+        routeId,
+        providerId,
+        modelId: "claude-default",
+        endpointId: `${providerId}-api`,
+        region: providerId === "local" ? "local" : "global",
+        capabilities: ["text", "reasoning", "tools", "streaming"],
+        privacyClasses: ["public", "internal", "sensitive"],
+        maximumContextTokens: 1_000_000,
+        maximumOutputTokens: 128_000,
+        inputCostPerMillion: providerId === "anthropic" ? 15 : 0,
+        outputCostPerMillion: providerId === "anthropic" ? 75 : 0,
+        baseLatencyMilliseconds: providerId === "local" ? 10 : 500,
+        concurrencyLimit: 32,
+        priority: 100,
+        enabled: true,
+        metadata: { canonical_owner: "typescript", dynamic_model: true },
+      });
+    }
+    const limitId = `${providerId}-default-requests`;
+    if (!this.providerRateLimits.snapshot().definitions.some((item) => item.limitId === limitId)) {
+      this.providerRateLimits.register({
+        limitId,
+        scopeKind: "provider",
+        scopeId: providerId,
+        dimension: "requests",
+        capacity: 1_000,
+        refillAmount: 1_000,
+        refillIntervalMilliseconds: 60_000,
+        burstCapacity: 1_000,
+        enabled: true,
+        priority: 100,
+        metadata: { canonical_owner: "typescript" },
+      });
+    }
+  }
+
   async runHooks(phase: HookPhase, payload: JsonObject): Promise<HookPhaseResult> {
     return this.hooks.run({
       sessionId: this.sessionId,
@@ -1144,4 +1619,72 @@ function asRuntimeObject(value: JsonValue | undefined): JsonObject {
 function asRuntimeNumber(value: JsonValue | undefined): number {
   const selected = Number(value);
   return Number.isFinite(selected) ? Math.max(0, selected) : 0;
+}
+
+function asRuntimeArray(value: JsonValue | undefined): JsonValue[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function providerMessages(value: JsonValue | undefined): ProviderMessage[] {
+  return asRuntimeArray(value).map((raw) => {
+    const message = asRuntimeObject(raw);
+    const role = asRuntimeString(message.role, "user") === "assistant" ? "assistant" : "user";
+    return {
+      role,
+      content: [{ type: "text", text: providerText(message.content) || " " }],
+    };
+  });
+}
+
+function providerText(value: JsonValue | undefined): string {
+  if (typeof value === "string") return value.trim();
+  if (value === undefined || value === null) return "";
+  return JSON.stringify(value);
+}
+
+function providerUsage(value: JsonObject): {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  cost: number | null;
+} {
+  return {
+    inputTokens: asRuntimeNumber(value.input_tokens),
+    outputTokens: asRuntimeNumber(value.output_tokens),
+    cacheReadTokens: asRuntimeNumber(value.cache_read_input_tokens),
+    cacheWriteTokens: asRuntimeNumber(value.cache_creation_input_tokens),
+    cost: value.cost === undefined || value.cost === null ? null : asRuntimeNumber(value.cost),
+  };
+}
+
+function normalizeProviderId(value: string): "anthropic" | "compatible" | "local" {
+  if (value === "anthropic" || value === "local") return value;
+  return "compatible";
+}
+
+function providerFailureClass(status: number, message: string): ProviderFailureClass {
+  if (status === 401 || status === 403) return "authentication";
+  if (status === 429) return "rate_limit";
+  if (status === 408 || /timeout/i.test(message)) return "timeout";
+  if (status >= 500) return "overloaded";
+  if (status >= 400) return "invalid_request";
+  if (status === 0) return "transport";
+  return "unknown";
+}
+
+function nullableHeaderNumber(headers: JsonObject, name: string): number | null {
+  const value = headers[name];
+  if (value === undefined || value === null || value === "") return null;
+  const selected = Number(value);
+  return Number.isFinite(selected) ? Math.max(0, selected) : null;
+}
+
+function retryAfterMilliseconds(headers: JsonObject): number | null {
+  const value = headers["retry-after"];
+  if (value === undefined || value === null || value === "") return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, Math.floor(seconds * 1_000));
+  const timestamp = Date.parse(String(value));
+  return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : null;
 }
