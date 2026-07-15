@@ -245,6 +245,17 @@ async function dependencies(): Promise<void> {
 }
 
 async function runToolchain(cwd: string): Promise<{ ok: boolean; receipts: Obj[] }> {
+  const isolatedTemp = join(cwd, ".tmp", "e01-toolchain");
+  const isolatedCache = join(cwd, ".tmp", "bun-install-cache");
+  await mkdir(isolatedTemp, { recursive: true });
+  await mkdir(isolatedCache, { recursive: true });
+  const isolatedEnvironment = {
+    ...process.env,
+    TMP: isolatedTemp,
+    TEMP: isolatedTemp,
+    TMPDIR: isolatedTemp,
+    BUN_INSTALL_CACHE_DIR: isolatedCache,
+  };
   const commands = [
     [process.execPath, "--version"],
     [process.execPath, "install", "--frozen-lockfile"],
@@ -255,7 +266,7 @@ async function runToolchain(cwd: string): Promise<{ ok: boolean; receipts: Obj[]
   ];
   const receipts: Obj[] = [];
   for (const commandLine of commands) {
-    const result = await run(commandLine, cwd);
+    const result = await run(commandLine, cwd, isolatedEnvironment);
     receipts.push(receipt(result));
     if (result.exitCode !== 0) return { ok: false, receipts };
   }
