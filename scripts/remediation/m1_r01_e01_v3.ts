@@ -40,7 +40,7 @@ const inputs = [
   ["src/query/tokenBudget.ts", 81, "context-token"],
   ["src/services/tools/toolOrchestration.ts", 188, "tool-execution"],
   ["src/services/tools/StreamingToolExecutor.ts", 530, "tool-execution"],
-  ["src/services/tools/toolResultStorage.ts", 1040, "tool-result"],
+  ["src/utils/toolResultStorage.ts", 1040, "tool-result"],
   ["src/sessionState.ts", 150, "session-lifecycle"],
   ["src/utils/sessionRestore.ts", 551, "session-lifecycle"],
   ["src/history.ts", 464, "session-lifecycle"],
