@@ -2,7 +2,7 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.toolchain",
-  "generated_at_utc": "2026-07-15T15:05:01.3192574Z",
+  "generated_at_utc": "2026-07-15T16:06:24.271Z",
   "ok": true,
   "bun_version": "1.2.15",
   "typescript_version": "5.8.3",
@@ -13,7 +13,7 @@
         "--version"
       ],
       "exit_code": 0,
-      "duration_ms": 63,
+      "duration_ms": 42,
       "stdout_sha256": "091d55b64de2013341ba60beea22ca1392e1c258d68ff2aa2e8f901cf9723d63",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stdout_excerpt": "1.2.15",
@@ -39,7 +39,7 @@
         "typecheck"
       ],
       "exit_code": 0,
-      "duration_ms": 3860,
+      "duration_ms": 4002,
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stderr_sha256": "5dbf7280a9acafbba53f9365715394339ac8ada12defe79c5a224d9f10d9f492",
       "stdout_excerpt": "",
@@ -52,10 +52,10 @@
         "build"
       ],
       "exit_code": 0,
-      "duration_ms": 189,
-      "stdout_sha256": "f9871d199546064df5e6c7469e5443319a1e5a1b45c904c09de523fa8c464c2d",
+      "duration_ms": 178,
+      "stdout_sha256": "1b6fd995cadf84704adef570d667b83592bf000e5050acc6544146e0108c96ed",
       "stderr_sha256": "65431c908d5f420fd2b75f75cbdb9ddeb8d8001428d8c9584ad475532ce1cd71",
-      "stdout_excerpt": "Bundled 71 modules in 41ms\n\n  main.js  0.94 MB  (entry point)",
+      "stdout_excerpt": "Bundled 73 modules in 37ms\n\n  main.js  1.0 MB  (entry point)",
       "stderr_excerpt": "$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun"
     },
     {
@@ -65,11 +65,11 @@
         "runtime:e01:test"
       ],
       "exit_code": 0,
-      "duration_ms": 1133,
+      "duration_ms": 1167,
       "stdout_sha256": "11a0cc41569f7e0e890f4f768aea6f6fb679a37222b2ae46d26c9a2c285957bb",
-      "stderr_sha256": "b279b16e334de8cfe04e451cf67fcb087a850d10268be05884b70f9958f3105d",
+      "stderr_sha256": "cecb11ef044fb4c6fe94681d93bb023dbaeaea22456b89e4186aac27fe88f5ec",
       "stdout_excerpt": "bun test v1.2.15 (df017990)",
-      "stderr_excerpt": "te before allocating a new transition identity\n(pass) E01 durable transition journal > reconstructs pending write locks during same-session restore\n(pass) E01 durable transition journal > keeps undelivered outbox work after a process restart\n(pass) E01 durable transition journal > rejects a snapshot for a different session\n(pass) E01 durable transition journal > rejects checksum and state digest corruption before mutation\n(pass) E01 durable transition journal > rejects stale run epoch and revision command identities\n(pass) E01 durable transition journal > rejects Python ownership in command and payload\n(pass) E01 durable transition journal > rejects payload digest tampering and duplicate write paths\n(pass) E01 durable transition journal > produces zero transition ID overlap after same-session resume\n\npackages\\runtime\\claude-runtime\\test\\e01\\tool-protocol.behavior.test.ts:\n(pass) tool result custody > assembles ordered chunks into a sealed delivery\n(pass) tool result custody > rejects a chunk sequence gap without advancing expected sequence\n(pass) tool result custody > deduplicates a repeated chunk and rejects a conflicting digest\n(pass) tool result custody > truncates a large text block while preserving head and tail\n(pass) tool result custody > withholds a block above the caller sensitivity ceiling\n(pass) tool result custody > redacts bearer tokens from internal text results\n(pass) tool result custody > redacts a complete private key block\n(pass) tool result custody > omits diagnostics when delivery policy excludes them\n(pass) tool result custody > enforces maximum block count across chunks\n(pass) tool result custody > cannot deliver an open result before a terminal state\n(pass) tool result custody > cancels an open result and delivers a failed terminal projection\n(pass) tool result custody > marks a sealed result as late without changing its content\n(pass) tool result custody > deduplicates begin calls by tool call identity\n(pass) tool result custody > restores accumulators deliveries and redaction rules [15.00ms]\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [16.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 364 pass\n 0 fail\n 1156 expect() calls\nRan 364 tests across 10 files. [979.00ms]\n"
+      "stderr_excerpt": "estores accumulators deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [16.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 364 pass\n 0 fail\n 1156 expect() calls\nRan 364 tests across 10 files. [1031.00ms]"
     },
     {
       "command": [
@@ -78,7 +78,7 @@
         "runtime:built:health"
       ],
       "exit_code": 0,
-      "duration_ms": 209,
+      "duration_ms": 201,
       "stdout_sha256": "48f576ff1629526585ffbd1040daab23cbfe19c7b8b415dc3b73d690e4e1ab62",
       "stderr_sha256": "29d97decfbe8a94d5d09903b661e84808e3d17e1a5476b8b9e476cb0f621e53e",
       "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"implementationReady\":true,\"verificationStatus\":\"candidate_pending_independent_review\",\"canonicalOwner\":\"typescript\",\"effectiveLineCount\":null,\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json\",\"lineCountComputedAtRuntime\":false,\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",

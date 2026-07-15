@@ -4,11 +4,10 @@
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "production_roots": [
     "apps/code-worker/src",
-    "packages/runtime/claude-runtime/src",
-    "packages/runtime/runtime-event-spine/src"
+    "packages/runtime/claude-runtime/src"
   ],
-  "production_file_count": 82,
-  "semantically_counted_production_file_count": 79,
+  "production_file_count": 68,
+  "semantically_counted_production_file_count": 68,
   "semantically_counted_production_files": [
     "apps/code-worker/src/main.ts",
     "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
@@ -36,6 +35,8 @@
     "packages/runtime/claude-runtime/src/control/runtime.ts",
     "packages/runtime/claude-runtime/src/core/runtime-primitives.ts",
     "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    "packages/runtime/claude-runtime/src/e01/custody-helpers.ts",
+    "packages/runtime/claude-runtime/src/e01/execution-custody-runtime.ts",
     "packages/runtime/claude-runtime/src/e01/kernel.ts",
     "packages/runtime/claude-runtime/src/index.ts",
     "packages/runtime/claude-runtime/src/input/query-input-runtime.ts",
@@ -48,6 +49,8 @@
     "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts",
     "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts",
     "packages/runtime/claude-runtime/src/protocol.ts",
+    "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
     "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts",
     "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts",
     "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
@@ -55,6 +58,7 @@
     "packages/runtime/claude-runtime/src/provider/response-runtime.ts",
     "packages/runtime/claude-runtime/src/provider/routing-runtime.ts",
     "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/transport-runtime.ts",
     "packages/runtime/claude-runtime/src/query/execution-plan-runtime.ts",
     "packages/runtime/claude-runtime/src/query/hook-runtime.ts",
     "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
@@ -72,41 +76,12 @@
     "packages/runtime/claude-runtime/src/stdio.ts",
     "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
     "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
-    "packages/runtime/claude-runtime/src/tools.ts",
-    "packages/runtime/runtime-event-spine/src/canonical.ts",
-    "packages/runtime/runtime-event-spine/src/contracts.ts",
-    "packages/runtime/runtime-event-spine/src/errors.ts",
-    "packages/runtime/runtime-event-spine/src/event-catalog.ts",
-    "packages/runtime/runtime-event-spine/src/index.ts",
-    "packages/runtime/runtime-event-spine/src/message-bus.ts",
-    "packages/runtime/runtime-event-spine/src/metrics.ts",
-    "packages/runtime/runtime-event-spine/src/normalizers.ts",
-    "packages/runtime/runtime-event-spine/src/payload-policy.ts",
-    "packages/runtime/runtime-event-spine/src/projector.ts",
-    "packages/runtime/runtime-event-spine/src/router.ts",
-    "packages/runtime/runtime-event-spine/src/runtime.ts",
-    "packages/runtime/runtime-event-spine/src/sqlite-store.ts",
-    "packages/runtime/runtime-event-spine/src/stdio-server.ts",
-    "packages/runtime/runtime-event-spine/src/stream-fold.ts",
-    "packages/runtime/runtime-event-spine/src/tool-pair.ts"
+    "packages/runtime/claude-runtime/src/tools.ts"
   ],
-  "raw_non_test_typescript_physical_sloc": 38622,
-  "final_non_test_typescript_physical_sloc": 35622,
-  "semantically_dormant_production_sloc": 3000,
-  "semantically_dormant_production": [
-    {
-      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
-      "reason": "Only snapshot/restore custody is connected; no credential selection affects the default request."
-    },
-    {
-      "path": "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-      "reason": "Only inspect/snapshot/restore custody is connected; the executable request path remains model-stream.ts."
-    },
-    {
-      "path": "packages/runtime/claude-runtime/src/provider/transport-runtime.ts",
-      "reason": "Only snapshot/restore custody is connected; fetch execution remains model-stream.ts."
-    }
-  ],
+  "raw_non_test_typescript_physical_sloc": 34642,
+  "final_non_test_typescript_physical_sloc": 34642,
+  "semantically_dormant_production_sloc": 0,
+  "semantically_dormant_production": [],
   "provider_activation_contracts": [
     {
       "path": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts",
@@ -172,16 +147,94 @@
       "snapshot_owned": true,
       "behavior_asserted": true,
       "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+      "owner": "provider",
+      "method": "prepare",
+      "caller": "E01RuntimeCoordinator.prepareProviderLifecycle",
+      "snapshot": "provider",
+      "assertion": "provider.requests",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+      "owner": "provider",
+      "method": "execute",
+      "caller": "E01RuntimeCoordinator.executePreparedProvider",
+      "snapshot": "provider",
+      "assertion": "provider.requests",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/transport-runtime.ts",
+      "owner": "providerTransport",
+      "method": "execute",
+      "caller": "E01RuntimeCoordinator.executePreparedProvider",
+      "snapshot": "providerTransport",
+      "assertion": "providerTransport.requests",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+      "owner": "providerCredentials",
+      "method": "register",
+      "caller": "E01RuntimeCoordinator.configureProviderRuntime",
+      "snapshot": "providerCredentials",
+      "assertion": "providerCredentials.records",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+      "owner": "providerCredentials",
+      "method": "select",
+      "caller": "E01RuntimeCoordinator.configureProviderRuntime",
+      "snapshot": "providerCredentials",
+      "assertion": "providerCredentials.records",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+      "owner": "providerCredentials",
+      "method": "resolve",
+      "caller": "E01RuntimeCoordinator.configureProviderRuntime",
+      "snapshot": "providerCredentials",
+      "assertion": "providerCredentials.records",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
     }
   ],
   "baseline_ast_unit_hash_count": 311,
   "baseline_ast_structural_hash_count": 278,
-  "current_ast_unit_count": 2520,
-  "exact_changed_ast_unit_count": 2086,
-  "exact_changed_typescript_sloc": 28009,
-  "effective_changed_ast_unit_count": 1561,
-  "effective_changed_typescript_sloc": 26491,
-  "structural_clone_excluded_production_sloc": 1518,
+  "current_ast_unit_count": 2422,
+  "exact_changed_ast_unit_count": 1970,
+  "exact_changed_typescript_sloc": 27205,
+  "effective_changed_ast_unit_count": 1467,
+  "effective_changed_typescript_sloc": 25605,
+  "structural_clone_excluded_production_sloc": 1600,
   "behavior_test_files": [
     "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/durable-session.behavior.test.ts",

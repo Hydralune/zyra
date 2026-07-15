@@ -2,13 +2,12 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.dependencies",
-  "generated_at_utc": "2026-07-15T15:06:03.174Z",
+  "generated_at_utc": "2026-07-15T16:06:07.018Z",
   "ok": true,
-  "scanned_file_count": 104,
+  "scanned_file_count": 88,
   "runtime_roots": [
     "apps/code-worker",
-    "packages/runtime/claude-runtime",
-    "packages/runtime/runtime-event-spine"
+    "packages/runtime/claude-runtime"
   ],
   "forbidden_runtime_path_violations": [],
   "runtime_symlinks": [],

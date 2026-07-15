@@ -1,85 +1,125 @@
 # M1-R01 v3 Execution-01 Critical Self-Review
 
-## Verdict
+- Execution: `E01 runtime core TypeScript cutover`
+- Verified baseline: `c34535a783e88f9481387ced89cba4fbc333dc74`
+- Implementation candidate: `d6ff45435167c04c132e08e3de275a24cf28b544`
+- Review scope: `apps/code-worker/src/**` and `packages/runtime/claude-runtime/src/**`
+- Verdict at this checkpoint: implementation complete, independent review still required
 
-`READY_FOR_INDEPENDENT_REVIEW`, not verified complete.
+## 1. Scope and cross-execution exclusions
 
-The verified baseline remains `c34535a783e88f9481387ced89cba4fbc333dc74`. The implementation candidate reviewed here is `5a92745897c1a8737c1294e002e454dcdc996224`. The cleanroom evidence targets that exact implementation commit.
+This candidate replaces the E01 runtime-core execution path. It does not claim later remediation work as E01 output.
 
-## Scope and custody
+`packages/runtime/runtime-event-spine/src/**` is explicitly excluded from E01 production roots and contributes zero E01 production-line credit. That package belongs to the later `M1-S05C-01` event-spine work. The candidate verifier, dependency probe, source-to-target evidence, and effective-line report use only the two E01 roots listed above.
 
-The default code-worker entry is `apps/code-worker/src/main.ts`. It constructs `ClaudeRuntimeCore`, which bootstraps `E01RuntimeCoordinator` before recording runtime events. TypeScript owns the query loop, journal, restore epoch, context compaction, provider prompt construction, durable request/attempt/chunk state, normalized response state, route lease/outcome, quota reservation/settlement, recovery planning, telemetry, tool protocol, and composite snapshot. No Python canonical-owner path from the frozen E01 baseline remains.
+Generated files, data-as-code, fixtures, mocks, documentation, source pools, vendor-like copies, ledgers, manifests, and adapter-only shells receive zero effective-production credit.
 
-The runtime does not require a root source repository, vendor runtime, legacy inspection sidecar, npm link, editable path, symlink, external process, local port, or Node strip-types behavior. The frozen runtime toolchain is Bun `1.2.15` and TypeScript `5.8.3`.
+## 2. Effective line accounting
 
-## Findings discovered and fixed during this review
+The candidate gate reports:
 
-| Finding | Correction | Behavioral proof |
-| --- | --- | --- |
-| The first v3 crosswalk still mapped 229 source ranges to only 8 broad targets and attached whole domain test files. | Replaced the domain fallback with per-source-symbol routes, explicit adaptation notes, immediate caller checks, default-entry edges, one or two exact test bodies, state observations, and killed mutation links. | 229/229 complete chains, 32 target symbols, maximum 43 mappings per consolidated target. |
-| Exact-text clone filtering could still count renamed templates. | Added identifier/literal-normalized TypeScript AST structural hashes for production and behavior tests. Baseline structural units and repeated structural units are excluded. | 1,665 production lines and 7 test lines are conservatively excluded as structural clones. |
-| `simulate_model_error` bypassed model request and recovery custody. | Routed simulated failure through `resolveModelTurns`, provider reports, canonical recovery planning, telemetry, and journal commit. | `runtime commits provider prompt usage and recovery state through default loop`. |
-| The HTTP loop retried non-retryable errors without using the recovery owner. | `resolveModelTurns` now consumes `E01RuntimeCoordinator.decideProviderRecovery`; authentication failure stops after one request. | `runtime lets canonical recovery policy stop a non-retryable provider request`; mutation `e01-mut-031-recovery-planner-custody`. |
-| A successful retry left its recovery context active. | Added `completeProviderRecovery`, which calls the same owner's `recordSuccess` after a retry succeeds. | `runtime clears canonical recovery state after a retry succeeds`. |
-| Restored runs reused a provider request ID and collided with restored usage custody. | Provider request identity now includes the journal restart epoch. | `runtime restores its exact TypeScript snapshot`. |
-| A generic stop rule overwrote `max_turns_exceeded`, allowing the loop to continue. | Stop-rule output only overrides a decision that is still accepted. | `runtime stops on max turns, abort and model error`. |
-| The first independent v3 reachability pass found that several large provider owners were counted although their default-path use was only `inspect/snapshot/restore`. | Connected prompt, request, response, routing, and rate-limit owners to every real `model_request_prepared/frame/report` lifecycle; added request IDs to frames and real route/quota success/failure settlement. Explicitly excluded model, transport, and credential modules from both production line gates because they remain dormant. | Five complete provider activation contracts, durable success/failure assertions in the default `ClaudeRuntimeCore.run` test, and mutation `e01-mut-032-provider-lifecycle-custody`. |
-| Pre-registering local and compatible routes weakened the existing fail-closed default-route test. | Restored the single Anthropic default policy and register local/compatible route and quota policy only when a real request for that provider arrives. | All 355 E01 behavior tests pass before mutation execution; disabling the default route still changes selection behavior. |
-| An initial cleanroom location under `zyra/.tmp` could resolve the repository's parent `node_modules`. | Rejected that receipt and reran from a system-temp archive whose ancestors contain no `node_modules`, with empty `NODE_PATH`, isolated empty Bun cache, local dependency installation, and downstream stop-on-install-failure. | Final cleanroom receipt records repository isolation, local dependency creation, six passing commands, and cleanup. |
+| Bucket | Lines | E01 production credit |
+| --- | ---: | ---: |
+| Accepted source physical SLOC | 11,027 | source basis only |
+| Effective changed TypeScript SLOC | 25,605 | 25,605 |
+| Required effective changed SLOC | 25,416 | threshold |
+| Final non-test TypeScript SLOC | 34,642 | corroborating inventory |
+| Behavior-test SLOC | 8,099 | test evidence only |
+| Adapter-only ratio | 0 | no adapter-only production credit |
 
-## Effective line buckets
+The effective changed total exceeds the E01 threshold by 189 lines. The narrow margin is intentional rather than padded: the verifier rejects repeated generic journal templates, duplicate normalized bodies, source-pool material, generated/data content, and inactive roots.
 
-| Bucket | Lines | Counted toward effective production/test threshold |
-| --- | ---: | --- |
-| Raw final non-test TypeScript physical SLOC | 38,622 | No, includes explicitly dormant modules |
-| Explicitly dormant provider module SLOC | 3,000 | No |
-| Semantically counted final non-test TypeScript SLOC | 35,622 | Yes |
-| Exact changed TypeScript AST-unit SLOC after dormant exclusion | 28,009 | Intermediate only |
-| Structural clone exclusion | 1,518 | No |
-| Effective changed TypeScript SLOC | 26,491 | Yes |
-| Exact behavior-test AST-unit SLOC | 8,106 | Intermediate only |
-| Structural test clone exclusion | 7 | No |
-| Effective behavior-test SLOC | 8,099 | Yes |
-| Adapter-only SLOC | 0 | No |
-| Generated/data/docs/source-pool/vendor-like SLOC | 0 | No |
+## 3. Default provider execution custody
 
-The production threshold is 25,416 effective changed TypeScript lines and 28,000 final non-test TypeScript lines. The behavior-test threshold is 7,000 effective lines. Source manifests, JSONL crosswalks, evidence JSON, docs, deleted generic templates, source repository files, and `provider/model-runtime.ts`, `provider/transport-runtime.ts`, and `provider/credential-runtime.ts` are not counted. Those three modules remain production-shaped debt but have no E01 completion credit until their decisions affect the default path.
+The default `QueryEngine.run` path now owns one continuous provider execution chain:
 
-The line verifier now requires five provider activation contracts. For each counted provider owner it proves the default event callback reaches the lifecycle method, that the lifecycle invokes an operational owner method (`build`, `create`, `begin`, `decide`, or `reserve`), that the owner is present in the composite snapshot, and that the default `ClaudeRuntimeCore.run` test asserts the resulting state. Merely importing, inspecting, snapshotting, or restoring a module cannot satisfy this contract.
+1. `QueryEngine.run` invokes `configureProviderRuntime`.
+2. `ProviderCredentialRuntime` registers, rotates, selects, and resolves the selected credential. Anonymous credentials remain header-free rather than manufacturing a secret.
+3. `ProviderModelRuntime.prepareRequest` normalizes the model request and binds provider/model identity.
+4. The model-stream callback invokes `executePreparedProvider`.
+5. `ProviderModelRuntime.execute` delegates the prepared request to `ProviderTransportRuntime.execute`.
+6. Transport response, routing outcome, request/response accounting, rate-limit state, and execution-custody correlations settle on the same path.
 
-## Source-to-target evidence
+The direct `fetch` branch in model-stream remains only as a compatibility fallback for standalone callers that invoke `resolveModelTurns` without the QueryEngine execution callback. It is not reachable from the default QueryEngine path. Mutation `e01-mut-033-provider-execution-callback` proves that removing the callback breaks the required default behavior.
 
-The frozen source manifest contains 229 accepted top-level source symbols across 15 `claude-code-best` files and 11,027 physical source-range lines. Each target mapping records:
+## 4. Tool effect and result custody
 
-1. Frozen source repository, commit, file, symbol, line range, and file hash.
-2. Existing Zyra target file and TypeScript declaration symbol.
-3. Immediate caller plus verified default-entry call edges from `ClaudeRuntimeCore.run`.
-4. Composite snapshot owner and an observable durable state path.
-5. One or two exact behavior-test bodies with target anchor and state assertions.
-6. At least one declared mutation whose latest executable result is `KILLED`.
+The real tool path is no longer journal-only:
 
-The crosswalk has 32 distinct target symbols. The largest consolidation is 43 source symbols into one target symbol, below the frozen maximum of 60. Each consolidation includes an explicit cropping or adaptation rationale; SDK-only presentation and credential-refresh wrappers are not claimed as migrated behavior.
+1. `planToolBatches` creates executable batches.
+2. `ToolExecutionRuntime` schedules the invocation, grants a lease, and records the running attempt.
+3. The actual host boundary executes through `host.executeBatch`.
+4. `ToolExecutionRuntime` settles success or failure from the real host result.
+5. `ToolResultRuntime` records and delivers the result.
+6. `DurableSessionRuntime` commits or fails the tool effect against the canonical turn.
+7. `E01ExecutionCustodyRuntime` rejects missing or inconsistent invocation, lease, effect, result, delivery, turn, and message correlations.
 
-## Runtime and recovery evidence
+Mutation `e01-mut-034-execution-custody` proves that bypassing the custody runtime changes observable behavior and is killed by the behavior suite.
+
+## 5. Canonical session and restart ownership
+
+`DurableSessionRuntime` is the canonical owner for turns, tool effects, and messages. The older `RuntimeSession` remains a context projection and is not a second durable state owner.
+
+The composite checkpoint format is `zyra.e01-runtime/v6`. It includes checksummed snapshots for query execution, tool execution, tool results, provider request/response/routing/rate/credential/model/transport state, durable session state, and E01 cross-owner execution custody. Secret material is not serialized.
+
+The same-session resume probe performs real cross-process recovery:
+
+- three distinct worker PIDs are started;
+- each process is externally terminated with exit code 143;
+- two successive restarts restore revisions `2 -> 4 -> 6`;
+- journal epochs advance `0 -> 1 -> 2`;
+- custody epochs advance `0 -> 1 -> 2`;
+- six epoch-local transition IDs are unique, with zero replay;
+- the probe uses system temporary storage outside the repository and removes it afterward.
+
+During this verification, the probe exposed a real second-restart defect in `QueryExecutionPlanRuntime.restore`: the restart epoch changed without a matching state-digest transition. The candidate fixes this by recording a `plan.restored` transition and advancing revision/sequence state.
+
+## 6. Source-to-target coverage
+
+The frozen five-hop evidence contains 229 accepted rows covering 229 source occurrences and 33 unique source symbols, with no symbol accounting for more than 43 rows. Each accepted row records:
+
+1. source file and symbol;
+2. Zyra target symbol;
+3. default call site;
+4. state or execution effect;
+5. behavior-test assertion.
+
+Provider-source symbols terminate in the actual credential/model/transport/custody call chain. Tool and session symbols terminate in the actual host execution, result delivery, durable effect, and restart paths. A ledger or manifest lookup alone is not accepted as a behavior hop.
+
+## 7. Validation results
+
+All results below apply to the exact implementation commit named above.
 
 | Gate | Result |
 | --- | --- |
-| Runtime origin | Default built entry reports TypeScript owner and E01 v5 runtime. |
-| Write path | `ClaudeRuntimeCore.run -> recordRuntimeEvent -> Journal.commit` changes revision and state digest. |
-| Same-session resume | Revision 2 to 4, restart epoch 0 to 1, two new transition IDs, zero overlap. |
-| Lost ACK | Duplicate retry does not change revision, commit count, or delivery timestamp. |
-| Disable | `ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME=1` makes the default entry fail deterministically. |
-| Dependency path | 104 runtime files scanned; no forbidden source path, link, or symlink. |
-| Mutation | 32 declared, applied, compile-surviving, and killed; zero survived or invalid; restored hashes match. Mutation 32 disconnects the provider lifecycle from the default event path. |
-| Frozen toolchain | Install, typecheck, build, 364 tests across 10 files, and built-entry health pass. |
-| Cleanroom | Fresh repository-external system-temp `git archive` of `5a92745897c...`; no Git metadata, dependencies, build output, project cache, ancestor `node_modules`, or `NODE_PATH` at start; isolated frozen install creates local dependencies, then all commands pass. |
+| TypeScript typecheck | PASS |
+| Default runtime behavior tests | PASS, 9/9 |
+| Full E01 behavior suite | PASS, 364/364 with 1,156 assertions |
+| Mutation gate | PASS, 34/34 killed |
+| Production build | PASS, 73 modules |
+| Built runtime health | PASS |
+| Runtime-origin probe | PASS, TypeScript `v6` runtime |
+| Write-path probe | PASS |
+| Lost-ACK probe | PASS |
+| Disable/negative-control probe | PASS |
+| Dependency/path probe | PASS, 88 files and no forbidden links |
+| Same-session cross-process resume | PASS |
+| Candidate verifier | PASS |
 
-## Residual risks and non-claims
+The pinned toolchain is Bun `1.2.15` and TypeScript `5.8.3`.
 
-No real provider credential or public cloud endpoint was used in this E01 review. Deterministic HTTP responses cover non-retryable stop and retry-then-success control flow; real local/edge/cloud dispatch remains governed by the later milestone evidence gates. Provider model registration/execution, transport execution, and credential selection are deliberately not claimed or counted by E01 because `model-stream.ts` still owns fetch execution and runtime configuration still supplies credentials.
+The external cleanroom was created with `git archive` from the exact implementation commit into system temporary storage outside the repository. It had no `.git`, no pre-existing `node_modules`, no ancestor `node_modules`, an empty `NODE_PATH`, and a fresh isolated Bun cache. A frozen install fetched 13 packages, after which typecheck, build, all 364 tests, and built health passed. The cleanroom, cache, and archive were removed afterward.
 
-The built health response intentionally remains `candidate_pending_independent_review` and `complete: false`. This self-review does not authorize updating the verified head or unblocking Execution-02/03.
+## 8. Dependency and ownership findings
 
-## Self-review conclusion
+- The default runtime has no Python owner path.
+- The E01 roots have no runtime dependency on `../claude-code-best`, another source repository, a vendor/source-pool tree, an npm link, an editable path, an external Docker context, or a residual repository cache.
+- Provider, tool, session, and custody state is owned by Zyra TypeScript modules and restored from the v6 composite checkpoint.
+- Runtime events are caused by real provider/tool/session mutations rather than fixed health output or fixture replay.
+- Removing the provider execution callback or execution-custody integration is detected by the mutation suite.
 
-No blocking implementation finding remains after the corrections above. The candidate may proceed to an independent critical review against the exact candidate/evidence commit. E01 must remain incomplete if that review fails or reviews a different implementation tree.
+## 9. Critical residual assessment
+
+The 189-line effective-SLOC margin is small and should be independently recalculated rather than trusted from this report. The reviewer must also verify that the 229 five-hop rows point to distinct executable semantics rather than repeated documentation, that the 34 mutations alter production behavior, and that the cleanroom target matches the implementation candidate exactly.
+
+This self-review does not mark E01 verified. `execution-state.yaml` must retain the previous verified head until a fresh independent reviewer returns PASS against the anchored candidate and its frozen evidence.

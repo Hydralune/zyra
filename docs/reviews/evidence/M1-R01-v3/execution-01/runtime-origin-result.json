@@ -2,7 +2,7 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.runtime-origin",
-  "generated_at_utc": "2026-07-15T15:06:01.785Z",
+  "generated_at_utc": "2026-07-15T16:06:07.259Z",
   "ok": true,
   "entry_path": "apps/code-worker/src/main.ts",
   "entry_command": [
@@ -10,7 +10,7 @@
     "apps/code-worker/src/main.ts",
     "--e01-inventory"
   ],
-  "runtime_version": "zyra.e01-runtime/v5",
+  "runtime_version": "zyra.e01-runtime/v6",
   "canonical_owner": "typescript",
   "journal_revision": 1,
   "command_receipt": {
@@ -20,10 +20,10 @@
       "--e01-inventory"
     ],
     "exit_code": 0,
-    "duration_ms": 175,
-    "stdout_sha256": "e263f2c6dc5cf212c48336ff73f16c797d462994ccd3e8382769a157e5b9bb73",
+    "duration_ms": 208,
+    "stdout_sha256": "cb15843c574f37c52c247bb8f52ebf16bbf031ef66dccef4800251c0b35960fe",
     "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stdout_excerpt": "ry\",\"correlationId\":\"inventory:epoch0:revision0:sequence1:97eb7929-45b7-454c-8d71-2967e548d3a6\",\"causationId\":null,\"payload\":{\"domain\":\"session\",\"operation\":\"new_bootstrap\",\"transition_id\":\"inventory:epoch0:revision0:sequence1:97eb7929-45b7-454c-8d71-2967e548d3a6\",\"payload_digest\":\"sha256:56b4cd521367ca745eaa624b4ee6bfbba4968e2a680e1ba9e6f0adcb9acf7325\",\"revision\":1},\"payloadDigest\":\"sha256:b0385a50bbdeb8512a9d697769c9242b5e2278febb60efa73d81882d32e23c60\",\"createdAt\":\"2026-07-15T15:06:01.749Z\",\"checksum\":\"sha256:cdfdcecfc17db21778e54b8ca404df7e29a69f4f96a6514666f67cce056b2dcf\"}],\"receipts\":[{\"receiptId\":\"35045be5-7e93-41e6-b9d3-6e4a14d25cd7\",\"frameId\":\"ed3bea5c-4a9c-4765-b961-30258d97da15\",\"direction\":\"inbound\",\"sequence\":1,\"accepted\":true,\"duplicate\":false,\"reason\":\"accepted\",\"receivedAt\":\"2026-07-15T15:06:01.747Z\"}],\"checksum\":\"sha256:a4ba8eddc17202a3e015d045fc7fb3a20821a395c16a974f5db8e40c00f721e7\"},\"commands\":{\"version\":\"zyra.protocol-commands/v1\",\"descriptors\":[{\"commandName\":\"runtime.inventory\",\"owner\":\"e01-coordinator\",\"description\":\"Return the live E01 runtime custody inventory.\",\"risk\":\"read\",\"fields\":[],\"requiredCapabilities\":[\"runtime.read\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}},{\"commandName\":\"session.cancel\",\"owner\":\"e01-coordinator\",\"description\":\"Cancel the active query using the canonical lifecycle owner.\",\"risk\":\"interrupt\",\"fields\":[{\"name\":\"reason\",\"type\":\"string\",\"required\":true,\"enumValues\":[],\"minimum\":null,\"maximum\":null,\"maximumLength\":1000}],\"requiredCapabilities\":[\"runtime.control\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}}],\"executions\":[],\"checksum\":\"e89c4858a7f47ca14479e0b29ad540df421cb030e725dfda03719f7c68a412a4\"},\"checksum\":\"sha256:a80cfec5184e07aaa1b4f10bb0ad7a6f54fc0847a299ae8cf5c989c68c100d24\"}}",
+    "stdout_excerpt": ",\"payload_digest\":\"sha256:1c0561044243d9c2686ec4dc7671c2121d1276ee563724eb64a0acfac5b24c7b\",\"revision\":1},\"payloadDigest\":\"sha256:3fe071301c61a8fc08b7d9197b8459f1b8b23ab630a24a377aa3acd157fe48dc\",\"createdAt\":\"2026-07-15T16:06:07.223Z\",\"checksum\":\"sha256:02da06118d18fa46fa55991b50d1156e28caa3336477d8146d482dec08087943\"}],\"receipts\":[{\"receiptId\":\"9297b272-2841-4e98-acb4-b67df5cfcfdf\",\"frameId\":\"99fd2deb-1f4b-4577-bbea-c6443ddff943\",\"direction\":\"inbound\",\"sequence\":1,\"accepted\":true,\"duplicate\":false,\"reason\":\"accepted\",\"receivedAt\":\"2026-07-15T16:06:07.221Z\"}],\"checksum\":\"sha256:fbf7945c6fc20d22acd3bc7c6662e79a53d9c526e5e67acbadde9a6a70012f18\"},\"commands\":{\"version\":\"zyra.protocol-commands/v1\",\"descriptors\":[{\"commandName\":\"runtime.inventory\",\"owner\":\"e01-coordinator\",\"description\":\"Return the live E01 runtime custody inventory.\",\"risk\":\"read\",\"fields\":[],\"requiredCapabilities\":[\"runtime.read\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}},{\"commandName\":\"session.cancel\",\"owner\":\"e01-coordinator\",\"description\":\"Cancel the active query using the canonical lifecycle owner.\",\"risk\":\"interrupt\",\"fields\":[{\"name\":\"reason\",\"type\":\"string\",\"required\":true,\"enumValues\":[],\"minimum\":null,\"maximum\":null,\"maximumLength\":1000}],\"requiredCapabilities\":[\"runtime.control\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}}],\"executions\":[],\"checksum\":\"e89c4858a7f47ca14479e0b29ad540df421cb030e725dfda03719f7c68a412a4\"},\"custody\":{\"version\":\"zyra.e01-execution-custody/v1\",\"sessionId\":\"inventory\",\"runId\":\"inventory\",\"revision\":0,\"restartEpoch\":0,\"providers\":[],\"tools\":[],\"turns\":[],\"messages\":[],\"checksum\":\"sha256:a222da6175181f82fb4fbd8e7471571e3023d2cc62a8ef55639250e02019531c\"},\"checksum\":\"sha256:8bb67ad4a5f8d416384fc679b788907161c5ebfb99c30d34c364fff919f2fd24\"}}",
     "stderr_excerpt": ""
   }
 }

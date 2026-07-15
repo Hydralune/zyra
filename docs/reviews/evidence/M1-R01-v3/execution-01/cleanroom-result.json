@@ -2,109 +2,101 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.cleanroom",
-  "generated_at_utc": "2026-07-15T15:14:40.0545400Z",
+  "generated_at_utc": "2026-07-15T16:11:49.7244542Z",
   "ok": true,
-  "target_commit": "5a92745897c1a8737c1294e002e454dcdc996224",
-  "source": "git archive",
-  "cache_state": "system-temp extracted tree without git metadata, dependencies, build output, or project cache; isolated empty BUN_INSTALL_CACHE_DIR",
-  "isolation": {
-    "cleanroom_outside_repository": true,
-    "ancestor_node_modules": [],
-    "node_path": "",
-    "local_node_modules_installed": true,
-    "install_failure_stops_downstream": true
-  },
+  "target_commit": "d6ff45435167c04c132e08e3de275a24cf28b544",
+  "source": "git archive exact implementation commit",
+  "isolation_root": "system temporary directory outside repository",
+  "repository_node_modules_resolvable": false,
+  "ancestor_node_modules_resolvable": false,
+  "node_path": "",
+  "bun_install_cache": "fresh isolated empty cache",
+  "fresh_frozen_install": true,
   "commands": [
     {
+      "name": "bun-version",
       "command": [
         "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
         "--version"
       ],
-      "working_directory": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom-5a92745897c1",
       "exit_code": 0,
-      "duration_ms": 49,
+      "duration_ms": 68,
       "stdout_sha256": "091d55b64de2013341ba60beea22ca1392e1c258d68ff2aa2e8f901cf9723d63",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stdout_excerpt": "1.2.15",
       "stderr_excerpt": ""
     },
     {
+      "name": "fresh-frozen-install",
       "command": [
         "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
         "install",
         "--frozen-lockfile"
       ],
-      "working_directory": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom-5a92745897c1",
       "exit_code": 0,
-      "duration_ms": 113660,
-      "stdout_sha256": "29e29a404a4d6f50a9a7b5b4c0ff70debffb95d86a502684525d2d24aad580cd",
+      "duration_ms": 81325,
+      "stdout_sha256": "d732b2de482db982c524cb849f2227f0430d4d7ce17862a908f3234212b57eac",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ bun@1.2.15\n+ typescript@5.8.3\n\n13 packages installed [113.60s]",
+      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ bun@1.2.15\n+ typescript@5.8.3\n\n13 packages installed [81.23s]",
       "stderr_excerpt": ""
     },
     {
+      "name": "typecheck",
       "command": [
         "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
         "run",
         "typecheck"
       ],
-      "working_directory": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom-5a92745897c1",
       "exit_code": 0,
-      "duration_ms": 3929,
+      "duration_ms": 3864,
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stderr_sha256": "5dbf7280a9acafbba53f9365715394339ac8ada12defe79c5a224d9f10d9f492",
       "stdout_excerpt": "",
       "stderr_excerpt": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json"
     },
     {
+      "name": "build",
       "command": [
         "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
         "run",
         "build"
       ],
-      "working_directory": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom-5a92745897c1",
       "exit_code": 0,
-      "duration_ms": 535,
-      "stdout_sha256": "598f0256408670fb2ad3a3aadb7a05f0c9560a50c250f1b7cbc2cc9ccea664de",
+      "duration_ms": 584,
+      "stdout_sha256": "09f763fd8f547227b9366459a67407db7287a53c619c369f2e1bedffea7eee74",
       "stderr_sha256": "65431c908d5f420fd2b75f75cbdb9ddeb8d8001428d8c9584ad475532ce1cd71",
-      "stdout_excerpt": "Bundled 71 modules in 52ms\n\n  main.js  0.94 MB  (entry point)",
+      "stdout_excerpt": "Bundled 73 modules in 53ms\n\n  main.js  1.0 MB  (entry point)",
       "stderr_excerpt": "$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun"
     },
     {
+      "name": "runtime-e01-test",
       "command": [
         "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
         "run",
         "runtime:e01:test"
       ],
-      "working_directory": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom-5a92745897c1",
       "exit_code": 0,
-      "duration_ms": 1152,
+      "duration_ms": 1555,
       "stdout_sha256": "11a0cc41569f7e0e890f4f768aea6f6fb679a37222b2ae46d26c9a2c285957bb",
-      "stderr_sha256": "2c9671473ba0632c9b086de3c6273a3ec47b9822f01e5d76d7fa63988b2676a1",
+      "stderr_sha256": "7b5d634b9525109cc69e68baac476f88cfddb7f69248425d44729b764252d477",
       "stdout_excerpt": "bun test v1.2.15 (df017990)",
-      "stderr_excerpt": "mitted state before allocating a new transition identity\n(pass) E01 durable transition journal > reconstructs pending write locks during same-session restore\n(pass) E01 durable transition journal > keeps undelivered outbox work after a process restart\n(pass) E01 durable transition journal > rejects a snapshot for a different session\n(pass) E01 durable transition journal > rejects checksum and state digest corruption before mutation\n(pass) E01 durable transition journal > rejects stale run epoch and revision command identities\n(pass) E01 durable transition journal > rejects Python ownership in command and payload\n(pass) E01 durable transition journal > rejects payload digest tampering and duplicate write paths\n(pass) E01 durable transition journal > produces zero transition ID overlap after same-session resume\n\npackages\\runtime\\claude-runtime\\test\\e01\\tool-protocol.behavior.test.ts:\n(pass) tool result custody > assembles ordered chunks into a sealed delivery\n(pass) tool result custody > rejects a chunk sequence gap without advancing expected sequence\n(pass) tool result custody > deduplicates a repeated chunk and rejects a conflicting digest\n(pass) tool result custody > truncates a large text block while preserving head and tail\n(pass) tool result custody > withholds a block above the caller sensitivity ceiling\n(pass) tool result custody > redacts bearer tokens from internal text results\n(pass) tool result custody > redacts a complete private key block\n(pass) tool result custody > omits diagnostics when delivery policy excludes them\n(pass) tool result custody > enforces maximum block count across chunks\n(pass) tool result custody > cannot deliver an open result before a terminal state\n(pass) tool result custody > cancels an open result and delivers a failed terminal projection\n(pass) tool result custody > marks a sealed result as late without changing its content\n(pass) tool result custody > deduplicates begin calls by tool call identity\n(pass) tool result custody > restores accumulators deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [16.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 364 pass\n 0 fail\n 1156 expect() calls\nRan 364 tests across 10 files. [990.00ms]\n"
+      "stderr_excerpt": "estores accumulators deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [16.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 364 pass\n 0 fail\n 1156 expect() calls\nRan 364 tests across 10 files. [1380.00ms]"
     },
     {
+      "name": "built-health",
       "command": [
         "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
         "run",
         "runtime:built:health"
       ],
-      "working_directory": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom-5a92745897c1",
       "exit_code": 0,
-      "duration_ms": 233,
+      "duration_ms": 229,
       "stdout_sha256": "48f576ff1629526585ffbd1040daab23cbfe19c7b8b415dc3b73d690e4e1ab62",
       "stderr_sha256": "29d97decfbe8a94d5d09903b661e84808e3d17e1a5476b8b9e476cb0f621e53e",
       "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"implementationReady\":true,\"verificationStatus\":\"candidate_pending_independent_review\",\"canonicalOwner\":\"typescript\",\"effectiveLineCount\":null,\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json\",\"lineCountComputedAtRuntime\":false,\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
       "stderr_excerpt": "$ bun dist/code-worker/main.js --health"
     }
   ],
-  "discarded_attempts": [
-    {
-      "location": "repository .tmp",
-      "accepted": false,
-      "reason": "ancestor repository node_modules made dependency resolution non-isolated"
-    }
-  ],
-  "cleaned_after_run": true
+  "cleaned_after_run": true,
+  "failure": null
 }

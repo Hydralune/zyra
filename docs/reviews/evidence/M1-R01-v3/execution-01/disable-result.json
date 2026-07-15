@@ -2,7 +2,7 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.disable",
-  "generated_at_utc": "2026-07-15T15:06:02.914Z",
+  "generated_at_utc": "2026-07-15T16:06:07.166Z",
   "ok": true,
   "disabled_component": "E01RuntimeCoordinator.bootstrap",
   "environment_gate": "ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME=1",
@@ -15,10 +15,10 @@
       "--e01-inventory"
     ],
     "exit_code": 1,
-    "duration_ms": 152,
+    "duration_ms": 213,
     "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha256": "d38d017009a6bc2055a60feda1220051738584d5a0a509dcbbbc8649a0b7d03f",
+    "stderr_sha256": "8846577a36f16c19ce02c985b1d25b67c4c900dad522c18df5465707ee935641",
     "stdout_excerpt": "",
-    "stderr_excerpt": "287 |     this.restored = true;\n288 |   }\n289 | \n290 |   async bootstrap(): Promise<TransitionReceipt> {\n291 |     if (process.env.ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME === \"1\") {\n292 |       throw new Error(\"e01_typescript_runtime_disabled\");\n                  ^\nerror: e01_typescript_runtime_disabled\n      at bootstrap (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:292:13)\n      at bootstrap (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:290:49)\n      at G:\\agent-zoo\\zyra\\apps\\code-worker\\src\\main.ts:1:448\n\nBun v1.2.15 (Windows x64)"
+    "stderr_excerpt": "344 |     this.restored = true;\n345 |   }\n346 | \n347 |   async bootstrap(): Promise<TransitionReceipt> {\n348 |     if (process.env.ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME === \"1\") {\n349 |       throw new Error(\"e01_typescript_runtime_disabled\");\n                  ^\nerror: e01_typescript_runtime_disabled\n      at bootstrap (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:349:13)\n      at bootstrap (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:347:49)\n      at G:\\agent-zoo\\zyra\\apps\\code-worker\\src\\main.ts:1:448\n\nBun v1.2.15 (Windows x64)"
   }
 }
