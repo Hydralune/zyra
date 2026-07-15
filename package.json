@@ -2,14 +2,21 @@
   "name": "zyra",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.2.15",
   "workspaces": [
     "apps/code-worker",
     "packages/runtime/claude-runtime",
+    "packages/integrations/claude-mcp",
     "packages/runtime/sandbox-gateway-control",
     "packages/runtime/runtime-event-spine"
   ],
   "scripts": {
     "runtime:health": "node --experimental-strip-types apps/code-worker/src/main.ts --health",
-    "runtime:test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts"
+    "runtime:test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts packages/runtime/claude-runtime/test/e01/*.test.ts",
+    "runtime:e01:test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/e01/runtime-core.behavior.test.ts packages/runtime/claude-runtime/test/e01/crash-matrix.behavior.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.29",
+    "typescript": "5.8.3"
   }
 }

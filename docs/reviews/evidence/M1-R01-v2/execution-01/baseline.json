@@ -1,0 +1,14 @@
+{
+  "execution": "M1-R01-E01",
+  "baseline_commit": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "verified_zyra_head_before_execution": "c34535a2dc5b80e118660d66dc1bf2243f418353",
+  "baseline_kind": "user-authorized-clean-checkpoint",
+  "deviation_from_verified_head": true,
+  "deviation_reason": "User explicitly directed committing the pre-existing runtime event work before continuing E01.",
+  "pre_e01_checkpoint_commit": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "pre_e01_checkpoint_subject": "chore: checkpoint pre-E01 runtime event work",
+  "manifests_present": false,
+  "manifest_authority": "non-authoritative optional evidence under M1-R01-FINAL-EXECUTION-AUTHORITY",
+  "recomputation": "direct files plus git diff from baseline_commit",
+  "evidence_commit": "SELF: commit containing this evidence directory"
+}

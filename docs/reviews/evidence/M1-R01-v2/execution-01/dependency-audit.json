@@ -1,0 +1,10 @@
+{
+  "runtime_source_path_matches": 0,
+  "opaque_runtime_artifacts": 0,
+  "deleted_owner_paths_still_present": 0,
+  "root_source_repo_required": false,
+  "vendor_runtime_required": false,
+  "external_sidecar_required": false,
+  "manifests_present": false,
+  "manifest_note": "Final remediation authority makes manifests optional and non-authoritative; direct file recomputation used."
+}

@@ -1,0 +1,34 @@
+{
+  "execution": "M1-R01-E01",
+  "baseline_commit": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "buckets": {
+    "production_typescript_current": 33239,
+    "production_typescript_changed_additions": 27399,
+    "production_typescript_changed_deletions": 34,
+    "test_e01": 7044,
+    "python_logical_owner_deleted": 32634,
+    "adapter_only_changed_or_new": 553,
+    "adapter_ratio_percent": 1.978,
+    "vendor_like_or_source_pool": 0,
+    "opaque_bundle_or_binary": 0,
+    "generated_build_output": 0,
+    "data_and_lockfiles": "excluded",
+    "docs_and_evidence": "excluded",
+    "browser_python_supplement": "excluded from E01 TypeScript production count"
+  },
+  "thresholds": {
+    "final_typescript_production_minimum": 28000,
+    "changed_typescript_production_minimum": 25416,
+    "tests_minimum": 7000,
+    "python_owner_deletion_minimum": 26217,
+    "adapter_maximum_percent": 10
+  },
+  "results": {
+    "final_typescript_production": true,
+    "changed_typescript_production": true,
+    "tests": true,
+    "python_owner_deletion": true,
+    "adapter_ratio": true
+  },
+  "counting_note": "Maintained TypeScript source is counted. Tests, docs, lockfiles, evidence, adapters, browser supplement, deleted Python, vendor/source pools and generated build outputs are not counted as effective TypeScript production."
+}

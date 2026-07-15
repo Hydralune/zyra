@@ -1,0 +1,52 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "zyra",
+      "devDependencies": {
+        "@types/node": "22.15.29",
+        "typescript": "5.8.3",
+      },
+    },
+    "apps/code-worker": {
+      "name": "zyra-code-worker",
+      "version": "0.2.0",
+    },
+    "packages/integrations/claude-mcp": {
+      "name": "@zyra/claude-mcp",
+      "version": "0.1.0",
+    },
+    "packages/runtime/claude-runtime": {
+      "name": "@zyra/claude-runtime",
+      "version": "0.1.0",
+      "dependencies": {
+        "@zyra/claude-mcp": "workspace:*",
+      },
+    },
+    "packages/runtime/runtime-event-spine": {
+      "name": "@zyra/runtime-event-spine",
+      "version": "0.1.0",
+    },
+    "packages/runtime/sandbox-gateway-control": {
+      "name": "@zyra/sandbox-gateway-control",
+      "version": "0.1.0",
+    },
+  },
+  "packages": {
+    "@types/node": ["@types/node@22.15.29", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-LNdjOkUDlU1RZb8e1kOIUpN1qQUlzGkEtbVNo53vbrwDg5om6oduhm4SiUaPW5ASTXhAiP0jInWG8Qx9fVlOeQ=="],
+
+    "@zyra/claude-mcp": ["@zyra/claude-mcp@workspace:packages/integrations/claude-mcp"],
+
+    "@zyra/claude-runtime": ["@zyra/claude-runtime@workspace:packages/runtime/claude-runtime"],
+
+    "@zyra/runtime-event-spine": ["@zyra/runtime-event-spine@workspace:packages/runtime/runtime-event-spine"],
+
+    "@zyra/sandbox-gateway-control": ["@zyra/sandbox-gateway-control@workspace:packages/runtime/sandbox-gateway-control"],
+
+    "typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
+
+    "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
+
+    "zyra-code-worker": ["zyra-code-worker@workspace:apps/code-worker"],
+  }
+}

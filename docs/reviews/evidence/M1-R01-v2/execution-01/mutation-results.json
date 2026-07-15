@@ -1,0 +1,42 @@
+{
+  "mutations": [
+    {
+      "name": "default TypeScript owner",
+      "expected": "success",
+      "actual": "success",
+      "fallback": false
+    },
+    {
+      "name": "ZYRA_DISABLE_TYPESCRIPT_RUNTIME=1",
+      "expected": "fail closed",
+      "actual": "typescript_runtime_disabled",
+      "fallback": false
+    },
+    {
+      "name": "disable_typescript_runtime constraint",
+      "expected": "fail before launch",
+      "actual": "productized_query_engine_runtime_disabled",
+      "fallback": false
+    },
+    {
+      "name": "same-session checkpoint reuse",
+      "expected": "exact restore",
+      "actual": "success with stable checkpoint path",
+      "fallback": false
+    },
+    {
+      "name": "corrupt host checkpoint",
+      "expected": "reject corrupt bytes and rebuild",
+      "actual": "success with repaired TypeScript snapshot",
+      "fallback": false
+    },
+    {
+      "name": "invalid file_write arguments",
+      "expected": "fail before side effect",
+      "actual": "failed and workspace remained empty",
+      "fallback": false
+    }
+  ],
+  "passed": 6,
+  "failed": 0
+}

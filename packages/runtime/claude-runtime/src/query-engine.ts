@@ -24,6 +24,7 @@ import {
   scheduleToolBatches,
 } from "./tools.ts";
 import { TypeScriptControlRuntime } from "./control/index.ts";
+import { E01RuntimeCoordinator } from "./e01/coordinator.ts";
 
 const DEFAULT_CONFIG: RuntimeConfig = {
   maxTurns: null,
@@ -42,6 +43,8 @@ const DEFAULT_CONFIG: RuntimeConfig = {
 export class ClaudeRuntimeCore {
   async run(input: RuntimeRunInput, host: RuntimeHost): Promise<RuntimeRunResult> {
     const config = normalizeConfig(input.config);
+    const e01 = new E01RuntimeCoordinator(input.runId, input.sessionId);
+    await e01.bootstrap();
     const registry = new RuntimeToolRegistry(input.tools);
     let turns = normalizeTurns(input.turns);
     const restored = selectRestoredSnapshot(input.restoredState);
@@ -93,7 +96,8 @@ export class ClaudeRuntimeCore {
         worker_request_id: input.workerRequestId,
         ...payload,
       };
-      await host.emitEvent(event);
+      await e01.observe(phase, payload);
+      await host.emitEvent({ ...event, e01_revision: e01.journal.revision });
     };
 
     await emit(restored ? "context_restored" : "session_started", {
@@ -669,6 +673,7 @@ export class ClaudeRuntimeCore {
     const snapshot = {
       ...session.snapshot(),
       typescriptControl: controlRuntime.snapshot(),
+      e01Runtime: e01.snapshot(),
     };
     await emit("query_session_snapshot", {
       snapshot_version: snapshot.version,
@@ -789,5 +794,6 @@ function selectRestoredSnapshot(value: JsonObject | null | undefined): JsonObjec
 function sessionChecksumPayload(value: JsonObject): JsonObject {
   const selected = { ...value };
   delete selected.typescriptControl;
+  delete selected.e01Runtime;
   return selected;
 }

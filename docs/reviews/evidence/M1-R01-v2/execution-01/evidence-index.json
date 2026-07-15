@@ -1,0 +1,28 @@
+{
+  "execution": "M1-R01-E01",
+  "status": "implementation_complete_review_pending",
+  "baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "evidence_commit": "SELF",
+  "source_coverage_lines": 11886,
+  "owner_domains": 40,
+  "python_deleted_files": 42,
+  "metrics_file": "line-buckets.json",
+  "review": "docs/reviews/M1-R01-execution-01-runtime-core-typescript-cutover-v2-review.md",
+  "next_entry": "docs/执行单元独立复审任务书.md",
+  "e02_started": false,
+  "files": [
+    "baseline.json",
+    "line-buckets.json",
+    "source-target-map.jsonl",
+    "source-coverage.json",
+    "target-owner-map.jsonl",
+    "python-owner-result.jsonl",
+    "behavior-matrix.json",
+    "crash-matrix.json",
+    "mutation-results.json",
+    "runtime-origin.json",
+    "write-path-census.jsonl",
+    "dependency-audit.json",
+    "toolchain.json"
+  ]
+}

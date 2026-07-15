@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from zyra_runtime.claude_context_window import (
+from .window_contract import (
     ClaudeContextBlock,
     ClaudeContextBlockRole,
     ClaudeContextBudget,

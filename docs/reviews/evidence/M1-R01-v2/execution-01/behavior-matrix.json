@@ -1,0 +1,32 @@
+{
+  "execution": "M1-R01-E01",
+  "suites": [
+    {
+      "name": "E01 TypeScript behavior and crash matrix",
+      "command": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/e01/runtime-core.behavior.test.ts packages/runtime/claude-runtime/test/e01/crash-matrix.behavior.test.ts",
+      "passed": 296,
+      "failed": 0
+    },
+    {
+      "name": "Adjacent protocol and runtime",
+      "command": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "name": "Default host cutover integration",
+      "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-e01 tests/integration/test_e01_typescript_runtime_cutover.py",
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "name": "Runtime health",
+      "command": "node --experimental-strip-types apps/code-worker/src/main.ts --health",
+      "passed": 1,
+      "failed": 0
+    }
+  ],
+  "total_passed": 316,
+  "total_failed": 0,
+  "wall_clock_budget": "targeted E01 and adjacent tests only; full repository suite deferred to independent/high-risk review per layered validation policy"
+}

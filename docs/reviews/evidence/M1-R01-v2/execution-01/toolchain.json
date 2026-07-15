@@ -1,0 +1,11 @@
+{
+  "package_manager": "bun@1.2.15",
+  "lockfile": "bun.lock",
+  "lockfile_generated_with": "npx --yes bun@1.2.15 install --lockfile-only",
+  "workspace_packages": 9,
+  "system_bun_on_path": false,
+  "validated_executor": "Node.js 22 experimental TypeScript stripping",
+  "typescript": "5.8.3",
+  "node_types": "22.15.29",
+  "reproducibility": "Bun version and complete text lockfile committed; system PATH availability is environment-specific."
+}

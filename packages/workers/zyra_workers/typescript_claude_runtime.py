@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
-from zyra_runtime import QuerySession, QueryStreamEventType, StopReason
-from zyra_runtime.claude_query_engine_runtime import (
+from zyra_runtime.query_session import QuerySession, QueryStreamEventType, StopReason
+from zyra_runtime.typescript_runtime_host import (
     ClaudeQueryEngineConfig,
     ClaudeQueryEngineResult,
 )
@@ -260,14 +260,14 @@ class TypeScriptClaudeQueryEngine:
             session_id=session_id,
             restored_state=restored_runtime_state,
         )
-        from zyra_runtime.claude_query_engine_runtime import (
-            _permission_continuation_payloads,
-            _reconcile_permission_continuation_payloads,
-            _synchronize_permission_continuations,
+        from zyra_runtime.typescript_runtime_host import (
+            permission_continuation_payloads,
+            reconcile_permission_continuation_payloads,
+            synchronize_permission_continuations,
         )
         from zyra_runtime.permission.continuation import PermissionContinuationRuntime
 
-        continuation_payloads = _permission_continuation_payloads(restored_runtime_state)
+        continuation_payloads = permission_continuation_payloads(restored_runtime_state)
         permission_continuation = PermissionContinuationRuntime(
             permission_runtime.state_store,
             session_id=session_id,
@@ -279,13 +279,13 @@ class TypeScriptClaudeQueryEngine:
         restored_continuation = restored_runtime_state.get("permission_continuation")
         if isinstance(restored_continuation, Mapping) and restored_continuation:
             permission_continuation.restore(restored_continuation)
-        _synchronize_permission_continuations(
+        synchronize_permission_continuations(
             permission_continuation,
             permission_runtime,
             continuation_payloads,
             payload_tombstoner=self.config.permission_continuation_payload_tombstoner,
         )
-        _reconcile_permission_continuation_payloads(
+        reconcile_permission_continuation_payloads(
             permission_continuation,
             continuation_payloads,
             payload_tombstoner=self.config.permission_continuation_payload_tombstoner,

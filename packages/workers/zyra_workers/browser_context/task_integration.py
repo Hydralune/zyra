@@ -20,7 +20,7 @@ from enum import StrEnum
 from typing import Any
 
 from zyra_core import EventRecord, EventType, now_iso, to_jsonable
-from zyra_runtime.claude_context_window import (
+from .window_contract import (
     ClaudeContextBudget,
     ClaudeContextWindowManager,
     context_window_from_payload,

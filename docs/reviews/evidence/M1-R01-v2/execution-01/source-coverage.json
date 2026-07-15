@@ -1,0 +1,9 @@
+{
+  "accepted_source_lines": 11886,
+  "minimum": 10587,
+  "pass": true,
+  "record_count": 14,
+  "duplicate_ranges": 0,
+  "source_repo_runtime_dependency": false,
+  "mapping_basis": "full-file ranges for pure E01 query/model/compact mechanisms; mixed permission/MCP/skill ranges excluded"
+}

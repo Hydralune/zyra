@@ -1,0 +1,21 @@
+{
+  "health": {
+    "ok": true,
+    "worker": "CodeWorkerRuntime",
+    "runtime": "zyra-typescript-claude-runtime",
+    "canonicalOwner": "typescript",
+    "protocol": "zyra.claude-runtime.v1",
+    "entrypoint": "apps/code-worker/src/main.ts",
+    "requiresRootSourceRepo": false,
+    "requiresVendorRuntime": false,
+    "requiresLegacyInspectionSidecar": false
+  },
+  "default_reachability": {
+    "ok": true,
+    "canonical_runtime_owner": "typescript",
+    "python_policy_fallback": "false",
+    "events": 15,
+    "checkpoint": true
+  },
+  "python_host_role": "process supervision, durable byte storage, permission state, artifacts, OS/tool side effects and EventRecord projection only"
+}

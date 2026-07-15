@@ -1,0 +1,21 @@
+{
+  "cases": 96,
+  "cycles": 8,
+  "scenario_kinds": [
+    "prepare_lost_ack",
+    "effect_before_receipt",
+    "receipt_before_commit",
+    "commit_lost_ack",
+    "projection_partial",
+    "duplicate_prepare",
+    "duplicate_commit",
+    "stale_revision",
+    "unknown_effect",
+    "restore_corruption",
+    "late_result",
+    "stale_owner"
+  ],
+  "passed": 96,
+  "failed": 0,
+  "recovery": "deterministic reconcile, idempotency fence, stale owner/revision rejection and exact restore"
+}
