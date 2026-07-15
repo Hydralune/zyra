@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import {
@@ -30,6 +32,76 @@ import {
 } from "./protocol.ts";
 
 type LineIterator = AsyncIterator<string>;
+
+const CANDIDATE_METADATA_PATH =
+  "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json";
+const STRICT_GATE_PATH =
+  "docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json";
+
+function verificationObject(root: string, path: string): Record<string, unknown> | null {
+  try {
+    const value = JSON.parse(readFileSync(resolve(root, path), "utf8")) as unknown;
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function commit(value: unknown): string | null {
+  return typeof value === "string" && /^[0-9a-f]{40}$/.test(value) ? value : null;
+}
+
+export function runtimeVerificationProjection(root = process.cwd()): JsonObject {
+  const metadata = verificationObject(root, CANDIDATE_METADATA_PATH);
+  const strictGate = verificationObject(root, STRICT_GATE_PATH);
+  const implementationCandidate = commit(metadata?.implementation_candidate);
+  const evidenceCommit = commit(metadata?.candidate_evidence_commit);
+  const reviewTarget = commit(metadata?.independent_review_target);
+  const reviewCommit = commit(metadata?.independent_review_commit);
+  const cleanroomTarget = commit(metadata?.cleanroom_target);
+  const checks = strictGate?.checks;
+  const effectiveLines =
+    checks !== null && typeof checks === "object" && !Array.isArray(checks)
+      ? (checks as Record<string, unknown>).effective_lines
+      : null;
+  const effectiveLineCount =
+    effectiveLines !== null && typeof effectiveLines === "object" && !Array.isArray(effectiveLines)
+      ? Number((effectiveLines as Record<string, unknown>).effective_changed_typescript)
+      : Number.NaN;
+  const lineCountMatches =
+    strictGate?.ok === true &&
+    strictGate?.candidate === implementationCandidate &&
+    Number.isSafeInteger(effectiveLineCount) &&
+    effectiveLineCount >= 25_416;
+  const complete =
+    implementationCandidate !== null &&
+    cleanroomTarget === implementationCandidate &&
+    evidenceCommit !== null &&
+    reviewTarget !== null &&
+    reviewCommit !== null &&
+    metadata?.candidate_status === "independent_review_passed" &&
+    metadata?.independent_review_verdict === "PASS" &&
+    metadata?.verified_complete === true &&
+    lineCountMatches;
+  return {
+    complete,
+    verificationStatus: complete
+      ? "independent_review_passed"
+      : typeof metadata?.candidate_status === "string"
+        ? metadata.candidate_status
+        : "candidate_metadata_unavailable",
+    effectiveLineCount: lineCountMatches ? effectiveLineCount : null,
+    implementationCandidate,
+    evidenceCommit,
+    reviewTarget,
+    reviewCommit,
+    metadataSource: CANDIDATE_METADATA_PATH,
+    lineCountSource: STRICT_GATE_PATH,
+    lineCountComputedAtRuntime: false,
+  };
+}
 
 class JsonlRuntimeHost implements RuntimeHost {
   private readonly outputSequence = new FrameSequence();
@@ -263,6 +335,7 @@ export async function runStdioRuntime(): Promise<void> {
 export function runtimeContract(
   surface: "health" | "snapshot" | "inventory" | "query" | "session" | "tools",
 ): JsonObject {
+  const verification = runtimeVerificationProjection();
   const base = {
     ok: true,
     worker: "CodeWorkerRuntime",
@@ -281,13 +354,9 @@ export function runtimeContract(
     return {
       ...base,
       productizedRuntime: {
-        complete: false,
+        ...verification,
         implementationReady: true,
-        verificationStatus: "candidate_pending_independent_review",
         canonicalOwner: "typescript",
-        effectiveLineCount: null,
-        lineCountSource: "docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json",
-        lineCountComputedAtRuntime: false,
         referenceCrosswalk: { ok: true },
       },
       vendor: {
@@ -301,9 +370,8 @@ export function runtimeContract(
     return {
       ...base,
       productizedRuntime: {
-        complete: false,
+        ...verification,
         implementationReady: true,
-        verificationStatus: "candidate_pending_independent_review",
         moduleChecks: {
           queryEngine: true,
           toolOrchestration: true,
