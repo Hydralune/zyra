@@ -7,7 +7,7 @@
   "python_owner_symbol_count": 763,
   "python_physical_range_sloc": 31840,
   "target_mapping_count": 229,
-  "mutation_count": 31,
+  "mutation_count": 32,
   "gate_profile": "docs/remediations/M1-R01-claude-source-custody/manifests/execution-01-gate-profile.json",
   "baseline_receipt": "docs/remediations/M1-R01-claude-source-custody/manifests/execution-01-baseline-receipt.json"
 }

@@ -2,8 +2,9 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
-  "implementation_candidate": "05bfad86398234035a062aa295f2055dcf06ac26",
-  "cleanroom_target": "05bfad86398234035a062aa295f2055dcf06ac26",
+  "implementation_candidate": "5a92745897c1a8737c1294e002e454dcdc996224",
+  "cleanroom_target": "5a92745897c1a8737c1294e002e454dcdc996224",
+  "candidate_evidence_commit": null,
   "candidate_status": "ready_for_independent_review",
   "verified_complete": false,
   "independent_review_target": null,
@@ -11,6 +12,7 @@
   "root_manifest_commit_boundary": "outside_zyra_git",
   "notes": [
     "The verified baseline is the comparison base, not the implementation candidate.",
+    "Provider model, transport, and credential modules are explicitly excluded from E01 effective line credit until they become operationally active.",
     "The evidence commit is created after this metadata file and does not change production code.",
     "Execution-01 remains incomplete until an independent review passes against the evidence commit."
   ]
