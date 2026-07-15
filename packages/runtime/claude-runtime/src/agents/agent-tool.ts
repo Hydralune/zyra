@@ -308,7 +308,7 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
     argumentsValue: JsonObject,
     context: AgentExecutionContext,
   ): Promise<AgentToolResult> {
-    if (task.status === "cancelled") {
+    if (String(task.status) === "cancelled") {
       return cancelledResult(task);
     }
     await this.persist(context, "running", task, {
@@ -392,7 +392,7 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
           result_pending_before_commit: false,
           idempotency_fence: task.idempotencyKey,
         },
-      },
+      } as unknown as JsonObject,
     });
     result.status = task.status;
     result.metadata = {

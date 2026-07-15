@@ -1,0 +1,29 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "probe_id": "e01.probe.runtime-origin",
+  "generated_at_utc": "2026-07-15T13:57:31.108Z",
+  "ok": true,
+  "entry_path": "apps/code-worker/src/main.ts",
+  "entry_command": [
+    "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+    "apps/code-worker/src/main.ts",
+    "--e01-inventory"
+  ],
+  "runtime_version": "zyra.e01-runtime/v5",
+  "canonical_owner": "typescript",
+  "journal_revision": 1,
+  "command_receipt": {
+    "command": [
+      "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+      "apps/code-worker/src/main.ts",
+      "--e01-inventory"
+    ],
+    "exit_code": 0,
+    "duration_ms": 152,
+    "stdout_sha256": "696ddb781e0cf180ded4b6af343a787fe551b101b530958ce6fb32921db485b1",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_excerpt": "ry\",\"correlationId\":\"inventory:epoch0:revision0:sequence1:605f36d2-4a03-4a3d-bf62-91a530bd6907\",\"causationId\":null,\"payload\":{\"domain\":\"session\",\"operation\":\"new_bootstrap\",\"transition_id\":\"inventory:epoch0:revision0:sequence1:605f36d2-4a03-4a3d-bf62-91a530bd6907\",\"payload_digest\":\"sha256:56b4cd521367ca745eaa624b4ee6bfbba4968e2a680e1ba9e6f0adcb9acf7325\",\"revision\":1},\"payloadDigest\":\"sha256:849812369ac43505d7bdd7150b75b2d61bf428563266121e4c09079e418b3f34\",\"createdAt\":\"2026-07-15T13:57:31.081Z\",\"checksum\":\"sha256:627752232a82e0553e04dbb20386d28b63d4c5c3ab6274103b1259c9bdcdb454\"}],\"receipts\":[{\"receiptId\":\"eb962258-5dbb-4bca-8872-532362a56a38\",\"frameId\":\"ce001946-efd1-4060-8a8c-04efa78b4f59\",\"direction\":\"inbound\",\"sequence\":1,\"accepted\":true,\"duplicate\":false,\"reason\":\"accepted\",\"receivedAt\":\"2026-07-15T13:57:31.079Z\"}],\"checksum\":\"sha256:f32d1d6a87cb1b09f3e7e2c19475c9455455ed3fc43d083a8b4b8e0334ed3c22\"},\"commands\":{\"version\":\"zyra.protocol-commands/v1\",\"descriptors\":[{\"commandName\":\"runtime.inventory\",\"owner\":\"e01-coordinator\",\"description\":\"Return the live E01 runtime custody inventory.\",\"risk\":\"read\",\"fields\":[],\"requiredCapabilities\":[\"runtime.read\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}},{\"commandName\":\"session.cancel\",\"owner\":\"e01-coordinator\",\"description\":\"Cancel the active query using the canonical lifecycle owner.\",\"risk\":\"interrupt\",\"fields\":[{\"name\":\"reason\",\"type\":\"string\",\"required\":true,\"enumValues\":[],\"minimum\":null,\"maximum\":null,\"maximumLength\":1000}],\"requiredCapabilities\":[\"runtime.control\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}}],\"executions\":[],\"checksum\":\"e89c4858a7f47ca14479e0b29ad540df421cb030e725dfda03719f7c68a412a4\"},\"checksum\":\"sha256:8bf31269ffab931b250edf73de526ec15d03637dfa44d77d0933da8dcbd2d4d2\"}}",
+    "stderr_excerpt": ""
+  }
+}

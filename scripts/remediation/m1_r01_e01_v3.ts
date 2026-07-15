@@ -38,43 +38,55 @@ const inputs = [
 
 const targets: Record<string, Obj> = {
   query: {
-    path: "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
-    owner: "QueryLifecycleRuntime",
+    path: "packages/runtime/claude-runtime/src/query-engine.ts",
+    symbol: "ClaudeRuntimeCore.run",
+    defaultCallsitePath: "packages/runtime/claude-runtime/src/query-engine.ts",
+    defaultCallsiteSymbol: "ClaudeRuntimeCore.run",
     store: "E01DurableRuntimeState.query",
     effect: "query-transition",
     tests: ["e01.query.default-loop", "e01.query.failure-revise"],
   },
   "provider-model": {
-    path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    owner: "ProviderModelRuntime",
+    path: "packages/runtime/claude-runtime/src/model-stream.ts",
+    symbol: "resolveModelTurns",
+    defaultCallsitePath: "packages/runtime/claude-runtime/src/query-engine.ts",
+    defaultCallsiteSymbol: "ClaudeRuntimeCore.run",
     store: "E01DurableRuntimeState.provider",
     effect: "provider-request-stream",
     tests: ["e01.provider.stream", "e01.provider.transport-failure"],
   },
   "provider-recovery": {
     path: "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
-    owner: "ProviderRecoveryRuntime",
+    symbol: "ProviderRecoveryRuntime.plan",
+    defaultCallsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    defaultCallsiteSymbol: "E01RuntimeCoordinator.recordProvider",
     store: "E01DurableRuntimeState.recovery",
     effect: "retry-replan",
     tests: ["e01.provider.retry", "e01.provider.non-retryable"],
   },
   "provider-telemetry": {
     path: "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
-    owner: "ProviderTelemetryRuntime",
+    symbol: "ProviderTelemetryRuntime.recordUsage",
+    defaultCallsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    defaultCallsiteSymbol: "E01RuntimeCoordinator.recordProvider",
     store: "E01DurableRuntimeState.usage",
     effect: "usage-cache-causality",
     tests: ["e01.provider.usage", "e01.provider.cache-break"],
   },
   compact: {
     path: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    owner: "ContextCompactionRuntime",
+    symbol: "ContextCompactionRuntime.compactConversation",
+    defaultCallsitePath: "packages/runtime/claude-runtime/src/query-engine.ts",
+    defaultCallsiteSymbol: "ClaudeRuntimeCore.run",
     store: "E01DurableRuntimeState.compact",
     effect: "context-compact-restore",
     tests: ["e01.compact.default-path", "e01.compact.restore"],
   },
   "context-token": {
     path: "packages/runtime/claude-runtime/src/context/token-runtime.ts",
-    owner: "ContextTokenRuntime",
+    symbol: "ContextTokenRuntime.estimate",
+    defaultCallsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    defaultCallsiteSymbol: "E01RuntimeCoordinator.decideContext",
     store: "E01DurableRuntimeState.budget",
     effect: "token-budget-decision",
     tests: ["e01.context.token-budget", "e01.context.diminishing"],
@@ -143,12 +155,11 @@ function gitBytes(cwd: string, args: string[]): Buffer {
 }
 
 function nodeName(node: ts.Node, index: number): string | null {
+  if (ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node)) return null;
   if (
     ts.isFunctionDeclaration(node)
     || ts.isClassDeclaration(node)
     || ts.isEnumDeclaration(node)
-    || ts.isTypeAliasDeclaration(node)
-    || ts.isInterfaceDeclaration(node)
   ) return node.name?.text ?? "anonymous_" + index;
   if (ts.isVariableStatement(node)) {
     return node.declarationList.declarations.map((item) => item.name.getText()).join("+");
@@ -197,12 +208,23 @@ function sourceManifest(snapshot: string): Obj[] {
 function methodName(record: Obj): string {
   const parts = String(record.source_symbol).split("::");
   const stem = basename(parts[0], ".ts").replace(/[^A-Za-z0-9]+/g, "_");
-  return (stem + "_" + parts[1]).replace(/[^A-Za-z0-9_]+/g, "_");
+  return (stem + "_module").replace(/[^A-Za-z0-9_]+/g, "_");
 }
 
 function targetManifest(sources: Obj[]): Obj[] {
   return sources.map((source) => {
-    const profile = targets[source.semantic_domain];
+    const profile = { ...targets[source.semantic_domain] };
+    if (source.source_path.endsWith("services/api/withRetry.ts")) {
+      profile.path = "packages/runtime/claude-runtime/src/model-stream.ts";
+      profile.symbol = "resolveModelTurns";
+      profile.defaultCallsitePath = "packages/runtime/claude-runtime/src/query-engine.ts";
+      profile.defaultCallsiteSymbol = "ClaudeRuntimeCore.run";
+    }
+    if (source.source_path.endsWith("services/api/errors.ts")) profile.symbol = "ProviderRecoveryRuntime.plan";
+    if (source.source_path.endsWith("cost-tracker.ts")) profile.symbol = "ProviderTelemetryRuntime.recordUsage";
+    if (source.source_path.endsWith("promptCacheBreakDetection.ts")) profile.symbol = "ProviderTelemetryRuntime.recordPromptState";
+    if (source.source_path.endsWith("services/api/logging.ts")) profile.symbol = "ProviderTelemetryRuntime.logging_module";
+    const planned = String(profile.symbol).split(".").at(-1);
     return {
       schema_version: "3.0",
       record_type: "custody_mapping",
@@ -210,11 +232,11 @@ function targetManifest(sources: Obj[]): Obj[] {
       mapping_id: source.mapping_id,
       target_path: profile.path,
       target_sha256: null,
-      target_symbol: profile.owner + "." + methodName(source),
+      target_symbol: profile.symbol,
       canonical_owner_id: "e01." + source.semantic_domain,
       default_entry_id: "e01.default-code-worker",
-      default_callsite_path: "packages/runtime/claude-runtime/src/query-engine.ts",
-      default_callsite_symbol: "ClaudeRuntimeCore.run",
+      default_callsite_path: profile.defaultCallsitePath,
+      default_callsite_symbol: profile.defaultCallsiteSymbol,
       state_store: profile.store,
       state_effect_kind: profile.effect,
       state_effect_assertion: "assert." + source.mapping_id + "." + profile.effect,
@@ -225,7 +247,7 @@ function targetManifest(sources: Obj[]): Obj[] {
       runtime_origin_probe_id: "e01.probe.runtime-origin",
       write_path_probe_id: "e01.probe.write-path",
       restore_probe_id: "e01.probe.same-session-resume",
-      planned_method: methodName(source),
+      planned_method: planned,
     };
   });
 }

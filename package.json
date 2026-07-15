@@ -17,9 +17,20 @@
     "runtime:built:health": "bun dist/code-worker/main.js --health",
     "runtime:test": "bun test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts packages/runtime/claude-runtime/test/e01",
     "runtime:e01:test": "bun test packages/runtime/claude-runtime/test/e01",
-    "e01:gate": "bun scripts/remediation/verify_m1_r01_e01_v3.ts --require-targets"
+    "e01:gate": "bun scripts/remediation/verify_m1_r01_e01_v3.ts --require-targets",
+    "e01:candidate:gate": "bun scripts/verify_m1_r01_manifests.ts verify --enforce-gates",
+    "e01:probe:runtime-origin": "bun scripts/remediation/probe_m1_r01_e01.ts runtime-origin",
+    "e01:probe:write-path": "bun scripts/remediation/probe_m1_r01_e01.ts write-path",
+    "e01:probe:resume": "bun scripts/remediation/probe_m1_r01_e01.ts resume",
+    "e01:probe:lost-ack": "bun scripts/remediation/probe_m1_r01_e01.ts lost-ack",
+    "e01:probe:disable": "bun scripts/remediation/probe_m1_r01_e01.ts disable",
+    "e01:mutation": "bun scripts/remediation/run_m1_r01_e01_mutations.ts",
+    "e01:audit:dependencies": "bun scripts/remediation/probe_m1_r01_e01.ts dependencies",
+    "e01:toolchain": "bun scripts/remediation/probe_m1_r01_e01.ts toolchain",
+    "e01:cleanroom": "bun scripts/remediation/probe_m1_r01_e01.ts cleanroom"
   },
   "devDependencies": {
+    "@types/bun": "1.2.15",
     "@types/node": "22.15.29",
     "bun": "1.2.15",
     "typescript": "5.8.3"

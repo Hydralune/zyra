@@ -73,6 +73,7 @@ export const SenderKind = {
   SUBAGENT: "subagent",
   ARTIFACT_STORE: "artifact_store",
   RECOVERY: "recovery",
+  CONTROL: "control",
   SYSTEM: "system",
 } as const;
 export type SenderKindValue = (typeof SenderKind)[keyof typeof SenderKind];
@@ -83,6 +84,7 @@ export const RecipientKind = {
   SCHEDULER: "scheduler",
   ARTIFACT_STORE: "artifact_store",
   RECOVERY: "recovery",
+  MCP: "mcp",
   CONTROL: "control",
   MEMORY: "memory",
   UI_PROJECTOR: "ui_projector",
@@ -656,8 +658,12 @@ export function parseRuntimeEventDraft(value: unknown): RuntimeEventDraft {
     correlationId: normalizeIdentifier(input.correlationId, "event.correlationId", 512),
     causationId: optionalString(input.causationId, "event.causationId", 256),
     createdAt: input.createdAt === undefined ? undefined : parseTimestamp(input.createdAt, "event.createdAt"),
-    durability: input.durability === undefined ? undefined : enumValue(input.durability, "event.durability", EVENT_DURABILITY_VALUES),
-    effect: input.effect === undefined ? undefined : enumValue(input.effect, "event.effect", EVENT_EFFECT_VALUES),
+    durability: input.durability === undefined
+      ? undefined
+      : enumValue<EventDurabilityValue>(input.durability, "event.durability", EVENT_DURABILITY_VALUES),
+    effect: input.effect === undefined
+      ? undefined
+      : enumValue<EventEffectValue>(input.effect, "event.effect", EVENT_EFFECT_VALUES),
     identity: parseIdentity(input.identity),
     sender: parseSender(input.sender),
     intent: enumValue(input.intent, "event.intent", INTENT_VALUES),

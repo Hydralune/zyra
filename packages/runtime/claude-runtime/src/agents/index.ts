@@ -3,7 +3,7 @@ export * from "./contracts.ts";
 export * from "./definitions.ts";
 export * from "./fork.ts";
 export * from "./lifecycle.ts";
-export * from "./memory.ts";
+export { canonicalDigest, canonicalJson as agentCanonicalJson } from "./memory.ts";
 export * from "./resume.ts";
 export * from "./run-agent.ts";
 export * from "./scope.ts";

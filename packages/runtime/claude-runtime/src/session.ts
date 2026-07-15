@@ -303,7 +303,7 @@ export class RuntimeSession {
   }
 
   snapshot(): SessionSnapshot {
-    const unsigned = {
+    const unsigned: Omit<SessionSnapshot, "checksum"> = {
       version: SESSION_SNAPSHOT_VERSION,
       canonical_owner: "typescript",
       runtime_id: "zyra-typescript-claude-runtime",
@@ -327,11 +327,11 @@ export class RuntimeSession {
         restored: this.restored,
         parent_checksum: this.parentChecksum,
       },
-    } satisfies Omit<SessionSnapshot, "checksum">;
+    };
     return {
       ...unsigned,
       checksum: checksum(unsigned),
-    };
+    } as SessionSnapshot;
   }
 
   private bump(phase: string): void {

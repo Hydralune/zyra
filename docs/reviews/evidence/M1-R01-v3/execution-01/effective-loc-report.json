@@ -1,0 +1,34 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "production_roots": [
+    "apps/code-worker/src",
+    "packages/runtime/claude-runtime/src",
+    "packages/runtime/runtime-event-spine/src"
+  ],
+  "production_file_count": 82,
+  "final_non_test_typescript_physical_sloc": 37882,
+  "baseline_ast_unit_hash_count": 311,
+  "current_ast_unit_count": 2731,
+  "effective_changed_ast_unit_count": 2276,
+  "effective_changed_typescript_sloc": 29984,
+  "behavior_test_files": [
+    "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/durable-session.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/effect-protocol.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/mutation-contract.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/query-context.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/tool-protocol.behavior.test.ts"
+  ],
+  "behavior_test_ast_unit_count": 126,
+  "effective_behavior_test_ast_unit_count": 123,
+  "effective_behavior_test_sloc": 8106,
+  "adapter_files": [],
+  "adapter_sloc": 0,
+  "adapter_ratio": 0,
+  "algorithm": "TypeScript AST declaration/member units; whitespace/comment normalized exact-clone hashes; baseline and repeated-unit hashes excluded"
+}

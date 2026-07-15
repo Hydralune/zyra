@@ -5,6 +5,7 @@ import {
   ClaudeRuntimeCore,
   type ArtifactReceipt,
   type ArtifactRequest,
+  type JsonObject,
   type RuntimeEvent,
   type RuntimeHost,
   type RuntimeRunInput,
@@ -32,9 +33,9 @@ class MemoryHost implements RuntimeHost {
       tool_call_id: request.toolCallId,
       ok: request.arguments.fail !== true,
       summary: request.arguments.fail === true ? "failed" : "executed " + request.toolName,
-      output: request.arguments.large === true
+      output: (request.arguments.large === true
         ? { content: "x".repeat(1000) }
-        : { arguments: request.arguments },
+        : { arguments: request.arguments }) as JsonObject,
       artifacts: [],
       error: request.arguments.fail === true ? "tool_failed" : null,
       metadata: { host: "memory" },
@@ -168,7 +169,10 @@ test("runtime restores its exact TypeScript snapshot", async () => {
   }), resumedHost);
   assert.equal(resumed.ok, true);
   assert.equal(resumed.metadata.restored, "true");
-  assert.equal(resumed.sessionSnapshot.lineage.restored, true);
+  assert.equal(
+    (resumed.sessionSnapshot.lineage as { restored?: boolean } | null)?.restored,
+    true,
+  );
   assert.ok(resumedHost.events.some((event) => event.phase === "context_restored"));
 });
 

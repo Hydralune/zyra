@@ -212,18 +212,19 @@ export async function runStdioRuntime(): Promise<void> {
   try {
     const input = normalizeRunInput(start.payload, start.run_id);
     capabilities = await TypeScriptCapabilityRuntime.open(input);
+    const activeCapabilities = capabilities;
     const runtimeInput: RuntimeRunInput = {
       ...input,
-      tools: capabilities.mergeToolSpecs(input.tools),
+      tools: activeCapabilities.mergeToolSpecs(input.tools),
     };
-    const permissionedHost = new PermissionedCapabilityHost(host, runtimeInput, capabilities);
+    const permissionedHost = new PermissionedCapabilityHost(host, runtimeInput, activeCapabilities);
     const result = await new ClaudeRuntimeCore().run(runtimeInput, permissionedHost);
-    await capabilities.drainBackground({
+    await activeCapabilities.drainBackground({
       parentInput: runtimeInput,
       host: permissionedHost,
       runChild: async (childInput) => new ClaudeRuntimeCore().run(
         childInput,
-        new PermissionedCapabilityHost(host, childInput, capabilities),
+        new PermissionedCapabilityHost(host, childInput, activeCapabilities),
       ),
     });
     host.send("run.result", {
@@ -280,10 +281,13 @@ export function runtimeContract(
     return {
       ...base,
       productizedRuntime: {
-        complete: true,
+        complete: false,
+        implementationReady: true,
+        verificationStatus: "candidate_pending_independent_review",
         canonicalOwner: "typescript",
-        effectiveLineCount: 0,
-        lineCountSource: "git-diff-numstat",
+        effectiveLineCount: null,
+        lineCountSource: "docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json",
+        lineCountComputedAtRuntime: false,
         referenceCrosswalk: { ok: true },
       },
       vendor: {
@@ -297,7 +301,9 @@ export function runtimeContract(
     return {
       ...base,
       productizedRuntime: {
-        complete: true,
+        complete: false,
+        implementationReady: true,
+        verificationStatus: "candidate_pending_independent_review",
         moduleChecks: {
           queryEngine: true,
           toolOrchestration: true,

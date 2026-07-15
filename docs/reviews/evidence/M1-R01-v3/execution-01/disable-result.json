@@ -1,0 +1,24 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "probe_id": "e01.probe.disable",
+  "generated_at_utc": "2026-07-15T13:57:45.407Z",
+  "ok": true,
+  "disabled_component": "E01RuntimeCoordinator.bootstrap",
+  "environment_gate": "ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME=1",
+  "default_entry_failed": true,
+  "expected_error": "e01_typescript_runtime_disabled",
+  "command_receipt": {
+    "command": [
+      "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+      "apps/code-worker/src/main.ts",
+      "--e01-inventory"
+    ],
+    "exit_code": 1,
+    "duration_ms": 151,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "a6b02e40f2b5fb104a0fbc089c3bbe25b0974560b02072ddc09fe63fed0679e6",
+    "stdout_excerpt": "",
+    "stderr_excerpt": "281 |     this.restored = true;\n282 |   }\n283 | \n284 |   async bootstrap(): Promise<TransitionReceipt> {\n285 |     if (process.env.ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME === \"1\") {\n286 |       throw new Error(\"e01_typescript_runtime_disabled\");\n                  ^\nerror: e01_typescript_runtime_disabled\n      at bootstrap (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:286:13)\n      at bootstrap (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:284:49)\n      at G:\\agent-zoo\\zyra\\apps\\code-worker\\src\\main.ts:1:448\n\nBun v1.2.15 (Windows x64)"
+  }
+}

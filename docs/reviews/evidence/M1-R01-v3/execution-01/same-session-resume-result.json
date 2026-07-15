@@ -1,0 +1,21 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "probe_id": "e01.probe.same-session-resume",
+  "generated_at_utc": "2026-07-15T13:57:44.809Z",
+  "ok": true,
+  "session_id": "probe-resume-session",
+  "run_before": "probe-resume-run-a",
+  "run_after": "probe-resume-run-b",
+  "revision_before": 2,
+  "revision_after": 4,
+  "restart_epoch_before": 0,
+  "restart_epoch_after": 1,
+  "prior_transition_count": 2,
+  "new_transition_count": 2,
+  "replayed_transition_ids": [],
+  "new_transition_ids": [
+    "probe-resume-session:epoch1:revision2:sequence3:50074e54-d89a-4b2e-9593-5fdda9bc4b28",
+    "probe-resume-session:epoch1:revision3:sequence4:4dd171ca-a6c0-4d4f-a1c5-8bfb2be7b4a5"
+  ]
+}

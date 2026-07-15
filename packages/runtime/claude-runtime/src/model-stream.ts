@@ -39,7 +39,20 @@ export async function resolveModelTurns(
     constraints.model_transport || constraints.model_transport_kind,
     "scripted",
   );
+  const requestMessages = normalizeMessages(input);
+  const requestTools = tools.map(openAiTool);
   if (transport !== "http_sse") {
+    const requestId = `${input.workerRequestId}:model:1`;
+    await emit("model_request_prepared", {
+      provider_request: {
+        request_id: requestId,
+        provider: "local",
+        model: config.modelName,
+        messages: requestMessages,
+        tools: requestTools,
+        system: [],
+      },
+    });
     await emit("model_stream_frame", {
       model_stream_frame: {
         kind: "scripted_turn_contract",
@@ -49,10 +62,18 @@ export async function resolveModelTurns(
     });
     await emit("model_stream_report", {
       model_stream: {
+        request_id: requestId,
         ok: true,
         transport: "scripted",
         model: config.modelName,
         tool_call_count: scriptedTurns.flat().length,
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+          server_tool_use_tokens: 0,
+        },
       },
     });
     await emit("api_retry_report", {
@@ -114,9 +135,20 @@ export async function resolveModelTurns(
 
   for (let index = 0; index < maxAttempts; index += 1) {
     const model = models[Math.min(index, models.length - 1)] || config.modelName;
+    const requestId = `${input.workerRequestId}:model:${index + 1}`;
     const nextModel = index + 1 < maxAttempts
       ? models[Math.min(index + 1, models.length - 1)] || model
       : "";
+    await emit("model_request_prepared", {
+      provider_request: {
+        request_id: requestId,
+        provider: "compatible",
+        model,
+        messages: requestMessages,
+        tools: requestTools,
+        system: [],
+      },
+    });
     await emit("model_stream_frame", {
       model_stream_frame: {
         kind: "request_started",
@@ -131,8 +163,8 @@ export async function resolveModelTurns(
         headers: modelHeaders(constraints),
         body: JSON.stringify({
           model,
-          messages: normalizeMessages(input),
-          tools: tools.map(openAiTool),
+          messages: requestMessages,
+          tools: requestTools,
           tool_choice: "auto",
           stream: true,
         }),
@@ -151,7 +183,14 @@ export async function resolveModelTurns(
           error: responseBody.slice(0, 1000) || finalError,
         };
         attempts.push(record);
-        await emit("model_stream_report", { model_stream: record });
+        await emit("model_stream_report", {
+          model_stream: {
+            ...record,
+            request_id: requestId,
+            provider: "compatible",
+            usage: emptyUsage(),
+          },
+        });
         continue;
       }
 
@@ -169,8 +208,11 @@ export async function resolveModelTurns(
       await emit("model_stream_report", {
         model_stream: {
           ...record,
+          request_id: requestId,
+          provider: "compatible",
           frame_count: parsed.frameCount,
           tool_call_count: parsed.steps.length,
+          usage: parsed.usage,
         },
       });
       const fallbackUsed = index > 0;
@@ -208,7 +250,14 @@ export async function resolveModelTurns(
         error: finalError,
       };
       attempts.push(record);
-      await emit("model_stream_report", { model_stream: record });
+      await emit("model_stream_report", {
+        model_stream: {
+          ...record,
+          request_id: requestId,
+          provider: "compatible",
+          usage: emptyUsage(),
+        },
+      });
     }
   }
 
@@ -299,10 +348,11 @@ async function parseSseToolCalls(
   attempt: number,
   model: string,
   emit: EmitRuntimeEvent,
-): Promise<{ steps: ToolStep[]; frameCount: number }> {
+): Promise<{ steps: ToolStep[]; frameCount: number; usage: JsonObject }> {
   const text = await response.text();
   const calls = new Map<number, { id: string; name: string; arguments: string }>();
   let frameCount = 0;
+  const usage = emptyUsage();
   for (const rawLine of text.split(/\r?\n/u)) {
     const line = rawLine.trim();
     if (!line.startsWith("data:")) {
@@ -313,6 +363,13 @@ async function parseSseToolCalls(
       continue;
     }
     const chunk = asObject(JSON.parse(data));
+    const chunkUsage = asObject(chunk.usage);
+    if (Object.keys(chunkUsage).length > 0) {
+      const promptDetails = asObject(chunkUsage.prompt_tokens_details);
+      usage.input_tokens = nonnegativeInteger(chunkUsage.prompt_tokens);
+      usage.output_tokens = nonnegativeInteger(chunkUsage.completion_tokens);
+      usage.cache_read_input_tokens = nonnegativeInteger(promptDetails.cached_tokens);
+    }
     frameCount += 1;
     await emit("model_stream_frame", {
       model_stream_frame: {
@@ -361,7 +418,22 @@ async function parseSseToolCalls(
       },
     });
   }
-  return { steps, frameCount };
+  return { steps, frameCount, usage };
+}
+
+function emptyUsage(): JsonObject {
+  return {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_input_tokens: 0,
+    cache_creation_input_tokens: 0,
+    server_tool_use_tokens: 0,
+  };
+}
+
+function nonnegativeInteger(value: unknown): number {
+  const selected = Number(value);
+  return Number.isFinite(selected) ? Math.max(0, Math.floor(selected)) : 0;
 }
 
 function normalizeMessages(input: RuntimeRunInput): JsonObject[] {

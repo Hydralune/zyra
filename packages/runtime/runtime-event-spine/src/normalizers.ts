@@ -7,6 +7,7 @@ import {
   TrustLevel,
   normalizeLegacyRecord,
   type LegacyEventRecord,
+  type EventEffectValue,
   type MessageIntentValue,
   type RuntimeEventDraft,
   type SenderKindValue,
@@ -249,7 +250,7 @@ export function normalizeOmpFrame(value: OmpFrameInput): RuntimeEventDraft {
   const parentId = value.parent_id ? String(value.parent_id) : undefined;
   let eventType = "runtime.agent.message";
   let intent: MessageIntentValue = MessageIntent.STATUS;
-  let effect = EventEffect.NON_EFFECTIVE;
+  let effect: EventEffectValue = EventEffect.NON_EFFECTIVE;
   if (frameType.includes("tool") && (frameType.includes("call") || frameType.includes("start"))) {
     eventType = "runtime.tool.called";
     intent = MessageIntent.TOOL_CALL;

@@ -37,13 +37,23 @@ const DEFAULT_CONFIG: RuntimeConfig = {
   allowEmptyTurns: false,
   modelName: "zyra-local-code-model",
   runtimeConstraints: {},
+  permissionPolicy: {},
   controlCommands: [],
 };
 
 export class ClaudeRuntimeCore {
   async run(input: RuntimeRunInput, host: RuntimeHost): Promise<RuntimeRunResult> {
     const config = normalizeConfig(input.config);
-    const e01 = new E01RuntimeCoordinator(input.runId, input.sessionId);
+    const e01 = new E01RuntimeCoordinator(
+      input.runId,
+      input.sessionId,
+      input.taskId,
+      input.workerRequestId,
+    );
+    const restoredE01 = selectRestoredE01Snapshot(input.restoredState);
+    if (restoredE01) {
+      e01.restore(restoredE01);
+    }
     await e01.bootstrap();
     const registry = new RuntimeToolRegistry(input.tools);
     let turns = normalizeTurns(input.turns);
@@ -96,7 +106,7 @@ export class ClaudeRuntimeCore {
         worker_request_id: input.workerRequestId,
         ...payload,
       };
-      await e01.observe(phase, payload);
+      e01.recordRuntimeEvent(phase, payload);
       await host.emitEvent({ ...event, e01_revision: e01.journal.revision });
     };
 
@@ -225,7 +235,16 @@ export class ClaudeRuntimeCore {
 
     const turnLimit = config.maxTurns ?? turns.length;
     for (let turnIndex = 0; ok && turnIndex < turns.length; turnIndex += 1) {
-      if (turnIndex >= turnLimit) {
+      const queryDecision = e01.decideQuery("turn_preflight", {
+        turnIndex,
+        turnLimit,
+        empty: turns[turnIndex].length === 0,
+        allowEmpty: config.allowEmptyTurns,
+        aborted: host.isAborted()
+          || asBoolean(config.runtimeConstraints.abort_before_turn)
+          || Number(config.runtimeConstraints.abort_at_turn) === turnIndex,
+      });
+      if (!queryDecision.accepted && queryDecision.reason === "max_turns_exceeded") {
         ok = false;
         stoppedReason = "max_turns_exceeded";
         await emit("error", {
@@ -235,9 +254,8 @@ export class ClaudeRuntimeCore {
         break;
       }
       if (
-        host.isAborted()
-        || asBoolean(config.runtimeConstraints.abort_before_turn)
-        || Number(config.runtimeConstraints.abort_at_turn) === turnIndex
+        !queryDecision.accepted
+        && queryDecision.reason === "user_cancelled"
       ) {
         ok = false;
         stoppedReason = "user_cancelled";
@@ -249,7 +267,7 @@ export class ClaudeRuntimeCore {
       }
 
       const steps = turns[turnIndex];
-      if (steps.length === 0 && !config.allowEmptyTurns) {
+      if (!queryDecision.accepted && queryDecision.reason === "empty_query_turn") {
         ok = false;
         stoppedReason = "empty_query_turn";
         await emit("error", {
@@ -552,14 +570,57 @@ export class ClaudeRuntimeCore {
         }
       }
 
-      if (
-        session.compactionCount === 0
-        && (
-          session.contextChars() > config.maxQueryContextChars
-          || asBoolean(config.runtimeConstraints.force_compact_restore)
-        )
-      ) {
-        const compact = session.compactCandidates();
+      const contextDecision = e01.decideContext(
+        session.contextChars(),
+        config.maxQueryContextChars,
+        asBoolean(config.runtimeConstraints.force_compact_restore),
+        session.compactionCount,
+      );
+      if (contextDecision.accepted) {
+        const fallbackCompact = session.compactCandidates();
+        const compactSource = session.messages.map((item, index) => ({
+          id: item.message_id,
+          role: item.role,
+          content: [{ type: "text" as const, text: item.content }],
+          createdAt: item.created_at,
+          turnIndex: item.turn_index,
+          apiRound: item.turn_index ?? index,
+          synthetic: item.metadata.synthetic === true,
+          metadata: item.metadata,
+        }));
+        const matureCompact = compactSource.length >= 3
+          ? await e01.compact.compactConversation(
+            compactSource,
+            {
+              trigger: asBoolean(config.runtimeConstraints.force_compact_restore) ? "manual" : "auto_threshold",
+              model: config.modelName,
+              contextWindow: Math.max(8_192, Math.ceil(config.maxQueryContextChars / 4)),
+              maxOutputTokens: 8_192,
+              targetTokens: Math.max(2_048, Math.ceil(config.maxQueryContextChars / 8)),
+              preserveRecentMessages: 4,
+              preserveApiRounds: 2,
+              systemPrompt: "Zyra CodeWorker runtime context",
+              customInstructions: "Preserve tool outcomes, artifacts, failures, and pending work.",
+              attachments: [],
+              querySource: "ClaudeRuntimeCore.run",
+            },
+            async () => fallbackCompact.summary,
+          )
+          : null;
+        const preservedIds = new Set(matureCompact?.boundary.preservedMessageIds ?? fallbackCompact.preserved.map((item) => item.message_id));
+        const preserved = session.messages.filter((item) => preservedIds.has(item.message_id));
+        const removed = session.messages.filter((item) => !preservedIds.has(item.message_id));
+        const compact = {
+          content: JSON.stringify({
+            session_id: input.sessionId,
+            removed_messages: removed,
+            parent_checksum: session.parentChecksum,
+            boundary: matureCompact?.boundary ?? null,
+          }),
+          summary: matureCompact?.boundary.summary ?? fallbackCompact.summary,
+          preserved,
+          removedCount: removed.length,
+        };
         const artifact = await host.externalize({
           requestId: runtimeId("compact_request"),
           title: "CodeWorker context compaction",
@@ -582,6 +643,9 @@ export class ClaudeRuntimeCore {
           removed_message_count: compact.removedCount,
           context_chars_after: session.contextChars(),
           compact_owner: "typescript",
+          compaction_runtime_applied: matureCompact !== null,
+          compact_boundary_id: matureCompact?.boundary.boundaryId ?? null,
+          compact_generation: matureCompact?.boundary.compactGeneration ?? session.compactionCount,
         });
         await emit("next_turn_restore_contract", {
           turn_id: turn.turn_id,
@@ -673,7 +737,7 @@ export class ClaudeRuntimeCore {
     const snapshot = {
       ...session.snapshot(),
       typescriptControl: controlRuntime.snapshot(),
-      e01Runtime: e01.snapshot(),
+      e01Runtime: e01.snapshot() as unknown as JsonObject,
     };
     await emit("query_session_snapshot", {
       snapshot_version: snapshot.version,
@@ -765,6 +829,7 @@ function normalizeConfig(value: Partial<RuntimeConfig>): RuntimeConfig {
     allowEmptyTurns: value.allowEmptyTurns ?? DEFAULT_CONFIG.allowEmptyTurns,
     modelName: asString(value.modelName, DEFAULT_CONFIG.modelName),
     runtimeConstraints: asObject(value.runtimeConstraints),
+    permissionPolicy: asObject(value.permissionPolicy),
     controlCommands: Array.isArray(value.controlCommands)
       ? value.controlCommands
       : [],
@@ -796,4 +861,26 @@ function sessionChecksumPayload(value: JsonObject): JsonObject {
   delete selected.typescriptControl;
   delete selected.e01Runtime;
   return selected;
+}
+
+function selectRestoredE01Snapshot(
+  value: JsonObject | null | undefined,
+): import("./e01/coordinator.ts").E01CoordinatorSnapshot | import("./e01/kernel.ts").JournalSnapshot | null {
+  const root = asObject(value);
+  const candidates = [
+    root,
+    asObject(root.typescript_runtime),
+    asObject(root.query_engine),
+    asObject(asObject(root.metadata).typescript_runtime_snapshot),
+  ];
+  for (const candidate of candidates) {
+    const snapshot = asObject(candidate.e01Runtime);
+    if (snapshot.version === "zyra.e01-runtime/v5") {
+      return snapshot as unknown as import("./e01/coordinator.ts").E01CoordinatorSnapshot;
+    }
+    if (snapshot.version === "zyra.e01-journal/v3") {
+      return snapshot as unknown as import("./e01/kernel.ts").JournalSnapshot;
+    }
+  }
+  return null;
 }

@@ -306,7 +306,7 @@ test("a new TypeScript runtime hydrates and cancels an exact durable background 
   const secondHost = new PermissionedCapabilityHost(delegate, secondInput, second);
   const cancelled = await second.execute("agent_cancel", {
     task_id: "durable-background-1",
-    expected_revision: delegate.revisions.get("durable-background-1"),
+    expected_revision: delegate.revisions.get("durable-background-1") ?? 0,
   }, {
     parentInput: secondInput,
     host: secondHost,
@@ -406,7 +406,7 @@ test("cross-process Agent resume uses exact revision and correlation", async () 
   const secondInput = { ...selected, tools: second.mergeToolSpecs(selected.tools) };
   const resumed = await second.execute("agent_resume", {
     task_id: "resume-child",
-    expected_revision: delegate.revisions.get("resume-child"),
+    expected_revision: delegate.revisions.get("resume-child") ?? 0,
     resume_correlation_id: "resume-correlation-1",
     restored_state: {},
     turns: [],

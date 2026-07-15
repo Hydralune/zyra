@@ -48,6 +48,7 @@ const WORKER = RecipientKind.WORKER;
 const SCHEDULER = RecipientKind.SCHEDULER;
 const ARTIFACT = RecipientKind.ARTIFACT_STORE;
 const RECOVERY = RecipientKind.RECOVERY;
+const MCP = RecipientKind.MCP;
 const CONTROL = RecipientKind.CONTROL;
 const MEMORY = RecipientKind.MEMORY;
 const UI = RecipientKind.UI_PROJECTOR;
