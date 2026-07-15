@@ -8,11 +8,15 @@
     "packages/runtime/runtime-event-spine/src"
   ],
   "production_file_count": 82,
-  "final_non_test_typescript_physical_sloc": 37882,
+  "final_non_test_typescript_physical_sloc": 38046,
   "baseline_ast_unit_hash_count": 311,
-  "current_ast_unit_count": 2731,
-  "effective_changed_ast_unit_count": 2276,
-  "effective_changed_typescript_sloc": 29984,
+  "baseline_ast_structural_hash_count": 278,
+  "current_ast_unit_count": 2735,
+  "exact_changed_ast_unit_count": 2280,
+  "exact_changed_typescript_sloc": 30143,
+  "effective_changed_ast_unit_count": 1711,
+  "effective_changed_typescript_sloc": 28478,
+  "structural_clone_excluded_production_sloc": 1665,
   "behavior_test_files": [
     "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/durable-session.behavior.test.ts",
@@ -25,10 +29,13 @@
     "packages/runtime/claude-runtime/test/e01/tool-protocol.behavior.test.ts"
   ],
   "behavior_test_ast_unit_count": 126,
-  "effective_behavior_test_ast_unit_count": 123,
-  "effective_behavior_test_sloc": 8106,
+  "exact_behavior_test_ast_unit_count": 123,
+  "exact_behavior_test_sloc": 8106,
+  "effective_behavior_test_ast_unit_count": 121,
+  "effective_behavior_test_sloc": 8099,
+  "structural_clone_excluded_behavior_test_sloc": 7,
   "adapter_files": [],
   "adapter_sloc": 0,
   "adapter_ratio": 0,
-  "algorithm": "TypeScript AST declaration/member units; whitespace/comment normalized exact-clone hashes; baseline and repeated-unit hashes excluded"
+  "algorithm": "TypeScript AST declaration/member units; exact hashes plus identifier/literal-normalized structural hashes; baseline and repeated structural units excluded"
 }

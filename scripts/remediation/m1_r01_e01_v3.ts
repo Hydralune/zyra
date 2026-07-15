@@ -36,62 +36,363 @@ const inputs = [
   ["src/query/tokenBudget.ts", 81, "context-token"],
 ] as const;
 
-const targets: Record<string, Obj> = {
+const QUERY_PATH = "packages/runtime/claude-runtime/src/query-engine.ts";
+const MODEL_PATH = "packages/runtime/claude-runtime/src/model-stream.ts";
+const COORDINATOR_PATH = "packages/runtime/claude-runtime/src/e01/coordinator.ts";
+const RECOVERY_PATH = "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts";
+const TELEMETRY_PATH = "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts";
+const COMPACT_PATH = "packages/runtime/claude-runtime/src/compact/context-runtime.ts";
+const TOKEN_PATH = "packages/runtime/claude-runtime/src/context/token-runtime.ts";
+const RUNTIME_TEST_PATH = "packages/runtime/claude-runtime/test/runtime.test.ts";
+
+const mutationIds = {
+  turnLimit: "e01-mut-011-turn-limit",
+  cancel: "e01-mut-012-cancel",
+  emptyTurn: "e01-mut-013-empty-turn",
+  queryRevision: "e01-mut-014-query-revision",
+  failureRoute: "e01-mut-015-failure-route",
+  compactThreshold: "e01-mut-016-compact-threshold",
+  compactToolPair: "e01-mut-017-compact-tool-pair",
+  compactSuffix: "e01-mut-018-compact-suffix",
+  compactRestore: "e01-mut-019-compact-restore",
+  compactCleanup: "e01-mut-020-compact-cleanup",
+  retryDelay: "e01-mut-021-retry-delay",
+  retryClass: "e01-mut-022-retry-class",
+  maxRetries: "e01-mut-023-max-retries",
+  fallback: "e01-mut-024-fallback",
+  streamFinal: "e01-mut-025-stream-final",
+  usage: "e01-mut-026-usage",
+  cacheLineage: "e01-mut-027-cache-lineage",
+  recoveryPlannerCustody: "e01-mut-031-recovery-planner-custody",
+} as const;
+
+const behaviorTests = {
   query: {
-    path: "packages/runtime/claude-runtime/src/query-engine.ts",
-    symbol: "ClaudeRuntimeCore.run",
-    defaultCallsitePath: "packages/runtime/claude-runtime/src/query-engine.ts",
-    defaultCallsiteSymbol: "ClaudeRuntimeCore.run",
-    store: "E01DurableRuntimeState.query",
-    effect: "query-transition",
-    tests: ["e01.query.default-loop", "e01.query.failure-revise"],
-  },
-  "provider-model": {
-    path: "packages/runtime/claude-runtime/src/model-stream.ts",
-    symbol: "resolveModelTurns",
-    defaultCallsitePath: "packages/runtime/claude-runtime/src/query-engine.ts",
-    defaultCallsiteSymbol: "ClaudeRuntimeCore.run",
-    store: "E01DurableRuntimeState.provider",
-    effect: "provider-request-stream",
-    tests: ["e01.provider.stream", "e01.provider.transport-failure"],
-  },
-  "provider-recovery": {
-    path: "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
-    symbol: "ProviderRecoveryRuntime.plan",
-    defaultCallsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-    defaultCallsiteSymbol: "E01RuntimeCoordinator.recordProvider",
-    store: "E01DurableRuntimeState.recovery",
-    effect: "retry-replan",
-    tests: ["e01.provider.retry", "e01.provider.non-retryable"],
-  },
-  "provider-telemetry": {
-    path: "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
-    symbol: "ProviderTelemetryRuntime.recordUsage",
-    defaultCallsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-    defaultCallsiteSymbol: "E01RuntimeCoordinator.recordProvider",
-    store: "E01DurableRuntimeState.usage",
-    effect: "usage-cache-causality",
-    tests: ["e01.provider.usage", "e01.provider.cache-break"],
+    path: RUNTIME_TEST_PATH,
+    name: "runtime owns multi-turn lifecycle and read-only batches",
+    anchor: "ClaudeRuntimeCore",
+    assertion_tokens: ["e01State(result).query.revision", "journal.state.query"],
   },
   compact: {
-    path: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    symbol: "ContextCompactionRuntime.compactConversation",
-    defaultCallsitePath: "packages/runtime/claude-runtime/src/query-engine.ts",
-    defaultCallsiteSymbol: "ClaudeRuntimeCore.run",
-    store: "E01DurableRuntimeState.compact",
+    path: RUNTIME_TEST_PATH,
+    name: "runtime externalizes large tool results and compacts context",
+    anchor: "ClaudeRuntimeCore",
+    assertion_tokens: ["compact.boundaries", "journal.state.context"],
+  },
+  provider: {
+    path: RUNTIME_TEST_PATH,
+    name: "runtime commits provider prompt usage and recovery state through default loop",
+    anchor: "ClaudeRuntimeCore",
+    assertion_tokens: ["telemetry.prompts", "telemetry.samples", "recovery.contexts", "journal.state.provider"],
+  },
+  recovery: {
+    path: RUNTIME_TEST_PATH,
+    name: "runtime lets canonical recovery policy stop a non-retryable provider request",
+    anchor: "ClaudeRuntimeCore",
+    assertion_tokens: ["requestCount", "state.recovery.contexts", "journal.state.provider"],
+  },
+} as const;
+
+function edge(
+  callerPath: string,
+  callerSymbol: string,
+  calleePath: string,
+  calleeSymbol: string,
+  kind = "direct",
+): Obj {
+  return {
+    caller_path: callerPath,
+    caller_symbol: callerSymbol,
+    callee_path: calleePath,
+    callee_symbol: calleeSymbol,
+    kind,
+  };
+}
+
+function sourceName(source: Obj): string {
+  return String(source.source_symbol).split("::").at(-1) ?? "";
+}
+
+function queryRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  if (/reactiveCompact|contextCollapse/.test(name)) return compactRoute(source);
+  const targetSymbol = /messageSelector|QueryEngine|query$|queryLoop|ask/.test(name)
+    ? "ClaudeRuntimeCore.run"
+    : "E01RuntimeCoordinator.decideQuery";
+  const targetPath = targetSymbol === "ClaudeRuntimeCore.run" ? QUERY_PATH : COORDINATOR_PATH;
+  const callsitePath = QUERY_PATH;
+  const callsiteSymbol = "ClaudeRuntimeCore.run";
+  const selectedMutation = /cancel|eof/i.test(name) ? mutationIds.cancel
+    : /empty/i.test(name) ? mutationIds.emptyTurn
+    : /revision|snip|projection/i.test(name) ? mutationIds.queryRevision
+    : /limit|max_output|withheld/i.test(name) ? mutationIds.turnLimit
+    : mutationIds.failureRoute;
+  return {
+    path: targetPath,
+    symbol: targetSymbol,
+    callsitePath,
+    callsiteSymbol,
+    entryEdges: targetSymbol === callsiteSymbol ? [] : [edge(QUERY_PATH, "ClaudeRuntimeCore.run", targetPath, targetSymbol)],
+    store: "E01RuntimeSnapshot.journal.state.query",
+    snapshotProperty: "query",
+    stateObservation: "journal.state.query.revision",
+    effect: "query-transition",
+    behavior: [behaviorTests.query],
+    mutations: [selectedMutation],
+    adaptation: "Source query orchestration is consolidated into the TypeScript run loop and canonical query decision owner; UI-only presentation branches are cropped.",
+  };
+}
+
+function modelRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  let symbol = "resolveModelTurns";
+  if (/userMessage|assistantMessage|stripExcessMedia|isMedia|isToolResult/.test(name)) symbol = "normalizeMessages";
+  else if (/ApiKey|Headers|CustomHeaders/.test(name)) symbol = "modelHeaders";
+  else if (/Client|buildFetch|queryModel|executeNonStreaming|FallbackTimeout|PreviousRequest/.test(name)) symbol = "resolveModelTurns";
+  else if (/cleanupStream|updateUsage|accumulateUsage|ToolResultBlock/.test(name)) symbol = "parseSseToolCalls";
+  else if (/Metadata|Effort|TaskBudget|ExtraBody/.test(name)) symbol = "modelMetadata";
+  else if (/LspTool/.test(name)) symbol = "openAiTool";
+  else if (/PromptCaching|CacheControl|CacheTTL|CacheBreakpoint/.test(name)) return telemetryRoute(source);
+  const direct = symbol === "resolveModelTurns";
+  const edges = [edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_PATH, "resolveModelTurns")];
+  if (!direct) edges.push(edge(MODEL_PATH, "resolveModelTurns", MODEL_PATH, symbol));
+  edges.push(
+    edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", "callback"),
+    edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider"),
+  );
+  return {
+    path: MODEL_PATH,
+    symbol,
+    callsitePath: direct ? QUERY_PATH : MODEL_PATH,
+    callsiteSymbol: direct ? "ClaudeRuntimeCore.run" : "resolveModelTurns",
+    entryEdges: edges,
+    store: "E01RuntimeSnapshot.journal.state.provider + telemetry",
+    snapshotProperty: "telemetry",
+    stateObservation: "telemetry.prompts/samples + journal.state.provider.revision",
+    effect: "provider-request-stream",
+    behavior: [behaviorTests.provider],
+    mutations: [/Usage|usage|cleanupStream/.test(name) ? mutationIds.usage : mutationIds.streamFinal],
+    adaptation: "Provider request and stream responsibilities are normalized to the OpenAI-compatible model stream; SDK-specific wrappers are cropped while request, frame, usage, and failure effects remain durable.",
+  };
+}
+
+function recoveryRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  let symbol = "ProviderRecoveryRuntime.plan";
+  if (/classifyAPIError|is[A-Z]|startsWith|ERROR_MESSAGE|ErrorMessage|extractUnknown|logToolUse/.test(name)) symbol = "ProviderRecoveryRuntime.classify";
+  else if (/RetryAfter/.test(name)) symbol = "parseRetryAfter";
+  else if (/shouldRetry|Transient|Stale|529|Auth|Credential/.test(name)) symbol = "ProviderRecoveryRuntime.classify";
+  const edges = [
+    edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_PATH, "resolveModelTurns"),
+    edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.decideProviderRecovery", "planner_callback"),
+    edge(COORDINATOR_PATH, "E01RuntimeCoordinator.decideProviderRecovery", RECOVERY_PATH, "ProviderRecoveryRuntime.plan"),
+  ];
+  let callsiteSymbol = "E01RuntimeCoordinator.decideProviderRecovery";
+  let callsitePath = COORDINATOR_PATH;
+  if (symbol === "ProviderRecoveryRuntime.classify") {
+    callsitePath = RECOVERY_PATH;
+    callsiteSymbol = "ProviderRecoveryRuntime.plan";
+    edges.push(edge(RECOVERY_PATH, "ProviderRecoveryRuntime.plan", RECOVERY_PATH, symbol));
+  } else if (symbol === "parseRetryAfter") {
+    callsitePath = RECOVERY_PATH;
+    callsiteSymbol = "ProviderRecoveryRuntime.classify";
+    edges.push(
+      edge(RECOVERY_PATH, "ProviderRecoveryRuntime.plan", RECOVERY_PATH, "ProviderRecoveryRuntime.classify"),
+      edge(RECOVERY_PATH, "ProviderRecoveryRuntime.classify", RECOVERY_PATH, symbol),
+    );
+  }
+  const selectedMutation = /delay|RetryAfter|BASE_DELAY|BACKOFF|HEARTBEAT/.test(name) ? mutationIds.retryDelay
+    : /MAX_RETRIES|MAX_529|withRetry/.test(name) ? mutationIds.maxRetries
+    : /Fallback|fallback/.test(name) ? mutationIds.fallback
+    : mutationIds.retryClass;
+  return {
+    path: RECOVERY_PATH,
+    symbol,
+    callsitePath,
+    callsiteSymbol,
+    entryEdges: edges,
+    store: "E01RuntimeSnapshot.recovery",
+    snapshotProperty: "recovery",
+    stateObservation: "recovery.contexts + journal.state.provider.revision",
+    effect: "retry-stop-fallback-plan",
+    behavior: [behaviorTests.recovery],
+    mutations: [selectedMutation, mutationIds.recoveryPlannerCustody],
+    adaptation: "Upstream retry and error helpers are consolidated behind the canonical ProviderRecoveryRuntime plan consumed by the real model loop; provider-SDK credential refresh side effects remain cropped.",
+  };
+}
+
+function telemetryRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  const sourcePath = String(source.source_path);
+  let symbol = "ProviderTelemetryRuntime.recordUsage";
+  let callsiteSymbol = "E01RuntimeCoordinator.recordProvider";
+  let callsitePath = COORDINATOR_PATH;
+  let mutation = mutationIds.usage;
+  const edges: Obj[] = [
+    edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_PATH, "resolveModelTurns"),
+    edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", "callback"),
+    edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider"),
+  ];
+  if (sourcePath.endsWith("promptCacheBreakDetection.ts") || /PromptCaching|CacheControl|CacheTTL|CacheBreakpoint/.test(name)) {
+    mutation = mutationIds.cacheLineage;
+    symbol = "ProviderTelemetryRuntime.recordPromptState";
+    if (/stripCacheControl/.test(name)) symbol = "stripCacheControl";
+    else if (/computePerToolHashes/.test(name)) symbol = "computeToolHashes";
+    else if (/sanitizeToolName/.test(name)) symbol = "toolName";
+    else if (/checkResponseForCacheBreak/.test(name)) symbol = "detectPromptBreak";
+    else if (/notifyCacheDeletion/.test(name)) {
+      symbol = "ProviderTelemetryRuntime.notifyCompaction";
+      callsiteSymbol = "E01RuntimeCoordinator.recordRuntimeEvent";
+    }
+    if (!symbol.startsWith("ProviderTelemetryRuntime.")) {
+      callsitePath = TELEMETRY_PATH;
+      callsiteSymbol = symbol === "toolName" ? "normalizeToolArray" : "ProviderTelemetryRuntime.recordPromptState";
+      edges.push(edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider", TELEMETRY_PATH, "ProviderTelemetryRuntime.recordPromptState"));
+      if (symbol === "toolName") {
+        edges.push(
+          edge(TELEMETRY_PATH, "ProviderTelemetryRuntime.recordPromptState", TELEMETRY_PATH, "normalizeToolArray"),
+          edge(TELEMETRY_PATH, "normalizeToolArray", TELEMETRY_PATH, symbol),
+        );
+      } else {
+        edges.push(edge(TELEMETRY_PATH, "ProviderTelemetryRuntime.recordPromptState", TELEMETRY_PATH, symbol));
+      }
+    } else {
+      edges.push(edge(callsitePath, callsiteSymbol, TELEMETRY_PATH, symbol));
+    }
+  } else if (sourcePath.endsWith("logging.ts")) {
+    symbol = /logAPI|logAPISuccess|logAPIError/.test(name)
+      ? "ProviderTelemetryRuntime.log"
+      : "ProviderTelemetryRuntime.logging_module";
+    if (symbol.endsWith(".log")) {
+      callsitePath = TELEMETRY_PATH;
+      callsiteSymbol = "ProviderTelemetryRuntime.logging_module";
+      edges.push(
+        edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider", TELEMETRY_PATH, "ProviderTelemetryRuntime.logging_module"),
+        edge(TELEMETRY_PATH, "ProviderTelemetryRuntime.logging_module", TELEMETRY_PATH, symbol),
+      );
+    } else {
+      edges.push(edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider", TELEMETRY_PATH, symbol));
+    }
+  } else {
+    edges.push(edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider", TELEMETRY_PATH, symbol));
+  }
+  return {
+    path: TELEMETRY_PATH,
+    symbol,
+    callsitePath,
+    callsiteSymbol,
+    entryEdges: edges,
+    store: "E01RuntimeSnapshot.telemetry",
+    snapshotProperty: "telemetry",
+    stateObservation: "telemetry.prompts/samples/events",
+    effect: mutation === mutationIds.cacheLineage ? "prompt-cache-lineage" : "usage-logging-causality",
+    behavior: [behaviorTests.provider],
+    mutations: [mutation],
+    adaptation: "Cost, cache-break, and logging presentation helpers are folded into structured telemetry custody; terminal formatting is cropped in favor of durable samples, prompt lineage, and events.",
+  };
+}
+
+function compactRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  const sourcePath = String(source.source_path);
+  let symbol = "ContextCompactionRuntime.compactConversation";
+  let callsitePath = QUERY_PATH;
+  let callsiteSymbol = "ClaudeRuntimeCore.run";
+  let mutation = mutationIds.compactRestore;
+  const edges: Obj[] = [edge(QUERY_PATH, "ClaudeRuntimeCore.run", COMPACT_PATH, "ContextCompactionRuntime.compactConversation")];
+  if (sourcePath.endsWith("autoCompact.ts")) {
+    symbol = /getAutoCompactThreshold/.test(name)
+      ? "ContextCompactionRuntime.getAutoCompactThreshold"
+      : "ContextCompactionRuntime.calculateTokenWarningState";
+    callsitePath = symbol.endsWith("getAutoCompactThreshold") ? COMPACT_PATH : COORDINATOR_PATH;
+    callsiteSymbol = symbol.endsWith("getAutoCompactThreshold")
+      ? "ContextCompactionRuntime.calculateTokenWarningState"
+      : "E01RuntimeCoordinator.decideContext";
+    edges.splice(0, edges.length,
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.decideContext"),
+      edge(COORDINATOR_PATH, "E01RuntimeCoordinator.decideContext", COMPACT_PATH, "ContextCompactionRuntime.calculateTokenWarningState"),
+    );
+    if (symbol.endsWith("getAutoCompactThreshold")) edges.push(edge(COMPACT_PATH, "ContextCompactionRuntime.calculateTokenWarningState", COMPACT_PATH, symbol));
+    mutation = mutationIds.compactThreshold;
+  } else if (sourcePath.endsWith("postCompactCleanup.ts")) {
+    symbol = "ContextCompactionRuntime.runPostCompactCleanup";
+    callsitePath = COORDINATOR_PATH;
+    callsiteSymbol = "E01RuntimeCoordinator.recordRuntimeEvent";
+    edges.splice(0, edges.length,
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", "callback"),
+      edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", COMPACT_PATH, symbol),
+    );
+    mutation = mutationIds.compactCleanup;
+  } else {
+    if (/stripImages/.test(name)) symbol = "ContextCompactionRuntime.stripImagesFromMessages";
+    else if (/stripReinjected/.test(name)) symbol = "ContextCompactionRuntime.stripReinjectedAttachments";
+    else if (/buildPostCompactMessages/.test(name)) symbol = "ContextCompactionRuntime.buildPostCompactMessages";
+    else if (/mergeHookInstructions/.test(name)) symbol = "ContextCompactionRuntime.mergeHookInstructions";
+    else if (/create.*Attachment|POST_COMPACT/.test(name)) symbol = "ContextCompactionRuntime.createPostCompactAttachments";
+    else if (/adjustIndex|calculateMessagesToKeep|SessionMemory|sessionMemory|truncateHead/.test(name)) symbol = "ContextCompactionRuntime.planCompaction";
+    if (symbol !== "ContextCompactionRuntime.compactConversation") {
+      callsitePath = COMPACT_PATH;
+      callsiteSymbol = "ContextCompactionRuntime.compactConversation";
+      edges.push(edge(COMPACT_PATH, "ContextCompactionRuntime.compactConversation", COMPACT_PATH, symbol));
+    }
+    mutation = /tool|Tool|APIInvariant|adjustIndex/.test(name) ? mutationIds.compactToolPair
+      : /suffix|preserv|MessagesToKeep/.test(name) ? mutationIds.compactSuffix
+      : /cleanup|reset/.test(name) ? mutationIds.compactCleanup
+      : mutationIds.compactRestore;
+  }
+  return {
+    path: COMPACT_PATH,
+    symbol,
+    callsitePath,
+    callsiteSymbol,
+    entryEdges: edges,
+    store: "E01RuntimeSnapshot.compact + journal.state.context",
+    snapshotProperty: "compact",
+    stateObservation: "compact.boundaries + journal.state.context.revision",
     effect: "context-compact-restore",
-    tests: ["e01.compact.default-path", "e01.compact.restore"],
-  },
-  "context-token": {
-    path: "packages/runtime/claude-runtime/src/context/token-runtime.ts",
-    symbol: "ContextTokenRuntime.estimate",
-    defaultCallsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-    defaultCallsiteSymbol: "E01RuntimeCoordinator.decideContext",
-    store: "E01DurableRuntimeState.budget",
+    behavior: [behaviorTests.compact],
+    mutations: [mutation],
+    adaptation: "Auto, micro, session-memory, and full compaction helpers are consolidated into one invariant-preserving context owner reached by the default query loop; UI notification text is cropped.",
+  };
+}
+
+function tokenRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  const targetIsDecision = /checkTokenBudget/.test(name);
+  const symbol = targetIsDecision ? "E01RuntimeCoordinator.decideContext" : "ContextTokenRuntime.estimate";
+  const path = targetIsDecision ? COORDINATOR_PATH : TOKEN_PATH;
+  const callsitePath = targetIsDecision ? QUERY_PATH : COORDINATOR_PATH;
+  const callsiteSymbol = targetIsDecision ? "ClaudeRuntimeCore.run" : "E01RuntimeCoordinator.decideContext";
+  return {
+    path,
+    symbol,
+    callsitePath,
+    callsiteSymbol,
+    entryEdges: targetIsDecision
+      ? [edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, symbol)]
+      : [
+        edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.decideContext"),
+        edge(COORDINATOR_PATH, "E01RuntimeCoordinator.decideContext", TOKEN_PATH, symbol),
+      ],
+    store: "E01RuntimeSnapshot.journal.state.context",
+    snapshotProperty: "journal",
+    stateObservation: "journal.state.context.revision",
     effect: "token-budget-decision",
-    tests: ["e01.context.token-budget", "e01.context.diminishing"],
-  },
-};
+    behavior: [behaviorTests.compact],
+    mutations: [mutationIds.compactThreshold],
+    adaptation: "Token budget constants and tracker closure are normalized into deterministic token estimation plus the coordinator context decision transition.",
+  };
+}
+
+function routeFor(source: Obj): Obj {
+  if (source.semantic_domain === "query") return queryRoute(source);
+  if (source.semantic_domain === "provider-model") return modelRoute(source);
+  if (source.semantic_domain === "provider-recovery") return recoveryRoute(source);
+  if (source.semantic_domain === "provider-telemetry") return telemetryRoute(source);
+  if (source.semantic_domain === "compact") return compactRoute(source);
+  if (source.semantic_domain === "context-token") return tokenRoute(source);
+  throw new Error(`unsupported source domain ${source.semantic_domain}`);
+}
 
 const mutations = [
   ["restore-before-bootstrap", "src/e01/kernel.ts", "Journal.restore", "swap-order", "restore"],
@@ -124,6 +425,7 @@ const mutations = [
   ["tool-schema", "src/tools.ts", "RuntimeToolRegistry.validate", "skip-schema", "tool"],
   ["write-serialization", "src/tools.ts", "scheduleToolBatches", "parallel-write", "tool"],
   ["result-budget", "src/budget.ts", "applyToolResultBudget", "skip-externalize", "budget"],
+  ["recovery-planner-custody", "src/query-engine.ts", "ClaudeRuntimeCore.run", "disconnect-planner", "recovery"],
 ] as const;
 
 function hash(value: string | Uint8Array): string {
@@ -205,25 +507,9 @@ function sourceManifest(snapshot: string): Obj[] {
   return output;
 }
 
-function methodName(record: Obj): string {
-  const parts = String(record.source_symbol).split("::");
-  const stem = basename(parts[0], ".ts").replace(/[^A-Za-z0-9]+/g, "_");
-  return (stem + "_module").replace(/[^A-Za-z0-9_]+/g, "_");
-}
-
 function targetManifest(sources: Obj[]): Obj[] {
   return sources.map((source) => {
-    const profile = { ...targets[source.semantic_domain] };
-    if (source.source_path.endsWith("services/api/withRetry.ts")) {
-      profile.path = "packages/runtime/claude-runtime/src/model-stream.ts";
-      profile.symbol = "resolveModelTurns";
-      profile.defaultCallsitePath = "packages/runtime/claude-runtime/src/query-engine.ts";
-      profile.defaultCallsiteSymbol = "ClaudeRuntimeCore.run";
-    }
-    if (source.source_path.endsWith("services/api/errors.ts")) profile.symbol = "ProviderRecoveryRuntime.plan";
-    if (source.source_path.endsWith("cost-tracker.ts")) profile.symbol = "ProviderTelemetryRuntime.recordUsage";
-    if (source.source_path.endsWith("promptCacheBreakDetection.ts")) profile.symbol = "ProviderTelemetryRuntime.recordPromptState";
-    if (source.source_path.endsWith("services/api/logging.ts")) profile.symbol = "ProviderTelemetryRuntime.logging_module";
+    const profile = routeFor(source);
     const planned = String(profile.symbol).split(".").at(-1);
     return {
       schema_version: "3.0",
@@ -235,15 +521,20 @@ function targetManifest(sources: Obj[]): Obj[] {
       target_symbol: profile.symbol,
       canonical_owner_id: "e01." + source.semantic_domain,
       default_entry_id: "e01.default-code-worker",
-      default_callsite_path: profile.defaultCallsitePath,
-      default_callsite_symbol: profile.defaultCallsiteSymbol,
+      default_callsite_path: profile.callsitePath,
+      default_callsite_symbol: profile.callsiteSymbol,
+      default_entry_edges: profile.entryEdges,
       state_store: profile.store,
       state_effect_kind: profile.effect,
       state_effect_assertion: "assert." + source.mapping_id + "." + profile.effect,
-      success_test_ids: [profile.tests[0]],
-      failure_test_ids: [profile.tests[1]],
+      state_snapshot_property: profile.snapshotProperty,
+      state_observation: profile.stateObservation,
+      behavior_tests: profile.behavior,
+      success_test_ids: profile.behavior.map((item: Obj) => item.name),
+      failure_test_ids: profile.behavior.map((item: Obj) => item.name),
       disable_test_ids: ["e01.owner.disable"],
-      mutation_ids: [],
+      mutation_ids: profile.mutations,
+      adaptation: profile.adaptation,
       runtime_origin_probe_id: "e01.probe.runtime-origin",
       write_path_probe_id: "e01.probe.write-path",
       restore_probe_id: "e01.probe.same-session-resume",
@@ -307,7 +598,9 @@ function mutationManifest(): Obj[] {
       target_symbol: symbol,
       mutation_operator: operator,
       semantic_risk: risk,
-      expected_killer_test_ids: ["e01.mutation." + name],
+      expected_killer_test_ids: [name === "recovery-planner-custody"
+        ? "runtime lets canonical recovery policy stop a non-retryable provider request"
+        : "e01.mutation." + name],
       compile_survives: true,
       frozen_patch_sha256: hash(path + "\0" + symbol + "\0" + operator),
     };
@@ -356,6 +649,10 @@ function gateProfile(snapshot: string): Obj {
       adapter_ratio_maximum: 0.10,
       mutation_points_minimum: 30,
       core_mutation_kill_rate: 1,
+      source_to_target_unique_symbols_minimum: 20,
+      source_to_target_max_mappings_per_symbol: 60,
+      behavior_tests_per_mapping_maximum: 2,
+      mutation_ids_per_mapping_minimum: 1,
     },
     checker_source_paths: ["scripts/remediation/m1_r01_e01_v3.ts", "scripts/remediation/verify_m1_r01_e01_v3.ts", "scripts/verify_m1_r01_manifests.ts"],
   };

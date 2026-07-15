@@ -1,4 +1,5 @@
 import {
+  asBoolean,
   asObject,
   asString,
   type JsonObject,
@@ -9,6 +10,30 @@ import {
 } from "./contracts.ts";
 
 type EmitRuntimeEvent = (phase: string, payload?: JsonObject) => Promise<void>;
+
+export interface ModelRecoveryObservation {
+  recoveryContextId: string;
+  requestId: string;
+  provider: string;
+  model: string;
+  status: number;
+  error: string;
+  headers: Record<string, string>;
+  fallbackModels: string[];
+  outputTokenLimit: number;
+  maxRetries: number;
+}
+
+export interface ModelRecoveryDecision {
+  action: "retry" | "fallback" | "reduce_output" | "stop" | "abort";
+  reason: string;
+  delayMs: number;
+  nextModel: string;
+}
+
+type DecideModelRecovery = (
+  observation: ModelRecoveryObservation,
+) => ModelRecoveryDecision | Promise<ModelRecoveryDecision>;
 
 export interface ModelStreamResolution {
   ok: boolean;
@@ -33,6 +58,8 @@ export async function resolveModelTurns(
   scriptedTurns: ToolStep[][],
   tools: ToolSpecContract[],
   emit: EmitRuntimeEvent,
+  decideRecovery?: DecideModelRecovery,
+  requestEpoch = 0,
 ): Promise<ModelStreamResolution> {
   const constraints = config.runtimeConstraints;
   const transport = asString(
@@ -41,8 +68,64 @@ export async function resolveModelTurns(
   );
   const requestMessages = normalizeMessages(input);
   const requestTools = tools.map(openAiTool);
+  const requestScope = `${input.workerRequestId}:epoch${Math.max(0, Math.floor(requestEpoch))}:model`;
+  if (asBoolean(constraints.simulate_model_error)) {
+    const requestId = `${requestScope}:1`;
+    const recoveryPlan = decideRecovery
+      ? await decideRecovery({
+        recoveryContextId: requestScope,
+        requestId,
+        provider: transport === "http_sse" ? "compatible" : "local",
+        model: config.modelName,
+        status: 0,
+        error: "model_error",
+        headers: {},
+        fallbackModels: [],
+        outputTokenLimit: 16_000,
+        maxRetries: 0,
+      })
+      : null;
+    await emit("model_request_prepared", {
+      provider_request: {
+        request_id: requestId,
+        provider: transport === "http_sse" ? "compatible" : "local",
+        model: config.modelName,
+        messages: requestMessages,
+        tools: requestTools,
+        system: [],
+      },
+    });
+    await emit("model_stream_report", {
+      model_stream: {
+        request_id: requestId,
+        ok: false,
+        transport,
+        model: config.modelName,
+        status: 0,
+        decision: "stop_simulated_failure",
+        error: "model_error",
+        usage: emptyUsage(),
+        recovery_context_id: requestScope,
+        recovery_plan: recoveryPlan as unknown as JsonObject | null,
+      },
+    });
+    await emitFinalReports(emit, [], false, "simulated_failure", config.modelName, false);
+    return {
+      ok: false,
+      turns: [],
+      error: "model_error",
+      metadata: modelMetadata({
+        ok: false,
+        status: "simulated_failure",
+        finalModel: config.modelName,
+        fallbackUsed: false,
+        recovered: false,
+        retryCount: 0,
+      }),
+    };
+  }
   if (transport !== "http_sse") {
-    const requestId = `${input.workerRequestId}:model:1`;
+    const requestId = `${requestScope}:1`;
     await emit("model_request_prepared", {
       provider_request: {
         request_id: requestId,
@@ -127,15 +210,17 @@ export async function resolveModelTurns(
   );
   const models = [config.modelName, ...fallbackModels];
   const attempts: AttemptRecord[] = [];
+  const recoveryContextId = requestScope;
   const timeoutMs = Math.max(
     100,
     Math.min(120_000, (Number(constraints.model_api_timeout_seconds) || 30) * 1000),
   );
   let finalError = "model_stream_failed";
+  let plannedModel = config.modelName;
 
   for (let index = 0; index < maxAttempts; index += 1) {
-    const model = models[Math.min(index, models.length - 1)] || config.modelName;
-    const requestId = `${input.workerRequestId}:model:${index + 1}`;
+    const model = plannedModel;
+    const requestId = `${requestScope}:${index + 1}`;
     const nextModel = index + 1 < maxAttempts
       ? models[Math.min(index + 1, models.length - 1)] || model
       : "";
@@ -173,13 +258,30 @@ export async function resolveModelTurns(
       if (!response.ok) {
         const responseBody = await response.text();
         finalError = "model_http_" + String(response.status);
+        const recoveryPlan = decideRecovery
+          ? await decideRecovery({
+            recoveryContextId,
+            requestId,
+            provider: "compatible",
+            model,
+            status: response.status,
+            error: responseBody.slice(0, 1000) || finalError,
+            headers: Object.fromEntries(response.headers.entries()),
+            fallbackModels,
+            outputTokenLimit: 16_000,
+            maxRetries: maxAttempts - 1,
+          })
+          : null;
+        const retrying = recoveryPlan
+          ? ["retry", "fallback", "reduce_output"].includes(recoveryPlan.action)
+          : Boolean(nextModel);
         const record: AttemptRecord = {
           attempt: index + 1,
           model,
           ok: false,
           status: response.status,
-          decision: nextModel ? "retry_fallback_model" : "stop_exhausted",
-          fallback_model: nextModel,
+          decision: recoveryPlan?.action ?? (nextModel ? "retry_fallback_model" : "stop_exhausted"),
+          fallback_model: recoveryPlan?.nextModel ?? nextModel,
           error: responseBody.slice(0, 1000) || finalError,
         };
         attempts.push(record);
@@ -189,8 +291,13 @@ export async function resolveModelTurns(
             request_id: requestId,
             provider: "compatible",
             usage: emptyUsage(),
+            recovery_context_id: recoveryContextId,
+            recovery_plan: recoveryPlan as unknown as JsonObject | null,
           },
         });
+        if (!retrying) break;
+        plannedModel = recoveryPlan?.nextModel || nextModel || model;
+        if ((recoveryPlan?.delayMs ?? 0) > 0) await Bun.sleep(recoveryPlan!.delayMs);
         continue;
       }
 
@@ -215,7 +322,7 @@ export async function resolveModelTurns(
           usage: parsed.usage,
         },
       });
-      const fallbackUsed = index > 0;
+      const fallbackUsed = model !== config.modelName;
       const status = fallbackUsed ? "fallback_selected" : "primary_selected";
       await emitFinalReports(
         emit,
@@ -240,13 +347,30 @@ export async function resolveModelTurns(
       };
     } catch (error) {
       finalError = error instanceof Error ? error.message : String(error);
+      const recoveryPlan = decideRecovery
+        ? await decideRecovery({
+          recoveryContextId,
+          requestId,
+          provider: "compatible",
+          model,
+          status: 0,
+          error: finalError,
+          headers: {},
+          fallbackModels,
+          outputTokenLimit: 16_000,
+          maxRetries: maxAttempts - 1,
+        })
+        : null;
+      const retrying = recoveryPlan
+        ? ["retry", "fallback", "reduce_output"].includes(recoveryPlan.action)
+        : Boolean(nextModel);
       const record: AttemptRecord = {
         attempt: index + 1,
         model,
         ok: false,
         status: 0,
-        decision: nextModel ? "retry_fallback_model" : "stop_exhausted",
-        fallback_model: nextModel,
+        decision: recoveryPlan?.action ?? (nextModel ? "retry_fallback_model" : "stop_exhausted"),
+        fallback_model: recoveryPlan?.nextModel ?? nextModel,
         error: finalError,
       };
       attempts.push(record);
@@ -256,8 +380,13 @@ export async function resolveModelTurns(
           request_id: requestId,
           provider: "compatible",
           usage: emptyUsage(),
+          recovery_context_id: recoveryContextId,
+          recovery_plan: recoveryPlan as unknown as JsonObject | null,
         },
       });
+      if (!retrying) break;
+      plannedModel = recoveryPlan?.nextModel || nextModel || model;
+      if ((recoveryPlan?.delayMs ?? 0) > 0) await Bun.sleep(recoveryPlan!.delayMs);
     }
   }
 

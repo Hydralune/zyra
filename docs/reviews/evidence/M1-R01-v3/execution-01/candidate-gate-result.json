@@ -1,7 +1,7 @@
 {
   "schema_version": "3.0",
   "execution_id": "E01",
-  "generated_at_utc": "2026-07-15T13:58:35.169Z",
+  "generated_at_utc": "2026-07-15T14:33:56.558Z",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "enforce_gates": true,
   "pass": true,
@@ -14,18 +14,24 @@
     "effective_behavior_test_sloc": 7000,
     "adapter_ratio_maximum": 0.1,
     "mutation_points_minimum": 30,
-    "core_mutation_kill_rate": 1
+    "core_mutation_kill_rate": 1,
+    "source_to_target_unique_symbols_minimum": 20,
+    "source_to_target_max_mappings_per_symbol": 60,
+    "behavior_tests_per_mapping_maximum": 2,
+    "mutation_ids_per_mapping_minimum": 1
   },
   "actual": {
     "accepted_source_physical_sloc": 11027,
-    "effective_changed_typescript_sloc": 29984,
-    "final_non_test_typescript_sloc": 37882,
-    "effective_behavior_test_sloc": 8106,
+    "effective_changed_typescript_sloc": 28478,
+    "final_non_test_typescript_sloc": 38046,
+    "effective_behavior_test_sloc": 8099,
     "adapter_ratio": 0,
     "source_to_target_chain_count": 229,
     "complete_source_to_target_chain_count": 229,
-    "mutation_declared": 30,
-    "mutation_killed": 30,
+    "unique_target_symbol_count": 32,
+    "maximum_mappings_per_target_symbol": 43,
+    "mutation_declared": 31,
+    "mutation_killed": 31,
     "python_owner_paths_remaining": []
   },
   "evidence": {

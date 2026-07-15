@@ -7,7 +7,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import * as ts from "typescript";
 
 type Obj = Record<string, any>;
-type Unit = { hash: string; lines: number; path: string; symbol: string };
+type Unit = { hash: string; structuralHash: string; lines: number; path: string; symbol: string };
 
 const VERIFIED = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const zyra = resolve(import.meta.dir, "..");
@@ -66,6 +66,30 @@ function normalized(value: string): string {
     .trim();
 }
 
+function structuralNormalized(value: string): string {
+  const scanner = ts.createScanner(ts.ScriptTarget.ESNext, true, ts.LanguageVariant.Standard, value);
+  const tokens: string[] = [];
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    if (token === ts.SyntaxKind.Identifier || token === ts.SyntaxKind.PrivateIdentifier) {
+      tokens.push("Identifier");
+    } else if (
+      token === ts.SyntaxKind.StringLiteral
+      || token === ts.SyntaxKind.NumericLiteral
+      || token === ts.SyntaxKind.BigIntLiteral
+      || token === ts.SyntaxKind.RegularExpressionLiteral
+      || token === ts.SyntaxKind.NoSubstitutionTemplateLiteral
+      || token === ts.SyntaxKind.TemplateHead
+      || token === ts.SyntaxKind.TemplateMiddle
+      || token === ts.SyntaxKind.TemplateTail
+    ) {
+      tokens.push(ts.SyntaxKind[token]);
+    } else {
+      tokens.push(ts.SyntaxKind[token]);
+    }
+  }
+  return tokens.join(" ");
+}
+
 function astUnits(path: string, text: string): Unit[] {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
   const output: Unit[] = [];
@@ -77,7 +101,13 @@ function astUnits(path: string, text: string): Unit[] {
     if (!canonical) return;
     const startLine = source.getLineAndCharacterOfPosition(start).line;
     const endLine = source.getLineAndCharacterOfPosition(Math.max(start, end - 1)).line;
-    output.push({ hash: hash(canonical), lines: endLine - startLine + 1, path, symbol });
+    output.push({
+      hash: hash(canonical),
+      structuralHash: hash(structuralNormalized(raw)),
+      lines: endLine - startLine + 1,
+      path,
+      symbol,
+    });
   };
   source.statements.forEach((statement, index) => {
     if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) return;
@@ -112,12 +142,24 @@ function baselineText(path: string): string | null {
   }
 }
 
-function deduplicatedLines(units: Unit[], excludedHashes = new Set<string>()): { lines: number; units: Unit[] } {
+function deduplicatedLines(
+  units: Unit[],
+  excludedHashes = new Set<string>(),
+  excludedStructuralHashes = new Set<string>(),
+  useStructuralHashes = true,
+): { lines: number; units: Unit[] } {
   const seen = new Set<string>();
+  const seenStructures = new Set<string>();
   const accepted: Unit[] = [];
   for (const unit of units) {
-    if (excludedHashes.has(unit.hash) || seen.has(unit.hash)) continue;
+    if (
+      excludedHashes.has(unit.hash)
+      || seen.has(unit.hash)
+      || (useStructuralHashes && excludedStructuralHashes.has(unit.structuralHash))
+      || (useStructuralHashes && seenStructures.has(unit.structuralHash))
+    ) continue;
     seen.add(unit.hash);
+    if (useStructuralHashes) seenStructures.add(unit.structuralHash);
     accepted.push(unit);
   }
   return { lines: accepted.reduce((sum, unit) => sum + unit.lines, 0), units: accepted };
@@ -130,41 +172,75 @@ function testNames(path: string): string[] {
   return names;
 }
 
-function testsForDomain(domain: string): string[] {
-  if (domain.startsWith("provider-")) {
-    return [
-      `${testRoot}/provider-policy.behavior.test.ts`,
-      `${testRoot}/provider-request-response.behavior.test.ts`,
-    ];
+const declarationCache = new Map<string, string | null>();
+const testBodyCache = new Map<string, string | null>();
+
+function declarationText(path: string, symbol: string): string | null {
+  const key = `${path}::${symbol}`;
+  if (declarationCache.has(key)) return declarationCache.get(key) ?? null;
+  const absolute = join(zyra, path);
+  if (!existsSync(absolute)) {
+    declarationCache.set(key, null);
+    return null;
   }
-  if (domain === "tool" || domain === "result-budget") return [`${testRoot}/tool-protocol.behavior.test.ts`];
-  return [`${testRoot}/query-context.behavior.test.ts`];
-}
-
-function symbolExists(text: string, symbol: string): boolean {
-  const parts = symbol.split(".");
-  if (parts.length === 2) {
-    return text.includes(`class ${parts[0]}`) && new RegExp(`\\b${parts[1]}\\s*\\(`).test(text);
+  const text = readFileSync(absolute, "utf8");
+  const source = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+  const [owner, member] = symbol.split(".");
+  let selected: ts.Node | null = null;
+  for (const statement of source.statements) {
+    if (member && ts.isClassDeclaration(statement) && statement.name?.text === owner) {
+      selected = statement.members.find((item) => item.name?.getText(source) === member) ?? null;
+      break;
+    }
+    const named = (statement as ts.NamedDeclaration).name;
+    if (!member && named && ts.isIdentifier(named) && named.text === owner) {
+      selected = statement;
+      break;
+    }
   }
-  return new RegExp(`(?:function|class)\\s+${parts[0]}\\b`).test(text);
+  const result = selected ? selected.getText(source) : null;
+  declarationCache.set(key, result);
+  return result;
 }
 
-function callsiteInvokes(text: string, targetSymbol: string, callsiteSymbol: string, samePath: boolean): boolean {
-  const targetMethod = targetSymbol.split(".").at(-1) ?? targetSymbol;
-  const callsiteMethod = callsiteSymbol.split(".").at(-1) ?? callsiteSymbol;
-  const callsitePresent = new RegExp(`\\b${callsiteMethod}\\s*\\(`).test(text);
-  if (!callsitePresent) return false;
-  if (samePath && targetSymbol === callsiteSymbol) return true;
-  return new RegExp(`(?:\\.|\\b)${targetMethod}\\s*\\(`).test(text);
+function escaped(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function mutationPathsForDomain(domain: string): string[] {
-  if (domain === "query") return ["/query/lifecycle-runtime.ts"];
-  if (domain === "provider-model") return ["/provider/model-runtime.ts"];
-  if (domain === "provider-recovery") return ["/provider/recovery-runtime.ts"];
-  if (domain === "provider-telemetry") return ["/provider/telemetry-runtime.ts"];
-  if (domain === "compact") return ["/compact/context-runtime.ts"];
-  return [];
+function declarationInvokes(callerPath: string, callerSymbol: string, calleeSymbol: string): boolean {
+  if (callerSymbol === calleeSymbol) return declarationText(callerPath, callerSymbol) !== null;
+  const caller = declarationText(callerPath, callerSymbol);
+  if (!caller) return false;
+  const callee = escaped(calleeSymbol.split(".").at(-1) ?? calleeSymbol);
+  return new RegExp(`(?:\\.|\\b)${callee}\\s*\\(`).test(caller)
+    || new RegExp(`\\.(?:map|flatMap|forEach|filter|some|find)\\(\\s*${callee}\\b`).test(caller);
+}
+
+function testBody(path: string, name: string): string | null {
+  const key = `${path}::${name}`;
+  if (testBodyCache.has(key)) return testBodyCache.get(key) ?? null;
+  const absolute = join(zyra, path);
+  if (!existsSync(absolute)) {
+    testBodyCache.set(key, null);
+    return null;
+  }
+  const text = readFileSync(absolute, "utf8");
+  const source = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+  let selected: string | null = null;
+  const visit = (node: ts.Node): void => {
+    if (selected) return;
+    if (ts.isCallExpression(node) && /^(?:test|it)$/.test(node.expression.getText(source))) {
+      const [title, body] = node.arguments;
+      if ((ts.isStringLiteral(title) || ts.isNoSubstitutionTemplateLiteral(title)) && title.text === name && body) {
+        selected = body.getText(source);
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  testBodyCache.set(key, selected);
+  return selected;
 }
 
 function readEvidence(name: string): Obj | null {
@@ -191,14 +267,20 @@ function main(): void {
   const productionText = new Map(productionFiles.map((path) => [path, readFileSync(join(zyra, path), "utf8")]));
   const finalPhysical = [...productionText.values()].reduce((sum, text) => sum + physicalLines(text), 0);
   const baselineHashes = new Set<string>();
+  const baselineStructuralHashes = new Set<string>();
   for (const path of productionFiles) {
     const previous = baselineText(path);
-    if (previous !== null) for (const unit of astUnits(path, previous)) baselineHashes.add(unit.hash);
+    if (previous !== null) for (const unit of astUnits(path, previous)) {
+      baselineHashes.add(unit.hash);
+      baselineStructuralHashes.add(unit.structuralHash);
+    }
   }
   const currentUnits = productionFiles.flatMap((path) => astUnits(path, productionText.get(path) ?? ""));
-  const changed = deduplicatedLines(currentUnits, baselineHashes);
+  const exactChanged = deduplicatedLines(currentUnits, baselineHashes, new Set(), false);
+  const changed = deduplicatedLines(currentUnits, baselineHashes, baselineStructuralHashes);
   const testUnits = testFiles.flatMap((path) => astUnits(path, readFileSync(join(zyra, path), "utf8")));
-  const effectiveTests = deduplicatedLines(testUnits);
+  const exactTests = deduplicatedLines(testUnits, new Set(), new Set(), false);
+  const effectiveTests = deduplicatedLines(testUnits, new Set(), new Set());
   const adapterFiles = productionFiles.filter((path) => /(?:adapter|bridge|gateway)/i.test(basename(path)));
   const adapterLines = adapterFiles.reduce((sum, path) => sum + physicalLines(productionText.get(path) ?? ""), 0);
   const adapterRatio = finalPhysical === 0 ? 1 : adapterLines / finalPhysical;
@@ -215,33 +297,86 @@ function main(): void {
   if (undeletedPython.length) failures.push(`Python canonical owner paths still exist: ${undeletedPython.join(",")}`);
 
   const coordinatorPath = "packages/runtime/claude-runtime/src/e01/coordinator.ts";
-  const coordinatorText = readFileSync(join(zyra, coordinatorPath), "utf8");
   const rootCallsiteText = readFileSync(join(zyra, "packages/runtime/claude-runtime/src/query-engine.ts"), "utf8");
   if (!rootCallsiteText.includes("E01RuntimeCoordinator") || !rootCallsiteText.includes("await e01.bootstrap()")) failures.push("default E01 callsite is not wired");
+  const mutationEvidencePath = join(evidenceRoot, "mutation-results.json");
+  const mutationEvidence = existsSync(mutationEvidencePath) ? JSON.parse(readFileSync(mutationEvidencePath, "utf8")) : null;
+  const killedMutationIds = new Set<string>(
+    (Array.isArray(mutationEvidence?.results) ? mutationEvidence.results : [])
+      .filter((item: Obj) => item.killed === true || String(item.status ?? item.result).toUpperCase() === "KILLED")
+      .map((item: Obj) => String(item.mutation_id ?? item.mutationId ?? item.id)),
+  );
+  const mutationById = new Map(mutations.map((item) => [String(item.mutation_id), item]));
+  const snapshotDeclaration = declarationText(coordinatorPath, "E01RuntimeCoordinator.snapshot") ?? "";
   const sourceById = new Map(source.map((item) => [item.mapping_id, item]));
   const chains = targets.map((target) => {
     const sourceItem = sourceById.get(target.mapping_id);
     const targetAbsolute = join(zyra, target.target_path);
     const targetText = existsSync(targetAbsolute) ? readFileSync(targetAbsolute, "utf8") : "";
     const targetSymbol = String(target.target_symbol);
-    const targetSymbolExists = symbolExists(targetText, targetSymbol);
+    const targetSymbolExists = declarationText(String(target.target_path), targetSymbol) !== null;
     const callsitePath = String(target.default_callsite_path);
-    const callsiteAbsolute = join(zyra, callsitePath);
-    const callsiteText = existsSync(callsiteAbsolute) ? readFileSync(callsiteAbsolute, "utf8") : "";
-    const invokesTarget = callsiteInvokes(callsiteText, targetSymbol, String(target.default_callsite_symbol), callsitePath === target.target_path);
-    const domain = String(sourceItem?.semantic_domain ?? "unknown");
-    const behaviorFiles = testsForDomain(domain);
-    const behaviorTests = behaviorFiles.flatMap((path) => testNames(path).map((name) => ({ path, test_name: name })));
-    const mutationSuffixes = mutationPathsForDomain(domain);
-    const domainMutationIds = mutations.filter((item) => mutationSuffixes.some((suffix) => item.target_path.endsWith(suffix))).map((item) => item.mutation_id);
-    const ownerProperty = domain === "compact" ? "compact"
-      : domain === "context-token" ? "tokens"
-      : domain === "provider-model" ? "provider"
-      : domain === "provider-recovery" ? "recovery"
-      : domain === "provider-telemetry" ? "telemetry"
-      : "query";
-    const stateEffectReachable = coordinatorText.includes(`this.${ownerProperty}.snapshot()`);
-    const complete = Boolean(sourceItem) && targetSymbolExists && invokesTarget && stateEffectReachable && behaviorTests.length > 0;
+    const callsiteSymbol = String(target.default_callsite_symbol);
+    const invokesTarget = declarationInvokes(callsitePath, callsiteSymbol, targetSymbol);
+    const declaredEdges = Array.isArray(target.default_entry_edges) ? target.default_entry_edges as Obj[] : [];
+    const verifiedEdges = declaredEdges.map((item) => {
+      const callerPath = String(item.caller_path);
+      const callerSymbol = String(item.caller_symbol);
+      const calleePath = String(item.callee_path);
+      const calleeSymbol = String(item.callee_symbol);
+      return {
+        ...item,
+        caller_exists: declarationText(callerPath, callerSymbol) !== null,
+        callee_exists: declarationText(calleePath, calleeSymbol) !== null,
+        invokes: declarationInvokes(callerPath, callerSymbol, calleeSymbol),
+      };
+    });
+    const defaultTarget = target.target_path === "packages/runtime/claude-runtime/src/query-engine.ts" && targetSymbol === "ClaudeRuntimeCore.run";
+    const entryChainCoversTarget = defaultTarget || verifiedEdges.some((item) => item.callee_path === target.target_path && item.callee_symbol === targetSymbol);
+    const entryChainValid = (defaultTarget || verifiedEdges.length > 0)
+      && verifiedEdges.every((item) => item.caller_exists && item.callee_exists && item.invokes)
+      && entryChainCoversTarget;
+    const ownerProperty = String(target.state_snapshot_property ?? "");
+    const stateEffectReachable = Boolean(ownerProperty)
+      && new RegExp(`\\b${escaped(ownerProperty)}\\s*:\\s*this\\.${escaped(ownerProperty)}\\.snapshot\\s*\\(`).test(snapshotDeclaration);
+    const declaredBehavior = Array.isArray(target.behavior_tests) ? target.behavior_tests as Obj[] : [];
+    const behaviorTests = declaredBehavior.map((item) => {
+      const path = String(item.path);
+      const name = String(item.name);
+      const body = testBody(path, name);
+      const anchor = String(item.anchor ?? "");
+      const assertionTokens = Array.isArray(item.assertion_tokens) ? item.assertion_tokens.map(String) : [];
+      return {
+        path,
+        test_name: name,
+        anchor,
+        assertion_tokens: assertionTokens,
+        exists: body !== null,
+        anchor_present: Boolean(body && anchor && body.includes(anchor)),
+        state_assertions_present: Boolean(body && assertionTokens.length > 0 && assertionTokens.every((token) => body.includes(token))),
+      };
+    });
+    const behaviorLimit = Number(thresholds.behavior_tests_per_mapping_maximum ?? 2);
+    const behaviorValid = behaviorTests.length > 0
+      && behaviorTests.length <= behaviorLimit
+      && behaviorTests.every((item) => item.exists && item.anchor_present && item.state_assertions_present);
+    const declaredMutationIds = Array.isArray(target.mutation_ids) ? target.mutation_ids.map(String) : [];
+    const minimumMutations = Number(thresholds.mutation_ids_per_mapping_minimum ?? 1);
+    const mutationLinks = declaredMutationIds.map((mutationId) => ({
+      mutation_id: mutationId,
+      declared: mutationById.has(mutationId),
+      killed: killedMutationIds.has(mutationId),
+    }));
+    const mutationLinksValid = mutationLinks.length >= minimumMutations
+      && mutationLinks.every((item) => item.declared && (!enforce || item.killed));
+    const complete = Boolean(sourceItem)
+      && targetSymbolExists
+      && invokesTarget
+      && entryChainValid
+      && stateEffectReachable
+      && Boolean(target.state_observation)
+      && behaviorValid
+      && mutationLinksValid;
     if (!complete) failures.push(`incomplete five-hop chain ${target.mapping_id}`);
     return {
       mapping_id: target.mapping_id,
@@ -262,24 +397,37 @@ function main(): void {
       },
       default_callsite: {
         path: callsitePath,
-        symbol: target.default_callsite_symbol,
+        symbol: callsiteSymbol,
         coordinator_path: coordinatorPath,
         coordinator_symbol: "E01RuntimeCoordinator",
         invokes_target: invokesTarget,
       },
+      default_entry_edges: verifiedEdges,
       state_effect: {
         store: target.state_store,
         kind: target.state_effect_kind,
         coordinator_snapshot_property: ownerProperty,
+        observation: target.state_observation,
         reachable: stateEffectReachable,
       },
       behavior_tests: behaviorTests,
-      mutation_ids: domainMutationIds,
+      mutations: mutationLinks,
+      adaptation: target.adaptation,
     };
   });
-
-  const mutationEvidencePath = join(evidenceRoot, "mutation-results.json");
-  const mutationEvidence = existsSync(mutationEvidencePath) ? JSON.parse(readFileSync(mutationEvidencePath, "utf8")) : null;
+  const targetSymbolCounts = new Map<string, number>();
+  for (const target of targets) {
+    const key = `${target.target_path}::${target.target_symbol}`;
+    targetSymbolCounts.set(key, (targetSymbolCounts.get(key) ?? 0) + 1);
+  }
+  const uniqueTargetSymbolCount = targetSymbolCounts.size;
+  const maximumMappingsPerTargetSymbol = Math.max(0, ...targetSymbolCounts.values());
+  if (uniqueTargetSymbolCount < Number(thresholds.source_to_target_unique_symbols_minimum ?? 1)) {
+    failures.push(`unique target symbol count ${uniqueTargetSymbolCount} below gate`);
+  }
+  if (maximumMappingsPerTargetSymbol > Number(thresholds.source_to_target_max_mappings_per_symbol ?? Number.MAX_SAFE_INTEGER)) {
+    failures.push(`maximum mappings per target symbol ${maximumMappingsPerTargetSymbol} above gate`);
+  }
   if (enforce && (!mutationEvidence || mutationEvidence.summary.killed !== mutations.length || mutationEvidence.summary.invalid !== 0)) {
     failures.push("30/30 executable mutation evidence missing or failed");
   }
@@ -295,17 +443,24 @@ function main(): void {
     production_file_count: productionFiles.length,
     final_non_test_typescript_physical_sloc: finalPhysical,
     baseline_ast_unit_hash_count: baselineHashes.size,
+    baseline_ast_structural_hash_count: baselineStructuralHashes.size,
     current_ast_unit_count: currentUnits.length,
+    exact_changed_ast_unit_count: exactChanged.units.length,
+    exact_changed_typescript_sloc: exactChanged.lines,
     effective_changed_ast_unit_count: changed.units.length,
     effective_changed_typescript_sloc: changed.lines,
+    structural_clone_excluded_production_sloc: exactChanged.lines - changed.lines,
     behavior_test_files: testFiles,
     behavior_test_ast_unit_count: testUnits.length,
+    exact_behavior_test_ast_unit_count: exactTests.units.length,
+    exact_behavior_test_sloc: exactTests.lines,
     effective_behavior_test_ast_unit_count: effectiveTests.units.length,
     effective_behavior_test_sloc: effectiveTests.lines,
+    structural_clone_excluded_behavior_test_sloc: exactTests.lines - effectiveTests.lines,
     adapter_files: adapterFiles,
     adapter_sloc: adapterLines,
     adapter_ratio: adapterRatio,
-    algorithm: "TypeScript AST declaration/member units; whitespace/comment normalized exact-clone hashes; baseline and repeated-unit hashes excluded",
+    algorithm: "TypeScript AST declaration/member units; exact hashes plus identifier/literal-normalized structural hashes; baseline and repeated structural units excluded",
   };
   writeJson(join(evidenceRoot, "effective-loc-report.json"), locReport);
   writeJsonl(join(evidenceRoot, "source-to-target-five-hop.jsonl"), chains);
@@ -326,6 +481,8 @@ function main(): void {
       adapter_ratio: adapterRatio,
       source_to_target_chain_count: chains.length,
       complete_source_to_target_chain_count: chains.filter((item) => item.complete).length,
+      unique_target_symbol_count: uniqueTargetSymbolCount,
+      maximum_mappings_per_target_symbol: maximumMappingsPerTargetSymbol,
       mutation_declared: mutations.length,
       mutation_killed: mutationEvidence?.summary?.killed ?? 0,
       python_owner_paths_remaining: undeletedPython,

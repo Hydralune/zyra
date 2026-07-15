@@ -59,6 +59,25 @@ class MemoryHost implements RuntimeHost {
   }
 }
 
+interface E01RuntimeView {
+  journal: {
+    revision: number;
+    state: {
+      provider?: { revision?: number };
+      query?: { revision?: number };
+      context?: { revision?: number };
+    };
+  };
+  query: { revision: number };
+  compact: { boundaries: unknown[] };
+  telemetry: { prompts: unknown[]; samples: unknown[] };
+  recovery: { contexts: unknown[] };
+}
+
+function e01State(result: Awaited<ReturnType<ClaudeRuntimeCore["run"]>>): E01RuntimeView {
+  return result.sessionSnapshot.e01Runtime as unknown as E01RuntimeView;
+}
+
 function input(overrides: Partial<RuntimeRunInput> = {}): RuntimeRunInput {
   return {
     runId: "run-1",
@@ -121,6 +140,8 @@ test("runtime owns multi-turn lifecycle and read-only batches", async () => {
   );
   assert.equal(result.metadata.canonical_runtime_owner, "typescript");
   assert.equal(result.sessionSnapshot.canonical_owner, "typescript");
+  assert.ok(e01State(result).query.revision > 0);
+  assert.ok((e01State(result).journal.state.query?.revision ?? 0) > 0);
   assert.ok(host.events.some((event) => event.phase === "stream_request_start"));
   assert.ok(host.events.some((event) => event.phase === "session_completed"));
 });
@@ -153,8 +174,72 @@ test("runtime externalizes large tool results and compacts context", async () =>
   assert.equal(result.ok, true);
   assert.ok(result.artifacts.length >= 2);
   assert.ok(result.contextCompactionCount >= 1);
+  assert.ok(e01State(result).compact.boundaries.length >= 1);
+  assert.ok((e01State(result).journal.state.context?.revision ?? 0) > 0);
   assert.ok(host.events.some((event) => event.phase === "tool_result_budget_exceeded"));
   assert.ok(host.events.some((event) => event.phase === "context_compacted"));
+});
+
+test("runtime commits provider prompt usage and recovery state through default loop", async () => {
+  const successHost = new MemoryHost();
+  const success = await new ClaudeRuntimeCore().run(input({
+    runId: "provider-success-run",
+    sessionId: "provider-success-session",
+    workerRequestId: "provider-success-request",
+    turns: [[{ tool_name: "read", arguments: { path: "a" } }]],
+  }), successHost);
+  const successState = e01State(success);
+  assert.equal(success.ok, true);
+  assert.equal(successState.telemetry.prompts.length, 1);
+  assert.equal(successState.telemetry.samples.length, 1);
+  assert.ok((successState.journal.state.provider?.revision ?? 0) > 0);
+  assert.ok(successHost.events.some((event) => event.phase === "model_request_prepared"));
+  assert.ok(successHost.events.some((event) => event.phase === "model_stream_report"));
+
+  const failureHost = new MemoryHost();
+  const failure = await new ClaudeRuntimeCore().run(input({
+    runId: "provider-failure-run",
+    sessionId: "provider-failure-session",
+    workerRequestId: "provider-failure-request",
+    config: { runtimeConstraints: { simulate_model_error: true } },
+  }), failureHost);
+  const failureState = e01State(failure);
+  assert.equal(failure.ok, false);
+  assert.equal(failure.stoppedReason, "model_error");
+  assert.ok(failureState.recovery.contexts.length >= 1);
+  assert.ok((failureState.journal.state.provider?.revision ?? 0) > 0);
+  assert.ok(failureHost.events.some((event) => event.phase === "api_retry_report"));
+});
+
+test("runtime lets canonical recovery policy stop a non-retryable provider request", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    return new Response("invalid api key", { status: 401 });
+  }) as unknown as typeof fetch;
+  try {
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: "provider-auth-run",
+      sessionId: "provider-auth-session",
+      workerRequestId: "provider-auth-request",
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          api_retry_max_attempts: 3,
+        },
+      },
+    }), new MemoryHost());
+    const state = e01State(result);
+    assert.equal(result.ok, false);
+    assert.equal(result.stoppedReason, "model_stream_failed");
+    assert.equal(requestCount, 1);
+    assert.equal(state.recovery.contexts.length, 1);
+    assert.ok((state.journal.state.provider?.revision ?? 0) > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("runtime restores its exact TypeScript snapshot", async () => {

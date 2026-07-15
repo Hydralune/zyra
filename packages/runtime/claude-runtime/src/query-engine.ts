@@ -209,22 +209,21 @@ export class ClaudeRuntimeCore {
       });
     }
 
-    if (ok && asBoolean(config.runtimeConstraints.simulate_model_error)) {
-      ok = false;
-      stoppedReason = "model_error";
-      await emit("error", {
-        error: stoppedReason,
-        source: "model_stream",
-      });
-    }
-
     if (ok) {
-      const model = await resolveModelTurns(input, config, turns, registry.list(), emit);
+      const model = await resolveModelTurns(
+        input,
+        config,
+        turns,
+        registry.list(),
+        emit,
+        (observation) => e01.decideProviderRecovery(observation),
+        e01.journal.restartEpoch,
+      );
       turns = model.turns;
       modelMetadata = model.metadata;
       if (!model.ok) {
         ok = false;
-        stoppedReason = "model_stream_failed";
+        stoppedReason = model.error === "model_error" ? "model_error" : "model_stream_failed";
         await emit("error", {
           error: stoppedReason,
           detail: model.error || "model stream failed",

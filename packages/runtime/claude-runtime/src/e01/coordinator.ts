@@ -17,7 +17,7 @@ import {
 import { ProviderModelRuntime } from "../provider/model-runtime.ts";
 import { ProviderPromptRuntime } from "../provider/prompt-runtime.ts";
 import { ProviderRateLimitRuntime } from "../provider/rate-limit-runtime.ts";
-import { ProviderRecoveryRuntime } from "../provider/recovery-runtime.ts";
+import { ProviderRecoveryRuntime, type RetryPlan } from "../provider/recovery-runtime.ts";
 import { ProviderRequestRuntime } from "../provider/request-runtime.ts";
 import { ProviderResponseRuntime } from "../provider/response-runtime.ts";
 import { ProviderRoutingRuntime } from "../provider/routing-runtime.ts";
@@ -418,7 +418,7 @@ export class E01RuntimeCoordinator {
       terminalAnswer: null,
       currentRevision: this.journal.revision,
     });
-    if (stopDecision.action === "stop") {
+    if (stopDecision.action === "stop" && accepted) {
       accepted = false;
       reason = stopDecision.reason;
     }
@@ -553,14 +553,19 @@ export class E01RuntimeCoordinator {
       });
       canonicalPayload.usage_sample_id = sample.sampleId;
       if (report.ok !== true) {
-        const fallback = asRuntimeString(report.fallback_model, "");
-        this.recovery.createContext(requestId, provider, model, 16_000);
-        const plan = this.recovery.plan(
-          requestId,
-          { status: asRuntimeNumber(report.status), message: asRuntimeString(report.error, "provider failure") },
-          fallback ? [fallback] : [],
-        );
-        canonicalPayload.recovery_plan = plan as unknown as JsonValue;
+        const declaredPlan = asRuntimeObject(report.recovery_plan);
+        if (Object.keys(declaredPlan).length > 0) {
+          canonicalPayload.recovery_plan = declaredPlan;
+        } else {
+          const fallback = asRuntimeString(report.fallback_model, "");
+          this.recovery.createContext(requestId, provider, model, 16_000);
+          const plan = this.recovery.plan(
+            requestId,
+            { status: asRuntimeNumber(report.status), message: asRuntimeString(report.error, "provider failure") },
+            fallback ? [fallback] : [],
+          );
+          canonicalPayload.recovery_plan = plan as unknown as JsonValue;
+        }
       }
     } else if (/error|fail/i.test(operation)) {
       const requestId = asRuntimeString(json.request_id, `${this.runId}:${operation}`);
@@ -570,6 +575,37 @@ export class E01RuntimeCoordinator {
       canonicalPayload.recovery_error = this.recovery.errors_module({ error: json.error ?? json, provider, model, requestId }) as unknown as JsonValue;
     }
     return this.record("provider", operation, canonicalPayload);
+  }
+
+  decideProviderRecovery(input: {
+    recoveryContextId: string;
+    requestId: string;
+    provider: string;
+    model: string;
+    status: number;
+    error: string;
+    headers: Record<string, string>;
+    fallbackModels: string[];
+    outputTokenLimit: number;
+    maxRetries: number;
+  }): RetryPlan {
+    this.recovery.createContext(
+      input.recoveryContextId,
+      input.provider,
+      input.model,
+      input.outputTokenLimit,
+      input.maxRetries,
+    );
+    return this.recovery.plan(
+      input.recoveryContextId,
+      {
+        status: input.status,
+        message: input.error,
+        headers: input.headers,
+        request_id: input.requestId,
+      },
+      input.fallbackModels,
+    );
   }
 
   recordTool(operation: string, payload: O, effect = false): TransitionReceipt {

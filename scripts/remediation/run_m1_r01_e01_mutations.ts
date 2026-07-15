@@ -58,6 +58,7 @@ const providerTests = [
   mutationContract,
 ];
 const toolTests = [`${testRoot}/tool-protocol.behavior.test.ts`, mutationContract];
+const runtimeTests = ["packages/runtime/claude-runtime/test/runtime.test.ts"];
 
 function spec(tests: string[], search: string, replacement: string): MutationSpec {
   return { tests, edits: [{ search, replacement }] };
@@ -222,6 +223,11 @@ const specs: Record<string, MutationSpec> = {
     "  if (originalChars <= maxChars) {",
     "  if (true || originalChars <= maxChars) {",
   ),
+  "e01-mut-031-recovery-planner-custody": spec(
+    runtimeTests,
+    "        (observation) => e01.decideProviderRecovery(observation),\n        e01.journal.restartEpoch,",
+    "        undefined,\n        e01.journal.restartEpoch,",
+  ),
 };
 
 function hash(value: string | Uint8Array): string {
@@ -275,7 +281,7 @@ async function main(): Promise<void> {
     .split(/\r?\n/)
     .filter(Boolean)
     .map((line) => JSON.parse(line) as ManifestRow);
-  if (rows.length !== 30) throw new Error(`expected 30 frozen mutations, received ${rows.length}`);
+  if (rows.length < 30) throw new Error(`expected at least 30 frozen mutations, received ${rows.length}`);
   const unknown = rows.filter((row) => !specs[row.mutation_id]).map((row) => row.mutation_id);
   const extra = Object.keys(specs).filter((id) => !rows.some((row) => row.mutation_id === id));
   if (unknown.length || extra.length) throw new Error(`mutation spec mismatch unknown=${unknown.join(",")} extra=${extra.join(",")}`);

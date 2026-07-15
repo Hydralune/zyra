@@ -201,7 +201,7 @@ describe("E01 coordinator default TypeScript cutover", () => {
     });
 
     expect(decision.accepted).toBe(false);
-    expect(decision.reason).toBe("runtime_budget_exhausted");
+    expect(decision.reason).toBe("max_turns_exceeded");
     expect(decision.receipt.revisionAfter).toBe(2);
     expect(coordinator.stop.snapshot().decisions.at(-1)?.action).toBe("stop");
   });
