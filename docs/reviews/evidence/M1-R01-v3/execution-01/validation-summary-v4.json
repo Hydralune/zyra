@@ -1,0 +1,61 @@
+{
+  "schema_version": "4.0",
+  "execution_id": "E01",
+  "implementation_candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "source": {
+    "snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "hash_semantics": "immutable_git_blob_bytes",
+    "records": 360,
+    "accepted": 295,
+    "rejected": 65,
+    "accepted_executable_lines": 10735,
+    "five_hop_mappings": 295
+  },
+  "effective_lines": {
+    "gross_changed_production_typescript": 31423,
+    "token_winnowing_deduction": 654,
+    "effective_changed_production_typescript": 30769,
+    "required_minimum": 25416,
+    "final_production_typescript": 48348,
+    "test_typescript_minimum_observed": 10498,
+    "python_deleted_lines": 35151,
+    "generated_data_vendor_adapter_credit": 0
+  },
+  "validation": {
+    "strict_gate": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "built_entry_health": "PASS",
+    "behavior_tests": {
+      "passed": 384,
+      "failed": 0
+    },
+    "mutations": {
+      "declared": 46,
+      "compiled": 46,
+      "killed": 46,
+      "restored_sha_match": true
+    },
+    "runtime_origin": "PASS",
+    "write_path": "PASS",
+    "disable": "PASS",
+    "lost_ack": "PASS",
+    "same_session_resume": {
+      "status": "PASS",
+      "process_restart_count": 2,
+      "replayed_transition_ids": 0
+    },
+    "dependency_audit": "PASS",
+    "cleanroom": {
+      "status": "PASS",
+      "target_commit": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
+      "fresh_archive": true,
+      "frozen_install": true,
+      "inherited_node_path": false,
+      "cleaned_after_run": true
+    }
+  },
+  "candidate_status": "READY_FOR_INDEPENDENT_REVIEW"
+}

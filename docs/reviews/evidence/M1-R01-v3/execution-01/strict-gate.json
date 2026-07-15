@@ -2,7 +2,7 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "8c05fbbb89a6f0d47a8aeb0931236764eef25471",
+  "candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39",
   "ok": true,
   "checks": {
     "source_manifest": {
@@ -21,7 +21,7 @@
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "8c05fbbb89a6f0d47a8aeb0931236764eef25471"
+      "candidate": "cb5cc61627a71c60cea179736a8d9dda3f5aac39"
     },
     "effective_lines": {
       "gross_changed_executable_typescript": 31423,
@@ -821,7 +821,7 @@
       },
       "effective_changed_typescript": 30769,
       "final_production_typescript": 48348,
-      "final_test_typescript": 10498,
+      "final_test_typescript": 10553,
       "python_deleted_lines": 35151
     },
     "mutations": {
