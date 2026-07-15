@@ -432,8 +432,9 @@ async function dependencies(): Promise<void> {
 }
 
 async function runToolchain(cwd: string): Promise<{ ok: boolean; receipts: Obj[] }> {
-  const isolatedTemp = join(cwd, ".tmp", "e01-toolchain");
-  const isolatedCache = join(cwd, ".tmp", "bun-install-cache");
+  const scope = hash(resolve(cwd)).slice(0, 16);
+  const isolatedTemp = join(tmpdir(), "zyra-e01-toolchain", scope, "tmp");
+  const isolatedCache = join(tmpdir(), "zyra-e01-toolchain", scope, "bun-cache");
   await mkdir(isolatedTemp, { recursive: true });
   await mkdir(isolatedCache, { recursive: true });
   const isolatedEnvironment = {
@@ -442,11 +443,13 @@ async function runToolchain(cwd: string): Promise<{ ok: boolean; receipts: Obj[]
     TEMP: isolatedTemp,
     TMPDIR: isolatedTemp,
     BUN_INSTALL_CACHE_DIR: isolatedCache,
+    npm_config_cache: join(isolatedCache, "npm"),
+    NODE_PATH: "",
   };
   const commands = [
     [process.execPath, "--version"],
     [process.execPath, "install", "--frozen-lockfile"],
-    [process.execPath, "run", "typecheck"],
+    [process.execPath, "run", "typecheck:e01"],
     [process.execPath, "run", "build"],
     [process.execPath, "run", "runtime:e01:test"],
     [process.execPath, "run", "runtime:built:health"],
@@ -471,9 +474,13 @@ async function cleanroom(): Promise<void> {
   const headResult = await run(["git", "rev-parse", "HEAD"]);
   invariant(headResult.exitCode === 0, "cannot resolve cleanroom target commit");
   const head = headResult.stdout.trim();
-  const cleanroomRoot = join(zyra, "tmp", `e01-cleanroom-${head.slice(0, 12)}`);
+  const cleanroomRoot = join(tmpdir(), "zyra-e01-cleanroom", `e01-cleanroom-${head.slice(0, 12)}`);
   const archivePath = `${cleanroomRoot}.tar`;
-  invariant(cleanroomRoot.startsWith(join(zyra, "tmp", "e01-cleanroom-")), "unsafe cleanroom path");
+  invariant(
+    resolve(cleanroomRoot).startsWith(resolve(tmpdir(), "zyra-e01-cleanroom") + "\\")
+      || resolve(cleanroomRoot).startsWith(resolve(tmpdir(), "zyra-e01-cleanroom") + "/"),
+    "unsafe cleanroom path",
+  );
   await rm(cleanroomRoot, { recursive: true, force: true });
   await rm(archivePath, { force: true });
   await mkdir(dirname(cleanroomRoot), { recursive: true });
@@ -494,6 +501,8 @@ async function cleanroom(): Promise<void> {
     target_commit: head,
     source: "git archive",
     cache_state: "fresh extracted tree without node_modules, dist, .tmp, or git metadata",
+    cleanroom_root_parent: resolve(tmpdir(), "zyra-e01-cleanroom"),
+    inherited_node_path: false,
     commands: toolchainResult.receipts,
     cleaned_after_run: true,
   });

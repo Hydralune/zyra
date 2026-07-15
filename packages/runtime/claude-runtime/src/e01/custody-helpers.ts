@@ -16,6 +16,8 @@ export interface ProviderExecutionProjection {
   error: string;
   model: string;
   providerRequestId: string | null;
+  finalText: string;
+  stopReason: string;
 }
 
 export function normalizedProviderBaseUrl(
@@ -117,7 +119,12 @@ export function providerExecutionSuccess(
   response: ProviderResponse,
 ): ProviderExecutionProjection {
   const steps: ToolStep[] = [];
+  const text: string[] = [];
   for (const block of response.content) {
+    if (block.type === "text") {
+      text.push(block.text);
+      continue;
+    }
     if (block.type !== "tool_use") continue;
     steps.push({
       step_id: block.id,
@@ -146,6 +153,8 @@ export function providerExecutionSuccess(
     error: "",
     model: response.model,
     providerRequestId: response.providerRequestId,
+    finalText: text.join(""),
+    stopReason: response.stopReason,
   };
 }
 
@@ -166,6 +175,8 @@ export function providerExecutionFailure(
     error: error instanceof Error ? error.message : String(error),
     model,
     providerRequestId: nullableString(details.provider_request_id),
+    finalText: "",
+    stopReason: "unknown",
   };
 }
 

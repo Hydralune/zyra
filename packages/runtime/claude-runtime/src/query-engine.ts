@@ -25,6 +25,10 @@ import {
 } from "./tools.ts";
 import { TypeScriptControlRuntime } from "./control/index.ts";
 import { E01RuntimeCoordinator } from "./e01/coordinator.ts";
+import {
+  ModelIterationRuntime,
+  type ModelIterationSnapshot,
+} from "./loop/model-iteration-runtime.ts";
 
 const DEFAULT_CONFIG: RuntimeConfig = {
   maxTurns: null,
@@ -60,6 +64,23 @@ export class ClaudeRuntimeCore {
         || config.runtimeConstraints.model_transport_kind,
       "scripted",
     );
+    const restoredIteration = selectRestoredModelIterationSnapshot(input.restoredState);
+    const iteration = new ModelIterationRuntime({
+      sessionId: input.sessionId,
+      runId: input.runId,
+      taskId: input.taskId,
+      workerRequestId: input.workerRequestId,
+    });
+    let providerMessages = input.messages.map((message) => message as unknown as JsonObject);
+    if (restoredIteration?.phase === "ready") {
+      iteration.restore(restoredIteration, true);
+      providerMessages = structuredClone(restoredIteration.transcript);
+    } else {
+      iteration.start(providerMessages, {
+        maximumRounds: config.maxTurns ?? 1_000,
+        maximumToolCalls: Math.max(1_000, (config.maxTurns ?? 1_000) * 32),
+      });
+    }
     await e01.configureProviderRuntime({
       providerId: modelTransport === "http_sse" ? "compatible" : "local",
       modelId: config.modelName,
@@ -110,6 +131,8 @@ export class ClaudeRuntimeCore {
     let stoppedReason: string | null = null;
     let continuedFailureReason: string | null = null;
     let permissionSuspended = false;
+    let providerRoundIndex = 0;
+    let activeIterationRoundId: string | null = null;
     const mutationTargets = new Set<string>();
     let modelMetadata: Record<string, string> = {
       model_stream_ok: "false",
@@ -237,6 +260,13 @@ export class ClaudeRuntimeCore {
     }
 
     if (ok) {
+      const iterationRound = modelTransport === "http_sse"
+        ? iteration.beginProviderRound({
+          requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+          model: config.modelName,
+          messages: providerMessages,
+        })
+        : null;
       const model = await resolveModelTurns(
         input,
         config,
@@ -247,10 +277,14 @@ export class ClaudeRuntimeCore {
         e01.journal.restartEpoch,
         (observation) => e01.completeProviderRecovery(observation),
         (requestId) => e01.executePreparedProvider(requestId),
+        providerRoundIndex,
+        providerMessages,
       );
+      providerRoundIndex += modelTransport === "http_sse" ? 1 : 0;
       turns = model.turns;
       modelMetadata = model.metadata;
       if (!model.ok) {
+        if (iterationRound) iteration.failProviderRound(iterationRound.roundId, model.error ?? "model_stream_failed");
         ok = false;
         stoppedReason = model.error === "model_error" ? "model_error" : "model_stream_failed";
         await emit("error", {
@@ -258,10 +292,20 @@ export class ClaudeRuntimeCore {
           detail: model.error || "model stream failed",
           source: "model_stream",
         });
+      } else if (iterationRound) {
+        iteration.acceptProviderResult({
+          roundId: iterationRound.roundId,
+          providerRequestId: model.providerRequestId,
+          model: config.modelName,
+          stopReason: model.stopReason,
+          finalText: model.finalText,
+          steps: model.turns.flat(),
+        });
+        activeIterationRoundId = model.turns.length > 0 ? iterationRound.roundId : null;
       }
     }
 
-    const turnLimit = config.maxTurns ?? turns.length;
+    const turnLimit = config.maxTurns ?? (modelTransport === "http_sse" ? 1_000 : turns.length);
     for (let turnIndex = 0; ok && turnIndex < turns.length; turnIndex += 1) {
       const queryDecision = e01.decideQuery("turn_preflight", {
         turnIndex,
@@ -387,6 +431,9 @@ export class ClaudeRuntimeCore {
             mutatingToolCount += 1;
           }
           session.recordToolCall(toolCallId, step.tool_name);
+          if (modelTransport === "http_sse") {
+            iteration.markToolRunning(toolCallId, turn.turn_id);
+          }
           const failures = registry.validate(step);
           if (failures.length > 0) {
             immediateResults.set(toolCallId, {
@@ -513,6 +560,16 @@ export class ClaudeRuntimeCore {
           }
           artifacts.push(...result.artifacts);
           session.recordToolResult(step.tool_name, result);
+          if (modelTransport === "http_sse") {
+            iteration.recordToolObservation({
+              callId: result.tool_call_id,
+              turnId: turn.turn_id,
+              ok: result.ok,
+              summary: result.summary,
+              output: result.output,
+              error: result.error ?? null,
+            });
+          }
           stepSummaries.push(result.tool_call_id + ":" + result.summary);
           await emit("tool_call_completed", {
             turn_id: turn.turn_id,
@@ -721,6 +778,62 @@ export class ClaudeRuntimeCore {
         ok = false;
         stoppedReason = "user_cancelled";
       }
+      if (
+        modelTransport === "http_sse"
+        && ok
+        && activeIterationRoundId
+        && turnIndex + 1 < turnLimit
+      ) {
+        providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);
+        const nextRound = iteration.beginProviderRound({
+          requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
+          model: config.modelName,
+          messages: providerMessages,
+        });
+        const nextModel = await resolveModelTurns(
+          input,
+          config,
+          [],
+          registry.list(),
+          emit,
+          (observation) => e01.decideProviderRecovery(observation),
+          e01.journal.restartEpoch,
+          (observation) => e01.completeProviderRecovery(observation),
+          (requestId) => e01.executePreparedProvider(requestId),
+          providerRoundIndex,
+          providerMessages,
+        );
+        providerRoundIndex += 1;
+        modelMetadata = {
+          ...nextModel.metadata,
+          model_provider_rounds: String(providerRoundIndex),
+        };
+        if (!nextModel.ok) {
+          iteration.failProviderRound(nextRound.roundId, nextModel.error ?? "model_stream_failed");
+          ok = false;
+          stoppedReason = "model_stream_failed";
+          await emit("error", {
+            error: stoppedReason,
+            detail: nextModel.error ?? "provider revision failed",
+            source: "model_iteration_runtime",
+          });
+        } else {
+          iteration.acceptProviderResult({
+            roundId: nextRound.roundId,
+            providerRequestId: nextModel.providerRequestId,
+            model: config.modelName,
+            stopReason: nextModel.stopReason,
+            finalText: nextModel.finalText,
+            steps: nextModel.turns.flat(),
+          });
+          if (nextModel.turns.length > 0) {
+            turns.push(...nextModel.turns);
+            activeIterationRoundId = nextRound.roundId;
+          } else {
+            activeIterationRoundId = null;
+          }
+        }
+      }
     }
 
     if (ok && turns.length > turnLimit) {
@@ -782,6 +895,7 @@ export class ClaudeRuntimeCore {
       ...session.snapshot(),
       typescriptControl: controlRuntime.snapshot(),
       e01Runtime: e01.snapshot() as unknown as JsonObject,
+      modelIteration: iteration.snapshot() as unknown as JsonObject,
     };
     await emit("query_session_snapshot", {
       snapshot_version: snapshot.version,
@@ -904,7 +1018,27 @@ function sessionChecksumPayload(value: JsonObject): JsonObject {
   const selected = { ...value };
   delete selected.typescriptControl;
   delete selected.e01Runtime;
+  delete selected.modelIteration;
   return selected;
+}
+
+function selectRestoredModelIterationSnapshot(
+  value: JsonObject | null | undefined,
+): ModelIterationSnapshot | null {
+  const root = asObject(value);
+  const candidates = [
+    root,
+    asObject(root.typescript_runtime),
+    asObject(root.query_engine),
+    asObject(asObject(root.metadata).typescript_runtime_snapshot),
+  ];
+  for (const candidate of candidates) {
+    const snapshot = asObject(candidate.modelIteration);
+    if (snapshot.version === "zyra.model-iteration/v1") {
+      return snapshot as unknown as ModelIterationSnapshot;
+    }
+  }
+  return null;
 }
 
 function selectRestoredE01Snapshot(
@@ -919,7 +1053,7 @@ function selectRestoredE01Snapshot(
   ];
   for (const candidate of candidates) {
     const snapshot = asObject(candidate.e01Runtime);
-    if (snapshot.version === "zyra.e01-runtime/v5") {
+    if (snapshot.version === "zyra.e01-runtime/v6" || snapshot.version === "zyra.e01-runtime/v5") {
       return snapshot as unknown as import("./e01/coordinator.ts").E01CoordinatorSnapshot;
     }
     if (snapshot.version === "zyra.e01-journal/v3") {

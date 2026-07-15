@@ -228,31 +228,53 @@ test("runtime externalizes large tool results and compacts context", async () =>
 test("runtime commits provider prompt usage and recovery state through default loop", async () => {
   const originalFetch = globalThis.fetch;
   let providerFetchCount = 0;
-  globalThis.fetch = (async () => {
+  const providerBodies: JsonObject[] = [];
+  const providerUrls: string[] = [];
+  globalThis.fetch = (async (
+    resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
     providerFetchCount += 1;
-    return new Response(JSON.stringify({
+    providerUrls.push(String(resource));
+    providerBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    if (providerFetchCount > 1) {
+      const finalEvent = {
+        id: "provider-final-message",
+        object: "chat.completion.chunk",
+        model: "zyra-local-code-model",
+        choices: [{ index: 0, delta: { content: "The requested file was inspected." }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 20, completion_tokens: 6, total_tokens: 26 },
+      };
+      return new Response(`data: ${JSON.stringify(finalEvent)}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "request-id": "provider-final-upstream-request",
+        },
+      });
+    }
+    const toolEvent = {
       id: "provider-success-message",
-      type: "message",
-      role: "assistant",
+      object: "chat.completion.chunk",
       model: "zyra-local-code-model",
-      content: [{
-        type: "tool_use",
-        id: "provider-success-tool",
-        name: "read",
-        input: { path: "a" },
+      choices: [{
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: "provider-success-tool",
+            type: "function",
+            function: { name: "read", arguments: JSON.stringify({ path: "a" }) },
+          }],
+        },
+        finish_reason: "tool_calls",
       }],
-      stop_reason: "tool_use",
-      stop_sequence: null,
-      usage: {
-        input_tokens: 12,
-        output_tokens: 7,
-        cache_read_input_tokens: 0,
-        cache_creation_input_tokens: 0,
-      },
-    }), {
+      usage: { prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 },
+    };
+    return new Response(`data: ${JSON.stringify(toolEvent)}\n\ndata: [DONE]\n\n`, {
       status: 200,
       headers: {
-        "content-type": "application/json",
+        "content-type": "text/event-stream",
         "request-id": "provider-success-upstream-request",
       },
     });
@@ -278,29 +300,36 @@ test("runtime commits provider prompt usage and recovery state through default l
   }
   const successState = e01State(success);
   assert.equal(success.ok, true);
-  assert.equal(providerFetchCount, 1);
-  assert.equal(successState.telemetry.prompts.length, 1);
-  assert.equal(successState.telemetry.samples.length, 1);
+  assert.equal(providerFetchCount, 2);
+  assert.deepEqual(providerUrls, [
+    "https://provider.invalid/v1/chat/completions",
+    "https://provider.invalid/v1/chat/completions",
+  ]);
+  assert.equal(providerBodies[0].stream, true);
+  assert.ok(Array.isArray(providerBodies[1].messages));
+  assert.ok((providerBodies[1].messages as JsonObject[]).some((message) => message.role === "tool"));
+  assert.ok(successState.telemetry.prompts.length >= 1);
+  assert.equal(successState.telemetry.samples.length, 2);
   assert.ok(successState.providerPrompt.lastPrompt?.fingerprint);
-  assert.deepEqual(successState.providerRequests.requests.map((item) => item.status), ["completed"]);
-  assert.deepEqual(successState.providerRequests.attempts.map((item) => item.status), ["succeeded"]);
-  assert.equal(successState.providerRequests.chunks.length, 1);
-  assert.deepEqual(successState.providerResponses.responses.map((item) => item.stopReason), ["tool_use"]);
-  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "compatible-default")?.successes, 1);
+  assert.deepEqual(successState.providerRequests.requests.map((item) => item.status), ["completed", "completed"]);
+  assert.deepEqual(successState.providerRequests.attempts.map((item) => item.status), ["succeeded", "succeeded"]);
+  assert.equal(successState.providerRequests.chunks.length, 2);
+  assert.deepEqual(successState.providerResponses.responses.map((item) => item.stopReason), ["tool_use", "end_turn"]);
+  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "compatible-default")?.successes, 2);
   assert.equal(successState.providerRouting.states.find((item) => item.routeId === "compatible-default")?.inFlight, 0);
-  assert.deepEqual(successState.providerRateLimits.reservations.map((item) => item.status), ["committed"]);
-  assert.equal(successState.providerRateLimits.buckets.find((item) => item.limitId === "compatible-default-requests")?.consumed, 1);
-  assert.deepEqual(successState.provider.requests.map((item) => item.state), ["completed"]);
-  assert.deepEqual(successState.providerTransport.requests.map((item) => item.state), ["completed"]);
+  assert.deepEqual(successState.providerRateLimits.reservations.map((item) => item.status), ["committed", "committed"]);
+  assert.equal(successState.providerRateLimits.buckets.find((item) => item.limitId === "compatible-default-requests")?.consumed, 2);
+  assert.deepEqual(successState.provider.requests.map((item) => item.state), ["completed", "completed"]);
+  assert.deepEqual(successState.providerTransport.requests.map((item) => item.state), ["completed", "completed"]);
   assert.equal(successState.providerCredentials.records.length, 1);
-  assert.equal(successState.providerCredentials.records[0].totalSuccesses, 1);
+  assert.equal(successState.providerCredentials.records[0].totalSuccesses, 2);
   assert.deepEqual(successState.tools.calls.map((item) => item.state), ["succeeded"]);
   assert.ok(successState.tools.leases.every((item) => item.releasedAt !== null));
   assert.deepEqual(successState.toolResults.accumulators.map((item) => item.status), ["sealed"]);
   assert.deepEqual(successState.toolResults.deliveries.map((item) => item.success), [true]);
   assert.deepEqual(successState.session.effects.map((item) => item.state), ["committed"]);
   assert.ok(successState.session.messages.length >= 4);
-  assert.deepEqual(successState.custody.providers.map((item) => item.state), ["succeeded"]);
+  assert.deepEqual(successState.custody.providers.map((item) => item.state), ["succeeded", "succeeded"]);
   assert.deepEqual(successState.custody.tools.map((item) => item.state), ["succeeded"]);
   assert.ok(successState.custody.tools.every((item) => item.effectId && item.deliveryId));
   assert.deepEqual(successState.custody.turns.map((item) => item.state), ["completed"]);
@@ -371,23 +400,35 @@ test("runtime clears canonical recovery state after a retry succeeds", async () 
         headers: { "retry-after": "0" },
       });
     }
-    return new Response(JSON.stringify({
-      id: "retry-provider-message",
-      type: "message",
-      role: "assistant",
-      model: "zyra-local-code-model",
-      content: [{
-        type: "tool_use",
-        id: "retry-tool-call",
-        name: "read",
-        input: { path: "a" },
-      }],
-      stop_reason: "tool_use",
-      stop_sequence: null,
-      usage: { input_tokens: 4, output_tokens: 3 },
-    }), {
+    const payload = requestCount === 2
+      ? {
+        id: "retry-provider-message",
+        object: "chat.completion.chunk",
+        model: "zyra-local-code-model",
+        choices: [{
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "retry-tool-call",
+              type: "function",
+              function: { name: "read", arguments: JSON.stringify({ path: "a" }) },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }],
+        usage: { prompt_tokens: 4, completion_tokens: 3, total_tokens: 7 },
+      }
+      : {
+        id: "retry-provider-final",
+        object: "chat.completion.chunk",
+        model: "zyra-local-code-model",
+        choices: [{ index: 0, delta: { content: "Retry completed." }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 8, completion_tokens: 2, total_tokens: 10 },
+      };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
       status: 200,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "text/event-stream" },
     });
   }) as unknown as typeof fetch;
   try {
@@ -405,7 +446,7 @@ test("runtime clears canonical recovery state after a retry succeeds", async () 
     }), new MemoryHost());
     const state = e01State(result);
     assert.equal(result.ok, true);
-    assert.equal(requestCount, 2);
+    assert.equal(requestCount, 3);
     assert.equal(state.recovery.contexts.length, 0);
     assert.ok((state.journal.state.provider?.revision ?? 0) > 0);
   } finally {

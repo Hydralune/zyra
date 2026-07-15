@@ -7,6 +7,14 @@ import {
   type JsonObject,
   type JsonValue,
 } from "../contracts.ts";
+import {
+  assertCompatibleResponse,
+  compatibleHeaders,
+  compatibleRequestBody,
+  compatibleRequestUrl,
+  consumeCompatibleStream,
+  decodeCompatibleResponse,
+} from "./compatible-runtime.ts";
 
 export const PROVIDER_MODEL_SNAPSHOT_VERSION = "zyra.provider-model/v1";
 export const CLIENT_REQUEST_ID_HEADER = "x-client-request-id";
@@ -235,6 +243,7 @@ export interface ProviderTransportResponse {
   headers: Readonly<Record<string, string>>;
   body?: JsonValue;
   stream?: AsyncIterable<string | Uint8Array>;
+  settle?: (success: boolean) => void;
 }
 
 export interface ProviderTransport {
@@ -681,15 +690,42 @@ export class ProviderModelRuntime {
       throw providerHttpError(response);
     }
     let parsed: ProviderResponse;
-    if (prepared.body.stream === true) {
-      if (!response.stream) {
-        throw new ProviderProtocolError("missing_stream", "streaming response did not include a stream");
+    let responseSettled = false;
+    const settleResponse = (success: boolean): void => {
+      if (responseSettled) return;
+      responseSettled = true;
+      response.settle?.(success);
+    };
+    try {
+      if (prepared.body.stream === true) {
+        if (!response.stream) {
+          throw new ProviderProtocolError("missing_stream", "streaming response did not include a stream");
+        }
+        record.state = "streaming";
+        record.revision += 1;
+        if (prepared.provider === "compatible" || prepared.provider === "local") {
+          const compatible = await consumeCompatibleStream(response.stream);
+          assertCompatibleResponse(compatible);
+          parsed = parseProviderResponse(prepared.requestId, compatible.normalized);
+        } else {
+          parsed = await consumeProviderStream(prepared.requestId, response.stream);
+        }
+      } else if (prepared.provider === "compatible" || prepared.provider === "local") {
+        const compatible = decodeCompatibleResponse(response.body);
+        assertCompatibleResponse(compatible);
+        parsed = parseProviderResponse(prepared.requestId, compatible.normalized);
+      } else {
+        parsed = parseProviderResponse(prepared.requestId, response.body);
       }
-      record.state = "streaming";
+      settleResponse(true);
+    } catch (error) {
+      settleResponse(false);
+      record.state = signal?.aborted ? "cancelled" : "failed";
+      record.errorCode = signal?.aborted ? "request_cancelled" : "provider_protocol_error";
+      record.completedAt = new Date().toISOString();
       record.revision += 1;
-      parsed = await consumeProviderStream(prepared.requestId, response.stream);
-    } else {
-      parsed = parseProviderResponse(prepared.requestId, response.body);
+      this.revision += 1;
+      throw error;
     }
     if (!parsed.providerRequestId) parsed.providerRequestId = record.providerRequestId;
     record.state = "completed";
@@ -802,6 +838,28 @@ export class ProviderModelRuntime {
   }
 
   private buildBody(options: ProviderRequestOptions): JsonObject {
+    if (this.endpoint.provider === "compatible" || this.endpoint.provider === "local") {
+      const systemMessages: JsonObject[] = options.system.map((block) => ({
+        role: "system",
+        content: block.text,
+      }));
+      return compatibleRequestBody({
+        baseUrl: this.endpoint.baseUrl,
+        model: options.model,
+        messages: [...systemMessages, ...options.messages.map(messageToJson)],
+        tools: options.tools.map(toolToJson),
+        maximumTokens: options.maxTokens,
+        temperature: options.temperature,
+        stream: options.stream,
+        metadata: {
+          ...options.metadata,
+          user_id: digest({ session_id: options.sessionId }).slice(0, 32),
+          zyra_run_id: options.runId,
+          zyra_task_id: options.taskId,
+          query_source: options.querySource,
+        },
+      });
+    }
     const body: JsonObject = {
       model: options.model,
       messages: options.messages.map(messageToJson),
@@ -833,6 +891,14 @@ export class ProviderModelRuntime {
   }
 
   private buildHeaders(requestId: string, betas: readonly string[]): Readonly<Record<string, string>> {
+    if (this.endpoint.provider === "compatible" || this.endpoint.provider === "local") {
+      const secret = this.credential.apiKey ?? this.credential.accessToken;
+      return Object.freeze(compatibleHeaders(secret, {
+        [CLIENT_REQUEST_ID_HEADER]: requestId,
+        "user-agent": "zyra-code-worker/1",
+        ...this.endpoint.extraHeaders,
+      }));
+    }
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "accept": "application/json",
@@ -1157,6 +1223,7 @@ function countMedia(messages: readonly ProviderMessage[]): number {
 
 function providerRequestUrl(value: PreparedProviderRequest): string {
   const base = value.endpoint.baseUrl;
+  if (value.provider === "compatible" || value.provider === "local") return compatibleRequestUrl(base);
   if (value.provider === "anthropic") return `${base}/v1/messages`;
   if (value.provider === "bedrock") {
     const model = encodeURIComponent(value.model.id);

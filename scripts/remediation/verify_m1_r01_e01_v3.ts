@@ -76,10 +76,23 @@ function main(): number {
   if (stateHead !== VERIFIED) findings.push({ code: "verified_head", location: "execution-state.yaml", message: stateHead });
   const snapshot = execFileSync("git", ["rev-parse", "HEAD"], { cwd: sourceRoot, encoding: "utf8" }).trim();
   const ids = new Set<string>();
+  const acceptedIds = new Set<string>();
+  const rejectedIds = new Set<string>();
   for (const record of source) {
-    need(record, ["mapping_id", "source_snapshot", "source_path", "source_sha256", "start_line", "end_line", "source_symbol", "semantic_domain"], record.mapping_id, findings);
+    need(record, ["mapping_id", "source_snapshot", "source_path", "source_sha256", "start_line", "end_line", "source_symbol", "semantic_domain", "accepted", "exclusion_reason"], record.mapping_id, findings);
     if (ids.has(record.mapping_id)) findings.push({ code: "mapping_duplicate", location: record.mapping_id, message: "duplicate" });
     ids.add(record.mapping_id);
+    if (record.accepted === true) {
+      acceptedIds.add(record.mapping_id);
+      if (record.exclusion_reason !== null) findings.push({ code: "accepted_exclusion", location: record.mapping_id, message: "accepted range has exclusion" });
+    } else if (record.accepted === false) {
+      rejectedIds.add(record.mapping_id);
+      if (typeof record.exclusion_reason !== "string" || !record.exclusion_reason.trim()) {
+        findings.push({ code: "rejected_reason", location: record.mapping_id, message: "rejected range requires reason" });
+      }
+    } else {
+      findings.push({ code: "accepted_flag", location: record.mapping_id, message: String(record.accepted) });
+    }
     const path = join(sourceRoot, record.source_path);
     if (!existsSync(path)) {
       findings.push({ code: "source_missing", location: record.mapping_id, message: record.source_path });
@@ -96,13 +109,20 @@ function main(): number {
   }
   overlaps(source, "source_path", findings);
   const targetIds = new Set(target.map((record) => record.mapping_id));
-  for (const id of ids) if (!targetIds.has(id)) findings.push({ code: "target_mapping", location: id, message: "missing" });
-  if (target.length !== source.length) findings.push({ code: "target_cardinality", location: paths.target, message: String(target.length) });
+  for (const id of acceptedIds) if (!targetIds.has(id)) findings.push({ code: "target_mapping", location: id, message: "missing accepted target" });
+  for (const id of rejectedIds) if (targetIds.has(id)) findings.push({ code: "rejected_target_mapping", location: id, message: "rejected source has target" });
+  if (target.length !== acceptedIds.size) findings.push({ code: "target_cardinality", location: paths.target, message: `${target.length}/${acceptedIds.size}` });
   for (const record of target) {
     need(record, ["target_path", "target_symbol", "canonical_owner_id", "default_callsite_path", "default_callsite_symbol", "state_store", "state_effect_kind", "success_test_ids", "failure_test_ids", "disable_test_ids", "runtime_origin_probe_id", "write_path_probe_id", "restore_probe_id"], record.mapping_id, findings);
     const path = join(zyra, record.target_path);
     if (requireTargets && !existsSync(path)) findings.push({ code: "target_missing", location: record.mapping_id, message: record.target_path });
+    if (requireTargets && (typeof record.target_sha256 !== "string" || record.target_sha256.length !== 64)) {
+      findings.push({ code: "target_hash_missing", location: record.mapping_id, message: String(record.target_sha256) });
+    }
     if (existsSync(path) && record.target_sha256 && hash(readFileSync(path)) !== record.target_sha256) findings.push({ code: "target_hash", location: record.mapping_id, message: "drift" });
+    if (JSON.stringify(record.success_test_ids) === JSON.stringify(record.failure_test_ids)) {
+      findings.push({ code: "test_polarity", location: record.mapping_id, message: "success and failure tests are identical" });
+    }
   }
   for (const record of python) {
     need(record, ["owner_id", "verified_zyra_head", "python_path", "python_sha256", "start_line", "end_line", "python_symbol", "disposition", "deletion_test_id"], record.owner_id, findings);
@@ -113,6 +133,9 @@ function main(): number {
   if (mutation.length < 30) findings.push({ code: "mutation_floor", location: paths.mutation, message: String(mutation.length) });
   if (new Set(mutation.map((record) => record.mutation_id)).size !== mutation.length) findings.push({ code: "mutation_duplicate", location: paths.mutation, message: "duplicate" });
   if (profile.verified_zyra_head !== VERIFIED || receipt.verified_zyra_head !== VERIFIED) findings.push({ code: "baseline_drift", location: "profile/receipt", message: "verified head mismatch" });
+  if (receipt.clean_worktree !== true || (receipt.dirty_paths_at_capture ?? []).length !== 0) {
+    findings.push({ code: "receipt_worktree", location: paths.receipt, message: "G0 capture did not begin from a clean worktree" });
+  }
   if (profile.toolchain?.bun_version !== "1.2.15") findings.push({ code: "bun_profile", location: paths.profile, message: "not pinned" });
   const bunVersion = (globalThis as any).Bun?.version ?? "not-bun";
   if (bunVersion !== "1.2.15") findings.push({ code: "bun_runtime", location: "toolchain", message: bunVersion });
@@ -127,6 +150,9 @@ function main(): number {
     toolchain: { bun: bunVersion },
     counts: {
       source_ranges: source.length,
+      accepted_source_ranges: acceptedIds.size,
+      rejected_source_ranges: rejectedIds.size,
+      accepted_source_physical_range_sloc: source.filter((item) => item.accepted === true).reduce((sum, item) => sum + item.end_line - item.start_line + 1, 0),
       source_physical_range_sloc: source.reduce((sum, item) => sum + item.end_line - item.start_line + 1, 0),
       python_symbols: python.length,
       python_physical_range_sloc: python.reduce((sum, item) => sum + item.end_line - item.start_line + 1, 0),

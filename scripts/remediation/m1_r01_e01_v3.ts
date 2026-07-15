@@ -6,6 +6,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as ts from "typescript";
+import {
+  mutationPatchFingerprint,
+  mutationSpecs,
+} from "./run_m1_r01_e01_mutations.ts";
 
 type Obj = Record<string, any>;
 
@@ -34,6 +38,12 @@ const inputs = [
   ["src/services/compact/sessionMemoryCompact.ts", 568, "compact"],
   ["src/services/compact/postCompactCleanup.ts", 75, "compact"],
   ["src/query/tokenBudget.ts", 81, "context-token"],
+  ["src/services/tools/toolOrchestration.ts", 188, "tool-execution"],
+  ["src/services/tools/StreamingToolExecutor.ts", 530, "tool-execution"],
+  ["src/services/tools/toolResultStorage.ts", 1040, "tool-result"],
+  ["src/sessionState.ts", 150, "session-lifecycle"],
+  ["src/utils/sessionRestore.ts", 551, "session-lifecycle"],
+  ["src/history.ts", 464, "session-lifecycle"],
 ] as const;
 
 const QUERY_PATH = "packages/runtime/claude-runtime/src/query-engine.ts";
@@ -47,7 +57,12 @@ const RECOVERY_PATH = "packages/runtime/claude-runtime/src/provider/recovery-run
 const TELEMETRY_PATH = "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts";
 const COMPACT_PATH = "packages/runtime/claude-runtime/src/compact/context-runtime.ts";
 const TOKEN_PATH = "packages/runtime/claude-runtime/src/context/token-runtime.ts";
+const PERMISSION_ENFORCEMENT_PATH = "packages/runtime/claude-runtime/src/tools/permission-enforcement-runtime.ts";
+const EXECUTION_SETTLEMENT_PATH = "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts";
+const MODEL_ITERATION_PATH = "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts";
+const COMPATIBLE_PATH = "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts";
 const RUNTIME_TEST_PATH = "packages/runtime/claude-runtime/test/runtime.test.ts";
+const ADVERSARIAL_TEST_PATH = "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts";
 
 const mutationIds = {
   turnLimit: "e01-mut-011-turn-limit",
@@ -103,6 +118,30 @@ const behaviorTests = {
     name: "runtime clears canonical recovery state after a retry succeeds",
     anchor: "ClaudeRuntimeCore",
     assertion_tokens: ["requestCount", "state.recovery.contexts.length", "journal.state.provider"],
+  },
+  permission: {
+    path: ADVERSARIAL_TEST_PATH,
+    name: "e01.mutation.permission-mixed-batch-delegates-only-allowed-calls",
+    anchor: "PermissionedCapabilityHost",
+    assertion_tokens: ["gateway.delegated", "permission_denied", "blockedRequestIds"],
+  },
+  settlement: {
+    path: ADVERSARIAL_TEST_PATH,
+    name: "settlement preserves request order across blocked and delegated calls",
+    anchor: "settlementRuntime",
+    assertion_tokens: ["orderedReceipts", "toEqual", "runtime.audit"],
+  },
+  iteration: {
+    path: ADVERSARIAL_TEST_PATH,
+    name: "e01.mutation.provider-observation-requires-a-new-provider-round",
+    anchor: "ModelIterationRuntime",
+    assertion_tokens: ["buildRevisionMessages", "roundCount", "toolCount"],
+  },
+  compatible: {
+    path: ADVERSARIAL_TEST_PATH,
+    name: "e01.mutation.compatible-stream-assembles-tool-deltas",
+    anchor: "consumeCompatibleStream",
+    assertion_tokens: ["toolCalls", "finishReason", "totalTokens"],
   },
 } as const;
 
@@ -443,6 +482,118 @@ function tokenRoute(source: Obj): Obj {
   };
 }
 
+function toolExecutionRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  let path = EXECUTION_SETTLEMENT_PATH;
+  let symbol = "ToolExecutionSettlementRuntime.recordGatewayReceipt";
+  let effect = "tool-settlement";
+  let mutationsForTarget = ["e01-mut-041-settlement-gateway-fence"];
+  let behavior: readonly Obj[] = [behaviorTests.settlement];
+  if (/permission|approval|allowed|denied/i.test(name)) {
+    path = PERMISSION_ENFORCEMENT_PATH;
+    symbol = "PermissionEnforcementRuntime.enforce";
+    effect = "permission-enforcement";
+    mutationsForTarget = ["e01-mut-037-permission-deny-delegation", "e01-mut-043-gateway-extra-receipt"];
+    behavior = [behaviorTests.permission];
+  } else if (/batch|schedule|queue|parallel|concurrent/i.test(name)) {
+    symbol = "ToolExecutionSettlementRuntime.planBatch";
+  } else if (/progress|stream|chunk|delta/i.test(name)) {
+    symbol = "ToolExecutionSettlementRuntime.appendProgress";
+  } else if (/local|capability/i.test(name)) {
+    symbol = "ToolExecutionSettlementRuntime.recordLocalSettlement";
+  } else if (/execute|executor|toolUse|run/i.test(name)) {
+    path = "packages/runtime/claude-runtime/src/capability-host.ts";
+    symbol = "PermissionedCapabilityHost.executeBatch";
+    effect = "permission-gated-tool-execution";
+    mutationsForTarget = ["e01-mut-037-permission-deny-delegation", "e01-mut-041-settlement-gateway-fence"];
+    behavior = [behaviorTests.permission, behaviorTests.settlement];
+  }
+  const edges = [
+    edge(QUERY_PATH, "ClaudeRuntimeCore.run", "packages/runtime/claude-runtime/src/capability-host.ts", "PermissionedCapabilityHost.executeBatch", "runtime_host_port"),
+  ];
+  if (symbol !== "PermissionedCapabilityHost.executeBatch") {
+    edges.push(edge(
+      "packages/runtime/claude-runtime/src/capability-host.ts",
+      "PermissionedCapabilityHost.executeBatch",
+      path,
+      symbol,
+      "execution_settlement",
+    ));
+  }
+  return {
+    path,
+    symbol,
+    callsitePath: "packages/runtime/claude-runtime/src/capability-host.ts",
+    callsiteSymbol: "PermissionedCapabilityHost.executeBatch",
+    entryEdges: edges,
+    store: "PermissionedCapabilityHost.snapshot().enforcement/settlement + E01RuntimeSnapshot.tools/toolResults/custody",
+    snapshotProperty: symbol.startsWith("PermissionEnforcementRuntime") ? "enforcement" : "settlement",
+    stateObservation: "permission decision -> delegated subset -> correlated gateway/local receipt -> terminal ordered batch",
+    effect,
+    behavior,
+    mutations: mutationsForTarget,
+    adaptation: "Claude tool orchestration is split into Zyra-owned permission enforcement and execution settlement owners. Denied and ASK calls terminate before the gateway; allowed calls retain ordered correlation, local capability settlement, progress budgeting, restart fencing, and snapshot audit.",
+  };
+}
+
+function toolResultRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  const symbol = /store|save|persist|large|truncate/i.test(name)
+    ? "ToolExecutionSettlementRuntime.appendProgress"
+    : /result|complete|resolve|normalize/i.test(name)
+      ? "ToolExecutionSettlementRuntime.recordGatewayReceipt"
+      : "ModelIterationRuntime.recordToolObservation";
+  const path = symbol.startsWith("ModelIterationRuntime") ? MODEL_ITERATION_PATH : EXECUTION_SETTLEMENT_PATH;
+  const edges = symbol.startsWith("ModelIterationRuntime")
+    ? [edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_ITERATION_PATH, symbol, "tool_observation")]
+    : [
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", "packages/runtime/claude-runtime/src/capability-host.ts", "PermissionedCapabilityHost.executeBatch", "runtime_host_port"),
+      edge("packages/runtime/claude-runtime/src/capability-host.ts", "PermissionedCapabilityHost.executeBatch", path, symbol, "settlement_receipt"),
+    ];
+  return {
+    path,
+    symbol,
+    callsitePath: symbol.startsWith("ModelIterationRuntime") ? QUERY_PATH : "packages/runtime/claude-runtime/src/capability-host.ts",
+    callsiteSymbol: symbol.startsWith("ModelIterationRuntime") ? "ClaudeRuntimeCore.run" : "PermissionedCapabilityHost.executeBatch",
+    entryEdges: edges,
+    store: "modelIteration transcript/tools + execution settlement calls/progress",
+    snapshotProperty: symbol.startsWith("ModelIterationRuntime") ? "modelIteration" : "settlement",
+    stateObservation: "bounded tool output is correlated to its call and changes the next provider transcript",
+    effect: "tool-observation",
+    behavior: [behaviorTests.iteration, behaviorTests.settlement],
+    mutations: ["e01-mut-036-provider-observation-revision", "e01-mut-041-settlement-gateway-fence"],
+    adaptation: "Upstream tool result storage is cropped into Zyra progress budgeting, terminal settlement, and provider-observation transcript state rather than a detached filesystem cache.",
+  };
+}
+
+function sessionLifecycleRoute(source: Obj): Obj {
+  const name = sourceName(source);
+  let symbol = "ModelIterationRuntime.restore";
+  if (/message|history|append|node|branch/i.test(name)) symbol = "ModelIterationRuntime.start";
+  else if (/tool|result|observation/i.test(name)) symbol = "ModelIterationRuntime.recordToolObservation";
+  else if (/resume|restore|snapshot|session/i.test(name)) symbol = "ModelIterationRuntime.restore";
+  else if (/query|round|request/i.test(name)) symbol = "ModelIterationRuntime.beginProviderRound";
+  const mutation = symbol === "ModelIterationRuntime.restore"
+    ? "e01-mut-044-iteration-snapshot-checksum"
+    : symbol === "ModelIterationRuntime.recordToolObservation"
+      ? "e01-mut-036-provider-observation-revision"
+      : "e01-mut-040-iteration-repeated-tool-id";
+  return {
+    path: MODEL_ITERATION_PATH,
+    symbol,
+    callsitePath: QUERY_PATH,
+    callsiteSymbol: "ClaudeRuntimeCore.run",
+    entryEdges: [edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_ITERATION_PATH, symbol, "model_iteration_state")],
+    store: "RuntimeRunResult.sessionSnapshot.modelIteration + DurableSession + E01RuntimeSnapshot.session/history/correlation",
+    snapshotProperty: "modelIteration",
+    stateObservation: "prefix-stable provider transcript, round/tool state, restart epoch, unique transitions, final assistant result",
+    effect: "session-model-iteration",
+    behavior: [behaviorTests.iteration],
+    mutations: [mutation],
+    adaptation: "Session restore and history mechanisms become a checksummed Zyra model-iteration transcript with restart fencing and explicit provider/tool state instead of replaying an upstream process-local session singleton.",
+  };
+}
+
 function routeFor(source: Obj): Obj {
   if (source.semantic_domain === "query") return queryRoute(source);
   if (source.semantic_domain === "provider-model") return modelRoute(source);
@@ -450,6 +601,9 @@ function routeFor(source: Obj): Obj {
   if (source.semantic_domain === "provider-telemetry") return telemetryRoute(source);
   if (source.semantic_domain === "compact") return compactRoute(source);
   if (source.semantic_domain === "context-token") return tokenRoute(source);
+  if (source.semantic_domain === "tool-execution") return toolExecutionRoute(source);
+  if (source.semantic_domain === "tool-result") return toolResultRoute(source);
+  if (source.semantic_domain === "session-lifecycle") return sessionLifecycleRoute(source);
   throw new Error(`unsupported source domain ${source.semantic_domain}`);
 }
 
@@ -488,6 +642,16 @@ const mutations = [
   ["provider-lifecycle-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.recordProvider", "disconnect-provider-lifecycle", "provider"],
   ["provider-execution-callback", "src/query-engine.ts", "ClaudeRuntimeCore.run", "disconnect-provider-execution", "provider"],
   ["execution-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.completeCanonicalTurn", "disconnect-execution-custody", "idempotency"],
+  ["transport-slot-finally", "src/provider/transport-runtime.ts", "readableStreamToAsyncIterable", "skip-final-close", "provider"],
+  ["provider-observation-revision", "src/query-engine.ts", "ClaudeRuntimeCore.run", "drop-revision-transcript", "routing"],
+  ["permission-deny-delegation", "src/tools/permission-enforcement-runtime.ts", "PermissionEnforcementRuntime.enforce", "delegate-denied-call", "permission"],
+  ["compatible-endpoint", "src/provider/compatible-runtime.ts", "compatibleRequestUrl", "use-anthropic-endpoint", "provider"],
+  ["compatible-tool-delta", "src/provider/compatible-runtime.ts", "applyCompatibleChoice", "overwrite-tool-arguments", "provider"],
+  ["iteration-repeated-tool-id", "src/loop/model-iteration-runtime.ts", "ModelIterationRuntime.acceptProviderResult", "reuse-tool-call-id", "idempotency"],
+  ["settlement-gateway-fence", "src/tools/execution-settlement-runtime.ts", "ToolExecutionSettlementRuntime.recordGatewayReceipt", "accept-unauthorized-receipt", "permission"],
+  ["provider-stream-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.prepareProviderLifecycle", "disable-provider-stream", "provider"],
+  ["gateway-extra-receipt", "src/tools/permission-enforcement-runtime.ts", "PermissionEnforcementRuntime.enforce", "accept-extra-receipt", "permission"],
+  ["iteration-snapshot-checksum", "src/loop/model-iteration-runtime.ts", "ModelIterationRuntime.restore", "skip-iteration-checksum", "restore"],
 ] as const;
 
 function hash(value: string | Uint8Array): string {
@@ -534,6 +698,8 @@ function nodeName(node: ts.Node, index: number): string | null {
 
 function sourceManifest(snapshot: string): Obj[] {
   const output: Obj[] = [];
+  let acceptedOrdinal = 0;
+  let rejectedOrdinal = 0;
   for (const [path, acceptedEnd, domain] of inputs) {
     const bytes = readFileSync(join(sourceRoot, path));
     const text = bytes.toString("utf8").replace(/^\uFEFF/, "");
@@ -544,13 +710,34 @@ function sourceManifest(snapshot: string): Obj[] {
       if (!name || ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) continue;
       const start = file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
       const end = file.getLineAndCharacterOfPosition(Math.max(node.getStart(file), node.end - 1)).line + 1;
-      if (start > acceptedEnd) continue;
-      const ordinal = output.length + 1;
+      if (start > acceptedEnd) {
+        rejectedOrdinal += 1;
+        output.push({
+          schema_version: "3.0",
+          record_type: "source_range",
+          execution_id: "E01",
+          mapping_id: "e01-rej-" + String(rejectedOrdinal).padStart(4, "0"),
+          source_repo: "claude-code-best",
+          source_snapshot: snapshot,
+          source_path: path,
+          source_sha256: hash(bytes),
+          start_line: start,
+          end_line: end,
+          source_symbol: path + "::" + name,
+          source_role: "reference_only",
+          migration_mode: "cropped",
+          semantic_domain: domain,
+          accepted: false,
+          exclusion_reason: "outside curated executable source boundary for E01",
+        });
+        continue;
+      }
+      acceptedOrdinal += 1;
       output.push({
         schema_version: "3.0",
         record_type: "source_range",
         execution_id: "E01",
-        mapping_id: "e01-src-" + String(ordinal).padStart(4, "0"),
+        mapping_id: "e01-src-" + String(acceptedOrdinal).padStart(4, "0"),
         source_repo: "claude-code-best",
         source_snapshot: snapshot,
         source_path: path,
@@ -564,13 +751,34 @@ function sourceManifest(snapshot: string): Obj[] {
         accepted: true,
         exclusion_reason: null,
       });
+      if (end > acceptedEnd) {
+        rejectedOrdinal += 1;
+        output.push({
+          schema_version: "3.0",
+          record_type: "source_range",
+          execution_id: "E01",
+          mapping_id: "e01-rej-" + String(rejectedOrdinal).padStart(4, "0"),
+          source_repo: "claude-code-best",
+          source_snapshot: snapshot,
+          source_path: path,
+          source_sha256: hash(bytes),
+          start_line: acceptedEnd + 1,
+          end_line: end,
+          source_symbol: path + "::" + name,
+          source_role: "reference_only",
+          migration_mode: "cropped",
+          semantic_domain: domain,
+          accepted: false,
+          exclusion_reason: "statement tail is outside the accepted executable source range",
+        });
+      }
     }
   }
   return output;
 }
 
 function targetManifest(sources: Obj[]): Obj[] {
-  return sources.map((source) => {
+  return sources.filter((source) => source.accepted === true).map((source) => {
     const profile = routeFor(source);
     const planned = String(profile.symbol).split(".").at(-1);
     return {
@@ -579,7 +787,7 @@ function targetManifest(sources: Obj[]): Obj[] {
       execution_id: "E01",
       mapping_id: source.mapping_id,
       target_path: profile.path,
-      target_sha256: null,
+      target_sha256: hash(readFileSync(join(zyra, profile.path))),
       target_symbol: profile.symbol,
       canonical_owner_id: "e01." + source.semantic_domain,
       default_entry_id: "e01.default-code-worker",
@@ -593,8 +801,8 @@ function targetManifest(sources: Obj[]): Obj[] {
       state_observation: profile.stateObservation,
       behavior_tests: profile.behavior,
       success_test_ids: profile.behavior.map((item: Obj) => item.name),
-      failure_test_ids: profile.behavior.map((item: Obj) => item.name),
-      disable_test_ids: ["e01.owner.disable"],
+      failure_test_ids: failureTestsFor(source.semantic_domain),
+      disable_test_ids: disableTestsFor(source.semantic_domain),
       mutation_ids: profile.mutations,
       adaptation: profile.adaptation,
       runtime_origin_probe_id: "e01.probe.runtime-origin",
@@ -603,6 +811,31 @@ function targetManifest(sources: Obj[]): Obj[] {
       planned_method: planned,
     };
   });
+}
+
+function failureTestsFor(domain: string): string[] {
+  if (domain === "tool-execution") {
+    return ["e01.mutation.permission-deny-is-never-delegated", "e01.mutation.settlement-blocked-call-cannot-reach-gateway"];
+  }
+  if (domain === "tool-result" || domain === "session-lifecycle") {
+    return ["e01.mutation.iteration-repeated-tool-id-is-rejected-across-rounds", "e01.mutation.iteration-snapshot-checksum-rejects-tampering"];
+  }
+  if (domain.startsWith("provider")) {
+    return ["runtime lets canonical recovery policy stop a non-retryable provider request", "e01.mutation.transport-slot-closes-after-parser-failure"];
+  }
+  if (domain === "query") return ["runtime stops on max turns, abort and model error"];
+  if (domain === "compact" || domain === "context-token") {
+    return ["runtime externalizes large tool results and compacts context", "e01.mutation.iteration-snapshot-checksum-rejects-tampering"];
+  }
+  return ["runtime stops on max turns, abort and model error"];
+}
+
+function disableTestsFor(domain: string): string[] {
+  if (domain === "tool-execution") return ["e01.mutation.permission-deny-is-never-delegated"];
+  if (domain === "tool-result") return ["e01.mutation.provider-observation-requires-a-new-provider-round"];
+  if (domain === "session-lifecycle") return ["e01.mutation.iteration-snapshot-checksum-rejects-tampering"];
+  if (domain.startsWith("provider")) return ["e01.mutation.transport-slot-closes-after-parser-failure"];
+  return ["e01.owner.disable"];
 }
 
 function oldOwnerPaths(): string[] {
@@ -651,24 +884,43 @@ function mutationManifest(): Obj[] {
   return mutations.map((item, index) => {
     const [name, shortPath, symbol, operator, risk] = item;
     const path = "packages/runtime/claude-runtime/" + shortPath;
+    const mutationId = "e01-mut-" + String(index + 1).padStart(3, "0") + "-" + name;
+    const mutation = mutationSpecs[mutationId];
+    if (!mutation) throw new Error(`missing executable mutation spec for ${mutationId}`);
+    const targetText = readFileSync(join(zyra, path), "utf8");
+    const newline = targetText.includes("\r\n") ? "\r\n" : "\n";
     return {
       schema_version: "3.0",
       record_type: "mutation",
       execution_id: "E01",
-      mutation_id: "e01-mut-" + String(index + 1).padStart(3, "0") + "-" + name,
+      mutation_id: mutationId,
       target_path: path,
       target_symbol: symbol,
       mutation_operator: operator,
       semantic_risk: risk,
-      expected_killer_test_ids: [name === "recovery-planner-custody"
-        ? "runtime lets canonical recovery policy stop a non-retryable provider request"
-        : name === "provider-lifecycle-custody"
-        ? "runtime commits provider prompt usage and recovery state through default loop"
-        : "e01.mutation." + name],
+      expected_killer_test_ids: expectedMutationKillers(name),
       compile_survives: true,
-      frozen_patch_sha256: hash(path + "\0" + symbol + "\0" + operator),
+      frozen_patch_sha256: mutationPatchFingerprint(mutation, newline),
     };
   });
+}
+
+function expectedMutationKillers(name: string): string[] {
+  if (name === "recovery-planner-custody") {
+    return ["runtime lets canonical recovery policy stop a non-retryable provider request"];
+  }
+  if ([
+    "provider-lifecycle-custody",
+    "provider-execution-callback",
+    "provider-observation-revision",
+    "provider-stream-custody",
+  ].includes(name)) {
+    return ["runtime commits provider prompt usage and recovery state through default loop"];
+  }
+  if (name === "execution-custody") {
+    return ["runtime owns multi-turn lifecycle and read-only batches"];
+  }
+  return ["e01.mutation." + name];
 }
 
 function gateProfile(snapshot: string): Obj {
@@ -688,7 +940,7 @@ function gateProfile(snapshot: string): Obj {
       bun_version: BUN,
       typescript_version: "5.8.3",
       frozen_install: bun.concat(["install", "--frozen-lockfile"]),
-      typecheck: bun.concat(["run", "typecheck"]),
+      typecheck: bun.concat(["run", "typecheck:e01"]),
       build: bun.concat(["run", "build"]),
       test: bun.concat(["run", "runtime:e01:test"]),
       built_entry: bun.concat(["run", "runtime:built:health"]),
@@ -703,6 +955,7 @@ function gateProfile(snapshot: string): Obj {
       disable: bun.concat(["run", "e01:probe:disable"]),
       mutation_runner: bun.concat(["run", "e01:mutation"]),
       clean_dependency_path: bun.concat(["run", "e01:audit:dependencies"]),
+      external_cleanroom: bun.concat(["run", "e01:cleanroom"]),
     },
     thresholds: {
       accepted_source_executable_sloc: 10587,
@@ -723,6 +976,8 @@ function gateProfile(snapshot: string): Obj {
 }
 
 function main(): void {
+  const dirtyAtStart = gitText(zyra, ["status", "--porcelain"]);
+  const controlPlaneHeadAtStart = gitText(zyra, ["rev-parse", "HEAD"]);
   mkdirSync(manifestRoot, { recursive: true });
   mkdirSync(evidenceRoot, { recursive: true });
   const snapshot = gitText(sourceRoot, ["rev-parse", "HEAD"]);
@@ -745,16 +1000,15 @@ function main(): void {
   const hashes: Record<string, string> = {};
   for (const path of Object.values(paths)) hashes[basename(path)] = hash(readFileSync(path));
   const receiptPath = join(manifestRoot, "execution-01-baseline-receipt.json");
-  const dirty = gitText(zyra, ["status", "--porcelain"]);
   json(receiptPath, {
     schema_version: "3.0",
     execution_id: "E01",
     captured_at_utc: new Date().toISOString(),
     verified_zyra_head: VERIFIED,
     verified_head_tree: gitText(zyra, ["rev-parse", VERIFIED + "^{tree}"]),
-    current_control_plane_head: gitText(zyra, ["rev-parse", "HEAD"]),
-    clean_worktree: dirty === "",
-    dirty_paths_at_capture: dirty ? dirty.split(/\r?\n/) : [],
+    current_control_plane_head: controlPlaneHeadAtStart,
+    clean_worktree: dirtyAtStart === "",
+    dirty_paths_at_capture: dirtyAtStart ? dirtyAtStart.split(/\r?\n/) : [],
     source_snapshots: { "claude-code-best": snapshot },
     input_sha256: hashes,
     manifest_generator_command: ["npx", "--yes", "bun@" + BUN, "scripts/remediation/m1_r01_e01_v3.ts"],
@@ -769,7 +1023,12 @@ function main(): void {
     verified_zyra_head: VERIFIED,
     source_snapshot: snapshot,
     source_range_count: source.length,
+    accepted_source_range_count: source.filter((item) => item.accepted === true).length,
+    rejected_source_range_count: source.filter((item) => item.accepted === false).length,
     source_physical_range_sloc: source.reduce((sum, item) => sum + item.end_line - item.start_line + 1, 0),
+    accepted_source_physical_range_sloc: source
+      .filter((item) => item.accepted === true)
+      .reduce((sum, item) => sum + item.end_line - item.start_line + 1, 0),
     python_owner_symbol_count: python.length,
     python_physical_range_sloc: python.reduce((sum, item) => sum + item.end_line - item.start_line + 1, 0),
     target_mapping_count: target.length,

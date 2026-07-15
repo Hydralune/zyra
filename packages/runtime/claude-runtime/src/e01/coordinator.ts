@@ -110,6 +110,8 @@ export interface ProviderOwnedExecution {
   error: string;
   model: string;
   providerRequestId: string | null;
+  finalText: string;
+  stopReason: string;
 }
 
 export interface OwnedToolBatch {
@@ -1612,7 +1614,7 @@ export class E01RuntimeCoordinator {
       temperature: null,
       topP: null,
       stopSequences: [],
-      stream: false,
+      stream: prepared.stream === true,
       thinking: { enabled: false, budgetTokens: 0 } as never,
       metadata: {
         external_request_id: requestId,
@@ -2319,9 +2321,43 @@ function providerMessages(value: JsonValue | undefined): ProviderMessage[] {
   return asRuntimeArray(value).map((raw) => {
     const message = asRuntimeObject(raw);
     const role = asRuntimeString(message.role, "user") === "assistant" ? "assistant" : "user";
+    const content: ProviderMessage["content"] = [];
+    const rawContent = Array.isArray(message.content) ? message.content : [message.content];
+    for (const rawBlock of rawContent) {
+      if (typeof rawBlock === "string") {
+        if (rawBlock.trim()) content.push({ type: "text", text: rawBlock });
+        continue;
+      }
+      const block = asRuntimeObject(rawBlock);
+      const type = asRuntimeString(block.type, "text");
+      if (type === "tool_use") {
+        content.push({
+          type: "tool_use",
+          id: asRuntimeString(block.id, ""),
+          name: asRuntimeString(block.name, ""),
+          input: asRuntimeObject(block.input),
+        });
+        continue;
+      }
+      if (type === "tool_result") {
+        const blockContent = Array.isArray(block.content)
+          ? block.content
+          : asRuntimeString(block.content, providerText(block.content));
+        content.push({
+          type: "tool_result",
+          toolUseId: asRuntimeString(block.tool_use_id || block.toolUseId, ""),
+          content: blockContent,
+          isError: block.is_error === true || block.isError === true,
+        });
+        continue;
+      }
+      const text = asRuntimeString(block.text, providerText(block.content));
+      if (text.trim()) content.push({ type: "text", text });
+    }
+    if (content.length === 0) content.push({ type: "text", text: " " });
     return {
       role,
-      content: [{ type: "text", text: providerText(message.content) || " " }],
+      content,
     };
   });
 }

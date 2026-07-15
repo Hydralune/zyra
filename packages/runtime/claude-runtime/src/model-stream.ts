@@ -20,6 +20,8 @@ export interface OwnedProviderExecution {
   error: string;
   model: string;
   providerRequestId: string | null;
+  finalText: string;
+  stopReason: string;
 }
 
 type ExecutePreparedModel = (requestId: string) => Promise<OwnedProviderExecution>;
@@ -59,6 +61,9 @@ export interface ModelStreamResolution {
   turns: ToolStep[][];
   metadata: Record<string, string>;
   error: string | null;
+  finalText: string;
+  stopReason: string;
+  providerRequestId: string | null;
 }
 
 interface AttemptRecord extends JsonObject {
@@ -81,15 +86,17 @@ export async function resolveModelTurns(
   requestEpoch = 0,
   completeRecovery?: CompleteModelRecovery,
   executePreparedModel?: ExecutePreparedModel,
+  requestRound = 0,
+  overrideMessages?: readonly JsonObject[],
 ): Promise<ModelStreamResolution> {
   const constraints = config.runtimeConstraints;
   const transport = asString(
     constraints.model_transport || constraints.model_transport_kind,
     "scripted",
   );
-  const requestMessages = normalizeMessages(input);
+  const requestMessages = overrideMessages ? [...overrideMessages] : normalizeMessages(input);
   const requestTools = tools.map(openAiTool);
-  const requestScope = `${input.workerRequestId}:epoch${Math.max(0, Math.floor(requestEpoch))}:model`;
+  const requestScope = `${input.workerRequestId}:epoch${Math.max(0, Math.floor(requestEpoch))}:round${Math.max(0, Math.floor(requestRound))}:model`;
   if (asBoolean(constraints.simulate_model_error)) {
     const requestId = `${requestScope}:1`;
     const recoveryPlan = decideRecovery
@@ -114,6 +121,7 @@ export async function resolveModelTurns(
         messages: requestMessages,
         tools: requestTools,
         system: [],
+        stream: true,
       },
     });
     await emit("model_stream_report", {
@@ -136,6 +144,9 @@ export async function resolveModelTurns(
       ok: false,
       turns: [],
       error: "model_error",
+      finalText: "",
+      stopReason: "unknown",
+      providerRequestId: null,
       metadata: modelMetadata({
         ok: false,
         status: "simulated_failure",
@@ -209,6 +220,9 @@ export async function resolveModelTurns(
       ok: true,
       turns: scriptedTurns,
       error: null,
+      finalText: "",
+      stopReason: scriptedTurns.flat().length > 0 ? "tool_use" : "end_turn",
+      providerRequestId: null,
       metadata: modelMetadata({
         ok: true,
         status: "not_needed",
@@ -258,6 +272,7 @@ export async function resolveModelTurns(
         messages: requestMessages,
         tools: requestTools,
         system: [],
+        stream: true,
       },
     });
     await emit("model_stream_frame", {
@@ -364,8 +379,11 @@ export async function resolveModelTurns(
         await emitFinalReports(emit, attempts, true, status, model, fallbackUsed);
         return {
           ok: true,
-          turns: [owned.steps],
+          turns: owned.steps.length > 0 ? [owned.steps] : [],
           error: null,
+          finalText: owned.finalText,
+          stopReason: owned.stopReason,
+          providerRequestId: owned.providerRequestId,
           metadata: modelMetadata({
             ok: true,
             status,
@@ -474,8 +492,11 @@ export async function resolveModelTurns(
       );
       return {
         ok: true,
-        turns: [parsed.steps],
+        turns: parsed.steps.length > 0 ? [parsed.steps] : [],
         error: null,
+        finalText: "",
+        stopReason: parsed.steps.length > 0 ? "tool_use" : "end_turn",
+        providerRequestId: null,
         metadata: modelMetadata({
           ok: true,
           status,
@@ -544,6 +565,9 @@ export async function resolveModelTurns(
     ok: false,
     turns: [],
     error: finalError,
+    finalText: "",
+    stopReason: "unknown",
+    providerRequestId: null,
     metadata: modelMetadata({
       ok: false,
       status: "exhausted",
@@ -569,6 +593,9 @@ async function failedWithoutRequest(
     ok: false,
     turns,
     error,
+    finalText: "",
+    stopReason: "unknown",
+    providerRequestId: null,
     metadata: modelMetadata({
       ok: false,
       status: "configuration_error",

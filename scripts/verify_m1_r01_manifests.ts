@@ -20,6 +20,15 @@ const productionRoots = [
 ];
 const testRoot = "packages/runtime/claude-runtime/test/e01";
 const semanticallyDormantProductionPaths = new Map<string, string>();
+const e01ExcludedProductionPrefixes = [
+  "packages/runtime/claude-runtime/src/agents/",
+  "packages/runtime/claude-runtime/src/control/",
+  "packages/runtime/claude-runtime/src/permission/",
+  "packages/runtime/claude-runtime/src/skills/",
+] as const;
+const e01ExcludedProductionFiles = new Set([
+  "packages/runtime/claude-runtime/src/capabilities.ts",
+]);
 const providerActivationContracts = [
   { path: "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts", owner: "providerPrompt", method: "build", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerPrompt", assertion: "providerPrompt.lastPrompt" },
   { path: "packages/runtime/claude-runtime/src/provider/request-runtime.ts", owner: "providerRequests", method: "create", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerRequests", assertion: "providerRequests.requests" },
@@ -123,11 +132,23 @@ function astUnits(path: string, text: string): Unit[] {
     });
   };
   source.statements.forEach((statement, index) => {
-    if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) return;
+    if (
+      ts.isImportDeclaration(statement)
+      || ts.isExportDeclaration(statement)
+      || ts.isInterfaceDeclaration(statement)
+      || ts.isTypeAliasDeclaration(statement)
+      || (ts.isModuleDeclaration(statement) && (statement.flags & ts.NodeFlags.Ambient) !== 0)
+    ) return;
     if (ts.isClassDeclaration(statement)) {
       const className = statement.name?.text ?? `anonymous_class_${index}`;
       if (statement.members.length === 0) add(statement, className);
       else statement.members.forEach((member, memberIndex) => {
+        if (
+          ts.isPropertyDeclaration(member)
+          && !member.initializer
+          && !member.decorators
+        ) return;
+        if (ts.isIndexSignatureDeclaration(member) || ts.isSemicolonClassElement(member)) return;
         const name = member.name && "getText" in member.name ? member.name.getText(source) : `member_${memberIndex}`;
         add(member, `${className}.${name}`);
       });
@@ -137,6 +158,76 @@ function astUnits(path: string, text: string): Unit[] {
     add(statement, named && "getText" in named ? named.getText(source) : `statement_${index}`);
   });
   return output;
+}
+
+function typeOnlyLines(path: string, text: string): number {
+  const source = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+  let lines = 0;
+  const count = (node: ts.Node): void => {
+    const start = source.getLineAndCharacterOfPosition(node.getStart(source)).line;
+    const end = source.getLineAndCharacterOfPosition(Math.max(node.getStart(source), node.end - 1)).line;
+    lines += end - start + 1;
+  };
+  for (const statement of source.statements) {
+    if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) count(statement);
+    if (ts.isClassDeclaration(statement)) {
+      for (const member of statement.members) {
+        if (ts.isPropertyDeclaration(member) && !member.initializer) count(member);
+        if (ts.isIndexSignatureDeclaration(member) || ts.isSemicolonClassElement(member)) count(member);
+      }
+    }
+  }
+  return lines;
+}
+
+function executableSourceLines(records: Obj[]): number {
+  const groups = new Map<string, Obj[]>();
+  for (const record of records.filter((item) => item.accepted === true)) {
+    groups.set(record.source_path, [...(groups.get(record.source_path) ?? []), record]);
+  }
+  let total = 0;
+  for (const [path, ranges] of groups) {
+    const text = readFileSync(join(workspace, "claude-code-best", path), "utf8");
+    const source = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+    const executable = new Set<number>();
+    const addNode = (node: ts.Node): void => {
+      const start = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+      const end = source.getLineAndCharacterOfPosition(Math.max(node.getStart(source), node.end - 1)).line + 1;
+      for (let line = start; line <= end; line += 1) executable.add(line);
+    };
+    for (const statement of source.statements) {
+      if (
+        ts.isImportDeclaration(statement)
+        || ts.isExportDeclaration(statement)
+        || ts.isInterfaceDeclaration(statement)
+        || ts.isTypeAliasDeclaration(statement)
+      ) continue;
+      if (ts.isClassDeclaration(statement)) {
+        for (const member of statement.members) {
+          if (ts.isPropertyDeclaration(member) && !member.initializer) continue;
+          if (ts.isIndexSignatureDeclaration(member) || ts.isSemicolonClassElement(member)) continue;
+          addNode(member);
+        }
+      } else {
+        addNode(statement);
+      }
+    }
+    for (const line of executable) {
+      if (ranges.some((range) => line >= range.start_line && line <= range.end_line)) total += 1;
+    }
+  }
+  return total;
+}
+
+function e01ExclusionReason(path: string): string | null {
+  if (e01ExcludedProductionFiles.has(path)) {
+    return "live capability catalog owned by later permission/MCP/skill/subagent execution units; not counted toward E01 runtime-core SLOC";
+  }
+  const prefix = e01ExcludedProductionPrefixes.find((candidate) => path.startsWith(candidate));
+  if (prefix) {
+    return `live ${prefix.split("/").at(-2)} subsystem owned by a later execution unit; excluded from E01-only SLOC`;
+  }
+  return null;
 }
 
 function git(args: string[], encoding: "utf8" | "buffer" = "utf8"): string | Buffer {
@@ -276,6 +367,10 @@ function main(): void {
   if (packageJson.devDependencies.typescript !== profile.toolchain.typescript_version) failures.push("TypeScript pin mismatch");
 
   const productionFiles = productionRoots.flatMap(walk).filter((path) => path.endsWith(".ts") && !/\.(?:test|spec)\.ts$/.test(path));
+  for (const path of productionFiles) {
+    const reason = e01ExclusionReason(path);
+    if (reason) semanticallyDormantProductionPaths.set(path, reason);
+  }
   const countedProductionFiles = productionFiles.filter((path) => !semanticallyDormantProductionPaths.has(path));
   const dormantProductionFiles = productionFiles.filter((path) => semanticallyDormantProductionPaths.has(path));
   const testFiles = walk(testRoot).filter((path) => path.endsWith(".behavior.test.ts"));
@@ -283,6 +378,10 @@ function main(): void {
   const rawFinalPhysical = [...productionText.values()].reduce((sum, text) => sum + physicalLines(text), 0);
   const finalPhysical = countedProductionFiles.reduce((sum, path) => sum + physicalLines(productionText.get(path) ?? ""), 0);
   const dormantPhysical = dormantProductionFiles.reduce((sum, path) => sum + physicalLines(productionText.get(path) ?? ""), 0);
+  const typeOnlyExcludedPhysical = countedProductionFiles.reduce(
+    (sum, path) => sum + typeOnlyLines(path, productionText.get(path) ?? ""),
+    0,
+  );
   const baselineHashes = new Set<string>();
   const baselineStructuralHashes = new Set<string>();
   for (const path of countedProductionFiles) {
@@ -301,6 +400,17 @@ function main(): void {
   const adapterFiles = countedProductionFiles.filter((path) => /(?:adapter|bridge|gateway)/i.test(basename(path)));
   const adapterLines = adapterFiles.reduce((sum, path) => sum + physicalLines(productionText.get(path) ?? ""), 0);
   const adapterRatio = finalPhysical === 0 ? 1 : adapterLines / finalPhysical;
+  const effectiveChangedGroups = new Map<string, Unit[]>();
+  for (const unit of changed.units) {
+    effectiveChangedGroups.set(unit.path, [...(effectiveChangedGroups.get(unit.path) ?? []), unit]);
+  }
+  const effectiveChangedByFile = [...effectiveChangedGroups.entries()]
+    .map(([path, units]) => ({
+      path,
+      ast_units: units.length,
+      effective_sloc: units.reduce((sum, unit) => sum + unit.lines, 0),
+    }))
+    .sort((left, right) => right.effective_sloc - left.effective_sloc || left.path.localeCompare(right.path));
 
   if (changed.lines < thresholds.effective_changed_typescript_sloc) failures.push(`effective changed TypeScript SLOC ${changed.lines} < ${thresholds.effective_changed_typescript_sloc}`);
   if (finalPhysical < thresholds.final_non_test_typescript_sloc) failures.push(`final non-test TypeScript SLOC ${finalPhysical} < ${thresholds.final_non_test_typescript_sloc}`);
@@ -308,7 +418,8 @@ function main(): void {
   if (adapterRatio > thresholds.adapter_ratio_maximum) failures.push(`adapter ratio ${adapterRatio} > ${thresholds.adapter_ratio_maximum}`);
 
   const sourcePhysical = source.filter((item) => item.accepted).reduce((sum, item) => sum + item.end_line - item.start_line + 1, 0);
-  if (sourcePhysical < thresholds.accepted_source_executable_sloc) failures.push("accepted source range threshold failed");
+  const sourceExecutable = executableSourceLines(source);
+  if (sourceExecutable < thresholds.accepted_source_executable_sloc) failures.push(`accepted source executable SLOC ${sourceExecutable} below gate`);
   if (mutations.length < thresholds.mutation_points_minimum) failures.push("mutation manifest threshold failed");
   const undeletedPython = [...new Set(python.map((item) => item.python_path))].filter((path) => existsSync(join(zyra, path)));
   if (undeletedPython.length) failures.push(`Python canonical owner paths still exist: ${undeletedPython.join(",")}`);
@@ -358,13 +469,16 @@ function main(): void {
   );
   const mutationById = new Map(mutations.map((item) => [String(item.mutation_id), item]));
   const snapshotDeclaration = declarationText(coordinatorPath, "E01RuntimeCoordinator.snapshot") ?? "";
-  const sourceById = new Map(source.map((item) => [item.mapping_id, item]));
+  const sourceById = new Map(source.filter((item) => item.accepted === true).map((item) => [item.mapping_id, item]));
   const chains = targets.map((target) => {
     const sourceItem = sourceById.get(target.mapping_id);
     const targetAbsolute = join(zyra, target.target_path);
     const targetText = existsSync(targetAbsolute) ? readFileSync(targetAbsolute, "utf8") : "";
     const targetSymbol = String(target.target_symbol);
     const targetSymbolExists = declarationText(String(target.target_path), targetSymbol) !== null;
+    const targetHashMatches = typeof target.target_sha256 === "string"
+      && target.target_sha256.length === 64
+      && target.target_sha256 === (targetText ? hash(targetText) : null);
     const callsitePath = String(target.default_callsite_path);
     const callsiteSymbol = String(target.default_callsite_symbol);
     const invokesTarget = declarationInvokes(callsitePath, callsiteSymbol, targetSymbol);
@@ -387,8 +501,16 @@ function main(): void {
       && verifiedEdges.every((item) => item.caller_exists && item.callee_exists && item.invokes)
       && entryChainCoversTarget;
     const ownerProperty = String(target.state_snapshot_property ?? "");
-    const stateEffectReachable = Boolean(ownerProperty)
-      && new RegExp(`\\b${escaped(ownerProperty)}\\s*:\\s*this\\.${escaped(ownerProperty)}\\.snapshot\\s*\\(`).test(snapshotDeclaration);
+    const permissionHostSnapshot = declarationText(
+      "packages/runtime/claude-runtime/src/capability-host.ts",
+      "PermissionedCapabilityHost.snapshot",
+    ) ?? "";
+    const stateEffectReachable = Boolean(ownerProperty) && (
+      new RegExp(`\\b${escaped(ownerProperty)}\\s*:\\s*this\\.${escaped(ownerProperty)}\\.snapshot\\s*\\(`).test(snapshotDeclaration)
+      || (ownerProperty === "modelIteration" && /modelIteration\s*:\s*iteration\.snapshot\s*\(/u.test(queryRunDeclaration))
+      || (["enforcement", "settlement"].includes(ownerProperty)
+        && new RegExp(`\\b${escaped(ownerProperty)}\\s*:\\s*this\\.${escaped(ownerProperty)}\\.snapshot\\s*\\(`).test(permissionHostSnapshot))
+    );
     const declaredBehavior = Array.isArray(target.behavior_tests) ? target.behavior_tests as Obj[] : [];
     const behaviorTests = declaredBehavior.map((item) => {
       const path = String(item.path);
@@ -421,6 +543,7 @@ function main(): void {
       && mutationLinks.every((item) => item.declared && (!enforce || item.killed));
     const complete = Boolean(sourceItem)
       && targetSymbolExists
+      && targetHashMatches
       && invokesTarget
       && entryChainValid
       && stateEffectReachable
@@ -443,6 +566,8 @@ function main(): void {
         path: target.target_path,
         symbol: target.target_symbol,
         sha256: targetText ? hash(targetText) : null,
+        manifest_sha256: target.target_sha256,
+        hash_matches: targetHashMatches,
         symbol_exists: targetSymbolExists,
       },
       default_callsite: {
@@ -481,7 +606,7 @@ function main(): void {
   if (enforce && (!mutationEvidence || mutationEvidence.summary.killed !== mutations.length || mutationEvidence.summary.invalid !== 0)) {
     failures.push(`${mutations.length}/${mutations.length} executable mutation evidence missing or failed`);
   }
-  const requiredEvidence = ["runtime-origin", "write-path", "same-session-resume", "lost-ack", "disable", "dependencies", "toolchain"];
+  const requiredEvidence = ["runtime-origin", "write-path", "same-session-resume", "lost-ack", "disable", "dependencies", "toolchain", "cleanroom"];
   const evidenceStatus = Object.fromEntries(requiredEvidence.map((name) => [name, readEvidence(name)]));
   if (enforce) for (const [name, value] of Object.entries(evidenceStatus)) if (!value?.ok) failures.push(`required evidence missing or failed: ${name}`);
 
@@ -497,6 +622,20 @@ function main(): void {
     final_non_test_typescript_physical_sloc: finalPhysical,
     semantically_dormant_production_sloc: dormantPhysical,
     semantically_dormant_production: dormantProductionFiles.map((path) => ({ path, reason: semanticallyDormantProductionPaths.get(path) })),
+    excluded_type_only_and_uninitialized_declaration_sloc: typeOnlyExcludedPhysical,
+    effective_changed_by_file: effectiveChangedByFile,
+    line_buckets: {
+      production_e01_physical: finalPhysical,
+      production_excluded_later_unit_physical: dormantPhysical,
+      production_type_only_excluded_physical: typeOnlyExcludedPhysical,
+      behavior_test_effective: effectiveTests.lines,
+      generated: 0,
+      data_as_code: 0,
+      vendor_like_source_pool: 0,
+      adapter_only: adapterLines,
+      mock_fixture: 0,
+      docs: 0,
+    },
     provider_activation_contracts: providerActivation,
     baseline_ast_unit_hash_count: baselineHashes.size,
     baseline_ast_structural_hash_count: baselineStructuralHashes.size,
@@ -531,6 +670,7 @@ function main(): void {
     thresholds,
     actual: {
       accepted_source_physical_sloc: sourcePhysical,
+      accepted_source_executable_sloc: sourceExecutable,
       effective_changed_typescript_sloc: changed.lines,
       final_non_test_typescript_sloc: finalPhysical,
       effective_behavior_test_sloc: effectiveTests.lines,

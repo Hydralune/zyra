@@ -14,8 +14,8 @@ type ManifestRow = {
   frozen_patch_sha256: string;
 };
 
-type Edit = { search: string; replacement: string };
-type MutationSpec = { edits: Edit[]; tests: string[] };
+export type Edit = { search: string; replacement: string };
+export type MutationSpec = { edits: Edit[]; tests: string[] };
 type CommandResult = {
   command: string[];
   exitCode: number;
@@ -59,12 +59,13 @@ const providerTests = [
 ];
 const toolTests = [`${testRoot}/tool-protocol.behavior.test.ts`, mutationContract];
 const runtimeTests = ["packages/runtime/claude-runtime/test/runtime.test.ts"];
+const adversarialTests = [`${testRoot}/default-loop-adversarial.behavior.test.ts`];
 
 function spec(tests: string[], search: string, replacement: string): MutationSpec {
   return { tests, edits: [{ search, replacement }] };
 }
 
-const specs: Record<string, MutationSpec> = {
+export const mutationSpecs: Record<string, MutationSpec> = {
   "e01-mut-001-restore-before-bootstrap": {
     tests: kernelTests,
     edits: [
@@ -243,14 +244,84 @@ const specs: Record<string, MutationSpec> = {
     "    this.custody.finishTurn({",
     "    void ({",
   ),
+  "e01-mut-035-transport-slot-finally": spec(
+    adversarialTests,
+    "      close();",
+    "      void close;",
+  ),
+  "e01-mut-036-provider-observation-revision": spec(
+    runtimeTests,
+    "        providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);",
+    "        providerMessages = [];",
+  ),
+  "e01-mut-037-permission-deny-delegation": spec(
+    adversarialTests,
+    "        if (view.effect === \"allow\") {",
+    "        if (true || view.effect === \"allow\") {",
+  ),
+  "e01-mut-038-compatible-endpoint": spec(
+    adversarialTests,
+    "    parsed.pathname = `${path}/chat/completions`;",
+    "    parsed.pathname = `${path}/messages`;",
+  ),
+  "e01-mut-039-compatible-tool-delta": spec(
+    adversarialTests,
+    "      existing.arguments += functionValue.arguments;",
+    "      existing.arguments = functionValue.arguments;",
+  ),
+  "e01-mut-040-iteration-repeated-tool-id": spec(
+    adversarialTests,
+    "      if (ids.has(callId) || this.tools.has(callId)) throw new Error(`provider repeated tool call id: ${callId}`);",
+    "      if (ids.has(callId)) throw new Error(`provider repeated tool call id: ${callId}`);",
+  ),
+  "e01-mut-041-settlement-gateway-fence": spec(
+    adversarialTests,
+    "    if (call.permissionEffect !== \"allow\" || !call.delegated) {",
+    "    if (false && (call.permissionEffect !== \"allow\" || !call.delegated)) {",
+  ),
+  "e01-mut-042-provider-stream-custody": spec(
+    runtimeTests,
+    "      stream: prepared.stream === true,",
+    "      stream: false,",
+  ),
+  "e01-mut-043-gateway-extra-receipt": spec(
+    adversarialTests,
+    "          if (!batch.allowedRequestIds.includes(identity.requestId)) {",
+    "          if (false && !batch.allowedRequestIds.includes(identity.requestId)) {",
+  ),
+  "e01-mut-044-iteration-snapshot-checksum": spec(
+    adversarialTests,
+    "    if (digest(unsigned) !== checksum) throw new Error(\"model iteration snapshot checksum mismatch\");",
+    "    if (false && digest(unsigned) !== checksum) throw new Error(\"model iteration snapshot checksum mismatch\");",
+  ),
 };
 
-function hash(value: string | Uint8Array): string {
+export function hash(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
 function materialize(value: string, newline: string): string {
   return value.replaceAll("\n", newline);
+}
+
+export function mutationEditEvidence(
+  mutation: MutationSpec,
+  newline = "\n",
+): Array<Record<string, unknown>> {
+  return mutation.edits.map((edit) => {
+    const search = materialize(edit.search, newline);
+    const replacement = materialize(edit.replacement, newline);
+    return {
+      search_sha256: hash(search),
+      replacement_sha256: hash(replacement),
+      removed_chars: search.length,
+      added_chars: replacement.length,
+    };
+  });
+}
+
+export function mutationPatchFingerprint(mutation: MutationSpec, newline = "\n"): string {
+  return hash(JSON.stringify(mutationEditEvidence(mutation, newline)));
 }
 
 function occurrenceCount(source: string, needle: string): number {
@@ -297,8 +368,8 @@ async function main(): Promise<void> {
     .filter(Boolean)
     .map((line) => JSON.parse(line) as ManifestRow);
   if (rows.length < 30) throw new Error(`expected at least 30 frozen mutations, received ${rows.length}`);
-  const unknown = rows.filter((row) => !specs[row.mutation_id]).map((row) => row.mutation_id);
-  const extra = Object.keys(specs).filter((id) => !rows.some((row) => row.mutation_id === id));
+  const unknown = rows.filter((row) => !mutationSpecs[row.mutation_id]).map((row) => row.mutation_id);
+  const extra = Object.keys(mutationSpecs).filter((id) => !rows.some((row) => row.mutation_id === id));
   if (unknown.length || extra.length) throw new Error(`mutation spec mismatch unknown=${unknown.join(",")} extra=${extra.join(",")}`);
   await mkdir(dirname(evidencePath), { recursive: true });
   await mkdir(dirname(buildOutput), { recursive: true });
@@ -308,7 +379,7 @@ async function main(): Promise<void> {
   }
   const results: Record<string, unknown>[] = [];
   for (const row of rows) {
-    const mutation = specs[row.mutation_id];
+    const mutation = mutationSpecs[row.mutation_id];
     const target = join(zyra, row.target_path);
     const original = await readFile(target, "utf8");
     const originalSha256 = hash(original);
@@ -325,12 +396,7 @@ async function main(): Promise<void> {
         const matches = occurrenceCount(mutated, search);
         if (matches !== 1) throw new Error(`patch must match exactly once; matched ${matches}`);
         mutated = mutated.replace(search, replacement);
-        actualEdits.push({
-          search_sha256: hash(search),
-          replacement_sha256: hash(replacement),
-          removed_chars: search.length,
-          added_chars: replacement.length,
-        });
+        actualEdits.push(mutationEditEvidence({ edits: [edit], tests: [] }, newline)[0]!);
       }
       if (mutated === original) throw new Error("mutation produced no source change");
       await writeFile(target, mutated, "utf8");
@@ -406,4 +472,4 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+if (import.meta.main) await main();

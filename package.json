@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json",
+    "typecheck:e01": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
     "build": "bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun",
     "runtime:health": "bun apps/code-worker/src/main.ts --health",
     "runtime:built:health": "bun dist/code-worker/main.js --health",

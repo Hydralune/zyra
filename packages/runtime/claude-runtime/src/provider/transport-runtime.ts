@@ -223,11 +223,17 @@ export class ProviderTransportRuntime implements ProviderTransport {
       this.recordRateLimit(url.origin, headers);
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
       if (contentType.includes("text/event-stream") && response.body) {
+        let settled = false;
+        const settle = (success: boolean): void => {
+          if (settled) return;
+          settled = true;
+          this.finishRequest(record, endpoint!, success && response.ok);
+        };
         const stream = readableStreamToAsyncIterable(response.body, (bytes) => {
           record.responseBytes += bytes;
           record.revision += 1;
-        }, () => this.finishRequest(record, endpoint!, true));
-        return { status: response.status, headers, stream };
+        }, () => settle(response.ok));
+        return { status: response.status, headers, stream, settle };
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
       record.responseBytes = bytes.byteLength;
@@ -417,6 +423,12 @@ async function* readableStreamToAsyncIterable(
   onClose: () => void,
 ): AsyncIterable<Uint8Array> {
   const reader = stream.getReader();
+  let closed = false;
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    onClose();
+  };
   try {
     while (true) {
       const result = await reader.read();
@@ -424,9 +436,12 @@ async function* readableStreamToAsyncIterable(
       onBytes(result.value.byteLength);
       yield result.value;
     }
-    onClose();
   } finally {
-    reader.releaseLock();
+    try {
+      reader.releaseLock();
+    } finally {
+      close();
+    }
   }
 }
 
