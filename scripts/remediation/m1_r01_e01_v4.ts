@@ -272,8 +272,21 @@ const routeToolResult = (target: JsonRecord, source: JsonRecord): void => {
         "ToolObservationBudgetRuntime.restore",
         ["restored.restore(snapshot)", "snapshot checksum mismatch"],
       ),
+      behaviorTest(
+        "e01.integration.model-iteration-applies-observation-budget",
+        "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
+        "ModelIterationRuntime.buildRevisionMessages",
+        [
+          "observation_budget_plan_digest",
+          "snapshot.toolObservationBudget.plans.length",
+          "tool_observation_omitted",
+        ],
+      ),
     ],
-    success_test_ids: ["e01.mutation.observation-budget-enforces-cross-result-limit"],
+    success_test_ids: [
+      "e01.mutation.observation-budget-enforces-cross-result-limit",
+      "e01.integration.model-iteration-applies-observation-budget",
+    ],
     failure_test_ids: ["e01.mutation.observation-budget-restore-rejects-tampering"],
     mutation_ids: [
       "e01-mut-045-observation-budget-enforcement",

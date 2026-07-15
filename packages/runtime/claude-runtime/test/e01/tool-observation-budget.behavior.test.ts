@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "bun:test";
 
-import { ToolObservationBudgetRuntime } from "../../src/index.ts";
+import { ModelIterationRuntime, ToolObservationBudgetRuntime } from "../../src/index.ts";
 
 test("e01.mutation.observation-budget-enforces-cross-result-limit", () => {
   const runtime = new ToolObservationBudgetRuntime({
@@ -61,4 +61,62 @@ test("e01.mutation.observation-budget-restore-rejects-tampering", () => {
     ),
   };
   assert.throws(() => restored.restore(tampered), /snapshot checksum mismatch/);
+});
+
+test("e01.integration.model-iteration-applies-observation-budget", () => {
+  const iteration = new ModelIterationRuntime({
+    sessionId: "budget-session",
+    runId: "budget-run-1",
+    taskId: "budget-task",
+    workerRequestId: "budget-worker-request",
+  });
+  iteration.start([{ role: "user", content: "Read the large result and continue." }]);
+  const round = iteration.beginProviderRound({
+    messages: iteration.currentMessages(),
+    model: "test-model",
+    requestKey: "budget-provider-round",
+  });
+  iteration.acceptProviderResult({
+    roundId: round.roundId,
+    providerRequestId: "provider-budget-response",
+    model: "test-model",
+    stopReason: "tool_use",
+    finalText: "",
+    steps: [
+      {
+        step_id: "large-tool-call",
+        tool_name: "read",
+        arguments: { path: "large.txt" },
+        metadata: {},
+      },
+    ],
+  });
+  iteration.recordToolObservation({
+    callId: "large-tool-call",
+    turnId: "turn-budget",
+    ok: true,
+    summary: "large read completed",
+    output: { text: "provider-visible-result ".repeat(1_000) },
+    error: null,
+  });
+
+  const revised = iteration.buildRevisionMessages(round.roundId);
+  const observation = revised.at(-1) as {
+    content: Array<{ content: string }>;
+    metadata: { observation_budget_plan_digest: string };
+  };
+  assert.match(observation.content[0]?.content ?? "", /tool_observation_omitted/);
+  assert.match(observation.metadata.observation_budget_plan_digest, /^[0-9a-f]{64}$/);
+  const snapshot = iteration.snapshot();
+  assert.equal(snapshot.toolObservationBudget.plans.length, 1);
+  assert.equal(snapshot.toolObservationBudget.records[0]?.callId, "large-tool-call");
+
+  const restored = new ModelIterationRuntime({
+    sessionId: "budget-session",
+    runId: "budget-run-2",
+    taskId: "budget-task",
+    workerRequestId: "budget-worker-request",
+  });
+  restored.restore(snapshot, true);
+  assert.equal(restored.snapshot().toolObservationBudget.plans[0]?.digest, snapshot.toolObservationBudget.plans[0]?.digest);
 });

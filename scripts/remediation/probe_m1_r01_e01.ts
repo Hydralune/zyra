@@ -496,6 +496,9 @@ async function cleanroom(): Promise<void> {
     await rm(archivePath, { force: true });
     await rm(cleanroomRoot, { recursive: true, force: true });
   }
+  if (!toolchainResult.ok) {
+    process.stderr.write(`cleanroom_failure_receipts=${JSON.stringify(toolchainResult.receipts)}\n`);
+  }
   invariant(toolchainResult.ok, "cleanroom toolchain failed");
   await emit("cleanroom", {
     target_commit: head,
