@@ -394,22 +394,28 @@ async function main(): Promise<void> {
     const target = join(zyra, row.target_path);
     const original = await readFile(target, "utf8");
     const originalSha256 = hash(original);
-    const newline = original.includes("\r\n") ? "\r\n" : "\n";
-    let mutated = original;
+    const canonicalOriginal = original.replaceAll("\r\n", "\n");
+    let mutated = canonicalOriginal;
     const actualEdits: Array<Record<string, unknown>> = [];
     let compile: CommandResult | null = null;
     let test: CommandResult | null = null;
     let failure: string | null = null;
     try {
       for (const edit of mutation.edits) {
-        const search = materialize(edit.search, newline);
-        const replacement = materialize(edit.replacement, newline);
+        const search = materialize(edit.search, "\n");
+        const replacement = materialize(edit.replacement, "\n");
         const matches = occurrenceCount(mutated, search);
         if (matches !== 1) throw new Error(`patch must match exactly once; matched ${matches}`);
         mutated = mutated.replace(search, replacement);
-        actualEdits.push(mutationEditEvidence({ edits: [edit], tests: [] }, newline)[0]!);
+        actualEdits.push(mutationEditEvidence({ edits: [edit], tests: [] }, "\n")[0]!);
       }
-      if (mutated === original) throw new Error("mutation produced no source change");
+      if (mutated === canonicalOriginal) throw new Error("mutation produced no source change");
+      const actualPatchSha256 = hash(JSON.stringify(actualEdits));
+      if (actualPatchSha256 !== row.frozen_patch_sha256) {
+        throw new Error(
+          `canonical patch fingerprint mismatch expected=${row.frozen_patch_sha256} actual=${actualPatchSha256}`,
+        );
+      }
       await writeFile(target, mutated, "utf8");
       compile = await run([process.execPath, "build", row.target_path, "--target", "bun", "--outfile", buildOutput]);
       if (compile.exitCode === 0) test = await run([process.execPath, "test", ...mutation.tests]);
@@ -453,6 +459,9 @@ async function main(): Promise<void> {
   }
   const killed = results.filter((item) => item.killed === true).length;
   const invalid = results.filter((item) => item.compile_survived !== true || item.runner_error !== null).length;
+  const frozenPatchMatches = results.filter(
+    (item) => item.actual_patch_sha256 === item.frozen_patch_sha256,
+  ).length;
   const output = {
     schema_version: "3.0",
     execution_id: "E01",
@@ -472,14 +481,17 @@ async function main(): Promise<void> {
       survived: rows.length - killed - invalid,
       invalid,
       kill_rate: killed / rows.length,
+      frozen_patch_matches: frozenPatchMatches,
       restored_sha_match: results.every((item) => item.original_sha256 === item.restored_sha256),
     },
     results,
   };
   await writeFile(evidencePath, JSON.stringify(output, null, 2) + "\n", "utf8");
-  if (killed !== rows.length || invalid !== 0) {
+  if (killed !== rows.length || invalid !== 0 || frozenPatchMatches !== rows.length) {
     process.exitCode = 1;
-    process.stderr.write(`mutation gate failed: killed=${killed}/${rows.length}, invalid=${invalid}\n`);
+    process.stderr.write(
+      `mutation gate failed: killed=${killed}/${rows.length}, invalid=${invalid}, frozen_patch_matches=${frozenPatchMatches}/${rows.length}\n`,
+    );
   }
 }
 

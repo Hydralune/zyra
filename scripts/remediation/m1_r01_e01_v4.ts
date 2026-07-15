@@ -141,9 +141,30 @@ const sessionRestoreAccepted = new Set([
   "processResumedConversation",
 ]);
 
+const independentlyRejectedMappings = new Map([
+  [
+    "e01-src-0004",
+    "conditional snipProjection module binding has no migrated projection or module-loading effect in E01",
+  ],
+  [
+    "e01-src-0011",
+    "conditional snipModule binding has no migrated snip loading or compaction effect in E01",
+  ],
+  [
+    "e01-src-0151",
+    "process-local cachedMCModule slot is deliberately rejected; no module-cache state is owned by ContextCompactionRuntime",
+  ],
+  [
+    "e01-src-0264",
+    "assistant-history tool-name reconstruction is not implemented by ToolResultRuntime delivery custody",
+  ],
+]);
+
 const rejectionReason = (record: JsonRecord): string | null => {
   const path = String(record.source_path ?? "").replaceAll("\\", "/");
   const name = symbolName(record);
+  const independentReason = independentlyRejectedMappings.get(String(record.mapping_id));
+  if (independentReason) return independentReason;
   if (path.endsWith("/tokenBudget.ts") && name === "createBudgetTracker") {
     return "factory shape is not migrated; Zyra owns budget construction inside ContextTokenRuntime";
   }
@@ -478,6 +499,9 @@ for (const record of sourceRecords) {
   ) {
     record.accepted = true;
     record.migration_mode = "adapted";
+    record.source_role = "supplementary";
+    record.supplementary_gap =
+      "continues the same accepted primary source symbol beyond the original parser range so its executable tail is not omitted";
     record.exclusion_reason = null;
     record.continuation_of_source_symbol = record.source_symbol;
   }

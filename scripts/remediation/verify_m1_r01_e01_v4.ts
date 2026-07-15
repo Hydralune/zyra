@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 
+import {
+  mutationPatchFingerprint,
+  mutationSpecs,
+} from "./run_m1_r01_e01_mutations.ts";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
 const workspaceRoot = resolve(repoRoot, "..");
@@ -22,6 +27,7 @@ const metadataPath = join(
   repoRoot,
   "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
 );
+const mutationEvidencePath = "docs/reviews/evidence/M1-R01-v3/execution-01/mutation-results.json";
 
 const SOURCE_SNAPSHOT = "c57f5a29e88e9a814bea47abeb9a0a6f725dc102";
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
@@ -318,6 +324,23 @@ const fail = (message: string): void => {
   failures.push(message);
 };
 
+const mutationIdsFromManifest = new Set(mutationRecords.map((record) => String(record.mutation_id)));
+for (const record of mutationRecords) {
+  const id = String(record.mutation_id);
+  const spec = mutationSpecs[id];
+  if (!spec) {
+    fail(`mutation manifest has no executable spec: ${id}`);
+    continue;
+  }
+  const canonicalFingerprint = mutationPatchFingerprint(spec, "\n");
+  if (String(record.frozen_patch_sha256) !== canonicalFingerprint) {
+    fail(`mutation frozen patch fingerprint drifted: ${id}`);
+  }
+}
+for (const id of Object.keys(mutationSpecs)) {
+  if (!mutationIdsFromManifest.has(id)) fail(`executable mutation spec is not frozen in manifest: ${id}`);
+}
+
 if (String(profile.verified_zyra_head) !== VERIFIED_BASELINE) fail("verified baseline changed");
 if (String(profile.implementation_diff_baseline) !== IMPLEMENTATION_DIFF_BASELINE) {
   fail("implementation diff baseline is not explicit");
@@ -354,11 +377,18 @@ for (const record of sourceRecords) {
     continue;
   }
   if (record.accepted === true) {
+    const sourceRole = String(record.source_role);
+    if (sourceRole !== "primary" && sourceRole !== "supplementary") {
+      fail(`accepted source has forbidden source_role: ${String(record.mapping_id)} ${sourceRole}`);
+    }
+    if (sourceRole === "supplementary" && !String(record.supplementary_gap ?? "").trim()) {
+      fail(`supplementary source lacks a primary-gap explanation: ${String(record.mapping_id)}`);
+    }
     for (let line = start; line <= end; line += 1) {
       if (executableLine(blob.lines[line - 1] ?? "")) acceptedLineKeys.add(`${path}:${line}`);
     }
     const symbol = String(record.source_symbol);
-    if (/getPersistenceThreshold|currentFlushPromise|formatImageRef|restoreSessionStateFromLog|createBudgetTracker/.test(symbol)) {
+    if (/getPersistenceThreshold|currentFlushPromise|formatImageRef|restoreSessionStateFromLog|createBudgetTracker|snipProjection|snipModule|cachedMCModule|buildToolNameMap/.test(symbol)) {
       fail(`known unmigrated source behavior was accepted: ${symbol}`);
     }
   } else if (!String(record.exclusion_reason ?? "").trim()) {
@@ -523,6 +553,29 @@ if (args.requireMetadata) {
   if (!String(metadata.independent_review_target ?? "").match(/^[0-9a-f]{40}$/)) fail("final metadata lacks review target");
   if (String(metadata.independent_review_verdict) !== "PASS") fail("final metadata does not record independent PASS");
   if (metadata.verified_complete !== true) fail("final metadata is not marked verified complete");
+  try {
+    const mutationEvidence = JSON.parse(
+      textAt(String(metadata.candidate_evidence_commit), mutationEvidencePath),
+    ) as JsonRecord;
+    const results = Array.isArray(mutationEvidence.results)
+      ? (mutationEvidence.results as JsonRecord[])
+      : [];
+    if (results.length !== mutationRecords.length) fail("final mutation evidence does not cover the frozen corpus");
+    for (const result of results) {
+      const id = String(result.mutation_id);
+      if (result.killed !== true || result.compile_survived !== true) {
+        fail(`final mutation evidence did not kill a compilable mutant: ${id}`);
+      }
+      if (String(result.actual_patch_sha256) !== String(result.frozen_patch_sha256)) {
+        fail(`final mutation evidence patch identity mismatch: ${id}`);
+      }
+      if (String(result.original_sha256) !== String(result.restored_sha256)) {
+        fail(`final mutation evidence source restoration mismatch: ${id}`);
+      }
+    }
+  } catch (error) {
+    fail(`final mutation evidence is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 checks.source_manifest = {
@@ -559,7 +612,13 @@ checks.effective_lines = {
   final_test_typescript: finalTestTypeScript,
   python_deleted_lines: pythonDeletedLines,
 };
-checks.mutations = { declared: mutationRecords.length };
+checks.mutations = {
+  declared: mutationRecords.length,
+  canonical_frozen_patch_fingerprints: mutationRecords.filter((record) => {
+    const spec = mutationSpecs[String(record.mutation_id)];
+    return spec && String(record.frozen_patch_sha256) === mutationPatchFingerprint(spec, "\n");
+  }).length,
+};
 
 const report = {
   schema_version: "4.0",
