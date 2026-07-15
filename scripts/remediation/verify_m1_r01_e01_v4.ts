@@ -25,7 +25,7 @@ const metadataPath = join(
 
 const SOURCE_SNAPSHOT = "c57f5a29e88e9a814bea47abeb9a0a6f725dc102";
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
-const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5171607680c11f2652c46e55a8a5a983";
+const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
 
 type JsonRecord = Record<string, unknown>;

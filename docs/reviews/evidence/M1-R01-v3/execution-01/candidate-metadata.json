@@ -1,18 +1,19 @@
 {
-  "schema_version": "3.0",
+  "candidate_evidence_commit": null,
+  "candidate_status": "implementation_generated_pending_validation",
+  "cleanroom_target": null,
   "execution_id": "E01",
-  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
-  "implementation_candidate": "d6ff45435167c04c132e08e3de275a24cf28b544",
-  "cleanroom_target": "d6ff45435167c04c132e08e3de275a24cf28b544",
-  "candidate_evidence_commit": "e4e3f7edeac6c628a988cf0ff273ad0f9f1d6e29",
-  "candidate_status": "ready_for_independent_review",
-  "verified_complete": false,
+  "implementation_candidate": "51ed3b5a38d73ef5b79d2eefefe241f6c390e34f",
+  "implementation_diff_baseline": "0cd21bff5171607680c11f2652c46e55a8a5a983",
   "independent_review_target": null,
-  "independent_review_verdict": null,
-  "root_manifest_commit_boundary": "G:/agent-zoo is not a Git repository; root remediation manifests and execution-state.yaml are maintained outside the Zyra evidence commits.",
+  "independent_review_verdict": "PENDING",
   "notes": [
-    "The E01 production roots are apps/code-worker/src and packages/runtime/claude-runtime/src only.",
-    "packages/runtime/runtime-event-spine/src belongs to later M1-S05C-01 work and receives zero E01 production credit.",
-    "The verified head remains c34535a783e88f9481387ced89cba4fbc333dc74 until an independent reviewer returns PASS."
-  ]
+    "The implementation diff starts after the pre-E01 0cd21b checkpoint; that checkpoint receives zero E01 line credit.",
+    "Source hashes bind immutable Git blob bytes at the declared Claude snapshot, not checkout line endings.",
+    "Evidence and independent-review commits are populated only after validation and candidate freeze."
+  ],
+  "root_manifest_commit_boundary": "G:/agent-zoo/docs/remediations is outside the Zyra Git repository and is delivered as an explicit workspace boundary.",
+  "schema_version": "3.0",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "verified_complete": false
 }

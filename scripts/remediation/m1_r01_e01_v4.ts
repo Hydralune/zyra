@@ -24,7 +24,7 @@ const candidateMetadataPath = join(
 
 const SOURCE_SNAPSHOT = "c57f5a29e88e9a814bea47abeb9a0a6f725dc102";
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
-const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5171607680c11f2652c46e55a8a5a983";
+const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
 const GENERATOR = "scripts/remediation/m1_r01_e01_v4.ts";
 const SCHEMA_VERIFIER = "scripts/remediation/verify_m1_r01_e01_v4.ts";
@@ -100,19 +100,19 @@ const sessionStateAccepted = new Set(["hasPendingAction", "getSessionState"]);
 const rejectionReason = (record: JsonRecord): string | null => {
   const path = String(record.source_path ?? "").replaceAll("\\", "/");
   const name = symbolName(record);
-  if (path.endsWith("context/tokenBudget.ts") && name === "createBudgetTracker") {
+  if (path.endsWith("/tokenBudget.ts") && name === "createBudgetTracker") {
     return "factory shape is not migrated; Zyra owns budget construction inside ContextTokenRuntime";
   }
-  if (path.endsWith("tools/toolResultStorage.ts") && !toolResultAccepted.has(name)) {
+  if (path.endsWith("/toolResultStorage.ts") && !toolResultAccepted.has(name)) {
     return "filesystem persistence and process-global replacement state are deliberately not migrated";
   }
-  if (path.endsWith("session/sessionRestore.ts")) {
+  if (path.endsWith("/sessionRestore.ts")) {
     return "Claude process-global restore choreography is rejected in favor of Zyra durable session restore";
   }
-  if (path.endsWith("session/history.ts") && !historyAccepted.has(name)) {
+  if (path.endsWith("/history.ts") && !historyAccepted.has(name)) {
     return "terminal formatting, global flush promises and image reference rewriting are outside E01 custody";
   }
-  if (path.endsWith("session/sessionState.ts") && !sessionStateAccepted.has(name)) {
+  if (path.endsWith("/sessionState.ts") && !sessionStateAccepted.has(name)) {
     return "process-global listener state is rejected; canonical session state is held by DurableSessionRuntime";
   }
   return null;
@@ -217,7 +217,7 @@ const routeSession = (target: JsonRecord, source: JsonRecord): void => {
   let targetPath: string;
   let targetSymbol: string;
   let callsiteSymbol: string;
-  if (path.endsWith("session/history.ts")) {
+  if (path.endsWith("/history.ts")) {
     targetPath = "packages/runtime/claude-runtime/src/session/history-runtime.ts";
     targetSymbol = name === "addToHistory" ? "SessionHistoryRuntime.append" : "SessionHistoryRuntime.transcript";
     callsiteSymbol = "E01RuntimeCoordinator.appendHistory";
@@ -234,13 +234,13 @@ const routeSession = (target: JsonRecord, source: JsonRecord): void => {
     default_callsite_path: callsitePath,
     default_callsite_symbol: callsiteSymbol,
     default_entry_edges: defaultEntryEdges(callsitePath, callsiteSymbol),
-    canonical_owner_id: path.endsWith("session/history.ts") ? "e01.session-history" : "e01.durable-session",
-    state_store: path.endsWith("session/history.ts")
+    canonical_owner_id: path.endsWith("/history.ts") ? "e01.session-history" : "e01.durable-session",
+    state_store: path.endsWith("/history.ts")
       ? "E01RuntimeSnapshot.history"
       : "E01RuntimeSnapshot.session",
-    state_snapshot_property: path.endsWith("session/history.ts") ? "history" : "session",
-    state_effect_kind: path.endsWith("session/history.ts") ? "history-mutation" : "session-projection",
-    state_observation: path.endsWith("session/history.ts") ? "history.entries" : "session.phase",
+    state_snapshot_property: path.endsWith("/history.ts") ? "history" : "session",
+    state_effect_kind: path.endsWith("/history.ts") ? "history-mutation" : "session-projection",
+    state_observation: path.endsWith("/history.ts") ? "history.entries" : "session.phase",
     state_effect_assertion: `assert.${String(source.mapping_id)}.session-state`,
     adaptation:
       "Claude history/session observation is adapted to Zyra durable session and append-only history owners; global listeners and flush state are excluded.",
@@ -361,10 +361,10 @@ const targetRecords = readJsonLines(targetManifestPath)
     target.target_behavior_claim ??= `${String(target.target_symbol)} owns the corresponding Zyra runtime state transition`;
     target.semantic_equivalence ??=
       "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.";
-    if (sourcePath.endsWith("tools/toolResultStorage.ts")) routeToolResult(target, source);
-    else if (sourcePath.endsWith("session/history.ts") || sourcePath.endsWith("session/sessionState.ts")) {
+    if (sourcePath.endsWith("/toolResultStorage.ts")) routeToolResult(target, source);
+    else if (sourcePath.endsWith("/history.ts") || sourcePath.endsWith("/sessionState.ts")) {
       routeSession(target, source);
-    } else if (sourcePath.endsWith("context/tokenBudget.ts")) routeContextBudget(target, source);
+    } else if (sourcePath.endsWith("/tokenBudget.ts")) routeContextBudget(target, source);
     const targetPath = String(target.target_path);
     target.target_sha256 = sha256(gitBytes(repoRoot, ["show", `${implementationHead}:${targetPath}`]));
     return target;
@@ -442,7 +442,7 @@ writeJson(candidateMetadataPath, {
   root_manifest_commit_boundary:
     "G:/agent-zoo/docs/remediations is outside the Zyra Git repository and is delivered as an explicit workspace boundary.",
   notes: [
-    "The implementation diff starts after the pre-E01 0cd21b checkpoint; that checkpoint receives zero E01 line credit.",
+    "The implementation diff starts after the pre-E01 0cd21bff5e2d checkpoint; that checkpoint receives zero E01 line credit.",
     "Source hashes bind immutable Git blob bytes at the declared Claude snapshot, not checkout line endings.",
     "Evidence and independent-review commits are populated only after validation and candidate freeze.",
   ],
