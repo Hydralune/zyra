@@ -34,6 +34,18 @@ type JsonRecord = Record<string, unknown>;
 const sha256 = (value: Uint8Array | string): string =>
   createHash("sha256").update(value).digest("hex");
 
+const mutationFingerprint = (search: string, replacement: string): string =>
+  sha256(
+    JSON.stringify([
+      {
+        search_sha256: sha256(search),
+        replacement_sha256: sha256(replacement),
+        removed_chars: search.length,
+        added_chars: replacement.length,
+      },
+    ]),
+  );
+
 const gitText = (cwd: string, args: readonly string[]): string =>
   execFileSync("git", [...args], { cwd, encoding: "utf8", maxBuffer: 128 * 1024 * 1024 }).trim();
 
@@ -384,7 +396,10 @@ const addStrictMutations = (records: JsonRecord[]): JsonRecord[] => {
       target_path: "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
       target_symbol: "ToolObservationBudgetRuntime.enforceRound",
       compile_survives: true,
-      frozen_patch_sha256: sha256("round limit => Number.MAX_SAFE_INTEGER"),
+      frozen_patch_sha256: mutationFingerprint(
+        "const limit = Math.max(1, this.policy.maxRoundChars - errorReserve);",
+        "const limit = Number.MAX_SAFE_INTEGER;",
+      ),
       expected_killer_test_ids: ["e01.mutation.observation-budget-enforces-cross-result-limit"],
     },
     {
@@ -397,7 +412,10 @@ const addStrictMutations = (records: JsonRecord[]): JsonRecord[] => {
       target_path: "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
       target_symbol: "ToolObservationBudgetRuntime.restore",
       compile_survives: true,
-      frozen_patch_sha256: sha256("if (expectedChecksum !== snapshot.checksum) => if (false)"),
+      frozen_patch_sha256: mutationFingerprint(
+        "if (expectedChecksum !== snapshot.checksum) {",
+        "if (false) {",
+      ),
       expected_killer_test_ids: ["e01.mutation.observation-budget-restore-rejects-tampering"],
     },
   ];
@@ -410,8 +428,7 @@ const replaceScriptVersion = (value: unknown): unknown => {
   if (typeof value === "string") {
     return value
       .replaceAll("m1_r01_e01_v3.ts", "m1_r01_e01_v4.ts")
-      .replaceAll("verify_m1_r01_e01_v3.ts", "verify_m1_r01_e01_v4.ts")
-      .replaceAll("run_m1_r01_e01_mutations.ts", "run_m1_r01_e01_mutations_v4.ts");
+      .replaceAll("verify_m1_r01_e01_v3.ts", "verify_m1_r01_e01_v4.ts");
   }
   if (Array.isArray(value)) return value.map(replaceScriptVersion);
   if (value && typeof value === "object") {
@@ -534,7 +551,6 @@ profile.checker_source_paths = [
     ...(Array.isArray(profile.checker_source_paths) ? profile.checker_source_paths.map(String) : []),
     GENERATOR,
     SCHEMA_VERIFIER,
-    "scripts/remediation/run_m1_r01_e01_mutations_v4.ts",
   ]),
 ].sort();
 writeJson(gateProfilePath, profile);

@@ -2,26 +2,26 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "20dae4eb0809d1b0e9eed0e9b914d1f3c4550091",
-  "ok": false,
+  "candidate": "8ffe5c378f0f0118e7f96c16bd6d6d2954bf4917",
+  "ok": true,
   "checks": {
     "source_manifest": {
       "total": 360,
-      "accepted": 283,
-      "rejected": 77,
-      "accepted_executable_lines": 10362,
+      "accepted": 295,
+      "rejected": 65,
+      "accepted_executable_lines": 10735,
       "hash_semantics": "immutable-git-blob-bytes"
     },
     "source_to_target": {
-      "target_mappings": 283,
-      "five_hop_mappings": 283,
+      "target_mappings": 295,
+      "five_hop_mappings": 295,
       "default_entries": 1
     },
     "scope": {
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "20dae4eb0809d1b0e9eed0e9b914d1f3c4550091"
+      "candidate": "8ffe5c378f0f0118e7f96c16bd6d6d2954bf4917"
     },
     "effective_lines": {
       "gross_changed_executable_typescript": 31423,
@@ -828,9 +828,5 @@
       "declared": 46
     }
   },
-  "failures": [
-    "known unmigrated source behavior was accepted: src/utils/toolResultStorage.ts::getPersistenceThreshold",
-    "known unmigrated source behavior was accepted: src/utils/sessionRestore.ts::restoreSessionStateFromLog",
-    "accepted frozen source executable lines 10362 < 10587"
-  ]
+  "failures": []
 }

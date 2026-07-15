@@ -60,6 +60,7 @@ const providerTests = [
 const toolTests = [`${testRoot}/tool-protocol.behavior.test.ts`, mutationContract];
 const runtimeTests = ["packages/runtime/claude-runtime/test/runtime.test.ts"];
 const adversarialTests = [`${testRoot}/default-loop-adversarial.behavior.test.ts`];
+const observationBudgetTests = [`${testRoot}/tool-observation-budget.behavior.test.ts`];
 
 function spec(tests: string[], search: string, replacement: string): MutationSpec {
   return { tests, edits: [{ search, replacement }] };
@@ -293,6 +294,16 @@ export const mutationSpecs: Record<string, MutationSpec> = {
     adversarialTests,
     "    if (digest(unsigned) !== checksum) throw new Error(\"model iteration snapshot checksum mismatch\");",
     "    if (false && digest(unsigned) !== checksum) throw new Error(\"model iteration snapshot checksum mismatch\");",
+  ),
+  "e01-mut-045-observation-budget-enforcement": spec(
+    observationBudgetTests,
+    "const limit = Math.max(1, this.policy.maxRoundChars - errorReserve);",
+    "const limit = Number.MAX_SAFE_INTEGER;",
+  ),
+  "e01-mut-046-observation-budget-snapshot-checksum": spec(
+    observationBudgetTests,
+    "if (expectedChecksum !== snapshot.checksum) {",
+    "if (false) {",
   ),
 };
 
