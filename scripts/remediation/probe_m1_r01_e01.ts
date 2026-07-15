@@ -1,9 +1,13 @@
 #!/usr/bin/env bun
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { E01RuntimeCoordinator } from "../../packages/runtime/claude-runtime/src/e01/coordinator.ts";
+import {
+  E01RuntimeCoordinator,
+  type E01CoordinatorSnapshot,
+} from "../../packages/runtime/claude-runtime/src/e01/coordinator.ts";
 import { command, identity, Journal } from "../../packages/runtime/claude-runtime/src/e01/kernel.ts";
 
 type Obj = Record<string, unknown>;
@@ -71,7 +75,7 @@ async function runtimeOrigin(): Promise<void> {
   const journal = snapshot.journal as Obj;
   invariant(payload.ok === true, "inventory did not report success");
   invariant(journal.owner === "typescript", "default entry journal owner is not TypeScript");
-  invariant(snapshot.version === "zyra.e01-runtime/v5", "default entry did not use E01 v5 runtime");
+  invariant(snapshot.version === "zyra.e01-runtime/v6", "default entry did not use E01 v6 runtime");
   await emit("runtime-origin", {
     entry_path: "apps/code-worker/src/main.ts",
     entry_command: result.command,
@@ -107,39 +111,223 @@ async function writePath(): Promise<void> {
   });
 }
 
-async function resume(): Promise<void> {
-  const first = new E01RuntimeCoordinator("probe-resume-run-a", "probe-resume-session", "probe-resume-task", "probe-resume-worker");
-  await first.bootstrap();
-  first.recordRuntimeEvent("before_snapshot", { value: 1 });
-  const snapshot = first.snapshot();
-  const oldIds = new Set(snapshot.journal.committed.map((item) => item.identity.transitionId));
-  const revisionBefore = snapshot.journal.revision;
-  const second = new E01RuntimeCoordinator("probe-resume-run-b", "probe-resume-session", "probe-resume-task", "probe-resume-worker");
-  second.restore(snapshot);
-  invariant(second.journal.revision === revisionBefore, "restore changed revision before resume bootstrap");
-  await second.bootstrap();
-  second.recordRuntimeEvent("after_resume", { value: 2 });
-  const resumed = second.snapshot();
-  const newIds = resumed.journal.committed.map((item) => item.identity.transitionId).filter((id) => !oldIds.has(id));
-  const replayedIds = newIds.filter((id) => oldIds.has(id));
-  invariant(newIds.length >= 2, "resume did not append new bootstrap and state transitions");
-  invariant(new Set(newIds).size === newIds.length, "resume emitted duplicate transition IDs");
-  invariant(replayedIds.length === 0, "resume replayed a pre-restart transition ID");
-  invariant(resumed.journal.revision > revisionBefore, "resume revision is not monotonic");
-  invariant(resumed.journal.restartEpoch === snapshot.journal.restartEpoch + 1, "resume restart epoch did not advance exactly once");
-  await emit("same-session-resume", {
-    session_id: resumed.sessionId,
-    run_before: snapshot.runId,
-    run_after: resumed.runId,
-    revision_before: revisionBefore,
-    revision_after: resumed.journal.revision,
-    restart_epoch_before: snapshot.journal.restartEpoch,
-    restart_epoch_after: resumed.journal.restartEpoch,
-    prior_transition_count: oldIds.size,
-    new_transition_count: newIds.length,
-    replayed_transition_ids: replayedIds,
-    new_transition_ids: newIds,
+interface ResumeEpochMarker extends Obj {
+  stage: number;
+  process_id: number;
+  input_snapshot: string | null;
+  output_snapshot: string;
+  output_sha256: string;
+  revision: number;
+  restart_epoch: number;
+  transition_ids: string[];
+  custody_restart_epoch: number;
+}
+
+interface KilledEpochResult {
+  marker: ResumeEpochMarker;
+  command: string[];
+  exitCode: number;
+  durationMs: number;
+  stdout: string;
+  stderr: string;
+  forceKilled: boolean;
+}
+
+async function resumeWorker(): Promise<void> {
+  const stage = Number(process.argv[3]);
+  const inputPath = process.argv[4] ?? "";
+  const outputPath = process.argv[5] ?? "";
+  const markerPath = process.argv[6] ?? "";
+  invariant(Number.isInteger(stage) && stage >= 0 && stage <= 2, "invalid resume worker stage");
+  invariant(outputPath.length > 0 && markerPath.length > 0, "resume worker paths are missing");
+  const runId = `probe-resume-run-${stage}`;
+  const runtime = new E01RuntimeCoordinator(
+    runId,
+    "probe-resume-session",
+    "probe-resume-task",
+    "probe-resume-worker",
+  );
+  let inputSnapshot: E01CoordinatorSnapshot | null = null;
+  if (stage > 0) {
+    invariant(inputPath.length > 0, "resume worker input snapshot is missing");
+    inputSnapshot = JSON.parse(await readFile(inputPath, "utf8")) as E01CoordinatorSnapshot;
+    const revisionBeforeRestore = inputSnapshot.journal.revision;
+    runtime.restore(inputSnapshot);
+    invariant(
+      runtime.journal.revision === revisionBeforeRestore,
+      "restore changed revision before process bootstrap",
+    );
+  }
+  await runtime.bootstrap();
+  runtime.recordRuntimeEvent(`resume_epoch_${stage}`, {
+    stage,
+    process_id: process.pid,
+    canonical_owner: "typescript",
   });
+  const snapshot = runtime.snapshot();
+  const encoded = JSON.stringify(snapshot, null, 2) + "\n";
+  await writeFile(outputPath, encoded, "utf8");
+  const marker: ResumeEpochMarker = {
+    stage,
+    process_id: process.pid,
+    input_snapshot: inputSnapshot ? inputPath : null,
+    output_snapshot: outputPath,
+    output_sha256: hash(encoded),
+    revision: snapshot.journal.revision,
+    restart_epoch: snapshot.journal.restartEpoch,
+    transition_ids: snapshot.journal.committed.map(
+      (item) => item.identity.transitionId,
+    ),
+    custody_restart_epoch: snapshot.custody.restartEpoch,
+  };
+  await writeFile(markerPath, JSON.stringify(marker, null, 2) + "\n", "utf8");
+  process.stdout.write(JSON.stringify({ ready_for_forced_termination: true, ...marker }) + "\n");
+  await Bun.sleep(60_000);
+  throw new Error("resume worker was not force-terminated by the probe parent");
+}
+
+async function runKilledResumeEpoch(
+  stage: number,
+  inputPath: string | null,
+  outputPath: string,
+  markerPath: string,
+): Promise<KilledEpochResult> {
+  const probePath = resolve(import.meta.dir, "probe_m1_r01_e01.ts");
+  const command = [
+    process.execPath,
+    probePath,
+    "resume-worker",
+    String(stage),
+    inputPath ?? "-",
+    outputPath,
+    markerPath,
+  ];
+  const started = performance.now();
+  const child = Bun.spawn({
+    cmd: command,
+    cwd: zyra,
+    env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const stdoutPromise = new Response(child.stdout).text();
+  const stderrPromise = new Response(child.stderr).text();
+  let marker: ResumeEpochMarker | null = null;
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    try {
+      marker = JSON.parse(await readFile(markerPath, "utf8")) as ResumeEpochMarker;
+      break;
+    } catch {
+      if (await Promise.race([
+        child.exited.then(() => true),
+        Bun.sleep(10).then(() => false),
+      ])) {
+        break;
+      }
+    }
+  }
+  if (marker === null) {
+    child.kill();
+    const exitCode = await child.exited;
+    const stdout = await stdoutPromise;
+    const stderr = await stderrPromise;
+    throw new Error(
+      `resume worker ${stage} did not publish a durable marker; exit=${exitCode}; stdout=${stdout.slice(-2_000)}; stderr=${stderr.slice(-2_000)}`,
+    );
+  }
+  child.kill();
+  const exitCode = await child.exited;
+  const stdout = await stdoutPromise;
+  const stderr = await stderrPromise;
+  invariant(
+    exitCode !== 0,
+    `resume worker ${stage} exited normally instead of being force-terminated`,
+  );
+  invariant(
+    marker.process_id === child.pid,
+    `resume worker ${stage} marker PID does not match spawned process`,
+  );
+  return {
+    marker,
+    command,
+    exitCode,
+    durationMs: Math.round(performance.now() - started),
+    stdout,
+    stderr,
+    forceKilled: true,
+  };
+}
+
+function transitionDelta(
+  current: ResumeEpochMarker,
+  previous: ResumeEpochMarker | null,
+): string[] {
+  const prior = new Set(previous?.transition_ids ?? []);
+  return current.transition_ids.filter((id) => !prior.has(id));
+}
+
+async function resume(): Promise<void> {
+  const root = join(tmpdir(), `zyra-e01-resume-${randomUUID()}`);
+  await mkdir(root, { recursive: false });
+  const snapshots = [0, 1, 2].map((stage) => join(root, `snapshot-${stage}.json`));
+  const markers = [0, 1, 2].map((stage) => join(root, `marker-${stage}.json`));
+  const epochs: KilledEpochResult[] = [];
+  try {
+    epochs.push(await runKilledResumeEpoch(0, null, snapshots[0], markers[0]));
+    epochs.push(await runKilledResumeEpoch(1, snapshots[0], snapshots[1], markers[1]));
+    epochs.push(await runKilledResumeEpoch(2, snapshots[1], snapshots[2], markers[2]));
+    const [epoch0, epoch1, epoch2] = epochs.map((item) => item.marker);
+    invariant(new Set(epochs.map((item) => item.marker.process_id)).size === 3, "resume epochs reused an owner process PID");
+    invariant(epoch0.restart_epoch === 0, "initial owner process did not start at epoch zero");
+    invariant(epoch1.restart_epoch === 1, "first restarted owner process did not advance to epoch one");
+    invariant(epoch2.restart_epoch === 2, "second restarted owner process did not advance to epoch two");
+    invariant(epoch0.custody_restart_epoch === 0, "initial execution custody epoch is not zero");
+    invariant(epoch1.custody_restart_epoch === 1, "execution custody did not restore into epoch one");
+    invariant(epoch2.custody_restart_epoch === 2, "execution custody did not restore into epoch two");
+    invariant(epoch1.revision > epoch0.revision, "first process restart did not advance revision");
+    invariant(epoch2.revision > epoch1.revision, "second process restart did not advance revision");
+    const deltas = [
+      transitionDelta(epoch0, null),
+      transitionDelta(epoch1, epoch0),
+      transitionDelta(epoch2, epoch1),
+    ];
+    for (const [index, ids] of deltas.entries()) {
+      invariant(ids.length >= 2, `resume epoch ${index} did not append bootstrap and state transitions`);
+      invariant(new Set(ids).size === ids.length, `resume epoch ${index} emitted duplicate transition IDs`);
+    }
+    const replayed = deltas.flatMap((ids, index) => {
+      const other = new Set(deltas.filter((_, candidate) => candidate !== index).flat());
+      return ids.filter((id) => other.has(id));
+    });
+    invariant(replayed.length === 0, "cross-process resume replayed a transition ID across epochs");
+    await emit("same-session-resume", {
+      session_id: "probe-resume-session",
+      process_restart_count: 2,
+      process_ids: epochs.map((item) => item.marker.process_id),
+      force_killed_processes: epochs.map((item) => item.forceKilled),
+      revisions: epochs.map((item) => item.marker.revision),
+      restart_epochs: epochs.map((item) => item.marker.restart_epoch),
+      custody_restart_epochs: epochs.map((item) => item.marker.custody_restart_epoch),
+      epoch_transition_ids: deltas,
+      replayed_transition_ids: replayed,
+      worker_receipts: epochs.map((item) => ({
+        command: item.command,
+        exit_code: item.exitCode,
+        duration_ms: item.durationMs,
+        force_killed: item.forceKilled,
+        process_id: item.marker.process_id,
+        snapshot_sha256: item.marker.output_sha256,
+        stdout_sha256: hash(item.stdout),
+        stderr_sha256: hash(item.stderr),
+      })),
+      isolation_root: "system temporary directory outside repository",
+      cleaned_after_run: true,
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 }
 
 async function lostAck(): Promise<void> {
@@ -208,7 +396,6 @@ async function dependencies(): Promise<void> {
   const roots = [
     join(zyra, "apps", "code-worker"),
     join(zyra, "packages", "runtime", "claude-runtime"),
-    join(zyra, "packages", "runtime", "runtime-event-spine"),
   ];
   const files = (await Promise.all(roots.map(walk))).flat();
   const forbidden = [
@@ -316,6 +503,7 @@ const mode = process.argv[2] ?? "";
 if (mode === "runtime-origin") await runtimeOrigin();
 else if (mode === "write-path") await writePath();
 else if (mode === "resume") await resume();
+else if (mode === "resume-worker") await resumeWorker();
 else if (mode === "lost-ack") await lostAck();
 else if (mode === "disable") await disable();
 else if (mode === "dependencies") await dependencies();

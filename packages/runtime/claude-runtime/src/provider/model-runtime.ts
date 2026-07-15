@@ -213,6 +213,14 @@ export interface ProviderResponse {
   metadata: JsonObject;
 }
 
+export interface ObservedProviderOutcome {
+  ok: boolean;
+  providerRequestId?: string | null;
+  response?: JsonValue;
+  usage?: Partial<ProviderUsage>;
+  errorCode?: string | null;
+}
+
 export interface ProviderTransportRequest {
   url: string;
   method: "POST";
@@ -691,6 +699,43 @@ export class ProviderModelRuntime {
     this.usage = addUsage(this.usage, parsed.usage);
     this.revision += 1;
     return parsed;
+  }
+
+  observeOutcome(requestId: string, outcome: ObservedProviderOutcome): JsonObject {
+    const record = this.requireRecord(requestId);
+    const responseDigest = digest(outcome.response ?? null);
+    const terminal = record.state === "completed" || record.state === "failed" || record.state === "cancelled";
+    if (terminal) {
+      const expectedState = outcome.ok ? "completed" : "failed";
+      if (record.state !== expectedState) {
+        throw new ProviderProtocolError(
+          "observed_outcome_conflict",
+          `provider request ${requestId} is ${record.state}, not ${expectedState}`,
+        );
+      }
+      return requestRecordToJson(record);
+    }
+    if (record.state !== "prepared" && record.state !== "dispatched" && record.state !== "streaming") {
+      throw new ProviderProtocolError(
+        "observed_outcome_state",
+        `provider request ${requestId} cannot settle from ${record.state}`,
+      );
+    }
+    record.providerRequestId = outcome.providerRequestId ?? record.providerRequestId;
+    record.completedAt = new Date().toISOString();
+    record.revision += 1;
+    if (outcome.ok) {
+      record.state = "completed";
+      record.responseDigest = responseDigest;
+      record.errorCode = null;
+      this.usage = addUsage(this.usage, normalizeUsage(outcome.usage ?? {}));
+    } else {
+      record.state = "failed";
+      record.responseDigest = null;
+      record.errorCode = outcome.errorCode?.trim() || "observed_provider_failure";
+    }
+    this.revision += 1;
+    return requestRecordToJson(record);
   }
 
   markCancelled(requestId: string): void {

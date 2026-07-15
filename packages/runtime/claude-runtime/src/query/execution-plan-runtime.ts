@@ -41,6 +41,7 @@ export type ExecutionTransitionKind =
   | "revision.completed"
   | "plan.suspended"
   | "plan.resumed"
+  | "plan.restored"
   | "plan.completed"
   | "plan.failed"
   | "plan.cancelled";
@@ -719,6 +720,18 @@ export class QueryExecutionPlanRuntime {
         });
       }
       plan.restartEpoch += 1;
+      plan.updatedAt = this.clock.now();
+      plan.revision += 1;
+      plan.sequence += 1;
+      this.appendTransition(
+        plan,
+        "plan.restored",
+        plan.status,
+        { restartEpoch: plan.restartEpoch },
+        last?.transitionId ?? null,
+        plan.status,
+        `restore:${plan.planId}:epoch:${plan.restartEpoch}`,
+      );
     }
   }
 

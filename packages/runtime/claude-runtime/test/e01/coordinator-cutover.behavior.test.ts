@@ -499,12 +499,12 @@ describe("E01 coordinator default TypeScript cutover", () => {
     expect(Number(inventory.telemetry_events)).toBeGreaterThan(0);
   });
 
-  test("captures every owner in a checksummed v5 composite snapshot", async () => {
+  test("captures every owner in a checksummed v6 composite snapshot", async () => {
     const { coordinator } = await boot();
     coordinator.recordRuntimeEvent("reasoning_revised", { reason: "snapshot" });
     const snapshot = coordinator.snapshot();
 
-    expect(snapshot.version).toBe("zyra.e01-runtime/v5");
+    expect(snapshot.version).toBe("zyra.e01-runtime/v6");
     expect(snapshot.runId).toBe("run-1");
     expect(snapshot.sessionId).toBe("session-1");
     expect(snapshot.taskId).toBe("task-1");

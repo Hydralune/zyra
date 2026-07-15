@@ -376,6 +376,17 @@ export class ToolExecutionRuntime {
     return structuredClone(call);
   }
 
+  queueWithDelegatedPermission(callId: string, decisionId: string): ToolInvocation {
+    const call = this.requireCall(callId);
+    if (call.state !== "validated") throw new Error(`tool cannot delegate permission from ${call.state}`);
+    call.permissionDecisionId = required(decisionId, "delegated permission decision id");
+    call.permissionGranted = null;
+    call.state = "queued";
+    call.revision += 1;
+    this.revision += 1;
+    return structuredClone(call);
+  }
+
   schedule(turnId: string, callIds: readonly string[], maximumConcurrency = 10): ToolBatch[] {
     const calls = callIds.map((id) => this.requireCall(id));
     if (calls.some((call) => call.turnId !== turnId)) throw new Error("tool batch spans multiple turns");

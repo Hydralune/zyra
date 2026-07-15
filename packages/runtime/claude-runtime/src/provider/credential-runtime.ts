@@ -15,6 +15,7 @@ import {
 } from "../core/runtime-primitives.js";
 
 export const CREDENTIAL_KINDS = [
+  "anonymous",
   "api_key",
   "bearer_token",
   "oauth2",
@@ -436,7 +437,10 @@ export class ProviderCredentialRuntime {
     }
     const headers: Record<string, string> = {};
     let signingMaterial: CredentialSecret | null = null;
-    if (record.kind === "api_key") {
+    if (record.kind === "anonymous") {
+      // Anonymous/local providers participate in credential lifecycle accounting
+      // without leaking a synthetic secret into request headers.
+    } else if (record.kind === "api_key") {
       headers[record.headerName ?? "x-api-key"] = secret.value;
     } else if (record.kind === "bearer_token" || record.kind === "oauth2") {
       headers.authorization = `Bearer ${secret.value}`;

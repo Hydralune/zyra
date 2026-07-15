@@ -39,6 +39,10 @@ const inputs = [
 const QUERY_PATH = "packages/runtime/claude-runtime/src/query-engine.ts";
 const MODEL_PATH = "packages/runtime/claude-runtime/src/model-stream.ts";
 const COORDINATOR_PATH = "packages/runtime/claude-runtime/src/e01/coordinator.ts";
+const PROVIDER_MODEL_PATH = "packages/runtime/claude-runtime/src/provider/model-runtime.ts";
+const PROVIDER_TRANSPORT_PATH = "packages/runtime/claude-runtime/src/provider/transport-runtime.ts";
+const PROVIDER_CREDENTIAL_PATH = "packages/runtime/claude-runtime/src/provider/credential-runtime.ts";
+const CUSTODY_PATH = "packages/runtime/claude-runtime/src/e01/execution-custody-runtime.ts";
 const RECOVERY_PATH = "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts";
 const TELEMETRY_PATH = "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts";
 const COMPACT_PATH = "packages/runtime/claude-runtime/src/compact/context-runtime.ts";
@@ -65,6 +69,8 @@ const mutationIds = {
   cacheLineage: "e01-mut-027-cache-lineage",
   recoveryPlannerCustody: "e01-mut-031-recovery-planner-custody",
   providerLifecycleCustody: "e01-mut-032-provider-lifecycle-custody",
+  providerExecutionCallback: "e01-mut-033-provider-execution-callback",
+  executionCustody: "e01-mut-034-execution-custody",
 } as const;
 
 const behaviorTests = {
@@ -84,7 +90,7 @@ const behaviorTests = {
     path: RUNTIME_TEST_PATH,
     name: "runtime commits provider prompt usage and recovery state through default loop",
     anchor: "ClaudeRuntimeCore",
-    assertion_tokens: ["providerPrompt.lastPrompt", "providerRequests.requests", "providerResponses.responses", "providerRouting.states", "providerRateLimits.reservations", "journal.state.provider"],
+    assertion_tokens: ["providerPrompt.lastPrompt", "providerRequests.requests", "providerResponses.responses", "providerRouting.states", "providerRateLimits.reservations", "provider.requests", "providerTransport.requests", "providerCredentials.records", "custody.providers", "journal.state.provider"],
   },
   recovery: {
     path: RUNTIME_TEST_PATH,
@@ -153,34 +159,79 @@ function queryRoute(source: Obj): Obj {
 function modelRoute(source: Obj): Obj {
   const name = sourceName(source);
   let symbol = "resolveModelTurns";
+  let targetPath = MODEL_PATH;
   if (/userMessage|assistantMessage|stripExcessMedia|isMedia|isToolResult/.test(name)) symbol = "normalizeMessages";
-  else if (/ApiKey|Headers|CustomHeaders/.test(name)) symbol = "modelHeaders";
-  else if (/Client|buildFetch|queryModel|executeNonStreaming|FallbackTimeout|PreviousRequest/.test(name)) symbol = "resolveModelTurns";
-  else if (/cleanupStream|updateUsage|accumulateUsage|ToolResultBlock/.test(name)) symbol = "parseSseToolCalls";
+  else if (/ApiKey|Headers|CustomHeaders/.test(name)) {
+    symbol = "E01RuntimeCoordinator.configureProviderRuntime";
+    targetPath = COORDINATOR_PATH;
+  } else if (/Client|buildFetch|queryModel|executeNonStreaming|FallbackTimeout|PreviousRequest/.test(name)) {
+    symbol = "E01RuntimeCoordinator.executePreparedProvider";
+    targetPath = COORDINATOR_PATH;
+  } else if (/cleanupStream|updateUsage|accumulateUsage|ToolResultBlock/.test(name)) {
+    symbol = "ProviderModelRuntime.execute";
+    targetPath = PROVIDER_MODEL_PATH;
+  }
   else if (/Metadata|Effort|TaskBudget|ExtraBody/.test(name)) symbol = "modelMetadata";
   else if (/LspTool/.test(name)) symbol = "openAiTool";
   else if (/PromptCaching|CacheControl|CacheTTL|CacheBreakpoint/.test(name)) return telemetryRoute(source);
-  const direct = symbol === "resolveModelTurns";
-  const edges = [edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_PATH, "resolveModelTurns")];
-  if (!direct) edges.push(edge(MODEL_PATH, "resolveModelTurns", MODEL_PATH, symbol));
+  const edges: Obj[] = [];
+  let callsitePath = QUERY_PATH;
+  let callsiteSymbol = "ClaudeRuntimeCore.run";
+  if (symbol === "E01RuntimeCoordinator.configureProviderRuntime") {
+    edges.push(
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, symbol, "default_provider_configuration"),
+      edge(COORDINATOR_PATH, symbol, PROVIDER_CREDENTIAL_PATH, "ProviderCredentialRuntime.register", "credential_registration"),
+      edge(COORDINATOR_PATH, symbol, PROVIDER_CREDENTIAL_PATH, "ProviderCredentialRuntime.select", "credential_selection"),
+      edge(COORDINATOR_PATH, symbol, PROVIDER_CREDENTIAL_PATH, "ProviderCredentialRuntime.resolve", "secret_resolution"),
+    );
+  } else if (symbol === "E01RuntimeCoordinator.executePreparedProvider") {
+    edges.push(
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_PATH, "resolveModelTurns"),
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, symbol, "provider_execution_callback"),
+      edge(COORDINATOR_PATH, symbol, PROVIDER_MODEL_PATH, "ProviderModelRuntime.execute", "model_execution"),
+      edge(PROVIDER_MODEL_PATH, "ProviderModelRuntime.execute", PROVIDER_TRANSPORT_PATH, "ProviderTransportRuntime.execute", "transport_port"),
+    );
+  } else if (symbol === "ProviderModelRuntime.execute") {
+    callsitePath = COORDINATOR_PATH;
+    callsiteSymbol = "E01RuntimeCoordinator.executePreparedProvider";
+    edges.push(
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_PATH, "resolveModelTurns"),
+      edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.executePreparedProvider", "provider_execution_callback"),
+      edge(COORDINATOR_PATH, "E01RuntimeCoordinator.executePreparedProvider", PROVIDER_MODEL_PATH, symbol),
+      edge(PROVIDER_MODEL_PATH, symbol, PROVIDER_TRANSPORT_PATH, "ProviderTransportRuntime.execute", "transport_port"),
+    );
+  } else {
+    const direct = symbol === "resolveModelTurns";
+    edges.push(edge(QUERY_PATH, "ClaudeRuntimeCore.run", MODEL_PATH, "resolveModelTurns"));
+    if (!direct) {
+      callsitePath = MODEL_PATH;
+      callsiteSymbol = "resolveModelTurns";
+      edges.push(edge(MODEL_PATH, "resolveModelTurns", MODEL_PATH, symbol));
+    }
+  }
   edges.push(
     edge(QUERY_PATH, "ClaudeRuntimeCore.run", COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", "callback"),
     edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordRuntimeEvent", COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider"),
     edge(COORDINATOR_PATH, "E01RuntimeCoordinator.recordProvider", COORDINATOR_PATH, "E01RuntimeCoordinator.applyProviderLifecycle"),
+    edge(COORDINATOR_PATH, "E01RuntimeCoordinator.prepareProviderLifecycle", CUSTODY_PATH, "E01ExecutionCustodyRuntime.bindProvider", "custody_binding"),
   );
   return {
-    path: MODEL_PATH,
+    path: targetPath,
     symbol,
-    callsitePath: direct ? QUERY_PATH : MODEL_PATH,
-    callsiteSymbol: direct ? "ClaudeRuntimeCore.run" : "resolveModelTurns",
+    callsitePath,
+    callsiteSymbol,
     entryEdges: edges,
-    store: "E01RuntimeSnapshot.providerPrompt/providerRequests/providerResponses/providerRouting/providerRateLimits + journal.state.provider",
-    snapshotProperty: "providerRequests",
-    stateObservation: "provider prompt fingerprint + durable request/attempt/chunk/response + route lease/outcome + quota reservation/settlement",
+    store: "E01RuntimeSnapshot.provider/providerTransport/providerCredentials/providerPrompt/providerRequests/providerResponses/providerRouting/providerRateLimits/custody + journal.state.provider",
+    snapshotProperty: symbol === "E01RuntimeCoordinator.configureProviderRuntime"
+      ? "providerCredentials"
+      : symbol === "ProviderModelRuntime.execute"
+        ? "provider"
+        : "custody",
+    stateObservation: "credential selection + model request state + transport request state + prompt fingerprint + durable request/attempt/chunk/response + route lease/outcome + quota reservation/settlement + cross-owner custody",
     effect: "provider-request-stream",
     behavior: [behaviorTests.provider],
-    mutations: [/Usage|usage|cleanupStream/.test(name) ? mutationIds.usage : mutationIds.streamFinal, mutationIds.providerLifecycleCustody],
-    adaptation: "Provider request and stream responsibilities are normalized to the OpenAI-compatible model stream and committed through the prompt, request, response, routing, and rate-limit owners; SDK-specific wrappers are cropped while request, frame, usage, quota, route, and failure effects remain durable.",
+    mutations: [/Usage|usage|cleanupStream/.test(name) ? mutationIds.usage : mutationIds.streamFinal, mutationIds.providerLifecycleCustody, mutationIds.providerExecutionCallback, mutationIds.executionCustody],
+    adaptation: "Provider request responsibilities are normalized through the Zyra-owned credential, model, transport, prompt, request, response, routing, rate-limit, and execution-custody owners. SDK wrappers are cropped while secret-free credential selection, executable transport, terminal model state, usage, quota, route, and failure effects remain durable.",
   };
 }
 
@@ -435,6 +486,8 @@ const mutations = [
   ["result-budget", "src/budget.ts", "applyToolResultBudget", "skip-externalize", "budget"],
   ["recovery-planner-custody", "src/query-engine.ts", "ClaudeRuntimeCore.run", "disconnect-planner", "recovery"],
   ["provider-lifecycle-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.recordProvider", "disconnect-provider-lifecycle", "provider"],
+  ["provider-execution-callback", "src/query-engine.ts", "ClaudeRuntimeCore.run", "disconnect-provider-execution", "provider"],
+  ["execution-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.completeCanonicalTurn", "disconnect-execution-custody", "idempotency"],
 ] as const;
 
 function hash(value: string | Uint8Array): string {
@@ -629,7 +682,7 @@ function gateProfile(snapshot: string): Obj {
       "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "ae7fae15cfb02983be2d1430fd11c2596b4e7236",
     ],
-    candidate_scope_paths: ["apps/code-worker", "packages/runtime/claude-runtime", "packages/runtime/runtime-event-spine", "packages/runtime/zyra_runtime", "packages/workers/zyra_workers", "scripts/remediation", "tests/integration/test_e01_typescript_runtime_cutover.py", "docs/reviews"],
+    candidate_scope_paths: ["apps/code-worker", "packages/runtime/claude-runtime", "packages/runtime/zyra_runtime", "packages/workers/zyra_workers", "scripts/remediation", "tests/integration/test_e01_typescript_runtime_cutover.py", "docs/reviews"],
     forbidden_runtime_paths: ["../claude-code-best", "../opencode", "../OpenHands", "../browser-use", "vendor", "vendor-runtimes", "source-pool", "runtime-sources"],
     toolchain: {
       bun_version: BUN,

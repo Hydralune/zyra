@@ -11,6 +11,19 @@ import {
 
 type EmitRuntimeEvent = (phase: string, payload?: JsonObject) => Promise<void>;
 
+export interface OwnedProviderExecution {
+  ok: boolean;
+  status: number;
+  headers: Record<string, string>;
+  steps: ToolStep[];
+  usage: JsonObject;
+  error: string;
+  model: string;
+  providerRequestId: string | null;
+}
+
+type ExecutePreparedModel = (requestId: string) => Promise<OwnedProviderExecution>;
+
 export interface ModelRecoveryObservation {
   recoveryContextId: string;
   requestId: string;
@@ -67,6 +80,7 @@ export async function resolveModelTurns(
   decideRecovery?: DecideModelRecovery,
   requestEpoch = 0,
   completeRecovery?: CompleteModelRecovery,
+  executePreparedModel?: ExecutePreparedModel,
 ): Promise<ModelStreamResolution> {
   const constraints = config.runtimeConstraints;
   const transport = asString(
@@ -256,6 +270,112 @@ export async function resolveModelTurns(
       },
     });
     try {
+      if (executePreparedModel) {
+        const owned = await executePreparedModel(requestId);
+        if (!owned.ok) {
+          finalError = owned.error || `model_http_${owned.status}`;
+          const recoveryPlan = decideRecovery
+            ? await decideRecovery({
+              recoveryContextId,
+              requestId,
+              provider: "compatible",
+              model,
+              status: owned.status,
+              error: finalError,
+              headers: owned.headers,
+              fallbackModels,
+              outputTokenLimit: 16_000,
+              maxRetries: maxAttempts - 1,
+            })
+            : null;
+          const retrying = recoveryPlan
+            ? ["retry", "fallback", "reduce_output"].includes(recoveryPlan.action)
+            : Boolean(nextModel);
+          const record: AttemptRecord = {
+            attempt: index + 1,
+            model,
+            ok: false,
+            status: owned.status,
+            decision: recoveryPlan?.action ?? (
+              nextModel ? "retry_fallback_model" : "stop_exhausted"
+            ),
+            fallback_model: recoveryPlan?.nextModel ?? nextModel,
+            error: finalError,
+          };
+          attempts.push(record);
+          await emit("model_stream_report", {
+            model_stream: {
+              ...record,
+              request_id: requestId,
+              provider: "compatible",
+              provider_request_id: owned.providerRequestId,
+              transport: "provider_transport_runtime",
+              response_headers: owned.headers,
+              usage: owned.usage,
+              recovery_context_id: recoveryContextId,
+              recovery_plan: recoveryPlan as unknown as JsonObject | null,
+            },
+          });
+          if (!retrying) break;
+          plannedModel = recoveryPlan?.nextModel || nextModel || model;
+          if ((recoveryPlan?.delayMs ?? 0) > 0) {
+            await Bun.sleep(recoveryPlan!.delayMs);
+          }
+          continue;
+        }
+
+        const record: AttemptRecord = {
+          attempt: index + 1,
+          model,
+          ok: true,
+          status: owned.status,
+          decision: index > 0 ? "fallback_selected" : "primary_selected",
+          fallback_model: "",
+          error: "",
+        };
+        attempts.push(record);
+        await emit("model_stream_frame", {
+          model_stream_frame: {
+            request_id: requestId,
+            kind: "provider_response_normalized",
+            response_status: owned.status,
+            tool_call_count: owned.steps.length,
+            provider_request_id: owned.providerRequestId,
+          },
+        });
+        await emit("model_stream_report", {
+          model_stream: {
+            ...record,
+            request_id: requestId,
+            provider: "compatible",
+            provider_request_id: owned.providerRequestId,
+            transport: "provider_transport_runtime",
+            response_headers: owned.headers,
+            frame_count: 1,
+            tool_call_count: owned.steps.length,
+            usage: owned.usage,
+          },
+        });
+        const fallbackUsed = model !== config.modelName;
+        const status = fallbackUsed ? "fallback_selected" : "primary_selected";
+        if (attempts.some((item) => !item.ok) && completeRecovery) {
+          await completeRecovery({ recoveryContextId, provider: "compatible", model });
+        }
+        await emitFinalReports(emit, attempts, true, status, model, fallbackUsed);
+        return {
+          ok: true,
+          turns: [owned.steps],
+          error: null,
+          metadata: modelMetadata({
+            ok: true,
+            status,
+            finalModel: model,
+            fallbackUsed,
+            recovered: true,
+            retryCount: index,
+          }),
+        };
+      }
       const response = await fetch(modelEndpoint(baseUrl), {
         method: "POST",
         headers: modelHeaders(constraints),

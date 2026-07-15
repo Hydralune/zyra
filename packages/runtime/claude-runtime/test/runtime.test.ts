@@ -89,6 +89,34 @@ interface E01RuntimeView {
     buckets: Array<{ limitId: string; reserved: number; consumed: number }>;
     reservations: Array<{ requestId: string; status: string }>;
   };
+  provider: {
+    requests: Array<{ state: string; request: { requestId: string } }>;
+  };
+  providerTransport: {
+    requests: Array<{ state: string; status: number | null }>;
+  };
+  providerCredentials: {
+    records: Array<{ status: string; totalSuccesses: number; totalFailures: number }>;
+  };
+  tools: {
+    calls: Array<{ state: string; toolName: string }>;
+    leases: Array<{ releasedAt: string | null }>;
+  };
+  toolResults: {
+    accumulators: Array<{ status: string; success: boolean | null }>;
+    deliveries: Array<{ success: boolean; deliveryDigest: string }>;
+  };
+  session: {
+    status: string;
+    messages: unknown[];
+    effects: Array<{ state: string }>;
+  };
+  custody: {
+    providers: Array<{ state: string; routeId: string; attemptId: string }>;
+    tools: Array<{ state: string; effectId: string | null; deliveryId: string | null }>;
+    turns: Array<{ state: string; toolCallIds: string[] }>;
+    messages: Array<{ source: string }>;
+  };
 }
 
 function e01State(result: Awaited<ReturnType<ClaudeRuntimeCore["run"]>>): E01RuntimeView {
@@ -198,15 +226,59 @@ test("runtime externalizes large tool results and compacts context", async () =>
 });
 
 test("runtime commits provider prompt usage and recovery state through default loop", async () => {
+  const originalFetch = globalThis.fetch;
+  let providerFetchCount = 0;
+  globalThis.fetch = (async () => {
+    providerFetchCount += 1;
+    return new Response(JSON.stringify({
+      id: "provider-success-message",
+      type: "message",
+      role: "assistant",
+      model: "zyra-local-code-model",
+      content: [{
+        type: "tool_use",
+        id: "provider-success-tool",
+        name: "read",
+        input: { path: "a" },
+      }],
+      stop_reason: "tool_use",
+      stop_sequence: null,
+      usage: {
+        input_tokens: 12,
+        output_tokens: 7,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    }), {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "request-id": "provider-success-upstream-request",
+      },
+    });
+  }) as unknown as typeof fetch;
   const successHost = new MemoryHost();
-  const success = await new ClaudeRuntimeCore().run(input({
-    runId: "provider-success-run",
-    sessionId: "provider-success-session",
-    workerRequestId: "provider-success-request",
-    turns: [[{ tool_name: "read", arguments: { path: "a" } }]],
-  }), successHost);
+  let success: Awaited<ReturnType<ClaudeRuntimeCore["run"]>>;
+  try {
+    success = await new ClaudeRuntimeCore().run(input({
+      runId: "provider-success-run",
+      sessionId: "provider-success-session",
+      workerRequestId: "provider-success-request",
+      turns: [],
+      config: {
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+        },
+      },
+    }), successHost);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
   const successState = e01State(success);
   assert.equal(success.ok, true);
+  assert.equal(providerFetchCount, 1);
   assert.equal(successState.telemetry.prompts.length, 1);
   assert.equal(successState.telemetry.samples.length, 1);
   assert.ok(successState.providerPrompt.lastPrompt?.fingerprint);
@@ -214,10 +286,25 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.deepEqual(successState.providerRequests.attempts.map((item) => item.status), ["succeeded"]);
   assert.equal(successState.providerRequests.chunks.length, 1);
   assert.deepEqual(successState.providerResponses.responses.map((item) => item.stopReason), ["tool_use"]);
-  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "local-default")?.successes, 1);
-  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "local-default")?.inFlight, 0);
+  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "compatible-default")?.successes, 1);
+  assert.equal(successState.providerRouting.states.find((item) => item.routeId === "compatible-default")?.inFlight, 0);
   assert.deepEqual(successState.providerRateLimits.reservations.map((item) => item.status), ["committed"]);
-  assert.equal(successState.providerRateLimits.buckets.find((item) => item.limitId === "local-default-requests")?.consumed, 1);
+  assert.equal(successState.providerRateLimits.buckets.find((item) => item.limitId === "compatible-default-requests")?.consumed, 1);
+  assert.deepEqual(successState.provider.requests.map((item) => item.state), ["completed"]);
+  assert.deepEqual(successState.providerTransport.requests.map((item) => item.state), ["completed"]);
+  assert.equal(successState.providerCredentials.records.length, 1);
+  assert.equal(successState.providerCredentials.records[0].totalSuccesses, 1);
+  assert.deepEqual(successState.tools.calls.map((item) => item.state), ["succeeded"]);
+  assert.ok(successState.tools.leases.every((item) => item.releasedAt !== null));
+  assert.deepEqual(successState.toolResults.accumulators.map((item) => item.status), ["sealed"]);
+  assert.deepEqual(successState.toolResults.deliveries.map((item) => item.success), [true]);
+  assert.deepEqual(successState.session.effects.map((item) => item.state), ["committed"]);
+  assert.ok(successState.session.messages.length >= 4);
+  assert.deepEqual(successState.custody.providers.map((item) => item.state), ["succeeded"]);
+  assert.deepEqual(successState.custody.tools.map((item) => item.state), ["succeeded"]);
+  assert.ok(successState.custody.tools.every((item) => item.effectId && item.deliveryId));
+  assert.deepEqual(successState.custody.turns.map((item) => item.state), ["completed"]);
+  assert.ok(successState.custody.messages.some((item) => item.source === "tool_result"));
   assert.ok((successState.journal.state.provider?.revision ?? 0) > 0);
   assert.ok(successHost.events.some((event) => event.phase === "model_request_prepared"));
   assert.ok(successHost.events.some((event) => event.phase === "model_stream_report"));
@@ -284,20 +371,23 @@ test("runtime clears canonical recovery state after a retry succeeds", async () 
         headers: { "retry-after": "0" },
       });
     }
-    const chunk = JSON.stringify({
-      choices: [{
-        delta: {
-          tool_calls: [{
-            index: 0,
-            id: "retry-tool-call",
-            function: { name: "read", arguments: "{\"path\":\"a\"}" },
-          }],
-        },
+    return new Response(JSON.stringify({
+      id: "retry-provider-message",
+      type: "message",
+      role: "assistant",
+      model: "zyra-local-code-model",
+      content: [{
+        type: "tool_use",
+        id: "retry-tool-call",
+        name: "read",
+        input: { path: "a" },
       }],
-    });
-    return new Response(`data: ${chunk}\n\ndata: [DONE]\n\n`, {
+      stop_reason: "tool_use",
+      stop_sequence: null,
+      usage: { input_tokens: 4, output_tokens: 3 },
+    }), {
       status: 200,
-      headers: { "content-type": "text/event-stream" },
+      headers: { "content-type": "application/json" },
     });
   }) as unknown as typeof fetch;
   try {

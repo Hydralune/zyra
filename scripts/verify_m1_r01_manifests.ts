@@ -17,20 +17,21 @@ const evidenceRoot = join(zyra, "docs", "reviews", "evidence", "M1-R01-v3", "exe
 const productionRoots = [
   "apps/code-worker/src",
   "packages/runtime/claude-runtime/src",
-  "packages/runtime/runtime-event-spine/src",
 ];
 const testRoot = "packages/runtime/claude-runtime/test/e01";
-const semanticallyDormantProductionPaths = new Map<string, string>([
-  ["packages/runtime/claude-runtime/src/provider/model-runtime.ts", "Only inspect/snapshot/restore custody is connected; the executable request path remains model-stream.ts."],
-  ["packages/runtime/claude-runtime/src/provider/transport-runtime.ts", "Only snapshot/restore custody is connected; fetch execution remains model-stream.ts."],
-  ["packages/runtime/claude-runtime/src/provider/credential-runtime.ts", "Only snapshot/restore custody is connected; no credential selection affects the default request."],
-]);
+const semanticallyDormantProductionPaths = new Map<string, string>();
 const providerActivationContracts = [
   { path: "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts", owner: "providerPrompt", method: "build", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerPrompt", assertion: "providerPrompt.lastPrompt" },
   { path: "packages/runtime/claude-runtime/src/provider/request-runtime.ts", owner: "providerRequests", method: "create", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerRequests", assertion: "providerRequests.requests" },
   { path: "packages/runtime/claude-runtime/src/provider/response-runtime.ts", owner: "providerResponses", method: "begin", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerResponses", assertion: "providerResponses.responses" },
   { path: "packages/runtime/claude-runtime/src/provider/routing-runtime.ts", owner: "providerRouting", method: "decide", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerRouting", assertion: "providerRouting.states" },
   { path: "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts", owner: "providerRateLimits", method: "reserve", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "providerRateLimits", assertion: "providerRateLimits.reservations" },
+  { path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts", owner: "provider", method: "prepare", caller: "E01RuntimeCoordinator.prepareProviderLifecycle", snapshot: "provider", assertion: "provider.requests" },
+  { path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts", owner: "provider", method: "execute", caller: "E01RuntimeCoordinator.executePreparedProvider", snapshot: "provider", assertion: "provider.requests" },
+  { path: "packages/runtime/claude-runtime/src/provider/transport-runtime.ts", owner: "providerTransport", method: "execute", caller: "E01RuntimeCoordinator.executePreparedProvider", snapshot: "providerTransport", assertion: "providerTransport.requests" },
+  { path: "packages/runtime/claude-runtime/src/provider/credential-runtime.ts", owner: "providerCredentials", method: "register", caller: "E01RuntimeCoordinator.configureProviderRuntime", snapshot: "providerCredentials", assertion: "providerCredentials.records" },
+  { path: "packages/runtime/claude-runtime/src/provider/credential-runtime.ts", owner: "providerCredentials", method: "select", caller: "E01RuntimeCoordinator.configureProviderRuntime", snapshot: "providerCredentials", assertion: "providerCredentials.records" },
+  { path: "packages/runtime/claude-runtime/src/provider/credential-runtime.ts", owner: "providerCredentials", method: "resolve", caller: "E01RuntimeCoordinator.configureProviderRuntime", snapshot: "providerCredentials", assertion: "providerCredentials.records" },
 ] as const;
 
 function hash(value: string | Uint8Array): string {
@@ -318,6 +319,14 @@ function main(): void {
   const recordProviderDeclaration = declarationText(coordinatorPath, "E01RuntimeCoordinator.recordProvider") ?? "";
   const lifecycleDeclaration = declarationText(coordinatorPath, "E01RuntimeCoordinator.applyProviderLifecycle") ?? "";
   const snapshotDeclarationForActivation = declarationText(coordinatorPath, "E01RuntimeCoordinator.snapshot") ?? "";
+  const providerModelExecuteDeclaration = declarationText(
+    "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    "ProviderModelRuntime.execute",
+  ) ?? "";
+  const queryRunDeclaration = declarationText(
+    "packages/runtime/claude-runtime/src/query-engine.ts",
+    "ClaudeRuntimeCore.run",
+  ) ?? "";
   const providerBehaviorBody = testBody(
     "packages/runtime/claude-runtime/test/runtime.test.ts",
     "runtime commits provider prompt usage and recovery state through default loop",
@@ -325,8 +334,15 @@ function main(): void {
   const providerActivation = providerActivationContracts.map((contract) => {
     const caller = declarationText(coordinatorPath, contract.caller) ?? "";
     const callerName = contract.caller.split(".").at(-1) ?? contract.caller;
-    const entryConnected = new RegExp(`(?:\\.|\\b)${escaped(callerName)}\\s*\\(`).test(lifecycleDeclaration);
-    const ownerInvoked = new RegExp(`this\\.${escaped(contract.owner)}\\.${escaped(contract.method)}\\s*\\(`).test(caller);
+    const entryConnected = callerName === "configureProviderRuntime"
+      ? /await\s+e01\.configureProviderRuntime\s*\(/u.test(queryRunDeclaration)
+      : callerName === "executePreparedProvider"
+        ? /e01\.executePreparedProvider\s*\(/u.test(queryRunDeclaration)
+        : new RegExp(`(?:\\.|\\b)${escaped(callerName)}\\s*\\(`).test(lifecycleDeclaration);
+    const ownerInvoked = contract.owner === "providerTransport"
+      ? /this\.provider\.execute\s*\(/u.test(caller)
+        && /transport\.execute\s*\(/u.test(providerModelExecuteDeclaration)
+      : new RegExp(`this\\.${escaped(contract.owner)}\\.${escaped(contract.method)}\\s*\\(`).test(caller);
     const snapshotOwned = new RegExp(`\\b${escaped(contract.snapshot)}\\s*:\\s*this\\.${escaped(contract.snapshot)}\\.snapshot\\s*\\(`).test(snapshotDeclarationForActivation);
     const behaviorAsserted = providerBehaviorBody.includes(contract.assertion);
     return { ...contract, entry_connected: entryConnected, owner_invoked: ownerInvoked, snapshot_owned: snapshotOwned, behavior_asserted: behaviorAsserted, complete: entryConnected && ownerInvoked && snapshotOwned && behaviorAsserted };

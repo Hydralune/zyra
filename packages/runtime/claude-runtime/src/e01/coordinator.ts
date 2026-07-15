@@ -4,7 +4,17 @@ import { CompactSummaryRuntime } from "../compact/summary-runtime.ts";
 import { ContextAssemblyRuntime } from "../context/assembly-runtime.ts";
 import { ContextCacheRuntime } from "../context/cache-runtime.ts";
 import { ContextTokenRuntime } from "../context/token-runtime.ts";
-import type { JsonObject, JsonValue } from "../contracts.ts";
+import type { JsonObject, JsonValue, ToolStep } from "../contracts.ts";
+import {
+  durableMessageRole,
+  normalizedProviderBaseUrl,
+  providerExecutionFailure,
+  providerExecutionSuccess,
+  providerSystemBlocks,
+  providerToolDefinitions,
+  redactProviderHeaders,
+} from "./custody-helpers.ts";
+import { E01ExecutionCustodyRuntime } from "./execution-custody-runtime.ts";
 import { QueryInputRuntime } from "../input/query-input-runtime.ts";
 import { EffectProtocolRuntime } from "../protocol/effect-runtime.ts";
 import { ProtocolFramingRuntime } from "../protocol/framing-runtime.ts";
@@ -16,6 +26,7 @@ import {
 } from "../provider/credential-runtime.ts";
 import {
   ProviderModelRuntime,
+  type PreparedProviderRequest,
   type ProviderMessage,
 } from "../provider/model-runtime.ts";
 import { ProviderPromptRuntime } from "../provider/prompt-runtime.ts";
@@ -52,7 +63,7 @@ import {
   type TransitionReceipt,
 } from "./kernel.ts";
 
-export const E01_COORDINATOR_SNAPSHOT_VERSION = "zyra.e01-runtime/v5";
+export const E01_COORDINATOR_SNAPSHOT_VERSION = "zyra.e01-runtime/v6";
 
 type RuntimeDomain = "query" | "provider" | "context" | "tool" | "session" | "protocol";
 
@@ -80,6 +91,43 @@ export interface RuntimeDecision {
   reason: string;
   revision: number;
   receipt: TransitionReceipt;
+}
+
+export interface ProviderRuntimeConfiguration {
+  providerId: "compatible" | "local";
+  modelId: string;
+  baseUrl: string;
+  apiKey: string;
+  timeoutMs: number;
+}
+
+export interface ProviderOwnedExecution {
+  ok: boolean;
+  status: number;
+  headers: Record<string, string>;
+  steps: ToolStep[];
+  usage: JsonObject;
+  error: string;
+  model: string;
+  providerRequestId: string | null;
+}
+
+export interface OwnedToolBatch {
+  batchId: string;
+  turnIndex: number;
+  executionMode: "concurrent_read_only" | "serial_non_read_only";
+  steps: ToolStep[];
+}
+
+interface PreparedProviderBinding {
+  request: PreparedProviderRequest;
+  credentialId: string | null;
+  authorizationHeaders: Record<string, string>;
+}
+
+interface ToolEffectBinding {
+  effectId: string;
+  resultId: string;
 }
 
 export interface E01CoordinatorSnapshot {
@@ -120,6 +168,7 @@ export interface E01CoordinatorSnapshot {
   protocol: ReturnType<EffectProtocolRuntime["snapshot"]>;
   framing: ReturnType<ProtocolFramingRuntime["snapshot"]>;
   commands: ReturnType<RuntimeCommandRuntime["snapshot"]>;
+  custody: ReturnType<E01ExecutionCustodyRuntime["snapshot"]>;
   checksum: string;
 }
 
@@ -155,12 +204,18 @@ export class E01RuntimeCoordinator {
   readonly protocol: EffectProtocolRuntime;
   readonly framing: ProtocolFramingRuntime;
   readonly commands: RuntimeCommandRuntime;
+  readonly custody: E01ExecutionCustodyRuntime;
   readonly runId: string;
   readonly sessionId: string;
   readonly taskId: string;
   readonly workerRequestId: string;
   private bootstrapped = false;
   private restored = false;
+  private readonly preparedProviderBindings = new Map<string, PreparedProviderBinding>();
+  private readonly toolEffectBindings = new Map<string, ToolEffectBinding>();
+  private activeProviderCredentialId: string | null = null;
+  private activeProviderHeaders: Record<string, string> = {};
+  private providerTimeoutMs = 120_000;
 
   constructor(
     runId: string,
@@ -228,6 +283,7 @@ export class E01RuntimeCoordinator {
     });
     this.framing = new ProtocolFramingRuntime(runId, sessionId);
     this.commands = new RuntimeCommandRuntime();
+    this.custody = new E01ExecutionCustodyRuntime(sessionId, runId);
     this.installDefaultStopRules();
     this.installDefaultHooks();
     this.installDefaultProviderPolicy();
@@ -284,6 +340,7 @@ export class E01RuntimeCoordinator {
       allowRunRebind: snapshot.runId !== this.runId,
     });
     this.commands.restore(snapshot.commands);
+    this.custody.restore(snapshot.custody, snapshot.runId !== this.runId);
     this.restored = true;
   }
 
@@ -620,6 +677,493 @@ export class E01RuntimeCoordinator {
     this.recovery.recordSuccess(input.recoveryContextId, input.provider, input.model);
   }
 
+  async configureProviderRuntime(input: ProviderRuntimeConfiguration): Promise<void> {
+    const providerId = input.providerId;
+    const modelId = input.modelId.trim() || "zyra-local-code-model";
+    const baseUrl = normalizedProviderBaseUrl(providerId, input.baseUrl);
+    this.providerTimeoutMs = Math.max(
+      100,
+      Math.min(3_600_000, Math.floor(input.timeoutMs || 120_000)),
+    );
+    this.ensureProviderModel(modelId, providerId);
+    this.provider.selectModel(modelId);
+    this.provider.configureEndpoint({
+      provider: providerId,
+      baseUrl,
+      timeoutMs: this.providerTimeoutMs,
+      connectTimeoutMs: Math.min(10_000, this.providerTimeoutMs),
+    });
+    this.ensureProviderPolicy(providerId);
+    this.providerTransport.registerEndpoint({
+      origin: new URL(baseUrl).origin,
+      maximumConcurrency: providerId === "local" ? 4 : 16,
+      weight: 1,
+    });
+
+    const credentialId = `${providerId}:runtime`;
+    const existing = this.providerCredentials.snapshot().records.find(
+      (record) => record.credentialId === credentialId,
+    );
+    const secret = { value: input.apiKey.trim() || "anonymous-local-provider" };
+    if (existing) {
+      await this.providerCredentials.rotate(credentialId, existing.revision, secret, {
+        metadata: {
+          ...existing.metadata,
+          configured_from_default_path: true,
+          secret_persisted_in_snapshot: false,
+        },
+      });
+    } else {
+      await this.providerCredentials.register({
+        credentialId,
+        providerId,
+        accountId: `${providerId}:default`,
+        kind: input.apiKey.trim() ? "api_key" : "anonymous",
+        secret,
+        allowedModels: [modelId],
+        priority: 100,
+        metadata: {
+          configured_from_default_path: true,
+          secret_persisted_in_snapshot: false,
+        },
+      });
+    }
+    const selected = this.providerCredentials.select({
+      providerId,
+      modelId,
+      minimumValidityMilliseconds: this.providerTimeoutMs,
+    });
+    const resolved = await this.providerCredentials.resolve(selected.credentialId);
+    this.activeProviderCredentialId = selected.credentialId;
+    this.activeProviderHeaders = { ...resolved.headers };
+    this.provider.configureCredential({
+      kind: "none",
+      apiKey: null,
+      accessToken: null,
+      accountId: selected.accountId,
+      source: "credential_chain",
+      fingerprint: digest({ credential_id: selected.credentialId, revision: resolved.revision }),
+    });
+  }
+
+  async executePreparedProvider(requestId: string): Promise<ProviderOwnedExecution> {
+    const binding = this.preparedProviderBindings.get(requestId);
+    if (!binding) {
+      throw new Error(`provider request is not prepared by E01 custody: ${requestId}`);
+    }
+    const request: PreparedProviderRequest = {
+      ...binding.request,
+      headers: {
+        ...binding.request.headers,
+        ...binding.authorizationHeaders,
+      },
+    };
+    this.custody.beginProviderExecution(requestId);
+    try {
+      const response = await this.provider.execute(request, this.providerTransport);
+      if (binding.credentialId) this.providerCredentials.recordSuccess(binding.credentialId);
+      return providerExecutionSuccess(response);
+    } catch (error) {
+      if (binding.credentialId) {
+        this.providerCredentials.recordFailure(
+          binding.credentialId,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      return providerExecutionFailure(error, request.model.id);
+    }
+  }
+
+  attachSessionProjection(messages: readonly JsonObject[]): void {
+    for (let index = 0; index < messages.length; index += 1) {
+      const message = messages[index];
+      const role = durableMessageRole(asRuntimeString(message.role, "user"));
+      const content = message.content ?? "";
+      const messageId = asRuntimeString(
+        message.message_id,
+        `${this.sessionId}:initial:${index}`,
+      );
+      this.session.appendMessage({
+        messageId,
+        role,
+        content,
+        turnId: null,
+        toolCallId: null,
+        correlationId: `${this.sessionId}:initial-context`,
+        causationId: null,
+        metadata: {
+          source: "runtime_session_projection",
+          canonical_owner: "durable_session",
+        },
+      });
+      this.history.append({
+        role,
+        content,
+        turnId: null,
+        toolCallId: null,
+        metadata: {
+          source_message_id: messageId,
+          canonical_owner: "durable_session",
+        },
+      });
+      this.custody.attachMessage({
+        messageId,
+        role,
+        content,
+        turnId: null,
+        toolCallId: null,
+        source: "initial_projection",
+      });
+    }
+  }
+
+  beginCanonicalTurn(turnId: string, turnIndex: number, prompt: string): void {
+    const messageId = prompt.trim() ? `${turnId}:user` : null;
+    this.custody.beginTurn({
+      turnId,
+      turnIndex,
+      prompt,
+      userMessageId: messageId,
+    });
+    this.session.updateState(["active_turn"], {
+      turn_id: turnId,
+      turn_index: turnIndex,
+      status: "running",
+    });
+    if (!prompt.trim()) return;
+    if (!messageId) throw new Error("canonical turn user message id was not created");
+    this.session.appendMessage({
+      messageId,
+      role: "user",
+      content: prompt,
+      turnId,
+      toolCallId: null,
+      correlationId: turnId,
+      causationId: null,
+      metadata: { canonical_owner: "durable_session" },
+    });
+    this.history.append({
+      role: "user",
+      content: prompt,
+      turnId,
+      toolCallId: null,
+      metadata: {
+        source_message_id: messageId,
+        canonical_owner: "durable_session",
+      },
+    });
+    this.custody.attachMessage({
+      messageId,
+      role: "user",
+      content: prompt,
+      turnId,
+      toolCallId: null,
+      source: "turn",
+    });
+  }
+
+  planToolBatches(
+    turnId: string,
+    turnIndex: number,
+    inputs: readonly { step: ToolStep; readOnly: boolean }[],
+    maximumConcurrency: number,
+  ): OwnedToolBatch[] {
+    const byCallId = new Map<string, ToolStep>();
+    const callIds: string[] = [];
+    for (const [index, input] of inputs.entries()) {
+      const callId = input.step.step_id?.trim() || `${turnId}:tool:${index + 1}`;
+      const step: ToolStep = { ...input.step, step_id: callId };
+      this.ensureToolSpec(step.tool_name, input.readOnly);
+      const invocation = this.tools.createInvocation({
+        callId,
+        sessionId: this.sessionId,
+        runId: this.runId,
+        taskId: this.taskId,
+        turnId,
+        toolName: step.tool_name,
+        arguments: asRuntimeObject(step.arguments),
+        idempotencyKey: `${this.sessionId}:${callId}`,
+      });
+      if (input.readOnly) this.tools.queueWithoutPermission(invocation.callId);
+      else {
+        this.tools.queueWithDelegatedPermission(
+          invocation.callId,
+          `${callId}:host-permission-runtime`,
+        );
+      }
+      byCallId.set(callId, step);
+      callIds.push(callId);
+    }
+    const batches: OwnedToolBatch[] = this.tools.schedule(
+      turnId,
+      callIds,
+      maximumConcurrency,
+    ).map((batch) => ({
+      batchId: batch.batchId,
+      turnIndex,
+      executionMode: batch.readOnly
+        ? "concurrent_read_only"
+        : "serial_non_read_only",
+      steps: batch.callIds.map((callId) => byCallId.get(callId)!).filter(Boolean),
+    }));
+    const invocations = new Map(
+      this.tools.snapshot().calls.map((invocation) => [invocation.callId, invocation]),
+    );
+    for (const batch of batches) {
+      for (const step of batch.steps) {
+        const callId = step.step_id?.trim();
+        if (!callId) throw new Error("scheduled tool step has an empty call id");
+        const invocation = invocations.get(callId);
+        if (!invocation) {
+          throw new Error(`scheduled tool invocation is missing: ${step.step_id}`);
+        }
+        this.custody.planTool({
+          callId: invocation.callId,
+          taskId: this.taskId,
+          turnId,
+          batchId: batch.batchId,
+          toolName: invocation.toolName,
+          arguments: invocation.arguments,
+          readOnly: invocation.permissionGranted === true,
+          permissionDecisionId: invocation.permissionDecisionId,
+          invocationRevision: invocation.revision,
+        });
+      }
+    }
+    return batches;
+  }
+
+  startToolBatch(batch: OwnedToolBatch): void {
+    for (const step of batch.steps) {
+      const callId = step.step_id?.trim();
+      if (!callId) throw new Error("E01-owned tool batch contains an empty call id");
+      const lease = this.tools.acquireLease(
+        callId,
+        "zyra-typescript-claude-runtime",
+        120_000,
+      );
+      this.tools.start(callId, lease.leaseId);
+      const result = this.toolResults.begin({
+        resultId: `${callId}:result`,
+        toolCallId: callId,
+        toolName: step.tool_name,
+        sessionId: this.sessionId,
+        runId: this.runId,
+        metadata: {
+          batch_id: batch.batchId,
+          canonical_owner: "tool_result_runtime",
+        },
+      });
+      const effect = this.session.prepareEffect({
+        effectKind: `tool:${step.tool_name}`,
+        idempotencyKey: `${this.sessionId}:${callId}`,
+        request: asRuntimeObject(step.arguments),
+      });
+      this.session.startEffect(
+        effect.effectId,
+        "zyra-typescript-claude-runtime",
+        120_000,
+      );
+      this.toolEffectBindings.set(callId, {
+        effectId: effect.effectId,
+        resultId: result.resultId,
+      });
+      this.custody.bindToolRuntime({
+        callId,
+        leaseId: lease.leaseId,
+        leaseOwner: lease.owner,
+        effectId: effect.effectId,
+        resultId: result.resultId,
+      });
+      this.custody.startTool(callId);
+    }
+  }
+
+  completeToolExecution(input: {
+    callId: string;
+    toolName: string;
+    ok: boolean;
+    summary: string;
+    output: JsonValue;
+    error: string | null;
+    maximumCharacters: number;
+  }): JsonObject {
+    const binding = this.toolEffectBindings.get(input.callId);
+    if (!binding) {
+      throw new Error(`tool call is not owned by E01 runtime: ${input.callId}`);
+    }
+    this.tools.appendChunk(input.callId, {
+      sequence: 1,
+      channel: "result",
+      content: input.output,
+      effective: true,
+    });
+    const invocation = this.tools.settle(input.callId, {
+      ok: input.ok,
+      result: input.output,
+      summary: input.summary,
+      errorCode: input.ok ? null : (input.error || "tool_failed"),
+      errorMessage: input.ok ? null : (input.error || input.summary),
+    });
+    const custodyBeforeSettlement = this.custody.tool(input.callId);
+    if (custodyBeforeSettlement.permissionMode === "delegated_host") {
+      const permissionDenied = input.error === "permission_denied"
+        || input.error === "permission_approval_required";
+      this.custody.resolveDelegatedPermission(
+        input.callId,
+        !permissionDenied,
+        custodyBeforeSettlement.permissionDecisionId
+          ?? `${input.callId}:host-permission-runtime`,
+      );
+    }
+    this.custody.settleTool({
+      callId: input.callId,
+      ok: input.ok,
+      result: input.output,
+      errorCode: input.ok ? null : (input.error || "tool_failed"),
+    });
+    this.toolResults.append({
+      resultId: binding.resultId,
+      sequence: 1,
+      final: false,
+      blocks: [{
+        kind: "json",
+        text: null,
+        json: input.output,
+        mediaType: "application/json",
+        artifactId: null,
+        sensitivity: "internal",
+        metadata: { tool_name: input.toolName },
+      }],
+    });
+    this.toolResults.seal({
+      resultId: binding.resultId,
+      success: input.ok,
+      errorCode: input.ok ? null : (input.error || "tool_failed"),
+      metadata: { summary: input.summary },
+    });
+    const delivery = this.toolResults.deliver(binding.resultId, {
+      maximumCharacters: Math.max(1, input.maximumCharacters),
+      maximumTokens: Math.max(1, Math.ceil(input.maximumCharacters / 4)),
+      maximumBlocks: 64,
+      maximumChunks: 64,
+      maximumInlineBytes: Math.max(1, input.maximumCharacters * 4),
+      preserveHeadCharacters: Math.min(
+        2_000,
+        Math.floor(input.maximumCharacters / 2),
+      ),
+      preserveTailCharacters: Math.min(
+        2_000,
+        Math.floor(input.maximumCharacters / 2),
+      ),
+      includeDiagnostics: true,
+      allowedSensitivity: "internal",
+    });
+    this.custody.deliverTool(
+      input.callId,
+      delivery.deliveryId,
+      delivery.deliveryDigest,
+    );
+    if (input.ok) this.session.commitEffect(binding.effectId, input.output);
+    else {
+      this.session.failEffect(
+        binding.effectId,
+        input.error || "tool_failed",
+        input.summary,
+      );
+    }
+    this.session.appendMessage({
+      messageId: `${input.callId}:tool-result`,
+      role: "tool",
+      content: input.output,
+      turnId: invocation.turnId,
+      toolCallId: input.callId,
+      correlationId: input.callId,
+      causationId: input.callId,
+      metadata: {
+        success: input.ok,
+        delivery_digest: delivery.deliveryDigest,
+      },
+    });
+    this.history.append({
+      role: "tool",
+      content: input.output,
+      turnId: invocation.turnId,
+      toolCallId: input.callId,
+      metadata: {
+        success: input.ok,
+        delivery_digest: delivery.deliveryDigest,
+      },
+    });
+    this.custody.attachMessage({
+      messageId: `${input.callId}:tool-result`,
+      role: "tool",
+      content: input.output,
+      turnId: invocation.turnId,
+      toolCallId: input.callId,
+      source: "tool_result",
+    });
+    return {
+      call_id: invocation.callId,
+      call_state: invocation.state,
+      effect_id: binding.effectId,
+      effect_state: input.ok ? "committed" : "failed",
+      result_id: binding.resultId,
+      delivery_id: delivery.deliveryId,
+      delivery_digest: delivery.deliveryDigest,
+      delivery_truncated: delivery.truncated,
+    };
+  }
+
+  completeCanonicalTurn(
+    turnId: string,
+    turnIndex: number,
+    ok: boolean,
+    error: string | null,
+  ): void {
+    const content = ok
+      ? `Turn ${turnIndex} completed.`
+      : `Turn ${turnIndex} failed: ${error || "tool_error"}`;
+    this.session.appendMessage({
+      messageId: `${turnId}:assistant-status`,
+      role: "assistant",
+      content,
+      turnId,
+      toolCallId: null,
+      correlationId: turnId,
+      causationId: null,
+      metadata: { ok, error, canonical_owner: "durable_session" },
+    });
+    this.history.append({
+      role: "assistant",
+      content,
+      turnId,
+      toolCallId: null,
+      metadata: { ok, error, canonical_owner: "durable_session" },
+    });
+    const assistantMessageId = `${turnId}:assistant-status`;
+    this.custody.attachMessage({
+      messageId: assistantMessageId,
+      role: "assistant",
+      content,
+      turnId,
+      toolCallId: null,
+      source: "turn_status",
+    });
+    this.custody.finishTurn({
+      turnId,
+      ok,
+      errorCode: ok ? null : (error || "tool_error"),
+      assistantMessageId,
+    });
+    this.session.updateState(["active_turn"], {
+      turn_id: turnId,
+      turn_index: turnIndex,
+      status: ok ? "completed" : "failed",
+      error,
+    });
+  }
+
   recordTool(operation: string, payload: O, effect = false): TransitionReceipt {
     const json = payload as unknown as JsonObject;
     const toolName = asRuntimeString(json.tool_name, asRuntimeString(json.name, ""));
@@ -718,6 +1262,7 @@ export class E01RuntimeCoordinator {
       protocol_frames: Number(this.framing.project().outbound_sequence ?? 0),
       runtime_commands: this.commands.snapshot().descriptors.length,
       telemetry_events: Number(this.telemetry.logging_module({ action: "log", level: "debug", name: "inventory", summary: "runtime inventory" }).sequence ?? 0),
+      custody: this.custody.audit() as unknown as JsonValue,
     };
   }
 
@@ -760,6 +1305,7 @@ export class E01RuntimeCoordinator {
       protocol: this.protocol.snapshot(),
       framing: this.framing.snapshot(),
       commands: this.commands.snapshot(),
+      custody: this.custody.snapshot(),
     };
     return { ...unsigned, checksum: digest(unsigned) };
   }
@@ -1055,6 +1601,36 @@ export class E01RuntimeCoordinator {
       enableDeferredTools: true,
       preserveLastUserMessage: true,
     });
+    this.ensureProviderModel(modelId, providerId);
+    this.provider.selectModel(modelId);
+    const ownedRequest = this.provider.prepare({
+      model: modelId,
+      messages,
+      system: providerSystemBlocks(prepared.system),
+      tools: providerToolDefinitions(prepared.tools),
+      maxTokens: 16_000,
+      temperature: null,
+      topP: null,
+      stopSequences: [],
+      stream: false,
+      thinking: { enabled: false, budgetTokens: 0 } as never,
+      metadata: {
+        external_request_id: requestId,
+        prompt_id: builtPrompt.promptId,
+        canonical_owner: "provider_model_runtime",
+      },
+      betaHeaders: [],
+      querySource: "ClaudeRuntimeCore.run",
+      sessionId: this.sessionId,
+      runId: this.runId,
+      taskId: this.taskId,
+      timeoutMs: this.providerTimeoutMs,
+    });
+    this.preparedProviderBindings.set(requestId, {
+      request: ownedRequest,
+      credentialId: this.activeProviderCredentialId,
+      authorizationHeaders: { ...this.activeProviderHeaders },
+    });
     this.ensureProviderPolicy(providerId);
     const estimatedInputTokens = Math.max(
       1,
@@ -1101,7 +1677,7 @@ export class E01RuntimeCoordinator {
         turnId: `${requestId}:turn`,
         idempotencyKey: requestId,
         modelPreference: modelId,
-        payload: prepared,
+        payload: ownedRequest.body,
         contextDigest: digest(builtPrompt.messages),
         toolSetDigest: digest(builtPrompt.tools),
         budget: {
@@ -1117,6 +1693,8 @@ export class E01RuntimeCoordinator {
           prompt_id: builtPrompt.promptId,
           prompt_fingerprint: builtPrompt.fingerprint,
           route_decision_digest: route.decisionDigest,
+          provider_model_request_id: ownedRequest.requestId,
+          provider_body_digest: ownedRequest.bodyDigest,
         },
       });
       const attempt = this.providerRequests.prepareAttempt({
@@ -1126,8 +1704,8 @@ export class E01RuntimeCoordinator {
         modelId,
         endpointId: route.endpointId,
         credentialId: `${providerId}:runtime`,
-        requestBody: prepared,
-        requestHeaders: {},
+        requestBody: ownedRequest.body,
+        requestHeaders: redactProviderHeaders(ownedRequest.headers),
         correlationId: `${requestId}:prepare`,
       });
       this.providerRequests.dispatch({
@@ -1148,6 +1726,27 @@ export class E01RuntimeCoordinator {
         kind: "message_start",
         payload: { messageId: requestId },
       });
+      this.custody.bindProvider({
+        externalRequestId: requestId,
+        providerModelRequestId: ownedRequest.requestId,
+        providerId,
+        modelId,
+        credentialId: this.activeProviderCredentialId,
+        credentialFingerprint: ownedRequest.credentialFingerprint,
+        promptId: builtPrompt.promptId,
+        promptFingerprint: builtPrompt.fingerprint,
+        routeId: route.routeId,
+        routeDecisionDigest: route.decisionDigest,
+        reservationId: reservation.reservationId,
+        durableRequestId: request.requestId,
+        attemptId: attempt.attemptId,
+        responseId: response.responseId,
+        bodyDigest: ownedRequest.bodyDigest,
+        redactedHeaders: redactProviderHeaders({
+          ...ownedRequest.headers,
+          ...this.activeProviderHeaders,
+        }),
+      });
       canonicalPayload.provider_lifecycle = {
         request_id: request.requestId,
         request_status: "dispatched",
@@ -1158,6 +1757,8 @@ export class E01RuntimeCoordinator {
         reservation_id: reservation.reservationId,
         prompt_id: builtPrompt.promptId,
         prompt_fingerprint: builtPrompt.fingerprint,
+        provider_model_request_id: ownedRequest.requestId,
+        provider_body_digest: ownedRequest.bodyDigest,
       };
     } catch (error) {
       if (reservationId) {
@@ -1260,8 +1861,29 @@ export class E01RuntimeCoordinator {
     const usage = providerUsage(asRuntimeObject(report.usage));
     const providerId = attempt.providerId;
     const modelId = attempt.modelId;
+    const binding = this.preparedProviderBindings.get(requestId);
     this.applyProviderRateHeaders(providerId, modelId, report);
     if (report.ok === true) {
+      this.custody.settleProvider(requestId, {
+        ok: true,
+        transportStatus: asRuntimeNumber(report.status) || 200,
+        providerRequestId: asRuntimeString(report.provider_request_id, requestId),
+        response: report,
+        errorCode: null,
+      });
+      if (binding) {
+        this.provider.observeOutcome(binding.request.requestId, {
+          ok: true,
+          providerRequestId: asRuntimeString(report.provider_request_id, requestId),
+          response: report,
+          usage: {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheReadInputTokens: usage.cacheReadTokens,
+            cacheCreationInputTokens: usage.cacheWriteTokens,
+          },
+        });
+      }
       if (request.status === "dispatched") {
         this.providerRequests.responseStarted({
           requestId,
@@ -1343,6 +1965,20 @@ export class E01RuntimeCoordinator {
       asRuntimeString(plan.action, "stop"),
     );
     const failureClass = providerFailureClass(status, errorMessage);
+    this.custody.settleProvider(requestId, {
+      ok: false,
+      transportStatus: status,
+      providerRequestId: asRuntimeString(report.provider_request_id, "") || null,
+      response: report,
+      errorCode: failureClass,
+    });
+    if (binding) {
+      this.provider.observeOutcome(binding.request.requestId, {
+        ok: false,
+        errorCode: failureClass,
+        response: report,
+      });
+    }
     const failed = this.providerRequests.failAttempt({
       requestId,
       attemptId,
@@ -1457,6 +2093,60 @@ export class E01RuntimeCoordinator {
       ),
       payload,
       attempt: 1,
+    });
+  }
+
+  private ensureProviderModel(
+    modelId: string,
+    providerId: "anthropic" | "compatible" | "local",
+  ): void {
+    try {
+      const descriptor = this.provider.resolveModel(modelId);
+      if (descriptor.provider === providerId || providerId === "compatible") return;
+      throw new Error(
+        `provider model ${modelId} belongs to ${descriptor.provider}, not ${providerId}`,
+      );
+    } catch (error) {
+      if (error instanceof Error && !/unknown provider model/u.test(error.message)) throw error;
+    }
+    this.provider.registerModel({
+      id: modelId,
+      canonicalName: modelId,
+      provider: providerId,
+      contextWindow: 1_000_000,
+      maxOutputTokens: 128_000,
+      inputPricePerMillion: 0,
+      outputPricePerMillion: 0,
+      cacheReadPricePerMillion: 0,
+      cacheWritePricePerMillion: 0,
+      capabilities: ["text", "tools", "streaming", "structured_output"],
+      aliases: [],
+      deprecated: false,
+      replacement: null,
+    });
+  }
+
+  private ensureToolSpec(toolName: string, readOnly: boolean): void {
+    if (this.tools.snapshot().specs.some((spec) => spec.name === toolName)) return;
+    this.tools.register({
+      name: toolName,
+      namespace: "runtime",
+      version: "1",
+      description: `Default-path Zyra tool ${toolName}`,
+      inputSchema: { type: "object", properties: {}, additionalProperties: true },
+      effects: readOnly ? ["read"] : ["write"],
+      risk: readOnly ? "low" : "high",
+      readOnly,
+      supportsStreaming: true,
+      supportsCancellation: true,
+      idempotent: false,
+      maximumResultChars: 64_000,
+      timeoutMs: 120_000,
+      concurrencyKey: readOnly ? `read:${toolName}` : `mutation:${toolName}`,
+      metadata: {
+        canonical_owner: "tool_execution_runtime",
+        default_path: true,
+      },
     });
   }
 

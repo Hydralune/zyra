@@ -233,6 +233,16 @@ const specs: Record<string, MutationSpec> = {
     "    this.applyProviderLifecycle(operation, json, canonicalPayload);",
     "    void canonicalPayload;",
   ),
+  "e01-mut-033-provider-execution-callback": spec(
+    runtimeTests,
+    "        (requestId) => e01.executePreparedProvider(requestId),",
+    "        undefined,",
+  ),
+  "e01-mut-034-execution-custody": spec(
+    runtimeTests,
+    "    this.custody.finishTurn({",
+    "    void ({",
+  ),
 };
 
 function hash(value: string | Uint8Array): string {

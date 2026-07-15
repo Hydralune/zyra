@@ -55,6 +55,27 @@ export class ClaudeRuntimeCore {
       e01.restore(restoredE01);
     }
     await e01.bootstrap();
+    const modelTransport = asString(
+      config.runtimeConstraints.model_transport
+        || config.runtimeConstraints.model_transport_kind,
+      "scripted",
+    );
+    await e01.configureProviderRuntime({
+      providerId: modelTransport === "http_sse" ? "compatible" : "local",
+      modelId: config.modelName,
+      baseUrl: asString(config.runtimeConstraints.model_api_base_url),
+      apiKey: asString(
+        config.runtimeConstraints.model_api_key
+          || config.runtimeConstraints.api_key,
+      ),
+      timeoutMs: Math.max(
+        100,
+        Math.min(
+          3_600_000,
+          (Number(config.runtimeConstraints.model_api_timeout_seconds) || 30) * 1000,
+        ),
+      ),
+    });
     const registry = new RuntimeToolRegistry(input.tools);
     let turns = normalizeTurns(input.turns);
     const restored = selectRestoredSnapshot(input.restoredState);
@@ -72,6 +93,9 @@ export class ClaudeRuntimeCore {
         input.workerRequestId,
         input.messages,
       );
+    e01.attachSessionProjection(
+      input.messages.map((message) => message as unknown as JsonObject),
+    );
     const artifacts: ArtifactReceipt[] = [];
     const stepSummaries: string[] = [];
     let eventSequence = 0;
@@ -188,6 +212,9 @@ export class ClaudeRuntimeCore {
       "disable_tool_permission_handoff_runtime",
       "disable_compact_restore_runtime",
       "disable_model_stream_runtime",
+      "disable_provider_model_runtime",
+      "disable_provider_transport_runtime",
+      "disable_provider_credential_runtime",
       "disable_runtime_budget_state",
     ].filter((name) => asBoolean(config.runtimeConstraints[name]));
     if (disabledComponents.length > 0) {
@@ -219,6 +246,7 @@ export class ClaudeRuntimeCore {
         (observation) => e01.decideProviderRecovery(observation),
         e01.journal.restartEpoch,
         (observation) => e01.completeProviderRecovery(observation),
+        (requestId) => e01.executePreparedProvider(requestId),
       );
       turns = model.turns;
       modelMetadata = model.metadata;
@@ -279,6 +307,7 @@ export class ClaudeRuntimeCore {
 
       const prompt = steps.map((step) => step.prompt ?? "").filter(Boolean).join("\n");
       const turn = session.beginTurn(turnIndex, prompt);
+      e01.beginCanonicalTurn(turn.turn_id, turnIndex, prompt);
       turnCount += 1;
       await emit("turn_started", {
         turn_id: turn.turn_id,
@@ -303,10 +332,13 @@ export class ClaudeRuntimeCore {
         delta_kind: "planning",
       });
 
-      const batches = scheduleToolBatches(
-        registry,
-        steps,
+      const batches = e01.planToolBatches(
+        turn.turn_id,
         turnIndex,
+        steps.map((step) => ({
+          step,
+          readOnly: registry.readOnly(step.tool_name),
+        })),
         config.maxReadOnlyConcurrency,
       );
       await emit("tool_loop_plan", {
@@ -320,6 +352,7 @@ export class ClaudeRuntimeCore {
       let turnOk = true;
       let turnError: string | null = null;
       for (const batch of batches) {
+        e01.startToolBatch(batch);
         let conflictProtected = false;
         for (const step of batch.steps) {
           if (registry.readOnly(step.tool_name)) {
@@ -433,6 +466,15 @@ export class ClaudeRuntimeCore {
           const budget = Math.min(config.maxToolResultChars, remainingTurnBudget);
           const budgeted = await applyToolResultBudget(host, result, budget);
           result = budgeted.result;
+          const toolCustody = e01.completeToolExecution({
+            callId: result.tool_call_id,
+            toolName: step.tool_name,
+            ok: result.ok,
+            summary: result.summary,
+            output: result.output,
+            error: result.error ?? null,
+            maximumCharacters: budget,
+          });
           turnResultChars += budgeted.originalChars;
           if (budgeted.artifact) {
             artifacts.push(budgeted.artifact);
@@ -480,6 +522,7 @@ export class ClaudeRuntimeCore {
             tool_name: step.tool_name,
             execution_mode: batch.executionMode,
             tool_result: result as unknown as JsonObject,
+            tool_custody: toolCustody,
           });
           await emit("message_delta", {
             turn_id: turn.turn_id,
@@ -657,6 +700,7 @@ export class ClaudeRuntimeCore {
       }
 
       session.completeTurn(turnOk, turnError);
+      e01.completeCanonicalTurn(turn.turn_id, turnIndex, turnOk, turnError);
       await emit("turn_completed", {
         turn_id: turn.turn_id,
         turn_index: turnIndex,
