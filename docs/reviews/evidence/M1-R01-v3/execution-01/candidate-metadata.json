@@ -4,7 +4,7 @@
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "implementation_candidate": "5a92745897c1a8737c1294e002e454dcdc996224",
   "cleanroom_target": "5a92745897c1a8737c1294e002e454dcdc996224",
-  "candidate_evidence_commit": null,
+  "candidate_evidence_commit": "c9b0b11e0d673c54a1a4d313f433fd7d11949e7d",
   "candidate_status": "ready_for_independent_review",
   "verified_complete": false,
   "independent_review_target": null,
