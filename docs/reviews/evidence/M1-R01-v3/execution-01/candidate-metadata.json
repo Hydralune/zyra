@@ -1,0 +1,17 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_candidate": "05bfad86398234035a062aa295f2055dcf06ac26",
+  "cleanroom_target": "05bfad86398234035a062aa295f2055dcf06ac26",
+  "candidate_status": "ready_for_independent_review",
+  "verified_complete": false,
+  "independent_review_target": null,
+  "independent_review_verdict": null,
+  "root_manifest_commit_boundary": "outside_zyra_git",
+  "notes": [
+    "The verified baseline is the comparison base, not the implementation candidate.",
+    "The evidence commit is created after this metadata file and does not change production code.",
+    "Execution-01 remains incomplete until an independent review passes against the evidence commit."
+  ]
+}
