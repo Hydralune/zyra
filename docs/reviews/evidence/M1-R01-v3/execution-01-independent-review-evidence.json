@@ -1,0 +1,240 @@
+{
+  "schema_version": "zyra.independent-review-evidence.v1",
+  "review_id": "M1-R01-v3-execution-01-independent-review",
+  "execution_id": "E01",
+  "verdict": "FAIL",
+  "reviewer_nonce": "2e6e7dafad7982963c874e1e0a8ab4b0f196adb8190edb208dee19594cc49445",
+  "commit_boundary": {
+    "verified_baseline": "c34535a783e88f9481381387ced89cba4fbc333dc74",
+    "implementation_commit": "d6ff45435167c04c132e08e3de275a24cf28b544",
+    "evidence_commit": "e4e3f7edeac6c628a988cf0ff273ad0f9f1d6e29",
+    "anchored_target": "df2937406e639862ec6a29795016b51651ee9cc0",
+    "linear_ancestry_confirmed": true,
+    "initial_worktree_clean": true
+  },
+  "gate_summary": {
+    "g0_frozen_baseline": "FAIL",
+    "effective_changed_production_sloc": "FAIL",
+    "e01_only_final_production_sloc": "FAIL_UNPROVEN",
+    "source_to_target_custody": "FAIL",
+    "mutation_freeze_integrity": "FAIL",
+    "default_http_provider_path": "FAIL",
+    "reason_tool_observe_revise_loop": "FAIL",
+    "permission_fail_closed": "FAIL",
+    "budget_compact_later_tool": "PASS",
+    "owner_disable": "PASS",
+    "three_process_exact_resume": "PASS",
+    "anchored_worktree_test_run": "PASS",
+    "fresh_cache_cleanroom": "UNRESOLVED_FAIL_CLOSED"
+  },
+  "baseline_and_manifest_audit": {
+    "baseline_receipt_clean_worktree": false,
+    "baseline_receipt_dirty_path_count": 19,
+    "source_manifest_rows": 229,
+    "source_manifest_accepted": 229,
+    "source_manifest_rejected": 0,
+    "source_manifest_unique_paths": 15,
+    "source_domains_present": [
+      "query",
+      "provider_api",
+      "compact_context"
+    ],
+    "required_source_domains_missing": [
+      "tool",
+      "session_lifecycle"
+    ],
+    "target_custody_rows": 229,
+    "target_sha256_null_rows": 229,
+    "unique_target_paths": 8,
+    "unique_target_symbols": 33,
+    "unique_success_test_sets": 4,
+    "unique_failure_test_sets": 4,
+    "unique_disable_test_sets": 1,
+    "deterministic_sample_size": 24,
+    "deterministic_sample_all_target_hashes_null": true,
+    "deterministic_sample_mapping_ids": [
+      "e01-src-0223",
+      "e01-src-0025",
+      "e01-src-0039",
+      "e01-src-0072",
+      "e01-src-0190",
+      "e01-src-0132",
+      "e01-src-0203",
+      "e01-src-0213",
+      "e01-src-0222",
+      "e01-src-0193",
+      "e01-src-0219",
+      "e01-src-0126",
+      "e01-src-0106",
+      "e01-src-0140",
+      "e01-src-0059",
+      "e01-src-0172",
+      "e01-src-0113",
+      "e01-src-0166",
+      "e01-src-0124",
+      "e01-src-0122",
+      "e01-src-0083",
+      "e01-src-0040",
+      "e01-src-0138",
+      "e01-src-0097"
+    ],
+    "required_rejected_sample_size": 4,
+    "available_rejected_sample_size": 0
+  },
+  "independent_loc_audit": {
+    "production_roots": [
+      "apps/code-worker/src",
+      "packages/runtime/claude-runtime/src"
+    ],
+    "production_file_count": 68,
+    "candidate_claimed_effective_changed_sloc": 25605,
+    "required_effective_changed_sloc": 25416,
+    "candidate_ast_units": 1467,
+    "candidate_span_nonblank_noncomment_sloc": 25575,
+    "blank_or_comment_deduction": 30,
+    "unproven_erased_interface_and_type_alias_sloc": 3150,
+    "fail_closed_defensible_effective_changed_sloc_upper_bound": 22425,
+    "deficit_against_requirement": 2991,
+    "type_only_breakdown": {
+      "InterfaceDeclaration": 2980,
+      "TypeAliasDeclaration": 170
+    },
+    "candidate_unit_breakdown": {
+      "MethodDeclaration": 15168,
+      "FunctionDeclaration": 6583,
+      "Constructor": 419,
+      "FirstStatement": 245
+    },
+    "near_clone_or_reachability_deductions_applied": false,
+    "note": "The 22425 upper bound is generous: it removes only known blank/comment and erased type-only spans, and gives the candidate full credit for all remaining uncertain reachability and near-clone lines."
+  },
+  "mutation_audit": {
+    "mutations": 34,
+    "compile_survived": 34,
+    "reported_killed": 34,
+    "restored_to_original_sha256": 34,
+    "frozen_patch_sha256_equal_to_actual_patch_sha256": 0,
+    "expected_killer_id_visible_in_recorded_failure_excerpt": 32,
+    "verdict": "FAIL_FROZEN_MUTATION_INTEGRITY"
+  },
+  "reviewer_owned_probes": {
+    "started_at_utc": "2026-07-15T16:40:28.741Z",
+    "finished_at_utc": "2026-07-15T16:40:30.270Z",
+    "temporary_probe_cleaned": true,
+    "provider_default_stdio": {
+      "provider_request_count": 1,
+      "tool_request_count": 0,
+      "run_result_ok": false,
+      "exit_code": 1,
+      "runtime_error": "cannot snapshot provider transport with active or queued requests",
+      "semantic_pass": false
+    },
+    "budget_compact_later_tool_default_stdio": {
+      "tool_request_count": 2,
+      "artifact_request_count": 3,
+      "context_compacted_event_count": 1,
+      "later_tool_seen": true,
+      "run_result_ok": true,
+      "semantic_pass": true,
+      "permission_decisions": [
+        "deny",
+        "deny"
+      ],
+      "permission_reason_codes": [
+        "typescript_path_outside_workspace",
+        "typescript_path_outside_workspace"
+      ],
+      "denied_tools_nevertheless_executed_and_accepted": 2
+    },
+    "owner_disable_default_stdio": {
+      "exit_code": 1,
+      "tool_request_count": 0,
+      "runtime_error": "e01_typescript_runtime_disabled",
+      "run_result_present": false,
+      "semantic_pass": true
+    },
+    "three_process_crash_restore": {
+      "session_id": "review-crash-session-2e6e7dafad798296",
+      "process_ids": [
+        69144,
+        62860,
+        80280
+      ],
+      "force_killed": [
+        true,
+        true,
+        true
+      ],
+      "restart_epochs": [
+        0,
+        1,
+        2
+      ],
+      "custody_restart_epochs": [
+        0,
+        1,
+        2
+      ],
+      "revisions": [
+        2,
+        4,
+        6
+      ],
+      "replayed_transition_ids": [],
+      "semantic_pass": true
+    }
+  },
+  "test_credibility": {
+    "e01_behavior_files": 9,
+    "e01_behavior_physical_lines": 8353,
+    "e01_named_test_cases": 355,
+    "unique_named_test_cases": 355,
+    "candidate_claimed_effective_behavior_test_sloc": 8099,
+    "anchored_worktree_command": ".\\node_modules\\bun\\bin\\bun.exe run runtime:e01:test",
+    "anchored_worktree_bun_version": "1.2.15",
+    "anchored_worktree_exit_code": 0,
+    "anchored_worktree_pass": 364,
+    "anchored_worktree_fail": 0,
+    "anchored_worktree_expect_calls": 1156,
+    "anchored_worktree_duration_ms": 1401,
+    "not_cleanroom": true,
+    "deterministic_sample": [
+      "durable-session.behavior.test.ts:440 enqueues a pending ordered delivery",
+      "coordinator-cutover.behavior.test.ts:662 disconnecting the abort hook changes observable admission behavior",
+      "tool-protocol.behavior.test.ts:316 redacts bearer tokens from internal text results",
+      "durable-session.behavior.test.ts:134 cannot reactivate a terminal session",
+      "durable-session.behavior.test.ts:92 pauses and resumes an active session with distinct events",
+      "coordinator-cutover.behavior.test.ts:470 finishes durable session state on session_failed",
+      "effect-protocol.behavior.test.ts:283 appends ordered values to an aggregate list",
+      "mutation-contract.behavior.test.ts:334 e01.mutation.retry-delay",
+      "coordinator-cutover.behavior.test.ts:345 uses query as the fallback domain for an unclassified phase",
+      "session-recovery.behavior.test.ts:994 truncates an oversized attachment at its kind token budget",
+      "session-recovery.behavior.test.ts:1054 projects allowed content into context attachment candidates",
+      "effect-protocol.behavior.test.ts:377 rejects unsafe prototype state paths"
+    ]
+  },
+  "cleanroom": {
+    "target_commit": "df2937406e639862ec6a29795016b51651ee9cc0",
+    "source": "git archive",
+    "fresh_tree_without_git": true,
+    "node_modules_present_before_install": false,
+    "dist_present_before_build": false,
+    "bun_version": "1.2.15",
+    "isolated_fresh_cache": true,
+    "install_command": "bun install --frozen-lockfile",
+    "install_exit_code": 1,
+    "install_duration_ms": 112,
+    "install_output_sha256": "995c2e8369984ecbf330dd8fd41ee10be42b6add7838c5eed2fbfba725a5f38b",
+    "failure": "sandbox ConnectionRefused for lockfile-pinned registry tarballs",
+    "escalation_requested": true,
+    "escalation_approved": false,
+    "tree_and_cache_cleaned": true,
+    "verdict": "UNRESOLVED_FAIL_CLOSED"
+  },
+  "scope_accounting": {
+    "candidate_raw_final_sloc": 34642,
+    "candidate_report_includes_preexisting_non_E01_agent_permission_skill_control_modules": true,
+    "independent_e01_only_final_sloc_provided": false,
+    "final_sloc_gate_accepted": false
+  }
+}
