@@ -834,6 +834,20 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
   ["getCacheBreakDiffPath", providerCustodyRoute("getCacheBreakDiffPath", "e01.custody.provider-cache-diff-path-is-session-scoped", ["session_unsafe", "cache-break.json"])],
   ["isExcludedModel", providerCustodyRoute("isExcludedModel", "e01.custody.provider-excluded-model-suppresses-break", ["excluded-model", "broken"])],
   ["checkResponseForCacheBreak", providerCustodyRoute("checkResponseForCacheBreak", "e01.custody.provider-cache-read-collapse-is-detected", ["cache-read-collapse", "readRatio"])],
+  ["notifyCacheDeletion", {
+    targetPath: "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+    targetSymbol: "ProviderTelemetryRuntime.notifyCompaction",
+    callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    callsiteSymbol: "E01RuntimeCoordinator.recordRuntimeEvent",
+    owner: "e01.provider-telemetry",
+    stateStore: "E01RuntimeSnapshot.telemetry",
+    stateProperty: "telemetry",
+    stateKind: "prompt-cache-deletion-lineage",
+    stateObservation: "telemetry.prompts/samples/events after context_compacted",
+    testName: "runtime externalizes large tool results and compacts context",
+    testTokens: ["context_compacted", "assert"],
+    testPath: "packages/runtime/claude-runtime/test/runtime.test.ts",
+  }],
   ["pendingCacheEdits", compactCustodyRoute("pendingCacheEdits", "e01.custody.compact-pending-edits-are-consumed-once", ["pendingCacheEdits", "consumePendingCacheEdits"])],
   ["isMainThreadSource", compactCustodyRoute("isMainThreadSource", "e01.custody.compact-main-thread-source-is-explicit", ["interactive-main", "background-subagent"])],
   ["microcompactMessages", compactCustodyRoute("microcompactMessages", "e01.custody.compact-old-tool-results-are-replaced", ["editedToolResultIds", "removedCharacters"])],
@@ -850,8 +864,8 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
   ["StreamingToolExecutor", {
     targetPath: "packages/runtime/claude-runtime/src/capability-host.ts",
     targetSymbol: "PermissionedCapabilityHost.executeBatch",
-    callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-    callsiteSymbol: "E01RuntimeCoordinator.executeCapabilities",
+    callsitePath: "packages/runtime/claude-runtime/src/capability-host.ts",
+    callsiteSymbol: "PermissionedCapabilityHost.executeBatch",
     owner: "e01.permissioned-capability-settlement",
     stateStore: "RuntimeRunResult.sessionSnapshot.capabilityHost",
     stateProperty: "capabilityHost",
@@ -864,7 +878,11 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
 ]);
 
 const routeExactCustody = (target: JsonRecord, source: JsonRecord): boolean => {
-  const route = exactCustodyRoutes.get(sourceName(source));
+  const sourcePath = String(source.source_path ?? "").replaceAll("\\", "/");
+  const routeKey = sourcePath.endsWith("/StreamingToolExecutor.ts")
+    ? "StreamingToolExecutor"
+    : sourceName(source);
+  const route = exactCustodyRoutes.get(routeKey);
   if (!route) return false;
   setRoute(target, source, {
     targetPath: route.targetPath,
