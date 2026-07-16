@@ -619,7 +619,7 @@ const routeToolResult = (target: JsonRecord, source: JsonRecord): void => {
   const integration = behaviorTest(
     "e01.integration.model-iteration-applies-observation-budget",
     "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
-    "ModelIterationRuntime.buildRevisionMessages",
+    "iteration.recordToolObservation",
     [
       "observation_budget_plan_digest",
       "snapshot.toolObservationBudget.plans.length",
@@ -629,7 +629,7 @@ const routeToolResult = (target: JsonRecord, source: JsonRecord): void => {
   const restoreTest = behaviorTest(
     "e01.mutation.observation-budget-restore-rejects-tampering",
     "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
-    "ToolObservationBudgetRuntime.restore",
+    "restored.restore(snapshot)",
     ["restored.restore(snapshot)", "snapshot checksum mismatch"],
   );
   const tests = restoreNames.has(name) || snapshotNames.has(name)
@@ -742,7 +742,7 @@ const routeTarget = (target: JsonRecord, source: JsonRecord): void => {
         behaviorTest(
           "e01.integration.model-iteration-applies-observation-budget",
           "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
-          "ModelIterationRuntime.buildRevisionMessages",
+          "iteration.recordToolObservation",
           ["tool_observation_omitted", "observation_budget_plan_digest"],
         ),
       ],
