@@ -25,6 +25,7 @@ type SourceUnit = {
   startLine: number;
   endLine: number;
   fileSha256: string;
+  countsAsExecutable: boolean;
 };
 type SelectedRange = SourceUnit & {
   part: number;
@@ -297,11 +298,11 @@ function sourceUnits(spec: SourceSpec, path: string): SourceUnit[] {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, kind);
   const output: SourceUnit[] = [];
   const fileSha256 = sha256(raw);
-  const add = (node: ts.Node, symbol: string): void => {
+  const add = (node: ts.Node, symbol: string, countsAsExecutable = true): void => {
     const startLine = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
     const endLine = source.getLineAndCharacterOfPosition(Math.max(node.getStart(source), node.end - 1)).line + 1;
     if (endLine < startLine) return;
-    output.push({ path, symbol, startLine, endLine, fileSha256 });
+    output.push({ path, symbol, startLine, endLine, fileSha256, countsAsExecutable });
   };
   for (const [statementIndex, statement] of source.statements.entries()) {
     if (
@@ -323,16 +324,33 @@ function sourceUnits(spec: SourceSpec, path: string): SourceUnit[] {
     }
     add(statement, nodeName(statement, source, `statement-${statementIndex + 1}`));
   }
-  if (!output.length) throw new Error(`no executable AST units discovered in ${spec.repo}:${path}`);
+  if (!output.length) {
+    const structural = source.statements.find((statement) =>
+      ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement) || ts.isExportDeclaration(statement)
+    );
+    if (structural) add(structural, nodeName(structural, source, "type-surface"), false);
+  }
+  if (!output.length) {
+    const lineCount = Math.max(1, text.replaceAll("\r", "").split("\n").length - (text.endsWith("\n") ? 1 : 0));
+    output.push({
+      path,
+      symbol: "module-surface",
+      startLine: 1,
+      endLine: lineCount,
+      fileSha256,
+      countsAsExecutable: false,
+    });
+  }
   return output.sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
 }
 
 function allocateQuotas(capacities: readonly number[], target: number): number[] {
-  if (capacities.some((value) => value < 1)) throw new Error("source file has no executable capacity");
+  if (capacities.some((value) => value < 0)) throw new Error("source file has invalid executable capacity");
   const total = capacities.reduce((sum, value) => sum + value, 0);
   if (total < target) throw new Error(`source capacity ${total} below frozen target ${target}`);
-  if (capacities.length > target) throw new Error("frozen target cannot cover every declared source file");
-  const quotas = capacities.map((capacity) => Math.max(1, Math.min(capacity, Math.floor(target * capacity / total))));
+  const quotas = capacities.map((capacity) => capacity === 0
+    ? 0
+    : Math.max(1, Math.min(capacity, Math.floor(target * capacity / total))));
   let assigned = quotas.reduce((sum, value) => sum + value, 0);
   while (assigned < target) {
     let best = -1;
@@ -354,7 +372,7 @@ function allocateQuotas(capacities: readonly number[], target: number): number[]
     let best = -1;
     let score = Number.NEGATIVE_INFINITY;
     for (let index = 0; index < capacities.length; index += 1) {
-      if (quotas[index]! <= 1) continue;
+      if (quotas[index]! <= (capacities[index] === 0 ? 0 : 1)) continue;
       const ideal = target * capacities[index]! / total;
       const candidate = quotas[index]! - ideal;
       if (candidate > score) {
@@ -372,15 +390,21 @@ function allocateQuotas(capacities: readonly number[], target: number): number[]
 function selectSourceRanges(spec: SourceSpec): SelectedRange[] {
   const unitsByPath = spec.paths.map((path) => sourceUnits(spec, path));
   const capacities = unitsByPath.map((units) => units.reduce(
-    (sum, unit) => sum + unit.endLine - unit.startLine + 1,
+    (sum, unit) => sum + (unit.countsAsExecutable ? unit.endLine - unit.startLine + 1 : 0),
     0,
   ));
   const quotas = allocateQuotas(capacities, spec.executableLines);
   const selected: SelectedRange[] = [];
   for (let fileIndex = 0; fileIndex < unitsByPath.length; fileIndex += 1) {
     let remaining = quotas[fileIndex]!;
+    if (!remaining) {
+      const structural = unitsByPath[fileIndex]![0]!;
+      selected.push({ ...structural, part: 1, partCount: 1 });
+      continue;
+    }
     for (const unit of unitsByPath[fileIndex]!) {
       if (!remaining) break;
+      if (!unit.countsAsExecutable) continue;
       const length = unit.endLine - unit.startLine + 1;
       const accepted = Math.min(length, remaining);
       selected.push({
@@ -729,6 +753,7 @@ const pythonPrefixes = [
   "packages/runtime/zyra_runtime/permission/",
   "packages/integrations/zyra_integrations/mcp/",
   "packages/skills/zyra_skills/",
+  "packages/commands/zyra_commands/runtime/",
 ] as const;
 
 const pythonExtraPaths = [
