@@ -63,8 +63,8 @@
     "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
     "packages/runtime/claude-runtime/src/tools.ts"
   ],
-  "raw_non_test_typescript_physical_sloc": 40638,
-  "final_non_test_typescript_physical_sloc": 37484,
+  "raw_non_test_typescript_physical_sloc": 40683,
+  "final_non_test_typescript_physical_sloc": 37529,
   "semantically_dormant_production_sloc": 3154,
   "semantically_dormant_production": [
     {
@@ -359,6 +359,11 @@
       "effective_sloc": 307
     },
     {
+      "path": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts",
+      "ast_units": 24,
+      "effective_sloc": 296
+    },
+    {
       "path": "packages/runtime/claude-runtime/src/stdio.ts",
       "ast_units": 6,
       "effective_sloc": 286
@@ -372,11 +377,6 @@
       "path": "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts",
       "ast_units": 20,
       "effective_sloc": 273
-    },
-    {
-      "path": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts",
-      "ast_units": 24,
-      "effective_sloc": 251
     },
     {
       "path": "packages/runtime/claude-runtime/src/query/stream-runtime.ts",
@@ -400,7 +400,7 @@
     }
   ],
   "line_buckets": {
-    "production_e01_physical": 37484,
+    "production_e01_physical": 37529,
     "production_excluded_later_unit_physical": 3154,
     "production_type_only_excluded_physical": 4635,
     "behavior_test_effective": 9155,
@@ -560,9 +560,9 @@
   "baseline_ast_structural_hash_count": 88,
   "current_ast_unit_count": 1966,
   "exact_changed_ast_unit_count": 1763,
-  "exact_changed_typescript_sloc": 28484,
+  "exact_changed_typescript_sloc": 28529,
   "effective_changed_ast_unit_count": 1392,
-  "effective_changed_typescript_sloc": 27231,
+  "effective_changed_typescript_sloc": 27276,
   "structural_clone_excluded_production_sloc": 1253,
   "behavior_test_files": [
     "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",

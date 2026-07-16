@@ -778,6 +778,7 @@ interface ExactCustodyRoute {
   stateKind: string;
   stateObservation: string;
   testName: string;
+  testAnchor?: string;
   testTokens: string[];
   testPath?: string;
 }
@@ -804,6 +805,7 @@ const providerCustodyRoute = (
   stateKind: "provider-cache-and-failure-custody",
   stateObservation: "preparedRequest.messages[].content[].cacheControl + preparedRequest.sourceCustody",
   testName,
+  testAnchor: testTokens[0],
   testTokens,
 });
 
@@ -830,6 +832,7 @@ const compactCustodyRoute = (
   stateKind: "compaction-lifecycle",
   stateObservation: "messages[].content[].compacted + sourceCustodyCompaction + boundary.preservedSegment",
   testName,
+  testAnchor: testTokens[0],
   testTokens,
 });
 
@@ -853,6 +856,7 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
     stateKind: "prompt-cache-deletion-lineage",
     stateObservation: "telemetry.prompts/samples/events after context_compacted",
     testName: "runtime externalizes large tool results and compacts context",
+    testAnchor: "context_compacted",
     testTokens: ["context_compacted", "assert"],
     testPath: "packages/runtime/claude-runtime/test/runtime.test.ts",
   }],
@@ -880,7 +884,8 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
     stateKind: "ordered-permissioned-tool-settlement",
     stateObservation: "capabilityHost.settlements[].receipts + progress.sequence",
     testName: "e01.mutation.permission-mixed-batch-delegates-only-allowed-calls",
-    testTokens: ["allowed", "delegate"],
+    testAnchor: "gateway.delegated",
+    testTokens: ["gateway.delegated", "permission_denied"],
     testPath: "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
   }],
 ]);
@@ -906,7 +911,12 @@ const routeExactCustody = (target: JsonRecord, source: JsonRecord): boolean => {
     sourceClaim: `${sourceName(source)} owns the corresponding Claude runtime behavior`,
     targetClaim: `${route.targetSymbol} implements that behavior and exposes its concrete state effect`,
     equivalence: "The target preserves the source decision and failure semantics while writing Zyra-owned request, recovery, compaction or settlement state.",
-    tests: [behaviorTest(route.testName, route.testPath ?? SOURCE_CUSTODY_TEST_PATH, route.testName, route.testTokens)],
+    tests: [behaviorTest(
+      route.testName,
+      route.testPath ?? SOURCE_CUSTODY_TEST_PATH,
+      route.testAnchor ?? route.testTokens[0] ?? route.testName,
+      route.testTokens,
+    )],
     mutations: [],
   });
   target.default_entry_edges = [{
