@@ -30,7 +30,9 @@ describe("E01 health verification projection", () => {
     const root = mkdtempSync(join(tmpdir(), "zyra-e01-health-pass-"));
     const directory = join(root, evidenceDirectory);
     const candidate = "a".repeat(40);
+    const candidateOverride = process.env.E01_IMPLEMENTATION_CANDIDATE;
     try {
+      delete process.env.E01_IMPLEMENTATION_CANDIDATE;
       mkdirSync(directory, { recursive: true });
       writeFileSync(
         join(directory, "candidate-metadata.json"),
@@ -59,6 +61,8 @@ describe("E01 health verification projection", () => {
       expect(projection.verificationStatus).toBe("independent_review_passed");
       expect(projection.effectiveLineCount).toBe(30_769);
     } finally {
+      if (candidateOverride === undefined) delete process.env.E01_IMPLEMENTATION_CANDIDATE;
+      else process.env.E01_IMPLEMENTATION_CANDIDATE = candidateOverride;
       rmSync(root, { recursive: true, force: true });
     }
   });
