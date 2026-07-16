@@ -72,9 +72,10 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     requests: ToolExecutionRequest[],
   ): Promise<ToolExecutionResponse[]> {
     const enriched = requests.map((request) => {
+      const tool = this.input.tools.find((item) => item.name === request.toolName);
       const identity = inferToolIdentity(
         request.toolName,
-        this.input.tools.find((tool) => tool.name === request.toolName),
+        tool,
       );
       const context: PermissionToolContext = {
         runId: this.input.runId,
@@ -86,7 +87,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         serverId: identity.serverId,
         version: identity.version,
         schemaDigest: identity.schemaDigest,
-        operation: inferOperation(request.toolName),
+        operation: inferOperation(request.toolName, tool),
         arguments: request.arguments,
         metadata: request.metadata,
       };
@@ -424,7 +425,14 @@ function inferToolIdentity(
   };
 }
 
-function inferOperation(toolName: string): string {
+function inferOperation(
+  toolName: string,
+  tool?: RuntimeRunInput["tools"][number],
+): string {
+  const metadata = asObject(tool?.metadata);
+  if (metadata.read_only === true || asString(metadata.read_only).toLowerCase() === "true") {
+    return "read";
+  }
   if ([
     "file_read",
     "agent_status",

@@ -214,7 +214,7 @@ test("TypeScript AgentTool runs a child QueryEngine and commits one durable life
       new PermissionedCapabilityHost(delegate, child, capabilities),
     ),
   });
-  assert.equal(result.output.ok, true);
+  assert.equal(result.output.ok, true, JSON.stringify(result.output));
   assert.equal(result.output.status, "completed");
   assert.deepEqual(
     delegate.mutations.map((item) => item.action),
@@ -278,7 +278,11 @@ test("background AgentTool is drained without a Python child loop", async () => 
   assert.equal(accepted.output.ok, true);
   assert.equal(delegate.mutations.at(-1)?.action, "dispatch");
   await capabilities.drainBackground(context);
-  assert.equal(delegate.mutations.at(-1)?.action, "complete");
+  assert.equal(
+    delegate.mutations.at(-1)?.action,
+    "complete",
+    JSON.stringify(delegate.mutations.at(-1)),
+  );
   await capabilities.close();
 });
 
