@@ -220,10 +220,14 @@ export class GitSemanticGraph {
   }
 
   private resolvedDeclaration(node: ts.CallExpression | ts.NewExpression): CallableDeclaration | null {
-    const checker = this.program.getTypeChecker();
     const location = ts.isPropertyAccessExpression(node.expression)
       ? node.expression.name
       : node.expression;
+    return this.resolvedLocation(location);
+  }
+
+  private resolvedLocation(location: ts.Node): CallableDeclaration | null {
+    const checker = this.program.getTypeChecker();
     let symbol = checker.getSymbolAtLocation(location);
     if (!symbol) return null;
     if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) symbol = checker.getAliasedSymbol(symbol);
@@ -257,6 +261,26 @@ export class GitSemanticGraph {
               invocationSha256: sha256(invocation),
               callStart: node.getStart(node.getSourceFile()),
             });
+          }
+          if (
+            ts.isCallExpression(node)
+            && ts.isPropertyAccessExpression(node.expression)
+            && ["map", "flatMap", "filter", "find", "findIndex", "forEach", "reduce", "reduceRight", "some", "every"].includes(node.expression.name.text)
+          ) {
+            for (const argument of node.arguments) {
+              const callback = this.resolvedLocation(argument);
+              if (!callback || callback.id === callable.id) continue;
+              const invocation = `${node.expression.getText(node.getSourceFile())}(${argument.getText(node.getSourceFile())})`;
+              edges.push({
+                callerPath: callable.path,
+                callerSymbol: callable.symbol,
+                calleePath: callback.path,
+                calleeSymbol: callback.symbol,
+                invocation,
+                invocationSha256: sha256(invocation),
+                callStart: node.getStart(node.getSourceFile()),
+              });
+            }
           }
         }
         if (
