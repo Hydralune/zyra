@@ -20,10 +20,6 @@ import {
 } from "../../src/provider/compatible-runtime.ts";
 import { ProviderTransportRuntime } from "../../src/provider/transport-runtime.ts";
 import { ModelIterationRuntime } from "../../src/loop/model-iteration-runtime.ts";
-import {
-  PermissionEnforcementRuntime,
-  type PermissionDecisionView,
-} from "../../src/tools/permission-enforcement-runtime.ts";
 import { ToolExecutionSettlementRuntime } from "../../src/tools/execution-settlement-runtime.ts";
 
 class GatewayHost implements RuntimeHost {
@@ -36,20 +32,38 @@ class GatewayHost implements RuntimeHost {
   }
 
   async executeBatch(_batch: ToolBatch, requests: ToolExecutionRequest[]): Promise<ToolExecutionResponse[]> {
-    this.delegated.push(structuredClone(requests));
+    const allowed = requests.filter((request) => {
+      const decision = request.permissionDecision as unknown as { effect?: string } | undefined;
+      return decision?.effect === "allow";
+    });
+    if (allowed.length > 0) {
+      this.delegated.push(structuredClone(allowed));
+    }
     return requests.map((request) => ({
       tool_call_id: request.toolCallId,
-      ok: true,
-      summary: `gateway executed ${request.toolName}`,
-      output: { delegated: true, tool_name: request.toolName },
+      ok: allowed.includes(request),
+      summary: allowed.includes(request)
+        ? `gateway executed ${request.toolName}`
+        : `gateway blocked ${request.toolName}`,
+      output: allowed.includes(request)
+        ? { delegated: true, tool_name: request.toolName }
+        : { delegated: false, tool_name: request.toolName },
       artifacts: [],
-      error: null,
+      error: allowed.includes(request)
+        ? null
+        : (request.permissionDecision as unknown as { effect?: string }).effect === "ask"
+          ? "permission_approval_required"
+          : "permission_denied",
       completed_at: new Date().toISOString(),
       metadata: {
         ...request.metadata,
-        permission_effect: "allow",
+        permission_effect: (request.permissionDecision as unknown as { effect?: string }).effect ?? "deny",
         permission_commit_only: "false",
-        gateway_execution: "true",
+        permission_abort_loop: (request.permissionDecision as unknown as { effect?: string }).effect === "ask" ? "true" : "false",
+        permission_reason: String((request.permissionDecision as unknown as { reason?: string }).reason ?? "blocked"),
+        permission_delegated: String(allowed.includes(request)),
+        canonical_permission_owner: "python-durable-gateway",
+        gateway_execution: String(allowed.includes(request)),
       },
     }));
   }
@@ -208,7 +222,7 @@ describe("default permission execution custody", () => {
     expect(gateway.delegated).toHaveLength(0);
     expect(result[0]?.error).toBe("permission_approval_required");
     expect(result[0]?.metadata.permission_abort_loop).toBe("true");
-    expect(result[0]?.metadata.canonical_permission_owner).toBe("typescript");
+    expect(result[0]?.metadata.canonical_permission_owner).toBe("python-durable-gateway");
   });
 
   test("e01.mutation.permission-mixed-batch-delegates-only-allowed-calls", async () => {
@@ -230,10 +244,10 @@ describe("default permission execution custody", () => {
     expect(result[1]?.metadata.permission_reason).toContain("outside the bound workspace");
 
     const snapshot = host.snapshot();
-    const enforcement = snapshot.enforcement as JsonObject;
-    const records = enforcement.batches as JsonObject[];
-    expect(records[0]?.delegatedRequestIds).toEqual(["allow-call"]);
-    expect(records[0]?.blockedRequestIds).toEqual(["outside-call"]);
+    const settlement = snapshot.settlement as JsonObject;
+    const calls = settlement.calls as JsonObject[];
+    expect(calls.find((item) => item.callId === "allow-call")?.delegated).toBe(true);
+    expect(calls.find((item) => item.callId === "outside-call")?.delegated).toBe(false);
   });
 });
 
@@ -553,39 +567,6 @@ describe("execution settlement custody", () => {
   });
 });
 
-describe("generic permission enforcement protocol", () => {
-  test("enforcement rejects extra gateway receipts", async () => {
-    const runtime = new PermissionEnforcementRuntime("enforcement-extra-receipt");
-    const requests = [{ id: "one" }];
-    await expect(runtime.enforce(requests, {
-      identifyRequest: (item) => ({ requestId: item.id, toolName: "read", inputDigest: item.id }),
-      decide: () => ({ effect: "allow", reason: "allowed" } as PermissionDecisionView),
-      viewDecision: (decision) => decision,
-      delegate: async () => [receipt("one", true), receipt("extra", true)],
-      identifyReceipt: (item) => ({ requestId: item.id, success: item.ok, errorCode: item.error }),
-      blockedReceipt: (item, decision) => receipt(item.id, false, decision.effect),
-    })).rejects.toThrow("unauthorized receipt");
-  });
-
-  test("enforcement synthesizes a missing receipt and preserves cardinality", async () => {
-    const runtime = new PermissionEnforcementRuntime("enforcement-missing-receipt");
-    const requests = [{ id: "one" }, { id: "two" }];
-    const result = await runtime.enforce(requests, {
-      identifyRequest: (item) => ({ requestId: item.id, toolName: "read", inputDigest: item.id }),
-      decide: () => ({ effect: "allow", reason: "allowed" } as PermissionDecisionView),
-      viewDecision: (decision) => decision,
-      delegate: async () => [receipt("one", true)],
-      identifyReceipt: (item) => ({ requestId: item.id, success: item.ok, errorCode: item.error }),
-      blockedReceipt: (item, decision) => receipt(item.id, false, decision.effect),
-      failedReceipt: (item, _identity, code) => receipt(item.id, false, code),
-    });
-    expect(result.map((item) => item.id)).toEqual(["one", "two"]);
-    expect(result[1]?.ok).toBe(false);
-    expect(result[1]?.error).toBe("permission_delegate_missing_receipt");
-    expect(runtime.audit().valid).toBe(true);
-  });
-});
-
 function settlementRuntime(runId = "settlement-run"): ToolExecutionSettlementRuntime {
   return new ToolExecutionSettlementRuntime({
     runtimeId: "settlement-runtime",
@@ -605,8 +586,4 @@ function plannedCall(callId: string, position: number) {
     position,
     metadata: {},
   };
-}
-
-function receipt(id: string, ok: boolean, error: string | null = null) {
-  return { id, ok, error };
 }

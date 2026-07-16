@@ -346,6 +346,14 @@ export class E01RuntimeCoordinator {
     });
     this.commands.restore(snapshot.commands);
     this.custody.restore(snapshot.custody, snapshot.runId !== this.runId);
+    for (const tool of snapshot.custody.tools) {
+      if (tool.effectId && tool.resultId && tool.state === "running") {
+        this.toolEffectBindings.set(tool.callId, {
+          effectId: tool.effectId,
+          resultId: tool.resultId,
+        });
+      }
+    }
     this.restored = true;
   }
 
@@ -962,10 +970,26 @@ export class E01RuntimeCoordinator {
   ): OwnedToolBatch[] {
     const byCallId = new Map<string, ToolStep>();
     const callIds: string[] = [];
+    const restoredTools = this.tools.snapshot();
+    const restoredCalls = new Map(restoredTools.calls.map((call) => [call.callId, call]));
+    let restoredCallCount = 0;
     for (const [index, input] of inputs.entries()) {
       const callId = input.step.step_id?.trim() || `${turnId}:tool:${index + 1}`;
       const step: ToolStep = { ...input.step, step_id: callId };
       this.ensureToolSpec(step.tool_name, input.readOnly);
+      const restoredCall = restoredCalls.get(callId);
+      if (restoredCall) {
+        if (
+          restoredCall.toolName !== step.tool_name
+          || JSON.stringify(restoredCall.arguments) !== JSON.stringify(asRuntimeObject(step.arguments))
+        ) {
+          throw new Error(`restored tool call identity mismatch: ${callId}`);
+        }
+        restoredCallCount += 1;
+        byCallId.set(callId, step);
+        callIds.push(callId);
+        continue;
+      }
       const invocation = this.tools.createInvocation({
         callId,
         sessionId: this.sessionId,
@@ -985,6 +1009,28 @@ export class E01RuntimeCoordinator {
       }
       byCallId.set(callId, step);
       callIds.push(callId);
+    }
+    if (restoredCallCount > 0) {
+      if (restoredCallCount !== callIds.length) {
+        throw new Error("restored tool batch is only partially present");
+      }
+      const restoredBatches = restoredTools.batches
+        .filter((batch) => batch.turnId === turnId)
+        .map((batch) => ({
+          batchId: batch.batchId,
+          turnIndex,
+          executionMode: batch.readOnly
+            ? "concurrent_read_only" as const
+            : "serial_non_read_only" as const,
+          steps: batch.callIds.map((callId) => byCallId.get(callId)!).filter(Boolean),
+        }));
+      const restoredBatchCallIds = new Set(
+        restoredBatches.flatMap((batch) => batch.steps.map((step) => step.step_id || "")),
+      );
+      if (callIds.some((callId) => !restoredBatchCallIds.has(callId))) {
+        throw new Error("restored tool call is missing its scheduled batch");
+      }
+      return restoredBatches;
     }
     const batches: OwnedToolBatch[] = this.tools.schedule(
       turnId,
@@ -1026,9 +1072,15 @@ export class E01RuntimeCoordinator {
   }
 
   startToolBatch(batch: OwnedToolBatch): void {
+    const restoredCalls = new Map(
+      this.tools.snapshot().calls.map((call) => [call.callId, call]),
+    );
     for (const step of batch.steps) {
       const callId = step.step_id?.trim();
       if (!callId) throw new Error("E01-owned tool batch contains an empty call id");
+      if (restoredCalls.get(callId)?.state === "running") {
+        continue;
+      }
       const lease = this.tools.acquireLease(
         callId,
         "zyra-typescript-claude-runtime",

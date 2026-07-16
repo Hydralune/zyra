@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import time
 import os
 import queue
 import shutil
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -83,6 +86,10 @@ class TypeScriptClaudeQueryEngine:
         self.entrypoint = code_worker_entrypoint(self.project_root)
         self._host_events: list[EventRecord] = []
         self._host_artifacts: list[Any] = []
+        self._latest_runtime_checkpoint: dict[str, Any] = {}
+        self._tool_effect_receipts: dict[str, dict[str, Any]] = {}
+        self._tool_effect_receipts_lock = threading.RLock()
+        self._last_tool_batch_evidence: dict[str, Any] = {}
 
     def run(
         self,
@@ -245,6 +252,23 @@ class TypeScriptClaudeQueryEngine:
             if isinstance(nested_session_snapshot, Mapping)
             else dict(raw_restored_runtime_state)
         )
+        durable_checkpoint = self._load_incremental_checkpoint(session_id)
+        provided_revision = int(
+            restored_runtime_state.get("revision")
+            or dict(restored_runtime_state.get("typescript_runtime_snapshot") or {}).get("revision")
+            or 0
+        )
+        durable_revision = int(durable_checkpoint.get("revision") or 0)
+        if durable_checkpoint and durable_revision >= provided_revision:
+            restored_runtime_state.update(durable_checkpoint)
+        self._latest_runtime_checkpoint = dict(
+            restored_runtime_state.get("typescript_runtime_snapshot") or restored_runtime_state
+        )
+        self._tool_effect_receipts = {
+            str(key): dict(value)
+            for key, value in dict(restored_runtime_state.get("tool_effect_receipts") or {}).items()
+            if isinstance(value, Mapping)
+        }
         restored_session_id = str(restored_runtime_state.get("session_id") or "")
         if restored_session_id and restored_session_id != session_id:
             restored_runtime_state.pop("permission_runtime", None)
@@ -355,7 +379,7 @@ class TypeScriptClaudeQueryEngine:
                 "config": self._typescript_config(permission_runtime),
                 "session_seed": to_jsonable(self.config.session_seed or {}),
                 "context_snapshot": to_jsonable(self.config.context_snapshot or {}),
-                "restored_state": to_jsonable(self.config.restored_runtime_state or {}),
+                "restored_state": to_jsonable(restored_runtime_state),
                 "metadata": to_jsonable(dict(request_metadata)),
             },
         )
@@ -412,6 +436,98 @@ class TypeScriptClaudeQueryEngine:
                     except Exception as error:  # noqa: BLE001 - noncanonical compatibility projection.
                         projection_error = f"{type(error).__name__}: {error}"
                 continue
+            if kind == "runtime.checkpoint":
+                checkpoint = dict(payload.get("snapshot") or {})
+                checkpoint["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
+                checkpoint["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
+                checkpoint["permission_runtime"] = to_jsonable(permission_runtime.snapshot())
+                checkpoint["permission_continuation"] = to_jsonable(permission_continuation.snapshot())
+                checkpoint["permission_continuation_payloads"] = to_jsonable(continuation_payloads)
+                self._latest_runtime_checkpoint = checkpoint
+                self._persist_incremental_checkpoint(session_id, checkpoint)
+                self._write_frame(
+                    process,
+                    run_id=run_id,
+                    sequence=outbound_sequence,
+                    kind="runtime.checkpoint.result",
+                    payload={"accepted": True},
+                    correlation_id=correlation_id,
+                )
+                outbound_sequence += 1
+                continue
+            if kind == "tool.batch.request":
+                batch_started_at = time.perf_counter()
+                raw_requests = list(payload.get("requests") or [])
+                request_payloads = [dict(item) for item in raw_requests if isinstance(item, Mapping)]
+                if len(request_payloads) != len(raw_requests):
+                    raise TypeScriptRuntimeError("typescript_runtime_protocol_error", "tool batch contains a non-object request")
+
+                def execute_one(item: Mapping[str, Any]) -> dict[str, Any]:
+                    return self._execute_tool_request(
+                        payload=item,
+                        run_id=run_id,
+                        task_id=task_id,
+                        node_id=node_id,
+                        worker_request_id=worker_request_id,
+                        session_id=session_id,
+                        executor=executor,
+                        permission_runtime=permission_runtime,
+                        permission_continuation=permission_continuation,
+                        continuation_payloads=continuation_payloads,
+                        continuation_sequence=continuation_sequence,
+                        pending_typescript_settlements=pending_typescript_settlements,
+                        tool_effect_receipts=self._tool_effect_receipts,
+                        receipt_lock=self._tool_effect_receipts_lock,
+                    )
+
+                execution_mode = str(payload.get("execution_mode") or "serial_non_read_only")
+                timeout_seconds = max(0.001, min(600.0, float(payload.get("timeout_ms") or 30000) / 1000.0))
+                if execution_mode == "concurrent_read_only" and len(request_payloads) > 1:
+                    configured_concurrency = int(
+                        self.config.runtime_constraints.get("max_read_only_concurrency") or 10
+                    )
+                    pool = ThreadPoolExecutor(
+                        max_workers=min(len(request_payloads), max(1, configured_concurrency))
+                    )
+                    futures = [pool.submit(execute_one, item) for item in request_payloads]
+                    results: list[dict[str, Any]] = []
+                    batch_deadline = time.monotonic() + timeout_seconds
+                    for index, future in enumerate(futures):
+                        remaining = max(0.001, batch_deadline - time.monotonic())
+                        try:
+                            results.append(future.result(timeout=remaining))
+                        except FutureTimeoutError:
+                            future.cancel()
+                            tool_call_id = str(request_payloads[index].get("tool_call_id") or "")
+                            results.append({
+                                "tool_call_id": tool_call_id,
+                                "ok": False,
+                                "summary": "Read-only tool exceeded the batch deadline",
+                                "output": {},
+                                "artifacts": [],
+                                "error": "tool_execution_timeout",
+                                "metadata": {"late_result_fenced": "true", "execution_mode": execution_mode},
+                            })
+                    pool.shutdown(wait=False, cancel_futures=True)
+                else:
+                    results = [execute_one(item) for item in request_payloads]
+                self._last_tool_batch_evidence = {
+                    "batch_id": str(payload.get("batch_id") or ""),
+                    "execution_mode": execution_mode,
+                    "request_count": len(request_payloads),
+                    "elapsed_ms": round((time.perf_counter() - batch_started_at) * 1000.0, 3),
+                    "result_order": [str(item.get("tool_call_id") or "") for item in results],
+                }
+                self._write_frame(
+                    process,
+                    run_id=run_id,
+                    sequence=outbound_sequence,
+                    kind="tool.batch.result",
+                    payload={"batch_id": str(payload.get("batch_id") or ""), "results": results},
+                    correlation_id=correlation_id,
+                )
+                outbound_sequence += 1
+                continue
             if kind == "tool.request":
                 tool_result = self._execute_tool_request(
                     payload=payload,
@@ -426,6 +542,8 @@ class TypeScriptClaudeQueryEngine:
                     continuation_payloads=continuation_payloads,
                     continuation_sequence=continuation_sequence,
                     pending_typescript_settlements=pending_typescript_settlements,
+                    tool_effect_receipts=self._tool_effect_receipts,
+                    receipt_lock=self._tool_effect_receipts_lock,
                 )
                 self._write_frame(
                     process,
@@ -576,6 +694,8 @@ class TypeScriptClaudeQueryEngine:
         session_snapshot["permission_continuation_payloads"] = to_jsonable(
             continuation_payloads
         )
+        session_snapshot["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
+        session_snapshot["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
         session_snapshot["runtime_state"] = {
             "schema_version": 1,
             "query_session_id": session_id,
@@ -731,26 +851,62 @@ class TypeScriptClaudeQueryEngine:
             metadata=metadata,
         )
 
+    def _checkpoint_path(self, session_id: str) -> Path:
+        identity = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
+        root = Path(self.context.artifact_store.root).resolve() / ".runtime-checkpoints"
+        root.mkdir(parents=True, exist_ok=True)
+        return root / f"typescript-e01-{identity}.json"
+
+    def _load_incremental_checkpoint(self, session_id: str) -> dict[str, Any]:
+        path = self._checkpoint_path(session_id)
+        if not path.exists():
+            return {}
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise TypeScriptRuntimeError(
+                "typescript_runtime_checkpoint_corrupt",
+                f"Cannot restore the durable TypeScript checkpoint: {error}",
+            ) from error
+        if not isinstance(value, dict) or str(value.get("session_id") or "") != session_id:
+            raise TypeScriptRuntimeError(
+                "typescript_runtime_checkpoint_identity",
+                "Durable TypeScript checkpoint does not match the logical session.",
+            )
+        return value
+
+    def _persist_incremental_checkpoint(
+        self,
+        session_id: str,
+        checkpoint: Mapping[str, Any],
+    ) -> None:
+        path = self._checkpoint_path(session_id)
+        staged = path.with_suffix(path.suffix + ".tmp")
+        payload = dict(checkpoint)
+        payload["session_id"] = session_id
+        encoded = json.dumps(to_jsonable(payload), ensure_ascii=False, sort_keys=True)
+        staged.write_text(encoded, encoding="utf-8")
+        os.replace(staged, path)
+
     def _runtime_command(self) -> tuple[list[str], str]:
         if not self.entrypoint.exists():
             raise TypeScriptRuntimeError(
                 "typescript_runtime_unavailable",
                 f"TypeScript runtime entrypoint is missing: {self.entrypoint}",
             )
-        bun = shutil.which("bun")
-        if bun:
+        configured_bun = str(os.environ.get("ZYRA_BUN_EXECUTABLE") or "").strip()
+        local_bun = self.project_root / "node_modules" / "bun" / "bin" / (
+            "bun.exe" if os.name == "nt" else "bun"
+        )
+        bun = configured_bun or shutil.which("bun") or (
+            str(local_bun) if local_bun.is_file() else ""
+        )
+        if bun and Path(bun).is_file():
             return [bun, str(self.entrypoint), "--stdio"], "bun"
-        node = shutil.which("node")
-        if node:
-            return [
-                node,
-                "--experimental-strip-types",
-                str(self.entrypoint),
-                "--stdio",
-            ], "node-strip-types"
         raise TypeScriptRuntimeError(
             "typescript_runtime_unavailable",
-            "Neither Bun nor a TypeScript-capable Node runtime is available.",
+            "Bun 1.2.15 is required for the canonical TypeScript runtime; "
+            "set ZYRA_BUN_EXECUTABLE or install the locked project dependency.",
         )
 
     def _runtime_environment(self) -> dict[str, str]:
@@ -845,6 +1001,8 @@ class TypeScriptClaudeQueryEngine:
         continuation_payloads: dict[str, dict[str, Any]],
         continuation_sequence: list[int],
         pending_typescript_settlements: dict[str, Any],
+        tool_effect_receipts: dict[str, dict[str, Any]],
+        receipt_lock: threading.RLock,
     ) -> dict[str, Any]:
         tool_name = str(payload.get("tool_name") or "")
         tool_call_id = str(payload.get("tool_call_id") or "")
@@ -854,6 +1012,33 @@ class TypeScriptClaudeQueryEngine:
         decision_payload = dict(payload.get("permission_decision") or {})
         permission_only = bool(payload.get("permission_only"))
         execution_owner = str(payload.get("execution_owner") or "python-tool-executor")
+        request_digest = hashlib.sha256(
+            json.dumps(
+                {"tool_name": tool_name, "arguments": arguments},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        with receipt_lock:
+            cached = tool_effect_receipts.get(tool_call_id)
+            if cached is not None:
+                if str(cached.get("request_digest") or "") != request_digest:
+                    return {
+                        "tool_call_id": tool_call_id,
+                        "ok": False,
+                        "summary": "Stable tool call id was reused with a different payload",
+                        "output": {},
+                        "artifacts": [],
+                        "error": "tool_effect_identity_conflict",
+                        "metadata": {"effect_replay_fenced": "true"},
+                    }
+                replayed = dict(cached.get("result") or {})
+                replayed_metadata = dict(replayed.get("metadata") or {})
+                replayed_metadata["effect_replay_fenced"] = "true"
+                replayed_metadata["effect_replayed"] = "false"
+                replayed["metadata"] = replayed_metadata
+                return replayed
         spec = self.context.registry.get(tool_name)
         if spec is None and not (permission_only and execution_owner.startswith("typescript-")):
             return to_jsonable(
@@ -1168,6 +1353,15 @@ class TypeScriptClaudeQueryEngine:
                 )
             )
         result = executor.execute(call, permission_grant=receipt.execution_grant)
+        encoded_result = to_jsonable(result)
+        with receipt_lock:
+            tool_effect_receipts[tool_call_id] = {
+                "request_digest": request_digest,
+                "result": encoded_result,
+            }
+            checkpoint = dict(self._latest_runtime_checkpoint)
+            checkpoint["tool_effect_receipts"] = to_jsonable(tool_effect_receipts)
+            self._persist_incremental_checkpoint(session_id, checkpoint)
         self._host_events.extend(permission_runtime.drain_execution_events(tool_call_id))
         if (
             continuation_claim is not None
@@ -1248,7 +1442,7 @@ class TypeScriptClaudeQueryEngine:
                     )
                 )
         self._host_artifacts.extend(result.artifacts)
-        return to_jsonable(result)
+        return encoded_result
 
     def _settle_typescript_capability(
         self,
@@ -1760,6 +1954,14 @@ class TypeScriptClaudeQueryEngine:
                 },
             },
         )
+        failed_snapshot = to_jsonable(projection.snapshot())
+        if self._latest_runtime_checkpoint:
+            failed_snapshot["typescript_runtime_snapshot"] = to_jsonable(
+                self._latest_runtime_checkpoint
+            )
+        failed_snapshot["tool_effect_receipts"] = to_jsonable(
+            self._tool_effect_receipts
+        )
         return ClaudeQueryEngineResult(
             ok=False,
             event_records=[*self._host_events, event],
@@ -1769,7 +1971,7 @@ class TypeScriptClaudeQueryEngine:
             tool_call_count=0,
             context_compaction_count=0,
             stopped_reason=error.code,
-            session_snapshot=to_jsonable(projection.snapshot()),
+            session_snapshot=failed_snapshot,
             metadata={
                 "loop": "zyra_typescript_query_engine_runtime",
                 "canonical_runtime_owner": "typescript",
@@ -1849,9 +2051,10 @@ class TypeScriptClaudeQueryEngine:
         correlation_id: str = "",
     ) -> None:
         if process.stdin is None or process.poll() is not None:
+            stderr = process.stderr.read().strip() if process.stderr is not None else ""
             raise TypeScriptRuntimeError(
                 "typescript_runtime_process_failed",
-                "TypeScript runtime process is not writable.",
+                stderr or "TypeScript runtime process is not writable.",
             )
         frame = {
             "protocol": RUNTIME_PROTOCOL_VERSION,
@@ -1865,9 +2068,10 @@ class TypeScriptClaudeQueryEngine:
             process.stdin.write(json.dumps(frame, ensure_ascii=False) + "\n")
             process.stdin.flush()
         except (BrokenPipeError, OSError) as error:
+            stderr = process.stderr.read().strip() if process.stderr is not None else ""
             raise TypeScriptRuntimeError(
                 "typescript_runtime_process_failed",
-                "TypeScript runtime process disconnected while receiving a frame.",
+                stderr or "TypeScript runtime process disconnected while receiving a frame.",
             ) from error
 
     @staticmethod

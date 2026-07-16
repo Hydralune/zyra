@@ -161,6 +161,13 @@ export class ClaudeRuntimeCore {
       }
       e01.recordRuntimeEvent(phase, payload);
       await host.emitEvent({ ...event, e01_revision: e01.journal.revision });
+      await host.checkpointState?.({
+        ...session.snapshot(),
+        e01Runtime: e01.snapshot() as unknown as JsonObject,
+        modelIteration: iteration.snapshot() as unknown as JsonObject,
+        checkpointPhase: phase,
+        checkpointEventSequence: eventSequence,
+      });
     };
 
     await emit(restored ? "context_restored" : "session_started", {
@@ -312,7 +319,9 @@ export class ClaudeRuntimeCore {
     }
 
     const turnLimit = config.maxTurns ?? (modelTransport === "http_sse" ? 1_000 : turns.length);
-    for (let turnIndex = 0; ok && turnIndex < turns.length; turnIndex += 1) {
+    const restoredActiveTurn = session.activeTurnSnapshot();
+    const initialTurnIndex = restoredActiveTurn?.turn_index ?? 0;
+    for (let turnIndex = initialTurnIndex; ok && turnIndex < turns.length; turnIndex += 1) {
       const queryDecision = e01.decideQuery("turn_preflight", {
         turnIndex,
         turnLimit,
@@ -356,20 +365,32 @@ export class ClaudeRuntimeCore {
       }
 
       const prompt = steps.map((step) => step.prompt ?? "").filter(Boolean).join("\n");
-      const turn = session.beginTurn(turnIndex, prompt);
-      e01.beginCanonicalTurn(turn.turn_id, turnIndex, prompt);
-      turnCount += 1;
-      await emit("turn_started", {
-        turn_id: turn.turn_id,
-        turn_index: turnIndex,
-        tool_count: steps.length,
-        user_content: prompt,
-      });
-      await emit("turn_start", {
-        turn_id: turn.turn_id,
-        turn_index: turnIndex,
-        tool_count: steps.length,
-      });
+      const activeTurn = session.activeTurnSnapshot();
+      const resumingTurn = activeTurn?.turn_index === turnIndex;
+      const turn = resumingTurn && activeTurn
+        ? activeTurn
+        : session.beginTurn(turnIndex, prompt);
+      if (resumingTurn) {
+        await emit("turn_resumed", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          tool_count: steps.length,
+        });
+      } else {
+        e01.beginCanonicalTurn(turn.turn_id, turnIndex, prompt);
+        turnCount += 1;
+        await emit("turn_started", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          tool_count: steps.length,
+          user_content: prompt,
+        });
+        await emit("turn_start", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          tool_count: steps.length,
+        });
+      }
       await emit("stream_request_start", {
         turn_id: turn.turn_id,
         turn_index: turnIndex,
@@ -436,7 +457,9 @@ export class ClaudeRuntimeCore {
           if (!registry.readOnly(step.tool_name)) {
             mutatingToolCount += 1;
           }
-          session.recordToolCall(toolCallId, step.tool_name);
+          if (!turn.tool_call_ids.includes(toolCallId)) {
+            session.recordToolCall(toolCallId, step.tool_name);
+          }
           if (modelTransport === "http_sse") {
             iteration.markToolRunning(toolCallId, turn.turn_id);
           }
@@ -1056,6 +1079,10 @@ function selectRestoredSnapshot(value: JsonObject | null | undefined): JsonObjec
     return sessionChecksumPayload(queryEngine);
   }
   const metadata = asObject(root.metadata);
+  const pythonProjection = asObject(root.typescript_runtime_snapshot);
+  if (pythonProjection.version === "zyra.typescript-query-session.v1") {
+    return sessionChecksumPayload(pythonProjection);
+  }
   const projected = asObject(metadata.typescript_runtime_snapshot);
   return projected.version === "zyra.typescript-query-session.v1"
     ? sessionChecksumPayload(projected)
@@ -1063,10 +1090,28 @@ function selectRestoredSnapshot(value: JsonObject | null | undefined): JsonObjec
 }
 
 function sessionChecksumPayload(value: JsonObject): JsonObject {
-  const selected = { ...value };
-  delete selected.typescriptControl;
-  delete selected.e01Runtime;
-  delete selected.modelIteration;
+  const selected: JsonObject = {};
+  for (const key of [
+    "version",
+    "runtime_id",
+    "canonical_owner",
+    "session_id",
+    "run_id",
+    "task_id",
+    "worker_request_id",
+    "phase",
+    "revision",
+    "turn_count",
+    "tool_call_count",
+    "compaction_count",
+    "messages",
+    "context",
+    "turns",
+    "lineage",
+    "checksum",
+  ]) {
+    if (key in value) selected[key] = value[key] ?? null;
+  }
   return selected;
 }
 
@@ -1077,6 +1122,7 @@ function selectRestoredModelIterationSnapshot(
   const candidates = [
     root,
     asObject(root.typescript_runtime),
+    asObject(root.typescript_runtime_snapshot),
     asObject(root.query_engine),
     asObject(asObject(root.metadata).typescript_runtime_snapshot),
   ];
@@ -1096,6 +1142,7 @@ function selectRestoredE01Snapshot(
   const candidates = [
     root,
     asObject(root.typescript_runtime),
+    asObject(root.typescript_runtime_snapshot),
     asObject(root.query_engine),
     asObject(asObject(root.metadata).typescript_runtime_snapshot),
   ];

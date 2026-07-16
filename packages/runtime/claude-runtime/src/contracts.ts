@@ -106,6 +106,7 @@ export interface RuntimeEvent {
 
 export interface RuntimeHost {
   emitEvent(event: RuntimeEvent): Promise<void>;
+  checkpointState?(snapshot: JsonObject): Promise<void>;
   executeBatch(batch: ToolBatch, requests: ToolExecutionRequest[]): Promise<ToolExecutionResponse[]>;
   externalize(request: ArtifactRequest): Promise<ArtifactReceipt>;
   settleCapability?(settlement: CapabilitySettlement): Promise<void>;

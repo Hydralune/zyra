@@ -1091,9 +1091,6 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
     "e01-mut-035-transport-slot-finally": [
       "e01.mutation.transport-slot-closes-after-parser-failure",
     ],
-    "e01-mut-037-permission-deny-delegation": [
-      "e01.mutation.permission-deny-is-never-delegated",
-    ],
     "e01-mut-038-compatible-endpoint": [
       "e01.mutation.compatible-envelope-uses-chat-completions-and-bearer-auth",
     ],
@@ -1102,9 +1099,6 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
     ],
     "e01-mut-041-settlement-gateway-fence": [
       "e01.mutation.settlement-blocked-call-cannot-reach-gateway",
-    ],
-    "e01-mut-043-gateway-extra-receipt": [
-      "enforcement rejects extra gateway receipts",
     ],
   };
   for (const [id, tests] of Object.entries(correctedKillerTests)) {

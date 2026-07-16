@@ -11,8 +11,12 @@ export type RuntimeFrameKind =
   | "run.start"
   | "run.accepted"
   | "runtime.event"
+  | "runtime.checkpoint"
+  | "runtime.checkpoint.result"
   | "tool.request"
   | "tool.result"
+  | "tool.batch.request"
+  | "tool.batch.result"
   | "tool.settle"
   | "tool.settle.result"
   | "agent.mutate"
@@ -45,8 +49,12 @@ const FRAME_KINDS = new Set<RuntimeFrameKind>([
   "run.start",
   "run.accepted",
   "runtime.event",
+  "runtime.checkpoint",
+  "runtime.checkpoint.result",
   "tool.request",
   "tool.result",
+  "tool.batch.request",
+  "tool.batch.result",
   "tool.settle",
   "tool.settle.result",
   "agent.mutate",

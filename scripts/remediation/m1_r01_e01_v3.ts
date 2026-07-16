@@ -57,7 +57,6 @@ const RECOVERY_PATH = "packages/runtime/claude-runtime/src/provider/recovery-run
 const TELEMETRY_PATH = "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts";
 const COMPACT_PATH = "packages/runtime/claude-runtime/src/compact/context-runtime.ts";
 const TOKEN_PATH = "packages/runtime/claude-runtime/src/context/token-runtime.ts";
-const PERMISSION_ENFORCEMENT_PATH = "packages/runtime/claude-runtime/src/tools/permission-enforcement-runtime.ts";
 const EXECUTION_SETTLEMENT_PATH = "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts";
 const MODEL_ITERATION_PATH = "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts";
 const COMPATIBLE_PATH = "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts";
@@ -644,13 +643,11 @@ const mutations = [
   ["execution-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.completeCanonicalTurn", "disconnect-execution-custody", "idempotency"],
   ["transport-slot-finally", "src/provider/transport-runtime.ts", "readableStreamToAsyncIterable", "skip-final-close", "provider"],
   ["provider-observation-revision", "src/query-engine.ts", "ClaudeRuntimeCore.run", "drop-revision-transcript", "routing"],
-  ["permission-deny-delegation", "src/tools/permission-enforcement-runtime.ts", "PermissionEnforcementRuntime.enforce", "delegate-denied-call", "permission"],
   ["compatible-endpoint", "src/provider/compatible-runtime.ts", "compatibleRequestUrl", "use-anthropic-endpoint", "provider"],
   ["compatible-tool-delta", "src/provider/compatible-runtime.ts", "applyCompatibleChoice", "overwrite-tool-arguments", "provider"],
   ["iteration-repeated-tool-id", "src/loop/model-iteration-runtime.ts", "ModelIterationRuntime.acceptProviderResult", "reuse-tool-call-id", "idempotency"],
   ["settlement-gateway-fence", "src/tools/execution-settlement-runtime.ts", "ToolExecutionSettlementRuntime.recordGatewayReceipt", "accept-unauthorized-receipt", "permission"],
   ["provider-stream-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.prepareProviderLifecycle", "disable-provider-stream", "provider"],
-  ["gateway-extra-receipt", "src/tools/permission-enforcement-runtime.ts", "PermissionEnforcementRuntime.enforce", "accept-extra-receipt", "permission"],
   ["iteration-snapshot-checksum", "src/loop/model-iteration-runtime.ts", "ModelIterationRuntime.restore", "skip-iteration-checksum", "restore"],
 ] as const;
 

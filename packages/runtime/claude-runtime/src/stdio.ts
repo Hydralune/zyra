@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -50,6 +51,19 @@ function verificationObject(root: string, path: string): Record<string, unknown>
   }
 }
 
+function evidenceDigest(root: string, path: unknown, expected: unknown): boolean {
+  if (typeof path !== "string" || typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)) {
+    return false;
+  }
+  if (!path || path.includes("..") || resolve(root, path) === resolve(path)) return false;
+  try {
+    const value = readFileSync(resolve(root, path));
+    return createHash("sha256").update(value).digest("hex") === expected;
+  } catch {
+    return false;
+  }
+}
+
 function commit(value: unknown): string | null {
   return typeof value === "string" && /^[0-9a-f]{40}$/.test(value) ? value : null;
 }
@@ -81,6 +95,10 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
     strictGate?.candidate === implementationCandidate &&
     Number.isSafeInteger(effectiveLineCount) &&
     effectiveLineCount >= 25_416;
+  const evidenceIntegrity =
+    evidenceDigest(root, STRICT_GATE_PATH, metadata?.strict_gate_sha256) &&
+    evidenceDigest(root, metadata?.independent_review_receipt_path, metadata?.independent_review_receipt_sha256) &&
+    evidenceDigest(root, metadata?.independent_review_report_path, metadata?.independent_review_report_sha256);
   const complete =
     implementationCandidate !== null &&
     cleanroomTarget === implementationCandidate &&
@@ -90,7 +108,8 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
     metadata?.candidate_status === "independent_review_passed" &&
     metadata?.independent_review_verdict === "PASS" &&
     metadata?.verified_complete === true &&
-    lineCountMatches;
+    lineCountMatches &&
+    evidenceIntegrity;
   return {
     complete,
     verificationStatus: complete
@@ -109,6 +128,7 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
     verificationContractVersion: VERIFICATION_CONTRACT_VERSION,
     lineCountSource: STRICT_GATE_PATH,
     lineCountComputedAtRuntime: false,
+    evidenceIntegrity,
   };
 }
 
@@ -137,33 +157,42 @@ class JsonlRuntimeHost implements RuntimeHost {
     batch: ToolBatch,
     requests: ToolExecutionRequest[],
   ): Promise<ToolExecutionResponse[]> {
-    for (const request of requests) {
-      this.send(
-        "tool.request",
-        {
-          tool_call_id: request.toolCallId,
-          tool_name: request.toolName,
-          arguments: request.arguments,
-          turn_index: request.turnIndex,
-          step_index: request.stepIndex,
-          batch_id: request.batchId,
-          batch_index: request.batchIndex,
-          batch_size: request.batchSize,
-          execution_mode: request.executionMode,
-          metadata: request.metadata,
-          permission_decision: request.permissionDecision ?? {},
-          execution_owner: request.executionOwner ?? "python-tool-executor",
-          permission_only: request.permissionOnly === true,
-        },
-        request.toolCallId,
-      );
+    const payloads = requests.map((request) => ({
+      tool_call_id: request.toolCallId,
+      tool_name: request.toolName,
+      arguments: request.arguments,
+      turn_index: request.turnIndex,
+      step_index: request.stepIndex,
+      batch_id: request.batchId,
+      batch_index: request.batchIndex,
+      batch_size: request.batchSize,
+      execution_mode: request.executionMode,
+      metadata: request.metadata,
+      permission_decision: request.permissionDecision ?? {},
+      execution_owner: request.executionOwner ?? "python-tool-executor",
+      permission_only: request.permissionOnly === true,
+    }));
+    this.send("tool.batch.request", {
+      batch_id: batch.batchId,
+      execution_mode: batch.executionMode,
+      timeout_ms: 30_000,
+      requests: payloads,
+    }, batch.batchId);
+    const frame = await this.read("tool.batch.result", batch.batchId);
+    const results = Array.isArray(frame.payload.results) ? frame.payload.results : [];
+    if (results.length !== requests.length) {
+      throw new RuntimeProtocolError("tool_batch_cardinality", "tool batch result cardinality mismatch");
     }
-    const results: ToolExecutionResponse[] = [];
-    for (const request of requests) {
-      const frame = await this.read("tool.result", request.toolCallId);
-      results.push(normalizeToolResult(frame.payload));
+    return results.map((result) => normalizeToolResult(asObject(result)));
+  }
+
+  async checkpointState(snapshot: JsonObject): Promise<void> {
+    const correlationId = asString(snapshot.checkpointPhase) + ":" + String(snapshot.checkpointEventSequence ?? "");
+    this.send("runtime.checkpoint", { snapshot }, correlationId);
+    const frame = await this.read("runtime.checkpoint.result", correlationId);
+    if (frame.payload.accepted !== true) {
+      throw new RuntimeProtocolError("runtime_checkpoint_rejected", asString(frame.payload.error) || "runtime checkpoint rejected");
     }
-    return results;
   }
 
   async externalize(request: ArtifactRequest): Promise<ArtifactReceipt> {

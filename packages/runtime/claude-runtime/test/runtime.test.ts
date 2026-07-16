@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ClaudeRuntimeCore,
+  RuntimeSession,
   type ArtifactReceipt,
   type ArtifactRequest,
   type JsonObject,
@@ -18,10 +19,15 @@ class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
   readonly batches: ToolBatch[] = [];
   readonly artifacts: ArtifactReceipt[] = [];
+  readonly checkpoints: JsonObject[] = [];
   aborted = false;
 
   async emitEvent(event: RuntimeEvent): Promise<void> {
     this.events.push(event);
+  }
+
+  async checkpointState(snapshot: JsonObject): Promise<void> {
+    this.checkpoints.push(structuredClone(snapshot));
   }
 
   async executeBatch(
@@ -214,6 +220,28 @@ test("runtime owns multi-turn lifecycle and read-only batches", async () => {
   assert.ok((e01State(result).journal.state.query?.revision ?? 0) > 0);
   assert.ok(host.events.some((event) => event.phase === "stream_request_start"));
   assert.ok(host.events.some((event) => event.phase === "session_completed"));
+  assert.ok(host.checkpoints.length > 0);
+  assert.ok(host.checkpoints.every((checkpoint) => checkpoint.e01Runtime !== undefined));
+});
+
+test("session restore preserves the unique active turn boundary", () => {
+  const session = RuntimeSession.create(
+    "active-session",
+    "active-run-one",
+    "active-task",
+    "active-request",
+    [{ role: "user", content: "resume the active turn" }],
+  );
+  session.beginTurn(0, "resume the active turn");
+  const restored = RuntimeSession.restore(session.snapshot(), {
+    sessionId: "active-session",
+    runId: "active-run-two",
+    taskId: "active-task",
+    workerRequestId: "active-request",
+  });
+  assert.throws(() => restored.beginTurn(1, "must not overlap"), /query_turn_already_active/);
+  restored.completeTurn(false, "interrupted_before_resume");
+  assert.doesNotThrow(() => restored.beginTurn(1, "continue after deterministic settlement"));
 });
 
 test("runtime rejects invalid tool arguments before the Python host", async () => {

@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import type {
   AgentMutationReceipt,
   AgentMutationRequest,
@@ -21,17 +19,15 @@ import {
 } from "./permission/index.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
 import {
-  PermissionEnforcementRuntime,
-  type PermissionDecisionView,
-} from "./tools/permission-enforcement-runtime.ts";
-import { ToolExecutionSettlementRuntime } from "./tools/execution-settlement-runtime.ts";
+  ToolExecutionSettlementRuntime,
+  type ExecutionSettlementSnapshot,
+} from "./tools/execution-settlement-runtime.ts";
 
 export class PermissionedCapabilityHost implements RuntimeHost {
   private readonly delegate: RuntimeHost;
   private readonly input: RuntimeRunInput;
   private readonly capabilities: TypeScriptCapabilityRuntime;
   private readonly permission: TypeScriptPermissionEvaluator;
-  private readonly enforcement: PermissionEnforcementRuntime;
   private readonly settlement: ToolExecutionSettlementRuntime;
 
   constructor(
@@ -42,13 +38,16 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     this.delegate = delegate;
     this.input = input;
     this.capabilities = capabilities;
-    this.enforcement = new PermissionEnforcementRuntime(`permission:${input.sessionId}:${input.workerRequestId}`);
     this.settlement = new ToolExecutionSettlementRuntime({
       runtimeId: `execution-settlement:${input.sessionId}:${input.workerRequestId}`,
       sessionId: input.sessionId,
       runId: input.runId,
       workerRequestId: input.workerRequestId,
     });
+    const restoredSettlement = asObject(restoredCapabilityState(input.restoredState).settlement);
+    if (Object.keys(restoredSettlement).length > 0) {
+      this.settlement.restore(restoredSettlement as unknown as ExecutionSettlementSnapshot, true);
+    }
     const constraints = input.config.runtimeConstraints as JsonObject | undefined;
     this.permission = new TypeScriptPermissionEvaluator(
       input.config.permissionPolicy,
@@ -65,6 +64,13 @@ export class PermissionedCapabilityHost implements RuntimeHost {
 
   emitEvent(event: RuntimeEvent): Promise<void> {
     return this.delegate.emitEvent(event);
+  }
+
+  checkpointState(snapshot: JsonObject): Promise<void> {
+    return this.delegate.checkpointState?.({
+      ...snapshot,
+      typescriptCapabilities: this.snapshot(),
+    }) ?? Promise.resolve();
   }
 
   async executeBatch(
@@ -139,74 +145,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         .filter((request) => (request.permissionDecision as unknown as { effect?: string }).effect === "allow")
         .map((request) => request.toolCallId),
     );
-    const committed = await this.enforcement.enforce(enriched, {
-      identifyRequest: (request) => ({
-        requestId: request.toolCallId,
-        toolName: request.toolName,
-        inputDigest: createHash("sha256").update(JSON.stringify(request.arguments)).digest("hex"),
-      }),
-      decide: (request) => request.permissionDecision,
-      viewDecision: (decision) => {
-        const value = decision as unknown as Record<string, unknown>;
-        return {
-          effect: value.effect === "allow" || value.effect === "ask" ? value.effect : "deny",
-          reason: typeof value.reason === "string" ? value.reason : `typescript_permission_${String(value.effect)}`,
-          ruleId: typeof value.ruleId === "string"
-            ? value.ruleId
-            : typeof value.rule_id === "string"
-              ? value.rule_id
-              : null,
-        } satisfies PermissionDecisionView;
-      },
-      delegate: (allowed) => this.delegate.executeBatch(batch, [...allowed]),
-      identifyReceipt: (receipt) => ({
-        requestId: receipt.tool_call_id,
-        success: receipt.ok,
-        errorCode: receipt.error ?? null,
-      }),
-      blockedReceipt: (request, decision) => ({
-        tool_call_id: request.toolCallId,
-        ok: false,
-        summary: decision.effect === "ask"
-          ? `Tool execution requires approval: ${decision.reason}`
-          : `Tool execution denied: ${decision.reason}`,
-        output: {
-          permission_effect: decision.effect,
-          permission_reason: decision.reason,
-          permission_rule_id: decision.ruleId ?? "",
-        },
-        artifacts: [],
-        error: decision.effect === "ask" ? "permission_approval_required" : "permission_denied",
-        completed_at: new Date().toISOString(),
-        metadata: {
-          ...request.metadata,
-          permission_effect: decision.effect,
-          permission_reason: decision.reason,
-          permission_rule_id: decision.ruleId ?? "",
-          permission_abort_loop: decision.effect === "ask" ? "true" : "false",
-          canonical_permission_owner: "typescript",
-          permission_delegated: "false",
-        },
-      }),
-      failedReceipt: (request, _identity, code, message) => ({
-        tool_call_id: request.toolCallId,
-        ok: false,
-        summary: `Permission enforcement failed closed: ${message}`,
-        output: { permission_error: code },
-        artifacts: [],
-        error: code,
-        completed_at: new Date().toISOString(),
-        metadata: {
-          ...request.metadata,
-          permission_effect: "deny",
-          permission_reason: message,
-          canonical_permission_owner: "typescript",
-          permission_delegated: "false",
-        },
-      }),
-      serializeDecision: (decision) => decision as unknown as JsonObject,
-      serializeReceipt: (receipt) => receipt as unknown as JsonObject,
-    });
+    const committed = await this.delegate.executeBatch(batch, enriched);
     for (let index = 0; index < committed.length; index += 1) {
       const request = enriched[index];
       const receipt = committed[index];
@@ -349,11 +288,22 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   snapshot(): JsonObject {
     return {
       permission: this.permission.snapshot(),
-      enforcement: this.enforcement.snapshot() as unknown as JsonObject,
       settlement: this.settlement.snapshot() as unknown as JsonObject,
       capabilities: this.capabilities.snapshot(),
     };
   }
+}
+
+function restoredCapabilityState(value: JsonObject | null | undefined): JsonObject {
+  const root = asObject(value);
+  const candidates = [
+    asObject(root.typescriptCapabilities),
+    asObject(asObject(root.typescript_runtime_snapshot).typescriptCapabilities),
+    asObject(asObject(root.typescript_runtime).typescriptCapabilities),
+    asObject(asObject(root.query_engine).typescriptCapabilities),
+    asObject(asObject(asObject(root.metadata).typescript_runtime_snapshot).typescriptCapabilities),
+  ];
+  return candidates.find((candidate) => Object.keys(candidate).length > 0) ?? {};
 }
 
 function permissionCommitAccepted(response: ToolExecutionResponse): boolean {

@@ -21,7 +21,11 @@ const stdoutJson: JsonWriter = (value) => {
 };
 
 export class CodeWorkerApplication {
-  constructor(private readonly writeJson: JsonWriter = stdoutJson) {}
+  private readonly writeJson: JsonWriter;
+
+  constructor(writeJson: JsonWriter = stdoutJson) {
+    this.writeJson = writeJson;
+  }
 
   async run(args: readonly string[]): Promise<number> {
     const command = args[0] ?? "--health";

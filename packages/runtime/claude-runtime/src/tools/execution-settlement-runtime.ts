@@ -965,7 +965,7 @@ export class ToolExecutionSettlementRuntime {
     }
     if (
       snapshot.identity.sessionId !== this.identity.sessionId
-      || snapshot.identity.workerRequestId !== this.identity.workerRequestId
+      || (!allowRunRebind && snapshot.identity.workerRequestId !== this.identity.workerRequestId)
     ) {
       throw new ExecutionSettlementError(
         "settlement_snapshot_identity",
@@ -984,6 +984,9 @@ export class ToolExecutionSettlementRuntime {
     this.identity = {
       ...normalizeIdentity(snapshot.identity),
       runId: allowRunRebind ? this.identity.runId : snapshot.identity.runId,
+      workerRequestId: allowRunRebind
+        ? this.identity.workerRequestId
+        : snapshot.identity.workerRequestId,
     };
     this.restartEpoch = nonnegative(snapshot.restartEpoch, "settlement restart epoch") + 1;
     this.sequence = nonnegative(snapshot.sequence, "settlement transition sequence");

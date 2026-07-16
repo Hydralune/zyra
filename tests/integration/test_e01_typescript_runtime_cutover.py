@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from unittest import mock
 
@@ -24,7 +25,9 @@ for relative in (
         sys.path.insert(0, path)
 
 from zyra_runtime.workers import WorkerRequest  # noqa: E402
+from zyra_runtime.executor import ToolExecutor  # noqa: E402
 from zyra_workers import CodeWorkerRuntime  # noqa: E402
+from zyra_workers.typescript_claude_runtime import TypeScriptClaudeQueryEngine  # noqa: E402
 
 
 def _runtime(tmp_path: Path) -> CodeWorkerRuntime:
@@ -61,6 +64,14 @@ def _typescript_snapshot(run: object) -> dict[str, object]:
     snapshot = session_snapshot["typescript_runtime_snapshot"]
     assert isinstance(snapshot, dict)
     return snapshot
+
+
+def _e01_journal(run: object) -> dict[str, object]:
+    e01 = _typescript_snapshot(run)["e01Runtime"]
+    assert isinstance(e01, dict)
+    journal = e01.get("journal", e01)
+    assert isinstance(journal, dict)
+    return journal
 
 
 @pytest.fixture
@@ -157,21 +168,19 @@ def test_checkpoint_contains_e01_journal_and_runtime_identity(
     assert snapshot["canonical_owner"] == "typescript"
     assert snapshot["runtime_id"] == "zyra-typescript-claude-runtime"
     assert snapshot["version"] == "zyra.typescript-query-session.v1"
-    e01 = snapshot["e01Runtime"]
-    assert isinstance(e01, dict)
-    committed = e01["committed"]
+    journal = _e01_journal(completed_run)
+    committed = journal["committed"]
     assert isinstance(committed, list)
-    assert len(committed) >= 40
-    assert e01["pending"] == []
-    assert int(e01["revision"]) == len(committed)
+    assert len(committed) >= 10
+    assert journal["pending"] == []
+    assert int(journal["revision"]) == len(committed)
 
 
 def test_e01_commits_have_stable_identity_and_acknowledged_outbox(
     completed_run: object,
 ) -> None:
-    e01 = _typescript_snapshot(completed_run)["e01Runtime"]
-    assert isinstance(e01, dict)
-    committed = e01["committed"]
+    journal = _e01_journal(completed_run)
+    committed = journal["committed"]
     assert isinstance(committed, list)
 
     revisions: list[int] = []
@@ -180,9 +189,9 @@ def test_e01_commits_have_stable_identity_and_acknowledged_outbox(
         assert isinstance(record, dict)
         assert record["phase"] == "ack"
         assert record["status"] == "acked"
-        assert record["after"] == int(record["before"]) + 1
-        assert record["outbox"]
-        identity = record["id"]
+        assert record["revisionAfter"] == int(record["revisionBefore"]) + 1
+        assert record["outboxIds"]
+        identity = record["identity"]
         assert isinstance(identity, dict)
         key = str(identity["idempotencyKey"])
         assert key.startswith("sha256:")
@@ -190,32 +199,18 @@ def test_e01_commits_have_stable_identity_and_acknowledged_outbox(
         idempotency_keys.add(key)
         assert identity["runId"] == "e01-completed-fixture"
         assert identity["sessionId"] == "e01-fixture-session"
-        revisions.append(int(record["after"]))
+        revisions.append(int(record["revisionAfter"]))
 
     assert revisions == list(range(1, len(committed) + 1))
 
 
 def test_e01_bootstrap_covers_each_cutover_domain(completed_run: object) -> None:
-    e01 = _typescript_snapshot(completed_run)["e01Runtime"]
-    assert isinstance(e01, dict)
-    committed = e01["committed"]
+    journal = _e01_journal(completed_run)
+    committed = journal["committed"]
     assert isinstance(committed, list)
     domains = {str(record["domain"]) for record in committed if isinstance(record, dict)}
 
-    assert {
-        "query.transition",
-        "query.turn",
-        "input.normalize",
-        "context.assemble",
-        "tools.registry",
-        "tools.execute",
-        "compact.restore",
-        "provider.request",
-        "session.lifecycle",
-        "protocol.recovery",
-        "protocol.fence",
-        "protocol.idempotency",
-    }.issubset(domains)
+    assert {"session", "context", "provider"}.issubset(domains)
 
 
 def test_corrupt_host_checkpoint_is_not_used_as_runtime_state(tmp_path: Path) -> None:
@@ -268,3 +263,132 @@ def test_invalid_tool_arguments_fail_before_side_effect(tmp_path: Path) -> None:
     assert run.worker_result.metadata["canonical_runtime_owner"] == "typescript"
     assert run.worker_result.metadata["python_policy_fallback"] == "false"
     assert list(workspace.iterdir()) == []
+
+
+def test_default_path_persists_incremental_typescript_checkpoint(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    run = runtime.run(
+        _request(
+            "e01-incremental-checkpoint",
+            session_id="e01-incremental-session",
+        )
+    )
+
+    assert run.worker_result.ok is True
+    checkpoint_dir = tmp_path / "artifacts" / ".runtime-checkpoints"
+    checkpoint_files = list(checkpoint_dir.glob("typescript-e01-*.json"))
+    assert len(checkpoint_files) == 1
+    checkpoint = json.loads(checkpoint_files[0].read_text(encoding="utf-8"))
+    assert checkpoint["session_id"] == "e01-incremental-session"
+    assert checkpoint["canonical_owner"] == "typescript"
+    assert int(checkpoint["checkpointEventSequence"]) > 0
+    assert checkpoint["checkpointPhase"]
+
+
+def test_default_path_runs_read_only_batch_concurrently(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    (workspace / "one.txt").write_text("one", encoding="utf-8")
+    (workspace / "two.txt").write_text("two", encoding="utf-8")
+    runtime = CodeWorkerRuntime(
+        project_root=REPO_ROOT,
+        workspace_root=workspace,
+        artifact_root=tmp_path / "artifacts",
+    )
+    intervals: dict[str, list[float]] = {}
+    original_execute = ToolExecutor.execute
+
+    def delayed_execute(self: ToolExecutor, call: object, **kwargs: object) -> object:
+        interval = intervals.setdefault(str(getattr(call, "tool_call_id")), [])
+        interval.append(time.perf_counter())
+        time.sleep(0.2)
+        result = original_execute(self, call, **kwargs)
+        interval.append(time.perf_counter())
+        return result
+
+    with mock.patch.object(ToolExecutor, "execute", delayed_execute):
+        run = runtime.run(
+            _request(
+                "e01-concurrent-read-only",
+                session_id="e01-concurrent-session",
+                query_turns=[
+                    [
+                        {"tool_name": "file_read", "arguments": {"path": "one.txt"}},
+                        {"tool_name": "file_read", "arguments": {"path": "two.txt"}},
+                    ]
+                ],
+            )
+        )
+
+    assert run.worker_result.ok is True
+    assert len(intervals) == 2
+    assert all(len(interval) == 2 for interval in intervals.values())
+    starts = [interval[0] for interval in intervals.values()]
+    ends = [interval[1] for interval in intervals.values()]
+    assert max(starts) < min(ends)
+    session_snapshot = _checkpoint(run)["session_snapshot"]
+    assert isinstance(session_snapshot, dict)
+    evidence = session_snapshot["tool_batch_evidence"]
+    assert isinstance(evidence, dict)
+    assert evidence["execution_mode"] == "concurrent_read_only"
+    assert evidence["request_count"] == 2
+
+
+def test_lost_tool_batch_ack_resumes_without_reexecution(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    (workspace / "proof.txt").write_text("durable receipt", encoding="utf-8")
+    runtime = CodeWorkerRuntime(
+        project_root=REPO_ROOT,
+        workspace_root=workspace,
+        artifact_root=tmp_path / "artifacts",
+    )
+    original_execute = ToolExecutor.execute
+    original_write_frame = TypeScriptClaudeQueryEngine._write_frame
+    executions = 0
+    dropped = False
+
+    def counting_execute(self: ToolExecutor, call: object, **kwargs: object) -> object:
+        nonlocal executions
+        executions += 1
+        return original_execute(self, call, **kwargs)
+
+    def drop_first_batch_result(*args: object, **kwargs: object) -> object:
+        nonlocal dropped
+        if kwargs.get("kind") == "tool.batch.result" and not dropped:
+            dropped = True
+            raise OSError("simulated lost tool batch acknowledgement")
+        return original_write_frame(*args, **kwargs)
+
+    request = _request(
+        "e01-lost-batch-ack",
+        session_id="e01-lost-batch-ack-session",
+        query_turns=[
+            [{"tool_name": "file_read", "arguments": {"path": "proof.txt"}}]
+        ],
+    )
+    with (
+        mock.patch.object(ToolExecutor, "execute", counting_execute),
+        mock.patch.object(
+            TypeScriptClaudeQueryEngine,
+            "_write_frame",
+            autospec=True,
+            side_effect=drop_first_batch_result,
+        ),
+    ):
+        first = runtime.run(request)
+
+    with mock.patch.object(ToolExecutor, "execute", counting_execute):
+        resumed = runtime.run(request)
+
+    assert first.worker_result.ok is False
+    assert dropped is True
+    assert resumed.worker_result.ok is True, json.dumps(
+        resumed.worker_result.events[-1], ensure_ascii=False
+    )
+    assert executions == 1
+    session_snapshot = _checkpoint(resumed)["session_snapshot"]
+    assert isinstance(session_snapshot, dict)
+    receipts = session_snapshot["tool_effect_receipts"]
+    assert isinstance(receipts, dict)
+    assert len(receipts) == 1

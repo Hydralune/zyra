@@ -167,6 +167,14 @@ export class RuntimeSession {
     session.phase = "context_restored";
     session.restored = true;
     session.parentChecksum = suppliedChecksum;
+    const activeTurns = turns.filter((turn) => turn.status === "active");
+    if (activeTurns.length > 1) {
+      throw new Error("typescript_session_multiple_active_turns");
+    }
+    if (activeTurns[0] && activeTurns[0].completed_at !== null) {
+      throw new Error("typescript_session_active_turn_completed");
+    }
+    session.activeTurn = activeTurns[0] ?? null;
     session.bump("context_restored");
     return session;
   }
@@ -199,6 +207,10 @@ export class RuntimeSession {
     }
     this.bump("turn_started");
     return turn;
+  }
+
+  activeTurnSnapshot(): RuntimeTurn | null {
+    return this.activeTurn ? structuredClone(this.activeTurn) : null;
   }
 
   recordToolCall(toolCallId: string, toolName: string): void {

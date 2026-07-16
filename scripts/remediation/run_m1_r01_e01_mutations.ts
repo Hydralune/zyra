@@ -260,11 +260,6 @@ export const mutationSpecs: Record<string, MutationSpec> = {
     "        providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);",
     "        providerMessages = [];",
   ),
-  "e01-mut-037-permission-deny-delegation": spec(
-    adversarialTests,
-    "        if (view.effect === \"allow\") {",
-    "        if (true || view.effect === \"allow\") {",
-  ),
   "e01-mut-038-compatible-endpoint": spec(
     adversarialTests,
     "    parsed.pathname = `${path}/chat/completions`;",
@@ -289,11 +284,6 @@ export const mutationSpecs: Record<string, MutationSpec> = {
     runtimeTests,
     "      stream: prepared.stream === true,",
     "      stream: false,",
-  ),
-  "e01-mut-043-gateway-extra-receipt": spec(
-    adversarialTests,
-    "          if (!batch.allowedRequestIds.includes(identity.requestId)) {",
-    "          if (false && !batch.allowedRequestIds.includes(identity.requestId)) {",
   ),
   "e01-mut-044-iteration-snapshot-checksum": spec(
     adversarialTests,
