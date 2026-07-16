@@ -5,7 +5,7 @@
 - Execution: `E01 runtime core TypeScript cutover`
 - Review revision: `V11`
 - Implementation candidate (`I`): `85a6ec230bc2d27d7a5b3bdd54d1580efce9266b`
-- Evidence commit (`E`): `b74cf3763e71faef85d1d6a19639e098c514f91`
+- Evidence commit (`E`): `b74cf37148f313e45595f23be39a73ae8743eb60`
 - Verified baseline retained during review: `c34535a783e88f9481387ced89cba4fbc333dc74`
 - Implementation diff baseline: `0cd21bff5e2d160476f2ce3cef766bf53aab1239`
 - Self-review verdict: `PASS_PENDING_INDEPENDENT_REVIEW`
