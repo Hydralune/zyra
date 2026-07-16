@@ -161,7 +161,7 @@ describe("E01 V10 default-path source custody", () => {
     expect(attachments[0]?.path).toBe("/workspace/unread.txt");
   });
 
-  test("e01.v10.provider-client-factory-controls-default-request", () => {
+  test("e01.v11.provider-client-factory-executes-auth-and-retry", async () => {
     const runtime = new ProviderModelRuntime();
     runtime.configureEndpoint({ provider: "bedrock", region: "eu-west-1" });
     runtime.configureCredential({ kind: "aws", fingerprint: "aws-fingerprint" });
@@ -187,24 +187,88 @@ describe("E01 V10 default-path source custody", () => {
     expect(restored.snapshot().sourceCustody).toEqual(snapshot.sourceCustody!);
 
     const custody = new ProviderCacheCustodyRuntime();
+    let azureRefreshes = 0;
+    const retryDelays: number[] = [];
     const foundry = custody.getAnthropicClient({
       providerId: "anthropic",
       model: "claude-sonnet-4-5",
-      credential: "secret",
+      credential: "",
       sessionId: "factory-session",
+      maxRetries: 1,
+      credentialProviders: {
+        azure: async () => {
+          azureRefreshes += 1;
+          return "azure-live-token";
+        },
+      },
+      sleep: async (milliseconds) => {
+        retryDelays.push(milliseconds);
+      },
       environment: {
         CLAUDE_CODE_USE_FOUNDRY: "1",
         ANTHROPIC_FOUNDRY_RESOURCE: "zyra-resource",
-        CLAUDE_CODE_SKIP_FOUNDRY_AUTH: "true",
       },
     });
     expect(foundry?.transport).toBe("foundry");
     expect(foundry?.endpoint).toBe("https://zyra-resource.services.ai.azure.com");
-    expect(foundry?.skipAuth).toBe(true);
+    expect(foundry?.skipAuth).toBe(false);
+    const foundryRequests: Array<{ headers: Readonly<Record<string, string>> }> = [];
+    let foundryAttempts = 0;
+    const foundryResponse = await foundry!.execute({
+      url: `${foundry!.endpoint}/v1/messages`,
+      method: "POST",
+      headers: foundry!.headers,
+      body: "{}",
+      timeoutMs: foundry!.timeoutMs,
+    }, {
+      async execute(request): Promise<import("../../src/provider/model-runtime.js").ProviderTransportResponse> {
+        foundryRequests.push(request);
+        foundryAttempts += 1;
+        return { status: foundryAttempts === 1 ? 429 : 200, headers: {} };
+      },
+    });
+    expect(foundryResponse.status).toBe(200);
+    expect(foundryRequests).toHaveLength(2);
+    expect(foundryRequests[0]?.headers.authorization).toBe("Bearer azure-live-token");
+    expect(azureRefreshes).toBe(2);
+    expect(retryDelays).toEqual([250]);
+    expect(foundry!.executionSnapshot()).toMatchObject({ attempts: 2, credentialRefreshes: 2 });
+
+    let bedrockRequest: { headers: Readonly<Record<string, string>> } | undefined;
+    const bedrock = custody.getAnthropicClient({
+      providerId: "bedrock",
+      model: "claude-sonnet-4-5",
+      credential: "",
+      region: "us-west-2",
+      maxRetries: 0,
+      now: () => Date.parse("2026-07-16T00:00:00.000Z"),
+      credentialProviders: {
+        aws: async () => ({ accessKeyId: "AKID", secretAccessKey: "secret", sessionToken: "session" }),
+      },
+      environment: {},
+    });
+    await bedrock!.execute({
+      url: `${bedrock!.endpoint}/model/claude/invoke-with-response-stream`,
+      method: "POST",
+      headers: bedrock!.headers,
+      body: "{}",
+      timeoutMs: bedrock!.timeoutMs,
+    }, {
+      async execute(request) {
+        bedrockRequest = request;
+        return { status: 200, headers: {} };
+      },
+    });
+    expect(bedrockRequest?.headers.authorization).toStartWith("AWS4-HMAC-SHA256 Credential=AKID/");
+    expect(bedrockRequest?.headers["x-amz-security-token"]).toBe("session");
+
+    let vertexAuthorization = "";
     const vertex = custody.getAnthropicClient({
       providerId: "vertex",
       model: "claude-haiku-4-5",
-      credential: "gcp",
+      credential: "",
+      maxRetries: 0,
+      credentialProviders: { gcp: async () => "gcp-live-token" },
       environment: {
         ANTHROPIC_VERTEX_PROJECT_ID: "project-v10",
         VERTEX_REGION_CLAUDE_HAIKU_4_5: "asia-east1",
@@ -212,13 +276,32 @@ describe("E01 V10 default-path source custody", () => {
     });
     expect(vertex?.projectId).toBe("project-v10");
     expect(vertex?.region).toBe("asia-east1");
+    await vertex!.execute({
+      url: `${vertex!.endpoint}/v1/projects/project-v10/locations/asia-east1/publishers/anthropic/models/claude:rawPredict`,
+      method: "POST",
+      headers: vertex!.headers,
+      body: "{}",
+      timeoutMs: vertex!.timeoutMs,
+    }, {
+      async execute(request) {
+        vertexAuthorization = request.headers.authorization;
+        return { status: 200, headers: {} };
+      },
+    });
+    expect(vertexAuthorization).toBe("Bearer gcp-live-token");
   });
 
   test("e01.v10.provider-query-wrapper-settles-real-request-state", async () => {
     const runtime = new ProviderModelRuntime();
+    runtime.configureCredential({ kind: "api_key", apiKey: "anthropic-live-key", fingerprint: "anthropic-key" });
     const prepared = runtime.prepare(providerOptions());
+    let attempts = 0;
+    let observedApiKey = "";
     const transport: ProviderTransport = {
-      async execute() {
+      async execute(request): Promise<import("../../src/provider/model-runtime.js").ProviderTransportResponse> {
+        attempts += 1;
+        observedApiKey = request.headers["x-api-key"] ?? "";
+        if (attempts === 1) return { status: 429, headers: { "retry-after": "0" }, body: { error: { message: "retry" } } };
         return {
           status: 200,
           headers: { "request-id": "provider-request-v9" },
@@ -238,6 +321,8 @@ describe("E01 V10 default-path source custody", () => {
     const response = await runtime.queryHaiku(prepared, transport);
     expect(response.content[0]).toEqual({ type: "text", text: "ok" });
     expect(runtime.requestState(prepared.requestId).state).toBe("completed");
+    expect(runtime.requestState(prepared.requestId).client_attempts).toBe(2);
+    expect(observedApiKey).toBe("anthropic-live-key");
     expect(runtime.queryWithModel).toBeDefined();
   });
 });

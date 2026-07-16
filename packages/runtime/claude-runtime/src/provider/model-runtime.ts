@@ -1,5 +1,6 @@
 import {
   ProviderCacheCustodyRuntime,
+  type AnthropicExecutableClient,
   type ProviderRequestCustodyEffect,
 } from "./cache-custody-runtime.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -264,6 +265,9 @@ interface RequestRecord {
   errorCode: string | null;
   dispatchedAt: string | null;
   completedAt: string | null;
+  clientAttempts: number;
+  clientCredentialRefreshes: number;
+  clientLastRetryDelayMs: number;
   revision: number;
 }
 
@@ -465,6 +469,7 @@ export class ProviderModelRuntime {
   private readonly models = new Map<string, ModelDescriptor>();
   private readonly aliases = new Map<string, string>();
   private readonly requests = new Map<string, RequestRecord>();
+  private readonly executableClients = new Map<string, AnthropicExecutableClient>();
   private endpoint: ProviderEndpoint;
   private credential: ProviderCredential;
   private activeModel: string;
@@ -650,6 +655,8 @@ export class ProviderModelRuntime {
       oneHourCacheEnabled: options.metadata.oneHourCacheEnabled === true,
     };
     const sourceCustody = this.sourceCustody.applyProviderRequestCustody(custodyEnvelope);
+    const executableClient = sourceCustody.executableClient ?? null;
+    delete sourceCustody.executableClient;
     const effectiveOptions: ProviderRequestOptions = {
       ...options,
       messages: Array.isArray(custodyEnvelope.messages)
@@ -679,7 +686,7 @@ export class ProviderModelRuntime {
     const requestId = randomUUID();
     const client = sourceCustody.client;
     const clientProvider: ProviderKind = client?.transport === "foundry"
-      ? "compatible"
+      ? "anthropic"
       : client?.transport ?? this.endpoint.provider;
     const effectiveEndpoint = client
       ? normalizeEndpoint(clientProvider, {
@@ -725,6 +732,7 @@ export class ProviderModelRuntime {
       createdAt: new Date(now).toISOString(),
       deadlineAt: new Date(now + timeoutMs).toISOString(),
     };
+    if (executableClient) this.executableClients.set(requestId, executableClient);
     this.requests.set(requestId, {
       request: prepared,
       state: "prepared",
@@ -733,6 +741,9 @@ export class ProviderModelRuntime {
       errorCode: null,
       dispatchedAt: null,
       completedAt: null,
+      clientAttempts: 0,
+      clientCredentialRefreshes: 0,
+      clientLastRetryDelayMs: 0,
       revision: 1,
     });
     this.revision += 1;
@@ -781,9 +792,30 @@ export class ProviderModelRuntime {
       signal,
     };
     let response: ProviderTransportResponse;
+    const executableClient = this.executableClients.get(prepared.requestId)
+      ?? (prepared.sourceCustody.client
+        ? this.sourceCustody.rehydrateAnthropicClient(
+          prepared.sourceCustody.client,
+          this.credential.apiKey ?? this.credential.accessToken ?? "",
+        )
+        : null);
+    if (executableClient && !this.executableClients.has(prepared.requestId)) {
+      this.executableClients.set(prepared.requestId, executableClient);
+    }
+    const recordClientState = (): void => {
+      if (!executableClient) return;
+      const state = executableClient.executionSnapshot();
+      record.clientAttempts = state.attempts;
+      record.clientCredentialRefreshes = state.credentialRefreshes;
+      record.clientLastRetryDelayMs = state.lastRetryDelayMs;
+    };
     try {
-      response = await transport.execute(request);
+      response = executableClient
+        ? await executableClient.execute(request, transport)
+        : await transport.execute(request);
+      recordClientState();
     } catch (error) {
+      recordClientState();
       record.state = signal?.aborted ? "cancelled" : "failed";
       record.errorCode = signal?.aborted ? "request_cancelled" : "transport_error";
       record.completedAt = new Date().toISOString();
@@ -945,6 +977,7 @@ export class ProviderModelRuntime {
     });
     this.activeModel = this.resolveModel(snapshot.activeModel).id;
     this.requests.clear();
+    this.executableClients.clear();
     for (const record of snapshot.requests) {
       this.requests.set(record.request.requestId, structuredClone(record));
     }
@@ -1704,6 +1737,9 @@ function requestRecordToJson(value: RequestRecord): JsonObject {
     error_code: value.errorCode,
     dispatched_at: value.dispatchedAt,
     completed_at: value.completedAt,
+    client_attempts: value.clientAttempts,
+    client_credential_refreshes: value.clientCredentialRefreshes,
+    client_last_retry_delay_ms: value.clientLastRetryDelayMs,
     revision: value.revision,
   };
 }

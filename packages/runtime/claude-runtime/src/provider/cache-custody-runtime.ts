@@ -1,3 +1,5 @@
+import { createHash, createHmac } from "node:crypto";
+
 export type CacheTtl = "5m" | "1h";
 
 export interface CacheControlMarker {
@@ -56,6 +58,7 @@ export interface ToolMismatchEvidence {
 
 export interface AnthropicClientDescriptor {
   family: "anthropic";
+  clientKind: "zyra-executable-provider-client/v1";
   transport: "anthropic" | "bedrock" | "foundry" | "vertex";
   endpoint: string;
   model: string;
@@ -77,6 +80,50 @@ export interface AnthropicClientDescriptor {
   sensitiveCustomHeaderNames: string[];
 }
 
+export interface AwsCredentialBinding {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}
+
+export interface AnthropicClientCredentialProviders {
+  aws?: () => Promise<AwsCredentialBinding | null>;
+  azure?: () => Promise<string | null>;
+  gcp?: () => Promise<string | null>;
+  oauth?: () => Promise<string | null>;
+}
+
+export interface AnthropicClientTransportRequest {
+  url: string;
+  method: "POST";
+  headers: Readonly<Record<string, string>>;
+  body: string;
+  timeoutMs: number;
+  signal?: AbortSignal;
+}
+
+export interface AnthropicClientTransportResponse {
+  status: number;
+  headers: Readonly<Record<string, string>>;
+  settle?: (success: boolean) => void;
+}
+
+export interface AnthropicClientExecutionSnapshot {
+  attempts: number;
+  credentialRefreshes: number;
+  lastRetryDelayMs: number;
+  lastAuthBinding: AnthropicClientDescriptor["auth"] | null;
+}
+
+export interface AnthropicExecutableClient extends AnthropicClientDescriptor {
+  readonly descriptor: AnthropicClientDescriptor;
+  execute<TResponse extends AnthropicClientTransportResponse>(
+    request: AnthropicClientTransportRequest,
+    transport: { execute(value: AnthropicClientTransportRequest): Promise<TResponse> },
+  ): Promise<TResponse>;
+  executionSnapshot(): AnthropicClientExecutionSnapshot;
+}
+
 export interface AnthropicClientFactoryInput {
   providerId: string;
   endpoint?: string;
@@ -93,6 +140,9 @@ export interface AnthropicClientFactoryInput {
   proxyUrl?: string | null;
   extraHeaders?: Readonly<Record<string, string>>;
   environment?: Readonly<Record<string, string | undefined>>;
+  credentialProviders?: AnthropicClientCredentialProviders;
+  now?: () => number;
+  sleep?: (milliseconds: number) => Promise<void>;
 }
 
 export interface ProviderRequestCustodyEffect {
@@ -101,6 +151,7 @@ export interface ProviderRequestCustodyEffect {
   breakpointCount: number;
   mismatch: ToolMismatchEvidence;
   client: AnthropicClientDescriptor | null;
+  executableClient?: AnthropicExecutableClient | null;
   cacheBreak: ProviderCacheBreak | null;
   diffPath: string | null;
 }
@@ -181,6 +232,183 @@ const stableFingerprint = (value: string): string => {
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
+};
+
+const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
+
+const hmac = (key: string | Uint8Array, value: string): Buffer =>
+  createHmac("sha256", key).update(value).digest();
+
+const awsEncode = (value: string): string =>
+  encodeURIComponent(value).replace(/[!'()*]/g, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+
+const retryableStatus = (status: number): boolean =>
+  status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+
+const retryDelay = (
+  attempt: number,
+  headers: Readonly<Record<string, string>> = {},
+): number => {
+  const retryAfter = Object.entries(headers).find(([name]) => name.toLowerCase() === "retry-after")?.[1];
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(60_000, Math.floor(seconds * 1_000));
+  return Math.min(30_000, 250 * (2 ** attempt));
+};
+
+const delay = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const signBedrockRequest = (
+  request: AnthropicClientTransportRequest,
+  credential: AwsCredentialBinding,
+  region: string,
+  nowMs: number,
+): AnthropicClientTransportRequest => {
+  const url = new URL(request.url);
+  const instant = new Date(nowMs).toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const amzDate = instant.slice(0, 15) + "Z";
+  const date = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex(request.body);
+  const headers: Record<string, string> = {
+    ...request.headers,
+    host: url.host,
+    "x-amz-content-sha256": payloadHash,
+    "x-amz-date": amzDate,
+  };
+  if (credential.sessionToken) headers["x-amz-security-token"] = credential.sessionToken;
+  const canonicalHeaderEntries = Object.entries(headers)
+    .map(([name, value]) => [name.toLowerCase(), value.trim().replace(/\s+/g, " ")] as const)
+    .sort(([left], [right]) => left.localeCompare(right));
+  const signedHeaders = canonicalHeaderEntries.map(([name]) => name).join(";");
+  const canonicalHeaders = canonicalHeaderEntries.map(([name, value]) => `${name}:${value}\n`).join("");
+  const query = [...url.searchParams.entries()]
+    .sort(([leftName, leftValue], [rightName, rightValue]) =>
+      leftName.localeCompare(rightName) || leftValue.localeCompare(rightValue))
+    .map(([name, value]) => `${awsEncode(name)}=${awsEncode(value)}`)
+    .join("&");
+  const canonicalRequest = [
+    request.method,
+    url.pathname.split("/").map(awsEncode).join("/") || "/",
+    query,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+  const scope = `${date}/${region}/bedrock/aws4_request`;
+  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${sha256Hex(canonicalRequest)}`;
+  const dateKey = hmac(`AWS4${credential.secretAccessKey}`, date);
+  const regionKey = hmac(dateKey, region);
+  const serviceKey = hmac(regionKey, "bedrock");
+  const signingKey = hmac(serviceKey, "aws4_request");
+  const signature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+  headers.authorization = [
+    `AWS4-HMAC-SHA256 Credential=${credential.accessKeyId}/${scope}`,
+    `SignedHeaders=${signedHeaders}`,
+    `Signature=${signature}`,
+  ].join(", ");
+  return { ...request, headers };
+};
+
+const executableAnthropicClient = (
+  descriptor: AnthropicClientDescriptor,
+  credential: string,
+  environment: Readonly<Record<string, string | undefined>>,
+  providers: AnthropicClientCredentialProviders,
+  now: () => number,
+  sleep: (milliseconds: number) => Promise<void>,
+): AnthropicExecutableClient => {
+  let attempts = 0;
+  let credentialRefreshes = 0;
+  let lastRetryDelayMs = 0;
+  let lastAuthBinding: AnthropicClientDescriptor["auth"] | null = null;
+
+  const bind = async (request: AnthropicClientTransportRequest): Promise<AnthropicClientTransportRequest> => {
+    const headers: Record<string, string> = { ...request.headers };
+    delete headers.authorization;
+    delete headers["x-api-key"];
+    lastAuthBinding = descriptor.auth;
+    if (descriptor.transport === "anthropic") {
+      const refreshed = descriptor.auth === "oauth" ? await providers.oauth?.() : null;
+      if (refreshed) credentialRefreshes += 1;
+      const secret = refreshed || credential || environment.ANTHROPIC_AUTH_TOKEN || environment.ANTHROPIC_API_KEY || "";
+      if (!secret) throw new Error("anthropic_client_credential_missing");
+      if (descriptor.auth === "oauth" || environment.ANTHROPIC_AUTH_TOKEN) headers.authorization = `Bearer ${secret}`;
+      else headers["x-api-key"] = secret;
+      return { ...request, headers };
+    }
+    if (descriptor.transport === "bedrock") {
+      const bearer = environment.AWS_BEARER_TOKEN_BEDROCK || (descriptor.auth === "aws-bearer" ? credential : "");
+      if (bearer) return { ...request, headers: { ...headers, authorization: `Bearer ${bearer}` } };
+      if (descriptor.skipAuth) return { ...request, headers };
+      const refreshed = await providers.aws?.();
+      if (refreshed) credentialRefreshes += 1;
+      const aws = refreshed ?? (
+        environment.AWS_ACCESS_KEY_ID && environment.AWS_SECRET_ACCESS_KEY
+          ? {
+            accessKeyId: environment.AWS_ACCESS_KEY_ID,
+            secretAccessKey: environment.AWS_SECRET_ACCESS_KEY,
+            sessionToken: environment.AWS_SESSION_TOKEN,
+          }
+          : null
+      );
+      if (!aws) throw new Error("bedrock_aws_credentials_missing");
+      return signBedrockRequest({ ...request, headers }, aws, descriptor.region ?? "us-east-1", now());
+    }
+    if (descriptor.transport === "foundry") {
+      const apiKey = environment.ANTHROPIC_FOUNDRY_API_KEY || (descriptor.auth === "azure-api-key" ? credential : "");
+      if (apiKey) return { ...request, headers: { ...headers, "api-key": apiKey } };
+      if (descriptor.skipAuth) return { ...request, headers };
+      const token = await providers.azure?.() || environment.AZURE_ACCESS_TOKEN || credential;
+      if (!token) throw new Error("foundry_azure_token_missing");
+      credentialRefreshes += 1;
+      return { ...request, headers: { ...headers, authorization: `Bearer ${token}` } };
+    }
+    if (descriptor.skipAuth) return { ...request, headers };
+    const token = await providers.gcp?.() || environment.GOOGLE_OAUTH_ACCESS_TOKEN || credential;
+    if (!token) throw new Error("vertex_google_token_missing");
+    credentialRefreshes += 1;
+    return {
+      ...request,
+      headers: {
+        ...headers,
+        authorization: `Bearer ${token}`,
+        ...(descriptor.projectId ? { "x-goog-user-project": descriptor.projectId } : {}),
+      },
+    };
+  };
+
+  return {
+    ...descriptor,
+    descriptor: Object.freeze({ ...descriptor, headers: { ...descriptor.headers } }),
+    async execute<TResponse extends AnthropicClientTransportResponse>(
+      request: AnthropicClientTransportRequest,
+      transport: { execute(value: AnthropicClientTransportRequest): Promise<TResponse> },
+    ): Promise<TResponse> {
+      let lastError: unknown;
+      for (let attempt = 0; attempt <= descriptor.maxRetries; attempt += 1) {
+        if (request.signal?.aborted) throw request.signal.reason ?? new Error("provider_request_aborted");
+        attempts += 1;
+        const bound = await bind(request);
+        try {
+          const response = await transport.execute(bound);
+          if (!retryableStatus(response.status) || attempt === descriptor.maxRetries) return response;
+          response.settle?.(false);
+          lastRetryDelayMs = retryDelay(attempt, response.headers);
+          await sleep(lastRetryDelayMs);
+        } catch (error) {
+          lastError = error;
+          if (attempt === descriptor.maxRetries || request.signal?.aborted) throw error;
+          lastRetryDelayMs = retryDelay(attempt);
+          await sleep(lastRetryDelayMs);
+        }
+      }
+      throw lastError ?? new Error("provider_client_retry_exhausted");
+    },
+    executionSnapshot(): AnthropicClientExecutionSnapshot {
+      return { attempts, credentialRefreshes, lastRetryDelayMs, lastAuthBinding };
+    },
+  };
 };
 
 const cloneValue = <T>(value: T): T => {
@@ -374,7 +602,7 @@ export class ProviderCacheCustodyRuntime {
     return `Provider request failed: ${message.slice(0, 320)}`;
   }
 
-  getAnthropicClient(input: AnthropicClientFactoryInput): AnthropicClientDescriptor | null {
+  getAnthropicClient(input: AnthropicClientFactoryInput): AnthropicExecutableClient | null {
     const environment = input.environment ?? process.env;
     const requestedProvider = input.providerId.trim().toLowerCase();
     const transport: AnthropicClientDescriptor["transport"] | null =
@@ -473,8 +701,9 @@ export class ProviderCacheCustodyRuntime {
       else headers["x-api-key"] = "[redacted]";
     }
 
-    return {
+    const descriptor: AnthropicClientDescriptor = {
       family: "anthropic",
+      clientKind: "zyra-executable-provider-client/v1",
       transport,
       endpoint: trimEndpoint(endpoint),
       model: input.model,
@@ -495,6 +724,22 @@ export class ProviderCacheCustodyRuntime {
       clientApp,
       sensitiveCustomHeaderNames: custom.sensitiveNames,
     };
+    return executableAnthropicClient(
+      descriptor,
+      input.credential,
+      environment,
+      input.credentialProviders ?? {},
+      input.now ?? Date.now,
+      input.sleep ?? delay,
+    );
+  }
+
+  rehydrateAnthropicClient(
+    descriptor: AnthropicClientDescriptor,
+    credential: string,
+    environment: Readonly<Record<string, string | undefined>> = process.env,
+  ): AnthropicExecutableClient {
+    return executableAnthropicClient(descriptor, credential, environment, {}, Date.now, delay);
   }
 
   applyProviderRequestCustody(request: unknown): ProviderRequestCustodyEffect {
@@ -524,7 +769,7 @@ export class ProviderCacheCustodyRuntime {
     if (record && Array.isArray(record.messages)) record.messages = normalized;
     const mismatch = this.logToolUseToolResultMismatch(messages, normalized);
     const credential = stringOf(record?.credential ?? metadata?.credential);
-    const client = this.getAnthropicClient({
+    const executableClient = this.getAnthropicClient({
       providerId,
       endpoint: stringOf(record?.endpoint ?? metadata?.endpoint) || undefined,
       model,
@@ -540,6 +785,7 @@ export class ProviderCacheCustodyRuntime {
       proxyUrl: stringOf(record?.proxyUrl ?? metadata?.proxyUrl) || null,
       extraHeaders: stringRecord(record?.extraHeaders ?? metadata?.extraHeaders),
     });
+    const client = executableClient?.descriptor ?? null;
     const previousSample = recordOf(record?.previousCacheSample);
     const currentSample = recordOf(record?.cacheSample);
     const cacheBreak = currentSample
@@ -572,6 +818,7 @@ export class ProviderCacheCustodyRuntime {
       breakpointCount: normalized.flatMap(contentBlocks).filter((block) => block.cacheControl !== undefined).length,
       mismatch,
       client,
+      executableClient,
       cacheBreak,
       diffPath,
     };

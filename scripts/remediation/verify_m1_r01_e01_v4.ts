@@ -30,12 +30,16 @@ const metadataPath = join(
   "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
 );
 const mutationEvidencePath = "docs/reviews/evidence/M1-R01-v3/execution-01/mutation-results.json";
+const fiveHopEvidencePath = join(
+  repoRoot,
+  "docs/reviews/evidence/M1-R01-v3/execution-01/source-to-target-five-hop.jsonl",
+);
 
 const SOURCE_SNAPSHOT = "c57f5a29e88e9a814bea47abeb9a0a6f725dc102";
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
-const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v5";
+const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v6";
 const AUTHORIZED_POST_CUTOFF_SYMBOLS = new Set([
   "getDefaultMaxRetries",
   "getMaxRetries",
@@ -126,6 +130,105 @@ const sourceTextAt = (path: string): string =>
 const symbolLeaf = (value: unknown): string => {
   const text = String(value ?? "");
   return text.slice(Math.max(text.lastIndexOf("."), text.lastIndexOf("::")) + 1);
+};
+
+interface DeclarationAnalysis {
+  text: string;
+  calledSymbols: Set<string>;
+}
+
+const parsedSource = (path: string, text: string): ts.SourceFile =>
+  ts.createSourceFile(
+    path,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+
+const declaredName = (node: ts.Node, source: ts.SourceFile): string => {
+  if ("name" in node && node.name && ts.isIdentifier(node.name as ts.Node)) {
+    return (node.name as ts.Identifier).text;
+  }
+  if ("name" in node && node.name) return (node.name as ts.Node).getText(source).replace(/["']/g, "");
+  return "";
+};
+
+const declarationAnalysis = (
+  path: string,
+  text: string,
+  qualifiedSymbol: unknown,
+): DeclarationAnalysis | null => {
+  const source = parsedSource(path, text);
+  const symbol = String(qualifiedSymbol ?? "");
+  const segments = symbol.split(".");
+  const leaf = symbolLeaf(symbol);
+  const owner = segments.length > 1 ? segments.at(-2) ?? "" : "";
+  let exact: ts.Node | null = null;
+  let fallback: ts.Node | null = null;
+  const visit = (node: ts.Node): void => {
+    const callable = ts.isFunctionDeclaration(node)
+      || ts.isMethodDeclaration(node)
+      || ts.isGetAccessorDeclaration(node)
+      || ts.isSetAccessorDeclaration(node)
+      || ts.isConstructorDeclaration(node);
+    if (callable && declaredName(node, source) === leaf) {
+      fallback ??= node;
+      const parent = node.parent;
+      if (!owner || (ts.isClassDeclaration(parent) && parent.name?.text === owner)) exact ??= node;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  const declaration = exact ?? fallback;
+  if (!declaration) return null;
+  const calledSymbols = new Set<string>();
+  const collect = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+      const expression = node.expression;
+      if (ts.isIdentifier(expression)) calledSymbols.add(expression.text);
+      else if (ts.isPropertyAccessExpression(expression)) calledSymbols.add(expression.name.text);
+      else if (ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) {
+        calledSymbols.add(expression.argumentExpression.text);
+      }
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(declaration);
+  return { text: declaration.getText(source), calledSymbols };
+};
+
+const namedTestBody = (path: string, text: string, testName: string): string | null => {
+  const source = parsedSource(path, text);
+  let body: string | null = null;
+  const visit = (node: ts.Node): void => {
+    if (body || !ts.isCallExpression(node)) {
+      if (!body) ts.forEachChild(node, visit);
+      return;
+    }
+    const expression = node.expression;
+    const callName = ts.isIdentifier(expression)
+      ? expression.text
+      : ts.isPropertyAccessExpression(expression)
+        ? expression.name.text
+        : "";
+    const title = node.arguments[0];
+    const callback = node.arguments[1];
+    if (
+      (callName === "test" || callName === "it")
+      && title
+      && ts.isStringLiteralLike(title)
+      && title.text === testName
+      && callback
+      && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))
+    ) {
+      body = callback.body.getText(source);
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return body;
 };
 
 const executableLine = (line: string): boolean => {
@@ -336,6 +439,14 @@ const fail = (message: string): void => {
   failures.push(message);
 };
 
+try {
+  if (sha256(readFileSync(fiveHopEvidencePath)) !== sha256(readFileSync(targetManifestPath))) {
+    fail("committed five-hop evidence bytes differ from the authoritative target custody map");
+  }
+} catch (error) {
+  fail(`five-hop evidence is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+}
+
 const dirtyPaths = Array.isArray(receipt.dirty_paths_at_capture)
   ? receipt.dirty_paths_at_capture.map(String)
   : [];
@@ -482,8 +593,15 @@ for (const entry of defaults) {
 }
 
 const mutationIds = new Set(mutationRecords.map((record) => String(record.mutation_id)));
+const contractIds = new Set<string>();
+const targetGroups = new Map<string, JsonRecord[]>();
+for (const target of targetRecords) {
+  const key = `${String(target.target_path)}::${String(target.target_symbol)}`;
+  targetGroups.set(key, [...(targetGroups.get(key) ?? []), target]);
+}
 let fiveHopCount = 0;
 for (const target of targetRecords) {
+  const failuresBeforeTarget = failures.length;
   const id = String(target.mapping_id);
   const source = sourceById.get(id);
   if (!source || source.accepted !== true) {
@@ -516,14 +634,46 @@ for (const target of targetRecords) {
   } catch {
     fail(`default callsite path is absent: ${id}`);
   }
+  const edges = Array.isArray(target.default_entry_edges)
+    ? target.default_entry_edges as JsonRecord[]
+    : [];
+  if (edges.length === 0) fail(`target ${id} lacks an executable default-entry edge`);
+  for (const edge of edges) {
+    const callerPath = String(edge.caller_path);
+    const callerSymbol = String(edge.caller_symbol);
+    const calleePath = String(edge.callee_path);
+    const calleeSymbol = String(edge.callee_symbol);
+    try {
+      const caller = declarationAnalysis(callerPath, textAt(candidate, callerPath), callerSymbol);
+      const callee = declarationAnalysis(calleePath, textAt(candidate, calleePath), calleeSymbol);
+      if (!caller) fail(`edge caller declaration is absent: ${id} ${callerSymbol}`);
+      if (!callee) fail(`edge callee declaration is absent: ${id} ${calleeSymbol}`);
+      if (caller && !caller.calledSymbols.has(symbolLeaf(calleeSymbol))) {
+        fail(`edge caller does not invoke callee: ${id} ${callerSymbol} -> ${calleeSymbol}`);
+      }
+    } catch {
+      fail(`edge path is absent: ${id} ${callerPath} -> ${calleePath}`);
+    }
+  }
   const tests = Array.isArray(target.behavior_tests) ? (target.behavior_tests as JsonRecord[]) : [];
   if (tests.length === 0) fail(`target ${id} lacks behavior tests`);
+  const testBodies = new Map<string, string>();
   for (const test of tests) {
     try {
-      const testText = textAt(candidate, String(test.path));
-      if (!testText.includes(String(test.name))) fail(`behavior test name is absent: ${id}`);
+      const testPath = String(test.path);
+      const testName = String(test.name);
+      const testText = textAt(candidate, testPath);
+      const body = namedTestBody(testPath, testText, testName);
+      if (!body) {
+        fail(`named behavior test callback is absent: ${id} ${testName}`);
+        continue;
+      }
+      testBodies.set(testName, body);
+      if (!body.includes("expect")) fail(`behavior test has no state assertion: ${id} ${testName}`);
+      const anchor = String(test.anchor ?? "").trim();
+      if (!anchor || !body.includes(anchor)) fail(`behavior invocation anchor is absent from named test: ${id} ${anchor}`);
       for (const token of (test.assertion_tokens as unknown[] | undefined) ?? []) {
-        if (!testText.includes(String(token))) fail(`behavior assertion token is absent: ${id} ${String(token)}`);
+        if (!body.includes(String(token))) fail(`behavior assertion token is absent from named test: ${id} ${String(token)}`);
       }
     } catch {
       fail(`behavior test path is absent: ${id}`);
@@ -532,12 +682,60 @@ for (const target of targetRecords) {
   for (const mutationId of (target.mutation_ids as unknown[] | undefined) ?? []) {
     if (!mutationIds.has(String(mutationId))) fail(`target ${id} references unknown mutation ${String(mutationId)}`);
   }
+  const exactMutationId = String(target.exact_mutation_id ?? "");
+  const exactMutation = mutationRecordById.get(exactMutationId);
+  if (
+    !exactMutation
+    || String(exactMutation.target_path) !== String(target.target_path)
+    || String(exactMutation.target_symbol) !== String(target.target_symbol)
+  ) {
+    fail(`target ${id} does not bind its exact disconnect mutation`);
+  } else {
+    const killers = Array.isArray(exactMutation.expected_killer_test_ids)
+      ? exactMutation.expected_killer_test_ids.map(String)
+      : [];
+    if (!killers.some((name) => testBodies.has(name))) {
+      fail(`target ${id} exact mutation is not killed by its named behavior test`);
+    }
+  }
+  const contractId = String(target.behavior_contract_id ?? "");
+  if (contractId !== `e01.contract.${id}` || contractIds.has(contractId)) {
+    fail(`target ${id} has an invalid or duplicate behavior contract id`);
+  }
+  contractIds.add(contractId);
+  const equivalence = String(target.semantic_equivalence ?? "");
+  for (const token of [id, symbolLeaf(source.source_symbol), targetLeaf, exactMutationId]) {
+    if (!token || !equivalence.includes(token)) fail(`target ${id} semantic equivalence omits ${token || "required token"}`);
+  }
+  const stateAssertionTokens = Array.isArray(target.state_assertion_tokens)
+    ? target.state_assertion_tokens.map(String)
+    : [];
+  if (stateAssertionTokens.length === 0) fail(`target ${id} lacks state assertion tokens`);
+  for (const token of stateAssertionTokens) {
+    if (![...testBodies.values()].some((body) => body.includes(token))) {
+      fail(`target ${id} state assertion is absent from its named tests: ${token}`);
+    }
+  }
+  const targetKey = `${String(target.target_path)}::${String(target.target_symbol)}`;
+  const group = targetGroups.get(targetKey) ?? [];
+  const consolidation = target.consolidation as JsonRecord | undefined;
+  const consolidatedSources = Array.isArray(consolidation?.source_symbols)
+    ? consolidation.source_symbols.map(String).sort()
+    : [];
+  const expectedSources = group.map((item) => String(item.source_symbol)).sort();
+  if (
+    Number(consolidation?.source_count) !== group.length
+    || consolidatedSources.join("\n") !== expectedSources.join("\n")
+    || !String(consolidation?.rationale ?? "").trim()
+  ) {
+    fail(`target ${id} lacks an exact consolidation disclosure`);
+  }
   if (
     String(target.state_store ?? "").trim() &&
     String(target.state_effect_kind ?? "").trim() &&
     String(target.state_effect_assertion ?? "").trim()
   ) {
-    fiveHopCount += 1;
+    if (failures.length === failuresBeforeTarget) fiveHopCount += 1;
   } else {
     fail(`target ${id} lacks state-effect hop`);
   }

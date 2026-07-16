@@ -29,11 +29,12 @@ const candidateMetadataPath = join(
 );
 const evidenceRoot = join(repoRoot, "docs/reviews/evidence/M1-R01-v3/execution-01");
 const frozenManifestRoot = join(evidenceRoot, "root-manifests");
+const fiveHopEvidencePath = join(evidenceRoot, "source-to-target-five-hop.jsonl");
 
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
-const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v5";
+const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v6";
 const GENERATOR = "scripts/remediation/m1_r01_e01_v6.ts";
 const SCHEMA_VERIFIER = "scripts/remediation/verify_m1_r01_e01_v4.ts";
 const MAIN_PATH = "apps/code-worker/src/main.ts";
@@ -884,9 +885,9 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
     stateProperty: "provider",
     stateKind: "provider-client-factory",
     stateObservation: "preparedRequest.sourceCustody.client + preparedRequest.endpoint + preparedRequest.headers",
-    testName: "e01.v10.provider-client-factory-controls-default-request",
-    testAnchor: "prepared.sourceCustody.client",
-    testTokens: ["prepared.sourceCustody.client", "prepared.endpoint.baseUrl", "credentialRefresh"],
+    testName: "e01.v11.provider-client-factory-executes-auth-and-retry",
+    testAnchor: "foundry!.execute",
+    testTokens: ["authorization", "AWS4-HMAC-SHA256", "credentialRefreshes"],
     testPath: V9_DEFAULT_PATH_TEST_PATH,
   }],
   ["getEffectiveContextWindowSize", {
@@ -1195,6 +1196,13 @@ const v8SemanticRejections = new Map<string, string>([
   ["getCoordinatorUserContext", "rejected in V8: coordinator presentation context is outside the E01 canonical runtime owner boundary"],
 ]);
 
+const v11SemanticRejections = new Map<string, string>([
+  ["setSessionMemoryCompactConfig", "rejected in V11: E01 consumes session-memory compact results but does not own the upstream process-global configuration setter"],
+  ["getSessionMemoryCompactConfig", "rejected in V11: E01 has no equivalent process-global configuration getter on its default path"],
+  ["resetSessionMemoryCompactConfig", "rejected in V11: the upstream test/reset helper is not a production default-path state transition"],
+  ["initSessionMemoryCompactConfig", "rejected in V11: remote GrowthBook configuration initialization is outside the E01 canonical compact owner"],
+]);
+
 const generatorOwnedEvidencePrefix = "docs/reviews/evidence/M1-R01-v3/execution-01/";
 const initialWorktreeStatus = gitText(["status", "--short"])
   .split(/\r?\n/)
@@ -1221,7 +1229,10 @@ if (requestedImplementationHead) {
 const sourceRecords = readJsonLines(sourceManifestPath);
 for (const record of sourceRecords) {
   const name = sourceName(record);
-  const rejection = v8SemanticRejections.get(name) ?? forcedRejections.get(name) ?? semanticRejections.get(name);
+  const rejection = v11SemanticRejections.get(name)
+    ?? v8SemanticRejections.get(name)
+    ?? forcedRejections.get(name)
+    ?? semanticRejections.get(name);
   if (rejection) {
     record.accepted = false;
     record.migration_mode = "rejected";
@@ -1297,9 +1308,66 @@ const mutationRecords = addTargetDisconnectMutations(
   addMutations(readJsonLines(mutationManifestPath)),
   targetRecords,
 );
+const groupedTargets = new Map<string, JsonRecord[]>();
+for (const target of targetRecords) {
+  const key = `${String(target.target_path)}::${String(target.target_symbol)}`;
+  groupedTargets.set(key, [...(groupedTargets.get(key) ?? []), target]);
+}
+for (const target of targetRecords) {
+  const id = String(target.mapping_id);
+  const source = sourceById.get(id);
+  if (!source) throw new Error(`missing accepted source for behavior contract ${id}`);
+  const behaviorTests = Array.isArray(target.behavior_tests)
+    ? target.behavior_tests as JsonRecord[]
+    : [];
+  const behaviorNames = new Set(behaviorTests.map((test) => String(test.name)));
+  const exactMutation = mutationRecords.find((mutation) => {
+    const killers = Array.isArray(mutation.expected_killer_test_ids)
+      ? mutation.expected_killer_test_ids.map(String)
+      : [];
+    return String(mutation.target_path) === String(target.target_path)
+      && String(mutation.target_symbol) === String(target.target_symbol)
+      && killers.some((killer) => behaviorNames.has(killer));
+  });
+  if (!exactMutation) throw new Error(`missing exact target/test mutation for ${id}`);
+  const assertionTokens = [...new Set(behaviorTests.flatMap((test) =>
+    Array.isArray(test.assertion_tokens) ? test.assertion_tokens.map(String) : []))].sort();
+  const targetKey = `${String(target.target_path)}::${String(target.target_symbol)}`;
+  const group = groupedTargets.get(targetKey) ?? [target];
+  const contractId = `e01.contract.${id}`;
+  target.behavior_contract_id = contractId;
+  target.exact_mutation_id = exactMutation.mutation_id;
+  target.state_assertion_tokens = assertionTokens;
+  target.behavior_contract = {
+    contract_id: contractId,
+    source_symbol: source.source_symbol,
+    call_edges: target.default_entry_edges,
+    target_path: target.target_path,
+    target_symbol: target.target_symbol,
+    state_store: target.state_store,
+    state_effect_kind: target.state_effect_kind,
+    state_assertion_tokens: assertionTokens,
+    behavior_test_names: [...behaviorNames].sort(),
+    exact_mutation_id: exactMutation.mutation_id,
+  };
+  target.consolidation = {
+    group_id: `e01.consolidation.${sha256(targetKey).slice(0, 12)}`,
+    source_count: group.length,
+    source_symbols: group.map((item) => String(item.source_symbol)).sort(),
+    rationale: group.length === 1
+      ? "one source operation maps to one Zyra target operation"
+      : `${group.length} source operations are consolidated into the same canonical target state transition and share its exact disconnect mutation`,
+  };
+  target.semantic_equivalence = [
+    `${id} binds ${String(source.source_symbol)} to ${String(target.target_symbol)}`,
+    `${[...behaviorNames].sort().join(" + ")} observes ${String(target.state_effect_kind)}`,
+    `${String(exactMutation.mutation_id)} disconnects that exact target and is killed by the named behavior test`,
+  ].join("; ");
+}
 writeJsonLines(sourceManifestPath, sourceRecords);
 writeJsonLines(targetManifestPath, targetRecords);
 writeJsonLines(mutationManifestPath, mutationRecords);
+writeJsonLines(fiveHopEvidencePath, targetRecords);
 
 const profile = readJson(gateProfilePath);
 profile.manifest_generator = GENERATOR;
