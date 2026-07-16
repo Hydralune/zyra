@@ -61,8 +61,8 @@
     "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
     "packages/runtime/claude-runtime/src/tools.ts"
   ],
-  "raw_non_test_typescript_physical_sloc": 39866,
-  "final_non_test_typescript_physical_sloc": 36712,
+  "raw_non_test_typescript_physical_sloc": 39874,
+  "final_non_test_typescript_physical_sloc": 36720,
   "semantically_dormant_production_sloc": 3154,
   "semantically_dormant_production": [
     {
@@ -337,6 +337,11 @@
       "effective_sloc": 336
     },
     {
+      "path": "packages/runtime/claude-runtime/src/capability-host.ts",
+      "ast_units": 4,
+      "effective_sloc": 326
+    },
+    {
       "path": "packages/runtime/claude-runtime/src/context/token-runtime.ts",
       "ast_units": 19,
       "effective_sloc": 320
@@ -345,11 +350,6 @@
       "path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
       "ast_units": 26,
       "effective_sloc": 306
-    },
-    {
-      "path": "packages/runtime/claude-runtime/src/capability-host.ts",
-      "ast_units": 3,
-      "effective_sloc": 298
     },
     {
       "path": "packages/runtime/claude-runtime/src/stdio.ts",
@@ -388,7 +388,7 @@
     }
   ],
   "line_buckets": {
-    "production_e01_physical": 36712,
+    "production_e01_physical": 36720,
     "production_excluded_later_unit_physical": 3154,
     "production_type_only_excluded_physical": 4521,
     "behavior_test_effective": 8937,
@@ -547,10 +547,10 @@
   "baseline_ast_unit_hash_count": 90,
   "baseline_ast_structural_hash_count": 88,
   "current_ast_unit_count": 1919,
-  "exact_changed_ast_unit_count": 1716,
-  "exact_changed_typescript_sloc": 27876,
-  "effective_changed_ast_unit_count": 1350,
-  "effective_changed_typescript_sloc": 26635,
+  "exact_changed_ast_unit_count": 1717,
+  "exact_changed_typescript_sloc": 27904,
+  "effective_changed_ast_unit_count": 1351,
+  "effective_changed_typescript_sloc": 26663,
   "structural_clone_excluded_production_sloc": 1241,
   "behavior_test_files": [
     "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
