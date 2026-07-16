@@ -121,8 +121,15 @@ const readJsonLines = (path: string): JsonRecord[] =>
     .filter((line) => line.trim().length > 0)
     .map((line) => JSON.parse(line) as JsonRecord);
 
-const textAt = (commit: string, path: string): string =>
-  gitBytes(repoRoot, ["show", `${commit}:${path}`]).toString("utf8");
+const committedTextCache = new Map<string, string>();
+const textAt = (commit: string, path: string): string => {
+  const key = `${commit}:${path}`;
+  const cached = committedTextCache.get(key);
+  if (cached !== undefined) return cached;
+  const text = gitBytes(repoRoot, ["show", key]).toString("utf8");
+  committedTextCache.set(key, text);
+  return text;
+};
 
 const sourceTextAt = (path: string): string =>
   gitBytes(sourceRoot, ["show", `${SOURCE_SNAPSHOT}:${path}`]).toString("utf8");
@@ -136,6 +143,9 @@ interface DeclarationAnalysis {
   text: string;
   calledSymbols: Set<string>;
 }
+
+const declarationAnalysisCache = new Map<string, DeclarationAnalysis | null>();
+const namedTestBodyCache = new Map<string, string | null>();
 
 const parsedSource = (path: string, text: string): ts.SourceFile =>
   ts.createSourceFile(
@@ -159,6 +169,8 @@ const declarationAnalysis = (
   text: string,
   qualifiedSymbol: unknown,
 ): DeclarationAnalysis | null => {
+  const cacheKey = `${path}::${String(qualifiedSymbol ?? "")}`;
+  if (declarationAnalysisCache.has(cacheKey)) return declarationAnalysisCache.get(cacheKey) ?? null;
   const source = parsedSource(path, text);
   const symbol = String(qualifiedSymbol ?? "");
   const segments = symbol.split(".");
@@ -181,7 +193,10 @@ const declarationAnalysis = (
   };
   visit(source);
   const declaration = exact ?? fallback;
-  if (!declaration) return null;
+  if (!declaration) {
+    declarationAnalysisCache.set(cacheKey, null);
+    return null;
+  }
   const calledSymbols = new Set<string>();
   const collect = (node: ts.Node): void => {
     if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
@@ -195,10 +210,14 @@ const declarationAnalysis = (
     ts.forEachChild(node, collect);
   };
   collect(declaration);
-  return { text: declaration.getText(source), calledSymbols };
+  const analysis = { text: declaration.getText(source), calledSymbols };
+  declarationAnalysisCache.set(cacheKey, analysis);
+  return analysis;
 };
 
 const namedTestBody = (path: string, text: string, testName: string): string | null => {
+  const cacheKey = `${path}::${testName}`;
+  if (namedTestBodyCache.has(cacheKey)) return namedTestBodyCache.get(cacheKey) ?? null;
   const source = parsedSource(path, text);
   let body: string | null = null;
   const visit = (node: ts.Node): void => {
@@ -228,6 +247,7 @@ const namedTestBody = (path: string, text: string, testName: string): string | n
     ts.forEachChild(node, visit);
   };
   visit(source);
+  namedTestBodyCache.set(cacheKey, body);
   return body;
 };
 
