@@ -2,14 +2,14 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.same-session-resume",
-  "generated_at_utc": "2026-07-15T20:47:22.029Z",
+  "generated_at_utc": "2026-07-16T01:52:10.671Z",
   "ok": true,
   "session_id": "probe-resume-session",
   "process_restart_count": 2,
   "process_ids": [
-    52616,
-    62648,
-    56916
+    73156,
+    79156,
+    63112
   ],
   "force_killed_processes": [
     true,
@@ -33,16 +33,16 @@
   ],
   "epoch_transition_ids": [
     [
-      "probe-resume-session:epoch0:revision0:sequence1:6c40fa5e-4bb7-4a86-b950-18362528e483",
-      "probe-resume-session:epoch0:revision1:sequence2:48f4b8db-1bab-4a8b-a45d-2b91c08a1de4"
+      "probe-resume-session:epoch0:revision0:sequence1:9f5ada44-9b59-4d31-b958-c97fcf795f95",
+      "probe-resume-session:epoch0:revision1:sequence2:b1459e82-899b-4c87-90b7-101a210294e7"
     ],
     [
-      "probe-resume-session:epoch1:revision2:sequence3:d426ba99-1582-4c12-b2e1-7af9a3635af6",
-      "probe-resume-session:epoch1:revision3:sequence4:d546793f-7460-4e8d-a47a-646bc791cc60"
+      "probe-resume-session:epoch1:revision2:sequence3:355dccd8-a74f-48ae-9dc0-b53e3d16b6d1",
+      "probe-resume-session:epoch1:revision3:sequence4:1da68c6c-3f08-480c-a707-2f81f12aea42"
     ],
     [
-      "probe-resume-session:epoch2:revision4:sequence5:1b34fa40-aeb8-4465-92e9-f6d833ecfc78",
-      "probe-resume-session:epoch2:revision5:sequence6:9ecf8103-d290-4764-960f-30a1c1ba9785"
+      "probe-resume-session:epoch2:revision4:sequence5:a4d4ce61-95ab-461f-ab58-4d7f6979f09d",
+      "probe-resume-session:epoch2:revision5:sequence6:1211e9d4-3f2e-4f85-b8a9-01c51f903259"
     ]
   ],
   "replayed_transition_ids": [],
@@ -54,15 +54,15 @@
         "resume-worker",
         "0",
         "-",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\snapshot-0.json",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\marker-0.json"
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-0.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\marker-0.json"
       ],
       "exit_code": 143,
-      "duration_ms": 230,
+      "duration_ms": 305,
       "force_killed": true,
-      "process_id": 52616,
-      "snapshot_sha256": "aac65d6ba303aa734664ddee430c3cee1f98b73a411bab60ef4e918c83cf5f3a",
-      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "process_id": 73156,
+      "snapshot_sha256": "17be417b1d40e346fa092c26e68dd78ea5dad7ef0d9cab6dab7ce99a646eedd5",
+      "stdout_sha256": "e8eac91c223c1b791f6507ac4f0e5e80bea945dcc81c251875ef0740d56dce01",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
@@ -71,16 +71,16 @@
         "G:\\agent-zoo\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
         "resume-worker",
         "1",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\snapshot-0.json",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\snapshot-1.json",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\marker-1.json"
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-0.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-1.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\marker-1.json"
       ],
       "exit_code": 143,
-      "duration_ms": 236,
+      "duration_ms": 224,
       "force_killed": true,
-      "process_id": 62648,
-      "snapshot_sha256": "14667feba1e01773fbf2e2ce0e4f1433e22aeebbe1dca233aed1e4ebe3b68f5b",
-      "stdout_sha256": "9a5282c397e171ca8d1339e89bce42d3a93c610a57e258ea0531e0db01479f17",
+      "process_id": 79156,
+      "snapshot_sha256": "ff651cb533ef0cd48a06d0fb51f79189a55a817c583ef738bf1042528b89c583",
+      "stdout_sha256": "86ab3ca3e70bf21a83f2c33d8dbb7198db45a33e6cb03eeb875e8a020877c587",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
@@ -89,16 +89,16 @@
         "G:\\agent-zoo\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
         "resume-worker",
         "2",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\snapshot-1.json",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\snapshot-2.json",
-        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bdc3fa82-f5f9-4afb-9a9b-d5902641ed12\\marker-2.json"
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-1.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-2.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\marker-2.json"
       ],
       "exit_code": 143,
-      "duration_ms": 181,
+      "duration_ms": 239,
       "force_killed": true,
-      "process_id": 56916,
-      "snapshot_sha256": "1365093ed463ffef55b5a1c680b03c567d3b70e417ffa2ee2edfb60bac367001",
-      "stdout_sha256": "3deef276b80dfd9f5a5a72db9b029b709e9e6c2e07a730fca11000abedbb6c8b",
+      "process_id": 63112,
+      "snapshot_sha256": "eb87d563fc81a4b09d32163839d03be47bb7160cb89c8db95d591759e26e3708",
+      "stdout_sha256": "e53854c44356d28c50473b5ef0b6c1febc42bd506718be4c07d3e06264c066ba",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ],

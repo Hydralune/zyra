@@ -6,8 +6,8 @@
     "apps/code-worker/src",
     "packages/runtime/claude-runtime/src"
   ],
-  "production_file_count": 72,
-  "semantically_counted_production_file_count": 50,
+  "production_file_count": 73,
+  "semantically_counted_production_file_count": 51,
   "semantically_counted_production_files": [
     "apps/code-worker/src/main.ts",
     "packages/runtime/claude-runtime/src/budget.ts",
@@ -27,6 +27,7 @@
     "packages/runtime/claude-runtime/src/index.ts",
     "packages/runtime/claude-runtime/src/input/query-input-runtime.ts",
     "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts",
+    "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
     "packages/runtime/claude-runtime/src/model-stream.ts",
     "packages/runtime/claude-runtime/src/protocol/command-runtime.ts",
     "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts",
@@ -60,8 +61,8 @@
     "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
     "packages/runtime/claude-runtime/src/tools.ts"
   ],
-  "raw_non_test_typescript_physical_sloc": 38729,
-  "final_non_test_typescript_physical_sloc": 35575,
+  "raw_non_test_typescript_physical_sloc": 39623,
+  "final_non_test_typescript_physical_sloc": 36469,
   "semantically_dormant_production_sloc": 3154,
   "semantically_dormant_production": [
     {
@@ -153,7 +154,7 @@
       "reason": "live skills subsystem owned by a later execution unit; excluded from E01-only SLOC"
     }
   ],
-  "excluded_type_only_and_uninitialized_declaration_sloc": 4379,
+  "excluded_type_only_and_uninitialized_declaration_sloc": 4488,
   "effective_changed_by_file": [
     {
       "path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
@@ -203,7 +204,7 @@
     {
       "path": "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts",
       "ast_units": 38,
-      "effective_sloc": 706
+      "effective_sloc": 726
     },
     {
       "path": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
@@ -229,6 +230,11 @@
       "path": "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
       "ast_units": 26,
       "effective_sloc": 628
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+      "ast_units": 42,
+      "effective_sloc": 618
     },
     {
       "path": "packages/runtime/claude-runtime/src/compact/summary-runtime.ts",
@@ -341,6 +347,11 @@
       "effective_sloc": 298
     },
     {
+      "path": "packages/runtime/claude-runtime/src/stdio.ts",
+      "ast_units": 6,
+      "effective_sloc": 286
+    },
+    {
       "path": "packages/runtime/claude-runtime/src/session/history-runtime.ts",
       "ast_units": 18,
       "effective_sloc": 274
@@ -354,11 +365,6 @@
       "path": "packages/runtime/claude-runtime/src/context/token-runtime.ts",
       "ast_units": 17,
       "effective_sloc": 248
-    },
-    {
-      "path": "packages/runtime/claude-runtime/src/stdio.ts",
-      "ast_units": 2,
-      "effective_sloc": 219
     },
     {
       "path": "packages/runtime/claude-runtime/src/query/stream-runtime.ts",
@@ -382,10 +388,10 @@
     }
   ],
   "line_buckets": {
-    "production_e01_physical": 35575,
+    "production_e01_physical": 36469,
     "production_excluded_later_unit_physical": 3154,
-    "production_type_only_excluded_physical": 4379,
-    "behavior_test_effective": 8664,
+    "production_type_only_excluded_physical": 4488,
+    "behavior_test_effective": 8902,
     "generated": 0,
     "data_as_code": 0,
     "vendor_like_source_pool": 0,
@@ -540,29 +546,32 @@
   ],
   "baseline_ast_unit_hash_count": 90,
   "baseline_ast_structural_hash_count": 88,
-  "current_ast_unit_count": 1859,
-  "exact_changed_ast_unit_count": 1657,
-  "exact_changed_typescript_sloc": 26952,
-  "effective_changed_ast_unit_count": 1298,
-  "effective_changed_typescript_sloc": 25722,
-  "structural_clone_excluded_production_sloc": 1230,
+  "current_ast_unit_count": 1914,
+  "exact_changed_ast_unit_count": 1710,
+  "exact_changed_typescript_sloc": 27668,
+  "effective_changed_ast_unit_count": 1344,
+  "effective_changed_typescript_sloc": 26427,
+  "structural_clone_excluded_production_sloc": 1241,
   "behavior_test_files": [
     "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/durable-session.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/effect-protocol.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/health-verification.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/mutation-contract.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/query-context.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/semantic-custody.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/tool-protocol.behavior.test.ts"
   ],
-  "behavior_test_ast_unit_count": 145,
-  "exact_behavior_test_ast_unit_count": 142,
-  "exact_behavior_test_sloc": 8672,
-  "effective_behavior_test_ast_unit_count": 139,
-  "effective_behavior_test_sloc": 8664,
+  "behavior_test_ast_unit_count": 152,
+  "exact_behavior_test_ast_unit_count": 149,
+  "exact_behavior_test_sloc": 8910,
+  "effective_behavior_test_ast_unit_count": 146,
+  "effective_behavior_test_sloc": 8902,
   "structural_clone_excluded_behavior_test_sloc": 8,
   "adapter_files": [],
   "adapter_sloc": 0,

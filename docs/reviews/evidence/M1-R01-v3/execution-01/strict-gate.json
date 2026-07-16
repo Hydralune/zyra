@@ -2,26 +2,26 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+  "candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
   "ok": true,
   "checks": {
     "source_manifest": {
       "total": 360,
-      "accepted": 290,
-      "rejected": 70,
-      "accepted_executable_lines": 10711,
+      "accepted": 285,
+      "rejected": 75,
+      "accepted_executable_lines": 10642,
       "hash_semantics": "immutable-git-blob-bytes"
     },
     "source_to_target": {
-      "target_mappings": 290,
-      "five_hop_mappings": 290,
+      "target_mappings": 285,
+      "five_hop_mappings": 285,
       "default_entries": 1
     },
     "scope": {
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c"
+      "candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a"
     },
     "effective_lines": {
       "gross_changed_executable_typescript": 31495,
@@ -821,12 +821,12 @@
       },
       "effective_changed_typescript": 30841,
       "final_production_typescript": 48420,
-      "final_test_typescript": 10614,
+      "final_test_typescript": 10679,
       "python_deleted_lines": 35151
     },
     "mutations": {
-      "declared": 46,
-      "canonical_frozen_patch_fingerprints": 46
+      "declared": 50,
+      "canonical_frozen_patch_fingerprints": 50
     }
   },
   "failures": []
