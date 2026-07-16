@@ -1,0 +1,111 @@
+{
+  "schema_version": "4.0",
+  "execution_id": "E01",
+  "revision": "v12",
+  "review_kind": "independent_adversarial_review",
+  "verdict": "PASS",
+  "review_target": "0fd1f452a28b5b74db096fc42da856368a2b2f01",
+  "implementation_candidate": "567b14acfbbabcf59a82868d1c20b042f056a80c",
+  "evidence_commit": "70c0d97af385dca39927e9a9d4860020ef3886f7",
+  "metadata_commit": "a9b1a60ed273eecc04bdf4db62d1973034f68502",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+  "binding_valid": true,
+  "verified_complete": false,
+  "blocking_findings": [],
+  "resolved_findings": [
+    {
+      "id": "E01-V11-B1",
+      "resolution": "Provider-specific endpoint selection, secret-free snapshots and execute-after-restore credential rebinding are exercised through ProviderModelRuntime."
+    },
+    {
+      "id": "E01-V11-B2",
+      "resolution": "Production health, tests, metadata and verifier use zyra.e01-verification/v7 and expose identity-bound pending/final states."
+    },
+    {
+      "id": "E01-V11-B3",
+      "resolution": "The application has a declared exported main symbol whose task profile reaches runStdioRuntime."
+    },
+    {
+      "id": "E01-V11-B4",
+      "resolution": "The verifier uses TypeChecker-resolved connected paths, AST assertion fingerprints and exact state-effect mutations and forbids zero-edge entry roots."
+    }
+  ],
+  "metrics": {
+    "source_custody": {
+      "source_total": 360,
+      "source_accepted": 276,
+      "source_rejected": 84,
+      "accepted_executable_lines": 10587,
+      "required_executable_lines": 10587,
+      "five_hop_mappings": 276,
+      "target_map_byte_identical": true,
+      "assessment": "PASS"
+    },
+    "effective_lines": {
+      "gross_changed_executable_typescript": 33449,
+      "token_winnowing_deducted_lines": 671,
+      "effective_changed_typescript": 32778,
+      "required_effective_changed_typescript": 25416,
+      "final_production_typescript": 50371,
+      "final_test_typescript": 11352,
+      "python_deleted_lines": 35151,
+      "assessment": "PASS"
+    },
+    "mutation": {
+      "declared": 123,
+      "applied": 123,
+      "compile_survived": 123,
+      "killed": 123,
+      "survived": 0,
+      "invalid": 0,
+      "frozen_patch_matches": 123,
+      "restored_sha_match": true,
+      "assessment": "PASS"
+    },
+    "runtime": {
+      "full_tests_passed": 422,
+      "full_tests_failed": 0,
+      "full_expectations": 1355,
+      "targeted_review_tests_passed": 17,
+      "targeted_review_tests_failed": 0,
+      "targeted_review_expectations": 59,
+      "runtime_origin": "PASS",
+      "write_path": "PASS",
+      "resume_replayed_transition_ids": 0,
+      "lost_ack_repeated_effects": 0,
+      "disable": "PASS",
+      "dependencies": "PASS"
+    },
+    "toolchain_and_cleanroom": {
+      "bun": "1.2.15",
+      "node": "22.17.0",
+      "typescript": "5.8.3",
+      "toolchain": "PASS",
+      "cleanroom": "PASS",
+      "cleanroom_target": "567b14acfbbabcf59a82868d1c20b042f056a80c"
+    },
+    "pre_review_health": {
+      "complete": false,
+      "status": "independent_review_pending",
+      "contract": "zyra.e01-verification/v7",
+      "implementation_candidate_matches": true,
+      "evidence_commit_matches": true,
+      "review_target_matches": true,
+      "assessment": "PASS"
+    }
+  },
+  "residual_risks": [
+    "Accepted source coverage has zero line margin.",
+    "TypeChecker analysis does not cover arbitrary reflection, runtime code generation or unknown dynamic imports.",
+    "Provider authentication coverage is hermetic rather than live-cloud evidence.",
+    "Root remediation documents are outside the Zyra Git repository."
+  ],
+  "required_disposition": {
+    "final_metadata_required": true,
+    "metadata_aware_verifier_required": true,
+    "real_health_completion_required": true,
+    "execution_02_must_remain_blocked_until_final_verification": true
+  }
+}
