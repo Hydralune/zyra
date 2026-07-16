@@ -251,8 +251,13 @@ export class RuntimeSession {
     this.bump("turn_completed");
   }
 
-  compact(summary: string, artifactId: string, preservedMessages: RuntimeMessage[]): void {
-    this.messages.splice(0, this.messages.length, {
+  compact(
+    summary: string,
+    artifactId: string,
+    preservedMessages: RuntimeMessage[],
+    replacementMessages: readonly RuntimeMessage[] | null = null,
+  ): void {
+    const fallbackMessages: RuntimeMessage[] = [{
       message_id: runtimeId("message"),
       role: "system",
       content: summary,
@@ -263,7 +268,21 @@ export class RuntimeSession {
         compact_artifact_id: artifactId,
         compacted: true,
       },
-    }, ...preservedMessages.map((item) => structuredClone(item)));
+    }, ...preservedMessages.map((item) => structuredClone(item))];
+    const selectedMessages = replacementMessages === null
+      ? fallbackMessages
+      : replacementMessages.map((item, index) => ({
+        ...structuredClone(item),
+        metadata: index === 0
+          ? {
+            ...structuredClone(item.metadata),
+            compact_artifact_id: artifactId,
+            compacted: true,
+          }
+          : structuredClone(item.metadata),
+      }));
+    if (selectedMessages.length === 0) throw new Error("post_compact_messages_required");
+    this.messages.splice(0, this.messages.length, ...selectedMessages);
     this.compactionCount += 1;
     this.bump("context_compacted");
   }

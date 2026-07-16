@@ -1445,13 +1445,21 @@ function providerHttpError(value: ProviderTransportResponse): ProviderProtocolEr
   const nested = asObject(body.error);
   const message = asString(nested.message, asString(body.message, `provider returned HTTP ${value.status}`));
   const code = asString(nested.type, asString(nested.code, `http_${value.status}`));
+  const retryAfter = header(value.headers, "retry-after");
+  const rateLimitReset = header(value.headers, "x-ratelimit-reset");
+  const requestId = header(value.headers, "request-id") ?? header(value.headers, "x-request-id");
   return new ProviderProtocolError(code, message, {
     status: value.status,
     retryable: value.status === 408 || value.status === 409 || value.status === 429 || value.status >= 500,
     details: {
       response: redactJson(body),
-      retry_after: header(value.headers, "retry-after") ?? null,
-      request_id: header(value.headers, "request-id") ?? header(value.headers, "x-request-id") ?? null,
+      retry_after: retryAfter ?? null,
+      request_id: requestId ?? null,
+      headers: {
+        ...(retryAfter ? { "retry-after": retryAfter } : {}),
+        ...(rateLimitReset ? { "x-ratelimit-reset": rateLimitReset } : {}),
+        ...(requestId ? { "request-id": requestId } : {}),
+      },
     },
   });
 }

@@ -691,9 +691,17 @@ export class ClaudeRuntimeCore {
           : null,
       });
 
+      const configuredContextWindow = Math.max(
+        8_192,
+        Math.ceil(config.maxQueryContextChars / 4) + 5_000,
+      );
+      const autoCompactCharacterThreshold = e01.compact.getAutoCompactThreshold(
+        configuredContextWindow,
+        8_192,
+      ) * 4;
       const contextDecision = e01.decideContext(
         session.contextChars(),
-        config.maxQueryContextChars,
+        Math.min(config.maxQueryContextChars, autoCompactCharacterThreshold),
         asBoolean(config.runtimeConstraints.force_compact_restore),
         session.compactionCount,
       );
@@ -703,12 +711,15 @@ export class ClaudeRuntimeCore {
           id: item.message_id,
           role: item.role,
           content: [{ type: "text" as const, text: item.content }],
-          createdAt: item.created_at,
-          turnIndex: item.turn_index,
-          apiRound: item.turn_index ?? index,
-          synthetic: item.metadata.synthetic === true,
-          metadata: item.metadata,
-        }));
+           createdAt: item.created_at,
+           turnIndex: item.turn_index,
+           apiRound: item.turn_index ?? index,
+           synthetic: item.metadata.synthetic === true,
+           metadata: {
+             ...item.metadata,
+             runtime_tool_call_id: item.tool_call_id,
+           },
+         }));
         const matureCompact = compactSource.length >= 3
           ? await e01.compact.compactConversation(
             compactSource,
@@ -756,7 +767,23 @@ export class ClaudeRuntimeCore {
           },
         });
         artifacts.push(artifact);
-        session.compact(compact.summary, artifact.artifact_id, compact.preserved);
+        const postCompactMessages = matureCompact?.messages.map((item) => ({
+          message_id: item.id,
+          role: item.role,
+          content: item.content
+            .map((block) => block.type === "text" ? block.text : JSON.stringify(block))
+            .join("\n"),
+          turn_index: item.turnIndex,
+          tool_call_id: asString(item.metadata.runtime_tool_call_id) || null,
+          created_at: item.createdAt,
+          metadata: item.metadata,
+        })) ?? null;
+        session.compact(
+          compact.summary,
+          artifact.artifact_id,
+          compact.preserved,
+          postCompactMessages,
+        );
         await emit("context_compacted", {
           turn_id: turn.turn_id,
           turn_index: turnIndex,

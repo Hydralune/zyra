@@ -69,18 +69,39 @@ interface E01RuntimeView {
     };
   };
   query: { revision: number };
-  compact: { boundaries: unknown[] };
+  compact: {
+    boundaries: unknown[];
+    cleanup: {
+      generation: number;
+      classifierApprovalsCleared: number;
+      speculativeChecksCleared: number;
+      sessionMessageCacheCleared: number;
+      lastQuerySource: string;
+    };
+  };
   telemetry: {
+    compactGeneration: number;
     prompts: unknown[];
     samples: unknown[];
     events: Array<{ name: string; attributes: Record<string, unknown> }>;
   };
-  recovery: { contexts: unknown[] };
+  recovery: {
+    contexts: unknown[];
+    cooldowns: Array<{ key: string; untilMs: number; reason: string }>;
+  };
   providerPrompt: { lastPrompt: { fingerprint: string } | null };
   providerRequests: {
     requests: Array<{ requestId: string; status: string }>;
-    attempts: Array<{ requestId: string; status: string }>;
+    attempts: Array<{
+      requestId: string;
+      status: string;
+    }>;
     chunks: Array<{ attemptId: string; sequence: number }>;
+    transitions: Array<{
+      kind: string;
+      occurredAt: number;
+      payload: Record<string, unknown>;
+    }>;
   };
   providerResponses: {
     builders: Array<{ requestId: string; status: string }>;
@@ -220,11 +241,25 @@ test("runtime externalizes large tool results and compacts context", async () =>
     },
   });
   const result = await new ClaudeRuntimeCore().run(selected, host);
+  const state = e01State(result);
+  const canonicalMessages = result.sessionSnapshot.messages as Array<{
+    message_id: string;
+    metadata: Record<string, unknown>;
+  }>;
   assert.equal(result.ok, true);
   assert.ok(result.artifacts.length >= 2);
   assert.ok(result.contextCompactionCount >= 1);
-  assert.ok(e01State(result).compact.boundaries.length >= 1);
-  assert.ok((e01State(result).journal.state.context?.revision ?? 0) > 0);
+  assert.ok(state.compact.boundaries.length >= 1);
+  assert.equal(state.compact.cleanup.generation, 1);
+  assert.equal(state.compact.cleanup.classifierApprovalsCleared, 1);
+  assert.equal(state.compact.cleanup.speculativeChecksCleared, 1);
+  assert.equal(state.compact.cleanup.sessionMessageCacheCleared, 1);
+  assert.equal(state.compact.cleanup.lastQuerySource, "ClaudeRuntimeCore.run");
+  assert.equal(state.telemetry.compactGeneration, 1);
+  assert.ok(state.telemetry.events.some((event) => event.name === "provider.prompt_cache.compacted"));
+  assert.ok(canonicalMessages.some((message) => message.message_id.startsWith("compact-boundary-")));
+  assert.ok(canonicalMessages.some((message) => message.metadata.compact_boundary !== undefined));
+  assert.ok((state.journal.state.context?.revision ?? 0) > 0);
   assert.ok(host.events.some((event) => event.phase === "tool_result_budget_exceeded"));
   assert.ok(host.events.some((event) => event.phase === "context_compacted"));
 });
@@ -312,6 +347,18 @@ test("runtime commits provider prompt usage and recovery state through default l
     "https://provider.invalid/v1/chat/completions",
   ]);
   assert.equal(providerBodies[0].stream, true);
+  const providerTools = providerBodies[0].tools as JsonObject[];
+  const firstProviderTool = (providerTools[0]?.function ?? {}) as JsonObject;
+  const firstProviderParameters = (firstProviderTool.parameters ?? {}) as JsonObject;
+  const firstProviderProperties = (firstProviderParameters.properties ?? {}) as JsonObject;
+  const firstProviderPath = (firstProviderProperties.path ?? {}) as JsonObject;
+  assert.equal(providerTools.length, 2);
+  assert.equal(firstProviderTool.name, "read");
+  assert.equal(firstProviderTool.description, "read");
+  assert.equal(firstProviderParameters.type, "object");
+  assert.deepEqual(firstProviderParameters.required, ["path"]);
+  assert.equal(firstProviderParameters.additionalProperties, false);
+  assert.equal(firstProviderPath.type, "string");
   assert.ok(Array.isArray(providerBodies[1].messages));
   assert.ok((providerBodies[1].messages as JsonObject[]).some((message) => message.role === "tool"));
   assert.ok(successState.telemetry.prompts.length >= 1);
@@ -411,7 +458,7 @@ test("runtime clears canonical recovery state after a retry succeeds", async () 
     if (requestCount === 1) {
       return new Response("temporary provider failure", {
         status: 503,
-        headers: { "retry-after": "0" },
+        headers: { "retry-after": "0.6" },
       });
     }
     const payload = requestCount === 2
@@ -446,6 +493,7 @@ test("runtime clears canonical recovery state after a retry succeeds", async () 
     });
   }) as unknown as typeof fetch;
   try {
+    const retryHost = new MemoryHost();
     const result = await new ClaudeRuntimeCore().run(input({
       runId: "provider-retry-run",
       sessionId: "provider-retry-session",
@@ -457,11 +505,19 @@ test("runtime clears canonical recovery state after a retry succeeds", async () 
           api_retry_max_attempts: 2,
         },
       },
-    }), new MemoryHost());
+    }), retryHost);
     const state = e01State(result);
     assert.equal(result.ok, true);
     assert.equal(requestCount, 3);
     assert.equal(state.recovery.contexts.length, 0);
+    const failedRetryReport = retryHost.events.find((event) => {
+      const stream = (event.model_stream ?? {}) as JsonObject;
+      return event.phase === "model_stream_report" && stream.ok === false;
+    });
+    const failedRetryStream = (failedRetryReport?.model_stream ?? {}) as JsonObject;
+    const retryPlan = (failedRetryStream.recovery_plan ?? {}) as JsonObject;
+    assert.equal(retryPlan.delayMs, 600);
+    assert.ok(retryHost.events.some((event) => event.phase === "api_retry_report"));
     assert.ok((state.journal.state.provider?.revision ?? 0) > 0);
   } finally {
     globalThis.fetch = originalFetch;
@@ -478,12 +534,17 @@ test("runtime restores its exact TypeScript snapshot", async () => {
     turns: [[{ tool_name: "read", arguments: { path: "b" } }]],
     restoredState: first.sessionSnapshot,
   }), resumedHost);
+  const firstState = e01State(first);
+  const resumedState = e01State(resumed);
   assert.equal(resumed.ok, true);
   assert.equal(resumed.metadata.restored, "true");
   assert.equal(
     (resumed.sessionSnapshot.lineage as { restored?: boolean } | null)?.restored,
     true,
   );
+  assert.ok(resumedState.journal.revision > firstState.journal.revision);
+  assert.ok(resumedState.query.revision > firstState.query.revision);
+  assert.ok(resumedState.session.messages.length > firstState.session.messages.length);
   assert.ok(resumedHost.events.some((event) => event.phase === "context_restored"));
 });
 
