@@ -1,20 +1,23 @@
 {
-  "candidate_evidence_commit": null,
-  "candidate_status": "implementation_generated_pending_validation",
-  "cleanroom_target": null,
+  "candidate_evidence_commit": "2698b5b6276eee001a9c6adee4f547cb6628bfce",
+  "candidate_status": "independent_review_pending",
+  "cleanroom_target": "796a9c457c6bb871edd26808d91b5affd49f8923",
   "execution_id": "E01",
   "implementation_candidate": "796a9c457c6bb871edd26808d91b5affd49f8923",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
-  "independent_review_target": null,
+  "independent_review_target": "73542eb1b9c8fe0efbc66415b9e6b9754ff11df2",
   "independent_review_verdict": "PENDING",
   "notes": [
-    "V6 rejects source symbols without a material target effect instead of preserving generic domain templates.",
-    "V6 records direct default-entry, immediate-callsite, target, state, behavior-test and mutation links.",
-    "The pre-E01 runtime-event-spine checkpoint remains zero-credit but is explicitly included in candidate-scope auditing."
+    "V9 rejects getAnthropicClient source credit because the SDK/auth factory is not equivalent to the retained static descriptor.",
+    "V9 binds provider and compaction custody to instance-scoped canonical snapshots and real default-path envelopes.",
+    "V9 validates 286 five-hop mappings, 129 frozen mutations, eight dynamic probes, Bun/Node builds, and exact-candidate cleanroom.",
+    "verify_m1_r01_e01_v3.ts is retained as a disclosed superseded verifier and is not authoritative for the V5 verification contract."
   ],
   "root_manifest_commit_boundary": "G:/agent-zoo/docs/remediations is outside the Zyra Git repository and is delivered as an explicit workspace boundary.",
   "schema_version": "3.0",
   "verification_contract_version": "zyra.e01-verification/v5",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
-  "verified_complete": false
+  "verified_complete": false,
+  "critical_self_review_commit": "73542eb1b9c8fe0efbc66415b9e6b9754ff11df2",
+  "strict_gate_verifier": "scripts/remediation/verify_m1_r01_e01_v4.ts"
 }
