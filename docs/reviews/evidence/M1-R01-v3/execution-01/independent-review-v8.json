@@ -1,0 +1,189 @@
+{
+  "schema": "zyra.independent-review.evidence.v1",
+  "review": "M1-R01-v8-execution-01",
+  "review_date": "2026-07-16",
+  "reviewer_nonce": "c22566942dffd6f1d78a04944dc8fee147300bbc942f9b6a411bde90e3aa6cee",
+  "verdict": "FAIL",
+  "identities": {
+    "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "implementation": "745480e8d439b04f56d714c63cd29e2b4f27e870",
+    "evidence": "0112ed616286170fca5568013be43f5b09b224d1",
+    "review_target": "ccf01feae06f8a1f18cc30319b2d53b98837d594",
+    "candidate_metadata": "cb9bd0cf8ee0893c32e7c8256d1e0e479106e2b4",
+    "ancestry_valid": true,
+    "review_target_is_empty_freeze": true,
+    "metadata_only_commit": true,
+    "verified_head_unchanged": true
+  },
+  "entry_gate": {
+    "status": "PASS",
+    "candidate_verdict_before_review": "PENDING",
+    "verified_complete_before_review": false
+  },
+  "mechanical_metrics": {
+    "source_rows_total": 360,
+    "source_rows_accepted": 278,
+    "source_rows_rejected": 82,
+    "accepted_source_executable_lines": 10604,
+    "source_floor": 10587,
+    "target_rows": 278,
+    "five_hop_rows_mechanical": 278,
+    "gross_changed_executable_typescript": 32492,
+    "token_winnowing_deduction": 663,
+    "effective_changed_typescript": 31829,
+    "final_production_typescript": 49412,
+    "final_test_typescript": 10933,
+    "deleted_python": 35151,
+    "declared_mutations": 121,
+    "declared_mutation_fingerprints": 121
+  },
+  "semantic_source_gate": {
+    "status": "FAIL",
+    "proven_invalid_compact_executable_lines": 960,
+    "conservative_maximum_recognized_source_lines": 9644,
+    "required_source_lines": 10587,
+    "additional_disputed_provider_client_lines": 163,
+    "compact_mapping_ids": [
+      "e01-rej-0029",
+      "e01-rej-0030",
+      "e01-rej-0036",
+      "e01-src-0153",
+      "e01-src-0164",
+      "e01-src-0165",
+      "e01-src-0166",
+      "e01-src-0168",
+      "e01-src-0179",
+      "e01-src-0180",
+      "e01-src-0198",
+      "e01-src-0201",
+      "e01-src-0204",
+      "e01-src-0222",
+      "e01-src-0223",
+      "e01-src-0224"
+    ],
+    "provider_mapping_id": "e01-src-0019",
+    "failure_reason": "Both default context-runtime callers pass a message array to a helper whose recordOf guard rejects arrays, so the accepted target symbols and state effects are not reached. The provider client target is also materially narrower than the upstream client factory."
+  },
+  "findings": [
+    {
+      "severity": "P0",
+      "id": "compact-default-five-hop-noop",
+      "status": "OPEN",
+      "impact": "At least 960 accepted executable source lines lose recognition, reducing the maximum to 9644 and failing the 10587 hard floor.",
+      "evidence": [
+        "packages/runtime/claude-runtime/src/compact/context-runtime.ts:372",
+        "packages/runtime/claude-runtime/src/compact/context-runtime.ts:514",
+        "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts:53",
+        "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts:294",
+        "packages/runtime/claude-runtime/test/e01/source-custody-specific.behavior.test.ts:223"
+      ]
+    },
+    {
+      "severity": "P0",
+      "id": "provider-client-semantic-mismatch",
+      "status": "OPEN",
+      "mapping_id": "e01-src-0019",
+      "impact": "The target descriptor does not implement the upstream provider SDK client construction, refresh, transport, proxy, timeout, Foundry, Azure, or GCP behaviors.",
+      "evidence": [
+        "claude-code-best/src/services/api/client.ts:88",
+        "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts:300",
+        "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts:591",
+        "packages/runtime/claude-runtime/test/e01/source-custody-specific.behavior.test.ts:19"
+      ]
+    },
+    {
+      "severity": "P1",
+      "id": "custody-state-not-canonicalized",
+      "status": "OPEN",
+      "impact": "New compact/provider singleton custody state is outside the established canonical snapshot and restore boundary.",
+      "evidence": [
+        "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts:357",
+        "packages/runtime/claude-runtime/src/compact/context-runtime.ts:824"
+      ]
+    },
+    {
+      "severity": "P2",
+      "id": "stale-runtime-health-candidate",
+      "status": "OPEN",
+      "observed_candidate_prefix": "b4a5c2e",
+      "expected_candidate": "745480e8d439b04f56d714c63cd29e2b4f27e870",
+      "observed_verification_status": "implementation_generated_pending_validation"
+    }
+  ],
+  "runtime_probes": {
+    "archive_root": "G:/agent-zoo/.tmp/e01-v8-review-c2256694/zyra",
+    "runtime_origin": {
+      "status": "PASS",
+      "canonical_owner": "typescript",
+      "runtime_version": 6
+    },
+    "same_session_resume": {
+      "status": "PASS",
+      "session_id": "review-c2256694-resume-session",
+      "epochs": [
+        { "pid": 75988, "revision": 2, "restart_epoch": 0 },
+        { "pid": 84000, "revision": 4, "restart_epoch": 1 },
+        { "pid": 83048, "revision": 6, "restart_epoch": 2 }
+      ],
+      "replayed_transition_ids": 0
+    },
+    "lost_ack": {
+      "status": "PASS",
+      "session_id": "review-c2256694-ack-session",
+      "payload_value": 42256694,
+      "revision": 1,
+      "committed_count": 1,
+      "repeated_effect_count": 0
+    },
+    "disable": {
+      "status": "PASS",
+      "exit_code": 1,
+      "error": "e01_typescript_runtime_disabled"
+    }
+  },
+  "toolchain": {
+    "bun_version": { "status": "PASS", "version": "1.2.15" },
+    "frozen_install": { "status": "PASS", "installed_packages": 5 },
+    "typecheck_e01": { "status": "PASS" },
+    "build_bun": { "status": "PASS", "modules": 80, "bundle_bytes_approx": 1200000 },
+    "built_bun_health": { "status": "PASS" },
+    "build_node": { "status": "PASS" },
+    "built_node_health": { "status": "PASS" },
+    "runtime_e01_test": { "status": "PASS", "tests": 416, "expects": 1302 },
+    "combined_wrapper": {
+      "status": "NOT_REPRODUCED_IN_ARCHIVE",
+      "reason": "The archive invocation exited without a usable receipt; each pinned component command was run directly instead."
+    }
+  },
+  "mutation_audit": {
+    "status": "PASS_FOR_DECLARED_ACCOUNTING_FAIL_FOR_DEFAULT_PATH_CREDIBILITY",
+    "declared": 121,
+    "applied": 121,
+    "compile_survived": 121,
+    "designated_killer_failed": 121,
+    "patch_matches": 121,
+    "restored_hash_matches": 121,
+    "invalid": 0,
+    "distinct_killer_names": 78,
+    "distinct_target_symbols": 93,
+    "disconnect_target": 69,
+    "semantic": 52,
+    "reason": "Direct helper tests can kill helper mutations while both real compact call sites remain deterministic no-ops."
+  },
+  "reviewer_disconnect_probe": {
+    "mutation_prepared": true,
+    "target": "both CompactionSourceCustodyRuntime hook calls in isolated context-runtime.ts",
+    "test_started": false,
+    "status": "INFRA_BLOCKED_NOT_RETRIED",
+    "reason": "Sandboxed npx was denied access to the global npx CLI and attempted a blocked registry connection. Static input-type proof and the source-floor failure were already decisive."
+  },
+  "state_disposition": {
+    "required_execution_status": "ready_for_fix",
+    "verified_head_must_remain": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "execution_02_must_remain_blocked": true,
+    "execution_03_must_remain_blocked": true,
+    "reviewer_modified_root_state": false,
+    "reviewer_modified_candidate_metadata": false
+  },
+  "commit_binding": "The immutable review commit is the Git commit containing this JSON file and the corresponding Markdown report."
+}
