@@ -47,12 +47,9 @@ const declarationName = (node: ts.NamedDeclaration, source: ts.SourceFile): stri
   return node.name.getText(source).replace(/^['"]|['"]$/g, "");
 };
 
-const callableKey = (node: ts.Node): string =>
-  `${normalized(node.getSourceFile().fileName)}:${node.pos}:${node.end}`;
-
 export class GitSemanticGraph {
   private readonly declarations = new Map<string, CallableDeclaration>();
-  private readonly declarationByNode = new Map<string, CallableDeclaration>();
+  private readonly declarationByNode = new Map<ts.Node, CallableDeclaration>();
   private readonly outgoing = new Map<string, SemanticCallEdge[]>();
   private readonly assertions = new Map<string, AssertionObservation[]>();
 
@@ -163,7 +160,7 @@ export class GitSemanticGraph {
     if (this.declarations.has(id)) return;
     const declaration = { id, path, symbol, node };
     this.declarations.set(id, declaration);
-    this.declarationByNode.set(callableKey(node), declaration);
+    this.declarationByNode.set(node, declaration);
   }
 
   private indexDeclarations(): void {
@@ -192,7 +189,7 @@ export class GitSemanticGraph {
           && node.parent.parent.parent === source
         ) {
           this.register(path, node.name.text, node);
-          this.declarationByNode.set(callableKey(node.initializer), this.declarations.get(symbolId(path, node.name.text))!);
+          this.declarationByNode.set(node.initializer, this.declarations.get(symbolId(path, node.name.text))!);
         }
         if (ts.isCallExpression(node)) {
           const expression = node.expression;
@@ -228,10 +225,10 @@ export class GitSemanticGraph {
     if (!symbol) return null;
     if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) symbol = checker.getAliasedSymbol(symbol);
     for (const declaration of symbol.declarations ?? []) {
-      const direct = this.declarationByNode.get(callableKey(declaration));
+      const direct = this.declarationByNode.get(declaration);
       if (direct) return direct;
       if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
-        const initialized = this.declarationByNode.get(callableKey(declaration.initializer));
+        const initialized = this.declarationByNode.get(declaration.initializer);
         if (initialized) return initialized;
       }
     }
@@ -243,7 +240,7 @@ export class GitSemanticGraph {
       const edges: SemanticCallEdge[] = [];
       const observations: AssertionObservation[] = [];
       const visit = (node: ts.Node): void => {
-        if (node !== callable.node && this.declarationByNode.has(callableKey(node))) return;
+        if (node !== callable.node && this.declarationByNode.has(node)) return;
         if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
           const resolved = this.resolvedDeclaration(node);
           if (resolved && resolved.id !== callable.id) {
