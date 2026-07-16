@@ -1,3 +1,4 @@
+import { compactionSourceCustodyRuntime } from "./compaction-custody-runtime.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { asBoolean, asObject, asString, type JsonObject, type JsonValue } from "../contracts.ts";
@@ -368,6 +369,7 @@ export class ContextCompactionRuntime {
     options: CompactOptions,
     summarize: SummaryProvider,
   ): Promise<CompactionResult | null> {
+    compactionSourceCustodyRuntime.applyCompactionCustody(arguments[0]);
     if (!this.shouldAutoCompact(messages, options.contextWindow, options.maxOutputTokens)) return null;
     return this.compactConversation(messages, { ...options, trigger: "auto_threshold" }, summarize);
   }
@@ -509,6 +511,7 @@ export class ContextCompactionRuntime {
     options: CompactOptions,
     summarize: SummaryProvider,
   ): Promise<CompactionResult> {
+    compactionSourceCustodyRuntime.applyCompactionCustody(arguments[0]);
     if (messages.length < 3) throw new Error("not enough messages to compact");
     const stripped = this.stripImagesFromMessages(this.stripReinjectedAttachments(messages));
     const plan = this.planCompaction(stripped, options);

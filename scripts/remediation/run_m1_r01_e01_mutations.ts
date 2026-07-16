@@ -527,9 +527,18 @@ async function main(): Promise<void> {
     if (restoredSha256 !== originalSha256) throw new Error(`source restoration failed for ${row.mutation_id}`);
     const compileSurvived = compile?.exitCode === 0;
     const testOutput = (test?.stdout ?? "") + "\n" + (test?.stderr ?? "");
-    const expectedKillerObserved = row.expected_killer_test_ids.some((name) => testOutput.includes(name));
+    const normalizedTestOutput = testOutput.replace(/\u001b\[[0-9;]*m/g, "");
+    const testOutputLines = normalizedTestOutput.split(/\r?\n/);
+    const expectedKillerStatuses = Object.fromEntries(row.expected_killer_test_ids.map((name) => {
+      const matchingLines = testOutputLines.filter((line) => line.includes(name));
+      const failed = matchingLines.some((line) => /(?:^|\s)(?:\(fail\)|fail(?:ed)?|✗|✘|×)(?:\s|$)/i.test(line));
+      const passed = matchingLines.some((line) => /(?:^|\s)(?:\(pass\)|pass(?:ed)?|✓|✔)(?:\s|$)/i.test(line));
+      return [name, failed ? "failed" : passed ? "passed" : matchingLines.length ? "mentioned" : "missing"];
+    }));
+    const expectedKillerObserved = Object.values(expectedKillerStatuses).every((status) => status !== "missing");
+    const expectedKillerFailed = Object.values(expectedKillerStatuses).every((status) => status === "failed");
     const killed = failure === null && compileSurvived && test !== null
-      && test.exitCode !== 0 && expectedKillerObserved;
+      && test.exitCode !== 0 && expectedKillerObserved && expectedKillerFailed;
     results.push({
       mutation_id: row.mutation_id,
       target_path: row.target_path,
@@ -554,6 +563,8 @@ async function main(): Promise<void> {
       failure_excerpt: excerpt((test?.stdout ?? "") + "\n" + (test?.stderr ?? "")),
       runner_error: failure,
       expected_killer_observed: expectedKillerObserved,
+      expected_killer_failed: expectedKillerFailed,
+      expected_killer_statuses: expectedKillerStatuses,
       killed,
     });
     process.stdout.write(`${row.mutation_id}: ${killed ? "KILLED" : "SURVIVED_OR_INVALID"}\n`);

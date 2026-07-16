@@ -1,3 +1,4 @@
+import { providerCacheCustodyRuntime } from "./cache-custody-runtime.js";
 import { createHash } from "node:crypto";
 
 import type { JsonObject } from "../contracts.ts";
@@ -283,6 +284,7 @@ export class ProviderRecoveryRuntime {
   }
 
   classify(error: unknown, provider: string, model: string, requestId: string, nowMs = Date.now()): ProviderErrorShape {
+    providerCacheCustodyRuntime.getAssistantMessageFromError(arguments[0]);
     const record = recordOf(error);
     const nested = recordOf(record.error);
     const response = recordOf(record.response);

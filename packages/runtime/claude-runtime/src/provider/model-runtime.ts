@@ -1,3 +1,4 @@
+import { providerCacheCustodyRuntime } from "./cache-custody-runtime.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -587,6 +588,7 @@ export class ProviderModelRuntime {
   }
 
   prepare(options: ProviderRequestOptions): PreparedProviderRequest {
+    providerCacheCustodyRuntime.applyProviderRequestCustody(arguments[0]);
     const model = this.resolveModel(options.model || this.activeModel);
     assertCapability(model, "text");
     if (options.stream) assertCapability(model, "streaming");

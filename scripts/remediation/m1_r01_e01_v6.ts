@@ -763,7 +763,128 @@ const routeSessionRestore = (target: JsonRecord, source: JsonRecord): void => {
   });
 };
 
+const CACHE_CUSTODY_PATH = "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts";
+const COMPACTION_CUSTODY_PATH = "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts";
+const SOURCE_CUSTODY_TEST_PATH = "packages/runtime/claude-runtime/test/e01/source-custody-specific.behavior.test.ts";
+
+interface ExactCustodyRoute {
+  targetPath: string;
+  targetSymbol: string;
+  callsitePath: string;
+  callsiteSymbol: string;
+  owner: string;
+  stateStore: string;
+  stateProperty: string;
+  stateKind: string;
+  stateObservation: string;
+  testName: string;
+  testTokens: string[];
+}
+
+const providerCustodyRoute = (
+  method: string,
+  testName: string,
+  testTokens: string[],
+  callsiteSymbol = "ProviderCacheCustodyRuntime.applyProviderRequestCustody",
+): ExactCustodyRoute => ({
+  targetPath: CACHE_CUSTODY_PATH,
+  targetSymbol: `ProviderCacheCustodyRuntime.${method}`,
+  callsitePath: method === "getAssistantMessageFromError"
+    ? "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts"
+    : CACHE_CUSTODY_PATH,
+  callsiteSymbol: method === "getAssistantMessageFromError"
+    ? "ProviderRecoveryRuntime.classify"
+    : callsiteSymbol,
+  owner: "e01.provider-source-custody",
+  stateStore: "ProviderModelRuntime.preparedRequest",
+  stateProperty: "sourceCustody",
+  stateKind: "provider-cache-and-failure-custody",
+  stateObservation: "preparedRequest.messages[].content[].cacheControl + preparedRequest.sourceCustody",
+  testName,
+  testTokens,
+});
+
+const compactCustodyRoute = (
+  method: string,
+  testName: string,
+  testTokens: string[],
+): ExactCustodyRoute => ({
+  targetPath: COMPACTION_CUSTODY_PATH,
+  targetSymbol: `CompactionSourceCustodyRuntime.${method}`,
+  callsitePath: COMPACTION_CUSTODY_PATH,
+  callsiteSymbol: method === "applyCompactionCustody"
+    ? "ContextCompactionRuntime.compactConversation"
+    : "CompactionSourceCustodyRuntime.applyCompactionCustody",
+  owner: "e01.context-compaction-custody",
+  stateStore: "ContextCompactionRuntime.snapshot",
+  stateProperty: "sourceCustodyCompaction",
+  stateKind: "compaction-lifecycle",
+  stateObservation: "messages[].content[].compacted + sourceCustodyCompaction + boundary.preservedSegment",
+  testName,
+  testTokens,
+});
+
+const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
+  ["getAnthropicClient", providerCustodyRoute("getAnthropicClient", "e01.custody.provider-creates-anthropic-client-descriptor", ["credentialFingerprint", "[redacted]"])],
+  ["should1hCacheTTL", providerCustodyRoute("should1hCacheTTL", "e01.custody.provider-one-hour-ttl-is-session-latched", ["oneHourSessions", "toEqual([\"s1\"])"])],
+  ["addCacheBreakpoints", providerCustodyRoute("addCacheBreakpoints", "e01.custody.provider-cache-breakpoint-is-unique", ["cacheControl", "toHaveLength(1)"])],
+  ["logToolUseToolResultMismatch", providerCustodyRoute("logToolUseToolResultMismatch", "e01.custody.provider-tool-mismatch-retains-index-evidence", ["missingResultIds", "orphanResultIds"])],
+  ["getAssistantMessageFromError", providerCustodyRoute("getAssistantMessageFromError", "e01.custody.provider-error-is-rendered-for-users", ["bounded backoff", "authentication failed"])],
+  ["getCacheBreakDiffPath", providerCustodyRoute("getCacheBreakDiffPath", "e01.custody.provider-cache-diff-path-is-session-scoped", ["session_unsafe", "cache-break.json"])],
+  ["isExcludedModel", providerCustodyRoute("isExcludedModel", "e01.custody.provider-excluded-model-suppresses-break", ["excluded-model", "broken"])],
+  ["checkResponseForCacheBreak", providerCustodyRoute("checkResponseForCacheBreak", "e01.custody.provider-cache-read-collapse-is-detected", ["cache-read-collapse", "readRatio"])],
+  ["pendingCacheEdits", compactCustodyRoute("pendingCacheEdits", "e01.custody.compact-pending-edits-are-consumed-once", ["pendingCacheEdits", "consumePendingCacheEdits"])],
+  ["isMainThreadSource", compactCustodyRoute("isMainThreadSource", "e01.custody.compact-main-thread-source-is-explicit", ["interactive-main", "background-subagent"])],
+  ["microcompactMessages", compactCustodyRoute("microcompactMessages", "e01.custody.compact-old-tool-results-are-replaced", ["editedToolResultIds", "removedCharacters"])],
+  ["cachedMicrocompactPath", compactCustodyRoute("cachedMicrocompactPath", "e01.custody.compact-cache-path-is-deterministic", ["microcompact-", "session_a"])],
+  ["maybeTimeBasedMicrocompact", compactCustodyRoute("maybeTimeBasedMicrocompact", "e01.custody.compact-time-gate-blocks-early-repeat", ["not-due", "performed"])],
+  ["shouldAutoCompact", compactCustodyRoute("shouldAutoCompact", "e01.custody.compact-auto-threshold-reserves-output-space", ["currentTokens", "minimumFreeTokens"])],
+  ["autoCompactIfNeeded", compactCustodyRoute("autoCompactIfNeeded", "e01.custody.compact-auto-plan-preserves-tail", ["firstKeptIndex", "preserved"])],
+  ["annotateBoundaryWithPreservedSegment", compactCustodyRoute("annotateBoundaryWithPreservedSegment", "e01.custody.compact-boundary-carries-preserved-segment", ["preservedSegment", "summary"])],
+  ["partialCompactConversation", compactCustodyRoute("partialCompactConversation", "e01.custody.compact-partial-result-has-stable-boundary", ["boundaryId", "firstKeptIndex"])],
+  ["streamCompactSummary", compactCustodyRoute("streamCompactSummary", "e01.custody.compact-summary-stream-retries-incomplete-attempt", ["complete summary", "attempts"])],
+  ["shouldUseSessionMemoryCompaction", compactCustodyRoute("shouldUseSessionMemoryCompaction", "e01.custody.compact-session-memory-must-save-tokens", ["summaryTokenCount", "currentTokenCount"])],
+  ["createCompactionResultFromSessionMemory", compactCustodyRoute("createCompactionResultFromSessionMemory", "e01.custody.compact-session-memory-builds-real-result", ["stored summary", "savedTokenCount"])],
+  ["trySessionMemoryCompaction", compactCustodyRoute("trySessionMemoryCompaction", "e01.custody.compact-session-memory-fallback-is-null", ["toBeNull", "enabled: false"])],
+  ["StreamingToolExecutor", {
+    targetPath: "packages/runtime/claude-runtime/src/e01/capability-host.ts",
+    targetSymbol: "PermissionedCapabilityHost.executeBatch",
+    callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    callsiteSymbol: "E01RuntimeCoordinator.executeCapabilities",
+    owner: "e01.permissioned-capability-settlement",
+    stateStore: "RuntimeRunResult.sessionSnapshot.capabilityHost",
+    stateProperty: "capabilityHost",
+    stateKind: "ordered-permissioned-tool-settlement",
+    stateObservation: "capabilityHost.settlements[].receipts + progress.sequence",
+    testName: "settlement preserves request order and synthesizes denied and unanswered receipts",
+    testTokens: ["settlement.receipts", "request order"],
+  }],
+]);
+
+const routeExactCustody = (target: JsonRecord, source: JsonRecord): boolean => {
+  const route = exactCustodyRoutes.get(sourceName(source));
+  if (!route) return false;
+  setRoute(target, source, {
+    targetPath: route.targetPath,
+    targetSymbol: route.targetSymbol,
+    callsitePath: route.callsitePath,
+    callsiteSymbol: route.callsiteSymbol,
+    owner: route.owner,
+    stateStore: route.stateStore,
+    stateProperty: route.stateProperty,
+    stateKind: route.stateKind,
+    stateObservation: route.stateObservation,
+    adaptation: `${sourceName(source)} is adapted as an exact Zyra-owned semantic operation rather than a generic domain-level mapping.`,
+    sourceClaim: `${sourceName(source)} owns the corresponding Claude runtime behavior`,
+    targetClaim: `${route.targetSymbol} implements that behavior and exposes its concrete state effect`,
+    equivalence: "The target preserves the source decision and failure semantics while writing Zyra-owned request, recovery, compaction or settlement state.",
+    tests: [behaviorTest(route.testName, SOURCE_CUSTODY_TEST_PATH, route.testName, route.testTokens)],
+    mutations: [],
+  });
+  return true;
+};
 const routeTarget = (target: JsonRecord, source: JsonRecord): void => {
+  if (routeExactCustody(target, source)) return;
   const path = String(source.source_path ?? "").replaceAll("\\", "/");
   const name = sourceName(source);
   if (path.endsWith("/tokenBudget.ts")) routeTokenBudget(target, source);
@@ -957,13 +1078,18 @@ const addTargetDisconnectMutations = (
   );
 };
 
+const v8SemanticRejections = new Map<string, string>([
+  ["messageSelector", "rejected in V8: UI message selection has no independent E01 runtime state effect"],
+  ["getCoordinatorUserContext", "rejected in V8: coordinator presentation context is outside the E01 canonical runtime owner boundary"],
+]);
+
 await import("./m1_r01_e01_v4.ts");
 
 const implementationHead = gitText(["rev-parse", "HEAD"]);
 const sourceRecords = readJsonLines(sourceManifestPath);
 for (const record of sourceRecords) {
   const name = sourceName(record);
-  const rejection = forcedRejections.get(name) ?? semanticRejections.get(name);
+  const rejection = v8SemanticRejections.get(name) ?? forcedRejections.get(name) ?? semanticRejections.get(name);
   if (rejection) {
     record.accepted = false;
     record.migration_mode = "rejected";
