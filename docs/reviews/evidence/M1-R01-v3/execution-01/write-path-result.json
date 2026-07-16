@@ -2,14 +2,14 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.write-path",
-  "generated_at_utc": "2026-07-16T05:49:28.205Z",
+  "generated_at_utc": "2026-07-16T07:39:53.247Z",
   "ok": true,
   "default_callsite": "ClaudeRuntimeCore.run -> E01RuntimeCoordinator.recordRuntimeEvent -> Journal.commit",
-  "transition_id": "probe-write-session:epoch0:revision1:sequence2:96e4b8f0-9e95-4a5e-8d5e-c58d638b0552",
+  "transition_id": "probe-write-session:epoch0:revision1:sequence2:c99de812-7a03-4ec3-947e-06106e566f5a",
   "revision_before": 1,
   "revision_after": 2,
   "state_digest_before": "35892eb869a23fee2c7bddc4af57d3d1e92a3765892c7273ac7479ce5b2303e5",
-  "state_digest_after": "2c27f1ea2c4565c398ea685d924d051b6abd0ddf4552d229af455057d9247a06",
+  "state_digest_after": "72b9753f304acc7ce259d9425fc5765a6b75e3663d5ff20e2f407d1d6374d7cb",
   "committed_count": 2,
   "canonical_owner": "typescript"
 }

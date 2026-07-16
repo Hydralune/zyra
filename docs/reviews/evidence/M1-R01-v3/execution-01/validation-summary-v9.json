@@ -1,0 +1,61 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "revision": "v9",
+  "generated_at_utc": "2026-07-16T07:46:50.5755526Z",
+  "implementation_candidate": "796a9c457c6bb871edd26808d91b5affd49f8923",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "candidate_status": "validation_passed_independent_review_pending",
+  "verified_complete": false,
+  "strict_gate": {
+    "ok": true,
+    "accepted_executable_lines": 10690,
+    "five_hop_mappings": 286,
+    "effective_changed_typescript": 32022,
+    "final_production_typescript": 49605,
+    "final_test_typescript": 11109
+  },
+  "mutation": {
+    "declared": 129,
+    "applied": 129,
+    "compile_survived": 129,
+    "killed": 129,
+    "survived": 0,
+    "invalid": 0,
+    "kill_rate": 1,
+    "frozen_patch_matches": 129,
+    "restored_sha_match": true
+  },
+  "probes": {
+    "runtime_origin_ok": true,
+    "write_path_ok": true,
+    "same_session_resume_ok": true,
+    "replayed_transition_ids": 0,
+    "lost_ack_ok": true,
+    "repeated_effect_count": 0,
+    "disable_ok": true,
+    "dependencies_ok": true,
+    "toolchain_ok": true,
+    "toolchain_command_count": 9,
+    "cleanroom_ok": true,
+    "cleanroom_target": "796a9c457c6bb871edd26808d91b5affd49f8923",
+    "cleanroom_command_count": 9
+  },
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "22.17.0",
+    "typescript": "5.8.3",
+    "tests_passed": 420,
+    "tests_failed": 0,
+    "expectations": 1322
+  },
+  "source_role_corrections": [
+    "getAnthropicClient rejected as non-equivalent",
+    "nine default-path provider/compaction mechanisms accepted with concrete state and behavior custody"
+  ],
+  "known_non_blocking": [
+    "verify_m1_r01_e01_v3.ts remains FAIL and is superseded by V4 immutable-blob verifier"
+  ],
+  "independent_review_verdict": "PENDING"
+}
