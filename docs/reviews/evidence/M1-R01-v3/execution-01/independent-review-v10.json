@@ -1,0 +1,161 @@
+{
+  "schema_version": "4.0",
+  "execution_id": "E01",
+  "revision": "v10",
+  "review_kind": "independent_adversarial_review",
+  "verdict": "FAIL",
+  "review_target": "4819f1888300f8dd975fde8225518d4a7362df36",
+  "implementation_candidate": "ad0479228541e99594aba87934cd2ae0a6f5ca5b",
+  "evidence_commit": "c26868cef0e372c93ed58ca877fc520957b53f3a",
+  "metadata_commit": "564cb88a201cf528421d48ee451d71bfdd1ee67e",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+  "chain_valid": true,
+  "verified_complete": false,
+  "blocking_findings": [
+    {
+      "id": "E01-V10-B1",
+      "severity": "CRITICAL",
+      "summary": "The committed source-to-target-five-hop.jsonl remains a 286-record V9 corpus while the frozen V10 closure is 280 records.",
+      "evidence": {
+        "frozen_target_mappings": 280,
+        "committed_five_hop_records": 286,
+        "stale_forbidden_mapping_ids": [
+          "e01-rej-0004",
+          "e01-rej-0005",
+          "e01-rej-0006",
+          "e01-rej-0008",
+          "e01-rej-0010",
+          "e01-rej-0032",
+          "e01-rej-0034",
+          "e01-rej-0035"
+        ],
+        "missing_v10_mapping_ids": [
+          "e01-src-0019",
+          "e01-src-0156"
+        ]
+      },
+      "impact": "The evidence commit contains competing five-hop authorities and still grants all eight forbidden V9 mappings."
+    },
+    {
+      "id": "E01-V10-B2",
+      "severity": "CRITICAL",
+      "summary": "getAnthropicClient returns and consumes a descriptor but does not construct the credited Anthropic, Bedrock, Foundry, or Vertex client/auth transport.",
+      "evidence": {
+        "mapping_id": "e01-src-0019",
+        "source_executable_lines": 163,
+        "target_return_type": "AnthropicClientDescriptor | null",
+        "claimed_source_lines": 10626,
+        "recognized_after_deduction": 10463,
+        "required_source_lines": 10587,
+        "missing_runtime_effects": [
+          "Anthropic SDK client construction",
+          "AWS signing and credential refresh binding",
+          "Azure AD token-provider binding",
+          "GoogleAuth construction and refresh binding",
+          "client maxRetries consumption by executable request or recovery policy"
+        ]
+      },
+      "impact": "The accepted source coverage falls below the E01 threshold."
+    },
+    {
+      "id": "E01-V10-B3",
+      "severity": "HIGH",
+      "summary": "V4 counts nonempty fields and source-code tokens as five hops but does not prove per-source call, state, behavior-test, and mutation semantics.",
+      "evidence": {
+        "mappings": 280,
+        "unique_target_symbols": 71,
+        "unique_behavior_test_names": 42,
+        "unique_mutation_ids": 101,
+        "generic_semantic_equivalence_records": 193,
+        "example_invalid_consolidation": "session-memory config set/get/reset/init symbols are mapped to ContextCompactionRuntime.planCompaction with a generic compact test and shared mutations"
+      },
+      "impact": "The reported 280/280 metric is ledger completeness, not the required behavior-specific five-hop evidence."
+    }
+  ],
+  "metrics": {
+    "root_closure": {
+      "source_total": 360,
+      "source_accepted": 280,
+      "source_rejected": 80,
+      "frozen_target_mappings": 280,
+      "mutations": 123,
+      "frozen_manifest_hashes_matching": 6,
+      "frozen_manifest_hashes_total": 6,
+      "candidate_gate_ok": true
+    },
+    "source_credit": {
+      "mechanically_recomputed": 10626,
+      "threshold": 10587,
+      "mechanical_margin": 39,
+      "get_anthropic_client_deduction": 163,
+      "review_recognized_upper_bound": 10463,
+      "passes_threshold": false,
+      "authorized_post_cutoff_symbols": 6,
+      "unauthorized_post_cutoff_symbols_in_frozen_manifest": 0,
+      "v9_eight_credited_in_frozen_manifest": 0,
+      "v9_eight_still_present_in_stale_five_hop_file": 8
+    },
+    "effective_lines": {
+      "gross_changed_executable_typescript": 33044,
+      "token_winnowing_deducted_lines": 663,
+      "effective_changed_typescript": 32381,
+      "required_effective_changed_typescript": 25416,
+      "final_production_typescript": 49964,
+      "final_test_typescript": 11170,
+      "assessment": "PASS"
+    },
+    "mutation": {
+      "declared": 123,
+      "applied": 123,
+      "compile_survived": 123,
+      "killed": 123,
+      "survived": 0,
+      "invalid": 0,
+      "frozen_patch_matches": 123,
+      "designated_killers_failed": 123,
+      "restored_sha_match": true,
+      "assessment": "PASS"
+    },
+    "runtime_probes": {
+      "runtime_origin": "PASS",
+      "write_path": "PASS",
+      "same_session_processes": 3,
+      "same_session_restart_count": 2,
+      "same_session_replayed_transition_ids": 0,
+      "lost_ack_repeated_effect_count": 0,
+      "disable": "PASS",
+      "dependencies": "PASS"
+    },
+    "toolchain_and_cleanroom": {
+      "toolchain_commands_passed": 9,
+      "toolchain_commands_total": 9,
+      "cleanroom_commands_passed": 9,
+      "cleanroom_commands_total": 9,
+      "cleanroom_target": "ad0479228541e99594aba87934cd2ae0a6f5ca5b",
+      "bun_version": "1.2.15",
+      "node_version": "22.17.0",
+      "typescript_version": "5.8.3",
+      "tests_passed": 421,
+      "tests_failed": 0,
+      "expectations": 1350,
+      "assessment": "PASS"
+    },
+    "compact_and_restore": {
+      "auto_plan_consumed_and_snapshotted": true,
+      "partial_boundary_consumed_and_snapshotted": true,
+      "stream_summary_consumed_and_snapshotted": true,
+      "session_memory_consumed_and_snapshotted": true,
+      "pending_edits_consumed_and_snapshotted": true,
+      "postcompact_semantics_correct": true,
+      "outside_curated_postcompact_credit": 0,
+      "assessment": "PASS"
+    }
+  },
+  "required_disposition": {
+    "execution_01": "ready_for_fix",
+    "verified_baseline_must_remain": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "execution_02_must_remain_blocked": true,
+    "execution_03_must_remain_blocked": true
+  }
+}
