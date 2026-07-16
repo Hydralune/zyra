@@ -1144,6 +1144,9 @@ const targetDisconnectKillerTests: Record<string, string[]> = {
   "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts::ProviderTelemetryRuntime.notifyCompaction": [
     "runtime externalizes large tool results and compacts context",
   ],
+  "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts::parseRetryAfter": [
+    "runtime clears canonical recovery state after a retry succeeds",
+  ],
   "packages/runtime/claude-runtime/src/capability-host.ts::PermissionedCapabilityHost.executeBatch": [
     "e01.mutation.permission-mixed-batch-delegates-only-allowed-calls",
   ],
