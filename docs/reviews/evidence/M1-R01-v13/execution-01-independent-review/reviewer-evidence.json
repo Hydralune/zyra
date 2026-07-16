@@ -1,0 +1,45 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "review_revision": "v13",
+  "verdict": "FAIL",
+  "reviewed_completion_head": "2d439de289d071c0893f2c2680073dea20fef530",
+  "implementation_candidate": "567b14acfbbabcf59a82868d1c20b042f056a80c",
+  "candidate_evidence_commit": "70c0d97af385dca39927e9a9d4860020ef3886f7",
+  "independent_review_target": "0fd1f452a28b5b74db096fc42da856368a2b2f01",
+  "previous_review_commit": "c1f8c8a3d32e3bc449b64d4f69974b548e92076b",
+  "reviewer_nonce": "4f41b263567a2aebf2d1ada7a1c21a0e4ecbf4fa815a05d38d0b2a0c5fc47483",
+  "findings": {
+    "p0": 0,
+    "p1": 3,
+    "p2": 2,
+    "p3": 0
+  },
+  "dynamic_probe": {
+    "name": "permissioned-capability-host-restored-state",
+    "persisted_batches": 1,
+    "persisted_restart_epoch": 0,
+    "restored_batches": 0,
+    "restored_restart_epoch": 0,
+    "restored_checksum_matches": false,
+    "result": "FAIL"
+  },
+  "evidence_audits": {
+    "default_path_incremental_checkpoint": "FAIL",
+    "real_effect_lost_ack": "FAIL",
+    "default_stdio_cross_process_resume": "FAIL",
+    "real_read_only_concurrency": "FAIL",
+    "e01_scope_isolation": "FAIL"
+  },
+  "line_bounds": {
+    "previous_effective_changed_typescript": 32778,
+    "known_out_of_scope_permission_runtime_lines": 703,
+    "conservative_changed_typescript_ceiling": 32075,
+    "previous_final_production_typescript": 50371,
+    "conservative_final_production_ceiling": 49668,
+    "accepted_source_coverage": "<10587"
+  },
+  "commands_not_rerun": {
+    "frozen_install_typecheck_build_test_cleanroom": "Deterministic P1 failures are outside the coverage of the previously passing suite; the taskbook requires FAIL and stop rather than using unrelated reruns to offset a hard finding."
+  }
+}
