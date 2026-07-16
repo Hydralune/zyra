@@ -1199,8 +1199,10 @@ const generatorOwnedEvidencePrefix = "docs/reviews/evidence/M1-R01-v3/execution-
 const initialWorktreeStatus = gitText(["status", "--short"])
   .split(/\r?\n/)
   .filter(Boolean);
+const statusEntryPath = (entry: string): string =>
+  entry.replace(/^[ MADRCU?!]{1,2}\s+/, "").replaceAll("\\", "/");
 const initialIgnoredGeneratorOutputPaths = initialWorktreeStatus.filter((entry) =>
-  entry.slice(3).replaceAll("\\", "/").startsWith(generatorOwnedEvidencePrefix)
+  statusEntryPath(entry).startsWith(generatorOwnedEvidencePrefix)
 );
 const initialWorktreeDirtyPaths = initialWorktreeStatus.filter((entry) =>
   !initialIgnoredGeneratorOutputPaths.includes(entry)
