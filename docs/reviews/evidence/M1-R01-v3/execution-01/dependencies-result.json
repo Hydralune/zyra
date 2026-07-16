@@ -2,9 +2,9 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.dependencies",
-  "generated_at_utc": "2026-07-16T03:43:20.649Z",
+  "generated_at_utc": "2026-07-16T05:25:56.050Z",
   "ok": true,
-  "scanned_file_count": 97,
+  "scanned_file_count": 100,
   "runtime_roots": [
     "apps/code-worker",
     "packages/runtime/claude-runtime"

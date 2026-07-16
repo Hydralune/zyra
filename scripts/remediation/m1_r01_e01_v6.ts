@@ -1127,7 +1127,14 @@ const initialWorktreeDirtyPaths = gitText(["status", "--short"])
 
 await import("./m1_r01_e01_v4.ts");
 
-const implementationHead = gitText(["rev-parse", "HEAD"]);
+const requestedImplementationHead = process.env.E01_IMPLEMENTATION_CANDIDATE?.trim();
+const implementationHead = gitText([
+  "rev-parse",
+  requestedImplementationHead || "HEAD",
+]);
+if (requestedImplementationHead) {
+  gitText(["merge-base", "--is-ancestor", implementationHead, "HEAD"]);
+}
 const sourceRecords = readJsonLines(sourceManifestPath);
 for (const record of sourceRecords) {
   const name = sourceName(record);
@@ -1223,6 +1230,9 @@ writeJson(gateProfilePath, profile);
 
 const receipt = readJson(receiptPath);
 receipt.current_control_plane_head = implementationHead;
+receipt.implementation_candidate_source = requestedImplementationHead
+  ? "E01_IMPLEMENTATION_CANDIDATE"
+  : "HEAD";
 receipt.captured_at_utc = new Date().toISOString();
 receipt.clean_worktree = initialWorktreeDirtyPaths.length === 0;
 receipt.dirty_paths_at_capture = initialWorktreeDirtyPaths;
