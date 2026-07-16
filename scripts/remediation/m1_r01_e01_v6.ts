@@ -1127,6 +1127,20 @@ const routeTarget = (target: JsonRecord, source: JsonRecord): void => {
 const addMutations = (records: JsonRecord[]): JsonRecord[] => {
   const additions: Array<[string, string, string, string, string[]]> = [
     [
+      "e01-mut-045-observation-budget-enforcement",
+      "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+      "ToolObservationBudgetRuntime.enforceRound",
+      "cross-result-observation-budget",
+      ["e01.mutation.observation-budget-enforces-cross-result-limit"],
+    ],
+    [
+      "e01-mut-046-observation-budget-snapshot-checksum",
+      "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+      "ToolObservationBudgetRuntime.restore",
+      "observation-budget-restore-integrity",
+      ["e01.mutation.observation-budget-restore-rejects-tampering"],
+    ],
+    [
       "e01-mut-047-output-token-reduction",
       "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
       "ProviderRecoveryRuntime.plan",
