@@ -16,7 +16,7 @@ import {
   type ToolExecutionResponse,
 } from "./contracts.ts";
 import { applyToolResultBudget } from "./budget.ts";
-import { resolveModelTurns } from "./model-stream.ts";
+import { normalizeMessages, resolveModelTurns } from "./model-stream.ts";
 import { RuntimeSession } from "./session.ts";
 import {
   normalizeTurns,
@@ -71,7 +71,7 @@ export class ClaudeRuntimeCore {
       taskId: input.taskId,
       workerRequestId: input.workerRequestId,
     });
-    let providerMessages = input.messages.map((message) => message as unknown as JsonObject);
+    let providerMessages = normalizeMessages(input);
     if (restoredIteration?.phase === "ready") {
       iteration.restore(restoredIteration, true);
       providerMessages = structuredClone(restoredIteration.transcript);

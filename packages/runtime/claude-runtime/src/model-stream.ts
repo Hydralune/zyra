@@ -736,7 +736,7 @@ function nonnegativeInteger(value: unknown): number {
   return Number.isFinite(selected) ? Math.max(0, Math.floor(selected)) : 0;
 }
 
-function normalizeMessages(input: RuntimeRunInput): JsonObject[] {
+export function normalizeMessages(input: RuntimeRunInput): JsonObject[] {
   if (input.messages.length > 0) {
     return input.messages;
   }

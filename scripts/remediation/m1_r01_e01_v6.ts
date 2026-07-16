@@ -724,9 +724,12 @@ const routeSessionState = (target: JsonRecord, source: JsonRecord): void => {
     targetClaim: "DurableSessionRuntime.snapshot exposes the canonical resumable session state",
     equivalence:
       "Both expose query-visible session status; Zyra removes listeners and makes the projection checksum-restorable.",
-    tests: Array.isArray(target.behavior_tests)
-      ? (target.behavior_tests as JsonRecord[]).slice(0, 2)
-      : [],
+    tests: [behaviorTest(
+      "runtime restores its exact TypeScript snapshot",
+      RUNTIME_TEST_PATH,
+      "restoredState: first.sessionSnapshot",
+      ["resumed.metadata.restored", "sessionSnapshot.lineage", "context_restored"],
+    )],
     mutations: ["e01-mut-001-restore-before-bootstrap"],
   });
 };
@@ -750,9 +753,12 @@ const routeSessionRestore = (target: JsonRecord, source: JsonRecord): void => {
       "E01RuntimeCoordinator.restore restores journal, session, history, provider, tool and custody owners before the default loop resumes",
     equivalence:
       "Both resume the same conversation without replaying completed effects; Zyra uses explicit owner snapshots rather than process globals.",
-    tests: Array.isArray(target.behavior_tests)
-      ? (target.behavior_tests as JsonRecord[]).slice(0, 2)
-      : [],
+    tests: [behaviorTest(
+      "runtime restores its exact TypeScript snapshot",
+      RUNTIME_TEST_PATH,
+      "restoredState: first.sessionSnapshot",
+      ["resumed.metadata.restored", "sessionSnapshot.lineage", "context_restored"],
+    )],
     mutations: ["e01-mut-001-restore-before-bootstrap", "e01-mut-007-lost-ack"],
   });
 };
@@ -858,6 +864,31 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
     ],
   ];
   const byId = new Map(records.map((record) => [String(record.mutation_id), record]));
+  const correctedKillerTests: Record<string, string[]> = {
+    "e01-mut-035-transport-slot-finally": [
+      "e01.mutation.transport-slot-closes-after-parser-failure",
+    ],
+    "e01-mut-037-permission-deny-delegation": [
+      "e01.mutation.permission-deny-is-never-delegated",
+    ],
+    "e01-mut-038-compatible-endpoint": [
+      "e01.mutation.compatible-envelope-uses-chat-completions-and-bearer-auth",
+    ],
+    "e01-mut-039-compatible-tool-delta": [
+      "e01.mutation.compatible-stream-assembles-tool-deltas",
+    ],
+    "e01-mut-041-settlement-gateway-fence": [
+      "e01.mutation.settlement-blocked-call-cannot-reach-gateway",
+    ],
+    "e01-mut-043-gateway-extra-receipt": [
+      "enforcement rejects extra gateway receipts",
+    ],
+  };
+  for (const [id, tests] of Object.entries(correctedKillerTests)) {
+    const record = byId.get(id);
+    if (!record) throw new Error(`missing inherited mutation ${id}`);
+    byId.set(id, { ...record, expected_killer_test_ids: tests });
+  }
   for (const [id, targetPath, targetSymbol, risk, tests] of additions) {
     const spec = mutationSpecs[id];
     if (!spec) throw new Error(`missing executable mutation ${id}`);
