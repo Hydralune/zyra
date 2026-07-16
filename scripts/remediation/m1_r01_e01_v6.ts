@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +27,8 @@ const candidateMetadataPath = join(
   repoRoot,
   "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
 );
+const evidenceRoot = join(repoRoot, "docs/reviews/evidence/M1-R01-v3/execution-01");
+const frozenManifestRoot = join(evidenceRoot, "root-manifests");
 
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
@@ -49,7 +51,6 @@ const semanticRejections = new Map<string, string>([
   ["TOOL_RESULT_CLEARED_MESSAGE", "E01 always preserves an artifact-backed preview and does not adopt the source clear-without-persistence marker"],
   ["PERSIST_THRESHOLD_OVERRIDE_FLAG", "the process-global GrowthBook threshold override is rejected in favor of deterministic Zyra runtime configuration"],
   ["isPersistError", "the source raw-filesystem persistence error guard is not used by Zyra's typed artifact host boundary"],
-  ["consumePendingCacheEdits", "the process-global pending cache-edit slot is rejected; E01 prompt state is committed directly by ProviderTelemetryRuntime"],
 ]);
 
 const sha256 = (value: Uint8Array | string): string =>
@@ -258,15 +259,6 @@ const newlyAcceptedPostCutoff = new Set([
   "getRateLimitResetDelayMs",
   "categorizeRetryableAPIError",
   "getErrorMessageIfRefusal",
-  "buildSystemPromptBlocks",
-  "queryHaiku",
-  "queryWithModel",
-  "adjustParamsForNonStreaming",
-  "getMaxOutputTokensForModel",
-  "getEffectiveContextWindowSize",
-  "collectReadToolFilePaths",
-  "truncateToTokens",
-  "shouldExcludeFromPostCompactRestore",
 ]);
 
 const specificPostCutoffReason = (record: JsonRecord): string => {
@@ -869,6 +861,7 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
     testPath: "packages/runtime/claude-runtime/test/runtime.test.ts",
   }],
   ["pendingCacheEdits", compactCustodyRoute("pendingCacheEdits", "e01.custody.compact-pending-edits-are-consumed-once", ["pendingCacheEdits", "consumePendingCacheEdits"])],
+  ["consumePendingCacheEdits", compactCustodyRoute("consumePendingCacheEdits", "e01.v10.compaction-default-path-custody-is-canonical", ["consumedEdits", "consumedCacheEditIds"])],
   ["isMainThreadSource", compactCustodyRoute("isMainThreadSource", "e01.custody.compact-main-thread-source-is-explicit", ["interactive-main", "background-subagent"])],
   ["microcompactMessages", compactCustodyRoute("microcompactMessages", "e01.custody.compact-old-tool-results-are-replaced", ["editedToolResultIds", "removedCharacters"])],
   ["cachedMicrocompactPath", compactCustodyRoute("cachedMicrocompactPath", "e01.custody.compact-cache-path-is-deterministic", ["microcompact-", "session_a"])],
@@ -881,79 +874,19 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
   ["shouldUseSessionMemoryCompaction", compactCustodyRoute("shouldUseSessionMemoryCompaction", "e01.custody.compact-session-memory-must-save-tokens", ["summaryTokenCount", "currentTokenCount"])],
   ["createCompactionResultFromSessionMemory", compactCustodyRoute("createCompactionResultFromSessionMemory", "e01.custody.compact-session-memory-builds-real-result", ["stored summary", "savedTokenCount"])],
   ["trySessionMemoryCompaction", compactCustodyRoute("trySessionMemoryCompaction", "e01.custody.compact-session-memory-fallback-is-null", ["toBeNull", "enabled: false"])],
-  ["buildSystemPromptBlocks", {
-    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    targetSymbol: "ProviderModelRuntime.buildSystemPromptBlocks",
-    callsitePath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    callsiteSymbol: "ProviderModelRuntime.prepare",
-    owner: "e01.provider-model",
-    stateStore: "ProviderModelRuntime.snapshot",
+  ["getAnthropicClient", {
+    targetPath: "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts",
+    targetSymbol: "ProviderCacheCustodyRuntime.getAnthropicClient",
+    callsitePath: "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts",
+    callsiteSymbol: "ProviderCacheCustodyRuntime.applyProviderRequestCustody",
+    owner: "e01.provider-source-custody",
+    stateStore: "ProviderModelRuntime.snapshot.requests[].request.sourceCustody.client",
     stateProperty: "provider",
-    stateKind: "provider-request",
-    stateObservation: "requests[].request.body.system[].cache_control",
-    testName: "e01.v9.provider-default-path-owns-cache-custody-and-parameters",
-    testAnchor: "sourceCustody.breakpointCount",
-    testTokens: ["sourceCustody.breakpointCount", "cache_control"],
-    testPath: V9_DEFAULT_PATH_TEST_PATH,
-  }],
-  ["adjustParamsForNonStreaming", {
-    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    targetSymbol: "ProviderModelRuntime.adjustParamsForNonStreaming",
-    callsitePath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    callsiteSymbol: "ProviderModelRuntime.prepare",
-    owner: "e01.provider-model",
-    stateStore: "ProviderModelRuntime.snapshot",
-    stateProperty: "provider",
-    stateKind: "provider-request",
-    stateObservation: "requests[].request.body.max_tokens + thinking.budget_tokens",
-    testName: "e01.v9.provider-default-path-owns-cache-custody-and-parameters",
-    testAnchor: "MAX_NON_STREAMING_TOKENS",
-    testTokens: ["MAX_NON_STREAMING_TOKENS", "max_tokens"],
-    testPath: V9_DEFAULT_PATH_TEST_PATH,
-  }],
-  ["getMaxOutputTokensForModel", {
-    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    targetSymbol: "ProviderModelRuntime.getMaxOutputTokensForModel",
-    callsitePath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    callsiteSymbol: "ProviderModelRuntime.prepare",
-    owner: "e01.provider-model",
-    stateStore: "ProviderModelRuntime.snapshot",
-    stateProperty: "provider",
-    stateKind: "provider-request",
-    stateObservation: "requests[].request.body.max_tokens",
-    testName: "e01.v9.provider-default-path-owns-cache-custody-and-parameters",
-    testAnchor: "max_tokens",
-    testTokens: ["max_tokens", "maxOutputTokens"],
-    testPath: V9_DEFAULT_PATH_TEST_PATH,
-  }],
-  ["queryWithModel", {
-    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    targetSymbol: "ProviderModelRuntime.queryWithModel",
-    callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-    callsiteSymbol: "E01RuntimeCoordinator.executePreparedProvider",
-    owner: "e01.provider-model",
-    stateStore: "ProviderModelRuntime.snapshot",
-    stateProperty: "provider",
-    stateKind: "provider-request",
-    stateObservation: "requests[].state + requests[].responseDigest",
-    testName: "e01.v9.provider-query-wrapper-settles-real-request-state",
-    testAnchor: "queryWithModel",
-    testTokens: ["queryWithModel", "completed"],
-    testPath: V9_DEFAULT_PATH_TEST_PATH,
-  }],
-  ["queryHaiku", {
-    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-    targetSymbol: "ProviderModelRuntime.queryHaiku",
-    callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-    callsiteSymbol: "E01RuntimeCoordinator.executePreparedProvider",
-    owner: "e01.provider-model",
-    stateStore: "ProviderModelRuntime.snapshot",
-    stateProperty: "provider",
-    stateKind: "provider-request",
-    stateObservation: "requests[].request.model + requests[].state",
-    testName: "e01.v9.provider-query-wrapper-settles-real-request-state",
-    testAnchor: "queryHaiku",
-    testTokens: ["queryHaiku", "claude-haiku-3-5"],
+    stateKind: "provider-client-factory",
+    stateObservation: "preparedRequest.sourceCustody.client + preparedRequest.endpoint + preparedRequest.headers",
+    testName: "e01.v10.provider-client-factory-controls-default-request",
+    testAnchor: "prepared.sourceCustody.client",
+    testTokens: ["prepared.sourceCustody.client", "prepared.endpoint.baseUrl", "credentialRefresh"],
     testPath: V9_DEFAULT_PATH_TEST_PATH,
   }],
   ["getEffectiveContextWindowSize", {
@@ -966,54 +899,9 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
     stateProperty: "compact",
     stateKind: "compaction-lifecycle",
     stateObservation: "sourceCustody.lastMicrocompactAt + boundaries[]",
-    testName: "e01.v9.compaction-default-path-custody-is-canonical",
+    testName: "e01.v10.compaction-default-path-custody-is-canonical",
     testAnchor: "getEffectiveContextWindowSize",
     testTokens: ["getEffectiveContextWindowSize", "sourceCustody"],
-    testPath: V9_DEFAULT_PATH_TEST_PATH,
-  }],
-  ["collectReadToolFilePaths", {
-    targetPath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    targetSymbol: "ContextCompactionRuntime.collectReadToolFilePaths",
-    callsitePath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    callsiteSymbol: "ContextCompactionRuntime.createPostCompactAttachments",
-    owner: "e01.context-compaction",
-    stateStore: "ContextCompactionRuntime.snapshot",
-    stateProperty: "compact",
-    stateKind: "post-compact-restore",
-    stateObservation: "boundaries[].attachmentIds + summary attachment blocks",
-    testName: "e01.v9.post-compact-restore-follows-read-lineage-and-budgets",
-    testAnchor: "collectReadToolFilePaths",
-    testTokens: ["collectReadToolFilePaths", "/workspace/read.txt"],
-    testPath: V9_DEFAULT_PATH_TEST_PATH,
-  }],
-  ["truncateToTokens", {
-    targetPath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    targetSymbol: "ContextCompactionRuntime.truncateToTokens",
-    callsitePath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    callsiteSymbol: "ContextCompactionRuntime.createPostCompactAttachments",
-    owner: "e01.context-compaction",
-    stateStore: "ContextCompactionRuntime.snapshot",
-    stateProperty: "compact",
-    stateKind: "post-compact-restore",
-    stateObservation: "attachment.content + attachment.truncated",
-    testName: "e01.v9.post-compact-restore-follows-read-lineage-and-budgets",
-    testAnchor: "truncateToTokens",
-    testTokens: ["truncateToTokens", "truncated"],
-    testPath: V9_DEFAULT_PATH_TEST_PATH,
-  }],
-  ["shouldExcludeFromPostCompactRestore", {
-    targetPath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    targetSymbol: "ContextCompactionRuntime.shouldExcludeFromPostCompactRestore",
-    callsitePath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
-    callsiteSymbol: "ContextCompactionRuntime.createPostCompactAttachments",
-    owner: "e01.context-compaction",
-    stateStore: "ContextCompactionRuntime.snapshot",
-    stateProperty: "compact",
-    stateKind: "post-compact-restore",
-    stateObservation: "boundaries[].attachmentIds",
-    testName: "e01.v9.post-compact-restore-follows-read-lineage-and-budgets",
-    testAnchor: "shouldExcludeFromPostCompactRestore",
-    testTokens: ["shouldExcludeFromPostCompactRestore", "node_modules"],
     testPath: V9_DEFAULT_PATH_TEST_PATH,
   }],
   ["StreamingToolExecutor", {
@@ -1185,7 +1073,11 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
       ],
     ],
   ];
-  const byId = new Map(records.map((record) => [String(record.mutation_id), record]));
+  const byId = new Map(
+    records
+      .filter((record) => String(record.mutation_operator) !== "disconnect-target")
+      .map((record) => [String(record.mutation_id), record]),
+  );
   const correctedKillerTests: Record<string, string[]> = {
     "e01-mut-034-execution-custody": [
       "runtime commits provider prompt usage and recovery state through default loop",
@@ -1301,7 +1193,6 @@ const addTargetDisconnectMutations = (
 const v8SemanticRejections = new Map<string, string>([
   ["messageSelector", "rejected in V8: UI message selection has no independent E01 runtime state effect"],
   ["getCoordinatorUserContext", "rejected in V8: coordinator presentation context is outside the E01 canonical runtime owner boundary"],
-  ["getAnthropicClient", "rejected in V9: the source SDK/auth/provider client factory is not semantically equivalent to Zyra's static redacted descriptor builder"],
 ]);
 
 const initialWorktreeDirtyPaths = gitText(["status", "--short"])
@@ -1410,12 +1301,19 @@ profile.candidate_scope_paths = [
     "packages/runtime/runtime-event-spine",
   ]),
 ].sort();
+profile.commands = {
+  ...((profile.commands as JsonRecord | undefined) ?? {}),
+  manifest_generator: ["npx", "--yes", "bun@1.2.15", GENERATOR],
+  source_validator: ["npx", "--yes", "bun@1.2.15", SCHEMA_VERIFIER],
+  effective_loc_clone: ["npx", "--yes", "bun@1.2.15", SCHEMA_VERIFIER],
+};
+profile.authoritative_verification_contract = VERIFICATION_CONTRACT_VERSION;
 profile.checker_source_paths = [
-  ...new Set([
-    ...((profile.checker_source_paths as unknown[] | undefined) ?? []).map(String),
-    GENERATOR,
-    SCHEMA_VERIFIER,
-  ]),
+  "scripts/remediation/m1_r01_e01_v3.ts",
+  "scripts/remediation/m1_r01_e01_v4.ts",
+  GENERATOR,
+  SCHEMA_VERIFIER,
+  "scripts/remediation/run_m1_r01_e01_mutations.ts",
 ].sort();
 writeJson(gateProfilePath, profile);
 
@@ -1441,6 +1339,46 @@ receipt.input_sha256 = {
   "execution-01-gate-profile.json": sha256(readFileSync(gateProfilePath)),
 };
 writeJson(receiptPath, receipt);
+
+mkdirSync(frozenManifestRoot, { recursive: true });
+const frozenInputs = [
+  sourceManifestPath,
+  join(manifestRoot, "execution-01-python-owner-baseline.jsonl"),
+  targetManifestPath,
+  mutationManifestPath,
+  gateProfilePath,
+  receiptPath,
+];
+for (const path of frozenInputs) {
+  writeFileSync(join(frozenManifestRoot, path.slice(path.lastIndexOf("\\") + 1)), readFileSync(path));
+}
+const frozenManifestHashes = Object.fromEntries(
+  frozenInputs.map((path) => [path.slice(path.lastIndexOf("\\") + 1), sha256(readFileSync(path))]),
+);
+writeJson(join(evidenceRoot, "root-manifest-index.json"), {
+  schema_version: "1.0",
+  execution_id: "E01",
+  implementation_candidate: implementationHead,
+  generator: GENERATOR,
+  verifier: SCHEMA_VERIFIER,
+  files: frozenManifestHashes,
+});
+writeJson(join(evidenceRoot, "g0-summary.json"), {
+  schema_version: "4.0",
+  execution_id: "E01",
+  implementation_candidate: implementationHead,
+  verified_zyra_head: VERIFIED_BASELINE,
+  source_snapshot: "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+  source_range_count: sourceRecords.length,
+  accepted_source_range_count: accepted.length,
+  rejected_source_range_count: sourceRecords.length - accepted.length,
+  target_mapping_count: targetRecords.length,
+  mutation_count: mutationRecords.length,
+  generator: GENERATOR,
+  verifier: SCHEMA_VERIFIER,
+  frozen_manifest_index: "docs/reviews/evidence/M1-R01-v3/execution-01/root-manifest-index.json",
+  frozen_manifest_hashes: frozenManifestHashes,
+});
 
 writeJson(candidateMetadataPath, {
   schema_version: "3.0",

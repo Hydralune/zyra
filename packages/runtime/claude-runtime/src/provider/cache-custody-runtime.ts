@@ -56,12 +56,43 @@ export interface ToolMismatchEvidence {
 
 export interface AnthropicClientDescriptor {
   family: "anthropic";
-  transport: "anthropic" | "bedrock" | "vertex";
+  transport: "anthropic" | "bedrock" | "foundry" | "vertex";
   endpoint: string;
   model: string;
-  auth: "api-key" | "oauth" | "aws" | "gcp";
+  auth: "api-key" | "oauth" | "aws" | "aws-bearer" | "azure-api-key" | "azure-ad" | "gcp";
   credentialFingerprint: string;
   headers: Record<string, string>;
+  maxRetries: number;
+  timeoutMs: number;
+  region: string | null;
+  projectId: string | null;
+  skipAuth: boolean;
+  credentialRefresh: "none" | "oauth" | "aws" | "azure-ad" | "gcp";
+  source: string;
+  proxyUrl: string | null;
+  debugLogger: boolean;
+  containerId: string | null;
+  remoteSessionId: string | null;
+  clientApp: string | null;
+  sensitiveCustomHeaderNames: string[];
+}
+
+export interface AnthropicClientFactoryInput {
+  providerId: string;
+  endpoint?: string;
+  model: string;
+  credential: string;
+  credentialFingerprint?: string;
+  oauth?: boolean;
+  sessionId?: string;
+  source?: string;
+  maxRetries?: number;
+  timeoutMs?: number;
+  region?: string | null;
+  projectId?: string | null;
+  proxyUrl?: string | null;
+  extraHeaders?: Readonly<Record<string, string>>;
+  environment?: Readonly<Record<string, string | undefined>>;
 }
 
 export interface ProviderRequestCustodyEffect {
@@ -89,6 +120,52 @@ const numberOf = (value: unknown, fallback = 0): number =>
 
 const booleanOf = (value: unknown, fallback = false): boolean =>
   typeof value === "boolean" ? value : fallback;
+
+const integerOf = (value: unknown, fallback: number, minimum: number, maximum: number): number => {
+  const parsed = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isSafeInteger(parsed)) return fallback;
+  return Math.max(minimum, Math.min(maximum, parsed));
+};
+
+const envTruthy = (value: string | undefined): boolean =>
+  typeof value === "string" && /^(?:1|true|yes|on)$/i.test(value.trim());
+
+const stringRecord = (value: unknown): Record<string, string> => {
+  const record = recordOf(value);
+  if (!record) return {};
+  const output: Record<string, string> = {};
+  for (const [rawName, rawValue] of Object.entries(record)) {
+    if (typeof rawValue !== "string") continue;
+    const name = rawName.trim().toLowerCase();
+    const content = rawValue.trim();
+    if (!name || !content || /[\r\n]/.test(name) || /[\r\n]/.test(content)) continue;
+    if (name === "host" || name === "content-length") continue;
+    output[name] = content;
+  }
+  return output;
+};
+
+const customHeadersFromEnvironment = (
+  value: string | undefined,
+): { safe: Record<string, string>; sensitiveNames: string[] } => {
+  const safe: Record<string, string> = {};
+  const sensitiveNames = new Set<string>();
+  for (const line of value?.split(/\n|\r\n/) ?? []) {
+    const separator = line.indexOf(":");
+    if (separator < 1) continue;
+    const name = line.slice(0, separator).trim().toLowerCase();
+    const content = line.slice(separator + 1).trim();
+    if (!name || !content || /[\r\n]/.test(name) || /[\r\n]/.test(content)) continue;
+    if (name === "authorization" || name === "x-api-key" || /token|secret|credential/i.test(name)) {
+      sensitiveNames.add(name);
+      continue;
+    }
+    if (name !== "host" && name !== "content-length") safe[name] = content;
+  }
+  return { safe, sensitiveNames: [...sensitiveNames].sort() };
+};
+
+const trimEndpoint = (value: string): string => value.replace(/\/+$/, "");
 
 const wildcardMatches = (value: string, pattern: string): boolean => {
   if (pattern === "*") return true;
@@ -297,43 +374,126 @@ export class ProviderCacheCustodyRuntime {
     return `Provider request failed: ${message.slice(0, 320)}`;
   }
 
-  getAnthropicClient(input: {
-    providerId: string;
-    endpoint?: string;
-    model: string;
-    credential: string;
-    oauth?: boolean;
-  }): AnthropicClientDescriptor | null {
-    const provider = input.providerId.toLowerCase();
-    if (!["anthropic", "bedrock", "vertex"].includes(provider)) return null;
-    const transport = provider as AnthropicClientDescriptor["transport"];
-    const endpoint = input.endpoint || (
-      transport === "anthropic"
-        ? "https://api.anthropic.com"
-        : transport === "bedrock"
-          ? "https://bedrock-runtime.amazonaws.com"
-          : "https://aiplatform.googleapis.com"
+  getAnthropicClient(input: AnthropicClientFactoryInput): AnthropicClientDescriptor | null {
+    const environment = input.environment ?? process.env;
+    const requestedProvider = input.providerId.trim().toLowerCase();
+    const transport: AnthropicClientDescriptor["transport"] | null =
+      envTruthy(environment.CLAUDE_CODE_USE_BEDROCK) || requestedProvider === "bedrock"
+        ? "bedrock"
+        : envTruthy(environment.CLAUDE_CODE_USE_FOUNDRY) || requestedProvider === "foundry"
+          ? "foundry"
+          : envTruthy(environment.CLAUDE_CODE_USE_VERTEX) || requestedProvider === "vertex"
+            ? "vertex"
+            : requestedProvider === "anthropic"
+              ? "anthropic"
+              : null;
+    if (!transport) return null;
+
+    const custom = customHeadersFromEnvironment(environment.ANTHROPIC_CUSTOM_HEADERS);
+    const headers: Record<string, string> = {
+      "x-app": "cli",
+      "user-agent": "zyra-code-worker/1",
+      "x-claude-code-session-id": input.sessionId?.trim() || "default",
+      ...stringRecord(input.extraHeaders),
+      ...custom.safe,
+    };
+    const containerId = environment.CLAUDE_CODE_CONTAINER_ID?.trim() || null;
+    const remoteSessionId = environment.CLAUDE_CODE_REMOTE_SESSION_ID?.trim() || null;
+    const clientApp = environment.CLAUDE_AGENT_SDK_CLIENT_APP?.trim() || null;
+    if (containerId) headers["x-claude-remote-container-id"] = containerId;
+    if (remoteSessionId) headers["x-claude-remote-session-id"] = remoteSessionId;
+    if (clientApp) headers["x-client-app"] = clientApp;
+    if (envTruthy(environment.CLAUDE_CODE_ADDITIONAL_PROTECTION)) {
+      headers["x-anthropic-additional-protection"] = "true";
+    }
+
+    const maxRetries = integerOf(input.maxRetries, 3, 0, 20);
+    const timeoutMs = integerOf(
+      environment.API_TIMEOUT_MS ?? input.timeoutMs,
+      input.timeoutMs ?? 600_000,
+      1_000,
+      3_600_000,
     );
-    const auth: AnthropicClientDescriptor["auth"] = transport === "bedrock"
-      ? "aws"
-      : transport === "vertex"
-        ? "gcp"
-        : input.oauth
-          ? "oauth"
-          : "api-key";
-    const headers: Record<string, string> = transport === "anthropic"
-      ? input.oauth
-        ? { authorization: "Bearer [redacted]", "anthropic-version": "2023-06-01" }
-        : { "x-api-key": "[redacted]", "anthropic-version": "2023-06-01" }
-      : {};
+    const debugLogger = envTruthy(environment.CLAUDE_CODE_DEBUG_TO_STDERR);
+    const credentialFingerprint = input.credentialFingerprint?.trim()
+      || stableFingerprint(input.credential || `${transport}:${input.model}`);
+    let endpoint = input.endpoint?.trim() || "";
+    let auth: AnthropicClientDescriptor["auth"];
+    let region = input.region?.trim() || null;
+    let projectId = input.projectId?.trim() || null;
+    let skipAuth = false;
+    let credentialRefresh: AnthropicClientDescriptor["credentialRefresh"] = "none";
+
+    if (transport === "bedrock") {
+      endpoint ||= "https://bedrock-runtime.amazonaws.com";
+      const smallFastRegion = environment.ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION?.trim();
+      const isSmallFastModel = /haiku|small[-_ ]?fast/i.test(input.model);
+      region = (isSmallFastModel && smallFastRegion)
+        ? smallFastRegion
+        : region || environment.AWS_REGION?.trim() || environment.AWS_DEFAULT_REGION?.trim() || "us-east-1";
+      skipAuth = envTruthy(environment.CLAUDE_CODE_SKIP_BEDROCK_AUTH)
+        || Boolean(environment.AWS_BEARER_TOKEN_BEDROCK?.trim());
+      auth = environment.AWS_BEARER_TOKEN_BEDROCK?.trim() ? "aws-bearer" : "aws";
+      credentialRefresh = skipAuth ? "none" : "aws";
+    } else if (transport === "foundry") {
+      const resource = environment.ANTHROPIC_FOUNDRY_RESOURCE?.trim();
+      endpoint ||= environment.ANTHROPIC_FOUNDRY_BASE_URL?.trim()
+        || (resource ? `https://${resource}.services.ai.azure.com` : "https://services.ai.azure.com");
+      skipAuth = envTruthy(environment.CLAUDE_CODE_SKIP_FOUNDRY_AUTH);
+      auth = environment.ANTHROPIC_FOUNDRY_API_KEY?.trim() ? "azure-api-key" : "azure-ad";
+      credentialRefresh = auth === "azure-ad" && !skipAuth ? "azure-ad" : "none";
+    } else if (transport === "vertex") {
+      endpoint ||= "https://aiplatform.googleapis.com";
+      const modelRegionKey = /haiku/i.test(input.model)
+        ? "VERTEX_REGION_CLAUDE_HAIKU_4_5"
+        : /opus/i.test(input.model)
+          ? "VERTEX_REGION_CLAUDE_OPUS_4_5"
+          : "VERTEX_REGION_CLAUDE_SONNET_4_5";
+      region = environment[modelRegionKey]?.trim()
+        || region
+        || environment.CLOUD_ML_REGION?.trim()
+        || "us-east5";
+      projectId = projectId
+        || environment.GOOGLE_CLOUD_PROJECT?.trim()
+        || environment.GCLOUD_PROJECT?.trim()
+        || environment.ANTHROPIC_VERTEX_PROJECT_ID?.trim()
+        || null;
+      skipAuth = envTruthy(environment.CLAUDE_CODE_SKIP_VERTEX_AUTH);
+      auth = "gcp";
+      credentialRefresh = skipAuth ? "none" : "gcp";
+    } else {
+      const staging = environment.USER_TYPE === "ant" && envTruthy(environment.USE_STAGING_OAUTH);
+      endpoint ||= staging
+        ? environment.CLAUDE_CODE_STAGING_OAUTH_BASE_URL?.trim() || "https://api-staging.anthropic.com"
+        : "https://api.anthropic.com";
+      auth = input.oauth ? "oauth" : "api-key";
+      credentialRefresh = input.oauth ? "oauth" : "none";
+      headers["anthropic-version"] = "2023-06-01";
+      if (input.oauth) headers.authorization = "Bearer [redacted]";
+      else headers["x-api-key"] = "[redacted]";
+    }
+
     return {
       family: "anthropic",
       transport,
-      endpoint,
+      endpoint: trimEndpoint(endpoint),
       model: input.model,
       auth,
-      credentialFingerprint: stableFingerprint(input.credential),
+      credentialFingerprint,
       headers,
+      maxRetries,
+      timeoutMs,
+      region,
+      projectId,
+      skipAuth,
+      credentialRefresh,
+      source: input.source?.trim() || "runtime",
+      proxyUrl: input.proxyUrl?.trim() || null,
+      debugLogger,
+      containerId,
+      remoteSessionId,
+      clientApp,
+      sensitiveCustomHeaderNames: custom.sensitiveNames,
     };
   }
 
@@ -364,15 +524,22 @@ export class ProviderCacheCustodyRuntime {
     if (record && Array.isArray(record.messages)) record.messages = normalized;
     const mismatch = this.logToolUseToolResultMismatch(messages, normalized);
     const credential = stringOf(record?.credential ?? metadata?.credential);
-    const client = credential
-      ? this.getAnthropicClient({
-        providerId,
-        endpoint: stringOf(record?.endpoint ?? metadata?.endpoint) || undefined,
-        model,
-        credential,
-        oauth: booleanOf(record?.oauth ?? metadata?.oauth),
-      })
-      : null;
+    const client = this.getAnthropicClient({
+      providerId,
+      endpoint: stringOf(record?.endpoint ?? metadata?.endpoint) || undefined,
+      model,
+      credential,
+      credentialFingerprint: stringOf(record?.credentialFingerprint ?? metadata?.credentialFingerprint) || undefined,
+      oauth: booleanOf(record?.oauth ?? metadata?.oauth),
+      sessionId,
+      source: querySource,
+      maxRetries: numberOf(record?.maxRetries ?? metadata?.maxRetries, 3),
+      timeoutMs: numberOf(record?.timeoutMs ?? metadata?.timeoutMs, 600_000),
+      region: stringOf(record?.region ?? metadata?.region) || null,
+      projectId: stringOf(record?.projectId ?? metadata?.projectId) || null,
+      proxyUrl: stringOf(record?.proxyUrl ?? metadata?.proxyUrl) || null,
+      extraHeaders: stringRecord(record?.extraHeaders ?? metadata?.extraHeaders),
+    });
     const previousSample = recordOf(record?.previousCacheSample);
     const currentSample = recordOf(record?.cacheSample);
     const cacheBreak = currentSample

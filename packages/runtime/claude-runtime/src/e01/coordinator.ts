@@ -523,7 +523,10 @@ export class E01RuntimeCoordinator {
     compactionCount: number,
   ): RuntimeDecision {
     const estimate = this.tokens.estimate("x".repeat(Math.max(0, Math.min(contextChars, 2_000_000))));
-    const warning = this.compact.calculateTokenWarningState([], Math.max(8_192, Math.ceil(maxContextChars / 4)), 8_192);
+    const configuredWindow = Math.max(8_192, Math.ceil(maxContextChars / 4));
+    const activeModel = this.provider.snapshot().activeModel;
+    const effectiveWindow = this.compact.getEffectiveContextWindowSize(activeModel, configuredWindow);
+    const warning = this.compact.calculateTokenWarningState([], effectiveWindow, 8_192);
     const accepted = compactionCount === 0 && (forceCompact || contextChars > maxContextChars || warning.shouldAutoCompact);
     const reason = accepted
       ? forceCompact ? "forced_compact" : contextChars > maxContextChars ? "context_threshold_exceeded" : "token_threshold_exceeded"
@@ -538,6 +541,7 @@ export class E01RuntimeCoordinator {
       force_compact: forceCompact,
       compaction_count: compactionCount,
       token_warning: warning.level,
+      effective_context_window: effectiveWindow,
     });
     return {
       accepted,

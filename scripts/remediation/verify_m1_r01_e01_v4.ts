@@ -36,6 +36,14 @@ const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
 const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v5";
+const AUTHORIZED_POST_CUTOFF_SYMBOLS = new Set([
+  "getDefaultMaxRetries",
+  "getMaxRetries",
+  "getRetryAfterMs",
+  "getRateLimitResetDelayMs",
+  "categorizeRetryableAPIError",
+  "getErrorMessageIfRefusal",
+]);
 
 type JsonRecord = Record<string, unknown>;
 
@@ -340,6 +348,17 @@ if (String(receipt.current_control_plane_head) !== candidate) {
 if (String(receipt.verified_zyra_head) !== VERIFIED_BASELINE) {
   fail("baseline receipt verified head drifted");
 }
+const sourceValidator = ((profile.commands as JsonRecord | undefined)?.source_validator as unknown[] | undefined)?.map(String) ?? [];
+const effectiveValidator = ((profile.commands as JsonRecord | undefined)?.effective_loc_clone as unknown[] | undefined)?.map(String) ?? [];
+if (!sourceValidator.includes("scripts/remediation/verify_m1_r01_e01_v4.ts")) {
+  fail("gate profile source validator is not V4");
+}
+if (!effectiveValidator.includes("scripts/remediation/verify_m1_r01_e01_v4.ts")) {
+  fail("gate profile effective-line validator is not V4");
+}
+if (!((receipt.schema_validator_command as unknown[] | undefined)?.map(String) ?? []).includes("scripts/remediation/verify_m1_r01_e01_v4.ts")) {
+  fail("receipt schema validator is not V4");
+}
 
 const mutationRecordById = new Map(
   mutationRecords.map((record) => [String(record.mutation_id), record]),
@@ -423,6 +442,14 @@ for (const record of sourceRecords) {
     }
     if (sourceRole === "supplementary" && !String(record.supplementary_gap ?? "").trim()) {
       fail(`supplementary source lacks a primary-gap explanation: ${String(record.mapping_id)}`);
+    }
+    const symbolName = String(record.source_symbol).slice(String(record.source_symbol).lastIndexOf("::") + 2);
+    if (
+      String(record.mapping_id).startsWith("e01-rej-")
+      && !String(record.continuation_of_source_symbol ?? "").trim()
+      && !AUTHORIZED_POST_CUTOFF_SYMBOLS.has(symbolName)
+    ) {
+      fail(`outside-curated source symbol was accepted without authorization: ${symbolName}`);
     }
     for (let line = start; line <= end; line += 1) {
       if (executableLine(blob.lines[line - 1] ?? "")) acceptedLineKeys.add(`${path}:${line}`);

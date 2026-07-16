@@ -42,6 +42,30 @@ export interface SessionMemoryCompactionResult {
   savedTokenCount: number;
 }
 
+export interface AutoCompactionPlan {
+  required: boolean;
+  firstKeptIndex: number;
+  preserved: CustodyCompactionMessage[];
+}
+
+export interface SummaryStreamState {
+  summary: string;
+  attempts: number;
+  keepalives: number;
+  completed: boolean;
+  error: string | null;
+}
+
+export interface CompactionSourceCustodySnapshot {
+  lastMicrocompactAt: Record<string, number>;
+  pendingEdits: Record<string, string[]>;
+  consumedEdits: Record<string, string[]>;
+  lastAutoCompaction: Record<string, AutoCompactionPlan>;
+  lastPartialBoundary: Record<string, CompactBoundary>;
+  lastSessionMemory: Record<string, SessionMemoryCompactionResult>;
+  lastSummaryStream: Record<string, SummaryStreamState>;
+}
+
 export type SummaryStreamEvent =
   | { type: "delta"; text: string }
   | { type: "keepalive" }
@@ -79,6 +103,11 @@ const messageBlocks = (message: CustodyCompactionMessage): MutableRecord[] => {
 export class CompactionSourceCustodyRuntime {
   private readonly lastMicrocompactAt = new Map<string, number>();
   private readonly pendingEdits = new Map<string, string[]>();
+  private readonly consumedEdits = new Map<string, string[]>();
+  private readonly lastAutoCompaction = new Map<string, AutoCompactionPlan>();
+  private readonly lastPartialBoundary = new Map<string, CompactBoundary>();
+  private readonly lastSessionMemory = new Map<string, SessionMemoryCompactionResult>();
+  private readonly lastSummaryStream = new Map<string, SummaryStreamState>();
 
   pendingCacheEdits(sessionId: string): readonly string[] {
     return [...(this.pendingEdits.get(sessionId) ?? [])];
@@ -87,6 +116,7 @@ export class CompactionSourceCustodyRuntime {
   consumePendingCacheEdits(sessionId: string): string[] {
     const edits = [...(this.pendingEdits.get(sessionId) ?? [])];
     this.pendingEdits.delete(sessionId);
+    this.consumedEdits.set(sessionId, edits);
     return edits;
   }
 
@@ -174,22 +204,25 @@ export class CompactionSourceCustodyRuntime {
   }
 
   autoCompactIfNeeded(input: {
+    sessionId?: string;
     currentTokens: number;
     contextWindow: number;
     reservedTokens: number;
     minimumFreeTokens: number;
     messages: readonly CustodyCompactionMessage[];
     keepLastMessages: number;
-  }): { required: boolean; firstKeptIndex: number; preserved: CustodyCompactionMessage[] } {
+  }): AutoCompactionPlan {
     const required = this.shouldAutoCompact(input);
     const firstKeptIndex = required
       ? Math.max(0, input.messages.length - Math.max(1, input.keepLastMessages))
       : 0;
-    return {
+    const plan = {
       required,
       firstKeptIndex,
       preserved: cloneValue(input.messages.slice(firstKeptIndex)),
     };
+    if (input.sessionId) this.lastAutoCompaction.set(input.sessionId, cloneValue(plan));
+    return plan;
   }
 
   annotateBoundaryWithPreservedSegment(
@@ -209,15 +242,18 @@ export class CompactionSourceCustodyRuntime {
     keepLastMessages: number;
   }): CompactBoundary {
     const firstKeptIndex = Math.max(0, input.messages.length - Math.max(1, input.keepLastMessages));
-    return this.annotateBoundaryWithPreservedSegment({
+    const boundary = this.annotateBoundaryWithPreservedSegment({
       boundaryId: `partial-${stableId(`${input.sessionId}:${firstKeptIndex}:${input.summary}`)}`,
       firstKeptIndex,
       summary: input.summary,
       source: "partial",
     }, input.messages);
+    this.lastPartialBoundary.set(input.sessionId, cloneValue(boundary));
+    return boundary;
   }
 
   async streamCompactSummary(input: {
+    sessionId?: string;
     stream: (attempt: number) => AsyncIterable<SummaryStreamEvent>;
     maxAttempts: number;
     onKeepalive?: (attempt: number) => void;
@@ -241,10 +277,27 @@ export class CompactionSourceCustodyRuntime {
           }
         }
         if (!completed || summary.trim().length === 0) throw new Error("incomplete compact summary response");
-        return { summary: summary.trim(), attempts: attempt, keepalives };
+        const result = { summary: summary.trim(), attempts: attempt, keepalives };
+        if (input.sessionId) {
+          this.lastSummaryStream.set(input.sessionId, {
+            ...result,
+            completed: true,
+            error: null,
+          });
+        }
+        return result;
       } catch (error) {
         lastError = error;
       }
+    }
+    if (input.sessionId) {
+      this.lastSummaryStream.set(input.sessionId, {
+        summary: "",
+        attempts: Math.max(1, input.maxAttempts),
+        keepalives: 0,
+        completed: false,
+        error: lastError instanceof Error ? lastError.message : String(lastError),
+      });
     }
     throw lastError;
   }
@@ -268,7 +321,7 @@ export class CompactionSourceCustodyRuntime {
       summary: input.summary.trim(),
       source: "session-memory",
     }, input.messages);
-    return {
+    const result = {
       boundary,
       messages: [
         { role: "system", content: input.summary.trim(), compactedSessionMemory: true },
@@ -279,6 +332,8 @@ export class CompactionSourceCustodyRuntime {
       compactedTokenCount: input.summaryTokenCount,
       savedTokenCount: Math.max(0, input.originalTokenCount - input.summaryTokenCount),
     };
+    this.lastSessionMemory.set(input.sessionId, cloneValue(result));
+    return result;
   }
 
   trySessionMemoryCompaction(input: SessionMemoryCompactionInput & { enabled: boolean }): SessionMemoryCompactionResult | null {
@@ -309,6 +364,7 @@ export class CompactionSourceCustodyRuntime {
     if (result.performed) record.messages = result.messages;
     const currentTokens = typeof record.currentTokens === "number" ? record.currentTokens : 0;
     const auto = this.autoCompactIfNeeded({
+      sessionId,
       currentTokens,
       contextWindow: typeof record.contextWindow === "number" ? record.contextWindow : Math.max(1, currentTokens + 1),
       reservedTokens: typeof record.reservedTokens === "number" ? record.reservedTokens : 0,
@@ -354,18 +410,33 @@ export class CompactionSourceCustodyRuntime {
     return result;
   }
 
-  snapshot(): { lastMicrocompactAt: Record<string, number>; pendingEdits: Record<string, string[]> } {
+  snapshot(): CompactionSourceCustodySnapshot {
     return {
       lastMicrocompactAt: Object.fromEntries(this.lastMicrocompactAt),
       pendingEdits: Object.fromEntries([...this.pendingEdits].map(([key, value]) => [key, [...value]])),
+      consumedEdits: Object.fromEntries([...this.consumedEdits].map(([key, value]) => [key, [...value]])),
+      lastAutoCompaction: Object.fromEntries([...this.lastAutoCompaction].map(([key, value]) => [key, cloneValue(value)])),
+      lastPartialBoundary: Object.fromEntries([...this.lastPartialBoundary].map(([key, value]) => [key, cloneValue(value)])),
+      lastSessionMemory: Object.fromEntries([...this.lastSessionMemory].map(([key, value]) => [key, cloneValue(value)])),
+      lastSummaryStream: Object.fromEntries([...this.lastSummaryStream].map(([key, value]) => [key, cloneValue(value)])),
     };
   }
 
-  restore(snapshot: { lastMicrocompactAt: Record<string, number>; pendingEdits: Record<string, string[]> }): void {
+  restore(snapshot: Partial<CompactionSourceCustodySnapshot>): void {
     this.lastMicrocompactAt.clear();
-    for (const [key, value] of Object.entries(snapshot.lastMicrocompactAt)) this.lastMicrocompactAt.set(key, value);
+    for (const [key, value] of Object.entries(snapshot.lastMicrocompactAt ?? {})) this.lastMicrocompactAt.set(key, value);
     this.pendingEdits.clear();
-    for (const [key, value] of Object.entries(snapshot.pendingEdits)) this.pendingEdits.set(key, [...value]);
+    for (const [key, value] of Object.entries(snapshot.pendingEdits ?? {})) this.pendingEdits.set(key, [...value]);
+    this.consumedEdits.clear();
+    for (const [key, value] of Object.entries(snapshot.consumedEdits ?? {})) this.consumedEdits.set(key, [...value]);
+    this.lastAutoCompaction.clear();
+    for (const [key, value] of Object.entries(snapshot.lastAutoCompaction ?? {})) this.lastAutoCompaction.set(key, cloneValue(value));
+    this.lastPartialBoundary.clear();
+    for (const [key, value] of Object.entries(snapshot.lastPartialBoundary ?? {})) this.lastPartialBoundary.set(key, cloneValue(value));
+    this.lastSessionMemory.clear();
+    for (const [key, value] of Object.entries(snapshot.lastSessionMemory ?? {})) this.lastSessionMemory.set(key, cloneValue(value));
+    this.lastSummaryStream.clear();
+    for (const [key, value] of Object.entries(snapshot.lastSummaryStream ?? {})) this.lastSummaryStream.set(key, cloneValue(value));
   }
 }
 

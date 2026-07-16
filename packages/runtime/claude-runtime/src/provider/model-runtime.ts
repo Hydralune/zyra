@@ -576,7 +576,9 @@ export class ProviderModelRuntime {
   }
 
   configureEndpoint(value: Partial<ProviderEndpoint>): ProviderEndpoint {
-    this.endpoint = normalizeEndpoint(value.provider ?? this.endpoint.provider, {
+    const provider = value.provider ?? this.endpoint.provider;
+    const providerChanged = provider !== this.endpoint.provider;
+    this.endpoint = normalizeEndpoint(provider, providerChanged ? value : {
       ...this.endpoint,
       ...value,
     });
@@ -629,13 +631,22 @@ export class ProviderModelRuntime {
   prepare(options: ProviderRequestOptions): PreparedProviderRequest {
     const custodyEnvelope: Record<string, unknown> = {
       ...options,
-      providerId: this.endpoint.provider,
+      providerId: asString(options.metadata.providerId, this.endpoint.provider),
       endpoint: this.endpoint.baseUrl,
       model: options.model || this.activeModel,
+      sessionId: options.sessionId,
+      querySource: options.querySource,
       messages: structuredClone(options.messages),
       metadata: structuredClone(options.metadata),
       credential: this.credential.apiKey ?? this.credential.accessToken ?? "",
+      credentialFingerprint: this.credential.fingerprint,
       oauth: this.credential.kind === "oauth",
+      maxRetries: clampInteger(Number(options.metadata.providerMaxRetries ?? 3), 0, 20),
+      timeoutMs: options.timeoutMs ?? this.endpoint.timeoutMs,
+      region: this.endpoint.region,
+      projectId: this.endpoint.projectId,
+      proxyUrl: this.endpoint.proxyUrl,
+      extraHeaders: this.endpoint.extraHeaders,
       oneHourCacheEnabled: options.metadata.oneHourCacheEnabled === true,
     };
     const sourceCustody = this.sourceCustody.applyProviderRequestCustody(custodyEnvelope);
@@ -666,9 +677,23 @@ export class ProviderModelRuntime {
     const maxTokens = adjusted.maxTokens;
     const thinking = normalizeThinking(adjusted.thinking, maxTokens, model);
     const requestId = randomUUID();
+    const client = sourceCustody.client;
+    const clientProvider: ProviderKind = client?.transport === "foundry"
+      ? "compatible"
+      : client?.transport ?? this.endpoint.provider;
+    const effectiveEndpoint = client
+      ? normalizeEndpoint(clientProvider, {
+        ...this.endpoint,
+        provider: clientProvider,
+        baseUrl: client.endpoint,
+        region: client.region,
+        projectId: client.projectId,
+        proxyUrl: client.proxyUrl,
+      })
+      : structuredClone(this.endpoint);
     const timeoutMs = clampInteger(
-      options.timeoutMs ?? this.endpoint.timeoutMs,
-      this.endpoint.connectTimeoutMs,
+      options.timeoutMs ?? client?.timeoutMs ?? effectiveEndpoint.timeoutMs,
+      effectiveEndpoint.connectTimeoutMs,
       3_600_000,
     );
     const system = this.buildSystemPromptBlocks(options.system, sourceCustody.ttl);
@@ -681,14 +706,14 @@ export class ProviderModelRuntime {
       model: model.id,
       maxTokens,
       thinking,
-    });
-    const headers = this.buildHeaders(requestId, options.betaHeaders);
+    }, effectiveEndpoint);
+    const headers = this.buildHeaders(requestId, options.betaHeaders, effectiveEndpoint, client?.headers ?? {});
     const now = Date.now();
     const prepared: PreparedProviderRequest = {
       sourceCustody,
       requestId,
-      provider: this.endpoint.provider,
-      endpoint: structuredClone(this.endpoint),
+      provider: effectiveEndpoint.provider,
+      endpoint: structuredClone(effectiveEndpoint),
       credentialFingerprint: this.credential.fingerprint,
       model,
       headers,
@@ -928,14 +953,14 @@ export class ProviderModelRuntime {
     this.revision = snapshot.revision;
   }
 
-  private buildBody(options: ProviderRequestOptions): JsonObject {
-    if (this.endpoint.provider === "compatible" || this.endpoint.provider === "local") {
+  private buildBody(options: ProviderRequestOptions, endpoint = this.endpoint): JsonObject {
+    if (endpoint.provider === "compatible" || endpoint.provider === "local") {
       const systemMessages: JsonObject[] = options.system.map((block) => ({
         role: "system",
         content: block.text,
       }));
       return compatibleRequestBody({
-        baseUrl: this.endpoint.baseUrl,
+        baseUrl: endpoint.baseUrl,
         model: options.model,
         messages: [...systemMessages, ...options.messages.map(messageToJson)],
         tools: options.tools.map(toolToJson),
@@ -981,29 +1006,36 @@ export class ProviderModelRuntime {
     return body;
   }
 
-  private buildHeaders(requestId: string, betas: readonly string[]): Readonly<Record<string, string>> {
-    if (this.endpoint.provider === "compatible" || this.endpoint.provider === "local") {
+  private buildHeaders(
+    requestId: string,
+    betas: readonly string[],
+    endpoint = this.endpoint,
+    clientHeaders: Readonly<Record<string, string>> = {},
+  ): Readonly<Record<string, string>> {
+    if (endpoint.provider === "compatible" || endpoint.provider === "local") {
       const secret = this.credential.apiKey ?? this.credential.accessToken;
       return Object.freeze(compatibleHeaders(secret, {
         [CLIENT_REQUEST_ID_HEADER]: requestId,
         "user-agent": "zyra-code-worker/1",
-        ...this.endpoint.extraHeaders,
+        ...endpoint.extraHeaders,
+        ...clientHeaders,
       }));
     }
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "accept": "application/json",
-      "anthropic-version": this.endpoint.apiVersion,
+      "anthropic-version": endpoint.apiVersion,
       [CLIENT_REQUEST_ID_HEADER]: requestId,
       "user-agent": "zyra-code-worker/1",
-      ...this.endpoint.extraHeaders,
+      ...endpoint.extraHeaders,
+      ...clientHeaders,
     };
     const betaHeader = [...new Set(betas.map((value) => value.trim()).filter(Boolean))].sort().join(",");
     if (betaHeader) headers["anthropic-beta"] = betaHeader;
-    if (this.credential.kind === "api_key" && this.credential.apiKey) {
+    if (endpoint.provider === "anthropic" && this.credential.kind === "api_key" && this.credential.apiKey) {
       headers["x-api-key"] = this.credential.apiKey;
     }
-    if (this.credential.kind === "oauth" && this.credential.accessToken) {
+    if (endpoint.provider === "anthropic" && this.credential.kind === "oauth" && this.credential.accessToken) {
       headers.authorization = `Bearer ${this.credential.accessToken}`;
     }
     return Object.freeze(headers);

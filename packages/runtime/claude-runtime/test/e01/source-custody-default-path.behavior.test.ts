@@ -6,6 +6,7 @@ import {
   type ProviderRequestOptions,
   type ProviderTransport,
 } from "../../src/provider/model-runtime.ts";
+import { ProviderCacheCustodyRuntime } from "../../src/provider/cache-custody-runtime.ts";
 import {
   ContextCompactionRuntime,
   type CompactMessage,
@@ -74,6 +75,7 @@ const compactOptions = (): CompactOptions => ({
   customInstructions: "preserve decisions",
   attachments: [
     { kind: "file", path: "/workspace/read.txt", name: "read.txt", content: "a".repeat(30_000) },
+    { kind: "file", path: "/workspace/unread.txt", name: "unread.txt", content: "unread" },
     { kind: "file", path: "/workspace/node_modules/secret.txt", name: "secret", content: "secret" },
   ],
   querySource: "interactive-main",
@@ -103,8 +105,8 @@ const providerOptions = (): ProviderRequestOptions => ({
   taskId: "task-v9",
 });
 
-describe("E01 V9 default-path source custody", () => {
-  test("e01.v9.compaction-default-path-custody-is-canonical", async () => {
+describe("E01 V10 default-path source custody", () => {
+  test("e01.v10.compaction-default-path-custody-is-canonical", async () => {
     const runtime = new ContextCompactionRuntime();
     runtime.configureSessionMemory({ enabled: true, minimumMessages: 2, minimumTokens: 1_000 });
     let attempts = 0;
@@ -113,34 +115,68 @@ describe("E01 V9 default-path source custody", () => {
       return attempts === 1 ? "" : "canonical compact summary";
     });
     const snapshot = runtime.snapshot();
-    expect(runtime.getEffectiveContextWindowSize("local-model", 200_000)).toBe(128_000);
+    expect(runtime.getEffectiveContextWindowSize("claude-sonnet-4-5", 200_000)).toBe(180_000);
     expect(attempts).toBe(2);
-    expect(result.boundary.boundaryId).toContain("partial-");
+    expect(result.boundary.boundaryId).toContain("memory-");
+    expect(result.boundary.sourceCustody?.source).toBe("session-memory");
     expect(snapshot.sourceCustody?.lastMicrocompactAt["v9-session"]).toBeDefined();
-    expect(snapshot.sourceCustody?.pendingEdits["v9-session"]).toEqual(["read-1"]);
+    expect(snapshot.sourceCustody?.pendingEdits["v9-session"]).toBeUndefined();
+    expect(snapshot.sourceCustody?.consumedEdits["v9-session"]).toEqual(["read-1"]);
+    expect(snapshot.sourceCustody?.lastAutoCompaction["v9-session"]?.required).toBe(false);
+    expect(snapshot.sourceCustody?.lastPartialBoundary["v9-session"]?.preservedSegment).toHaveLength(1);
+    const sourceBoundaryId = snapshot.sourceCustody?.lastSessionMemory["v9-session"]?.boundary.boundaryId;
+    expect(sourceBoundaryId).toBeDefined();
+    expect(result.boundary.boundaryId.startsWith(`${sourceBoundaryId}-`)).toBe(true);
+    expect(snapshot.sourceCustody?.lastSummaryStream["v9-session"]?.attempts).toBe(2);
+    expect(snapshot.sessionMemory.sourceCustodyBoundaryId).toBe(result.boundary.boundaryId);
+    expect(snapshot.sessionMemory.consumedCacheEditIds).toEqual(["read-1"]);
     const restored = new ContextCompactionRuntime();
     restored.restore(snapshot);
     expect(restored.snapshot().sourceCustody).toEqual(snapshot.sourceCustody!);
   });
 
-  test("e01.v9.post-compact-restore-follows-read-lineage-and-budgets", () => {
+  test("e01.v10.compaction-auto-plan-controls-default-path", async () => {
+    const runtime = new ContextCompactionRuntime();
+    const result = await runtime.autoCompactIfNeeded(
+      compactMessages(),
+      { ...compactOptions(), trigger: "auto_threshold", contextWindow: 20_000 },
+      async () => "automatic summary",
+    );
+    expect(result?.boundary.trigger).toBe("auto_threshold");
+    expect(runtime.snapshot().sourceCustody?.lastAutoCompaction["v9-session"]?.required).toBe(true);
+  });
+
+  test("e01.v10.post-compact-restore-follows-read-lineage-and-budgets", () => {
     const runtime = new ContextCompactionRuntime();
     const messages = compactMessages();
     expect(runtime.collectReadToolFilePaths(messages)).toEqual(["/workspace/read.txt"]);
     expect(runtime.shouldExcludeFromPostCompactRestore("/workspace/node_modules/secret.txt", messages)).toBe(true);
+    expect(runtime.shouldExcludeFromPostCompactRestore("/workspace/read.txt", messages)).toBe(true);
+    expect(runtime.shouldExcludeFromPostCompactRestore("/workspace/unread.txt", messages)).toBe(false);
     const truncated = runtime.truncateToTokens("z".repeat(50_000), 100);
     expect(truncated.truncated).toBe(true);
+    expect(runtime.truncateToTokens(truncated.content, 100).content).toBe(truncated.content);
     const attachments = runtime.createPostCompactAttachments(compactOptions().attachments, messages);
     expect(attachments).toHaveLength(1);
-    expect(attachments[0]?.path).toBe("/workspace/read.txt");
+    expect(attachments[0]?.path).toBe("/workspace/unread.txt");
   });
 
-  test("e01.v9.provider-default-path-owns-cache-custody-and-parameters", () => {
+  test("e01.v10.provider-client-factory-controls-default-request", () => {
     const runtime = new ProviderModelRuntime();
-    runtime.configureEndpoint({ provider: "bedrock" });
+    runtime.configureEndpoint({ provider: "bedrock", region: "eu-west-1" });
+    runtime.configureCredential({ kind: "aws", fingerprint: "aws-fingerprint" });
     const prepared = runtime.prepare(providerOptions());
     const body = prepared.body as Record<string, unknown>;
     expect(prepared.sourceCustody.breakpointCount).toBeGreaterThan(0);
+    expect(prepared.sourceCustody.client?.transport).toBe("bedrock");
+    expect(prepared.sourceCustody.client?.auth).toBe("aws");
+    expect(prepared.sourceCustody.client?.credentialRefresh).toBe("aws");
+    expect(prepared.sourceCustody.client?.credentialFingerprint).toBe("aws-fingerprint");
+    expect(prepared.endpoint.baseUrl).toBe(prepared.sourceCustody.client!.endpoint);
+    expect(prepared.endpoint.baseUrl).toBe("https://bedrock-runtime.amazonaws.com");
+    expect(prepared.endpoint.region).toBe("eu-west-1");
+    expect(prepared.headers["x-app"]).toBe("cli");
+    expect(prepared.headers["x-claude-code-session-id"]).toBe("provider-v9");
     expect(JSON.stringify(body.system)).toContain("cache_control");
     expect(body.max_tokens).toBeLessThanOrEqual(MAX_NON_STREAMING_TOKENS);
     expect(runtime.resolveModel("haiku").maxOutputTokens).toBe(8_192);
@@ -149,9 +185,36 @@ describe("E01 V9 default-path source custody", () => {
     const restored = new ProviderModelRuntime();
     restored.restore(snapshot);
     expect(restored.snapshot().sourceCustody).toEqual(snapshot.sourceCustody!);
+
+    const custody = new ProviderCacheCustodyRuntime();
+    const foundry = custody.getAnthropicClient({
+      providerId: "anthropic",
+      model: "claude-sonnet-4-5",
+      credential: "secret",
+      sessionId: "factory-session",
+      environment: {
+        CLAUDE_CODE_USE_FOUNDRY: "1",
+        ANTHROPIC_FOUNDRY_RESOURCE: "zyra-resource",
+        CLAUDE_CODE_SKIP_FOUNDRY_AUTH: "true",
+      },
+    });
+    expect(foundry?.transport).toBe("foundry");
+    expect(foundry?.endpoint).toBe("https://zyra-resource.services.ai.azure.com");
+    expect(foundry?.skipAuth).toBe(true);
+    const vertex = custody.getAnthropicClient({
+      providerId: "vertex",
+      model: "claude-haiku-4-5",
+      credential: "gcp",
+      environment: {
+        ANTHROPIC_VERTEX_PROJECT_ID: "project-v10",
+        VERTEX_REGION_CLAUDE_HAIKU_4_5: "asia-east1",
+      },
+    });
+    expect(vertex?.projectId).toBe("project-v10");
+    expect(vertex?.region).toBe("asia-east1");
   });
 
-  test("e01.v9.provider-query-wrapper-settles-real-request-state", async () => {
+  test("e01.v10.provider-query-wrapper-settles-real-request-state", async () => {
     const runtime = new ProviderModelRuntime();
     const prepared = runtime.prepare(providerOptions());
     const transport: ProviderTransport = {
