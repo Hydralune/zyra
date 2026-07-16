@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "implementation_candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+  "exact_i_archive": {
+    "exit_code": 0,
+    "verification_status": "candidate_metadata_contract_mismatch",
+    "complete": false,
+    "effective_line_count": null,
+    "reason": "Immutable I contains pre-V5/stale candidate metadata and correctly fails closed."
+  },
+  "binding_m_bun_bundle": {
+    "exit_code": 0,
+    "verification_status": "ready_for_independent_review",
+    "complete": false,
+    "effective_line_count": 30841,
+    "implementation_candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+    "evidence_commit": "7bf8777c6a61c62eee04ab2bb1d907765b737d9d",
+    "review_target": "c21f1ac0aa13531121f24a766178e9d576165f46",
+    "review_commit": null
+  },
+  "binding_m_node_bundle": {
+    "node_version": "v22.17.0",
+    "exit_code": 0,
+    "verification_status": "ready_for_independent_review",
+    "complete": false,
+    "effective_line_count": 30841
+  },
+  "contract_version": "zyra.e01-verification/v5"
+}

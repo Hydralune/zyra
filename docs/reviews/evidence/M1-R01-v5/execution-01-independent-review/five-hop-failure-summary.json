@@ -1,0 +1,326 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+  "checkout_line_endings": "LF",
+  "command": [
+    "bun",
+    "scripts/verify_m1_r01_manifests.ts",
+    "verify",
+    "--enforce-gates"
+  ],
+  "exit_code": 1,
+  "declared": 290,
+  "complete": 242,
+  "incomplete": 48,
+  "cause_counts": {
+    "target_hash": 0,
+    "target_symbol": 0,
+    "callsite_invocation": 20,
+    "state_reachability": 23,
+    "behavior_test_maximum": 19,
+    "behavior_test_body": 19,
+    "mutation_link": 0
+  },
+  "incomplete_mappings": [
+    {
+      "mapping_id": "e01-rej-0038",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0226",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0227",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0229",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0239",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0240",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0241",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0242",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0246",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0249",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0250",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0251",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0252",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0253",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0254",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0255",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0256",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0257",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0258",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0259",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0260",
+      "causes": [
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0261",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0262",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0263",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0265",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0266",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0267",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0268",
+      "causes": [
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0269",
+      "causes": [
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0270",
+      "causes": [
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0271",
+      "causes": [
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0272",
+      "causes": [
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0273",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0274",
+      "causes": [
+        "callsite_invocation",
+        "state_reachability",
+        "behavior_test_maximum",
+        "behavior_test_body"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0282",
+      "causes": [
+        "callsite_invocation"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0284",
+      "causes": [
+        "callsite_invocation"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0296",
+      "causes": [
+        "callsite_invocation"
+      ]
+    },
+    {
+      "mapping_id": "e01-src-0304",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0305",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0306",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0307",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0308",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0309",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0310",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0317",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0318",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0319",
+      "causes": []
+    },
+    {
+      "mapping_id": "e01-src-0320",
+      "causes": []
+    }
+  ]
+}

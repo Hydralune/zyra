@@ -1,0 +1,121 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "generated_at_utc": "2026-07-16T00:41:05.648Z",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "enforce_gates": true,
+  "pass": false,
+  "failures": [
+    "incomplete five-hop chain e01-rej-0038",
+    "incomplete five-hop chain e01-src-0226",
+    "incomplete five-hop chain e01-src-0227",
+    "incomplete five-hop chain e01-src-0229",
+    "incomplete five-hop chain e01-src-0239",
+    "incomplete five-hop chain e01-src-0240",
+    "incomplete five-hop chain e01-src-0241",
+    "incomplete five-hop chain e01-src-0242",
+    "incomplete five-hop chain e01-src-0246",
+    "incomplete five-hop chain e01-src-0249",
+    "incomplete five-hop chain e01-src-0250",
+    "incomplete five-hop chain e01-src-0251",
+    "incomplete five-hop chain e01-src-0252",
+    "incomplete five-hop chain e01-src-0253",
+    "incomplete five-hop chain e01-src-0254",
+    "incomplete five-hop chain e01-src-0255",
+    "incomplete five-hop chain e01-src-0256",
+    "incomplete five-hop chain e01-src-0257",
+    "incomplete five-hop chain e01-src-0258",
+    "incomplete five-hop chain e01-src-0259",
+    "incomplete five-hop chain e01-src-0260",
+    "incomplete five-hop chain e01-src-0261",
+    "incomplete five-hop chain e01-src-0262",
+    "incomplete five-hop chain e01-src-0263",
+    "incomplete five-hop chain e01-src-0265",
+    "incomplete five-hop chain e01-src-0266",
+    "incomplete five-hop chain e01-src-0267",
+    "incomplete five-hop chain e01-src-0268",
+    "incomplete five-hop chain e01-src-0269",
+    "incomplete five-hop chain e01-src-0270",
+    "incomplete five-hop chain e01-src-0271",
+    "incomplete five-hop chain e01-src-0272",
+    "incomplete five-hop chain e01-src-0273",
+    "incomplete five-hop chain e01-src-0274",
+    "incomplete five-hop chain e01-src-0282",
+    "incomplete five-hop chain e01-src-0284",
+    "incomplete five-hop chain e01-src-0296",
+    "incomplete five-hop chain e01-src-0304",
+    "incomplete five-hop chain e01-src-0305",
+    "incomplete five-hop chain e01-src-0306",
+    "incomplete five-hop chain e01-src-0307",
+    "incomplete five-hop chain e01-src-0308",
+    "incomplete five-hop chain e01-src-0309",
+    "incomplete five-hop chain e01-src-0310",
+    "incomplete five-hop chain e01-src-0317",
+    "incomplete five-hop chain e01-src-0318",
+    "incomplete five-hop chain e01-src-0319",
+    "incomplete five-hop chain e01-src-0320"
+  ],
+  "thresholds": {
+    "accepted_source_executable_sloc": 10587,
+    "adapter_ratio_maximum": 0.1,
+    "behavior_tests_per_mapping_maximum": 2,
+    "core_mutation_kill_rate": 1,
+    "effective_behavior_test_sloc": 7000,
+    "effective_changed_typescript_sloc": 25416,
+    "final_non_test_typescript_sloc": 28000,
+    "mutation_ids_per_mapping_minimum": 1,
+    "mutation_points_minimum": 30,
+    "python_delete_executable_sloc": 26670,
+    "source_to_target_max_mappings_per_symbol": 60,
+    "source_to_target_unique_symbols_minimum": 20
+  },
+  "actual": {
+    "accepted_source_physical_sloc": 13229,
+    "accepted_source_executable_sloc": 13134,
+    "effective_changed_typescript_sloc": 26427,
+    "final_non_test_typescript_sloc": 36469,
+    "effective_behavior_test_sloc": 8836,
+    "adapter_ratio": 0,
+    "source_to_target_chain_count": 290,
+    "complete_source_to_target_chain_count": 242,
+    "unique_target_symbol_count": 53,
+    "maximum_mappings_per_target_symbol": 45,
+    "mutation_declared": 46,
+    "mutation_killed": 46,
+    "python_owner_paths_remaining": []
+  },
+  "evidence": {
+    "runtime-origin": {
+      "ok": true,
+      "probe_id": "e01.probe.runtime-origin"
+    },
+    "write-path": {
+      "ok": true,
+      "probe_id": "e01.probe.write-path"
+    },
+    "same-session-resume": {
+      "ok": true,
+      "probe_id": "e01.probe.same-session-resume"
+    },
+    "lost-ack": {
+      "ok": true,
+      "probe_id": "e01.probe.lost-ack"
+    },
+    "disable": {
+      "ok": true,
+      "probe_id": "e01.probe.disable"
+    },
+    "dependencies": {
+      "ok": true,
+      "probe_id": "e01.probe.dependencies"
+    },
+    "toolchain": {
+      "ok": true,
+      "probe_id": "e01.probe.toolchain"
+    },
+    "cleanroom": {
+      "ok": true,
+      "probe_id": "e01.probe.cleanroom"
+    }
+  }
+}

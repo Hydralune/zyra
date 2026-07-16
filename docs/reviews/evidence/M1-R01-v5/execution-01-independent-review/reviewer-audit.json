@@ -1,0 +1,894 @@
+{
+  "schema_version": "1.0",
+  "review": "M1-R01-v5-execution-01-independent-review",
+  "generated_at_utc": "2026-07-16T00:34:45.229Z",
+  "nonce": "9818fe1baa4faa311925e43721367ed99ce572672c4c4612785945daac0ab34acc35cf92c54c5e6fe0628c224914f19f73ee94d296718231ad2b7dee8532ebe5",
+  "verdict": "FAIL",
+  "failures": [
+    "19 target mappings failed structural audit",
+    "out-of-scope paths: packages/runtime/runtime-event-spine/src/contracts.ts,packages/runtime/runtime-event-spine/src/event-catalog.ts,packages/runtime/runtime-event-spine/src/normalizers.ts"
+  ],
+  "checks": {
+    "identity": {
+      "commits": {
+        "V": "c34535a783e88f9481387ced89cba4fbc333dc74",
+        "B": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+        "I": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+        "E": "7bf8777c6a61c62eee04ab2bb1d907765b737d9d",
+        "A": "c21f1ac0aa13531121f24a766178e9d576165f46",
+        "M": "fbf715833018a8d49a17f22171038c561d46ac9f",
+        "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+      },
+      "identities": {
+        "c34535a783e88f9481387ced89cba4fbc333dc74": {
+          "tree": "110fe74ed21150a37f1c62c372f9a14a2abdb0ed",
+          "parent": "4497e21e437f757cef3bf7b4de7fe704b3870b26"
+        },
+        "0cd21bff5e2d160476f2ce3cef766bf53aab1239": {
+          "tree": "57a7c620c0d937abf82b283364fa7402c8011f2e",
+          "parent": "c34535a783e88f9481387ced89cba4fbc333dc74"
+        },
+        "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c": {
+          "tree": "584b72ada03b41988998a52c213da16d4efb12d5",
+          "parent": "a3d4d5d7c26a007e375094940a16e05f7d7ce248"
+        },
+        "7bf8777c6a61c62eee04ab2bb1d907765b737d9d": {
+          "tree": "266aa78682cf61cfaf418353d888464bbecece25",
+          "parent": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c"
+        },
+        "c21f1ac0aa13531121f24a766178e9d576165f46": {
+          "tree": "266aa78682cf61cfaf418353d888464bbecece25",
+          "parent": "7bf8777c6a61c62eee04ab2bb1d907765b737d9d"
+        },
+        "fbf715833018a8d49a17f22171038c561d46ac9f": {
+          "tree": "5e40855b4c59769900d55881023382dab14a8190",
+          "parent": "c21f1ac0aa13531121f24a766178e9d576165f46"
+        }
+      },
+      "a_to_m_paths": [
+        "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json"
+      ],
+      "manifest_hashes": {
+        "execution-01-source-manifest.jsonl": "cc60b420442edfed1c3ed826c8a35a9a38907505ae8f4e96e19a8acdb03ba85e",
+        "execution-01-python-owner-baseline.jsonl": "66e07494ff8895384f155367a069f0a9a6e2e158644e792619a822498bdf2a3d",
+        "execution-01-target-custody-map.jsonl": "e29b218d77fc9443dbed04ce9edb16eca4c8b535ae7db66a18f2afaaf0b90501",
+        "execution-01-mutation-manifest.jsonl": "5d86871266b5ee0da7e1d511d418aae15047d1850d1efa8ca7acacffccb311db",
+        "execution-01-gate-profile.json": "4169f7c9520da1b9463d5852664d8aa5442d23727292413b1133d105601755b6"
+      }
+    },
+    "source_closure": {
+      "total": 360,
+      "accepted": 290,
+      "rejected": 70,
+      "unique_source_blobs": 21,
+      "raw_blob_hash_failures": [],
+      "range_failures": [],
+      "role_failures": [],
+      "accepted_executable_line_union": 10711,
+      "supplementary_count": 14,
+      "supplementary_ids": [
+        "e01-rej-0001",
+        "e01-rej-0002",
+        "e01-rej-0003",
+        "e01-rej-0011",
+        "e01-rej-0019",
+        "e01-rej-0022",
+        "e01-rej-0023",
+        "e01-rej-0028",
+        "e01-rej-0029",
+        "e01-rej-0030",
+        "e01-rej-0031",
+        "e01-rej-0036",
+        "e01-rej-0037",
+        "e01-rej-0038"
+      ],
+      "forbidden_accepted": [],
+      "forbidden_symbols_rejected": {
+        "getPersistenceThreshold": true,
+        "currentFlushPromise": true,
+        "formatImageRef": true,
+        "restoreSessionStateFromLog": true,
+        "createBudgetTracker": true,
+        "snipProjection": true,
+        "snipModule": true,
+        "cachedMCModule": true,
+        "buildToolNameMap": true
+      },
+      "accepted_by_domain": {
+        "query": 16,
+        "provider-model": 33,
+        "provider-recovery": 63,
+        "provider-telemetry": 40,
+        "compact": 82,
+        "context-token": 4,
+        "tool-execution": 8,
+        "tool-result": 30,
+        "session-lifecycle": 14
+      },
+      "rejected_by_domain": {
+        "provider-model": 7,
+        "provider-recovery": 9,
+        "provider-telemetry": 4,
+        "compact": 5,
+        "query": 3,
+        "context-token": 1,
+        "tool-result": 8,
+        "session-lifecycle": 33
+      }
+    },
+    "mutations": {
+      "declared": 46,
+      "unique_ids": 46,
+      "shape_failures": []
+    },
+    "five_hop": {
+      "mappings": 290,
+      "complete_structural_mappings": 271,
+      "failures": [
+        {
+          "mapping_id": "e01-src-0253",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0255",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0257",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0258",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0259",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0260",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0261",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0262",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0263",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0265",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0266",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0267",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0268",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0269",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0270",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0271",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0272",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0273",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        },
+        {
+          "mapping_id": "e01-src-0274",
+          "errors": [
+            "behavior-test-maximum"
+          ]
+        }
+      ],
+      "unique_target_symbols": 53,
+      "maximum_mappings_per_symbol": 45,
+      "test_count_distribution": {
+        "1": 192,
+        "2": 79,
+        "3": 19
+      },
+      "unique_target_blobs": 14,
+      "unique_test_blobs": 3
+    },
+    "python_cutover": {
+      "baseline_rows": 763,
+      "unique_owner_paths": 42,
+      "baseline_executable_line_union": 29020,
+      "undeleted_owner_paths": [],
+      "deleted_python_physical_lines_from_B_to_I": 35151,
+      "row_keys": [
+        "allowed_adapter_symbols",
+        "default_entry",
+        "deletion_test_id",
+        "disposition",
+        "end_line",
+        "execution_id",
+        "owner_id",
+        "python_path",
+        "python_sha256",
+        "python_symbol",
+        "record_type",
+        "schema_version",
+        "start_line",
+        "state_domain",
+        "verified_zyra_head"
+      ]
+    },
+    "scope_and_dependencies": {
+      "changed_path_count": 172,
+      "changed_paths": [
+        "apps/code-worker/src/main.ts",
+        "bun.lock",
+        "docs/reviews/M1-R01-execution-01-runtime-core-typescript-cutover-v2-review.md",
+        "docs/reviews/M1-R01-v2-execution-01-independent-review.md",
+        "docs/reviews/M1-R01-v3-execution-01-independent-review-final.md",
+        "docs/reviews/M1-R01-v3-execution-01-independent-review.md",
+        "docs/reviews/M1-R01-v3-execution-01-self-review.md",
+        "docs/reviews/M1-R01-v4-execution-01-critical-self-review.md",
+        "docs/reviews/M1-R01-v4-execution-01-independent-review.md",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/baseline.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/behavior-matrix.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/crash-matrix.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/dependency-audit.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/evidence-index.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/line-buckets.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/python-owner-result.jsonl",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/runtime-origin.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/source-coverage.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/source-target-map.jsonl",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/target-owner-map.jsonl",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/toolchain.json",
+        "docs/reviews/evidence/M1-R01-v2/execution-01/write-path-census.jsonl",
+        "docs/reviews/evidence/M1-R01-v3/execution-01-independent-review-evidence.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01-independent-review-final/reviewer-evidence.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-gate-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/cleanroom-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/dependencies-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/disable-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/g0-summary.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/lost-ack-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/runtime-origin-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/same-session-resume-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/source-to-target-five-hop.jsonl",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/toolchain-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/validation-summary-v4.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-01/write-path-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-01-independent-review/command-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-01-independent-review/effective-loc-audit.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-01-independent-review/manifest-audit.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-01-independent-review/mutation-audit.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-01-independent-review/reviewer-evidence.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-01-independent-review/runtime-probe-result.json",
+        "package.json",
+        "packages/runtime/claude-runtime/package.json",
+        "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+        "packages/runtime/claude-runtime/src/agents/index.ts",
+        "packages/runtime/claude-runtime/src/capability-host.ts",
+        "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+        "packages/runtime/claude-runtime/src/compact/restore-runtime.ts",
+        "packages/runtime/claude-runtime/src/compact/summary-runtime.ts",
+        "packages/runtime/claude-runtime/src/context/assembly-runtime.ts",
+        "packages/runtime/claude-runtime/src/context/cache-runtime.ts",
+        "packages/runtime/claude-runtime/src/context/token-runtime.ts",
+        "packages/runtime/claude-runtime/src/core/runtime-primitives.ts",
+        "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+        "packages/runtime/claude-runtime/src/e01/custody-helpers.ts",
+        "packages/runtime/claude-runtime/src/e01/execution-custody-runtime.ts",
+        "packages/runtime/claude-runtime/src/e01/kernel.ts",
+        "packages/runtime/claude-runtime/src/index.ts",
+        "packages/runtime/claude-runtime/src/input/query-input-runtime.ts",
+        "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts",
+        "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+        "packages/runtime/claude-runtime/src/model-stream.ts",
+        "packages/runtime/claude-runtime/src/protocol/command-runtime.ts",
+        "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts",
+        "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/request-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/response-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/routing-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+        "packages/runtime/claude-runtime/src/provider/transport-runtime.ts",
+        "packages/runtime/claude-runtime/src/query-engine.ts",
+        "packages/runtime/claude-runtime/src/query/execution-plan-runtime.ts",
+        "packages/runtime/claude-runtime/src/query/hook-runtime.ts",
+        "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
+        "packages/runtime/claude-runtime/src/query/stop-runtime.ts",
+        "packages/runtime/claude-runtime/src/query/stream-runtime.ts",
+        "packages/runtime/claude-runtime/src/session.ts",
+        "packages/runtime/claude-runtime/src/session/correlation-runtime.ts",
+        "packages/runtime/claude-runtime/src/session/durable-runtime.ts",
+        "packages/runtime/claude-runtime/src/session/history-runtime.ts",
+        "packages/runtime/claude-runtime/src/stdio.ts",
+        "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+        "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+        "packages/runtime/claude-runtime/src/tools/permission-enforcement-runtime.ts",
+        "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
+        "packages/runtime/claude-runtime/test/agents.test.ts",
+        "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/durable-session.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/effect-protocol.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/health-verification.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/mutation-contract.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/query-context.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/tool-protocol.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/runtime.test.ts",
+        "packages/runtime/claude-runtime/tsconfig.json",
+        "packages/runtime/runtime-event-spine/src/contracts.ts",
+        "packages/runtime/runtime-event-spine/src/event-catalog.ts",
+        "packages/runtime/runtime-event-spine/src/normalizers.ts",
+        "packages/runtime/zyra_runtime/__init__.py",
+        "packages/runtime/zyra_runtime/claude_control_commands.py",
+        "packages/runtime/zyra_runtime/claude_input_processor.py",
+        "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
+        "packages/runtime/zyra_runtime/claude_tool_use_runtime.py",
+        "packages/runtime/zyra_runtime/compact_restore_policy_runtime.py",
+        "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+        "packages/runtime/zyra_runtime/context_epoch_runtime.py",
+        "packages/runtime/zyra_runtime/model_api_runtime.py",
+        "packages/runtime/zyra_runtime/model_provider_runtime.py",
+        "packages/runtime/zyra_runtime/model_stream_watchdog_runtime.py",
+        "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py",
+        "packages/runtime/zyra_runtime/runtime_budget_state.py",
+        "packages/runtime/zyra_runtime/tool_runtime_budget_chain.py",
+        "packages/runtime/zyra_runtime/tool_runtime_budget_policy.py",
+        "packages/runtime/zyra_runtime/tool_runtime_cleanroom.py",
+        "packages/runtime/zyra_runtime/tool_runtime_concurrency.py",
+        "packages/runtime/zyra_runtime/tool_runtime_continuation.py",
+        "packages/runtime/zyra_runtime/tool_runtime_continuation_packet.py",
+        "packages/runtime/zyra_runtime/tool_runtime_contract_gate.py",
+        "packages/runtime/zyra_runtime/tool_runtime_effect_fingerprint.py",
+        "packages/runtime/zyra_runtime/tool_runtime_execution_timeline.py",
+        "packages/runtime/zyra_runtime/tool_runtime_failure_policy.py",
+        "packages/runtime/zyra_runtime/tool_runtime_foundation.py",
+        "packages/runtime/zyra_runtime/tool_runtime_foundation_audit.py",
+        "packages/runtime/zyra_runtime/tool_runtime_foundation_persistence.py",
+        "packages/runtime/zyra_runtime/tool_runtime_integration_audit.py",
+        "packages/runtime/zyra_runtime/tool_runtime_output_store.py",
+        "packages/runtime/zyra_runtime/tool_runtime_permission_checkpoint.py",
+        "packages/runtime/zyra_runtime/tool_runtime_permission_handoff.py",
+        "packages/runtime/zyra_runtime/tool_runtime_permission_session.py",
+        "packages/runtime/zyra_runtime/tool_runtime_readiness_matrix.py",
+        "packages/runtime/zyra_runtime/tool_runtime_replay_state.py",
+        "packages/runtime/zyra_runtime/tool_runtime_result_context.py",
+        "packages/runtime/zyra_runtime/tool_runtime_result_replay_index.py",
+        "packages/runtime/zyra_runtime/tool_runtime_semantic_effects.py",
+        "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+        "packages/runtime/zyra_runtime/tool_runtime_settlement.py",
+        "packages/runtime/zyra_runtime/tool_runtime_source_decisions.py",
+        "packages/runtime/zyra_runtime/tool_runtime_source_effects.py",
+        "packages/runtime/zyra_runtime/tool_runtime_streaming.py",
+        "packages/runtime/zyra_runtime/typescript_runtime_host.py",
+        "packages/workers/zyra_workers/__init__.py",
+        "packages/workers/zyra_workers/browser_context/context_port.py",
+        "packages/workers/zyra_workers/browser_context/task_integration.py",
+        "packages/workers/zyra_workers/browser_context/window_contract.py",
+        "packages/workers/zyra_workers/code_query_loop.py",
+        "packages/workers/zyra_workers/code_worker_runtime.py",
+        "packages/workers/zyra_workers/typescript_claude_runtime.py",
+        "scripts/remediation/m1_r01_e01_v3.ts",
+        "scripts/remediation/m1_r01_e01_v4.ts",
+        "scripts/remediation/probe_m1_r01_e01.ts",
+        "scripts/remediation/run_m1_r01_e01_mutations.ts",
+        "scripts/remediation/verify_m1_r01_e01_v3.ts",
+        "scripts/remediation/verify_m1_r01_e01_v4.ts",
+        "scripts/verify_m1_r01_manifests.ts",
+        "tests/integration/test_e01_typescript_runtime_cutover.py"
+      ],
+      "out_of_scope_paths": [
+        "packages/runtime/runtime-event-spine/src/contracts.ts",
+        "packages/runtime/runtime-event-spine/src/event-catalog.ts",
+        "packages/runtime/runtime-event-spine/src/normalizers.ts"
+      ],
+      "e02_e03_looking_production_delta": [
+        "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+        "packages/runtime/claude-runtime/src/agents/index.ts",
+        "packages/runtime/claude-runtime/test/agents.test.ts"
+      ],
+      "scanned_runtime_tree_paths": 96,
+      "forbidden_path_violations": [],
+      "symlinks": []
+    },
+    "binding_metadata": {
+      "expected": {
+        "verification_contract_version": "zyra.e01-verification/v5",
+        "implementation_candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+        "cleanroom_target": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+        "candidate_evidence_commit": "7bf8777c6a61c62eee04ab2bb1d907765b737d9d",
+        "independent_review_target": "c21f1ac0aa13531121f24a766178e9d576165f46",
+        "independent_review_verdict": "PENDING",
+        "candidate_status": "ready_for_independent_review",
+        "verified_complete": false
+      },
+      "actual": {
+        "candidate_evidence_commit": "7bf8777c6a61c62eee04ab2bb1d907765b737d9d",
+        "candidate_status": "ready_for_independent_review",
+        "cleanroom_target": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+        "execution_id": "E01",
+        "implementation_candidate": "7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c",
+        "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+        "independent_review_commit": null,
+        "independent_review_target": "c21f1ac0aa13531121f24a766178e9d576165f46",
+        "independent_review_verdict": "PENDING",
+        "notes": [
+          "The implementation diff starts after the pre-E01 0cd21bff5e2d checkpoint; that checkpoint receives zero E01 line credit.",
+          "Source hashes bind immutable Git blob bytes at the declared Claude snapshot, not checkout line endings.",
+          "Evidence and independent-review commits are populated only after validation and candidate freeze."
+        ],
+        "root_manifest_commit_boundary": "G:/agent-zoo/docs/remediations is outside the Zyra Git repository and is delivered as an explicit workspace boundary.",
+        "schema_version": "3.0",
+        "verification_contract_version": "zyra.e01-verification/v5",
+        "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+        "verified_complete": false
+      },
+      "mismatches": []
+    },
+    "nonce_sample": {
+      "nonce": "9818fe1baa4faa311925e43721367ed99ce572672c4c4612785945daac0ab34acc35cf92c54c5e6fe0628c224914f19f73ee94d296718231ad2b7dee8532ebe5",
+      "algorithm": "sha256(nonce|kind|mapping_id), one lowest-ranked row per semantic domain then global fill",
+      "accepted_sample": [
+        {
+          "rank": "00f0f3bec33bc01c2cba997d26a6f287c445b9eebbcfca8680192ced4ef16188",
+          "mapping_id": "e01-src-0181",
+          "domain": "compact",
+          "role": "primary",
+          "source_symbol": "src/services/compact/compact.ts::sessionTranscriptModule",
+          "source_range": [
+            6,
+            8
+          ],
+          "source_excerpt": "const sessionTranscriptModule = feature('KAIROS')\n  ? (require('../sessionTranscript/sessionTranscript.js') as typeof import('../sessionTranscript/sessionTranscript.js'))\n  : null",
+          "target_path": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+          "target_symbol": "ContextCompactionRuntime.compactConversation",
+          "source_behavior_claim": "src/services/compact/compact.ts::sessionTranscriptModule contributes executable compact behavior",
+          "target_behavior_claim": "ContextCompactionRuntime.compactConversation owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime externalizes large tool results and compacts context"
+          ],
+          "mutation_ids": [
+            "e01-mut-019-compact-restore"
+          ]
+        },
+        {
+          "rank": "2ccd2a4e52a79376570dfce1006b43fa99ffc1ec00ed888dd0da5ea692b7e764",
+          "mapping_id": "e01-src-0227",
+          "domain": "context-token",
+          "role": "primary",
+          "source_symbol": "src/query/tokenBudget.ts::DIMINISHING_THRESHOLD",
+          "source_range": [
+            4,
+            4
+          ],
+          "source_excerpt": "const DIMINISHING_THRESHOLD = 500",
+          "target_path": "packages/runtime/claude-runtime/src/context/token-runtime.ts",
+          "target_symbol": "ContextTokenRuntime.decide",
+          "source_behavior_claim": "DIMINISHING_THRESHOLD decides whether the active query can continue within its token budget",
+          "target_behavior_claim": "ContextTokenRuntime.decide emits the continue/compact/stop action from durable consumption state",
+          "semantic_equivalence": "Both sides enforce diminishing-budget termination; Zyra makes the tracker state snapshot-owned.",
+          "behavior_tests": [
+            "runtime externalizes large tool results and compacts context"
+          ],
+          "mutation_ids": [
+            "e01-mut-016-compact-threshold"
+          ]
+        },
+        {
+          "rank": "110bf985c996aa7f1964af313c4a4ced40a4ac10fc7468bfb2f190937fc742ed",
+          "mapping_id": "e01-src-0032",
+          "domain": "provider-model",
+          "role": "primary",
+          "source_symbol": "src/services/api/claude.ts::verifyApiKey",
+          "source_range": [
+            531,
+            587
+          ],
+          "source_excerpt": "export async function verifyApiKey(\n  apiKey: string,\n  isNonInteractiveSession: boolean,\n): Promise<boolean> {\n  // Skip API verification if running in print mode (isNonInteractiveSession)\n  if (isNonInteractiveSession) {\n    return true\n  }\n\n  try {\n    // WARNING: if you change this to use a non-Haiku model, this request will fail in 1P unless it uses getCLISyspromptPrefix.\n    const model = ge\n...<clipped>...\nomRetry\n    if (errorFromRetry instanceof CannotRetryError) {\n      error = errorFromRetry.originalError\n    }\n    logError(error)\n    // Check for authentication error\n    if (\n      error instanceof Error &&\n      error.message.includes(\n        '{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"}}',\n      )\n    ) {\n      return false\n    }\n    throw error\n  }\n}",
+          "target_path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+          "target_symbol": "E01RuntimeCoordinator.configureProviderRuntime",
+          "source_behavior_claim": "src/services/api/claude.ts::verifyApiKey contributes executable provider-model behavior",
+          "target_behavior_claim": "E01RuntimeCoordinator.configureProviderRuntime owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime commits provider prompt usage and recovery state through default loop"
+          ],
+          "mutation_ids": [
+            "e01-mut-025-stream-final",
+            "e01-mut-032-provider-lifecycle-custody",
+            "e01-mut-033-provider-execution-callback",
+            "e01-mut-034-execution-custody"
+          ]
+        },
+        {
+          "rank": "00f3396429ddf9551706c344d9cc3ab9ac5b78941557bf92826d1ac963acfb9e",
+          "mapping_id": "e01-src-0070",
+          "domain": "provider-recovery",
+          "role": "primary",
+          "source_symbol": "src/services/api/withRetry.ts::is529Error",
+          "source_range": [
+            610,
+            621
+          ],
+          "source_excerpt": "export function is529Error(error: unknown): boolean {\n  if (!(error instanceof APIError)) {\n    return false\n  }\n\n  // Check for 529 status code or overloaded error in message\n  return (\n    error.status === 529 ||\n    // See below: the SDK sometimes fails to properly pass the 529 status code during streaming\n    (error.message?.includes('\"type\":\"overloaded_error\"') ?? false)\n  )\n}",
+          "target_path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+          "target_symbol": "ProviderRecoveryRuntime.classify",
+          "source_behavior_claim": "src/services/api/withRetry.ts::is529Error contributes executable provider-recovery behavior",
+          "target_behavior_claim": "ProviderRecoveryRuntime.classify owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime lets canonical recovery policy stop a non-retryable provider request",
+            "runtime clears canonical recovery state after a retry succeeds"
+          ],
+          "mutation_ids": [
+            "e01-mut-022-retry-class",
+            "e01-mut-031-recovery-planner-custody"
+          ]
+        },
+        {
+          "rank": "0b2b42f86289e33c2f856e7db744db31402dd329eeb4d4a3ad04e4861ea5cda2",
+          "mapping_id": "e01-src-0113",
+          "domain": "provider-telemetry",
+          "role": "primary",
+          "source_symbol": "src/cost-tracker.ts::saveCurrentSessionCosts",
+          "source_range": [
+            143,
+            175
+          ],
+          "source_excerpt": "export function saveCurrentSessionCosts(fpsMetrics?: FpsMetrics): void {\n  saveCurrentProjectConfig(current => ({\n    ...current,\n    lastCost: getTotalCostUSD(),\n    lastAPIDuration: getTotalAPIDuration(),\n    lastAPIDurationWithoutRetries: getTotalAPIDurationWithoutRetries(),\n    lastToolDuration: getTotalToolDuration(),\n    lastDuration: getTotalDuration(),\n    lastLinesAdded: getTotalLinesAdde\n...<clipped>...\n [\n        model,\n        {\n          inputTokens: usage.inputTokens,\n          outputTokens: usage.outputTokens,\n          cacheReadInputTokens: usage.cacheReadInputTokens,\n          cacheCreationInputTokens: usage.cacheCreationInputTokens,\n          webSearchRequests: usage.webSearchRequests,\n          costUSD: usage.costUSD,\n        },\n      ]),\n    ),\n    lastSessionId: getSessionId(),\n  }))\n}",
+          "target_path": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+          "target_symbol": "ProviderTelemetryRuntime.recordUsage",
+          "source_behavior_claim": "src/cost-tracker.ts::saveCurrentSessionCosts contributes executable provider-telemetry behavior",
+          "target_behavior_claim": "ProviderTelemetryRuntime.recordUsage owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime commits provider prompt usage and recovery state through default loop"
+          ],
+          "mutation_ids": [
+            "e01-mut-026-usage"
+          ]
+        },
+        {
+          "rank": "01f275a0502f4a4ba8b06e8b6ad681b66941e02fc47073c7072b0f52b01eaeae",
+          "mapping_id": "e01-src-0014",
+          "domain": "query",
+          "role": "primary",
+          "source_symbol": "src/query.ts::MAX_OUTPUT_TOKENS_RECOVERY_LIMIT",
+          "source_range": [
+            164,
+            164
+          ],
+          "source_excerpt": "const MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3",
+          "target_path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+          "target_symbol": "E01RuntimeCoordinator.decideQuery",
+          "source_behavior_claim": "src/query.ts::MAX_OUTPUT_TOKENS_RECOVERY_LIMIT contributes executable query behavior",
+          "target_behavior_claim": "E01RuntimeCoordinator.decideQuery owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime owns multi-turn lifecycle and read-only batches"
+          ],
+          "mutation_ids": [
+            "e01-mut-011-turn-limit"
+          ]
+        },
+        {
+          "rank": "27c2ca4a04e7cbdb555c5427229862df6dcca4b4c960b448dd87682bbfbe02c9",
+          "mapping_id": "e01-src-0310",
+          "domain": "session-lifecycle",
+          "role": "primary",
+          "source_symbol": "src/history.ts::logEntryToHistoryEntry",
+          "source_range": [
+            265,
+            279
+          ],
+          "source_excerpt": "async function logEntryToHistoryEntry(entry: LogEntry): Promise<HistoryEntry> {\n  const pastedContents: Record<number, PastedContent> = {}\n\n  for (const [id, stored] of Object.entries(entry.pastedContents || {})) {\n    const resolved = await resolveStoredPastedContent(stored)\n    if (resolved) {\n      pastedContents[Number(id)] = resolved\n    }\n  }\n\n  return {\n    display: entry.display,\n    pastedContents,\n  }\n}",
+          "target_path": "packages/runtime/claude-runtime/src/session/history-runtime.ts",
+          "target_symbol": "SessionHistoryRuntime.restore",
+          "source_behavior_claim": "logEntryToHistoryEntry reads or appends session history/state used by a resumed query",
+          "target_behavior_claim": "SessionHistoryRuntime.restore changes or exposes the canonical session snapshot restored by the coordinator",
+          "semantic_equivalence": "Both sides preserve query-visible session continuity; Zyra supplies explicit snapshot custody and checksums.",
+          "behavior_tests": [
+            "e01.mutation.provider-observation-requires-a-new-provider-round"
+          ],
+          "mutation_ids": [
+            "e01-mut-040-iteration-repeated-tool-id"
+          ]
+        },
+        {
+          "rank": "05e3beb38e01214ff83172a2674b3fb033114bf0ccbf5361837330d5488b26d8",
+          "mapping_id": "e01-src-0232",
+          "domain": "tool-execution",
+          "role": "primary",
+          "source_symbol": "src/services/tools/toolOrchestration.ts::partitionToolCalls",
+          "source_range": [
+            91,
+            116
+          ],
+          "source_excerpt": "function partitionToolCalls(\n  toolUseMessages: ToolUseBlock[],\n  toolUseContext: ToolUseContext,\n): Batch[] {\n  return toolUseMessages.reduce((acc: Batch[], toolUse) => {\n    const tool = findToolByName(toolUseContext.options.tools, toolUse.name)\n    const parsedInput = tool?.inputSchema.safeParse(toolUse.input)\n    const isConcurrencySafe = parsedInput?.success\n      ? (() => {\n          try {\n \n...<clipped>...\nfe throws (e.g., due to shell-quote parse failure),\n            // treat as not concurrency-safe to be conservative\n            return false\n          }\n        })()\n      : false\n    if (isConcurrencySafe && acc[acc.length - 1]?.isConcurrencySafe) {\n      acc[acc.length - 1]!.blocks.push(toolUse)\n    } else {\n      acc.push({ isConcurrencySafe, blocks: [toolUse] })\n    }\n    return acc\n  }, [])\n}",
+          "target_path": "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+          "target_symbol": "ToolExecutionSettlementRuntime.recordGatewayReceipt",
+          "source_behavior_claim": "src/services/tools/toolOrchestration.ts::partitionToolCalls contributes executable tool-execution behavior",
+          "target_behavior_claim": "ToolExecutionSettlementRuntime.recordGatewayReceipt owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "settlement preserves request order across blocked and delegated calls"
+          ],
+          "mutation_ids": [
+            "e01-mut-041-settlement-gateway-fence"
+          ]
+        },
+        {
+          "rank": "01ea8418672d091c78f73f00ac9ce1e41eb2cdf247542bbe1dfb7394d7a37765",
+          "mapping_id": "e01-src-0261",
+          "domain": "tool-result",
+          "role": "primary",
+          "source_symbol": "src/utils/toolResultStorage.ts::isContentAlreadyCompacted",
+          "source_range": [
+            498,
+            505
+          ],
+          "source_excerpt": "function isContentAlreadyCompacted(\n  content: ToolResultBlockParam['content'],\n): boolean {\n  // All budget-produced content starts with the tag (buildLargeToolResultMessage).\n  // `.startsWith()` avoids false-positives when the tag appears anywhere else\n  // in the content (e.g., reading this source file).\n  return typeof content === 'string' && content.startsWith(PERSISTED_OUTPUT_TAG)\n}",
+          "target_path": "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+          "target_symbol": "ToolObservationBudgetRuntime.decisionFor",
+          "source_behavior_claim": "isContentAlreadyCompacted contributes candidate selection, replacement, preview or reconstruction before a subsequent model call",
+          "target_behavior_claim": "ToolObservationBudgetRuntime.decisionFor changes the provider-visible observation content or its durable replacement state",
+          "semantic_equivalence": "Both sides constrain accumulated tool observations before the next provider request; Zyra removes process-global and filesystem state.",
+          "behavior_tests": [
+            "e01.mutation.observation-budget-enforces-cross-result-limit",
+            "e01.mutation.observation-budget-restore-rejects-tampering",
+            "e01.integration.model-iteration-applies-observation-budget"
+          ],
+          "mutation_ids": [
+            "e01-mut-045-observation-budget-enforcement",
+            "e01-mut-046-observation-budget-snapshot-checksum"
+          ]
+        },
+        {
+          "rank": "00fec14f094c854d69089e5a1f72ad8247f37701ab1c5c37bdae25f36fa69a6b",
+          "mapping_id": "e01-src-0087",
+          "domain": "provider-recovery",
+          "role": "primary",
+          "source_symbol": "src/services/api/errors.ts::INVALID_API_KEY_ERROR_MESSAGE",
+          "source_range": [
+            155,
+            155
+          ],
+          "source_excerpt": "export const INVALID_API_KEY_ERROR_MESSAGE = 'Not logged in · Please run /login'",
+          "target_path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+          "target_symbol": "ProviderRecoveryRuntime.classify",
+          "source_behavior_claim": "src/services/api/errors.ts::INVALID_API_KEY_ERROR_MESSAGE contributes executable provider-recovery behavior",
+          "target_behavior_claim": "ProviderRecoveryRuntime.classify owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime lets canonical recovery policy stop a non-retryable provider request",
+            "runtime clears canonical recovery state after a retry succeeds"
+          ],
+          "mutation_ids": [
+            "e01-mut-022-retry-class",
+            "e01-mut-031-recovery-planner-custody"
+          ]
+        },
+        {
+          "rank": "01593eac40188d5fa5da2264650fedda137d10ac8114087ba1f5d7b8ea80c3b0",
+          "mapping_id": "e01-src-0076",
+          "domain": "provider-recovery",
+          "role": "primary",
+          "source_symbol": "src/services/api/withRetry.ts::handleGcpCredentialError",
+          "source_range": [
+            688,
+            694
+          ],
+          "source_excerpt": "function handleGcpCredentialError(error: unknown): boolean {\n  if (isVertexAuthError(error)) {\n    clearGcpCredentialsCache()\n    return true\n  }\n  return false\n}",
+          "target_path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+          "target_symbol": "ProviderRecoveryRuntime.classify",
+          "source_behavior_claim": "src/services/api/withRetry.ts::handleGcpCredentialError contributes executable provider-recovery behavior",
+          "target_behavior_claim": "ProviderRecoveryRuntime.classify owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime lets canonical recovery policy stop a non-retryable provider request",
+            "runtime clears canonical recovery state after a retry succeeds"
+          ],
+          "mutation_ids": [
+            "e01-mut-022-retry-class",
+            "e01-mut-031-recovery-planner-custody"
+          ]
+        },
+        {
+          "rank": "02545b492542dfc7f54949496e2607dbc1e0b1603cbf13b1edba7f98066f576b",
+          "mapping_id": "e01-src-0163",
+          "domain": "compact",
+          "role": "primary",
+          "source_symbol": "src/services/compact/microCompact.ts::collectCompactableToolIds",
+          "source_range": [
+            226,
+            241
+          ],
+          "source_excerpt": "function collectCompactableToolIds(messages: Message[]): string[] {\n  const ids: string[] = []\n  for (const message of messages) {\n    if (\n      message.type === 'assistant' &&\n      Array.isArray(message.message.content)\n    ) {\n      for (const block of message.message.content) {\n        if (block.type === 'tool_use' && COMPACTABLE_TOOLS.has(block.name)) {\n          ids.push(block.id)\n        }\n      }\n    }\n  }\n  return ids\n}",
+          "target_path": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+          "target_symbol": "ContextCompactionRuntime.compactConversation",
+          "source_behavior_claim": "src/services/compact/microCompact.ts::collectCompactableToolIds contributes executable compact behavior",
+          "target_behavior_claim": "ContextCompactionRuntime.compactConversation owns the corresponding Zyra runtime state transition",
+          "semantic_equivalence": "The source mechanism is adapted to Zyra contracts while preserving its externally observable runtime effect.",
+          "behavior_tests": [
+            "runtime externalizes large tool results and compacts context"
+          ],
+          "mutation_ids": [
+            "e01-mut-017-compact-tool-pair"
+          ]
+        }
+      ],
+      "rejected_sample": [
+        {
+          "rank": "3614139471b6eb51bc2ba1652729288ffcb0f8d0f3654b7cf45ad68a5f84bb6c",
+          "mapping_id": "e01-src-0151",
+          "domain": "compact",
+          "source_symbol": "src/services/compact/microCompact.ts::cachedMCModule",
+          "source_range": [
+            56,
+            56
+          ],
+          "source_excerpt": "let cachedMCModule: typeof import('./cachedMicrocompact.js') | null = null",
+          "exclusion_reason": "process-local cachedMCModule slot is deliberately rejected; no module-cache state is owned by ContextCompactionRuntime"
+        },
+        {
+          "rank": "889d67ad60d063247914b900b93c615a6fcccae8e572221e3d549df9d61ad391",
+          "mapping_id": "e01-src-0228",
+          "domain": "context-token",
+          "source_symbol": "src/query/tokenBudget.ts::createBudgetTracker",
+          "source_range": [
+            13,
+            20
+          ],
+          "source_excerpt": "export function createBudgetTracker(): BudgetTracker {\n  return {\n    continuationCount: 0,\n    lastDeltaTokens: 0,\n    lastGlobalTurnTokens: 0,\n    startedAt: Date.now(),\n  }\n}",
+          "exclusion_reason": "factory shape is not migrated; Zyra owns budget construction inside ContextTokenRuntime"
+        },
+        {
+          "rank": "19247c6d5491fdbfe4aa7ce08423196bc20a1381bd5f13266f340489196d776e",
+          "mapping_id": "e01-rej-0008",
+          "domain": "provider-model",
+          "source_symbol": "src/services/api/claude.ts::adjustParamsForNonStreaming",
+          "source_range": [
+            3365,
+            3393
+          ],
+          "source_excerpt": "export function adjustParamsForNonStreaming<\n  T extends {\n    max_tokens: number\n    thinking?: BetaMessageStreamParams['thinking']\n  },\n>(params: T, maxTokensCap: number): T {\n  const cappedMaxTokens = Math.min(params.max_tokens, maxTokensCap)\n\n  // Adjust thinking budget if it would exceed capped max_tokens\n  // to maintain the constraint: max_tokens > thinking.budget_tokens\n  const adjustedPar\n...<clipped>...\nustedParams.thinking?.type === 'enabled' &&\n    adjustedParams.thinking.budget_tokens\n  ) {\n    adjustedParams.thinking = {\n      ...adjustedParams.thinking,\n      budget_tokens: Math.min(\n        adjustedParams.thinking.budget_tokens,\n        cappedMaxTokens - 1, // Must be at least 1 less than max_tokens\n      ),\n    }\n  }\n\n  return {\n    ...adjustedParams,\n    max_tokens: cappedMaxTokens,\n  }\n}",
+          "exclusion_reason": "outside curated executable source boundary for E01"
+        },
+        {
+          "rank": "194c2dea04d4edb14136a1d57fa8eff91fc896fa001693ef19714fd419cd2b37",
+          "mapping_id": "e01-rej-0013",
+          "domain": "provider-recovery",
+          "source_symbol": "src/services/api/withRetry.ts::getMaxRetries",
+          "source_range": [
+            795,
+            797
+          ],
+          "source_excerpt": "function getMaxRetries(options: RetryOptions): number {\n  return options.maxRetries ?? getDefaultMaxRetries()\n}",
+          "exclusion_reason": "outside curated executable source boundary for E01"
+        },
+        {
+          "rank": "281e4fc27c24961de8493c657352538b2e02c0c7685769096c920a5bfc3f185c",
+          "mapping_id": "e01-rej-0026",
+          "domain": "provider-telemetry",
+          "source_symbol": "src/services/api/promptCacheBreakDetection.ts::resetPromptCacheBreakDetection",
+          "source_range": [
+            704,
+            706
+          ],
+          "source_excerpt": "export function resetPromptCacheBreakDetection(): void {\n  previousStateBySource.clear()\n}",
+          "exclusion_reason": "outside curated executable source boundary for E01"
+        },
+        {
+          "rank": "171f143e36dcb28b9b95e3c8cfdbc53f3535a37cb6632b924211c3d8536b777e",
+          "mapping_id": "e01-src-0004",
+          "domain": "query",
+          "source_symbol": "src/QueryEngine.ts::snipProjection",
+          "source_range": [
+            127,
+            129
+          ],
+          "source_excerpt": "const snipProjection = feature('HISTORY_SNIP')\n  ? (require('./services/compact/snipProjection.js') as typeof import('./services/compact/snipProjection.js'))\n  : null",
+          "exclusion_reason": "conditional snipProjection module binding has no migrated projection or module-loading effect in E01"
+        },
+        {
+          "rank": "0067f9dda1b9505e86b3a3dec716d90c147a285e8dafd5f21817c4f7487e429c",
+          "mapping_id": "e01-src-0278",
+          "domain": "session-lifecycle",
+          "source_symbol": "src/utils/sessionState.ts::permissionModeListener",
+          "source_range": [
+            58,
+            58
+          ],
+          "source_excerpt": "let permissionModeListener: PermissionModeChangedListener | null = null",
+          "exclusion_reason": "process-global listener state is rejected; canonical session state is held by DurableSessionRuntime"
+        },
+        {
+          "rank": "0eaf0fd8996286631daca10cfb912e6750823ec0f861caebf0d5a4496d2609d2",
+          "mapping_id": "e01-src-0247",
+          "domain": "tool-result",
+          "source_symbol": "src/utils/toolResultStorage.ts::getToolResultPath",
+          "source_range": [
+            114,
+            117
+          ],
+          "source_excerpt": "export function getToolResultPath(id: string, isJson: boolean): string {\n  const ext = isJson ? 'json' : 'txt'\n  return join(getToolResultsDir(), `${id}.${ext}`)\n}",
+          "exclusion_reason": "filesystem persistence and process-global replacement state are deliberately not migrated"
+        }
+      ]
+    }
+  }
+}

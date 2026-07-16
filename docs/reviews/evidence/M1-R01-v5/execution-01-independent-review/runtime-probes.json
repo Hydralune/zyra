@@ -1,0 +1,304 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "reviewer_nonce": "9818fe1baa4faa311925e43721367ed99ce572672c4c4612785945daac0ab34acc35cf92c54c5e6fe0628c224914f19f73ee94d296718231ad2b7dee8532ebe5",
+  "all_ok": true,
+  "probes": {
+    "runtime-origin": {
+      "schema_version": "3.0",
+      "execution_id": "E01",
+      "probe_id": "e01.probe.runtime-origin",
+      "generated_at_utc": "2026-07-16T00:36:43.827Z",
+      "ok": true,
+      "entry_path": "apps/code-worker/src/main.ts",
+      "entry_command": [
+        "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+        "apps/code-worker/src/main.ts",
+        "--e01-inventory"
+      ],
+      "runtime_version": "zyra.e01-runtime/v6",
+      "canonical_owner": "typescript",
+      "journal_revision": 1,
+      "command_receipt": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "apps/code-worker/src/main.ts",
+          "--e01-inventory"
+        ],
+        "exit_code": 0,
+        "duration_ms": 173,
+        "stdout_sha256": "cff1d8931cc654f2a8bbbfc72dd26edfcbb97c8a810468385a64d329c039f759",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_excerpt": ",\"payload_digest\":\"sha256:1c0561044243d9c2686ec4dc7671c2121d1276ee563724eb64a0acfac5b24c7b\",\"revision\":1},\"payloadDigest\":\"sha256:5ed22f67f1cd5276ef9ff42ab96404190993877749ee3ee7528e5a732a51deda\",\"createdAt\":\"2026-07-16T00:36:43.793Z\",\"checksum\":\"sha256:3acae9b05d762142686567c0ced09c3c163bfdd3d679e06d43313d4f99567215\"}],\"receipts\":[{\"receiptId\":\"c92c7e49-6753-473e-9460-71d2435f4967\",\"frameId\":\"aeae33c8-347e-4ee3-a45c-e4c5f5fe2505\",\"direction\":\"inbound\",\"sequence\":1,\"accepted\":true,\"duplicate\":false,\"reason\":\"accepted\",\"receivedAt\":\"2026-07-16T00:36:43.791Z\"}],\"checksum\":\"sha256:916244b5a324e8eb36cb0533fed9d48ffcc2f95ec6129f56f35bf3e0c3ee4141\"},\"commands\":{\"version\":\"zyra.protocol-commands/v1\",\"descriptors\":[{\"commandName\":\"runtime.inventory\",\"owner\":\"e01-coordinator\",\"description\":\"Return the live E01 runtime custody inventory.\",\"risk\":\"read\",\"fields\":[],\"requiredCapabilities\":[\"runtime.read\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}},{\"commandName\":\"session.cancel\",\"owner\":\"e01-coordinator\",\"description\":\"Cancel the active query using the canonical lifecycle owner.\",\"risk\":\"interrupt\",\"fields\":[{\"name\":\"reason\",\"type\":\"string\",\"required\":true,\"enumValues\":[],\"minimum\":null,\"maximum\":null,\"maximumLength\":1000}],\"requiredCapabilities\":[\"runtime.control\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}}],\"executions\":[],\"checksum\":\"e89c4858a7f47ca14479e0b29ad540df421cb030e725dfda03719f7c68a412a4\"},\"custody\":{\"version\":\"zyra.e01-execution-custody/v1\",\"sessionId\":\"inventory\",\"runId\":\"inventory\",\"revision\":0,\"restartEpoch\":0,\"providers\":[],\"tools\":[],\"turns\":[],\"messages\":[],\"checksum\":\"sha256:a222da6175181f82fb4fbd8e7471571e3023d2cc62a8ef55639250e02019531c\"},\"checksum\":\"sha256:0e6c6418c8f4ddbc3d81a539e31e0d0cc987d567ecba3baf08492b220202df9d\"}}",
+        "stderr_excerpt": ""
+      }
+    },
+    "write-path": {
+      "schema_version": "3.0",
+      "execution_id": "E01",
+      "probe_id": "e01.probe.write-path",
+      "generated_at_utc": "2026-07-16T00:36:44.072Z",
+      "ok": true,
+      "default_callsite": "ClaudeRuntimeCore.run -> E01RuntimeCoordinator.recordRuntimeEvent -> Journal.commit",
+      "transition_id": "probe-write-session:epoch0:revision1:sequence2:170e8c29-d8fb-4c76-a967-cae1671237b4",
+      "revision_before": 1,
+      "revision_after": 2,
+      "state_digest_before": "35892eb869a23fee2c7bddc4af57d3d1e92a3765892c7273ac7479ce5b2303e5",
+      "state_digest_after": "1edcf686febe3f93628e28a32275e8dd151f158a54802c2462e8568b2036b27a",
+      "committed_count": 2,
+      "canonical_owner": "typescript"
+    },
+    "same-session-resume": {
+      "schema_version": "3.0",
+      "execution_id": "E01",
+      "probe_id": "e01.probe.same-session-resume",
+      "generated_at_utc": "2026-07-16T00:36:44.798Z",
+      "ok": true,
+      "session_id": "probe-resume-session",
+      "process_restart_count": 2,
+      "process_ids": [
+        79140,
+        67764,
+        67704
+      ],
+      "force_killed_processes": [
+        true,
+        true,
+        true
+      ],
+      "revisions": [
+        2,
+        4,
+        6
+      ],
+      "restart_epochs": [
+        0,
+        1,
+        2
+      ],
+      "custody_restart_epochs": [
+        0,
+        1,
+        2
+      ],
+      "epoch_transition_ids": [
+        [
+          "probe-resume-session:epoch0:revision0:sequence1:52008e30-612c-49ea-ba3c-448c5c1ae7f9",
+          "probe-resume-session:epoch0:revision1:sequence2:90334c22-1168-4415-a011-0307abceebdb"
+        ],
+        [
+          "probe-resume-session:epoch1:revision2:sequence3:170ace22-6068-4bf0-8edf-3c5d4a072796",
+          "probe-resume-session:epoch1:revision3:sequence4:671dd6b3-9f02-44ba-84f0-b50707015d8f"
+        ],
+        [
+          "probe-resume-session:epoch2:revision4:sequence5:93989e48-c0ef-4c43-b20f-67a0de91f460",
+          "probe-resume-session:epoch2:revision5:sequence6:0028456f-b6b2-4fed-9364-e952bd824434"
+        ]
+      ],
+      "replayed_transition_ids": [],
+      "worker_receipts": [
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-v5-independent-9818fe1baa4faa31\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
+            "resume-worker",
+            "0",
+            "-",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\snapshot-0.json",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\marker-0.json"
+          ],
+          "exit_code": 143,
+          "duration_ms": 165,
+          "force_killed": true,
+          "process_id": 79140,
+          "snapshot_sha256": "932c5b745aaa49a6ddbcf0a1b32521022e96e7173df7650099040c26ad8df427",
+          "stdout_sha256": "7068e7baba195ee9a0c8b8eeb60f0d8215b6d1e066e75f1a459cde0e7581531a",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-v5-independent-9818fe1baa4faa31\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
+            "resume-worker",
+            "1",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\snapshot-0.json",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\snapshot-1.json",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\marker-1.json"
+          ],
+          "exit_code": 143,
+          "duration_ms": 167,
+          "force_killed": true,
+          "process_id": 67764,
+          "snapshot_sha256": "69617f21f2ccc5f75f6cc8b5fce24176b090ec4f74ef202dbbb7a136cc72a82f",
+          "stdout_sha256": "40cf2a5830eca6d4a32d074ff92feadb0015c7a303f5a18cbde8f0fb12160774",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-v5-independent-9818fe1baa4faa31\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
+            "resume-worker",
+            "2",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\snapshot-1.json",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\snapshot-2.json",
+            "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-d15d62d9-0900-4b58-97ce-9e768cc26bd8\\marker-2.json"
+          ],
+          "exit_code": 143,
+          "duration_ms": 171,
+          "force_killed": true,
+          "process_id": 67704,
+          "snapshot_sha256": "770a0194612cc6541b476468749d82f859685468a4597344921c095b96be99fa",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "isolation_root": "system temporary directory outside repository",
+      "cleaned_after_run": true
+    },
+    "lost-ack": {
+      "schema_version": "3.0",
+      "execution_id": "E01",
+      "probe_id": "e01.probe.lost-ack",
+      "generated_at_utc": "2026-07-16T00:36:45.061Z",
+      "ok": true,
+      "transition_id": "probe-ack-session:epoch0:revision0:sequence1:525ca367-4fed-4f4e-a9d2-2aed84eb5fed",
+      "duplicate_retry": true,
+      "revision_at_commit": 1,
+      "revision_after_retries": 1,
+      "committed_count_before_ack": 1,
+      "committed_count_after_ack": 1,
+      "outbox_id": "probe-ack-session:epoch0:revision0:sequence1:525ca367-4fed-4f4e-a9d2-2aed84eb5fed:outbox:1",
+      "first_delivered_at": "2026-07-15T00:00:00Z",
+      "replay_delivered_at": "2026-07-15T00:00:00Z",
+      "repeated_effect_count": 0
+    },
+    "disable": {
+      "schema_version": "3.0",
+      "execution_id": "E01",
+      "probe_id": "e01.probe.disable",
+      "generated_at_utc": "2026-07-16T00:36:45.442Z",
+      "ok": true,
+      "disabled_component": "E01RuntimeCoordinator.bootstrap",
+      "environment_gate": "ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME=1",
+      "default_entry_failed": true,
+      "expected_error": "e01_typescript_runtime_disabled",
+      "command_receipt": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "apps/code-worker/src/main.ts",
+          "--e01-inventory"
+        ],
+        "exit_code": 1,
+        "duration_ms": 152,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "1e916c5050d15f93e1c1d0ee2d2f2d962d2375581e58f9af29c81555493ff671",
+        "stdout_excerpt": "",
+        "stderr_excerpt": "346 |     this.restored = true;\n347 |   }\n348 | \n349 |   async bootstrap(): Promise<TransitionReceipt> {\n350 |     if (process.env.ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME === \"1\") {\n351 |       throw new Error(\"e01_typescript_runtime_disabled\");\n                  ^\nerror: e01_typescript_runtime_disabled\n      at bootstrap (C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-v5-independent-9818fe1baa4faa31\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:351:13)\n      at bootstrap (C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-v5-independent-9818fe1baa4faa31\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:349:49)\n      at C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-v5-independent-9818fe1baa4faa31\\zyra\\apps\\code-worker\\src\\main.ts:1:448\n\nBun v1.2.15 (Windows x64)"
+      }
+    },
+    "dependencies": {
+      "schema_version": "3.0",
+      "execution_id": "E01",
+      "probe_id": "e01.probe.dependencies",
+      "generated_at_utc": "2026-07-16T00:36:45.713Z",
+      "ok": true,
+      "scanned_file_count": 96,
+      "runtime_roots": [
+        "apps/code-worker",
+        "packages/runtime/claude-runtime"
+      ],
+      "forbidden_runtime_path_violations": [],
+      "runtime_symlinks": [],
+      "relative_package_links": [],
+      "clean_dependency_path": true
+    },
+    "toolchain": {
+      "schema_version": "3.0",
+      "execution_id": "E01",
+      "probe_id": "e01.probe.toolchain",
+      "generated_at_utc": "2026-07-16T00:36:35.193Z",
+      "ok": true,
+      "bun_version": "1.2.15",
+      "typescript_version": "5.8.3",
+      "commands": [
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "--version"
+          ],
+          "exit_code": 0,
+          "duration_ms": 41,
+          "stdout_sha256": "091d55b64de2013341ba60beea22ca1392e1c258d68ff2aa2e8f901cf9723d63",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_excerpt": "1.2.15",
+          "stderr_excerpt": ""
+        },
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "install",
+            "--frozen-lockfile"
+          ],
+          "exit_code": 0,
+          "duration_ms": 82,
+          "stdout_sha256": "4db97d1545ffee9a4aa18b79acdde9604050415427241eb1611ca8d39f41ff34",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_excerpt": "bun install v1.2.15 (df017990)\n\nChecked 10 installs across 11 packages (no changes) [33.00ms]",
+          "stderr_excerpt": ""
+        },
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "run",
+            "typecheck:e01"
+          ],
+          "exit_code": 0,
+          "duration_ms": 2836,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_sha256": "97c71f9cafa7e1e6b971587726cb7ea7105e4d8a43bee0ae06b6026113b59d51",
+          "stdout_excerpt": "",
+          "stderr_excerpt": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json"
+        },
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "run",
+            "build"
+          ],
+          "exit_code": 0,
+          "duration_ms": 179,
+          "stdout_sha256": "440befef866ea274c4caee2da63ee2c9a1f068f6c1796298939387371739844b",
+          "stderr_sha256": "65431c908d5f420fd2b75f75cbdb9ddeb8d8001428d8c9584ad475532ce1cd71",
+          "stdout_excerpt": "Bundled 78 modules in 51ms\n\n  main.js  1.16 MB  (entry point)",
+          "stderr_excerpt": "$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun"
+        },
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "run",
+            "runtime:e01:test"
+          ],
+          "exit_code": 0,
+          "duration_ms": 1489,
+          "stdout_sha256": "11a0cc41569f7e0e890f4f768aea6f6fb679a37222b2ae46d26c9a2c285957bb",
+          "stderr_sha256": "ec56a7977ea5574ed56c4829defbc6f3f81e012f7de140b99269939ac5aacd65",
+          "stdout_excerpt": "bun test v1.2.15 (df017990)",
+          "stderr_excerpt": " deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result [16.00ms]\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [15.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers [16.00ms]\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 386 pass\n 0 fail\n 1225 expect() calls\nRan 386 tests across 13 files. [1332.00ms]"
+        },
+        {
+          "command": [
+            "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+            "run",
+            "runtime:built:health"
+          ],
+          "exit_code": 0,
+          "duration_ms": 226,
+          "stdout_sha256": "108ce4c49f2a18fbe85399deee328764b91070728b40126196f7f85af312c8a5",
+          "stderr_sha256": "29d97decfbe8a94d5d09903b661e84808e3d17e1a5476b8b9e476cb0f621e53e",
+          "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"candidate_metadata_contract_mismatch\",\"effectiveLineCount\":null,\"implementationCandidate\":null,\"evidenceCommit\":null,\"reviewTarget\":null,\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
+          "stderr_excerpt": "$ bun dist/code-worker/main.js --health"
+        }
+      ]
+    }
+  }
+}

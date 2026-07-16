@@ -1,0 +1,276 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "nonce": "9818fe1baa4faa311925e43721367ed99ce572672c4c4612785945daac0ab34acc35cf92c54c5e6fe0628c224914f19f73ee94d296718231ad2b7dee8532ebe5",
+  "algorithm": "sha256(nonce|kind|mapping_id), one lowest-ranked row per semantic domain then global fill",
+  "accepted_summary": {
+    "sampled": 12,
+    "pass": 6,
+    "fail": 6
+  },
+  "rejected_summary": {
+    "sampled": 8,
+    "adequate": 5,
+    "insufficient": 3
+  },
+  "accepted": [
+    {
+      "mapping_id": "e01-src-0181",
+      "domain": "compact",
+      "source_symbol": "src/services/compact/compact.ts::sessionTranscriptModule",
+      "target_path": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+      "target_symbol": "ContextCompactionRuntime.compactConversation",
+      "behavior_tests": [
+        "runtime externalizes large tool results and compacts context"
+      ],
+      "mutation_ids": [
+        "e01-mut-019-compact-restore"
+      ],
+      "verdict": "FAIL",
+      "rationale": "Feature-gated sessionTranscriptModule loading is mapped to general compaction; the target/test/mutation do not prove the module-loading or transcript behavior."
+    },
+    {
+      "mapping_id": "e01-src-0227",
+      "domain": "context-token",
+      "source_symbol": "src/query/tokenBudget.ts::DIMINISHING_THRESHOLD",
+      "target_path": "packages/runtime/claude-runtime/src/context/token-runtime.ts",
+      "target_symbol": "ContextTokenRuntime.decide",
+      "behavior_tests": [
+        "runtime externalizes large tool results and compacts context"
+      ],
+      "mutation_ids": [
+        "e01-mut-016-compact-threshold"
+      ],
+      "verdict": "PASS",
+      "rationale": "The diminishing threshold is represented by the context token decision owner."
+    },
+    {
+      "mapping_id": "e01-src-0032",
+      "domain": "provider-model",
+      "source_symbol": "src/services/api/claude.ts::verifyApiKey",
+      "target_path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+      "target_symbol": "E01RuntimeCoordinator.configureProviderRuntime",
+      "behavior_tests": [
+        "runtime commits provider prompt usage and recovery state through default loop"
+      ],
+      "mutation_ids": [
+        "e01-mut-025-stream-final",
+        "e01-mut-032-provider-lifecycle-custody",
+        "e01-mut-033-provider-execution-callback",
+        "e01-mut-034-execution-custody"
+      ],
+      "verdict": "FAIL",
+      "rationale": "verifyApiKey performs remote credential verification, while configureProviderRuntime only configures endpoints and registers/selects/resolves a credential."
+    },
+    {
+      "mapping_id": "e01-src-0070",
+      "domain": "provider-recovery",
+      "source_symbol": "src/services/api/withRetry.ts::is529Error",
+      "target_path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+      "target_symbol": "ProviderRecoveryRuntime.classify",
+      "behavior_tests": [
+        "runtime lets canonical recovery policy stop a non-retryable provider request",
+        "runtime clears canonical recovery state after a retry succeeds"
+      ],
+      "mutation_ids": [
+        "e01-mut-022-retry-class",
+        "e01-mut-031-recovery-planner-custody"
+      ],
+      "verdict": "PASS",
+      "rationale": "529 classification is represented by the provider recovery classifier."
+    },
+    {
+      "mapping_id": "e01-src-0113",
+      "domain": "provider-telemetry",
+      "source_symbol": "src/cost-tracker.ts::saveCurrentSessionCosts",
+      "target_path": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+      "target_symbol": "ProviderTelemetryRuntime.recordUsage",
+      "behavior_tests": [
+        "runtime commits provider prompt usage and recovery state through default loop"
+      ],
+      "mutation_ids": [
+        "e01-mut-026-usage"
+      ],
+      "verdict": "PASS",
+      "rationale": "Saving session costs is adapted to durable provider usage recording."
+    },
+    {
+      "mapping_id": "e01-src-0014",
+      "domain": "query",
+      "source_symbol": "src/query.ts::MAX_OUTPUT_TOKENS_RECOVERY_LIMIT",
+      "target_path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+      "target_symbol": "E01RuntimeCoordinator.decideQuery",
+      "behavior_tests": [
+        "runtime owns multi-turn lifecycle and read-only batches"
+      ],
+      "mutation_ids": [
+        "e01-mut-011-turn-limit"
+      ],
+      "verdict": "FAIL",
+      "rationale": "MAX_OUTPUT_TOKENS_RECOVERY_LIMIT is mapped to turn/abort/empty admission and killed by a turn-limit mutant; output-token recovery is not demonstrated."
+    },
+    {
+      "mapping_id": "e01-src-0310",
+      "domain": "session-lifecycle",
+      "source_symbol": "src/history.ts::logEntryToHistoryEntry",
+      "target_path": "packages/runtime/claude-runtime/src/session/history-runtime.ts",
+      "target_symbol": "SessionHistoryRuntime.restore",
+      "behavior_tests": [
+        "e01.mutation.provider-observation-requires-a-new-provider-round"
+      ],
+      "mutation_ids": [
+        "e01-mut-040-iteration-repeated-tool-id"
+      ],
+      "verdict": "FAIL",
+      "rationale": "logEntryToHistoryEntry conversion is mapped to snapshot restore, and the cited test/mutant concerns provider observation/repeated tool IDs rather than history conversion."
+    },
+    {
+      "mapping_id": "e01-src-0232",
+      "domain": "tool-execution",
+      "source_symbol": "src/services/tools/toolOrchestration.ts::partitionToolCalls",
+      "target_path": "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+      "target_symbol": "ToolExecutionSettlementRuntime.recordGatewayReceipt",
+      "behavior_tests": [
+        "settlement preserves request order across blocked and delegated calls"
+      ],
+      "mutation_ids": [
+        "e01-mut-041-settlement-gateway-fence"
+      ],
+      "verdict": "FAIL",
+      "rationale": "partitionToolCalls classifies concurrency-safe calls into batches; recordGatewayReceipt only settles an already planned delegated call and the test checks receipt order."
+    },
+    {
+      "mapping_id": "e01-src-0261",
+      "domain": "tool-result",
+      "source_symbol": "src/utils/toolResultStorage.ts::isContentAlreadyCompacted",
+      "target_path": "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+      "target_symbol": "ToolObservationBudgetRuntime.decisionFor",
+      "behavior_tests": [
+        "e01.mutation.observation-budget-enforces-cross-result-limit",
+        "e01.mutation.observation-budget-restore-rejects-tampering",
+        "e01.integration.model-iteration-applies-observation-budget"
+      ],
+      "mutation_ids": [
+        "e01-mut-045-observation-budget-enforcement",
+        "e01-mut-046-observation-budget-snapshot-checksum"
+      ],
+      "verdict": "PASS",
+      "rationale": "Already-compacted detection is represented by the observation-budget decision state."
+    },
+    {
+      "mapping_id": "e01-src-0087",
+      "domain": "provider-recovery",
+      "source_symbol": "src/services/api/errors.ts::INVALID_API_KEY_ERROR_MESSAGE",
+      "target_path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+      "target_symbol": "ProviderRecoveryRuntime.classify",
+      "behavior_tests": [
+        "runtime lets canonical recovery policy stop a non-retryable provider request",
+        "runtime clears canonical recovery state after a retry succeeds"
+      ],
+      "mutation_ids": [
+        "e01-mut-022-retry-class",
+        "e01-mut-031-recovery-planner-custody"
+      ],
+      "verdict": "PASS",
+      "rationale": "The invalid-key signal is represented in provider error classification."
+    },
+    {
+      "mapping_id": "e01-src-0076",
+      "domain": "provider-recovery",
+      "source_symbol": "src/services/api/withRetry.ts::handleGcpCredentialError",
+      "target_path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+      "target_symbol": "ProviderRecoveryRuntime.classify",
+      "behavior_tests": [
+        "runtime lets canonical recovery policy stop a non-retryable provider request",
+        "runtime clears canonical recovery state after a retry succeeds"
+      ],
+      "mutation_ids": [
+        "e01-mut-022-retry-class",
+        "e01-mut-031-recovery-planner-custody"
+      ],
+      "verdict": "FAIL",
+      "rationale": "handleGcpCredentialError clears cached credentials; the mapped classifier and linked tests do not demonstrate that invalidation side effect."
+    },
+    {
+      "mapping_id": "e01-src-0163",
+      "domain": "compact",
+      "source_symbol": "src/services/compact/microCompact.ts::collectCompactableToolIds",
+      "target_path": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+      "target_symbol": "ContextCompactionRuntime.compactConversation",
+      "behavior_tests": [
+        "runtime externalizes large tool results and compacts context"
+      ],
+      "mutation_ids": [
+        "e01-mut-017-compact-tool-pair"
+      ],
+      "verdict": "PASS",
+      "rationale": "Compactable tool-use collection is represented by compaction pair preservation and its mutant."
+    }
+  ],
+  "rejected": [
+    {
+      "mapping_id": "e01-src-0151",
+      "domain": "compact",
+      "source_symbol": "src/services/compact/microCompact.ts::cachedMCModule",
+      "exclusion_reason": "process-local cachedMCModule slot is deliberately rejected; no module-cache state is owned by ContextCompactionRuntime",
+      "verdict": "PASS",
+      "rationale": "Process-local module cache state is explicitly and substantively rejected."
+    },
+    {
+      "mapping_id": "e01-src-0228",
+      "domain": "context-token",
+      "source_symbol": "src/query/tokenBudget.ts::createBudgetTracker",
+      "exclusion_reason": "factory shape is not migrated; Zyra owns budget construction inside ContextTokenRuntime",
+      "verdict": "PASS",
+      "rationale": "The factory shape is explicitly rejected while construction is Zyra-owned."
+    },
+    {
+      "mapping_id": "e01-rej-0008",
+      "domain": "provider-model",
+      "source_symbol": "src/services/api/claude.ts::adjustParamsForNonStreaming",
+      "exclusion_reason": "outside curated executable source boundary for E01",
+      "verdict": "FAIL",
+      "rationale": "outside curated executable source boundary is tautological and does not explain why non-streaming token adjustment is excluded."
+    },
+    {
+      "mapping_id": "e01-rej-0013",
+      "domain": "provider-recovery",
+      "source_symbol": "src/services/api/withRetry.ts::getMaxRetries",
+      "exclusion_reason": "outside curated executable source boundary for E01",
+      "verdict": "FAIL",
+      "rationale": "outside curated executable source boundary is tautological and does not explain why max-retry selection is excluded."
+    },
+    {
+      "mapping_id": "e01-rej-0026",
+      "domain": "provider-telemetry",
+      "source_symbol": "src/services/api/promptCacheBreakDetection.ts::resetPromptCacheBreakDetection",
+      "exclusion_reason": "outside curated executable source boundary for E01",
+      "verdict": "FAIL",
+      "rationale": "outside curated executable source boundary is tautological and does not explain why cache-break reset is excluded."
+    },
+    {
+      "mapping_id": "e01-src-0004",
+      "domain": "query",
+      "source_symbol": "src/QueryEngine.ts::snipProjection",
+      "exclusion_reason": "conditional snipProjection module binding has no migrated projection or module-loading effect in E01",
+      "verdict": "PASS",
+      "rationale": "The unimplemented conditional module-loading effect is specifically identified."
+    },
+    {
+      "mapping_id": "e01-src-0278",
+      "domain": "session-lifecycle",
+      "source_symbol": "src/utils/sessionState.ts::permissionModeListener",
+      "exclusion_reason": "process-global listener state is rejected; canonical session state is held by DurableSessionRuntime",
+      "verdict": "PASS",
+      "rationale": "Process-global listener state is specifically rejected in favor of durable session custody."
+    },
+    {
+      "mapping_id": "e01-src-0247",
+      "domain": "tool-result",
+      "source_symbol": "src/utils/toolResultStorage.ts::getToolResultPath",
+      "exclusion_reason": "filesystem persistence and process-global replacement state are deliberately not migrated",
+      "verdict": "PASS",
+      "rationale": "Filesystem path ownership is specifically rejected in favor of the artifact boundary."
+    }
+  ]
+}

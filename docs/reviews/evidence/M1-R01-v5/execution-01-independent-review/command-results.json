@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "reviewer_nonce": "9818fe1baa4faa311925e43721367ed99ce572672c4c4612785945daac0ab34acc35cf92c54c5e6fe0628c224914f19f73ee94d296718231ad2b7dee8532ebe5",
+  "verdict": "FAIL",
+  "commands": [
+    {
+      "id": "identity-freeze",
+      "command": "git rev-parse/show/merge-base for V/B/I/E/A/M",
+      "exit_code": 0,
+      "result": "ancestry V->B->I->E->A->M; E and A share tree; A->M metadata-only"
+    },
+    {
+      "id": "independent-blob-manifest-audit",
+      "command": "bun independent-audit.mjs <review-root> <nonce>",
+      "exit_code": 1,
+      "duration_ms": 35900,
+      "result": "source/blob/Python/metadata passed; target-profile and scope gates failed"
+    },
+    {
+      "id": "exact-i-cleanroom",
+      "command": "bun run e01:cleanroom at detached I",
+      "exit_code": 0,
+      "duration_ms": 15500,
+      "result": "git archive; Bun 1.2.15; frozen install; TS 5.8.3; typecheck/build; 386/386 tests; built health fail-closed"
+    },
+    {
+      "id": "toolchain-wrapper-first",
+      "command": "bun run e01:toolchain at fresh temp clone",
+      "exit_code": 1,
+      "result": "wrapper exposed no child receipt; isolated exact-I cleanroom had already passed"
+    },
+    {
+      "id": "toolchain-subcommands",
+      "command": "bun --version; install --frozen-lockfile; typecheck:e01; build; runtime:e01:test; runtime:built:health",
+      "exit_code": 0,
+      "duration_ms": 6600,
+      "result": "all six child commands passed; 386/386 tests"
+    },
+    {
+      "id": "toolchain-wrapper-rerun",
+      "command": "bun run e01:toolchain",
+      "exit_code": 0,
+      "duration_ms": 6000,
+      "result": "all six receipts passed"
+    },
+    {
+      "id": "runtime-probes",
+      "command": "runtime-origin; write-path; resume; lost-ack; disable; dependencies",
+      "exit_code": 0,
+      "duration_ms": 3400,
+      "result": "all probes passed; three forced processes; no replay; disable failed closed; zero dependency violations"
+    },
+    {
+      "id": "mutations",
+      "command": "bun run e01:mutation",
+      "exit_code": 0,
+      "duration_ms": 20500,
+      "result": "46 declared/applied/compiled/killed; 46 patch matches; 0 invalid/survived; restored SHA match"
+    },
+    {
+      "id": "strict-v5-gate",
+      "command": "bun scripts/remediation/verify_m1_r01_e01_v4.ts --candidate I --output strict-gate.json",
+      "exit_code": 0,
+      "duration_ms": 90000,
+      "result": "290/290 structural five-hop; effective changed TS 30841"
+    },
+    {
+      "id": "binding-m-health",
+      "command": "bun run runtime:built:health with M metadata overlay",
+      "exit_code": 0,
+      "result": "ready_for_independent_review; I/E/A bound; complete=false"
+    },
+    {
+      "id": "candidate-gate-crlf",
+      "command": "bun scripts/verify_m1_r01_manifests.ts verify --enforce-gates",
+      "exit_code": 1,
+      "duration_ms": 6300,
+      "result": "0/290 due checkout-byte hash mismatch plus intrinsic failures"
+    },
+    {
+      "id": "candidate-gate-lf",
+      "command": "same candidate gate in core.autocrlf=false detached-I clone",
+      "exit_code": 1,
+      "duration_ms": 5900,
+      "result": "242/290; 20 callsite, 23 state reachability, 19 test maximum/body failures"
+    },
+    {
+      "id": "node-built-health",
+      "command": "node dist/code-worker/main.js --health",
+      "exit_code": 0,
+      "duration_ms": 1300,
+      "result": "Node v22.17.0; ready_for_independent_review; effectiveLineCount 30841"
+    }
+  ]
+}
