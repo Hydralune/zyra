@@ -577,18 +577,57 @@ export class E01RuntimeCoordinator {
     return decision;
   }
 
-  recordProvider(operation: string, payload: O): TransitionReceipt {
+  observeProviderGateway(operation: string, payload: O): string | null {
     const json = payload as unknown as JsonObject;
-    const canonicalPayload: O = { ...payload };
+    const modelStream = asRuntimeObject(json.model_stream);
     const responseHeaders = Object.fromEntries(
-      Object.entries(asRuntimeObject(json.response_headers)).map(([name, value]) => [
+      Object.entries(asRuntimeObject(json.response_headers || modelStream.response_headers)).map(([name, value]) => [
         name.toLowerCase(),
         asRuntimeString(value, ""),
       ]),
     );
     const detectedGateway = this.telemetry.detectGateway({
       headers: responseHeaders,
-      baseUrl: asRuntimeString(json.base_url || json.provider_base_url, "") || null,
+      baseUrl: asRuntimeString(
+        json.base_url
+          || json.provider_base_url
+          || modelStream.base_url
+          || modelStream.provider_base_url,
+        "",
+      ) || null,
+    });
+    this.telemetry.logging_module({
+      action: "log",
+      level: "debug",
+      name: `provider.${operation}.gateway`,
+      session_id: this.sessionId,
+      run_id: this.runId,
+      task_id: this.taskId,
+      summary: `provider ${operation} gateway observation`,
+      attributes: { ...json, detected_gateway: detectedGateway },
+    });
+    return detectedGateway;
+  }
+
+  recordProvider(operation: string, payload: O): TransitionReceipt {
+    const json = payload as unknown as JsonObject;
+    const canonicalPayload: O = { ...payload };
+    const modelStream = asRuntimeObject(json.model_stream);
+    const responseHeaders = Object.fromEntries(
+      Object.entries(asRuntimeObject(json.response_headers || modelStream.response_headers)).map(([name, value]) => [
+        name.toLowerCase(),
+        asRuntimeString(value, ""),
+      ]),
+    );
+    const detectedGateway = this.telemetry.detectGateway({
+      headers: responseHeaders,
+      baseUrl: asRuntimeString(
+        json.base_url
+          || json.provider_base_url
+          || modelStream.base_url
+          || modelStream.provider_base_url,
+        "",
+      ) || null,
     });
     if (detectedGateway) canonicalPayload.detected_gateway = detectedGateway;
     this.telemetry.logging_module({

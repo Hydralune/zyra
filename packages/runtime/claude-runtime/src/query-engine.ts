@@ -153,6 +153,12 @@ export class ClaudeRuntimeCore {
         worker_request_id: input.workerRequestId,
         ...payload,
       };
+      if (phase === "model_stream_report") {
+        e01.observeProviderGateway(phase, {
+          ...payload,
+          provider_base_url: config.runtimeConstraints.model_api_base_url ?? null,
+        });
+      }
       e01.recordRuntimeEvent(phase, payload);
       await host.emitEvent({ ...event, e01_revision: e01.journal.revision });
     };

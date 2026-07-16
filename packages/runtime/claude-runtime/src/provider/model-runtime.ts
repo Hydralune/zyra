@@ -212,6 +212,7 @@ export interface ProviderUsage {
 export interface ProviderResponse {
   requestId: string;
   providerRequestId: string | null;
+  headers: Readonly<Record<string, string>>;
   model: string;
   role: "assistant";
   content: ProviderContentBlock[];
@@ -728,6 +729,7 @@ export class ProviderModelRuntime {
       throw error;
     }
     if (!parsed.providerRequestId) parsed.providerRequestId = record.providerRequestId;
+    parsed.headers = { ...response.headers };
     record.state = "completed";
     record.responseDigest = digest(responseToJson(parsed));
     record.completedAt = new Date().toISOString();
@@ -1261,6 +1263,7 @@ export function parseProviderResponse(requestId: string, value: JsonValue | unde
   return {
     requestId,
     providerRequestId: nullableString(body.id, null),
+    headers: {},
     model: asString(body.model, "unknown"),
     role: "assistant",
     content,
@@ -1332,6 +1335,7 @@ export async function consumeProviderStream(
   return {
     requestId,
     providerRequestId: state.providerRequestId,
+    headers: {},
     model: state.model,
     role: "assistant",
     content,

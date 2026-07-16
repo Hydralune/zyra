@@ -141,7 +141,7 @@ export function providerExecutionSuccess(
   return {
     ok: true,
     status: 200,
-    headers: {},
+    headers: { ...response.headers },
     steps,
     usage: {
       input_tokens: response.usage.inputTokens,

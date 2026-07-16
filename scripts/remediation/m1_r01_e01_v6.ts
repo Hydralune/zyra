@@ -41,6 +41,7 @@ const QUERY_SYMBOL = "ClaudeRuntimeCore.run";
 const COORDINATOR_PATH = "packages/runtime/claude-runtime/src/e01/coordinator.ts";
 const SEMANTIC_TEST_PATH =
   "packages/runtime/claude-runtime/test/e01/semantic-custody.behavior.test.ts";
+const RUNTIME_TEST_PATH = "packages/runtime/claude-runtime/test/runtime.test.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -676,7 +677,7 @@ const routeGatewayDetection = (target: JsonRecord, source: JsonRecord): void => 
     targetPath,
     targetSymbol,
     callsitePath: COORDINATOR_PATH,
-    callsiteSymbol: "E01RuntimeCoordinator.recordProvider",
+    callsiteSymbol: "E01RuntimeCoordinator.observeProviderGateway",
     owner: "e01.provider-gateway-detection",
     stateStore: "E01RuntimeSnapshot.telemetry",
     stateProperty: "telemetry",
@@ -684,14 +685,22 @@ const routeGatewayDetection = (target: JsonRecord, source: JsonRecord): void => 
     stateObservation: "telemetry.events[].attributes.detected_gateway",
     adaptation: "Claude response-header and provider-host fingerprints are retained as structured Zyra telemetry attributes.",
     sourceClaim: "detectGateway classifies known proxy headers and provider-owned host suffixes",
-    targetClaim: "ProviderTelemetryRuntime.detectGateway classifies the same inputs before recordProvider commits telemetry",
+    targetClaim: "ProviderTelemetryRuntime.detectGateway classifies the same inputs before observeProviderGateway commits telemetry",
     equivalence: "Both prefer deterministic header prefixes and fall back to a bounded hostname suffix table.",
-    tests: [behaviorTest(
-      "e01.semantic.gateway-detection-is-recorded-by-provider-custody",
-      SEMANTIC_TEST_PATH,
-      "runtime.recordProvider",
-      ["detected_gateway", "kong", "databricks"],
-    )],
+    tests: [
+      behaviorTest(
+        "e01.semantic.gateway-detection-is-recorded-by-provider-custody",
+        SEMANTIC_TEST_PATH,
+        "runtime.recordProvider",
+        ["detected_gateway", "kong", "databricks"],
+      ),
+      behaviorTest(
+        "runtime commits provider prompt usage and recovery state through default loop",
+        RUNTIME_TEST_PATH,
+        "new ClaudeRuntimeCore().run",
+        ["provider.model_stream_report.gateway", "detected_gateway", "kong"],
+      ),
+    ],
     mutations: ["e01-mut-052-gateway-fingerprint"],
   });
 };
@@ -842,7 +851,10 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
       "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
       "ProviderTelemetryRuntime.detectGateway",
       "provider-gateway-fingerprint",
-      ["e01.semantic.gateway-detection-is-recorded-by-provider-custody"],
+      [
+        "e01.semantic.gateway-detection-is-recorded-by-provider-custody",
+        "runtime commits provider prompt usage and recovery state through default loop",
+      ],
     ],
   ];
   const byId = new Map(records.map((record) => [String(record.mutation_id), record]));

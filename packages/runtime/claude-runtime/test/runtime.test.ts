@@ -70,7 +70,11 @@ interface E01RuntimeView {
   };
   query: { revision: number };
   compact: { boundaries: unknown[] };
-  telemetry: { prompts: unknown[]; samples: unknown[] };
+  telemetry: {
+    prompts: unknown[];
+    samples: unknown[];
+    events: Array<{ name: string; attributes: Record<string, unknown> }>;
+  };
   recovery: { contexts: unknown[] };
   providerPrompt: { lastPrompt: { fingerprint: string } | null };
   providerRequests: {
@@ -250,6 +254,7 @@ test("runtime commits provider prompt usage and recovery state through default l
         headers: {
           "content-type": "text/event-stream",
           "request-id": "provider-final-upstream-request",
+          "x-kong-upstream-latency": "8",
         },
       });
     }
@@ -276,6 +281,7 @@ test("runtime commits provider prompt usage and recovery state through default l
       headers: {
         "content-type": "text/event-stream",
         "request-id": "provider-success-upstream-request",
+        "x-kong-upstream-latency": "12",
       },
     });
   }) as unknown as typeof fetch;
@@ -319,6 +325,14 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.equal(successState.providerRouting.states.find((item) => item.routeId === "compatible-default")?.inFlight, 0);
   assert.deepEqual(successState.providerRateLimits.reservations.map((item) => item.status), ["committed", "committed"]);
   assert.equal(successState.providerRateLimits.buckets.find((item) => item.limitId === "compatible-default-requests")?.consumed, 2);
+  const gatewayEvent = successState.telemetry.events.find((item) =>
+    item.name === "provider.model_stream_report.gateway"
+  );
+  assert.equal(
+    gatewayEvent?.attributes.detected_gateway,
+    "kong",
+    JSON.stringify(successState.telemetry.events),
+  );
   assert.deepEqual(successState.provider.requests.map((item) => item.state), ["completed", "completed"]);
   assert.deepEqual(successState.providerTransport.requests.map((item) => item.state), ["completed", "completed"]);
   assert.equal(successState.providerCredentials.records.length, 1);
