@@ -847,7 +847,7 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
   ["createCompactionResultFromSessionMemory", compactCustodyRoute("createCompactionResultFromSessionMemory", "e01.custody.compact-session-memory-builds-real-result", ["stored summary", "savedTokenCount"])],
   ["trySessionMemoryCompaction", compactCustodyRoute("trySessionMemoryCompaction", "e01.custody.compact-session-memory-fallback-is-null", ["toBeNull", "enabled: false"])],
   ["StreamingToolExecutor", {
-    targetPath: "packages/runtime/claude-runtime/src/e01/capability-host.ts",
+    targetPath: "packages/runtime/claude-runtime/src/capability-host.ts",
     targetSymbol: "PermissionedCapabilityHost.executeBatch",
     callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
     callsiteSymbol: "E01RuntimeCoordinator.executeCapabilities",
