@@ -779,6 +779,7 @@ interface ExactCustodyRoute {
   stateObservation: string;
   testName: string;
   testTokens: string[];
+  testPath?: string;
 }
 
 const providerCustodyRoute = (
@@ -856,8 +857,9 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
     stateProperty: "capabilityHost",
     stateKind: "ordered-permissioned-tool-settlement",
     stateObservation: "capabilityHost.settlements[].receipts + progress.sequence",
-    testName: "settlement preserves request order and synthesizes denied and unanswered receipts",
-    testTokens: ["settlement.receipts", "request order"],
+    testName: "e01.mutation.permission-mixed-batch-delegates-only-allowed-calls",
+    testTokens: ["allowed", "delegate"],
+    testPath: "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
   }],
 ]);
 
@@ -878,7 +880,7 @@ const routeExactCustody = (target: JsonRecord, source: JsonRecord): boolean => {
     sourceClaim: `${sourceName(source)} owns the corresponding Claude runtime behavior`,
     targetClaim: `${route.targetSymbol} implements that behavior and exposes its concrete state effect`,
     equivalence: "The target preserves the source decision and failure semantics while writing Zyra-owned request, recovery, compaction or settlement state.",
-    tests: [behaviorTest(route.testName, SOURCE_CUSTODY_TEST_PATH, route.testName, route.testTokens)],
+    tests: [behaviorTest(route.testName, route.testPath ?? SOURCE_CUSTODY_TEST_PATH, route.testName, route.testTokens)],
     mutations: [],
   });
   return true;
@@ -980,12 +982,14 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
       "provider-gateway-fingerprint",
       [
         "e01.semantic.gateway-detection-is-recorded-by-provider-custody",
-        "runtime commits provider prompt usage and recovery state through default loop",
       ],
     ],
   ];
   const byId = new Map(records.map((record) => [String(record.mutation_id), record]));
   const correctedKillerTests: Record<string, string[]> = {
+    "e01-mut-034-execution-custody": [
+      "runtime commits provider prompt usage and recovery state through default loop",
+    ],
     "e01-mut-035-transport-slot-finally": [
       "e01.mutation.transport-slot-closes-after-parser-failure",
     ],
@@ -1032,6 +1036,21 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
   );
 };
 
+const targetDisconnectKillerTests: Record<string, string[]> = {
+  "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts::ModelIterationRuntime.restore": [
+    "e01.integration.model-iteration-applies-observation-budget",
+  ],
+  "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts::ModelIterationRuntime.snapshot": [
+    "e01.integration.model-iteration-applies-observation-budget",
+  ],
+  "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts::ProviderTelemetryRuntime.notifyCompaction": [
+    "runtime externalizes large tool results and compacts context",
+  ],
+  "packages/runtime/claude-runtime/src/capability-host.ts::PermissionedCapabilityHost.executeBatch": [
+    "e01.mutation.permission-mixed-batch-delegates-only-allowed-calls",
+  ],
+};
+
 const addTargetDisconnectMutations = (
   records: JsonRecord[],
   targets: JsonRecord[],
@@ -1049,7 +1068,8 @@ const addTargetDisconnectMutations = (
     const behavior = group.flatMap((target) => Array.isArray(target.behavior_tests)
       ? target.behavior_tests as JsonRecord[]
       : []);
-    const testNames = [...new Set(behavior.map((item) => String(item.name)).filter(Boolean))].sort();
+    const discoveredTestNames = [...new Set(behavior.map((item) => String(item.name)).filter(Boolean))].sort();
+    const testNames = targetDisconnectKillerTests[key] ?? discoveredTestNames;
     const testPaths = [...new Set(behavior.map((item) => String(item.path)).filter(Boolean))].sort();
     const spec = targetDisconnectSpec(targetPath, targetSymbol, testPaths, id);
     byId.set(id, {
