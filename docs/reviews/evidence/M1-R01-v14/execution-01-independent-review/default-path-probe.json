@@ -1,0 +1,29 @@
+{
+  "checkpoint": {
+    "canonical_owner": "typescript",
+    "checkpoint_event_sequence": 14,
+    "checkpoint_phase": "query_session_snapshot",
+    "ok": true,
+    "revision": 2,
+    "session_id": "e01-default-checkpoint-session"
+  },
+  "concurrent_read_only": {
+    "elapsed_ms": 406.935,
+    "execution_mode": "concurrent_read_only",
+    "ok": true,
+    "overlap": true,
+    "request_count": 2,
+    "result_order": [
+      "turn_e0e780af3aac4b8c90d78c870cc3de0c:tool:1",
+      "turn_e0e780af3aac4b8c90d78c870cc3de0c:tool:2"
+    ]
+  },
+  "lost_tool_ack": {
+    "executor_invocations": 1,
+    "first_run_failed_closed": true,
+    "ok": true,
+    "receipt_count": 1,
+    "resumed": true
+  },
+  "schema": "zyra.m1-r01.e01-default-path-probe.v1"
+}

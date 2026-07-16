@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "review_id": "M1-R01-v14",
+  "target_commit": "dba1804a445501e8fd4c33970855427ad70df901",
+  "verdict": "PASS",
+  "generated_at_utc": "2026-07-16T13:56:25.3415508Z",
+  "findings": [
+    {
+      "id": "V13-F1",
+      "status": "closed",
+      "evidence": "incremental checkpoint plus lost-ACK resume executes effect once"
+    },
+    {
+      "id": "V13-F2",
+      "status": "closed",
+      "evidence": "read-only batch overlaps while preserving result order"
+    },
+    {
+      "id": "V13-F3",
+      "status": "closed",
+      "evidence": "TypeScript permission owner removed; Python gateway remains canonical"
+    },
+    {
+      "id": "V13-F4",
+      "status": "closed",
+      "evidence": "active turn restored from checkpoint"
+    },
+    {
+      "id": "V13-F5",
+      "status": "closed",
+      "evidence": "health completion requires SHA-256-bound gate, receipt, and report"
+    }
+  ],
+  "checks": {
+    "strict_gate": {
+      "ok": true,
+      "accepted_sources": 276,
+      "five_hop_mappings": 276,
+      "mutations": 121,
+      "effective_changed_typescript": 32283
+    },
+    "mutation": {
+      "ok": true,
+      "killed": 121,
+      "survived": 0
+    },
+    "runtime_tests": {
+      "ok": true,
+      "passed": 422,
+      "failed": 0
+    },
+    "python_integration": {
+      "ok": true,
+      "passed": 13,
+      "failed": 0
+    },
+    "cleanroom": {
+      "ok": true,
+      "target_commit": "dba1804a445501e8fd4c33970855427ad70df901"
+    },
+    "dependencies": {
+      "ok": true,
+      "scanned_files": 100,
+      "violations": 0
+    },
+    "default_path": {
+      "checkpoint": true,
+      "concurrent_read_only": true,
+      "lost_ack_exactly_once": true
+    }
+  },
+  "artifacts": [
+    "strict-gate.json",
+    "mutation-results.json",
+    "toolchain-result.json",
+    "cleanroom-result.json",
+    "dependencies-result.json",
+    "default-path-probe.json",
+    "python-integration.txt"
+  ]
+}
