@@ -2,7 +2,7 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "dba1804a445501e8fd4c33970855427ad70df901",
+  "candidate": "80d8feef121cebe7cc5f127851f0d606b49ac6cc",
   "ok": true,
   "checks": {
     "source_manifest": {
@@ -21,10 +21,10 @@
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "dba1804a445501e8fd4c33970855427ad70df901"
+      "candidate": "80d8feef121cebe7cc5f127851f0d606b49ac6cc"
     },
     "effective_lines": {
-      "gross_changed_executable_typescript": 32917,
+      "gross_changed_executable_typescript": 32920,
       "token_winnowing": {
         "shingle_tokens": 5,
         "window_shingles": 8,
@@ -798,8 +798,8 @@
         ],
         "deducted_lines": 634
       },
-      "effective_changed_typescript": 32283,
-      "final_production_typescript": 49798,
+      "effective_changed_typescript": 32286,
+      "final_production_typescript": 49801,
       "final_test_typescript": 11417,
       "python_deleted_lines": 35167
     },

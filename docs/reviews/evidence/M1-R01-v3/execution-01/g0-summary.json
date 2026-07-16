@@ -2,7 +2,7 @@
   "accepted_source_range_count": 276,
   "execution_id": "E01",
   "frozen_manifest_hashes": {
-    "execution-01-baseline-receipt.json": "737902c9528b26426f081ddd831740f1312c4b539176c226427770dcc079f5d6",
+    "execution-01-baseline-receipt.json": "6ee51254ee38fb0b2309c7cda56031e44ca2c00ef9bbded032cfd70d66bf3638",
     "execution-01-gate-profile.json": "e5400b4f1b10a2f6e3eec25e881e7f19a71f1081f3d355fb3629aecc8bd8d362",
     "execution-01-mutation-manifest.jsonl": "8ccdf906232599bcc176b755b86349779ac127deddc0ab1233db7111acea6ad8",
     "execution-01-python-owner-baseline.jsonl": "66e07494ff8895384f155367a069f0a9a6e2e158644e792619a822498bdf2a3d",
@@ -11,7 +11,7 @@
   },
   "frozen_manifest_index": "docs/reviews/evidence/M1-R01-v3/execution-01/root-manifest-index.json",
   "generator": "scripts/remediation/m1_r01_e01_v6.ts",
-  "implementation_candidate": "dba1804a445501e8fd4c33970855427ad70df901",
+  "implementation_candidate": "80d8feef121cebe7cc5f127851f0d606b49ac6cc",
   "mutation_count": 121,
   "rejected_source_range_count": 84,
   "schema_version": "4.0",

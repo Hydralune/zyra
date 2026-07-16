@@ -8,14 +8,14 @@
     "session_id": "e01-default-checkpoint-session"
   },
   "concurrent_read_only": {
-    "elapsed_ms": 406.935,
+    "elapsed_ms": 402.007,
     "execution_mode": "concurrent_read_only",
     "ok": true,
     "overlap": true,
     "request_count": 2,
     "result_order": [
-      "turn_e0e780af3aac4b8c90d78c870cc3de0c:tool:1",
-      "turn_e0e780af3aac4b8c90d78c870cc3de0c:tool:2"
+      "turn_7b7277fa8d134eb6858259fec72307df:tool:1",
+      "turn_7b7277fa8d134eb6858259fec72307df:tool:2"
     ]
   },
   "lost_tool_ack": {

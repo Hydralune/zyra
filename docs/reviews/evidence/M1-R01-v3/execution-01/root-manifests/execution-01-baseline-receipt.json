@@ -3,25 +3,13 @@
   "capture_exit_codes": {
     "generator": 0
   },
-  "captured_at_utc": "2026-07-16T13:47:56.779Z",
+  "captured_at_utc": "2026-07-16T14:00:20.479Z",
   "clean_worktree": true,
-  "current_control_plane_head": "dba1804a445501e8fd4c33970855427ad70df901",
+  "current_control_plane_head": "80d8feef121cebe7cc5f127851f0d606b49ac6cc",
   "dirty_paths_at_capture": [],
   "execution_id": "E01",
   "host_platform": "win32-x64",
-  "ignored_generator_output_paths_at_capture": [
-    "M docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/cleanroom-result.json",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/dependencies-result.json",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/g0-summary.json",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/mutation-results.json",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/root-manifest-index.json",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/root-manifests/execution-01-baseline-receipt.json",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/root-manifests/execution-01-mutation-manifest.jsonl",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/root-manifests/execution-01-target-custody-map.jsonl",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/source-to-target-five-hop.jsonl",
-    " M docs/reviews/evidence/M1-R01-v3/execution-01/toolchain-result.json"
-  ],
+  "ignored_generator_output_paths_at_capture": [],
   "implementation_candidate_source": "E01_IMPLEMENTATION_CANDIDATE",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
   "input_sha256": {

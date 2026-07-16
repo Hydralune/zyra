@@ -3,7 +3,7 @@
   "candidate_status": "implementation_generated_pending_validation",
   "cleanroom_target": null,
   "execution_id": "E01",
-  "implementation_candidate": "dba1804a445501e8fd4c33970855427ad70df901",
+  "implementation_candidate": "80d8feef121cebe7cc5f127851f0d606b49ac6cc",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
   "independent_review_target": null,
   "independent_review_verdict": "PENDING",
