@@ -61,6 +61,8 @@ const toolTests = [`${testRoot}/tool-protocol.behavior.test.ts`, mutationContrac
 const runtimeTests = ["packages/runtime/claude-runtime/test/runtime.test.ts"];
 const adversarialTests = [`${testRoot}/default-loop-adversarial.behavior.test.ts`];
 const observationBudgetTests = [`${testRoot}/tool-observation-budget.behavior.test.ts`];
+const semanticCustodyTests = [`${testRoot}/semantic-custody.behavior.test.ts`];
+const sessionRecoveryTests = [`${testRoot}/session-recovery.behavior.test.ts`];
 
 function spec(tests: string[], search: string, replacement: string): MutationSpec {
   return { tests, edits: [{ search, replacement }] };
@@ -304,6 +306,26 @@ export const mutationSpecs: Record<string, MutationSpec> = {
     observationBudgetTests,
     "if (expectedChecksum !== snapshot.checksum) {",
     "if (false) {",
+  ),
+  "e01-mut-047-output-token-reduction": spec(
+    semanticCustodyTests,
+    "      nextOutput = Math.max(FLOOR_OUTPUT_TOKENS, Math.floor(context.outputTokenLimit * 0.75));",
+    "      nextOutput = context.outputTokenLimit;",
+  ),
+  "e01-mut-048-history-restore-checksum": spec(
+    sessionRecoveryTests,
+    "    if (digest(unsigned) !== checksum) throw new Error(\"session history snapshot checksum mismatch\");",
+    "    if (false && digest(unsigned) !== checksum) throw new Error(\"session history snapshot checksum mismatch\");",
+  ),
+  "e01-mut-049-owned-tool-partition": spec(
+    semanticCustodyTests,
+    "    const batches: OwnedToolBatch[] = this.tools.schedule(\n      turnId,\n      callIds,\n      maximumConcurrency,\n    ).map((batch) => ({",
+    "    const batches: OwnedToolBatch[] = this.tools.schedule(\n      turnId,\n      callIds,\n      1,\n    ).map((batch) => ({",
+  ),
+  "e01-mut-050-provider-credential-failure": spec(
+    providerTests,
+    "        status: quarantined ? \"quarantined\" : \"cooldown\",",
+    "        status: \"active\",",
   ),
 };
 
