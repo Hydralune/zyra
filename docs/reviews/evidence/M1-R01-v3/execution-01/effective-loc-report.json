@@ -61,8 +61,8 @@
     "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
     "packages/runtime/claude-runtime/src/tools.ts"
   ],
-  "raw_non_test_typescript_physical_sloc": 39623,
-  "final_non_test_typescript_physical_sloc": 36469,
+  "raw_non_test_typescript_physical_sloc": 39817,
+  "final_non_test_typescript_physical_sloc": 36663,
   "semantically_dormant_production_sloc": 3154,
   "semantically_dormant_production": [
     {
@@ -154,12 +154,12 @@
       "reason": "live skills subsystem owned by a later execution unit; excluded from E01-only SLOC"
     }
   ],
-  "excluded_type_only_and_uninitialized_declaration_sloc": 4488,
+  "excluded_type_only_and_uninitialized_declaration_sloc": 4520,
   "effective_changed_by_file": [
     {
       "path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-      "ast_units": 57,
-      "effective_sloc": 2159
+      "ast_units": 58,
+      "effective_sloc": 2197
     },
     {
       "path": "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
@@ -174,7 +174,7 @@
     {
       "path": "packages/runtime/claude-runtime/src/query-engine.ts",
       "ast_units": 6,
-      "effective_sloc": 997
+      "effective_sloc": 1012
     },
     {
       "path": "packages/runtime/claude-runtime/src/e01/execution-custody-runtime.ts",
@@ -193,8 +193,8 @@
     },
     {
       "path": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
-      "ast_units": 52,
-      "effective_sloc": 778
+      "ast_units": 53,
+      "effective_sloc": 805
     },
     {
       "path": "packages/runtime/claude-runtime/src/query/execution-plan-runtime.ts",
@@ -337,6 +337,11 @@
       "effective_sloc": 336
     },
     {
+      "path": "packages/runtime/claude-runtime/src/context/token-runtime.ts",
+      "ast_units": 19,
+      "effective_sloc": 320
+    },
+    {
       "path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
       "ast_units": 26,
       "effective_sloc": 306
@@ -362,11 +367,6 @@
       "effective_sloc": 273
     },
     {
-      "path": "packages/runtime/claude-runtime/src/context/token-runtime.ts",
-      "ast_units": 17,
-      "effective_sloc": 248
-    },
-    {
       "path": "packages/runtime/claude-runtime/src/query/stream-runtime.ts",
       "ast_units": 14,
       "effective_sloc": 212
@@ -388,10 +388,10 @@
     }
   ],
   "line_buckets": {
-    "production_e01_physical": 36469,
+    "production_e01_physical": 36663,
     "production_excluded_later_unit_physical": 3154,
-    "production_type_only_excluded_physical": 4488,
-    "behavior_test_effective": 8902,
+    "production_type_only_excluded_physical": 4520,
+    "behavior_test_effective": 8937,
     "generated": 0,
     "data_as_code": 0,
     "vendor_like_source_pool": 0,
@@ -546,11 +546,11 @@
   ],
   "baseline_ast_unit_hash_count": 90,
   "baseline_ast_structural_hash_count": 88,
-  "current_ast_unit_count": 1914,
-  "exact_changed_ast_unit_count": 1710,
-  "exact_changed_typescript_sloc": 27668,
-  "effective_changed_ast_unit_count": 1344,
-  "effective_changed_typescript_sloc": 26427,
+  "current_ast_unit_count": 1918,
+  "exact_changed_ast_unit_count": 1714,
+  "exact_changed_typescript_sloc": 27820,
+  "effective_changed_ast_unit_count": 1348,
+  "effective_changed_typescript_sloc": 26579,
   "structural_clone_excluded_production_sloc": 1241,
   "behavior_test_files": [
     "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
@@ -567,11 +567,11 @@
     "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
     "packages/runtime/claude-runtime/test/e01/tool-protocol.behavior.test.ts"
   ],
-  "behavior_test_ast_unit_count": 152,
-  "exact_behavior_test_ast_unit_count": 149,
-  "exact_behavior_test_sloc": 8910,
-  "effective_behavior_test_ast_unit_count": 146,
-  "effective_behavior_test_sloc": 8902,
+  "behavior_test_ast_unit_count": 154,
+  "exact_behavior_test_ast_unit_count": 151,
+  "exact_behavior_test_sloc": 8945,
+  "effective_behavior_test_ast_unit_count": 148,
+  "effective_behavior_test_sloc": 8937,
   "structural_clone_excluded_behavior_test_sloc": 8,
   "adapter_files": [],
   "adapter_sloc": 0,

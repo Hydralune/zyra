@@ -1,11 +1,13 @@
 {
   "schema_version": "3.0",
   "execution_id": "E01",
-  "generated_at_utc": "2026-07-16T01:53:56.903Z",
+  "generated_at_utc": "2026-07-16T03:02:43.400Z",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
-  "enforce_gates": true,
-  "pass": true,
-  "failures": [],
+  "enforce_gates": false,
+  "pass": false,
+  "failures": [
+    "incomplete five-hop chain e01-src-0141"
+  ],
   "thresholds": {
     "accepted_source_executable_sloc": 10587,
     "adapter_ratio_maximum": 0.1,
@@ -21,17 +23,17 @@
     "source_to_target_unique_symbols_minimum": 20
   },
   "actual": {
-    "accepted_source_physical_sloc": 13150,
-    "accepted_source_executable_sloc": 13055,
-    "effective_changed_typescript_sloc": 26427,
-    "final_non_test_typescript_sloc": 36469,
-    "effective_behavior_test_sloc": 8902,
+    "accepted_source_physical_sloc": 13119,
+    "accepted_source_executable_sloc": 13024,
+    "effective_changed_typescript_sloc": 26579,
+    "final_non_test_typescript_sloc": 36663,
+    "effective_behavior_test_sloc": 8937,
     "adapter_ratio": 0,
-    "source_to_target_chain_count": 285,
-    "complete_source_to_target_chain_count": 285,
-    "unique_target_symbol_count": 50,
+    "source_to_target_chain_count": 280,
+    "complete_source_to_target_chain_count": 279,
+    "unique_target_symbol_count": 51,
     "maximum_mappings_per_target_symbol": 47,
-    "mutation_declared": 50,
+    "mutation_declared": 103,
     "mutation_killed": 50,
     "python_owner_paths_remaining": []
   },

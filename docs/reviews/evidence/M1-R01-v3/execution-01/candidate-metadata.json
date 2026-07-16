@@ -1,11 +1,11 @@
 {
-  "candidate_evidence_commit": "9ab8fd49a652bb662e13f090b472d7d6e6d66ee3",
-  "candidate_status": "ready_for_independent_review",
-  "cleanroom_target": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+  "candidate_evidence_commit": null,
+  "candidate_status": "implementation_generated_pending_validation",
+  "cleanroom_target": null,
   "execution_id": "E01",
-  "implementation_candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+  "implementation_candidate": "6cbac962797d0f1616662382c0ac5b7d9eaeef8c",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
-  "independent_review_target": "018864090d3301a3f63528156e9206f17e309d8f",
+  "independent_review_target": null,
   "independent_review_verdict": "PENDING",
   "notes": [
     "V6 rejects source symbols without a material target effect instead of preserving generic domain templates.",
