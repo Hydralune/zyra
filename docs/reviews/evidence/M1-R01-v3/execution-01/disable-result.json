@@ -2,7 +2,7 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.disable",
-  "generated_at_utc": "2026-07-16T05:25:54.543Z",
+  "generated_at_utc": "2026-07-16T05:35:49.550Z",
   "ok": true,
   "disabled_component": "E01RuntimeCoordinator.bootstrap",
   "environment_gate": "ZYRA_DISABLE_E01_TYPESCRIPT_RUNTIME=1",
@@ -15,7 +15,7 @@
       "--e01-inventory"
     ],
     "exit_code": 1,
-    "duration_ms": 157,
+    "duration_ms": 148,
     "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha256": "a326fb49fe075e8f31fad702e5d88be5e8ff9e9e07584fb9e283033d738ad919",
     "stdout_excerpt": "",
