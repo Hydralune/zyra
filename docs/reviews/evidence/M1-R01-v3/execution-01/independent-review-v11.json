@@ -1,0 +1,175 @@
+{
+  "schema_version": "4.0",
+  "execution_id": "E01",
+  "revision": "v11",
+  "review_kind": "independent_adversarial_review",
+  "verdict": "FAIL",
+  "review_target": "0573394868f170ec3f73fac882af5422510c6a96",
+  "implementation_candidate": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+  "evidence_commit": "b74cf37148f313e45595f23be39a73ae8743eb60",
+  "metadata_commit": "9d0a32d69184ffda7f336bbe3435f5ac0c4867ad",
+  "obsolete_review_target": "7c577c3974723df83e8ab137913be7ef85ba4284",
+  "obsolete_metadata_commit": "ea1be624e88d544b27c62f6f1c2eaa600adb265a",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+  "corrected_binding_valid": true,
+  "obsolete_binding_is_history_only": true,
+  "verified_complete": false,
+  "blocking_findings": [
+    {
+      "id": "E01-V11-B1",
+      "severity": "CRITICAL",
+      "summary": "The provider client is executable, but the default Foundry path sends to the Anthropic endpoint and ProviderModelRuntime snapshots serialize the raw API key.",
+      "evidence": {
+        "mapping_id": "e01-src-0019",
+        "source_executable_lines": 163,
+        "mechanically_accepted_lines": 10587,
+        "recognized_after_deduction": 10424,
+        "required_source_lines": 10587,
+        "foundry_descriptor_transport": "foundry",
+        "observed_default_foundry_url": "https://api.anthropic.com/v1/messages",
+        "expected_foundry_resource": "https://resource.services.ai.azure.com",
+        "raw_secret_present_in_snapshot": true,
+        "direct_factory_test_bypasses_default_endpoint": true,
+        "restore_test_executes_restored_request": false
+      },
+      "impact": "Accepted source coverage falls below the hard threshold, and provider snapshot custody violates the secret-free restore contract."
+    },
+    {
+      "id": "E01-V11-B2",
+      "severity": "CRITICAL",
+      "summary": "Production health accepts verification/v5 while V11 metadata and the authoritative verifier require verification/v6.",
+      "evidence": {
+        "runtime_contract": "zyra.e01-verification/v5",
+        "metadata_contract": "zyra.e01-verification/v6",
+        "observed_status": "candidate_metadata_contract_mismatch",
+        "observed_implementation_candidate": null,
+        "observed_evidence_commit": null,
+        "observed_review_target": null,
+        "health_test_fixture_contract": "zyra.e01-verification/v5"
+      },
+      "impact": "The immutable implementation cannot converge to pending or final V11 health through metadata-only completion."
+    },
+    {
+      "id": "E01-V11-B3",
+      "severity": "CRITICAL",
+      "summary": "The gate declares apps/code-worker/src/main.ts::main, but no main symbol exists and the application file remains a one-line thin dispatcher.",
+      "evidence": {
+        "declared_entry_path": "apps/code-worker/src/main.ts",
+        "declared_entry_symbol": "main",
+        "declared_symbol_exists": false,
+        "source_physical_lines": 1,
+        "entry_root_mappings_to_query_run": 6,
+        "verifier_checks_entry_symbol": false,
+        "runtime_origin_command": "apps/code-worker/src/main.ts --e01-inventory"
+      },
+      "impact": "The default-entry five-hop is unproved and the execution document's thin-dispatcher automatic failure remains active."
+    },
+    {
+      "id": "E01-V11-B4",
+      "severity": "HIGH",
+      "summary": "V6 validates leaf-name calls, raw callback substrings, and disconnect exceptions but not a connected symbol-resolved target-to-state-effect chain.",
+      "evidence": {
+        "reported_five_hop_mappings": 276,
+        "unique_target_path_symbols": 71,
+        "callee_resolution": "leaf-name-only",
+        "test_assertion_validation": "raw-substring-in-named-callback",
+        "edge_graph_connectivity_required": false,
+        "entry_root_edge_required": false,
+        "exact_target_mutation_pattern": "disconnect-target exception",
+        "byte_identical_map_artifact": true
+      },
+      "impact": "The 276/276 metric proves manifest syntax and reachability, not 276 behavior-complete five-hop chains."
+    }
+  ],
+  "metrics": {
+    "root_closure": {
+      "source_total": 360,
+      "source_accepted": 276,
+      "source_rejected": 84,
+      "target_mappings": 276,
+      "mutations": 123,
+      "source_manifest_sha256": "7b58eb1c445c63f614d7ddce6035946176400a6bd283ad667b4a6c42f7906e49",
+      "target_and_five_hop_sha256": "fa1904649dd207a8798e47418cadc81650ee082816f3d2403987d5ef55af99a9",
+      "five_hop_artifact_byte_identical": true,
+      "v9_forbidden_source_symbols_accepted": 0,
+      "session_memory_global_config_symbols_rejected": 4,
+      "candidate_gate_ok": true
+    },
+    "source_credit": {
+      "mechanically_recomputed": 10587,
+      "threshold": 10587,
+      "mechanical_margin": 0,
+      "provider_client_deduction": 163,
+      "review_recognized_upper_bound": 10424,
+      "passes_threshold": false
+    },
+    "effective_lines": {
+      "gross_changed_executable_typescript": 33309,
+      "token_winnowing_deducted_lines": 671,
+      "effective_changed_typescript": 32638,
+      "required_effective_changed_typescript": 25416,
+      "final_production_typescript": 50229,
+      "final_test_typescript": 11253,
+      "changed_test_typescript_additions": 10151,
+      "assessment": "PASS"
+    },
+    "mutation": {
+      "declared": 123,
+      "applied": 123,
+      "compile_survived": 123,
+      "killed": 123,
+      "survived": 0,
+      "invalid": 0,
+      "frozen_patch_matches": 123,
+      "designated_killers_failed": 123,
+      "restored_sha_match": true,
+      "assessment": "PASS_MECHANICAL_ONLY"
+    },
+    "runtime_probes": {
+      "runtime_origin": "PASS_MECHANICAL",
+      "write_path": "PASS",
+      "same_session_processes": 3,
+      "same_session_restart_count": 2,
+      "same_session_replayed_transition_ids": 0,
+      "lost_ack_repeated_effect_count": 0,
+      "disable": "PASS_INVENTORY_PATH_ONLY",
+      "dependencies": "PASS"
+    },
+    "toolchain_and_cleanroom": {
+      "toolchain_commands_passed": 9,
+      "toolchain_commands_total": 9,
+      "cleanroom_commands_passed": 9,
+      "cleanroom_commands_total": 9,
+      "cleanroom_target": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+      "bun_version": "1.2.15",
+      "node_version": "22.17.0",
+      "typescript_version": "5.8.3",
+      "tests_passed": 421,
+      "tests_failed": 0,
+      "expectations": 1361,
+      "independent_full_suite_rerun_passed": true,
+      "independent_typecheck_passed": true,
+      "semantic_health_contract_passed": false,
+      "assessment": "FAIL_HEALTH_SEMANTICS"
+    },
+    "provider_independent_probe": {
+      "anthropic_default_auth_retry": true,
+      "bedrock_default_bearer_retry": true,
+      "vertex_default_bearer_retry": true,
+      "foundry_direct_factory_auth_retry": true,
+      "foundry_default_endpoint_correct": false,
+      "restore_rebinds_with_supplied_secret": true,
+      "snapshot_secret_free": false,
+      "live_cloud_network_used": false
+    }
+  },
+  "required_disposition": {
+    "execution_01": "ready_for_fix",
+    "verified_baseline_must_remain": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "execution_02_must_remain_blocked": true,
+    "execution_03_must_remain_blocked": true,
+    "final_pass_metadata_forbidden": true
+  }
+}
