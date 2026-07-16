@@ -51,6 +51,7 @@ export class GitSemanticGraph {
   private readonly declarations = new Map<string, CallableDeclaration>();
   private readonly declarationByNode = new Map<ts.Node, CallableDeclaration>();
   private readonly outgoing = new Map<string, SemanticCallEdge[]>();
+  private readonly dispatchEdges = new Map<string, SemanticCallEdge[]>();
   private readonly assertions = new Map<string, AssertionObservation[]>();
 
   private constructor(
@@ -58,6 +59,7 @@ export class GitSemanticGraph {
     private readonly program: ts.Program,
   ) {
     this.indexDeclarations();
+    this.indexInterfaceDispatch();
     this.indexCallsAndAssertions();
   }
 
@@ -194,6 +196,13 @@ export class GitSemanticGraph {
             }
           }
         }
+        if (ts.isInterfaceDeclaration(node)) {
+          for (const member of node.members) {
+            if (ts.isMethodSignature(member)) {
+              this.register(path, `${node.name.text}.${declarationName(member, source)}`, member);
+            }
+          }
+        }
         if (ts.isCallExpression(node)) {
           const expression = node.expression;
           const name = ts.isIdentifier(expression)
@@ -216,6 +225,50 @@ export class GitSemanticGraph {
         ts.forEachChild(node, visit);
       };
       visit(source);
+    }
+  }
+
+  private indexInterfaceDispatch(): void {
+    const checker = this.program.getTypeChecker();
+    for (const source of this.program.getSourceFiles()) {
+      const path = this.repoPath(source);
+      if (!path) continue;
+      for (const statement of source.statements) {
+        if (!ts.isClassDeclaration(statement) || !statement.name) continue;
+        for (const heritage of statement.heritageClauses ?? []) {
+          if (heritage.token !== ts.SyntaxKind.ImplementsKeyword) continue;
+          for (const implemented of heritage.types) {
+            let symbol = checker.getSymbolAtLocation(implemented.expression);
+            if (!symbol) continue;
+            if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) symbol = checker.getAliasedSymbol(symbol);
+            for (const declaration of symbol.declarations ?? []) {
+              if (!ts.isInterfaceDeclaration(declaration)) continue;
+              for (const contractMember of declaration.members) {
+                if (!ts.isMethodSignature(contractMember)) continue;
+                const contract = this.declarationByNode.get(contractMember);
+                if (!contract) continue;
+                const name = declarationName(contractMember, declaration.getSourceFile());
+                const implementation = statement.members.find((member) =>
+                  ts.isMethodDeclaration(member) && declarationName(member, source) === name);
+                if (!implementation || !ts.isMethodDeclaration(implementation)) continue;
+                const target = this.declarationByNode.get(implementation);
+                if (!target) continue;
+                const invocation = `dispatch ${statement.name.text}.${name} implements ${declaration.name.text}.${name}`;
+                const edge: SemanticCallEdge = {
+                  callerPath: contract.path,
+                  callerSymbol: contract.symbol,
+                  calleePath: target.path,
+                  calleeSymbol: target.symbol,
+                  invocation,
+                  invocationSha256: sha256(invocation),
+                  callStart: implementation.getStart(source),
+                };
+                this.dispatchEdges.set(contract.id, [...(this.dispatchEdges.get(contract.id) ?? []), edge]);
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -244,7 +297,7 @@ export class GitSemanticGraph {
 
   private indexCallsAndAssertions(): void {
     for (const callable of this.declarations.values()) {
-      const edges: SemanticCallEdge[] = [];
+      const edges: SemanticCallEdge[] = [...(this.dispatchEdges.get(callable.id) ?? [])];
       const observations: AssertionObservation[] = [];
       const visit = (node: ts.Node): void => {
         if (node !== callable.node && this.declarationByNode.has(node)) return;
