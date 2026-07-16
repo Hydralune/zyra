@@ -1,0 +1,26 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "verification_contract_version": "zyra.e01-verification/v7",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "implementation_candidate": "dba1804a445501e8fd4c33970855427ad70df901",
+  "cleanroom_target": "dba1804a445501e8fd4c33970855427ad70df901",
+  "candidate_evidence_commit": "f48b19ed0931275204022b0d591b446883fcf496",
+  "candidate_status": "independent_review_passed",
+  "verified_complete": true,
+  "independent_review_target": "dba1804a445501e8fd4c33970855427ad70df901",
+  "independent_review_commit": "f48b19ed0931275204022b0d591b446883fcf496",
+  "independent_review_verdict": "PASS",
+  "strict_gate_sha256": "2e200b2e80aa97d8c72d24425e812ba6e3cef5f6e2f77e2d68233296d82faca2",
+  "independent_review_receipt_path": "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/reviewer-evidence.json",
+  "independent_review_receipt_sha256": "7be69dff0bbde53b89073e85567a32738611180b9315167b62fad04f12098a8c",
+  "independent_review_report_path": "docs/reviews/M1-R01-v14-execution-01-independent-review.md",
+  "independent_review_report_sha256": "40840bb461a8ced3a61e367c29d754e6751dc2ce5aa11217544678b912eae21b",
+  "root_manifest_commit_boundary": "G:/agent-zoo/docs/remediations is outside the Zyra Git repository and is delivered as an explicit workspace boundary.",
+  "notes": [
+    "V14 closes all five V13 blocking findings.",
+    "Health completion is bound to the V14 strict gate, reviewer receipt, and report digests.",
+    "E02 and E03 are outside this E01 completion verdict."
+  ]
+}
