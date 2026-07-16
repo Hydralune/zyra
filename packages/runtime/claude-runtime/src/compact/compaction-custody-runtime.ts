@@ -294,17 +294,62 @@ export class CompactionSourceCustodyRuntime {
   applyCompactionCustody(input: unknown): MicrocompactResult | null {
     const record = recordOf(input);
     if (!record || !Array.isArray(record.messages)) return null;
+    const sessionId = String(record.sessionId ?? "default");
+    const messages = record.messages as CustodyCompactionMessage[];
     const result = this.maybeTimeBasedMicrocompact({
-      sessionId: String(record.sessionId ?? "default"),
+      sessionId,
       source: String(record.source ?? record.querySource ?? "runtime"),
       nowMs: typeof record.nowMs === "number" ? record.nowMs : Date.now(),
       intervalMs: typeof record.microcompactIntervalMs === "number" ? record.microcompactIntervalMs : 5 * 60_000,
       cacheRoot: String(record.cacheRoot ?? ".cache/compact"),
-      messages: record.messages as CustodyCompactionMessage[],
+      messages,
       keepLastMessages: typeof record.keepLastMessages === "number" ? record.keepLastMessages : 4,
       replacementLimit: typeof record.replacementLimit === "number" ? record.replacementLimit : 8,
     });
     if (result.performed) record.messages = result.messages;
+    const currentTokens = typeof record.currentTokens === "number" ? record.currentTokens : 0;
+    const auto = this.autoCompactIfNeeded({
+      currentTokens,
+      contextWindow: typeof record.contextWindow === "number" ? record.contextWindow : Math.max(1, currentTokens + 1),
+      reservedTokens: typeof record.reservedTokens === "number" ? record.reservedTokens : 0,
+      minimumFreeTokens: typeof record.minimumFreeTokens === "number" ? record.minimumFreeTokens : 0,
+      messages: result.messages,
+      keepLastMessages: typeof record.keepLastMessages === "number" ? record.keepLastMessages : 4,
+    });
+    record.sourceCustodyAutoCompaction = auto;
+    record.sourceCustodyPendingCacheEdits = this.pendingCacheEdits(sessionId);
+    const summary = typeof record.summary === "string" ? record.summary.trim() : "";
+    if (summary) {
+      record.sourceCustodyPartialBoundary = this.partialCompactConversation({
+        sessionId,
+        messages: result.messages,
+        summary,
+        keepLastMessages: typeof record.keepLastMessages === "number" ? record.keepLastMessages : 4,
+      });
+      record.sourceCustodySessionMemory = this.trySessionMemoryCompaction({
+        enabled: record.sessionMemoryEnabled === true,
+        sessionId,
+        summary,
+        messages: result.messages,
+        attachments: Array.isArray(record.attachments) ? record.attachments : [],
+        keepLastMessages: typeof record.keepLastMessages === "number" ? record.keepLastMessages : 4,
+        originalTokenCount: currentTokens,
+        summaryTokenCount: typeof record.summaryTokenCount === "number" ? record.summaryTokenCount : 0,
+      });
+    }
+    const summaryStream = record.summaryStream;
+    if (typeof summaryStream === "function") {
+      const stream = summaryStream as (attempt: number) => AsyncIterable<SummaryStreamEvent>;
+      record.sourceCustodySummaryPromise = this.streamCompactSummary({
+        stream,
+        maxAttempts: typeof record.summaryMaxAttempts === "number" ? record.summaryMaxAttempts : 2,
+      }).catch((error: unknown) => ({
+        summary: "",
+        attempts: typeof record.summaryMaxAttempts === "number" ? record.summaryMaxAttempts : 2,
+        keepalives: 0,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+    }
     record.sourceCustodyCompaction = result;
     return result;
   }

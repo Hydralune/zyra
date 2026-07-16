@@ -795,10 +795,12 @@ const providerCustodyRoute = (
     : CACHE_CUSTODY_PATH,
   callsiteSymbol: method === "getAssistantMessageFromError"
     ? "ProviderRecoveryRuntime.classify"
-    : callsiteSymbol,
+    : method === "isExcludedModel"
+      ? "ProviderCacheCustodyRuntime.checkResponseForCacheBreak"
+      : callsiteSymbol,
   owner: "e01.provider-source-custody",
   stateStore: "ProviderModelRuntime.preparedRequest",
-  stateProperty: "sourceCustody",
+  stateProperty: "provider",
   stateKind: "provider-cache-and-failure-custody",
   stateObservation: "preparedRequest.messages[].content[].cacheControl + preparedRequest.sourceCustody",
   testName,
@@ -813,12 +815,18 @@ const compactCustodyRoute = (
   targetPath: COMPACTION_CUSTODY_PATH,
   targetSymbol: `CompactionSourceCustodyRuntime.${method}`,
   callsitePath: COMPACTION_CUSTODY_PATH,
-  callsiteSymbol: method === "applyCompactionCustody"
-    ? "ContextCompactionRuntime.compactConversation"
-    : "CompactionSourceCustodyRuntime.applyCompactionCustody",
+  callsiteSymbol: ["isMainThreadSource", "microcompactMessages", "cachedMicrocompactPath"].includes(method)
+    ? "CompactionSourceCustodyRuntime.maybeTimeBasedMicrocompact"
+    : method === "shouldAutoCompact"
+      ? "CompactionSourceCustodyRuntime.autoCompactIfNeeded"
+      : method === "annotateBoundaryWithPreservedSegment"
+        ? "CompactionSourceCustodyRuntime.partialCompactConversation"
+        : ["shouldUseSessionMemoryCompaction", "createCompactionResultFromSessionMemory"].includes(method)
+          ? "CompactionSourceCustodyRuntime.trySessionMemoryCompaction"
+          : "CompactionSourceCustodyRuntime.applyCompactionCustody",
   owner: "e01.context-compaction-custody",
   stateStore: "ContextCompactionRuntime.snapshot",
-  stateProperty: "sourceCustodyCompaction",
+  stateProperty: "compact",
   stateKind: "compaction-lifecycle",
   stateObservation: "messages[].content[].compacted + sourceCustodyCompaction + boundary.preservedSegment",
   testName,
@@ -864,11 +872,11 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
   ["StreamingToolExecutor", {
     targetPath: "packages/runtime/claude-runtime/src/capability-host.ts",
     targetSymbol: "PermissionedCapabilityHost.executeBatch",
-    callsitePath: "packages/runtime/claude-runtime/src/capability-host.ts",
-    callsiteSymbol: "PermissionedCapabilityHost.executeBatch",
+    callsitePath: QUERY_PATH,
+    callsiteSymbol: QUERY_SYMBOL,
     owner: "e01.permissioned-capability-settlement",
     stateStore: "RuntimeRunResult.sessionSnapshot.capabilityHost",
-    stateProperty: "capabilityHost",
+    stateProperty: "settlement",
     stateKind: "ordered-permissioned-tool-settlement",
     stateObservation: "capabilityHost.settlements[].receipts + progress.sequence",
     testName: "e01.mutation.permission-mixed-batch-delegates-only-allowed-calls",
@@ -901,6 +909,13 @@ const routeExactCustody = (target: JsonRecord, source: JsonRecord): boolean => {
     tests: [behaviorTest(route.testName, route.testPath ?? SOURCE_CUSTODY_TEST_PATH, route.testName, route.testTokens)],
     mutations: [],
   });
+  target.default_entry_edges = [{
+    caller_path: route.callsitePath,
+    caller_symbol: route.callsiteSymbol,
+    callee_path: route.targetPath,
+    callee_symbol: route.targetSymbol,
+    kind: "exact-owner-call",
+  }];
   return true;
 };
 const routeTarget = (target: JsonRecord, source: JsonRecord): void => {
