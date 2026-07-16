@@ -21,6 +21,7 @@ export interface AssertionObservation {
   matcher: string;
   expected: string[];
   callStart: number;
+  callEnd: number;
 }
 
 export interface TestObservation {
@@ -148,7 +149,9 @@ export class GitSemanticGraph {
     const callPath = this.findPath(start, target);
     if (!callPath || callPath.length === 0) return null;
     const firstInvocation = callPath[0]!.callStart;
-    const assertions = (this.assertions.get(start) ?? []).filter((item) => item.callStart > firstInvocation);
+    const assertions = (this.assertions.get(start) ?? []).filter((item) =>
+      item.callStart > firstInvocation
+      || (item.callStart <= firstInvocation && item.callEnd >= firstInvocation));
     return assertions.length > 0 ? { callPath, assertions } : null;
   }
 
@@ -353,6 +356,7 @@ export class GitSemanticGraph {
               matcher,
               expected,
               callStart: node.getStart(source),
+              callEnd: node.getEnd(),
             });
           }
         }
@@ -373,6 +377,7 @@ export class GitSemanticGraph {
             matcher,
             expected,
             callStart: node.getStart(source),
+            callEnd: node.getEnd(),
           });
         }
         ts.forEachChild(node, visit);
