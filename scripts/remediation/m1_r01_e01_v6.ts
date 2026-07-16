@@ -818,8 +818,12 @@ const compactCustodyRoute = (
 ): ExactCustodyRoute => ({
   targetPath: COMPACTION_CUSTODY_PATH,
   targetSymbol: `CompactionSourceCustodyRuntime.${method}`,
-  callsitePath: COMPACTION_CUSTODY_PATH,
-  callsiteSymbol: ["isMainThreadSource", "microcompactMessages", "cachedMicrocompactPath"].includes(method)
+  callsitePath: method === "consumePendingCacheEdits"
+    ? "packages/runtime/claude-runtime/src/compact/context-runtime.ts"
+    : COMPACTION_CUSTODY_PATH,
+  callsiteSymbol: method === "consumePendingCacheEdits"
+    ? "ContextCompactionRuntime.compactConversation"
+    : ["isMainThreadSource", "microcompactMessages", "cachedMicrocompactPath"].includes(method)
     ? "CompactionSourceCustodyRuntime.maybeTimeBasedMicrocompact"
     : method === "shouldAutoCompact"
       ? "CompactionSourceCustodyRuntime.autoCompactIfNeeded"
@@ -1295,6 +1299,52 @@ for (const source of accepted) {
   target.source_symbol = source.source_symbol;
   target.default_entry_id = DEFAULT_ENTRY_ID;
   routeTarget(target, source);
+  const edges = Array.isArray(target.default_entry_edges)
+    ? target.default_entry_edges as JsonRecord[]
+    : [];
+  const normalizedEdges: JsonRecord[] = [];
+  for (const edge of edges) {
+    const invalidProviderShortcut = String(edge.caller_symbol) === "E01RuntimeCoordinator.executePreparedProvider"
+      && String(edge.callee_symbol) === "ProviderModelRuntime.execute";
+    if (!invalidProviderShortcut) {
+      normalizedEdges.push(edge);
+      continue;
+    }
+    normalizedEdges.push(
+      {
+        caller_path: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+        caller_symbol: "E01RuntimeCoordinator.executePreparedProvider",
+        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+        callee_symbol: "ProviderModelRuntime.queryHaiku",
+        kind: "conditional-provider-query",
+      },
+      {
+        caller_path: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+        caller_symbol: "E01RuntimeCoordinator.executePreparedProvider",
+        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+        callee_symbol: "ProviderModelRuntime.queryWithModel",
+        kind: "conditional-provider-query",
+      },
+      {
+        caller_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+        caller_symbol: "ProviderModelRuntime.queryHaiku",
+        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+        callee_symbol: "ProviderModelRuntime.queryWithModel",
+        kind: "haiku-query-delegation",
+      },
+      {
+        caller_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+        caller_symbol: "ProviderModelRuntime.queryWithModel",
+        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+        callee_symbol: "ProviderModelRuntime.execute",
+        kind: "provider-execution",
+      },
+    );
+  }
+  target.default_entry_edges = normalizedEdges;
+  target.entry_root = normalizedEdges.length === 0
+    && String(target.target_path) === String(target.default_callsite_path)
+    && String(target.target_symbol) === String(target.default_callsite_symbol);
   target.target_sha256 = sha256(
     gitBytes(["show", `${implementationHead}:${String(target.target_path)}`]),
   );

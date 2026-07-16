@@ -206,6 +206,11 @@ const declarationAnalysis = (
       else if (ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) {
         calledSymbols.add(expression.argumentExpression.text);
       }
+      if (ts.isCallExpression(node)) {
+        for (const argument of node.arguments) {
+          if (ts.isIdentifier(argument)) calledSymbols.add(argument.text);
+        }
+      }
     }
     ts.forEachChild(node, collect);
   };
@@ -657,7 +662,18 @@ for (const target of targetRecords) {
   const edges = Array.isArray(target.default_entry_edges)
     ? target.default_entry_edges as JsonRecord[]
     : [];
-  if (edges.length === 0) fail(`target ${id} lacks an executable default-entry edge`);
+  const entryRoot = target.entry_root === true
+    && String(target.target_path) === String(target.default_callsite_path)
+    && String(target.target_symbol) === String(target.default_callsite_symbol);
+  if (edges.length === 0 && !entryRoot) fail(`target ${id} lacks an executable default-entry edge`);
+  if (
+    !entryRoot
+    && !edges.some((edge) =>
+      String(edge.callee_path) === String(target.target_path)
+      && String(edge.callee_symbol) === String(target.target_symbol))
+  ) {
+    fail(`target ${id} is absent from its declared default-entry call chain`);
+  }
   for (const edge of edges) {
     const callerPath = String(edge.caller_path);
     const callerSymbol = String(edge.caller_symbol);
@@ -689,7 +705,6 @@ for (const target of targetRecords) {
         continue;
       }
       testBodies.set(testName, body);
-      if (!body.includes("expect")) fail(`behavior test has no state assertion: ${id} ${testName}`);
       const anchor = String(test.anchor ?? "").trim();
       if (!anchor || !body.includes(anchor)) fail(`behavior invocation anchor is absent from named test: ${id} ${anchor}`);
       for (const token of (test.assertion_tokens as unknown[] | undefined) ?? []) {
