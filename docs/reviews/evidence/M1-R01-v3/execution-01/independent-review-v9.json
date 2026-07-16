@@ -1,0 +1,139 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "revision": "v9",
+  "review_kind": "independent_critical_review",
+  "verdict": "FAIL",
+  "reviewed_identity": {
+    "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+    "implementation_candidate": "796a9c457c6bb871edd26808d91b5affd49f8923",
+    "candidate_evidence_commit": "2698b5b6276eee001a9c6adee4f547cb6628bfce",
+    "critical_self_review_commit": "73542eb1b9c8fe0efbc66415b9e6b9754ff11df2",
+    "metadata_chain_head": "b9acd65211b2ec566744dcb0cdbb766ea28c7a9d",
+    "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "chain_valid": true
+  },
+  "root_manifest_audit": {
+    "receipt_source_manifest_sha256": "c48f26723cf247064db076616ab74c6f3292649c4fbea2711de343945bc75f83",
+    "receipt_target_map_sha256": "a3f94c32616ae06590422fc45ffada6cdc2d1dfb4fa23446d4a8bddabeecdf85",
+    "hashes_match_current_root_files": true,
+    "g0_accepted": 322,
+    "g0_rejected": 38,
+    "g0_target_mappings": 322,
+    "g0_mutations": 44,
+    "committed_strict_accepted": 286,
+    "committed_strict_rejected": 74,
+    "committed_strict_target_mappings": 286,
+    "committed_strict_mutations": 129,
+    "closure_reproducible": false,
+    "reviewer_v4_rerun": {
+      "exit_code": 1,
+      "ok": false,
+      "accepted": 322,
+      "rejected": 38,
+      "accepted_executable_lines": 10662,
+      "target_mappings": 322,
+      "receipt_clean": false
+    },
+    "candidate_gate_top_level_ok": false,
+    "candidate_gate_failure_count": 0
+  },
+  "source_credit_recalculation": {
+    "claimed_accepted_executable_lines": 10690,
+    "threshold": 10587,
+    "outside_curated_deductions": [
+      { "symbol": "buildSystemPromptBlocks", "executable_lines": 24 },
+      { "symbol": "queryHaiku", "executable_lines": 49 },
+      { "symbol": "queryWithModel", "executable_lines": 48 },
+      { "symbol": "adjustParamsForNonStreaming", "executable_lines": 25 },
+      { "symbol": "getMaxOutputTokensForModel", "executable_lines": 13 },
+      { "symbol": "collectReadToolFilePaths", "executable_lines": 45 },
+      { "symbol": "truncateToTokens", "executable_lines": 7 },
+      { "symbol": "shouldExcludeFromPostCompactRestore", "executable_lines": 23 }
+    ],
+    "outside_curated_deduction_total": 234,
+    "additional_semantic_deductions": [
+      {
+        "symbol": "getEffectiveContextWindowSize",
+        "executable_lines": 15,
+        "reason": "target does not subtract the reserved compact-summary output allowance"
+      }
+    ],
+    "review_recognized_upper_bound": 10441,
+    "passes_threshold": false,
+    "semantic_only_invalid_total_excluding_plausible_adjustment": 224,
+    "semantic_only_upper_bound": 10466,
+    "receipt_bound_root_upper_bound_after_getAnthropicClient_only": 10499
+  },
+  "new_mechanism_semantics": [
+    { "symbol": "buildSystemPromptBlocks", "result": "INVALID", "reason": "missing split/cache-scope and enable/skip/query-source policy" },
+    { "symbol": "queryHaiku", "result": "INVALID", "reason": "does not construct prompts or select the small fast model; only validates an already prepared request" },
+    { "symbol": "queryWithModel", "result": "INVALID", "reason": "one-line execute alias rather than source non-streaming no-tool/no-thinking query construction" },
+    { "symbol": "adjustParamsForNonStreaming", "result": "IMPLEMENTATION_PLAUSIBLE_SOURCE_CREDIT_FORBIDDEN", "reason": "default-reachable cap exists, but source range is outside the frozen curated boundary" },
+    { "symbol": "getMaxOutputTokensForModel", "result": "INVALID", "reason": "clamps a requested value but omits source default/feature-cap semantics" },
+    { "symbol": "getEffectiveContextWindowSize", "result": "INVALID", "reason": "does not subtract reserved summary output tokens" },
+    { "symbol": "collectReadToolFilePaths", "result": "INVALID", "reason": "does not expand paths and feeds reversed preserved-read selection" },
+    { "symbol": "truncateToTokens", "result": "INVALID", "reason": "appends marker after filling budget and can exceed maximum" },
+    { "symbol": "shouldExcludeFromPostCompactRestore", "result": "INVALID", "reason": "reverses preserved-read dedup and omits source plan/memory exclusion semantics" }
+  ],
+  "v8_compact_disposition": {
+    "array_argument_noop_fixed": true,
+    "instance_scoped": true,
+    "snapshot_contains_last_microcompact_and_pending_edits": true,
+    "microcompact_messages_consumed": true,
+    "stream_summary_consumed": true,
+    "partial_boundary_identity_consumed": true,
+    "auto_compaction_plan_consumed_or_snapshotted": false,
+    "session_memory_result_consumed_or_snapshotted": false,
+    "all_sixteen_have_canonical_effect": false
+  },
+  "mechanical_checks": {
+    "implementation_chain": "PASS",
+    "provider_instance_snapshot_restore": "PASS",
+    "compact_instance_snapshot_restore": "PARTIAL_PASS",
+    "mutations_declared": 129,
+    "mutations_killed": 129,
+    "designated_killers_explicitly_failed": 129,
+    "mutation_patch_matches": 129,
+    "mutation_restoration_matches": 129,
+    "same_session_processes": 3,
+    "same_session_replayed_transition_ids": 0,
+    "lost_ack_repeated_effect_count": 0,
+    "toolchain": "PASS",
+    "cleanroom": "PASS",
+    "cleanroom_target": "796a9c457c6bb871edd26808d91b5affd49f8923",
+    "bun_version": "1.2.15",
+    "node_version": "22.17.0",
+    "typescript_version": "5.8.3",
+    "tests_passed": 420,
+    "tests_failed": 0,
+    "expectations": 1322
+  },
+  "superseded_verifier_assessment": {
+    "immutable_blob_hashing_is_valid_improvement": true,
+    "supersession_operationally_complete": false,
+    "root_profile_validator": "scripts/remediation/verify_m1_r01_e01_v3.ts",
+    "root_receipt_validator": "scripts/remediation/verify_m1_r01_e01_v3.ts",
+    "candidate_gate_ok": false,
+    "result": "V3 FAIL cannot be ignored until profile, receipt, manifests, and candidate gate are regenerated under one coherent authority"
+  },
+  "root_state_at_review": {
+    "status": "execution_01_fix_in_progress",
+    "execution_01_review_allowed": false,
+    "candidate_zyra_head": null,
+    "recorded_revision_3_candidate": "v8",
+    "verified_head_must_remain": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "execution_02_must_remain_blocked": true,
+    "execution_03_must_remain_blocked": true
+  },
+  "blocking_findings": [
+    "receipt-bound root manifests and committed strict evidence describe different closures",
+    "candidate-gate-result.json is top-level FAIL despite empty failures",
+    "outside-curated source symbols supplied forbidden credit",
+    "review-recognized source coverage is at most 10441/10587",
+    "query wrappers and post-compact restore behavior are not source-equivalent",
+    "compact auto and session-memory custody results remain transient shadow calculations",
+    "V3-to-V4 supersession is not reflected coherently in root profile and receipt"
+  ]
+}
