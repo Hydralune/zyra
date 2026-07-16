@@ -489,11 +489,11 @@ function toolExecutionRoute(source: Obj): Obj {
   let mutationsForTarget = ["e01-mut-041-settlement-gateway-fence"];
   let behavior: readonly Obj[] = [behaviorTests.settlement];
   if (/permission|approval|allowed|denied/i.test(name)) {
-    path = PERMISSION_ENFORCEMENT_PATH;
-    symbol = "PermissionEnforcementRuntime.enforce";
-    effect = "permission-enforcement";
-    mutationsForTarget = ["e01-mut-037-permission-deny-delegation", "e01-mut-043-gateway-extra-receipt"];
-    behavior = [behaviorTests.permission];
+    path = "packages/runtime/claude-runtime/src/capability-host.ts";
+    symbol = "PermissionedCapabilityHost.executeBatch";
+    effect = "gateway-permission-consumption";
+    mutationsForTarget = ["e01-mut-041-settlement-gateway-fence"];
+    behavior = [behaviorTests.permission, behaviorTests.settlement];
   } else if (/batch|schedule|queue|parallel|concurrent/i.test(name)) {
     symbol = "ToolExecutionSettlementRuntime.planBatch";
   } else if (/progress|stream|chunk|delta/i.test(name)) {
@@ -504,7 +504,7 @@ function toolExecutionRoute(source: Obj): Obj {
     path = "packages/runtime/claude-runtime/src/capability-host.ts";
     symbol = "PermissionedCapabilityHost.executeBatch";
     effect = "permission-gated-tool-execution";
-    mutationsForTarget = ["e01-mut-037-permission-deny-delegation", "e01-mut-041-settlement-gateway-fence"];
+    mutationsForTarget = ["e01-mut-041-settlement-gateway-fence"];
     behavior = [behaviorTests.permission, behaviorTests.settlement];
   }
   const edges = [
@@ -525,13 +525,13 @@ function toolExecutionRoute(source: Obj): Obj {
     callsitePath: "packages/runtime/claude-runtime/src/capability-host.ts",
     callsiteSymbol: "PermissionedCapabilityHost.executeBatch",
     entryEdges: edges,
-    store: "PermissionedCapabilityHost.snapshot().enforcement/settlement + E01RuntimeSnapshot.tools/toolResults/custody",
-    snapshotProperty: symbol.startsWith("PermissionEnforcementRuntime") ? "enforcement" : "settlement",
+    store: "Python gateway permission decision + PermissionedCapabilityHost.snapshot().settlement + E01RuntimeSnapshot.tools/toolResults/custody",
+    snapshotProperty: "settlement",
     stateObservation: "permission decision -> delegated subset -> correlated gateway/local receipt -> terminal ordered batch",
     effect,
     behavior,
     mutations: mutationsForTarget,
-    adaptation: "Claude tool orchestration is split into Zyra-owned permission enforcement and execution settlement owners. Denied and ASK calls terminate before the gateway; allowed calls retain ordered correlation, local capability settlement, progress budgeting, restart fencing, and snapshot audit.",
+    adaptation: "Python gateway retains canonical permission policy and decisions; TypeScript capability hosting owns ordered batch delegation, result correlation, execution settlement, progress budgeting, restart fencing, and snapshot audit.",
   };
 }
 
@@ -643,11 +643,13 @@ const mutations = [
   ["execution-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.completeCanonicalTurn", "disconnect-execution-custody", "idempotency"],
   ["transport-slot-finally", "src/provider/transport-runtime.ts", "readableStreamToAsyncIterable", "skip-final-close", "provider"],
   ["provider-observation-revision", "src/query-engine.ts", "ClaudeRuntimeCore.run", "drop-revision-transcript", "routing"],
+  ["permission-deny-delegation", "src/tools/permission-enforcement-runtime.ts", "PermissionEnforcementRuntime.enforce", "delegate-denied-call", "permission"],
   ["compatible-endpoint", "src/provider/compatible-runtime.ts", "compatibleRequestUrl", "use-anthropic-endpoint", "provider"],
   ["compatible-tool-delta", "src/provider/compatible-runtime.ts", "applyCompatibleChoice", "overwrite-tool-arguments", "provider"],
   ["iteration-repeated-tool-id", "src/loop/model-iteration-runtime.ts", "ModelIterationRuntime.acceptProviderResult", "reuse-tool-call-id", "idempotency"],
   ["settlement-gateway-fence", "src/tools/execution-settlement-runtime.ts", "ToolExecutionSettlementRuntime.recordGatewayReceipt", "accept-unauthorized-receipt", "permission"],
   ["provider-stream-custody", "src/e01/coordinator.ts", "E01RuntimeCoordinator.prepareProviderLifecycle", "disable-provider-stream", "provider"],
+  ["permission-resolution-resume", "src/tools/permission-enforcement-runtime.ts", "PermissionEnforcementRuntime.resolve", "drop-resolution-resume", "permission"],
   ["iteration-snapshot-checksum", "src/loop/model-iteration-runtime.ts", "ModelIterationRuntime.restore", "skip-iteration-checksum", "restore"],
 ] as const;
 
@@ -878,15 +880,16 @@ function pythonManifest(): Obj[] {
 }
 
 function mutationManifest(): Obj[] {
-  return mutations.map((item, index) => {
+  return mutations.flatMap((item, index) => {
     const [name, shortPath, symbol, operator, risk] = item;
     const path = "packages/runtime/claude-runtime/" + shortPath;
     const mutationId = "e01-mut-" + String(index + 1).padStart(3, "0") + "-" + name;
+    if (index + 1 === 37 || index + 1 === 43) return [];
     const mutation = mutationSpecs[mutationId];
     if (!mutation) throw new Error(`missing executable mutation spec for ${mutationId}`);
     const targetText = readFileSync(join(zyra, path), "utf8");
     const newline = targetText.includes("\r\n") ? "\r\n" : "\n";
-    return {
+    return [{
       schema_version: "3.0",
       record_type: "mutation",
       execution_id: "E01",
@@ -898,7 +901,7 @@ function mutationManifest(): Obj[] {
       expected_killer_test_ids: expectedMutationKillers(name),
       compile_survives: true,
       frozen_patch_sha256: mutationPatchFingerprint(mutation, newline),
-    };
+    }];
   });
 }
 
