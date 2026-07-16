@@ -861,7 +861,7 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
     testPath: "packages/runtime/claude-runtime/test/runtime.test.ts",
   }],
   ["pendingCacheEdits", compactCustodyRoute("pendingCacheEdits", "e01.custody.compact-pending-edits-are-consumed-once", ["pendingCacheEdits", "consumePendingCacheEdits"])],
-  ["consumePendingCacheEdits", compactCustodyRoute("consumePendingCacheEdits", "e01.v10.compaction-default-path-custody-is-canonical", ["consumedEdits", "consumedCacheEditIds"])],
+  ["consumePendingCacheEdits", compactCustodyRoute("consumePendingCacheEdits", "e01.custody.compact-pending-edits-are-consumed-once", ["consumePendingCacheEdits", "toEqual([])"])],
   ["isMainThreadSource", compactCustodyRoute("isMainThreadSource", "e01.custody.compact-main-thread-source-is-explicit", ["interactive-main", "background-subagent"])],
   ["microcompactMessages", compactCustodyRoute("microcompactMessages", "e01.custody.compact-old-tool-results-are-replaced", ["editedToolResultIds", "removedCharacters"])],
   ["cachedMicrocompactPath", compactCustodyRoute("cachedMicrocompactPath", "e01.custody.compact-cache-path-is-deterministic", ["microcompact-", "session_a"])],
@@ -1195,9 +1195,16 @@ const v8SemanticRejections = new Map<string, string>([
   ["getCoordinatorUserContext", "rejected in V8: coordinator presentation context is outside the E01 canonical runtime owner boundary"],
 ]);
 
-const initialWorktreeDirtyPaths = gitText(["status", "--short"])
+const generatorOwnedEvidencePrefix = "docs/reviews/evidence/M1-R01-v3/execution-01/";
+const initialWorktreeStatus = gitText(["status", "--short"])
   .split(/\r?\n/)
   .filter(Boolean);
+const initialIgnoredGeneratorOutputPaths = initialWorktreeStatus.filter((entry) =>
+  entry.slice(3).replaceAll("\\", "/").startsWith(generatorOwnedEvidencePrefix)
+);
+const initialWorktreeDirtyPaths = initialWorktreeStatus.filter((entry) =>
+  !initialIgnoredGeneratorOutputPaths.includes(entry)
+);
 
 await import("./m1_r01_e01_v4.ts");
 
@@ -1325,6 +1332,7 @@ receipt.implementation_candidate_source = requestedImplementationHead
 receipt.captured_at_utc = new Date().toISOString();
 receipt.clean_worktree = initialWorktreeDirtyPaths.length === 0;
 receipt.dirty_paths_at_capture = initialWorktreeDirtyPaths;
+receipt.ignored_generator_output_paths_at_capture = initialIgnoredGeneratorOutputPaths;
 receipt.implementation_diff_baseline = IMPLEMENTATION_DIFF_BASELINE;
 receipt.manifest_generator_command = ["npx", "--yes", "bun@1.2.15", GENERATOR];
 receipt.schema_validator_command = ["npx", "--yes", "bun@1.2.15", SCHEMA_VERIFIER];
