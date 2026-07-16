@@ -1,0 +1,88 @@
+{
+  "schema_version": "4.0",
+  "execution_id": "E01",
+  "revision": "v10",
+  "generated_at_utc": "2026-07-16T08:55:00.000Z",
+  "implementation_candidate": "ad0479228541e99594aba87934cd2ae0a6f5ca5b",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "candidate_status": "validation_passed_pending_self_review",
+  "verified_complete": false,
+  "strict_gate": {
+    "ok": true,
+    "verifier": "scripts/remediation/verify_m1_r01_e01_v4.ts",
+    "accepted_source_ranges": 280,
+    "rejected_source_ranges": 80,
+    "accepted_executable_lines": 10626,
+    "five_hop_mappings": 280,
+    "effective_changed_typescript": 32381,
+    "final_production_typescript": 49964,
+    "final_test_typescript": 11170
+  },
+  "mutation": {
+    "declared": 123,
+    "applied": 123,
+    "compile_survived": 123,
+    "killed": 123,
+    "survived": 0,
+    "invalid": 0,
+    "kill_rate": 1,
+    "frozen_patch_matches": 123,
+    "restored_sha_match": true
+  },
+  "probes": {
+    "runtime_origin_ok": true,
+    "write_path_ok": true,
+    "same_session_resume_ok": true,
+    "replayed_transition_ids": 0,
+    "lost_ack_ok": true,
+    "repeated_effect_count": 0,
+    "disable_ok": true,
+    "dependencies_ok": true,
+    "toolchain_ok": true,
+    "toolchain_command_count": 9,
+    "cleanroom_ok": true,
+    "cleanroom_target": "ad0479228541e99594aba87934cd2ae0a6f5ca5b",
+    "cleanroom_command_count": 9
+  },
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "22.17.0",
+    "typescript": "5.8.3",
+    "tests_passed": 421,
+    "tests_failed": 0,
+    "expectations": 1350
+  },
+  "root_manifest_closure": {
+    "generator": "scripts/remediation/m1_r01_e01_v6.ts",
+    "verifier": "scripts/remediation/verify_m1_r01_e01_v4.ts",
+    "source_ranges": 360,
+    "accepted_source_ranges": 280,
+    "rejected_source_ranges": 80,
+    "target_mappings": 280,
+    "mutation_targets": 123,
+    "frozen_root_manifests": 6,
+    "root_manifest_git_boundary": "outside_zyra_repository"
+  },
+  "line_buckets": {
+    "counted_production_effective_changed_typescript": 32381,
+    "reported_final_test_typescript": 11170,
+    "excluded": [
+      "generated",
+      "data",
+      "docs",
+      "vendor-like/source-pool",
+      "adapter-only",
+      "mock/fixture-only"
+    ]
+  },
+  "source_role_corrections": [
+    "Only six explicitly authorized post-cutoff retry symbols remain eligible; eight outside-curated symbols receive zero source credit.",
+    "getAnthropicClient is accepted only with provider-specific construction, protected headers, credential routing, retry/timeout state, and default-path consumption.",
+    "Auto/partial/stream/session-memory compaction and pending-edit state are consumed and included in snapshot/restore custody."
+  ],
+  "known_non_blocking": [
+    "Legacy V3 reports remain historical artifacts and are not authority for V10."
+  ],
+  "independent_review_verdict": "PENDING"
+}

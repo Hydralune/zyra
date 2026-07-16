@@ -1,23 +1,20 @@
 {
-  "candidate_evidence_commit": "2698b5b6276eee001a9c6adee4f547cb6628bfce",
-  "candidate_status": "independent_review_pending",
-  "cleanroom_target": "796a9c457c6bb871edd26808d91b5affd49f8923",
+  "candidate_evidence_commit": null,
+  "candidate_status": "validation_passed_pending_self_review",
+  "cleanroom_target": "ad0479228541e99594aba87934cd2ae0a6f5ca5b",
   "execution_id": "E01",
-  "implementation_candidate": "796a9c457c6bb871edd26808d91b5affd49f8923",
+  "implementation_candidate": "ad0479228541e99594aba87934cd2ae0a6f5ca5b",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
-  "independent_review_target": "73542eb1b9c8fe0efbc66415b9e6b9754ff11df2",
+  "independent_review_target": null,
   "independent_review_verdict": "PENDING",
   "notes": [
-    "V9 rejects getAnthropicClient source credit because the SDK/auth factory is not equivalent to the retained static descriptor.",
-    "V9 binds provider and compaction custody to instance-scoped canonical snapshots and real default-path envelopes.",
-    "V9 validates 286 five-hop mappings, 129 frozen mutations, eight dynamic probes, Bun/Node builds, and exact-candidate cleanroom.",
-    "verify_m1_r01_e01_v3.ts is retained as a disclosed superseded verifier and is not authoritative for the V5 verification contract."
+    "V10 uses V6 generation and V4 immutable-blob verification as the only authoritative gate path.",
+    "V10 credits 280 material five-hop source mappings and rejects all source ranges without a concrete default-path state effect.",
+    "The exact implementation candidate passed strict and candidate gates, 123 mutation targets, runtime probes, toolchain, and cleanroom; independent review remains pending."
   ],
   "root_manifest_commit_boundary": "G:/agent-zoo/docs/remediations is outside the Zyra Git repository and is delivered as an explicit workspace boundary.",
   "schema_version": "3.0",
   "verification_contract_version": "zyra.e01-verification/v5",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
-  "verified_complete": false,
-  "critical_self_review_commit": "73542eb1b9c8fe0efbc66415b9e6b9754ff11df2",
-  "strict_gate_verifier": "scripts/remediation/verify_m1_r01_e01_v4.ts"
+  "verified_complete": false
 }

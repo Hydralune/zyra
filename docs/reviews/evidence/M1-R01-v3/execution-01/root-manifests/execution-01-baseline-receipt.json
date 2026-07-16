@@ -1,0 +1,48 @@
+{
+  "bun_version": "1.2.15",
+  "capture_exit_codes": {
+    "generator": 0
+  },
+  "captured_at_utc": "2026-07-16T08:46:13.982Z",
+  "clean_worktree": true,
+  "current_control_plane_head": "ad0479228541e99594aba87934cd2ae0a6f5ca5b",
+  "dirty_paths_at_capture": [],
+  "execution_id": "E01",
+  "host_platform": "win32-x64",
+  "ignored_generator_output_paths_at_capture": [
+    "M docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
+    " M docs/reviews/evidence/M1-R01-v3/execution-01/g0-summary.json",
+    " M docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json",
+    "?? docs/reviews/evidence/M1-R01-v3/execution-01/root-manifest-index.json",
+    "?? docs/reviews/evidence/M1-R01-v3/execution-01/root-manifests/"
+  ],
+  "implementation_candidate_source": "E01_IMPLEMENTATION_CANDIDATE",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "input_sha256": {
+    "execution-01-gate-profile.json": "6f106e21edf20a733a965aebf966aaeb76b241cae82e43e4375df2bc35a91a10",
+    "execution-01-mutation-manifest.jsonl": "cd2ee84948b52392697fa1722e17e7825a4b156ec26363be27051c735a372089",
+    "execution-01-python-owner-baseline.jsonl": "66e07494ff8895384f155367a069f0a9a6e2e158644e792619a822498bdf2a3d",
+    "execution-01-source-manifest.jsonl": "b8abb43d13cac6f234ddf1aa6cb48bd8623f78294542d4fec882d798fca784f2",
+    "execution-01-target-custody-map.jsonl": "1c102e12249ecc31c68b1e1f22265df896e4543d30a0ce6ba92094ec55e6a291"
+  },
+  "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",
+  "manifest_generator_command": [
+    "npx",
+    "--yes",
+    "bun@1.2.15",
+    "scripts/remediation/m1_r01_e01_v6.ts"
+  ],
+  "schema_validator_command": [
+    "npx",
+    "--yes",
+    "bun@1.2.15",
+    "scripts/remediation/verify_m1_r01_e01_v4.ts"
+  ],
+  "schema_version": "3.0",
+  "source_hash_semantics": "git-blob-bytes-at-declared-source-snapshot",
+  "source_snapshots": {
+    "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+  },
+  "verified_head_tree": "110fe74ed21150a37f1c62c372f9a14a2abdb0ed",
+  "verified_zyra_head": "c34535a783e88f9481387ced89cba4fbc333dc74"
+}
