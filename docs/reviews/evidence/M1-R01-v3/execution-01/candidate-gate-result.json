@@ -1,13 +1,11 @@
 {
   "schema_version": "3.0",
   "execution_id": "E01",
-  "generated_at_utc": "2026-07-16T03:02:43.400Z",
+  "generated_at_utc": "2026-07-16T03:14:16.118Z",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "enforce_gates": false,
-  "pass": false,
-  "failures": [
-    "incomplete five-hop chain e01-src-0141"
-  ],
+  "pass": true,
+  "failures": [],
   "thresholds": {
     "accepted_source_executable_sloc": 10587,
     "adapter_ratio_maximum": 0.1,
@@ -25,12 +23,12 @@
   "actual": {
     "accepted_source_physical_sloc": 13119,
     "accepted_source_executable_sloc": 13024,
-    "effective_changed_typescript_sloc": 26579,
-    "final_non_test_typescript_sloc": 36663,
+    "effective_changed_typescript_sloc": 26626,
+    "final_non_test_typescript_sloc": 36712,
     "effective_behavior_test_sloc": 8937,
     "adapter_ratio": 0,
     "source_to_target_chain_count": 280,
-    "complete_source_to_target_chain_count": 279,
+    "complete_source_to_target_chain_count": 280,
     "unique_target_symbol_count": 51,
     "maximum_mappings_per_target_symbol": 47,
     "mutation_declared": 103,
