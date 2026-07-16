@@ -10,8 +10,8 @@ const evidenceDirectory = join(
   "docs",
   "reviews",
   "evidence",
-  "M1-R01-v3",
-  "execution-01",
+  "M1-R01-v14",
+  "execution-01-independent-review",
 );
 
 function sha256(value: string): string {
