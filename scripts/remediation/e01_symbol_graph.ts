@@ -356,6 +356,25 @@ export class GitSemanticGraph {
             });
           }
         }
+        if (
+          ts.isCallExpression(node)
+          && ts.isPropertyAccessExpression(node.expression)
+          && ts.isIdentifier(node.expression.expression)
+          && node.expression.expression.text === "assert"
+          && node.arguments[0]
+        ) {
+          const source = node.getSourceFile();
+          const subject = node.arguments[0].getText(source);
+          const matcher = node.expression.name.text;
+          const expected = node.arguments.slice(1).map((argument) => argument.getText(source));
+          observations.push({
+            fingerprint: sha256(JSON.stringify({ subject, matcher, expected })),
+            subject,
+            matcher,
+            expected,
+            callStart: node.getStart(source),
+          });
+        }
         ts.forEachChild(node, visit);
       };
       visit(callable.node);
