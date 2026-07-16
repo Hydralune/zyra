@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import {
@@ -55,9 +55,12 @@ function evidenceDigest(root: string, path: unknown, expected: unknown): boolean
   if (typeof path !== "string" || typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)) {
     return false;
   }
-  if (!path || path.includes("..") || resolve(root, path) === resolve(path)) return false;
+  const rootPath = resolve(root);
+  const targetPath = resolve(rootPath, path);
+  const relativePath = relative(rootPath, targetPath);
+  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) return false;
   try {
-    const value = readFileSync(resolve(root, path));
+    const value = readFileSync(targetPath);
     return createHash("sha256").update(value).digest("hex") === expected;
   } catch {
     return false;
