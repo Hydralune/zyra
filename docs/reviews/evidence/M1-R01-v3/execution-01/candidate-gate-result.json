@@ -1,7 +1,7 @@
 {
   "schema_version": "3.0",
   "execution_id": "E01",
-  "generated_at_utc": "2026-07-16T03:14:16.118Z",
+  "generated_at_utc": "2026-07-16T03:22:15.432Z",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "enforce_gates": false,
   "pass": true,
@@ -23,7 +23,7 @@
   "actual": {
     "accepted_source_physical_sloc": 13119,
     "accepted_source_executable_sloc": 13024,
-    "effective_changed_typescript_sloc": 26626,
+    "effective_changed_typescript_sloc": 26635,
     "final_non_test_typescript_sloc": 36712,
     "effective_behavior_test_sloc": 8937,
     "adapter_ratio": 0,
@@ -32,7 +32,7 @@
     "unique_target_symbol_count": 51,
     "maximum_mappings_per_target_symbol": 47,
     "mutation_declared": 103,
-    "mutation_killed": 50,
+    "mutation_killed": 94,
     "python_owner_paths_remaining": []
   },
   "evidence": {

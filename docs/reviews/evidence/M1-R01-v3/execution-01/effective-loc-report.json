@@ -232,6 +232,11 @@
       "effective_sloc": 628
     },
     {
+      "path": "packages/runtime/claude-runtime/src/model-stream.ts",
+      "ast_units": 5,
+      "effective_sloc": 622
+    },
+    {
       "path": "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
       "ast_units": 42,
       "effective_sloc": 618
@@ -240,11 +245,6 @@
       "path": "packages/runtime/claude-runtime/src/compact/summary-runtime.ts",
       "ast_units": 31,
       "effective_sloc": 616
-    },
-    {
-      "path": "packages/runtime/claude-runtime/src/model-stream.ts",
-      "ast_units": 4,
-      "effective_sloc": 613
     },
     {
       "path": "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts",
@@ -547,10 +547,10 @@
   "baseline_ast_unit_hash_count": 90,
   "baseline_ast_structural_hash_count": 88,
   "current_ast_unit_count": 1919,
-  "exact_changed_ast_unit_count": 1715,
-  "exact_changed_typescript_sloc": 27867,
-  "effective_changed_ast_unit_count": 1349,
-  "effective_changed_typescript_sloc": 26626,
+  "exact_changed_ast_unit_count": 1716,
+  "exact_changed_typescript_sloc": 27876,
+  "effective_changed_ast_unit_count": 1350,
+  "effective_changed_typescript_sloc": 26635,
   "structural_clone_excluded_production_sloc": 1241,
   "behavior_test_files": [
     "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
