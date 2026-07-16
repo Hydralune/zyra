@@ -10,7 +10,7 @@ Execution: `docs/remediations/M1-R01-claude-source-custody/execution-01-runtime-
 
 The V12 completion claim is contradicted by deterministic default-path recovery and concurrency findings. Counts are `P0=0`, `P1=3`, `P2=2`, `P3=0`. E01 must return to `ready_for_fix`; E02 and E03 must remain blocked.
 
-This is an independent-review window. In accordance with the taskbook, no production code, tests, build scripts, manifests, or Execution-02/03 files were modified. The user's requested correction must occur in a new E01 implementation window against a new candidate, followed by a fresh independent review.
+This is an independent-review window. In accordance with the taskbook, no production code, tests, build scripts, manifests, or Execution-02/03 files were modified. The correction must produce a new E01 candidate followed by a fresh independent review.
 
 ## 2. Findings
 
