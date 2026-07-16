@@ -37,7 +37,7 @@ const CANDIDATE_METADATA_PATH =
   "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json";
 const STRICT_GATE_PATH =
   "docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json";
-const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v5";
+const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v7";
 
 function verificationObject(root: string, path: string): Record<string, unknown> | null {
   try {

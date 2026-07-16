@@ -389,11 +389,38 @@ export function targetDisconnectSpec(
   return spec(tests.length > 0 ? tests : [testRoot], search, replacement);
 }
 
+export function targetEffectSuppressionSpec(
+  targetPath: string,
+  targetSymbol: string,
+  tests: string[],
+  mutationId: string,
+): MutationSpec {
+  const disconnected = targetDisconnectSpec(targetPath, targetSymbol, tests, mutationId);
+  return {
+    ...disconnected,
+    edits: disconnected.edits.map((edit) => ({
+      ...edit,
+      replacement: edit.replacement.replace(
+        `throw new Error(${JSON.stringify(`target_disconnect:${mutationId}`)});`,
+        "return undefined as never;",
+      ),
+    })),
+  };
+}
+
 export function mutationSpecForRecord(row: ManifestRow): MutationSpec | undefined {
   const existing = mutationSpecs[row.mutation_id];
   if (existing) return existing;
   if (row.mutation_operator === "disconnect-target") {
     return targetDisconnectSpec(
+      row.target_path,
+      row.target_symbol,
+      row.killer_test_paths ?? [testRoot],
+      row.mutation_id,
+    );
+  }
+  if (row.mutation_operator === "suppress-state-effect") {
+    return targetEffectSuppressionSpec(
       row.target_path,
       row.target_symbol,
       row.killer_test_paths ?? [testRoot],

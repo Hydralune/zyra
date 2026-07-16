@@ -6,7 +6,6 @@ import {
   type ProviderRequestOptions,
   type ProviderTransport,
 } from "../../src/provider/model-runtime.ts";
-import { ProviderCacheCustodyRuntime } from "../../src/provider/cache-custody-runtime.ts";
 import {
   ContextCompactionRuntime,
   type CompactMessage,
@@ -105,6 +104,40 @@ const providerOptions = (): ProviderRequestOptions => ({
   taskId: "task-v9",
 });
 
+const providerSuccess = (id: string): import("../../src/provider/model-runtime.js").ProviderTransportResponse => ({
+  status: 200,
+  headers: { "request-id": id },
+  body: {
+    id,
+    type: "message",
+    role: "assistant",
+    content: [{ type: "text", text: "ok" }],
+    model: "claude-haiku-3-5",
+    stop_reason: "end_turn",
+    stop_sequence: null,
+    usage: { input_tokens: 1, output_tokens: 1 },
+  },
+});
+
+const withEnvironment = async <T>(
+  updates: Readonly<Record<string, string | undefined>>,
+  run: () => Promise<T>,
+): Promise<T> => {
+  const before = Object.fromEntries(Object.keys(updates).map((name) => [name, process.env[name]]));
+  try {
+    for (const [name, value] of Object.entries(updates)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    return await run();
+  } finally {
+    for (const [name, value] of Object.entries(before)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+};
+
 describe("E01 V10 default-path source custody", () => {
   test("e01.v10.compaction-default-path-custody-is-canonical", async () => {
     const runtime = new ContextCompactionRuntime();
@@ -162,139 +195,106 @@ describe("E01 V10 default-path source custody", () => {
   });
 
   test("e01.v11.provider-client-factory-executes-auth-and-retry", async () => {
-    const runtime = new ProviderModelRuntime();
-    runtime.configureEndpoint({ provider: "bedrock", region: "eu-west-1" });
-    runtime.configureCredential({ kind: "aws", fingerprint: "aws-fingerprint" });
-    const prepared = runtime.prepare(providerOptions());
-    const body = prepared.body as Record<string, unknown>;
-    expect(prepared.sourceCustody.breakpointCount).toBeGreaterThan(0);
-    expect(prepared.sourceCustody.client?.transport).toBe("bedrock");
-    expect(prepared.sourceCustody.client?.auth).toBe("aws");
-    expect(prepared.sourceCustody.client?.credentialRefresh).toBe("aws");
-    expect(prepared.sourceCustody.client?.credentialFingerprint).toBe("aws-fingerprint");
-    expect(prepared.endpoint.baseUrl).toBe(prepared.sourceCustody.client!.endpoint);
-    expect(prepared.endpoint.baseUrl).toBe("https://bedrock-runtime.amazonaws.com");
-    expect(prepared.endpoint.region).toBe("eu-west-1");
-    expect(prepared.headers["x-app"]).toBe("cli");
-    expect(prepared.headers["x-claude-code-session-id"]).toBe("provider-v9");
-    expect(JSON.stringify(body.system)).toContain("cache_control");
-    expect(body.max_tokens).toBeLessThanOrEqual(MAX_NON_STREAMING_TOKENS);
-    expect(runtime.resolveModel("haiku").maxOutputTokens).toBe(8_192);
-    const snapshot = runtime.snapshot();
-    expect(snapshot.sourceCustody?.oneHourSessions).toEqual(["provider-v9"]);
-    const restored = new ProviderModelRuntime();
-    restored.restore(snapshot);
-    expect(restored.snapshot().sourceCustody).toEqual(snapshot.sourceCustody!);
-
-    const custody = new ProviderCacheCustodyRuntime();
-    let azureRefreshes = 0;
-    const retryDelays: number[] = [];
-    const foundry = custody.getAnthropicClient({
-      providerId: "anthropic",
-      model: "claude-sonnet-4-5",
-      credential: "",
-      sessionId: "factory-session",
-      maxRetries: 1,
-      credentialProviders: {
-        azure: async () => {
-          azureRefreshes += 1;
-          return "azure-live-token";
+    await withEnvironment({
+      CLAUDE_CODE_USE_FOUNDRY: "1",
+      CLAUDE_CODE_USE_BEDROCK: undefined,
+      CLAUDE_CODE_USE_VERTEX: undefined,
+      ANTHROPIC_FOUNDRY_RESOURCE: "zyra-resource",
+      AZURE_ACCESS_TOKEN: "azure-live-token",
+    }, async () => {
+      const runtime = new ProviderModelRuntime();
+      runtime.configureCredential({ kind: "oauth", accessToken: "azure-live-token", fingerprint: "azure-fingerprint" });
+      const prepared = runtime.prepare({ ...providerOptions(), metadata: { providerMaxRetries: 1 } });
+      expect(prepared.sourceCustody.client?.transport).toBe("foundry");
+      expect(prepared.endpoint.baseUrl).toBe("https://zyra-resource.services.ai.azure.com");
+      const snapshot = runtime.snapshot();
+      expect(JSON.stringify(snapshot)).not.toContain("azure-live-token");
+      expect(snapshot.requests[0]?.request.headers.authorization).toBe("[redacted]");
+      const restored = new ProviderModelRuntime();
+      restored.restore(snapshot, {
+        kind: "oauth",
+        accessToken: "azure-live-token",
+        fingerprint: "azure-fingerprint",
+      });
+      const requests: Array<{ url: string; headers: Readonly<Record<string, string>> }> = [];
+      let attempts = 0;
+      const response = await restored.queryHaiku(snapshot.requests[0]!.request, {
+        async execute(request) {
+          requests.push(request);
+          attempts += 1;
+          return attempts === 1
+            ? { status: 429, headers: { "retry-after": "0" }, body: { error: { message: "retry" } } }
+            : providerSuccess("foundry-default");
         },
-      },
-      sleep: async (milliseconds) => {
-        retryDelays.push(milliseconds);
-      },
-      environment: {
-        CLAUDE_CODE_USE_FOUNDRY: "1",
-        ANTHROPIC_FOUNDRY_RESOURCE: "zyra-resource",
-      },
+      });
+      expect(response.content[0]).toEqual({ type: "text", text: "ok" });
+      expect(requests).toHaveLength(2);
+      expect(requests[0]?.url).toBe("https://zyra-resource.services.ai.azure.com/v1/messages");
+      expect(requests[0]?.headers.authorization).toBe("Bearer azure-live-token");
+      expect(restored.requestState(prepared.requestId).client_attempts).toBe(2);
     });
-    expect(foundry?.transport).toBe("foundry");
-    expect(foundry?.endpoint).toBe("https://zyra-resource.services.ai.azure.com");
-    expect(foundry?.skipAuth).toBe(false);
-    const foundryRequests: Array<{ headers: Readonly<Record<string, string>> }> = [];
-    let foundryAttempts = 0;
-    const foundryResponse = await foundry!.execute({
-      url: `${foundry!.endpoint}/v1/messages`,
-      method: "POST",
-      headers: foundry!.headers,
-      body: "{}",
-      timeoutMs: foundry!.timeoutMs,
-    }, {
-      async execute(request): Promise<import("../../src/provider/model-runtime.js").ProviderTransportResponse> {
-        foundryRequests.push(request);
-        foundryAttempts += 1;
-        return { status: foundryAttempts === 1 ? 429 : 200, headers: {} };
-      },
-    });
-    expect(foundryResponse.status).toBe(200);
-    expect(foundryRequests).toHaveLength(2);
-    expect(foundryRequests[0]?.headers.authorization).toBe("Bearer azure-live-token");
-    expect(azureRefreshes).toBe(2);
-    expect(retryDelays).toEqual([250]);
-    expect(foundry!.executionSnapshot()).toMatchObject({ attempts: 2, credentialRefreshes: 2 });
 
-    let bedrockRequest: { headers: Readonly<Record<string, string>> } | undefined;
-    const bedrock = custody.getAnthropicClient({
-      providerId: "bedrock",
-      model: "claude-sonnet-4-5",
-      credential: "",
-      region: "us-west-2",
-      maxRetries: 0,
-      now: () => Date.parse("2026-07-16T00:00:00.000Z"),
-      credentialProviders: {
-        aws: async () => ({ accessKeyId: "AKID", secretAccessKey: "secret", sessionToken: "session" }),
-      },
-      environment: {},
+    await withEnvironment({
+      CLAUDE_CODE_USE_FOUNDRY: undefined,
+      CLAUDE_CODE_USE_BEDROCK: "1",
+      CLAUDE_CODE_USE_VERTEX: undefined,
+      AWS_ACCESS_KEY_ID: "AKID",
+      AWS_SECRET_ACCESS_KEY: "aws-secret",
+      AWS_SESSION_TOKEN: "aws-session",
+    }, async () => {
+      const runtime = new ProviderModelRuntime({ provider: "bedrock" });
+      runtime.configureEndpoint({ provider: "bedrock", region: "us-west-2" });
+      const prepared = runtime.prepare(providerOptions());
+      let authorization = "";
+      let sessionToken = "";
+      await runtime.queryHaiku(prepared, {
+        async execute(request) {
+          authorization = request.headers.authorization ?? "";
+          sessionToken = request.headers["x-amz-security-token"] ?? "";
+          return providerSuccess("bedrock-default");
+        },
+      });
+      expect(authorization).toStartWith("AWS4-HMAC-SHA256 Credential=AKID/");
+      expect(sessionToken).toBe("aws-session");
+      expect(runtime.requestState(prepared.requestId).client_credential_refreshes).toBe(0);
     });
-    await bedrock!.execute({
-      url: `${bedrock!.endpoint}/model/claude/invoke-with-response-stream`,
-      method: "POST",
-      headers: bedrock!.headers,
-      body: "{}",
-      timeoutMs: bedrock!.timeoutMs,
-    }, {
-      async execute(request) {
-        bedrockRequest = request;
-        return { status: 200, headers: {} };
-      },
-    });
-    expect(bedrockRequest?.headers.authorization).toStartWith("AWS4-HMAC-SHA256 Credential=AKID/");
-    expect(bedrockRequest?.headers["x-amz-security-token"]).toBe("session");
 
-    let vertexAuthorization = "";
-    const vertex = custody.getAnthropicClient({
-      providerId: "vertex",
-      model: "claude-haiku-4-5",
-      credential: "",
-      maxRetries: 0,
-      credentialProviders: { gcp: async () => "gcp-live-token" },
-      environment: {
-        ANTHROPIC_VERTEX_PROJECT_ID: "project-v10",
-        VERTEX_REGION_CLAUDE_HAIKU_4_5: "asia-east1",
-      },
+    await withEnvironment({
+      CLAUDE_CODE_USE_FOUNDRY: undefined,
+      CLAUDE_CODE_USE_BEDROCK: undefined,
+      CLAUDE_CODE_USE_VERTEX: "1",
+      GOOGLE_OAUTH_ACCESS_TOKEN: "gcp-live-token",
+      ANTHROPIC_VERTEX_PROJECT_ID: "project-v12",
+      VERTEX_REGION_CLAUDE_HAIKU_4_5: "asia-east1",
+    }, async () => {
+      const runtime = new ProviderModelRuntime({ provider: "vertex" });
+      const prepared = runtime.prepare(providerOptions());
+      let authorization = "";
+      await runtime.queryHaiku(prepared, {
+        async execute(request) {
+          authorization = request.headers.authorization ?? "";
+          return providerSuccess("vertex-default");
+        },
+      });
+      expect(prepared.sourceCustody.client?.transport).toBe("vertex");
+      expect(prepared.endpoint.projectId).toBe("project-v12");
+      expect(prepared.endpoint.region).toBe("asia-east1");
+      expect(authorization).toBe("Bearer gcp-live-token");
     });
-    expect(vertex?.projectId).toBe("project-v10");
-    expect(vertex?.region).toBe("asia-east1");
-    await vertex!.execute({
-      url: `${vertex!.endpoint}/v1/projects/project-v10/locations/asia-east1/publishers/anthropic/models/claude:rawPredict`,
-      method: "POST",
-      headers: vertex!.headers,
-      body: "{}",
-      timeoutMs: vertex!.timeoutMs,
-    }, {
-      async execute(request) {
-        vertexAuthorization = request.headers.authorization;
-        return { status: 200, headers: {} };
-      },
-    });
-    expect(vertexAuthorization).toBe("Bearer gcp-live-token");
   });
 
   test("e01.v10.provider-query-wrapper-settles-real-request-state", async () => {
     const runtime = new ProviderModelRuntime();
     runtime.configureCredential({ kind: "api_key", apiKey: "anthropic-live-key", fingerprint: "anthropic-key" });
     const prepared = runtime.prepare(providerOptions());
+    const snapshot = runtime.snapshot();
+    expect(JSON.stringify(snapshot)).not.toContain("anthropic-live-key");
+    const restored = new ProviderModelRuntime();
+    restored.restore(snapshot, {
+      kind: "api_key",
+      apiKey: "anthropic-live-key",
+      fingerprint: "anthropic-key",
+    });
     let attempts = 0;
     let observedApiKey = "";
     const transport: ProviderTransport = {
@@ -318,10 +318,10 @@ describe("E01 V10 default-path source custody", () => {
         };
       },
     };
-    const response = await runtime.queryHaiku(prepared, transport);
+    const response = await restored.queryHaiku(snapshot.requests[0]!.request, transport);
     expect(response.content[0]).toEqual({ type: "text", text: "ok" });
-    expect(runtime.requestState(prepared.requestId).state).toBe("completed");
-    expect(runtime.requestState(prepared.requestId).client_attempts).toBe(2);
+    expect(restored.requestState(prepared.requestId).state).toBe("completed");
+    expect(restored.requestState(prepared.requestId).client_attempts).toBe(2);
     expect(observedApiKey).toBe("anthropic-live-key");
     expect(runtime.queryWithModel).toBeDefined();
   });

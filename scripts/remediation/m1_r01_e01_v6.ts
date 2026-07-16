@@ -8,8 +8,9 @@ import {
   mutationPatchFingerprint,
   mutationSpecForRecord,
   mutationSpecs,
-  targetDisconnectSpec,
+  targetEffectSuppressionSpec,
 } from "./run_m1_r01_e01_mutations.ts";
+import { GitSemanticGraph, symbolId } from "./e01_symbol_graph.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
@@ -34,7 +35,7 @@ const fiveHopEvidencePath = join(evidenceRoot, "source-to-target-five-hop.jsonl"
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
-const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v6";
+const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v7";
 const GENERATOR = "scripts/remediation/m1_r01_e01_v6.ts";
 const SCHEMA_VERIFIER = "scripts/remediation/verify_m1_r01_e01_v4.ts";
 const MAIN_PATH = "apps/code-worker/src/main.ts";
@@ -1080,7 +1081,7 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
   ];
   const byId = new Map(
     records
-      .filter((record) => String(record.mutation_operator) !== "disconnect-target")
+      .filter((record) => !["disconnect-target", "suppress-state-effect"].includes(String(record.mutation_operator)))
       .map((record) => [String(record.mutation_id), record]),
   );
   const correctedKillerTests: Record<string, string[]> = {
@@ -1148,7 +1149,7 @@ const targetDisconnectKillerTests: Record<string, string[]> = {
   ],
 };
 
-const addTargetDisconnectMutations = (
+const addTargetEffectMutations = (
   records: JsonRecord[],
   targets: JsonRecord[],
 ): JsonRecord[] => {
@@ -1168,14 +1169,14 @@ const addTargetDisconnectMutations = (
     const discoveredTestNames = [...new Set(behavior.map((item) => String(item.name)).filter(Boolean))].sort();
     const testNames = targetDisconnectKillerTests[key] ?? discoveredTestNames;
     const testPaths = [...new Set(behavior.map((item) => String(item.path)).filter(Boolean))].sort();
-    const spec = targetDisconnectSpec(targetPath, targetSymbol, testPaths, id);
+    const spec = targetEffectSuppressionSpec(targetPath, targetSymbol, testPaths, id);
     byId.set(id, {
       schema_version: "3.0",
       execution_id: "E01",
       record_type: "mutation",
       mutation_id: id,
-      mutation_operator: "disconnect-target",
-      semantic_risk: "exact-target-reachability",
+      mutation_operator: "suppress-state-effect",
+      semantic_risk: "exact-target-state-effect",
       target_path: targetPath,
       target_symbol: targetSymbol,
       compile_survives: true,
@@ -1282,6 +1283,11 @@ const originalTargetById = new Map(
 );
 const accepted = sourceRecords.filter((record) => record.accepted === true);
 const targetRecords: JsonRecord[] = [];
+const semanticGraph = GitSemanticGraph.create(repoRoot, implementationHead);
+const entryId = symbolId(MAIN_PATH, MAIN_SYMBOL);
+if (!semanticGraph.hasDeclaration(MAIN_PATH, MAIN_SYMBOL)) {
+  throw new Error(`default entry declaration is absent: ${entryId}`);
+}
 for (const source of accepted) {
   const id = String(source.mapping_id);
   let target = originalTargetById.get(id);
@@ -1299,52 +1305,21 @@ for (const source of accepted) {
   target.source_symbol = source.source_symbol;
   target.default_entry_id = DEFAULT_ENTRY_ID;
   routeTarget(target, source);
-  const edges = Array.isArray(target.default_entry_edges)
-    ? target.default_entry_edges as JsonRecord[]
-    : [];
-  const normalizedEdges: JsonRecord[] = [];
-  for (const edge of edges) {
-    const invalidProviderShortcut = String(edge.caller_symbol) === "E01RuntimeCoordinator.executePreparedProvider"
-      && String(edge.callee_symbol) === "ProviderModelRuntime.execute";
-    if (!invalidProviderShortcut) {
-      normalizedEdges.push(edge);
-      continue;
-    }
-    normalizedEdges.push(
-      {
-        caller_path: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-        caller_symbol: "E01RuntimeCoordinator.executePreparedProvider",
-        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-        callee_symbol: "ProviderModelRuntime.queryHaiku",
-        kind: "conditional-provider-query",
-      },
-      {
-        caller_path: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
-        caller_symbol: "E01RuntimeCoordinator.executePreparedProvider",
-        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-        callee_symbol: "ProviderModelRuntime.queryWithModel",
-        kind: "conditional-provider-query",
-      },
-      {
-        caller_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-        caller_symbol: "ProviderModelRuntime.queryHaiku",
-        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-        callee_symbol: "ProviderModelRuntime.queryWithModel",
-        kind: "haiku-query-delegation",
-      },
-      {
-        caller_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-        caller_symbol: "ProviderModelRuntime.queryWithModel",
-        callee_path: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
-        callee_symbol: "ProviderModelRuntime.execute",
-        kind: "provider-execution",
-      },
-    );
-  }
-  target.default_entry_edges = normalizedEdges;
-  target.entry_root = normalizedEdges.length === 0
-    && String(target.target_path) === String(target.default_callsite_path)
-    && String(target.target_symbol) === String(target.default_callsite_symbol);
+  const targetId = symbolId(String(target.target_path), String(target.target_symbol));
+  const path = semanticGraph.findPath(entryId, targetId);
+  if (!path || path.length === 0) throw new Error(`target is not reachable from default entry: ${targetId}`);
+  target.default_entry_edges = path.map((edge) => ({
+    caller_path: edge.callerPath,
+    caller_symbol: edge.callerSymbol,
+    callee_path: edge.calleePath,
+    callee_symbol: edge.calleeSymbol,
+    invocation: edge.invocation,
+    invocation_sha256: edge.invocationSha256,
+    kind: "typechecker-resolved-call",
+  }));
+  target.entry_root = false;
+  target.default_callsite_path = path.at(-1)!.callerPath;
+  target.default_callsite_symbol = path.at(-1)!.callerSymbol;
   target.target_sha256 = sha256(
     gitBytes(["show", `${implementationHead}:${String(target.target_path)}`]),
   );
@@ -1354,7 +1329,7 @@ targetRecords.sort((left, right) =>
   String(left.mapping_id).localeCompare(String(right.mapping_id)),
 );
 
-const mutationRecords = addTargetDisconnectMutations(
+const mutationRecords = addTargetEffectMutations(
   addMutations(readJsonLines(mutationManifestPath)),
   targetRecords,
 );
@@ -1377,11 +1352,32 @@ for (const target of targetRecords) {
       : [];
     return String(mutation.target_path) === String(target.target_path)
       && String(mutation.target_symbol) === String(target.target_symbol)
+      && String(mutation.mutation_operator) !== "disconnect-target"
       && killers.some((killer) => behaviorNames.has(killer));
   });
   if (!exactMutation) throw new Error(`missing exact target/test mutation for ${id}`);
-  const assertionTokens = [...new Set(behaviorTests.flatMap((test) =>
-    Array.isArray(test.assertion_tokens) ? test.assertion_tokens.map(String) : []))].sort();
+  const targetId = symbolId(String(target.target_path), String(target.target_symbol));
+  const observedTests = behaviorTests.map((test) => {
+    const testPath = String(test.path);
+    const testName = String(test.name);
+    const observation = semanticGraph.testObservation(testPath, testName, targetId);
+    if (!observation) throw new Error(`named test does not call and assert target effect: ${id} ${testName}`);
+    return {
+      ...test,
+      semantic_call_edges: observation.callPath.map((edge) => ({
+        caller_path: edge.callerPath,
+        caller_symbol: edge.callerSymbol,
+        callee_path: edge.calleePath,
+        callee_symbol: edge.calleeSymbol,
+        invocation: edge.invocation,
+        invocation_sha256: edge.invocationSha256,
+      })),
+      assertion_observations: observation.assertions,
+    };
+  });
+  target.behavior_tests = observedTests;
+  const assertionTokens = [...new Set(observedTests.flatMap((test) =>
+    test.assertion_observations.map((assertion) => assertion.fingerprint)))].sort();
   const targetKey = `${String(target.target_path)}::${String(target.target_symbol)}`;
   const group = groupedTargets.get(targetKey) ?? [target];
   const contractId = `e01.contract.${id}`;
@@ -1398,6 +1394,12 @@ for (const target of targetRecords) {
     state_effect_kind: target.state_effect_kind,
     state_assertion_tokens: assertionTokens,
     behavior_test_names: [...behaviorNames].sort(),
+    test_observations: observedTests.map((test) => ({
+      path: test.path,
+      name: test.name,
+      semantic_call_edges: test.semantic_call_edges,
+      assertion_observations: test.assertion_observations,
+    })),
     exact_mutation_id: exactMutation.mutation_id,
   };
   target.consolidation = {
@@ -1406,14 +1408,15 @@ for (const target of targetRecords) {
     source_symbols: group.map((item) => String(item.source_symbol)).sort(),
     rationale: group.length === 1
       ? "one source operation maps to one Zyra target operation"
-      : `${group.length} source operations are consolidated into the same canonical target state transition and share its exact disconnect mutation`,
+      : `${group.length} source operations are consolidated into the same canonical target state transition and share its exact state-effect suppression mutation`,
   };
   target.semantic_equivalence = [
     `${id} binds ${String(source.source_symbol)} to ${String(target.target_symbol)}`,
     `${[...behaviorNames].sort().join(" + ")} observes ${String(target.state_effect_kind)}`,
-    `${String(exactMutation.mutation_id)} disconnects that exact target and is killed by the named behavior test`,
+    `${String(exactMutation.mutation_id)} suppresses that exact target effect and is killed by the named behavior test`,
   ].join("; ");
 }
+semanticGraph.dispose();
 writeJsonLines(sourceManifestPath, sourceRecords);
 writeJsonLines(targetManifestPath, targetRecords);
 writeJsonLines(mutationManifestPath, mutationRecords);

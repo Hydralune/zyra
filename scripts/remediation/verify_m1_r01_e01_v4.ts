@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
+import { GitSemanticGraph, symbolId, type SemanticCallEdge } from "./e01_symbol_graph.ts";
 
 import {
   mutationPatchFingerprint,
@@ -39,7 +40,7 @@ const SOURCE_SNAPSHOT = "c57f5a29e88e9a814bea47abeb9a0a6f725dc102";
 const VERIFIED_BASELINE = "c34535a783e88f9481387ced89cba4fbc333dc74";
 const IMPLEMENTATION_DIFF_BASELINE = "0cd21bff5e2d160476f2ce3cef766bf53aab1239";
 const DEFAULT_ENTRY_ID = "e01.default-code-worker";
-const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v6";
+const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v7";
 const AUTHORIZED_POST_CUTOFF_SYMBOLS = new Set([
   "getDefaultMaxRetries",
   "getMaxRetries",
@@ -607,11 +608,17 @@ if (acceptedIds.join("\n") !== targetIds.join("\n")) fail("accepted source-to-ta
 
 const defaults = Array.isArray(profile.default_entries) ? (profile.default_entries as JsonRecord[]) : [];
 const defaultIds = new Set(defaults.map((entry) => String(entry.default_entry_id)));
+const defaultById = new Map(defaults.map((entry) => [String(entry.default_entry_id), entry]));
+const semanticGraph = GitSemanticGraph.create(repoRoot, candidate);
 if (!defaultIds.has(DEFAULT_ENTRY_ID) || defaultIds.size !== defaults.length) fail("default entry registry is missing or duplicated");
 for (const entry of defaults) {
   const path = String(entry.path);
+  const symbol = String(entry.symbol);
   try {
     textAt(candidate, path);
+    if (!semanticGraph.hasDeclaration(path, symbol)) {
+      fail(`default entry symbol does not exist in candidate: ${path}::${symbol}`);
+    }
   } catch {
     fail(`default entry does not exist in candidate: ${path}`);
   }
@@ -651,64 +658,101 @@ for (const target of targetRecords) {
   if (targetText && !new RegExp(`\\b${targetLeaf.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(targetText)) {
     fail(`target symbol is absent: ${id} ${String(target.target_symbol)}`);
   }
+  const targetId = symbolId(targetPath, String(target.target_symbol));
+  if (!semanticGraph.hasDeclaration(targetPath, String(target.target_symbol))) {
+    fail(`target symbol declaration is absent: ${id} ${String(target.target_symbol)}`);
+  }
   const callsitePath = String(target.default_callsite_path);
   try {
     const callsiteText = textAt(candidate, callsitePath);
     const callsiteLeaf = symbolLeaf(target.default_callsite_symbol);
     if (!callsiteText.includes(callsiteLeaf)) fail(`default callsite symbol is absent: ${id}`);
+    if (!semanticGraph.hasDeclaration(callsitePath, String(target.default_callsite_symbol))) {
+      fail(`default callsite declaration is absent: ${id}`);
+    }
   } catch {
     fail(`default callsite path is absent: ${id}`);
   }
   const edges = Array.isArray(target.default_entry_edges)
     ? target.default_entry_edges as JsonRecord[]
     : [];
-  const entryRoot = target.entry_root === true
-    && String(target.target_path) === String(target.default_callsite_path)
-    && String(target.target_symbol) === String(target.default_callsite_symbol);
-  if (edges.length === 0 && !entryRoot) fail(`target ${id} lacks an executable default-entry edge`);
-  if (
-    !entryRoot
-    && !edges.some((edge) =>
-      String(edge.callee_path) === String(target.target_path)
-      && String(edge.callee_symbol) === String(target.target_symbol))
-  ) {
-    fail(`target ${id} is absent from its declared default-entry call chain`);
+  if (target.entry_root === true) fail(`target ${id} uses forbidden zero-edge entry_root`);
+  const defaultEntry = defaultById.get(String(target.default_entry_id));
+  const defaultEntryId = defaultEntry ? symbolId(String(defaultEntry.path), String(defaultEntry.symbol)) : "";
+  const actualPath = defaultEntryId ? semanticGraph.findPath(defaultEntryId, targetId) : null;
+  if (!actualPath || actualPath.length === 0) fail(`target ${id} is not reachable from its declared default entry`);
+  const declaredEdges: SemanticCallEdge[] = edges.map((edge) => ({
+    callerPath: String(edge.caller_path),
+    callerSymbol: String(edge.caller_symbol),
+    calleePath: String(edge.callee_path),
+    calleeSymbol: String(edge.callee_symbol),
+    invocation: String(edge.invocation),
+    invocationSha256: String(edge.invocation_sha256),
+    callStart: 0,
+  }));
+  if (actualPath && declaredEdges.length !== actualPath.length) {
+    fail(`target ${id} declared call path length differs from typechecker path`);
   }
-  for (const edge of edges) {
-    const callerPath = String(edge.caller_path);
-    const callerSymbol = String(edge.caller_symbol);
-    const calleePath = String(edge.callee_path);
-    const calleeSymbol = String(edge.callee_symbol);
-    try {
-      const caller = declarationAnalysis(callerPath, textAt(candidate, callerPath), callerSymbol);
-      const callee = declarationAnalysis(calleePath, textAt(candidate, calleePath), calleeSymbol);
-      if (!caller) fail(`edge caller declaration is absent: ${id} ${callerSymbol}`);
-      if (!callee) fail(`edge callee declaration is absent: ${id} ${calleeSymbol}`);
-      if (caller && !caller.calledSymbols.has(symbolLeaf(calleeSymbol))) {
-        fail(`edge caller does not invoke callee: ${id} ${callerSymbol} -> ${calleeSymbol}`);
+  for (let index = 0; index < declaredEdges.length; index += 1) {
+    const declared = declaredEdges[index]!;
+    const actual = actualPath?.[index];
+    if (!semanticGraph.hasEdge(declared)) fail(`target ${id} contains a non-resolved call edge at ${index}`);
+    if (
+      !actual
+      || symbolId(declared.callerPath, declared.callerSymbol) !== symbolId(actual.callerPath, actual.callerSymbol)
+      || symbolId(declared.calleePath, declared.calleeSymbol) !== symbolId(actual.calleePath, actual.calleeSymbol)
+      || declared.invocationSha256 !== actual.invocationSha256
+    ) {
+      fail(`target ${id} declared call path is not the connected typechecker path at ${index}`);
+    }
+    if (index > 0) {
+      const previous = declaredEdges[index - 1]!;
+      if (symbolId(previous.calleePath, previous.calleeSymbol) !== symbolId(declared.callerPath, declared.callerSymbol)) {
+        fail(`target ${id} declared call path is disconnected at ${index}`);
       }
-    } catch {
-      fail(`edge path is absent: ${id} ${callerPath} -> ${calleePath}`);
     }
   }
   const tests = Array.isArray(target.behavior_tests) ? (target.behavior_tests as JsonRecord[]) : [];
   if (tests.length === 0) fail(`target ${id} lacks behavior tests`);
-  const testBodies = new Map<string, string>();
+  const testNames = new Set<string>();
+  const assertionFingerprints = new Set<string>();
   for (const test of tests) {
     try {
       const testPath = String(test.path);
       const testName = String(test.name);
-      const testText = textAt(candidate, testPath);
-      const body = namedTestBody(testPath, testText, testName);
-      if (!body) {
-        fail(`named behavior test callback is absent: ${id} ${testName}`);
+      textAt(candidate, testPath);
+      const observed = semanticGraph.testObservation(testPath, testName, targetId);
+      if (!observed) {
+        fail(`named behavior test does not call target and assert after invocation: ${id} ${testName}`);
         continue;
       }
-      testBodies.set(testName, body);
-      const anchor = String(test.anchor ?? "").trim();
-      if (!anchor || !body.includes(anchor)) fail(`behavior invocation anchor is absent from named test: ${id} ${anchor}`);
-      for (const token of (test.assertion_tokens as unknown[] | undefined) ?? []) {
-        if (!body.includes(String(token))) fail(`behavior assertion token is absent from named test: ${id} ${String(token)}`);
+      testNames.add(testName);
+      const declaredAssertions = Array.isArray(test.assertion_observations)
+        ? test.assertion_observations as JsonRecord[]
+        : [];
+      const expectedFingerprints = observed.assertions.map((item) => item.fingerprint).sort();
+      const declaredFingerprints = declaredAssertions.map((item) => String(item.fingerprint)).sort();
+      if (declaredFingerprints.join("\n") !== expectedFingerprints.join("\n")) {
+        fail(`named behavior test assertion AST fingerprints differ: ${id} ${testName}`);
+      }
+      for (const fingerprint of expectedFingerprints) assertionFingerprints.add(fingerprint);
+      const declaredTestEdges = Array.isArray(test.semantic_call_edges)
+        ? test.semantic_call_edges as JsonRecord[]
+        : [];
+      if (declaredTestEdges.length !== observed.callPath.length) {
+        fail(`named behavior test call path length differs: ${id} ${testName}`);
+      }
+      for (let index = 0; index < declaredTestEdges.length; index += 1) {
+        const declared = declaredTestEdges[index]!;
+        const actual = observed.callPath[index];
+        if (
+          !actual
+          || symbolId(String(declared.caller_path), String(declared.caller_symbol)) !== symbolId(actual.callerPath, actual.callerSymbol)
+          || symbolId(String(declared.callee_path), String(declared.callee_symbol)) !== symbolId(actual.calleePath, actual.calleeSymbol)
+          || String(declared.invocation_sha256) !== actual.invocationSha256
+        ) {
+          fail(`named behavior test call path is not typechecker-resolved: ${id} ${testName} ${index}`);
+        }
       }
     } catch {
       fail(`behavior test path is absent: ${id}`);
@@ -729,8 +773,11 @@ for (const target of targetRecords) {
     const killers = Array.isArray(exactMutation.expected_killer_test_ids)
       ? exactMutation.expected_killer_test_ids.map(String)
       : [];
-    if (!killers.some((name) => testBodies.has(name))) {
+    if (!killers.some((name) => testNames.has(name))) {
       fail(`target ${id} exact mutation is not killed by its named behavior test`);
+    }
+    if (String(exactMutation.mutation_operator) === "disconnect-target") {
+      fail(`target ${id} still uses a disconnect mutation instead of a state-effect mutation`);
     }
   }
   const contractId = String(target.behavior_contract_id ?? "");
@@ -746,10 +793,8 @@ for (const target of targetRecords) {
     ? target.state_assertion_tokens.map(String)
     : [];
   if (stateAssertionTokens.length === 0) fail(`target ${id} lacks state assertion tokens`);
-  for (const token of stateAssertionTokens) {
-    if (![...testBodies.values()].some((body) => body.includes(token))) {
-      fail(`target ${id} state assertion is absent from its named tests: ${token}`);
-    }
+  if (stateAssertionTokens.slice().sort().join("\n") !== [...assertionFingerprints].sort().join("\n")) {
+    fail(`target ${id} state assertion fingerprints differ from named expect AST calls`);
   }
   const targetKey = `${String(target.target_path)}::${String(target.target_symbol)}`;
   const group = targetGroups.get(targetKey) ?? [];
@@ -775,6 +820,8 @@ for (const target of targetRecords) {
     fail(`target ${id} lacks state-effect hop`);
   }
 }
+
+semanticGraph.dispose();
 
 const candidatePaths = gitText(repoRoot, ["ls-tree", "-r", "--name-only", candidate])
   .split(/\r?\n/)

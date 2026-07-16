@@ -645,7 +645,8 @@ export class ProviderCacheCustodyRuntime {
     const debugLogger = envTruthy(environment.CLAUDE_CODE_DEBUG_TO_STDERR);
     const credentialFingerprint = input.credentialFingerprint?.trim()
       || stableFingerprint(input.credential || `${transport}:${input.model}`);
-    let endpoint = input.endpoint?.trim() || "";
+    const endpointBelongsToSelectedTransport = requestedProvider === transport;
+    let endpoint = endpointBelongsToSelectedTransport ? input.endpoint?.trim() || "" : "";
     let auth: AnthropicClientDescriptor["auth"];
     let region = input.region?.trim() || null;
     let projectId = input.projectId?.trim() || null;

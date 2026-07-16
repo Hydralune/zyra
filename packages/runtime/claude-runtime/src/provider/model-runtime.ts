@@ -271,6 +271,34 @@ interface RequestRecord {
   revision: number;
 }
 
+const REDACTED_HEADER_VALUE = "[redacted]";
+
+const isSensitiveHeader = (name: string): boolean =>
+  /authorization|proxy-authorization|api[-_]?key|token|secret|credential|cookie/i.test(name);
+
+const redactSnapshotHeaders = (
+  headers: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> => Object.freeze(Object.fromEntries(
+  Object.entries(headers).map(([name, value]) => [
+    name,
+    isSensitiveHeader(name) ? REDACTED_HEADER_VALUE : value,
+  ]),
+));
+
+const snapshotEndpoint = (endpoint: ProviderEndpoint): ProviderEndpoint => ({
+  ...structuredClone(endpoint),
+  extraHeaders: redactSnapshotHeaders(endpoint.extraHeaders),
+});
+
+const snapshotRequestRecord = (record: RequestRecord): RequestRecord => ({
+  ...structuredClone(record),
+  request: {
+    ...structuredClone(record.request),
+    endpoint: snapshotEndpoint(record.request.endpoint),
+    headers: redactSnapshotHeaders(record.request.headers),
+  },
+});
+
 export interface ProviderModelSnapshot {
   version: typeof PROVIDER_MODEL_SNAPSHOT_VERSION;
   revision: number;
@@ -783,15 +811,6 @@ export class ProviderModelRuntime {
     const record = this.requireRecord(prepared.requestId);
     this.transition(record, "prepared", "dispatched");
     record.dispatchedAt = new Date().toISOString();
-    const request: ProviderTransportRequest = {
-      url: providerRequestUrl(prepared),
-      method: "POST",
-      headers: prepared.headers,
-      body: canonicalJson(prepared.body),
-      timeoutMs: Math.max(1, Date.parse(prepared.deadlineAt) - Date.now()),
-      signal,
-    };
-    let response: ProviderTransportResponse;
     const executableClient = this.executableClients.get(prepared.requestId)
       ?? (prepared.sourceCustody.client
         ? this.sourceCustody.rehydrateAnthropicClient(
@@ -799,6 +818,15 @@ export class ProviderModelRuntime {
           this.credential.apiKey ?? this.credential.accessToken ?? "",
         )
         : null);
+    const request: ProviderTransportRequest = {
+      url: providerRequestUrl(prepared),
+      method: "POST",
+      headers: executableClient ? prepared.headers : this.executionHeaders(prepared),
+      body: canonicalJson(prepared.body),
+      timeoutMs: Math.max(1, Date.parse(prepared.deadlineAt) - Date.now()),
+      signal,
+    };
+    let response: ProviderTransportResponse;
     if (executableClient && !this.executableClients.has(prepared.requestId)) {
       this.executableClients.set(prepared.requestId, executableClient);
     }
@@ -941,7 +969,7 @@ export class ProviderModelRuntime {
       revision: this.revision,
       activeModel: this.activeModel,
       models: [...this.models.values()].map((value) => structuredClone(value)),
-      endpoint: structuredClone(this.endpoint),
+      endpoint: snapshotEndpoint(this.endpoint),
       credential: {
         kind: this.credential.kind,
         expiresAt: this.credential.expiresAt,
@@ -949,7 +977,7 @@ export class ProviderModelRuntime {
         source: this.credential.source,
         fingerprint: this.credential.fingerprint,
       },
-      requests: [...this.requests.values()].map((value) => structuredClone(value)),
+      requests: [...this.requests.values()].map(snapshotRequestRecord),
       usage: { ...this.usage },
       sourceCustody: this.sourceCustody.snapshot(),
     };
@@ -1069,6 +1097,24 @@ export class ProviderModelRuntime {
       headers["x-api-key"] = this.credential.apiKey;
     }
     if (endpoint.provider === "anthropic" && this.credential.kind === "oauth" && this.credential.accessToken) {
+      headers.authorization = `Bearer ${this.credential.accessToken}`;
+    }
+    return Object.freeze(headers);
+  }
+
+  private executionHeaders(prepared: PreparedProviderRequest): Readonly<Record<string, string>> {
+    const headers: Record<string, string> = { ...prepared.headers };
+    for (const [name, value] of Object.entries(headers)) {
+      if (isSensitiveHeader(name) && value === REDACTED_HEADER_VALUE) delete headers[name];
+    }
+    const secret = this.credential.apiKey ?? this.credential.accessToken;
+    if ((prepared.provider === "compatible" || prepared.provider === "local") && secret) {
+      return Object.freeze(compatibleHeaders(secret, headers));
+    }
+    if (prepared.provider === "anthropic" && this.credential.kind === "api_key" && this.credential.apiKey) {
+      headers["x-api-key"] = this.credential.apiKey;
+    }
+    if (prepared.provider === "anthropic" && this.credential.kind === "oauth" && this.credential.accessToken) {
       headers.authorization = `Bearer ${this.credential.accessToken}`;
     }
     return Object.freeze(headers);
