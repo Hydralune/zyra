@@ -1,13 +1,11 @@
 {
   "schema_version": "3.0",
   "execution_id": "E01",
-  "generated_at_utc": "2026-07-16T05:59:55.927Z",
+  "generated_at_utc": "2026-07-16T06:01:59.696Z",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "enforce_gates": true,
-  "pass": false,
-  "failures": [
-    "baseline receipt is not clean: M docs/reviews/evidence/M1-R01-v3/execution-01/candidate-gate-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/cleanroom-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/dependencies-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/disable-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json, M docs/reviews/evidence/M1-R01-v3/execution-01/lost-ack-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/runtime-origin-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/same-session-resume-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/source-to-target-five-hop.jsonl, M docs/reviews/evidence/M1-R01-v3/execution-01/toolchain-result.json, M docs/reviews/evidence/M1-R01-v3/execution-01/write-path-result.json, M scripts/remediation/m1_r01_e01_v6.ts"
-  ],
+  "pass": true,
+  "failures": [],
   "thresholds": {
     "accepted_source_executable_sloc": 10587,
     "adapter_ratio_maximum": 0.1,

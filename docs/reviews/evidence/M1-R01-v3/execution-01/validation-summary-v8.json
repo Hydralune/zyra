@@ -1,0 +1,100 @@
+{
+  "candidate": "745480e8d439b04f56d714c63cd29e2b4f27e870",
+  "execution_id": "E01",
+  "generated_at": "2026-07-16",
+  "independent_review": "PENDING",
+  "internal_verdict": "PASS",
+  "verified_complete": false,
+  "baseline": {
+    "implementation_diff": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+    "verified": "c34535a783e88f9481387ced89cba4fbc333dc74"
+  },
+  "source_custody": {
+    "accepted_source_symbols": 278,
+    "rejected_source_symbols": 82,
+    "complete_five_hop_mappings": 278,
+    "unique_target_symbols": 69,
+    "maximum_mappings_per_target_symbol": 46,
+    "canonical_mutations": 121,
+    "killed_mutations": 121,
+    "designated_killer_status_required": true
+  },
+  "line_accounting": {
+    "strict_profile": {
+      "accepted_source_executable_lines": 10604,
+      "accepted_source_executable_threshold": 10587,
+      "gross_changed_executable_typescript_lines": 32492,
+      "token_winnowing_deducted_lines": 663,
+      "effective_changed_typescript_lines": 31829,
+      "effective_changed_typescript_threshold": 25416,
+      "final_production_typescript_lines": 49412,
+      "final_test_typescript_lines": 10933,
+      "deleted_python_lines": 35151
+    },
+    "generic_profile": {
+      "accepted_source_executable_lines": 13015,
+      "effective_changed_typescript_lines": 27276,
+      "final_non_test_typescript_lines": 37529,
+      "effective_behavior_test_lines": 9155
+    }
+  },
+  "validation": {
+    "strict_gate": "PASS",
+    "generic_candidate_gate": "PASS",
+    "full_e01_runtime_suite": {
+      "passed": 416,
+      "failed": 0,
+      "expectations": 1302
+    },
+    "typecheck": "PASS",
+    "bun_build": "PASS",
+    "bun_built_health": "PASS",
+    "node_build": "PASS",
+    "node_built_health": "PASS",
+    "cleanroom": "PASS",
+    "dependency_path_audit": "PASS",
+    "default_entry_disable_probe": "PASS",
+    "lost_ack_probe": "PASS",
+    "runtime_origin_probe": "PASS",
+    "same_session_resume_probe": "PASS",
+    "toolchain_probe": "PASS",
+    "write_path_probe": "PASS"
+  },
+  "resume": {
+    "process_epochs": 3,
+    "forced_restarts": 2,
+    "replayed_transition_ids": [],
+    "lost_ack_repeated_effect_count": 0
+  },
+  "toolchains": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "typescript": "5.8.3"
+  },
+  "cleanroom": {
+    "target": "745480e8d439b04f56d714c63cd29e2b4f27e870",
+    "archive_checkout": true,
+    "frozen_install": "PASS",
+    "typecheck": "PASS",
+    "bun_build_and_health": "PASS",
+    "node_build_and_health": "PASS",
+    "tests": "PASS"
+  },
+  "evidence_files": [
+    "candidate-gate-result.json",
+    "candidate-metadata.json",
+    "cleanroom-result.json",
+    "dependencies-result.json",
+    "disable-result.json",
+    "effective-loc-report.json",
+    "lost-ack-result.json",
+    "mutation-results.json",
+    "runtime-origin-result.json",
+    "same-session-resume-result.json",
+    "source-to-target-five-hop.jsonl",
+    "strict-gate.json",
+    "toolchain-result.json",
+    "write-path-result.json"
+  ],
+  "scope_boundary": "Root remediation documents and manifest mirrors under G:/agent-zoo/docs are outside the Zyra Git repository and are not represented by this candidate commit."
+}

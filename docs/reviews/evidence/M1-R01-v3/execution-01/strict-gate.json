@@ -2,45 +2,45 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+  "candidate": "745480e8d439b04f56d714c63cd29e2b4f27e870",
   "ok": true,
   "checks": {
     "source_manifest": {
       "total": 360,
-      "accepted": 285,
-      "rejected": 75,
-      "accepted_executable_lines": 10642,
+      "accepted": 278,
+      "rejected": 82,
+      "accepted_executable_lines": 10604,
       "hash_semantics": "immutable-git-blob-bytes"
     },
     "source_to_target": {
-      "target_mappings": 285,
-      "five_hop_mappings": 285,
+      "target_mappings": 278,
+      "five_hop_mappings": 278,
       "default_entries": 1
     },
     "scope": {
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a"
+      "candidate": "745480e8d439b04f56d714c63cd29e2b4f27e870"
     },
     "effective_lines": {
-      "gross_changed_executable_typescript": 31495,
+      "gross_changed_executable_typescript": 32492,
       "token_winnowing": {
         "shingle_tokens": 5,
         "window_shingles": 8,
         "minimum_length_ratio": 0.8,
         "minimum_jaccard": 0.8,
-        "compared_units": 2159,
+        "compared_units": 2233,
         "duplicate_pairs": [
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/compact/restore-runtime.ts:489:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/compact/restore-runtime.ts:498:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -68,35 +68,35 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/context/assembly-runtime.ts:672:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/context/assembly-runtime.ts:681:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/e01/coordinator.ts:104:remainder",
+            "retainedUnit": "packages/runtime/claude-runtime/src/e01/coordinator.ts:107:remainder",
             "deductedUnit": "packages/runtime/claude-runtime/src/e01/custody-helpers.ts:10:remainder",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 12
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/e01/coordinator.ts:2387:normalizeProviderId",
+            "retainedUnit": "packages/runtime/claude-runtime/src/e01/coordinator.ts:2468:normalizeProviderId",
             "deductedUnit": "packages/runtime/claude-runtime/src/e01/custody-helpers.ts:48:durableMessageRole",
             "similarity": 0.8333,
             "lengthRatio": 0.8158,
             "deductedLines": 4
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/context/token-runtime.ts:81:canonical",
+            "retainedUnit": "packages/runtime/claude-runtime/src/context/token-runtime.ts:115:canonical",
             "deductedUnit": "packages/runtime/claude-runtime/src/e01/kernel.ts:104:canonicalJson",
             "similarity": 0.8387,
             "lengthRatio": 1,
@@ -110,14 +110,14 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/input/query-input-runtime.ts:647:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/input/query-input-runtime.ts:656:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -159,14 +159,14 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/context/token-runtime.ts:92:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/context/token-runtime.ts:126:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts:967:digest",
             "similarity": 0.8333,
             "lengthRatio": 0.9688,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/e01/coordinator.ts:104:remainder",
+            "retainedUnit": "packages/runtime/claude-runtime/src/e01/coordinator.ts:107:remainder",
             "deductedUnit": "packages/runtime/claude-runtime/src/model-stream.ts:14:remainder",
             "similarity": 1,
             "lengthRatio": 1,
@@ -194,7 +194,7 @@
             "deductedLines": 5
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1326:integer",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1329:integer",
             "deductedUnit": "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts:670:integer",
             "similarity": 1,
             "lengthRatio": 1,
@@ -208,14 +208,14 @@
             "deductedLines": 5
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts:680:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts:689:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -243,64 +243,85 @@
             "deductedLines": 5
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts:391:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts:400:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:56:remainder",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:114:remainder",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts:65:remainder",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts:100:remainder",
+            "similarity": 0.8421,
+            "lengthRatio": 1,
+            "deductedLines": 8
+          },
+          {
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts:58:remainder",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts:109:remainder",
+            "similarity": 1,
+            "lengthRatio": 0.9895,
+            "deductedLines": 8
+          },
+          {
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts:53:remainder",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts:79:remainder",
+            "similarity": 1,
+            "lengthRatio": 1,
+            "deductedLines": 4
+          },
+          {
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:57:remainder",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:115:remainder",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 6
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:63:remainder",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:121:remainder",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:64:remainder",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:122:remainder",
             "similarity": 0.8,
             "lengthRatio": 0.9091,
             "deductedLines": 7
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts:118:optionalNumber",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1759:nullableNumber",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1765:nullableNumber",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts:377:integer",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1763:integer",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1769:integer",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1791:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1797:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1800:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1806:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts:71:Constructor",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:428:Constructor",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:430:Constructor",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 6
@@ -313,14 +334,14 @@
             "deductedLines": 5
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1330:findLastIndex",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1333:findLastIndex",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts:620:findLastIndex",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 4
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1781:sortJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1787:sortJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts:625:sortJson",
             "similarity": 1,
             "lengthRatio": 1,
@@ -355,22 +376,22 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts:657:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts:666:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/context/token-runtime.ts:92:digest",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts:94:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/context/token-runtime.ts:126:digest",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts:95:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
@@ -391,56 +412,56 @@
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/compact/restore-runtime.ts:469:required",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1087:required",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1116:required",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 5
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1309:normalizeTimestamp",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1097:normalizeTimestamp",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1312:normalizeTimestamp",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1126:normalizeTimestamp",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 6
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1326:integer",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1104:integer",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1329:integer",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1133:integer",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/compact/restore-runtime.ts:475:number",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1108:number",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1137:number",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1316:boundedInteger",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1116:boundedInteger",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1319:boundedInteger",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1145:boundedInteger",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 9
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1131:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1160:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1140:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:1169:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1599:usageToJson",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:903:usageToJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1605:usageToJson",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:932:usageToJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 9
@@ -474,14 +495,14 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/transport-runtime.ts:609:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/transport-runtime.ts:618:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -495,7 +516,7 @@
             "deductedLines": 12
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts:5:remainder",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts:6:remainder",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/execution-plan-runtime.ts:29:remainder",
             "similarity": 1,
             "lengthRatio": 0.9512,
@@ -509,7 +530,7 @@
             "deductedLines": 18
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1326:integer",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1329:integer",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts:1307:integer",
             "similarity": 1,
             "lengthRatio": 1,
@@ -523,21 +544,21 @@
             "deductedLines": 5
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1309:normalizeTimestamp",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1312:normalizeTimestamp",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts:1317:normalizeTimestamp",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 6
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts:1333:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts:1342:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -551,18 +572,11 @@
             "deductedLines": 17
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts:5:remainder",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts:6:remainder",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/stop-runtime.ts:19:remainder",
             "similarity": 1,
             "lengthRatio": 0.8462,
             "deductedLines": 15
-          },
-          {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:10:remainder",
-            "deductedUnit": "packages/runtime/claude-runtime/src/query/stop-runtime.ts:35:remainder",
-            "similarity": 1,
-            "lengthRatio": 0.8222,
-            "deductedLines": 11
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/compact/restore-runtime.ts:469:required",
@@ -593,14 +607,14 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/stream-runtime.ts:352:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/query/stream-runtime.ts:361:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -628,14 +642,14 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/session/durable-runtime.ts:789:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/session/durable-runtime.ts:798:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -670,21 +684,21 @@
             "deductedLines": 6
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/session/history-runtime.ts:403:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/session/history-runtime.ts:412:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1344:digest",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1347:digest",
             "deductedUnit": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts:1008:digest",
             "similarity": 1,
             "lengthRatio": 1,
@@ -733,21 +747,21 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1309:normalizeTimestamp",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1312:normalizeTimestamp",
             "deductedUnit": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts:982:normalizeTimestamp",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 6
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1781:sortJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1787:sortJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts:989:sortJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 9
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1335:canonicalJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1338:canonicalJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts:999:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
@@ -810,23 +824,23 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:10:remainder",
+            "retainedUnit": "packages/runtime/claude-runtime/src/query/stop-runtime.ts:35:remainder",
             "deductedUnit": "packages/runtime/claude-runtime/src/tools/permission-enforcement-runtime.ts:7:remainder",
             "similarity": 1,
-            "lengthRatio": 0.9111,
+            "lengthRatio": 0.9024,
             "deductedLines": 9
           }
         ],
-        "deducted_lines": 654
+        "deducted_lines": 663
       },
-      "effective_changed_typescript": 30841,
-      "final_production_typescript": 48420,
-      "final_test_typescript": 10679,
+      "effective_changed_typescript": 31829,
+      "final_production_typescript": 49412,
+      "final_test_typescript": 10933,
       "python_deleted_lines": 35151
     },
     "mutations": {
-      "declared": 50,
-      "canonical_frozen_patch_fingerprints": 50
+      "declared": 121,
+      "canonical_frozen_patch_fingerprints": 121
     }
   },
   "failures": []
