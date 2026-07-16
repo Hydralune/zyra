@@ -1,0 +1,95 @@
+{
+  "schema_version": "4.0",
+  "execution_id": "E01",
+  "revision": "v11",
+  "generated_at_utc": "2026-07-16T09:50:00.000Z",
+  "implementation_candidate": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "candidate_status": "validation_passed_pending_self_review",
+  "verified_complete": false,
+  "strict_gate": {
+    "ok": true,
+    "verifier": "scripts/remediation/verify_m1_r01_e01_v4.ts",
+    "verification_contract_version": "zyra.e01-verification/v6",
+    "accepted_source_ranges": 276,
+    "rejected_source_ranges": 84,
+    "accepted_executable_lines": 10587,
+    "minimum_accepted_executable_lines": 10587,
+    "five_hop_mappings": 276,
+    "effective_changed_typescript": 32638,
+    "final_production_typescript": 50229,
+    "final_test_typescript": 11253
+  },
+  "mutation": {
+    "declared": 123,
+    "applied": 123,
+    "compile_survived": 123,
+    "killed": 123,
+    "survived": 0,
+    "invalid": 0,
+    "kill_rate": 1,
+    "frozen_patch_matches": 123,
+    "restored_sha_match": true
+  },
+  "probes": {
+    "runtime_origin_ok": true,
+    "write_path_ok": true,
+    "same_session_resume_ok": true,
+    "replayed_transition_ids": 0,
+    "lost_ack_ok": true,
+    "repeated_effect_count": 0,
+    "disable_ok": true,
+    "dependencies_ok": true,
+    "toolchain_ok": true,
+    "toolchain_command_count": 9,
+    "cleanroom_ok": true,
+    "cleanroom_target": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+    "cleanroom_command_count": 9
+  },
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "22.17.0",
+    "typescript": "5.8.3",
+    "tests_passed": 421,
+    "tests_failed": 0,
+    "expectations": 1361
+  },
+  "root_manifest_closure": {
+    "generator": "scripts/remediation/m1_r01_e01_v6.ts",
+    "verifier": "scripts/remediation/verify_m1_r01_e01_v4.ts",
+    "source_ranges": 360,
+    "accepted_source_ranges": 276,
+    "rejected_source_ranges": 84,
+    "target_mappings": 276,
+    "mutation_targets": 123,
+    "frozen_root_manifests": 6,
+    "five_hop_artifact_matches_target_map_bytes": true,
+    "root_manifest_git_boundary": "outside_zyra_repository"
+  },
+  "line_buckets": {
+    "gross_changed_executable_typescript": 33309,
+    "token_winnowing_deducted_lines": 671,
+    "counted_production_effective_changed_typescript": 32638,
+    "reported_final_test_typescript": 11253,
+    "excluded": [
+      "generated",
+      "data",
+      "docs",
+      "vendor-like/source-pool",
+      "adapter-only",
+      "mock/fixture-only"
+    ]
+  },
+  "source_role_corrections": [
+    "Four session-memory global config symbols without a material target effect are rejected rather than mapped to generic templates.",
+    "getAnthropicClient now yields an executable provider client whose default path performs provider-specific credential binding and bounded retry execution.",
+    "Every accepted mapping has a unique behavior contract whose caller-to-callee edge, exact target mutation and named assertion callback are checked through the TypeScript AST.",
+    "The committed source-to-target five-hop artifact is byte-identical to the authoritative target custody map."
+  ],
+  "known_non_blocking": [
+    "Accepted source coverage has zero line margin: 10,587 accepted executable lines exactly equals the execution minimum.",
+    "Legacy V3 through V10 reports remain historical artifacts and are not authority for V11."
+  ],
+  "independent_review_verdict": "PENDING"
+}

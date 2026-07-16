@@ -2,7 +2,7 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.toolchain",
-  "generated_at_utc": "2026-07-16T08:54:01.167Z",
+  "generated_at_utc": "2026-07-16T09:49:16.369Z",
   "ok": true,
   "bun_version": "1.2.15",
   "typescript_version": "5.8.3",
@@ -13,7 +13,7 @@
         "--version"
       ],
       "exit_code": 0,
-      "duration_ms": 56,
+      "duration_ms": 47,
       "stdout_sha256": "091d55b64de2013341ba60beea22ca1392e1c258d68ff2aa2e8f901cf9723d63",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stdout_excerpt": "1.2.15",
@@ -25,7 +25,7 @@
         "--version"
       ],
       "exit_code": 0,
-      "duration_ms": 79,
+      "duration_ms": 58,
       "stdout_sha256": "a9d0edd7fa746ba610a0e8fecb0f2566c5d2bcf799a820e770bd1d00c77e7cc8",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stdout_excerpt": "v22.17.0",
@@ -38,10 +38,10 @@
         "--frozen-lockfile"
       ],
       "exit_code": 0,
-      "duration_ms": 85,
-      "stdout_sha256": "60954eca7baf367e2c70b9294c3c1dfd336a44a8175fc3bfc4dc89aaa12efd64",
+      "duration_ms": 68,
+      "stdout_sha256": "f05fb38d0f71237138bc76c64382ef25ee721a87a8b7c0bd3ef57340109fd592",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\nChecked 10 installs across 11 packages (no changes) [25.00ms]",
+      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\nChecked 10 installs across 11 packages (no changes) [18.00ms]",
       "stderr_excerpt": ""
     },
     {
@@ -51,7 +51,7 @@
         "typecheck:e01"
       ],
       "exit_code": 0,
-      "duration_ms": 3718,
+      "duration_ms": 4070,
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stderr_sha256": "97c71f9cafa7e1e6b971587726cb7ea7105e4d8a43bee0ae06b6026113b59d51",
       "stdout_excerpt": "",
@@ -64,10 +64,10 @@
         "build:bun"
       ],
       "exit_code": 0,
-      "duration_ms": 194,
-      "stdout_sha256": "ded0ee28f8e9992fc66e4f38a9788d347ab7a9a3a9848b30fcaa051cd5d869d9",
+      "duration_ms": 180,
+      "stdout_sha256": "bfec921ec7ab62f5bb711f6c81688a9a071bf526c522a88212e27b2dbb0baae3",
       "stderr_sha256": "65431c908d5f420fd2b75f75cbdb9ddeb8d8001428d8c9584ad475532ce1cd71",
-      "stdout_excerpt": "Bundled 80 modules in 47ms\n\n  main.js  1.22 MB  (entry point)",
+      "stdout_excerpt": "Bundled 80 modules in 40ms\n\n  main.js  1.23 MB  (entry point)",
       "stderr_excerpt": "$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun"
     },
     {
@@ -77,10 +77,10 @@
         "runtime:built:bun:health"
       ],
       "exit_code": 0,
-      "duration_ms": 237,
-      "stdout_sha256": "b1a182b489a9df362df84d82870b3868882ce578b85df68e46ddf9c49f050270",
+      "duration_ms": 207,
+      "stdout_sha256": "8afd93084c0f6f6358df6191da15bd517b89ad4709401a154b22956fc42331f9",
       "stderr_sha256": "29d97decfbe8a94d5d09903b661e84808e3d17e1a5476b8b9e476cb0f621e53e",
-      "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"implementation_generated_pending_validation\",\"effectiveLineCount\":32381,\"implementationCandidate\":\"ad0479228541e99594aba87934cd2ae0a6f5ca5b\",\"evidenceCommit\":null,\"reviewTarget\":null,\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
+      "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"candidate_metadata_contract_mismatch\",\"effectiveLineCount\":32638,\"implementationCandidate\":\"85a6ec230bc2d27d7a5b3bdd54d1580efce9266b\",\"evidenceCommit\":null,\"reviewTarget\":null,\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
       "stderr_excerpt": "$ bun dist/code-worker/main.js --health"
     },
     {
@@ -90,10 +90,10 @@
         "build:node"
       ],
       "exit_code": 0,
-      "duration_ms": 230,
-      "stdout_sha256": "76222f0508ed4de2fdc8b67afdeca93fcbe2c151ee721c305dc837137283e4bb",
+      "duration_ms": 341,
+      "stdout_sha256": "f574f081a1b143d87c5ef30664297990118f8f199b2919f11f57f527c03d27a8",
       "stderr_sha256": "2702ad603b65f0d23642e9bf07f2ce73676bba9cdf6293c846f6c4b3a2d4130c",
-      "stdout_excerpt": "Bundled 80 modules in 62ms\n\n  main.js  1.22 MB  (entry point)",
+      "stdout_excerpt": "Bundled 80 modules in 44ms\n\n  main.js  1.23 MB  (entry point)",
       "stderr_excerpt": "$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker-node --target node"
     },
     {
@@ -103,10 +103,10 @@
         "--health"
       ],
       "exit_code": 0,
-      "duration_ms": 135,
-      "stdout_sha256": "b1a182b489a9df362df84d82870b3868882ce578b85df68e46ddf9c49f050270",
+      "duration_ms": 113,
+      "stdout_sha256": "8afd93084c0f6f6358df6191da15bd517b89ad4709401a154b22956fc42331f9",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"implementation_generated_pending_validation\",\"effectiveLineCount\":32381,\"implementationCandidate\":\"ad0479228541e99594aba87934cd2ae0a6f5ca5b\",\"evidenceCommit\":null,\"reviewTarget\":null,\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
+      "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"candidate_metadata_contract_mismatch\",\"effectiveLineCount\":32638,\"implementationCandidate\":\"85a6ec230bc2d27d7a5b3bdd54d1580efce9266b\",\"evidenceCommit\":null,\"reviewTarget\":null,\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
       "stderr_excerpt": ""
     },
     {
@@ -116,11 +116,11 @@
         "runtime:e01:test"
       ],
       "exit_code": 0,
-      "duration_ms": 2085,
+      "duration_ms": 1781,
       "stdout_sha256": "11a0cc41569f7e0e890f4f768aea6f6fb679a37222b2ae46d26c9a2c285957bb",
-      "stderr_sha256": "2b9469f59bf2cc77b360dc3f798771005d848e653c49a4f4050e2ac85e8df774",
+      "stderr_sha256": "1380629ce82418f9021dffd800233e2326ab17804af06af2057a64406935390a",
       "stdout_excerpt": "bun test v1.2.15 (df017990)",
-      "stderr_excerpt": " > restores accumulators deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [15.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 421 pass\n 0 fail\n 1350 expect() calls\nRan 421 tests across 16 files. [1.90s]"
+      "stderr_excerpt": "tors deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result [16.00ms]\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [16.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes [15.00ms]\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 421 pass\n 0 fail\n 1361 expect() calls\nRan 421 tests across 16 files. [1.63s]"
     }
   ]
 }

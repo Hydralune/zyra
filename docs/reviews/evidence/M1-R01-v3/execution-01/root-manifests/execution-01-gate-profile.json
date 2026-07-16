@@ -2,7 +2,7 @@
   "allowed_control_plane_commits": [
     "ae7fae15cfb02983be2d1430fd11c2596b4e7236"
   ],
-  "authoritative_verification_contract": "zyra.e01-verification/v5",
+  "authoritative_verification_contract": "zyra.e01-verification/v6",
   "candidate_scope_paths": [
     "apps/code-worker",
     "docs/reviews",
