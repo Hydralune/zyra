@@ -2,9 +2,9 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.cleanroom",
-  "generated_at_utc": "2026-07-16T03:38:10.744Z",
+  "generated_at_utc": "2026-07-16T03:45:06.628Z",
   "ok": true,
-  "target_commit": "f7e7a35c6f8ea80a6cc7aef108cad08ab737b08b",
+  "target_commit": "050c68e1e80cbe942b248111288981bffd6f3be5",
   "source": "git archive",
   "cache_state": "fresh extracted tree without node_modules, dist, .tmp, or git metadata",
   "cleanroom_root_parent": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom",
@@ -29,10 +29,10 @@
         "--frozen-lockfile"
       ],
       "exit_code": 0,
-      "duration_ms": 11025,
-      "stdout_sha256": "fc173fda3e7b5aa89a28bf3c771f8d4dd62829b5920583457e7ee3844d5d4e60",
+      "duration_ms": 60906,
+      "stdout_sha256": "d5b4eb426676b305637481d333b65db1d71013a860394141120c5ff327484075",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ typescript@5.8.3\n\n10 packages installed [10.95s]",
+      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ typescript@5.8.3\n\n10 packages installed [60.85s]",
       "stderr_excerpt": ""
     },
     {
@@ -42,7 +42,7 @@
         "typecheck:e01"
       ],
       "exit_code": 0,
-      "duration_ms": 8273,
+      "duration_ms": 3316,
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stderr_sha256": "97c71f9cafa7e1e6b971587726cb7ea7105e4d8a43bee0ae06b6026113b59d51",
       "stdout_excerpt": "",
@@ -55,10 +55,10 @@
         "build"
       ],
       "exit_code": 0,
-      "duration_ms": 218,
-      "stdout_sha256": "b5da122f048e88d60fe6f4dfe99f97e19711cb4834521eb1e8260502bf6e0c5a",
+      "duration_ms": 230,
+      "stdout_sha256": "97bff53a42155204925928643812bde2215ccc203798e8a5655693566ccf1b62",
       "stderr_sha256": "65431c908d5f420fd2b75f75cbdb9ddeb8d8001428d8c9584ad475532ce1cd71",
-      "stdout_excerpt": "Bundled 78 modules in 52ms\n\n  main.js  1.17 MB  (entry point)",
+      "stdout_excerpt": "Bundled 78 modules in 49ms\n\n  main.js  1.17 MB  (entry point)",
       "stderr_excerpt": "$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun"
     },
     {
@@ -68,11 +68,11 @@
         "runtime:e01:test"
       ],
       "exit_code": 0,
-      "duration_ms": 1909,
+      "duration_ms": 1538,
       "stdout_sha256": "11a0cc41569f7e0e890f4f768aea6f6fb679a37222b2ae46d26c9a2c285957bb",
-      "stderr_sha256": "fd6231a9400ff0a470f458a1e3b6b3d30f1092f1954a84206b7061ce90696d4f",
+      "stderr_sha256": "c5b7bd8562431b12a9ea7dc83bb3aad11fa240b3eddbe1fbcadb42d38d6e8cb7",
       "stdout_excerpt": "bun test v1.2.15 (df017990)",
-      "stderr_excerpt": "tors deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result [16.00ms]\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [15.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements [16.00ms]\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 390 pass\n 0 fail\n 1245 expect() calls\nRan 390 tests across 14 files. [1.74s]"
+      "stderr_excerpt": "estores accumulators deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [16.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 390 pass\n 0 fail\n 1245 expect() calls\nRan 390 tests across 14 files. [1363.00ms]"
     },
     {
       "command": [
@@ -81,7 +81,7 @@
         "runtime:built:health"
       ],
       "exit_code": 0,
-      "duration_ms": 263,
+      "duration_ms": 259,
       "stdout_sha256": "6054818ff5488ca7d0306fc3c0daac07166740f2bd5c2ee6a9f4075ae7d9de16",
       "stderr_sha256": "29d97decfbe8a94d5d09903b661e84808e3d17e1a5476b8b9e476cb0f621e53e",
       "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"implementation_generated_pending_validation\",\"effectiveLineCount\":null,\"implementationCandidate\":\"2958e4d5d13e247bee3828fd95520a4c95d8b544\",\"evidenceCommit\":null,\"reviewTarget\":null,\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
