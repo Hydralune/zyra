@@ -670,6 +670,21 @@ export class ClaudeRuntimeCore {
         }
       }
 
+      const continuationDecision = e01.decideContinuationBudget(
+        Math.max(0, Math.ceil(session.contextChars() / 4)),
+        Math.max(1, Math.ceil(config.maxQueryContextChars / 4)),
+      );
+      await emit("continuation_budget_decision", {
+        turn_index: turnIndex,
+        action: continuationDecision.action,
+        nudge_message: continuationDecision.action === "continue"
+          ? continuationDecision.nudgeMessage
+          : null,
+        completion_event: continuationDecision.action === "stop"
+          ? continuationDecision.completionEvent as unknown as JsonObject
+          : null,
+      });
+
       const contextDecision = e01.decideContext(
         session.contextChars(),
         config.maxQueryContextChars,

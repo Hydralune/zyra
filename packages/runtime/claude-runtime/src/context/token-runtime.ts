@@ -26,7 +26,41 @@ export interface BudgetTracker {
   consecutiveDiminishingTurns: number;
   lastTurnTokens: number;
   revision: number;
+  continuation: ContinuationBudgetTracker;
 }
+
+export interface ContinuationCompletionEvent {
+  continuationCount: number;
+  pct: number;
+  turnTokens: number;
+  budget: number;
+  diminishingReturns: boolean;
+  durationMs: number;
+}
+
+export interface ContinuationBudgetTracker {
+  continuationCount: number;
+  lastDeltaTokens: number;
+  lastGlobalTurnTokens: number;
+  startedAt: number | null;
+  lastAction: "continue" | "stop" | null;
+  lastPct: number;
+  lastCompletionEvent: ContinuationCompletionEvent | null;
+}
+
+export type ContinuationBudgetDecision =
+  | {
+    action: "continue";
+    nudgeMessage: string;
+    continuationCount: number;
+    pct: number;
+    turnTokens: number;
+    budget: number;
+  }
+  | {
+    action: "stop";
+    completionEvent: ContinuationCompletionEvent | null;
+  };
 
 export interface TokenBudgetDecision {
   kind: "continue" | "warn" | "compact" | "stop";
@@ -139,6 +173,7 @@ export class ContextTokenRuntime {
       consecutiveDiminishingTurns: 0,
       lastTurnTokens: 0,
       revision: 0,
+      continuation: emptyContinuationTracker(),
     };
   }
 
@@ -242,6 +277,62 @@ export class ContextTokenRuntime {
     };
   }
 
+  checkContinuationBudget(input: {
+    agentId?: string | null;
+    budget: number | null;
+    globalTurnTokens: number;
+    now?: number;
+  }): ContinuationBudgetDecision {
+    const continuation = this.tracker.continuation;
+    const now = Number.isFinite(input.now) ? Math.max(0, Math.floor(input.now ?? 0)) : Date.now();
+    const budget = input.budget;
+    const turnTokens = Math.max(0, Math.floor(input.globalTurnTokens));
+    if (input.agentId || budget === null || !Number.isFinite(budget) || budget <= 0) {
+      continuation.lastAction = "stop";
+      continuation.lastCompletionEvent = null;
+      this.tracker.revision += 1;
+      return { action: "stop", completionEvent: null };
+    }
+    if (continuation.startedAt === null) continuation.startedAt = now;
+    const pct = Math.round((turnTokens / budget) * 100);
+    const deltaSinceLastCheck = turnTokens - continuation.lastGlobalTurnTokens;
+    const diminishingReturns = continuation.continuationCount >= 3
+      && deltaSinceLastCheck < DIMINISHING_THRESHOLD
+      && continuation.lastDeltaTokens < DIMINISHING_THRESHOLD;
+    if (!diminishingReturns && turnTokens < budget * COMPLETION_THRESHOLD) {
+      continuation.continuationCount += 1;
+      continuation.lastDeltaTokens = deltaSinceLastCheck;
+      continuation.lastGlobalTurnTokens = turnTokens;
+      continuation.lastAction = "continue";
+      continuation.lastPct = pct;
+      continuation.lastCompletionEvent = null;
+      this.tracker.revision += 1;
+      return {
+        action: "continue",
+        nudgeMessage: `Continue the current objective. Token budget progress is ${pct}% (${turnTokens}/${budget}).`,
+        continuationCount: continuation.continuationCount,
+        pct,
+        turnTokens,
+        budget,
+      };
+    }
+    const completionEvent = diminishingReturns || continuation.continuationCount > 0
+      ? {
+        continuationCount: continuation.continuationCount,
+        pct,
+        turnTokens,
+        budget,
+        diminishingReturns,
+        durationMs: Math.max(0, now - continuation.startedAt),
+      }
+      : null;
+    continuation.lastAction = "stop";
+    continuation.lastPct = pct;
+    continuation.lastCompletionEvent = completionEvent;
+    this.tracker.revision += 1;
+    return { action: "stop", completionEvent: structuredClone(completionEvent) };
+  }
+
   planWindow(segments: ContextWindowSegment[], budgetTokens: number): ContextWindowPlan {
     const normalized = segments.map((segment, index) => ({
       ...structuredClone(segment),
@@ -332,10 +423,27 @@ export class ContextTokenRuntime {
     if (!Number.isInteger(value.revision) || value.revision < 0) throw new Error("token_budget_revision_invalid");
     if (value.initial <= 0 || value.remaining < 0 || value.consumed < 0) throw new Error("token_budget_snapshot_invalid");
     if (value.remaining + value.consumed !== value.initial) throw new Error("token_budget_conservation");
-    this.tracker = structuredClone(value);
+    this.tracker = {
+      ...structuredClone(value),
+      continuation: structuredClone(
+        (value as Partial<BudgetTracker>).continuation ?? emptyContinuationTracker(),
+      ),
+    };
   }
 
   snapshot(): BudgetTracker {
     return structuredClone(this.tracker);
   }
+}
+
+function emptyContinuationTracker(): ContinuationBudgetTracker {
+  return {
+    continuationCount: 0,
+    lastDeltaTokens: 0,
+    lastGlobalTurnTokens: 0,
+    startedAt: null,
+    lastAction: null,
+    lastPct: 0,
+    lastCompletionEvent: null,
+  };
 }

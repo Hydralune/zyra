@@ -9,6 +9,7 @@ export const CACHE_TTL_5MIN_MS = 5 * 60 * 1_000;
 
 export type TelemetryLevel = "debug" | "info" | "warn" | "error";
 export type TelemetryOutcome = "started" | "succeeded" | "failed" | "cancelled";
+export type KnownGateway = "vercel" | "cloudflare" | "kong" | "braintrust" | "databricks";
 export type CacheBreakKind =
   | "system_changed"
   | "tools_changed"
@@ -232,6 +233,34 @@ export class ProviderTelemetryRuntime {
       break_count: this.breaks.length,
       compact_generation: this.compactGeneration,
     };
+  }
+
+  detectGateway(input: {
+    headers?: Readonly<Record<string, string>>;
+    baseUrl?: string | null;
+  }): KnownGateway | null {
+    const fingerprints: Record<Exclude<KnownGateway, "databricks">, string[]> = {
+      vercel: ["x-vercel-"],
+      cloudflare: ["cf-", "x-cloudflare-"],
+      kong: ["x-kong-"],
+      braintrust: ["x-bt-"],
+    };
+    const headerNames = Object.keys(input.headers ?? {}).map((name) => name.toLowerCase());
+    for (const [gateway, prefixes] of Object.entries(fingerprints)) {
+      if (prefixes.some((prefix) => headerNames.some((header) => header.startsWith(prefix)))) {
+        return gateway as KnownGateway;
+      }
+    }
+    if (input.baseUrl) {
+      try {
+        const host = new URL(input.baseUrl).hostname.toLowerCase();
+        if ([".cloud.databricks.com", ".azuredatabricks.net", ".gcp.databricks.com"]
+          .some((suffix) => host.endsWith(suffix))) return "databricks";
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   logging_module(value: JsonObject): JsonObject {

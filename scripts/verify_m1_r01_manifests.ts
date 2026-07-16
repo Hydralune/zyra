@@ -360,7 +360,12 @@ function main(): void {
   const targets = jsonl(join(manifestRoot, "execution-01-target-custody-map.jsonl"));
   const mutations = jsonl(join(manifestRoot, "execution-01-mutation-manifest.jsonl"));
   const profile = JSON.parse(readFileSync(join(manifestRoot, "execution-01-gate-profile.json"), "utf8"));
+  const receipt = JSON.parse(readFileSync(join(manifestRoot, "execution-01-baseline-receipt.json"), "utf8"));
   const thresholds = profile.thresholds as Obj;
+  const dirtyPaths = Array.isArray(receipt.dirty_paths_at_capture) ? receipt.dirty_paths_at_capture : [];
+  if (receipt.clean_worktree !== true || dirtyPaths.length !== 0) {
+    failures.push(`baseline receipt is not clean: ${dirtyPaths.map(String).join(",")}`);
+  }
   if (profile.verified_zyra_head !== VERIFIED) failures.push("verified baseline mismatch");
   if (Bun.version !== profile.toolchain.bun_version) failures.push(`Bun ${Bun.version} does not match ${profile.toolchain.bun_version}`);
   const packageJson = JSON.parse(readFileSync(join(zyra, "package.json"), "utf8"));
@@ -462,6 +467,10 @@ function main(): void {
   for (const contract of providerActivation) if (!contract.complete) failures.push(`incomplete provider activation contract: ${contract.path}`);
   const mutationEvidencePath = join(evidenceRoot, "mutation-results.json");
   const mutationEvidence = existsSync(mutationEvidencePath) ? JSON.parse(readFileSync(mutationEvidencePath, "utf8")) : null;
+  const mutationEvidenceById = new Map<string, Obj>(
+    (Array.isArray(mutationEvidence?.results) ? mutationEvidence.results : [])
+      .map((item: Obj) => [String(item.mutation_id ?? item.mutationId ?? item.id), item]),
+  );
   const killedMutationIds = new Set<string>(
     (Array.isArray(mutationEvidence?.results) ? mutationEvidence.results : [])
       .filter((item: Obj) => item.killed === true || String(item.status ?? item.result).toUpperCase() === "KILLED")
@@ -534,13 +543,33 @@ function main(): void {
       && behaviorTests.every((item) => item.exists && item.anchor_present && item.state_assertions_present);
     const declaredMutationIds = Array.isArray(target.mutation_ids) ? target.mutation_ids.map(String) : [];
     const minimumMutations = Number(thresholds.mutation_ids_per_mapping_minimum ?? 1);
-    const mutationLinks = declaredMutationIds.map((mutationId) => ({
-      mutation_id: mutationId,
-      declared: mutationById.has(mutationId),
-      killed: killedMutationIds.has(mutationId),
-    }));
+    const declaredBehaviorNames = new Set(
+      (Array.isArray(target.behavior_tests) ? target.behavior_tests as Obj[] : [])
+        .map((item) => String(item.name))
+        .filter(Boolean),
+    );
+    const mutationLinks = declaredMutationIds.map((mutationId) => {
+      const mutation = mutationById.get(mutationId);
+      const evidence = mutationEvidenceById.get(mutationId);
+      const expectedKillers = Array.isArray(mutation?.expected_killer_test_ids)
+        ? mutation.expected_killer_test_ids.map(String)
+        : [];
+      return {
+        mutation_id: mutationId,
+        declared: Boolean(mutation),
+        killed: killedMutationIds.has(mutationId),
+        target_matches: Boolean(mutation)
+          && String(mutation.target_path) === String(target.target_path)
+          && String(mutation.target_symbol) === String(target.target_symbol),
+        killer_test_declared: expectedKillers.some((name: string) => declaredBehaviorNames.has(name)),
+        killer_test_observed: evidence?.expected_killer_observed === true,
+      };
+    });
     const mutationLinksValid = mutationLinks.length >= minimumMutations
-      && mutationLinks.every((item) => item.declared && (!enforce || item.killed));
+      && mutationLinks.some((item) => item.declared
+        && item.target_matches
+        && item.killer_test_declared
+        && (!enforce || (item.killed && item.killer_test_observed)));
     const complete = Boolean(sourceItem)
       && targetSymbolExists
       && targetHashMatches

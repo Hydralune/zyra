@@ -3,7 +3,10 @@ import { CompactRestoreRuntime } from "../compact/restore-runtime.ts";
 import { CompactSummaryRuntime } from "../compact/summary-runtime.ts";
 import { ContextAssemblyRuntime } from "../context/assembly-runtime.ts";
 import { ContextCacheRuntime } from "../context/cache-runtime.ts";
-import { ContextTokenRuntime } from "../context/token-runtime.ts";
+import {
+  ContextTokenRuntime,
+  type ContinuationBudgetDecision,
+} from "../context/token-runtime.ts";
 import type { JsonObject, JsonValue, ToolStep } from "../contracts.ts";
 import {
   durableMessageRole,
@@ -546,9 +549,48 @@ export class E01RuntimeCoordinator {
     };
   }
 
+  decideContinuationBudget(
+    globalTurnTokens: number,
+    budget: number | null,
+    agentId?: string | null,
+  ): ContinuationBudgetDecision {
+    const decision = this.tokens.checkContinuationBudget({
+      agentId,
+      budget,
+      globalTurnTokens,
+    });
+    this.record("context", "continuation_budget_decision", {
+      action: decision.action,
+      global_turn_tokens: globalTurnTokens,
+      budget,
+      continuation_count: decision.action === "continue"
+        ? decision.continuationCount
+        : decision.completionEvent?.continuationCount ?? 0,
+      pct: decision.action === "continue"
+        ? decision.pct
+        : decision.completionEvent?.pct ?? 0,
+      nudge_message: decision.action === "continue" ? decision.nudgeMessage : null,
+      completion_event: decision.action === "stop"
+        ? decision.completionEvent as unknown as JsonValue
+        : null,
+    });
+    return decision;
+  }
+
   recordProvider(operation: string, payload: O): TransitionReceipt {
     const json = payload as unknown as JsonObject;
     const canonicalPayload: O = { ...payload };
+    const responseHeaders = Object.fromEntries(
+      Object.entries(asRuntimeObject(json.response_headers)).map(([name, value]) => [
+        name.toLowerCase(),
+        asRuntimeString(value, ""),
+      ]),
+    );
+    const detectedGateway = this.telemetry.detectGateway({
+      headers: responseHeaders,
+      baseUrl: asRuntimeString(json.base_url || json.provider_base_url, "") || null,
+    });
+    if (detectedGateway) canonicalPayload.detected_gateway = detectedGateway;
     this.telemetry.logging_module({
       action: "log",
       level: /error|fail/i.test(operation) ? "error" : "debug",
@@ -557,7 +599,7 @@ export class E01RuntimeCoordinator {
       run_id: this.runId,
       task_id: this.taskId,
       summary: `provider ${operation}`,
-      attributes: json,
+      attributes: { ...json, detected_gateway: detectedGateway },
     });
     this.applyProviderLifecycle(operation, json, canonicalPayload);
     const prepared = asRuntimeObject(json.provider_request);

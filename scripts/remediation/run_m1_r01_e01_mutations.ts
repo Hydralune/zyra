@@ -1,8 +1,10 @@
 #!/usr/bin/env bun
 
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import ts from "typescript";
 
 type ManifestRow = {
   mutation_id: string;
@@ -12,6 +14,7 @@ type ManifestRow = {
   expected_killer_test_ids: string[];
   compile_survives: boolean;
   frozen_patch_sha256: string;
+  killer_test_paths?: string[];
 };
 
 export type Edit = { search: string; replacement: string };
@@ -327,7 +330,78 @@ export const mutationSpecs: Record<string, MutationSpec> = {
     "        status: quarantined ? \"quarantined\" : \"cooldown\",",
     "        status: \"active\",",
   ),
+  "e01-mut-051-continuation-diminishing": spec(
+    semanticCustodyTests,
+    "    const diminishingReturns = continuation.continuationCount >= 3",
+    "    const diminishingReturns = continuation.continuationCount >= 30",
+  ),
+  "e01-mut-052-gateway-fingerprint": spec(
+    semanticCustodyTests,
+    "      if (prefixes.some((prefix) => headerNames.some((header) => header.startsWith(prefix)))) {",
+    "      if (false && prefixes.some((prefix) => headerNames.some((header) => header.startsWith(prefix)))) {",
+  ),
 };
+
+export function targetDisconnectSpec(
+  targetPath: string,
+  targetSymbol: string,
+  tests: string[],
+  mutationId: string,
+): MutationSpec {
+  const text = readFileSync(join(zyra, targetPath), "utf8").replaceAll("\r\n", "\n");
+  const source = ts.createSourceFile(targetPath, text, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+  const parts = targetSymbol.split(".");
+  const leaf = parts.at(-1) ?? targetSymbol;
+  const owner = parts.length > 1 ? parts.at(-2) ?? null : null;
+  let selected: { node: ts.Node; body: ts.Block } | null = null;
+  const choose = (node: ts.Node, body: ts.Block | undefined): void => {
+    if (!selected && body) selected = { node, body };
+  };
+  const visit = (node: ts.Node): void => {
+    if (selected) return;
+    if (owner && ts.isClassDeclaration(node) && node.name?.text === owner) {
+      for (const member of node.members) {
+        if (ts.isMethodDeclaration(member) && member.name.getText(source) === leaf) {
+          choose(member, member.body);
+          return;
+        }
+      }
+    }
+    if (!owner && ts.isFunctionDeclaration(node) && node.name?.text === leaf) {
+      choose(node, node.body);
+      return;
+    }
+    if (!owner && ts.isVariableDeclaration(node) && node.name.getText(source) === leaf) {
+      const initializer = node.initializer;
+      if (initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))
+        && ts.isBlock(initializer.body)) {
+        choose(node, initializer.body);
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  if (!selected) throw new Error(`target declaration body not found: ${targetPath}::${targetSymbol}`);
+  const declaration = selected as { node: ts.Node; body: ts.Block };
+  const search = text.slice(declaration.node.getStart(source), declaration.body.getStart(source) + 1);
+  const replacement = `${search}\n    throw new Error(${JSON.stringify(`target_disconnect:${mutationId}`)});`;
+  return spec(tests.length > 0 ? tests : [testRoot], search, replacement);
+}
+
+export function mutationSpecForRecord(row: ManifestRow): MutationSpec | undefined {
+  const existing = mutationSpecs[row.mutation_id];
+  if (existing) return existing;
+  if (row.mutation_operator === "disconnect-target") {
+    return targetDisconnectSpec(
+      row.target_path,
+      row.target_symbol,
+      row.killer_test_paths ?? [testRoot],
+      row.mutation_id,
+    );
+  }
+  return undefined;
+}
 
 export function hash(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -401,7 +475,8 @@ async function main(): Promise<void> {
     .filter(Boolean)
     .map((line) => JSON.parse(line) as ManifestRow);
   if (rows.length < 30) throw new Error(`expected at least 30 frozen mutations, received ${rows.length}`);
-  const unknown = rows.filter((row) => !mutationSpecs[row.mutation_id]).map((row) => row.mutation_id);
+  const resolvedSpecs = new Map(rows.map((row) => [row.mutation_id, mutationSpecForRecord(row)]));
+  const unknown = rows.filter((row) => !resolvedSpecs.get(row.mutation_id)).map((row) => row.mutation_id);
   const extra = Object.keys(mutationSpecs).filter((id) => !rows.some((row) => row.mutation_id === id));
   if (unknown.length || extra.length) throw new Error(`mutation spec mismatch unknown=${unknown.join(",")} extra=${extra.join(",")}`);
   await mkdir(dirname(evidencePath), { recursive: true });
@@ -412,7 +487,7 @@ async function main(): Promise<void> {
   }
   const results: Record<string, unknown>[] = [];
   for (const row of rows) {
-    const mutation = mutationSpecs[row.mutation_id];
+    const mutation = resolvedSpecs.get(row.mutation_id)!;
     const target = join(zyra, row.target_path);
     const original = await readFile(target, "utf8");
     const originalSha256 = hash(original);
@@ -451,7 +526,10 @@ async function main(): Promise<void> {
     const restoredSha256 = hash(restored);
     if (restoredSha256 !== originalSha256) throw new Error(`source restoration failed for ${row.mutation_id}`);
     const compileSurvived = compile?.exitCode === 0;
-    const killed = failure === null && compileSurvived && test !== null && test.exitCode !== 0;
+    const testOutput = (test?.stdout ?? "") + "\n" + (test?.stderr ?? "");
+    const expectedKillerObserved = row.expected_killer_test_ids.some((name) => testOutput.includes(name));
+    const killed = failure === null && compileSurvived && test !== null
+      && test.exitCode !== 0 && expectedKillerObserved;
     results.push({
       mutation_id: row.mutation_id,
       target_path: row.target_path,
@@ -475,6 +553,7 @@ async function main(): Promise<void> {
       output_sha256: hash((test?.stdout ?? "") + "\n" + (test?.stderr ?? "")),
       failure_excerpt: excerpt((test?.stdout ?? "") + "\n" + (test?.stderr ?? "")),
       runner_error: failure,
+      expected_killer_observed: expectedKillerObserved,
       killed,
     });
     process.stdout.write(`${row.mutation_id}: ${killed ? "KILLED" : "SURVIVED_OR_INVALID"}\n`);

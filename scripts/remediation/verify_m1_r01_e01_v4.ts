@@ -8,6 +8,7 @@ import ts from "typescript";
 
 import {
   mutationPatchFingerprint,
+  mutationSpecForRecord,
   mutationSpecs,
 } from "./run_m1_r01_e01_mutations.ts";
 
@@ -23,6 +24,7 @@ const sourceManifestPath = join(manifestRoot, "execution-01-source-manifest.json
 const targetManifestPath = join(manifestRoot, "execution-01-target-custody-map.jsonl");
 const mutationManifestPath = join(manifestRoot, "execution-01-mutation-manifest.jsonl");
 const gateProfilePath = join(manifestRoot, "execution-01-gate-profile.json");
+const receiptPath = join(manifestRoot, "execution-01-baseline-receipt.json");
 const metadataPath = join(
   repoRoot,
   "docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
@@ -316,6 +318,7 @@ const candidate = args.candidate ?? String(readJson(metadataPath).implementation
 const failures: string[] = [];
 const checks: JsonRecord = {};
 const profile = readJson(gateProfilePath);
+const receipt = readJson(receiptPath);
 const metadata = readJson(metadataPath);
 const sourceRecords = readJsonLines(sourceManifestPath);
 const targetRecords = readJsonLines(targetManifestPath);
@@ -325,10 +328,46 @@ const fail = (message: string): void => {
   failures.push(message);
 };
 
+const dirtyPaths = Array.isArray(receipt.dirty_paths_at_capture)
+  ? receipt.dirty_paths_at_capture.map(String)
+  : [];
+if (receipt.clean_worktree !== true || dirtyPaths.length !== 0) {
+  fail(`baseline receipt is not clean: ${dirtyPaths.join(",")}`);
+}
+if (String(receipt.current_control_plane_head) !== candidate) {
+  fail("baseline receipt capture head does not match candidate");
+}
+if (String(receipt.verified_zyra_head) !== VERIFIED_BASELINE) {
+  fail("baseline receipt verified head drifted");
+}
+
+const mutationRecordById = new Map(
+  mutationRecords.map((record) => [String(record.mutation_id), record]),
+);
+for (const target of targetRecords) {
+  const behaviorNames = new Set(
+    (Array.isArray(target.behavior_tests) ? target.behavior_tests as JsonRecord[] : [])
+      .map((item) => String(item.name))
+      .filter(Boolean),
+  );
+  const exact = (Array.isArray(target.mutation_ids) ? target.mutation_ids.map(String) : [])
+    .map((id) => mutationRecordById.get(id))
+    .filter((record): record is JsonRecord => Boolean(record))
+    .some((record) => {
+      const killers = Array.isArray(record.expected_killer_test_ids)
+        ? record.expected_killer_test_ids.map(String)
+        : [];
+      return String(record.target_path) === String(target.target_path)
+        && String(record.target_symbol) === String(target.target_symbol)
+        && killers.some((name) => behaviorNames.has(name));
+    });
+  if (!exact) fail(`mapping lacks exact target/test mutation: ${String(target.mapping_id)}`);
+}
+
 const mutationIdsFromManifest = new Set(mutationRecords.map((record) => String(record.mutation_id)));
 for (const record of mutationRecords) {
   const id = String(record.mutation_id);
-  const spec = mutationSpecs[id];
+  const spec = mutationSpecForRecord(record as Parameters<typeof mutationSpecForRecord>[0]);
   if (!spec) {
     fail(`mutation manifest has no executable spec: ${id}`);
     continue;
@@ -619,7 +658,7 @@ checks.effective_lines = {
 checks.mutations = {
   declared: mutationRecords.length,
   canonical_frozen_patch_fingerprints: mutationRecords.filter((record) => {
-    const spec = mutationSpecs[String(record.mutation_id)];
+    const spec = mutationSpecForRecord(record as Parameters<typeof mutationSpecForRecord>[0]);
     return spec && String(record.frozen_patch_sha256) === mutationPatchFingerprint(spec, "\n");
   }).length,
 };

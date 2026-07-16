@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   mutationPatchFingerprint,
+  mutationSpecForRecord,
   mutationSpecs,
+  targetDisconnectSpec,
 } from "./run_m1_r01_e01_mutations.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -41,6 +43,14 @@ const SEMANTIC_TEST_PATH =
   "packages/runtime/claude-runtime/test/e01/semantic-custody.behavior.test.ts";
 
 type JsonRecord = Record<string, unknown>;
+
+const semanticRejections = new Map<string, string>([
+  ["TOOL_RESULT_CLEARED_MESSAGE", "E01 always preserves an artifact-backed preview and does not adopt the source clear-without-persistence marker"],
+  ["PERSIST_THRESHOLD_OVERRIDE_FLAG", "the process-global GrowthBook threshold override is rejected in favor of deterministic Zyra runtime configuration"],
+  ["isPersistError", "the source raw-filesystem persistence error guard is not used by Zyra's typed artifact host boundary"],
+  ["consumePendingCacheEdits", "the process-global pending cache-edit slot is rejected; E01 prompt state is committed directly by ProviderTelemetryRuntime"],
+  ["getEffectiveContextWindowSize", "the source model/env window helper is not credited because E01 receives an explicit runtime context limit"],
+]);
 
 const sha256 = (value: Uint8Array | string): string =>
   createHash("sha256").update(value).digest("hex");
@@ -510,29 +520,32 @@ const routeHistory = (target: JsonRecord, source: JsonRecord): void => {
 };
 
 const routeTokenBudget = (target: JsonRecord, source: JsonRecord): void => {
-  const targetPath = COORDINATOR_PATH;
-  const targetSymbol = "E01RuntimeCoordinator.decideContext";
+  const targetPath = "packages/runtime/claude-runtime/src/context/token-runtime.ts";
+  const targetSymbol = "ContextTokenRuntime.checkContinuationBudget";
   setRoute(target, source, {
     targetPath,
     targetSymbol,
-    callsitePath: QUERY_PATH,
-    callsiteSymbol: QUERY_SYMBOL,
+    callsitePath: COORDINATOR_PATH,
+    callsiteSymbol: "E01RuntimeCoordinator.decideContinuationBudget",
     owner: "e01.context-token-budget",
-    stateStore: "E01RuntimeSnapshot.journal",
-    stateProperty: "journal",
-    stateKind: "context-budget-decision",
-    stateObservation: "journal.entries[].context/compact_decision",
+    stateStore: "E01RuntimeSnapshot.tokens",
+    stateProperty: "tokens",
+    stateKind: "continuation-budget-state-machine",
+    stateObservation: "tokens.continuation.continuationCount/lastDeltaTokens/lastAction",
     adaptation:
       "Claude completion and diminishing thresholds are adapted to the durable ContextTokenRuntime tracker used by coordinator context decisions.",
     sourceClaim: `${sourceName(source)} computes continue, compact, or stop from remaining context budget`,
     targetClaim:
-      "E01RuntimeCoordinator.decideContext records the canonical compact decision and its token estimate",
+      "ContextTokenRuntime.checkContinuationBudget records continuation count, token deltas, nudge, completion, and diminishing stop",
     equivalence:
-      "Both enforce diminishing context budget; Zyra snapshots the decision and token warning under the coordinator journal owner.",
-    tests: Array.isArray(target.behavior_tests)
-      ? (target.behavior_tests as JsonRecord[]).slice(0, 2)
-      : [],
-    mutations: ["e01-mut-016-compact-threshold"],
+      "Both continue below 90 percent, stop on successive sub-500-token deltas, and expose a durable completion event.",
+    tests: [behaviorTest(
+      "e01.semantic.token-budget-continues-then-stops-on-diminishing-progress",
+      SEMANTIC_TEST_PATH,
+      "tokens.checkContinuationBudget",
+      ["nudgeMessage", "diminishingReturns", "continuationCount"],
+    )],
+    mutations: ["e01-mut-051-continuation-diminishing"],
   });
 };
 
@@ -541,39 +554,39 @@ const routeToolResult = (target: JsonRecord, source: JsonRecord): void => {
   const external = new Set([
     "PERSISTED_OUTPUT_TAG",
     "PERSISTED_OUTPUT_CLOSING_TAG",
-    "TOOL_RESULT_CLEARED_MESSAGE",
-    "PERSIST_THRESHOLD_OVERRIDE_FLAG",
     "PREVIEW_SIZE_BYTES",
     "persistToolResult",
     "buildLargeToolResultMessage",
     "processToolResultBlock",
     "processPreMappedToolResultBlock",
     "maybePersistLargeToolResult",
-    "isPersistError",
   ]).has(name);
   if (external) {
-    const targetPath = "packages/runtime/claude-runtime/src/tools/result-runtime.ts";
-    const targetSymbol = "ToolResultRuntime.deliver";
+    const targetPath = "packages/runtime/claude-runtime/src/budget.ts";
+    const targetSymbol = "applyToolResultBudget";
     setRoute(target, source, {
       targetPath,
       targetSymbol,
-      callsitePath: COORDINATOR_PATH,
-      callsiteSymbol: "E01RuntimeCoordinator.completeToolExecution",
-      owner: "e01.tool-result-receipt",
-      stateStore: "E01RuntimeSnapshot.toolResults",
-      stateProperty: "toolResults",
+      callsitePath: QUERY_PATH,
+      callsiteSymbol: QUERY_SYMBOL,
+      owner: "e01.tool-result-artifact",
+      stateStore: "RuntimeRunResult.sessionSnapshot.session",
+      stateProperty: "session",
       stateKind: "tool-result-externalization",
-      stateObservation: "toolResults.deliveries[].deliveryDigest/truncated",
+      stateObservation: "session.messages[].output.artifact_id + RuntimeRunResult.artifacts[]",
       adaptation:
         "Source filesystem persistence is adapted to ToolResultRuntime delivery plus the Zyra artifact boundary; path helpers remain rejected.",
       sourceClaim: `${name} contributes threshold-driven durable replacement of oversized tool output`,
       targetClaim:
-        "ToolResultRuntime.deliver budgets sealed result blocks and persists a canonical delivery receipt",
+        "applyToolResultBudget externalizes oversized output through the artifact host and returns an artifact-linked replacement",
       equivalence:
         "Both replace oversized inline output with bounded durable delivery; Zyra owns paths through its artifact port.",
-      tests: Array.isArray(target.behavior_tests)
-        ? (target.behavior_tests as JsonRecord[]).slice(0, 2)
-        : [],
+      tests: [behaviorTest(
+        "runtime externalizes large tool results and compacts context",
+        "packages/runtime/claude-runtime/test/runtime.test.ts",
+        "ClaudeRuntimeCore",
+        ["result.artifacts.length", "tool_result_budget_exceeded", "contextCompactionCount"],
+      )],
       mutations: ["e01-mut-030-result-budget"],
     });
     return;
@@ -656,6 +669,33 @@ const routeToolResult = (target: JsonRecord, source: JsonRecord): void => {
   });
 };
 
+const routeGatewayDetection = (target: JsonRecord, source: JsonRecord): void => {
+  const targetPath = "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts";
+  const targetSymbol = "ProviderTelemetryRuntime.detectGateway";
+  setRoute(target, source, {
+    targetPath,
+    targetSymbol,
+    callsitePath: COORDINATOR_PATH,
+    callsiteSymbol: "E01RuntimeCoordinator.recordProvider",
+    owner: "e01.provider-gateway-detection",
+    stateStore: "E01RuntimeSnapshot.telemetry",
+    stateProperty: "telemetry",
+    stateKind: "provider-gateway-fingerprint",
+    stateObservation: "telemetry.events[].attributes.detected_gateway",
+    adaptation: "Claude response-header and provider-host fingerprints are retained as structured Zyra telemetry attributes.",
+    sourceClaim: "detectGateway classifies known proxy headers and provider-owned host suffixes",
+    targetClaim: "ProviderTelemetryRuntime.detectGateway classifies the same inputs before recordProvider commits telemetry",
+    equivalence: "Both prefer deterministic header prefixes and fall back to a bounded hostname suffix table.",
+    tests: [behaviorTest(
+      "e01.semantic.gateway-detection-is-recorded-by-provider-custody",
+      SEMANTIC_TEST_PATH,
+      "runtime.recordProvider",
+      ["detected_gateway", "kong", "databricks"],
+    )],
+    mutations: ["e01-mut-052-gateway-fingerprint"],
+  });
+};
+
 const routeSessionState = (target: JsonRecord, source: JsonRecord): void => {
   const targetPath = "packages/runtime/claude-runtime/src/session/durable-runtime.ts";
   const targetSymbol = "DurableSessionRuntime.snapshot";
@@ -713,6 +753,7 @@ const routeTarget = (target: JsonRecord, source: JsonRecord): void => {
   const name = sourceName(source);
   if (path.endsWith("/tokenBudget.ts")) routeTokenBudget(target, source);
   else if (path.endsWith("/toolResultStorage.ts")) routeToolResult(target, source);
+  else if (path.endsWith("/logging.ts") && name === "detectGateway") routeGatewayDetection(target, source);
   else if (path.endsWith("/history.ts")) routeHistory(target, source);
   else if (path.endsWith("/sessionState.ts")) routeSessionState(target, source);
   else if (path.endsWith("/sessionRestore.ts")) routeSessionRestore(target, source);
@@ -789,6 +830,20 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
       "credential-failure-invalidation",
       ["quarantines after the configured failure threshold"],
     ],
+    [
+      "e01-mut-051-continuation-diminishing",
+      "packages/runtime/claude-runtime/src/context/token-runtime.ts",
+      "ContextTokenRuntime.checkContinuationBudget",
+      "continuation-budget-state-machine",
+      ["e01.semantic.token-budget-continues-then-stops-on-diminishing-progress"],
+    ],
+    [
+      "e01-mut-052-gateway-fingerprint",
+      "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+      "ProviderTelemetryRuntime.detectGateway",
+      "provider-gateway-fingerprint",
+      ["e01.semantic.gateway-detection-is-recorded-by-provider-custody"],
+    ],
   ];
   const byId = new Map(records.map((record) => [String(record.mutation_id), record]));
   for (const [id, targetPath, targetSymbol, risk, tests] of additions) {
@@ -813,13 +868,59 @@ const addMutations = (records: JsonRecord[]): JsonRecord[] => {
   );
 };
 
+const addTargetDisconnectMutations = (
+  records: JsonRecord[],
+  targets: JsonRecord[],
+): JsonRecord[] => {
+  const byId = new Map(records.map((record) => [String(record.mutation_id), record]));
+  const groups = new Map<string, JsonRecord[]>();
+  for (const target of targets) {
+    const key = `${String(target.target_path)}::${String(target.target_symbol)}`;
+    groups.set(key, [...(groups.get(key) ?? []), target]);
+  }
+  for (const [key, group] of [...groups.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    const targetPath = String(group[0].target_path);
+    const targetSymbol = String(group[0].target_symbol);
+    const id = `e01-mut-target-${sha256(key).slice(0, 12)}`;
+    const behavior = group.flatMap((target) => Array.isArray(target.behavior_tests)
+      ? target.behavior_tests as JsonRecord[]
+      : []);
+    const testNames = [...new Set(behavior.map((item) => String(item.name)).filter(Boolean))].sort();
+    const testPaths = [...new Set(behavior.map((item) => String(item.path)).filter(Boolean))].sort();
+    const spec = targetDisconnectSpec(targetPath, targetSymbol, testPaths, id);
+    byId.set(id, {
+      schema_version: "3.0",
+      execution_id: "E01",
+      record_type: "mutation",
+      mutation_id: id,
+      mutation_operator: "disconnect-target",
+      semantic_risk: "exact-target-reachability",
+      target_path: targetPath,
+      target_symbol: targetSymbol,
+      compile_survives: true,
+      frozen_patch_sha256: mutationPatchFingerprint(spec, "\n"),
+      expected_killer_test_ids: testNames,
+      killer_test_paths: testPaths,
+    });
+    for (const target of group) {
+      target.mutation_ids = [...new Set([
+        ...((target.mutation_ids as unknown[] | undefined) ?? []).map(String),
+        id,
+      ])].sort();
+    }
+  }
+  return [...byId.values()].sort((left, right) =>
+    String(left.mutation_id).localeCompare(String(right.mutation_id)),
+  );
+};
+
 await import("./m1_r01_e01_v4.ts");
 
 const implementationHead = gitText(["rev-parse", "HEAD"]);
 const sourceRecords = readJsonLines(sourceManifestPath);
 for (const record of sourceRecords) {
   const name = sourceName(record);
-  const rejection = forcedRejections.get(name);
+  const rejection = forcedRejections.get(name) ?? semanticRejections.get(name);
   if (rejection) {
     record.accepted = false;
     record.migration_mode = "rejected";
@@ -883,7 +984,10 @@ targetRecords.sort((left, right) =>
   String(left.mapping_id).localeCompare(String(right.mapping_id)),
 );
 
-const mutationRecords = addMutations(readJsonLines(mutationManifestPath));
+const mutationRecords = addTargetDisconnectMutations(
+  addMutations(readJsonLines(mutationManifestPath)),
+  targetRecords,
+);
 writeJsonLines(sourceManifestPath, sourceRecords);
 writeJsonLines(targetManifestPath, targetRecords);
 writeJsonLines(mutationManifestPath, mutationRecords);
