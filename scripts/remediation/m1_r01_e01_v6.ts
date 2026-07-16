@@ -1166,9 +1166,17 @@ const addTargetEffectMutations = (
     const behavior = group.flatMap((target) => Array.isArray(target.behavior_tests)
       ? target.behavior_tests as JsonRecord[]
       : []);
-    const discoveredTestNames = [...new Set(behavior.map((item) => String(item.name)).filter(Boolean))].sort();
+    const observedBehavior = behavior.filter((item) => semanticGraph.testObservation(
+      String(item.path),
+      String(item.name),
+      symbolId(targetPath, targetSymbol),
+    ) !== null);
+    const discoveredTestNames = [...new Set(observedBehavior.map((item) => String(item.name)).filter(Boolean))].sort();
     const testNames = targetDisconnectKillerTests[key] ?? discoveredTestNames;
-    const testPaths = [...new Set(behavior.map((item) => String(item.path)).filter(Boolean))].sort();
+    const testPaths = [...new Set(observedBehavior.map((item) => String(item.path)).filter(Boolean))].sort();
+    if (testNames.length === 0 || testPaths.length === 0) {
+      throw new Error(`target has no TypeChecker-observed killer test: ${key}`);
+    }
     const spec = targetEffectSuppressionSpec(targetPath, targetSymbol, testPaths, id);
     byId.set(id, {
       schema_version: "3.0",
@@ -1345,24 +1353,13 @@ for (const target of targetRecords) {
   const behaviorTests = Array.isArray(target.behavior_tests)
     ? target.behavior_tests as JsonRecord[]
     : [];
-  const behaviorNames = new Set(behaviorTests.map((test) => String(test.name)));
-  const exactMutation = mutationRecords.find((mutation) => {
-    const killers = Array.isArray(mutation.expected_killer_test_ids)
-      ? mutation.expected_killer_test_ids.map(String)
-      : [];
-    return String(mutation.target_path) === String(target.target_path)
-      && String(mutation.target_symbol) === String(target.target_symbol)
-      && String(mutation.mutation_operator) !== "disconnect-target"
-      && killers.some((killer) => behaviorNames.has(killer));
-  });
-  if (!exactMutation) throw new Error(`missing exact target/test mutation for ${id}`);
   const targetId = symbolId(String(target.target_path), String(target.target_symbol));
-  const observedTests = behaviorTests.map((test) => {
+  const observedTests = behaviorTests.flatMap((test) => {
     const testPath = String(test.path);
     const testName = String(test.name);
     const observation = semanticGraph.testObservation(testPath, testName, targetId);
-    if (!observation) throw new Error(`named test does not call and assert target effect: ${id} ${testName}`);
-    return {
+    if (!observation) return [];
+    return [{
       ...test,
       semantic_call_edges: observation.callPath.map((edge) => ({
         caller_path: edge.callerPath,
@@ -1373,8 +1370,20 @@ for (const target of targetRecords) {
         invocation_sha256: edge.invocationSha256,
       })),
       assertion_observations: observation.assertions,
-    };
+    }];
   });
+  if (observedTests.length === 0) throw new Error(`no named test calls and asserts target effect: ${id}`);
+  const behaviorNames = new Set(observedTests.map((test) => String(test.name)));
+  const exactMutation = mutationRecords.find((mutation) => {
+    const killers = Array.isArray(mutation.expected_killer_test_ids)
+      ? mutation.expected_killer_test_ids.map(String)
+      : [];
+    return String(mutation.target_path) === String(target.target_path)
+      && String(mutation.target_symbol) === String(target.target_symbol)
+      && String(mutation.mutation_operator) !== "disconnect-target"
+      && killers.some((killer) => behaviorNames.has(killer));
+  });
+  if (!exactMutation) throw new Error(`missing exact target/test mutation for ${id}`);
   target.behavior_tests = observedTests;
   const assertionTokens = [...new Set(observedTests.flatMap((test) =>
     test.assertion_observations.map((assertion) => assertion.fingerprint)))].sort();
