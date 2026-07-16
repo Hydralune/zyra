@@ -1,0 +1,16 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "probe_id": "e01.probe.dependencies",
+  "generated_at_utc": "2026-07-16T02:31:34.562Z",
+  "ok": true,
+  "scanned_file_count": 97,
+  "runtime_roots": [
+    "apps/code-worker",
+    "packages/runtime/claude-runtime"
+  ],
+  "forbidden_runtime_path_violations": [],
+  "runtime_symlinks": [],
+  "relative_package_links": [],
+  "clean_dependency_path": true
+}

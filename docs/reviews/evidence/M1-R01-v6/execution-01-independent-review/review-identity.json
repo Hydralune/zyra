@@ -1,0 +1,12 @@
+{
+  "schema": "zyra.m1-r01-e01-independent-review/v6",
+  "generated_at_utc": "2026-07-16T02:10:03.3368425Z",
+  "nonce": "ed45733d91e909e610b566d878a691da21f63d2c111df81057e94b251eb9a3c4",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "implementation_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "implementation": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+  "evidence": "9ab8fd49a652bb662e13f090b472d7d6e6d66ee3",
+  "anchor": "018864090d3301a3f63528156e9206f17e309d8f",
+  "metadata": "2324cbf7616e993d8e42680fe1f2b587e82077c8",
+  "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+}

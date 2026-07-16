@@ -1,0 +1,11 @@
+{
+  "name": "reviewer-mutation-run",
+  "command": [
+    "G:\\agent-zoo\\zyra\\node_modules\\.bin\\bun.exe",
+    ".tmp\\run_m1_r01_e01_mutations.ts"
+  ],
+  "exit_code": 0,
+  "duration_ms": 21238,
+  "log": "mutation-run.log",
+  "tail": "e01-mut-001-restore-before-bootstrap: KILLED\r\ne01-mut-002-revision-monotonic: KILLED\r\ne01-mut-003-transition-unique: KILLED\r\ne01-mut-004-payload-digest: KILLED\r\ne01-mut-005-pending-committed: KILLED\r\ne01-mut-006-effect-fence: KILLED\r\ne01-mut-007-lost-ack: KILLED\r\ne01-mut-008-corrupt-snapshot: KILLED\r\ne01-mut-009-session-scope: KILLED\r\ne01-mut-010-outbox-once: KILLED\r\ne01-mut-011-turn-limit: KILLED\r\ne01-mut-012-cancel: KILLED\r\ne01-mut-013-empty-turn: KILLED\r\ne01-mut-014-query-revision: KILLED\r\ne01-mut-015-failure-route: KILLED\r\ne01-mut-016-compact-threshold: KILLED\r\ne01-mut-017-compact-tool-pair: KILLED\r\ne01-mut-018-compact-suffix: KILLED\r\ne01-mut-019-compact-restore: KILLED\r\ne01-mut-020-compact-cleanup: KILLED\r\ne01-mut-021-retry-delay: KILLED\r\ne01-mut-022-retry-class: KILLED\r\ne01-mut-023-max-retries: KILLED\r\ne01-mut-024-fallback: KILLED\r\ne01-mut-025-stream-final: KILLED\r\ne01-mut-026-usage: KILLED\r\ne01-mut-027-cache-lineage: KILLED\r\ne01-mut-028-tool-schema: KILLED\r\ne01-mut-029-write-serialization: KILLED\r\ne01-mut-030-result-budget: KILLED\r\ne01-mut-031-recovery-planner-custody: KILLED\r\ne01-mut-032-provider-lifecycle-custody: KILLED\r\ne01-mut-033-provider-execution-callback: KILLED\r\ne01-mut-034-execution-custody: KILLED\r\ne01-mut-035-transport-slot-finally: KILLED\r\ne01-mut-036-provider-observation-revision: KILLED\r\ne01-mut-037-permission-deny-delegation: KILLED\r\ne01-mut-038-compatible-endpoint: KILLED\r\ne01-mut-039-compatible-tool-delta: KILLED\r\ne01-mut-040-iteration-repeated-tool-id: KILLED\r\ne01-mut-041-settlement-gateway-fence: KILLED\r\ne01-mut-042-provider-stream-custody: KILLED\r\ne01-mut-043-gateway-extra-receipt: KILLED\r\ne01-mut-044-iteration-snapshot-checksum: KILLED\r\ne01-mut-045-observation-budget-enforcement: KILLED\r\ne01-mut-046-observation-budget-snapshot-checksum: KILLED\r\ne01-mut-047-output-token-reduction: KILLED\r\ne01-mut-048-history-restore-checksum: KILLED\r\ne01-mut-049-owned-tool-partition: KILLED\r\ne01-mut-050-provider-credential-failure: KILLED"
+}

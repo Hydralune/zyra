@@ -1,0 +1,5 @@
+$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun
+Bundled 78 modules in 41ms
+
+  main.js  1.17 MB  (entry point)
+

@@ -1,0 +1,107 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "probe_id": "e01.probe.same-session-resume",
+  "generated_at_utc": "2026-07-16T01:52:10.671Z",
+  "ok": true,
+  "session_id": "probe-resume-session",
+  "process_restart_count": 2,
+  "process_ids": [
+    73156,
+    79156,
+    63112
+  ],
+  "force_killed_processes": [
+    true,
+    true,
+    true
+  ],
+  "revisions": [
+    2,
+    4,
+    6
+  ],
+  "restart_epochs": [
+    0,
+    1,
+    2
+  ],
+  "custody_restart_epochs": [
+    0,
+    1,
+    2
+  ],
+  "epoch_transition_ids": [
+    [
+      "probe-resume-session:epoch0:revision0:sequence1:9f5ada44-9b59-4d31-b958-c97fcf795f95",
+      "probe-resume-session:epoch0:revision1:sequence2:b1459e82-899b-4c87-90b7-101a210294e7"
+    ],
+    [
+      "probe-resume-session:epoch1:revision2:sequence3:355dccd8-a74f-48ae-9dc0-b53e3d16b6d1",
+      "probe-resume-session:epoch1:revision3:sequence4:1da68c6c-3f08-480c-a707-2f81f12aea42"
+    ],
+    [
+      "probe-resume-session:epoch2:revision4:sequence5:a4d4ce61-95ab-461f-ab58-4d7f6979f09d",
+      "probe-resume-session:epoch2:revision5:sequence6:1211e9d4-3f2e-4f85-b8a9-01c51f903259"
+    ]
+  ],
+  "replayed_transition_ids": [],
+  "worker_receipts": [
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+        "G:\\agent-zoo\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
+        "resume-worker",
+        "0",
+        "-",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-0.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\marker-0.json"
+      ],
+      "exit_code": 143,
+      "duration_ms": 305,
+      "force_killed": true,
+      "process_id": 73156,
+      "snapshot_sha256": "17be417b1d40e346fa092c26e68dd78ea5dad7ef0d9cab6dab7ce99a646eedd5",
+      "stdout_sha256": "e8eac91c223c1b791f6507ac4f0e5e80bea945dcc81c251875ef0740d56dce01",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+        "G:\\agent-zoo\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
+        "resume-worker",
+        "1",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-0.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-1.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\marker-1.json"
+      ],
+      "exit_code": 143,
+      "duration_ms": 224,
+      "force_killed": true,
+      "process_id": 79156,
+      "snapshot_sha256": "ff651cb533ef0cd48a06d0fb51f79189a55a817c583ef738bf1042528b89c583",
+      "stdout_sha256": "86ab3ca3e70bf21a83f2c33d8dbb7198db45a33e6cb03eeb875e8a020877c587",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+        "G:\\agent-zoo\\zyra\\scripts\\remediation\\probe_m1_r01_e01.ts",
+        "resume-worker",
+        "2",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-1.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\snapshot-2.json",
+        "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-resume-bb68be6b-e80b-41a6-913d-9238e4741a7b\\marker-2.json"
+      ],
+      "exit_code": 143,
+      "duration_ms": 239,
+      "force_killed": true,
+      "process_id": 63112,
+      "snapshot_sha256": "eb87d563fc81a4b09d32163839d03be47bb7160cb89c8db95d591759e26e3708",
+      "stdout_sha256": "e53854c44356d28c50473b5ef0b6c1febc42bd506718be4c07d3e06264c066ba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "isolation_root": "system temporary directory outside repository",
+  "cleaned_after_run": true
+}

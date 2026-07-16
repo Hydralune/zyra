@@ -1,0 +1,62 @@
+{
+  "schema_version": "reviewer.e01.semantic-sample/v1",
+  "execution_id": "E01",
+  "review_nonce": "ed45733d91e909e610b566d878a691da21f63d2c111df81057e94b251eb9a3c4",
+  "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+  "implementation_candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+  "selection_algorithm": "lowest SHA256(nonce|kind|mapping_id) per required capability bucket",
+  "accepted_sample": {
+    "selected": 24,
+    "passed": 13,
+    "failed": 11,
+    "all_semantically_valid": false,
+    "records": [
+      {"mapping_id":"e01-src-0017","status":"pass","source_symbol":"src/query.ts::queryLoop","target_symbol":"ClaudeRuntimeCore.run","reason":"The default TypeScript run path owns the provider/tool/observe/revise loop, canonical turn state, failure routing, context handling and resumable snapshot."},
+      {"mapping_id":"e01-rej-0001","status":"pass","source_symbol":"src/QueryEngine.ts::ask","target_symbol":"ClaudeRuntimeCore.run","reason":"The split continuation is reached through the same canonical run path and advances query state on success and failure."},
+      {"mapping_id":"e01-src-0016","status":"pass","source_symbol":"src/query.ts::query","target_symbol":"ClaudeRuntimeCore.run","reason":"The target is the default query entry and owns observable turn lifecycle effects."},
+      {"mapping_id":"e01-src-0014","status":"pass","source_symbol":"src/query.ts::MAX_OUTPUT_TOKENS_RECOVERY_LIMIT","target_symbol":"ProviderRecoveryRuntime.plan","reason":"The numeric policy is adapted to a floor-bounded durable retry context; output reduction and terminal stop are stateful and mutation-tested."},
+      {"mapping_id":"e01-src-0252","status":"fail","source_symbol":"src/utils/toolResultStorage.ts::processPreMappedToolResultBlock","target_symbol":"ToolResultRuntime.deliver","failure_kind":"wrong_target_and_mutation","reason":"The source persists oversized output and replaces it with a reference. Actual Zyra externalization occurs in applyToolResultBudget at query-engine.ts:514, while the claimed target only creates an in-memory/snapshotted delivery. e01-mut-030 mutates budget.ts, not ToolResultRuntime.deliver."},
+      {"mapping_id":"e01-src-0242","status":"fail","source_symbol":"src/utils/toolResultStorage.ts::PERSIST_THRESHOLD_OVERRIDE_FLAG","target_symbol":"ToolResultRuntime.deliver","failure_kind":"missing_threshold_override_semantics","reason":"The source flag selects per-tool persistence thresholds. The target receives an already-computed maximumCharacters value and implements no feature-flag or per-tool threshold override."},
+      {"mapping_id":"e01-src-0256","status":"fail","source_symbol":"src/utils/toolResultStorage.ts::isPersistError","target_symbol":"ToolResultRuntime.deliver","failure_kind":"missing_error_classification_semantics","reason":"The source distinguishes persistence failure and returns original content. The target performs no persistence operation, has no persist-error union, and cannot implement this fallback."},
+      {"mapping_id":"e01-src-0241","status":"fail","source_symbol":"src/utils/toolResultStorage.ts::TOOL_RESULT_CLEARED_MESSAGE","target_symbol":"ToolResultRuntime.deliver","failure_kind":"missing_observable_replacement","reason":"The source supplies a model-visible cleared-content marker. The target records omitted IDs/truncation but emits no equivalent marker; the cited tests do not assert one."},
+      {"mapping_id":"e01-src-0227","status":"fail","source_symbol":"src/query/tokenBudget.ts::DIMINISHING_THRESHOLD","target_symbol":"E01RuntimeCoordinator.decideContext","failure_kind":"missing_diminishing_tracker","reason":"The source compares two successive token deltas after at least three continuations. The target accepts only chars/limit/force/count and stores no continuation or delta tracker."},
+      {"mapping_id":"e01-src-0226","status":"fail","source_symbol":"src/query/tokenBudget.ts::COMPLETION_THRESHOLD","target_symbol":"E01RuntimeCoordinator.decideContext","failure_kind":"missing_completion_policy","reason":"The source continues below 90% of a turn budget and returns a nudge. The target has no continue/nudge decision and only decides compaction."},
+      {"mapping_id":"e01-rej-0038","status":"fail","source_symbol":"src/query/tokenBudget.ts::checkTokenBudget","target_symbol":"E01RuntimeCoordinator.decideContext","failure_kind":"non_equivalent_state_machine","reason":"The source returns continue/stop using durable continuation and delta state. The target computes a compact boolean and cannot reproduce the state machine."},
+      {"mapping_id":"e01-src-0229","status":"fail","source_symbol":"src/query/tokenBudget.ts::checkTokenBudget","target_symbol":"E01RuntimeCoordinator.decideContext","failure_kind":"non_equivalent_state_machine","reason":"The accepted leading range has the same mismatch as its split tail: no continuation count, delta tracking, completion event or nudge exists in the target."},
+      {"mapping_id":"e01-src-0156","status":"fail","source_symbol":"src/services/compact/microCompact.ts::consumePendingCacheEdits","target_symbol":"ContextCompactionRuntime.compactConversation","failure_kind":"missing_consume_clear_effect","reason":"The source atomically returns and clears pending cache edits for the next request. The target compacts messages but has no pending cache-edit slot or consume-and-clear transition."},
+      {"mapping_id":"e01-src-0170","status":"fail","source_symbol":"src/services/compact/autoCompact.ts::getEffectiveContextWindowSize","target_symbol":"ContextCompactionRuntime.calculateTokenWarningState","failure_kind":"wrong_target_and_dead_default_input","reason":"The source derives a model window minus reserved output and supports an override. The mapped target only consumes a supplied window. Its default caller passes an empty message array, so token warning is always computed from zero tokens."},
+      {"mapping_id":"e01-src-0197","status":"pass","source_symbol":"src/services/compact/compact.ts::buildPostCompactMessages","target_symbol":"ContextCompactionRuntime.buildPostCompactMessages","reason":"The target constructs a boundary message, summary, reinjected attachments and preserved suffix and validates message invariants."},
+      {"mapping_id":"e01-src-0198","status":"pass","source_symbol":"src/services/compact/compact.ts::annotateBoundaryWithPreservedSegment","target_symbol":"ContextCompactionRuntime.compactConversation","reason":"The target compaction result records preserved message IDs and recomputes a checksum before the default loop commits the boundary."},
+      {"mapping_id":"e01-src-0133","status":"pass","source_symbol":"src/services/api/promptCacheBreakDetection.ts::getSystemCharCount","target_symbol":"ProviderTelemetryRuntime.recordPromptState","reason":"The target records system/tool/message character counts and hashes in durable prompt lineage."},
+      {"mapping_id":"e01-src-0023","status":"pass","source_symbol":"src/services/api/client.ts::buildFetch","target_symbol":"E01RuntimeCoordinator.executePreparedProvider","reason":"The default entry reaches model and transport owners through the claimed provider execution callback and commits request/attempt/response custody."},
+      {"mapping_id":"e01-src-0073","status":"pass","source_symbol":"src/services/api/withRetry.ts::handleAwsCredentialError","target_symbol":"ProviderCredentialRuntime.recordFailure","reason":"Provider execution records credential failure and removes a failed credential from immediate selection through cooldown/quarantine state."},
+      {"mapping_id":"e01-src-0141","status":"fail","source_symbol":"src/services/api/logging.ts::detectGateway","target_symbol":"ProviderTelemetryRuntime.logging_module","failure_kind":"missing_gateway_detection","reason":"The source fingerprints gateway response-header prefixes and base-URL suffixes. The target logging_module only starts/finishes spans or writes an event and contains no gateway classifier. e01-mut-026 only tests usage accounting."},
+      {"mapping_id":"e01-src-0306","status":"pass","source_symbol":"src/history.ts::makeHistoryReader","target_symbol":"SessionHistoryRuntime.restore","reason":"Raw JSONL reading is adapted to a checksummed branch snapshot; visible role/content/order is restored and tamper rejection is tested."},
+      {"mapping_id":"e01-src-0319","status":"pass","source_symbol":"src/history.ts::addToPromptHistory","target_symbol":"SessionHistoryRuntime.append","reason":"The target appends parent-linked nodes with monotonic sequence through the default canonical turn path."},
+      {"mapping_id":"e01-src-0284","status":"pass","source_symbol":"src/utils/sessionState.ts::getSessionState","target_symbol":"DurableSessionRuntime.snapshot","reason":"The target exposes a checksummed resumable projection of session status, pending effects, outbox and checkpoints."},
+      {"mapping_id":"e01-src-0307","status":"pass","source_symbol":"src/history.ts::getTimestampedHistory","target_symbol":"SessionHistoryRuntime.snapshot","reason":"The target serializes ordered, checksummed history with timestamps/sequence and restores it through the default run path."}
+    ]
+  },
+  "rejected_sample": {
+    "selected": 6,
+    "correctly_rejected": 6,
+    "records": [
+      {"source_id":"e01-src-0295","source_symbol":"exitRestoredWorktree","status":"pass","reason":"Worktree-exit/UI cleanup is not an E01 runtime-state owner."},
+      {"source_id":"e01-src-0009","source_symbol":"skillPrefetch","status":"pass","reason":"Skill discovery/prefetch belongs to a later capability runtime."},
+      {"source_id":"e01-src-0290","source_symbol":"computeRestoredAttributionState","status":"pass","reason":"Attribution presentation is not required for E01 canonical resume custody."},
+      {"source_id":"e01-src-0032","source_symbol":"verifyApiKey","status":"pass","reason":"Interactive verification traffic is not the default E01 credential selection/failure owner."},
+      {"source_id":"e01-src-0292","source_symbol":"restoreAgentFromSession","status":"pass","reason":"Agent-definition restore is outside E01 runtime-core custody."},
+      {"source_id":"e01-rej-0009","source_symbol":"isMaxTokensCapEnabled","status":"pass","reason":"A source feature toggle alone is not a required canonical state transition."}
+    ]
+  },
+  "targeted_v5_closure": {
+    "selected": 23,
+    "structurally_present": 23,
+    "note": "Recovery classification/context, max-output adaptation, AWS/GCP invalidation, compact summary, tool concurrency and history closure records are present. They do not rehabilitate the independently selected false mappings."
+  },
+  "largest_ranges": [
+    {"mapping_id":"e01-src-0044","source_symbol":"src/services/api/claude.ts::queryModel","source_lines":1876,"status":"pass","reason":"The record supplies an eight-edge default provider chain spanning model, transport, lifecycle and custody, with four directly relevant mutations."},
+    {"mapping_id":"e01-src-0017","source_symbol":"src/query.ts::queryLoop","source_lines":1375,"status":"pass","reason":"The default TypeScript run method is a substantive loop with model rounds, tool batches, observations, failures, compaction and snapshot state."}
+  ],
+  "population_conclusion": "FAIL: deterministic accepted-sample failures prove that structural 285/285 closure is not semantic five-hop closure. The sample result is not extrapolated into a population percentage; the population must be repaired and re-audited."
+}

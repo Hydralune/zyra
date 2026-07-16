@@ -1,0 +1,72 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "generated_at_utc": "2026-07-16T02:16:18.198Z",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "enforce_gates": true,
+  "pass": true,
+  "failures": [],
+  "thresholds": {
+    "accepted_source_executable_sloc": 10587,
+    "adapter_ratio_maximum": 0.1,
+    "behavior_tests_per_mapping_maximum": 2,
+    "core_mutation_kill_rate": 1,
+    "effective_behavior_test_sloc": 7000,
+    "effective_changed_typescript_sloc": 25416,
+    "final_non_test_typescript_sloc": 28000,
+    "mutation_ids_per_mapping_minimum": 1,
+    "mutation_points_minimum": 30,
+    "python_delete_executable_sloc": 26670,
+    "source_to_target_max_mappings_per_symbol": 60,
+    "source_to_target_unique_symbols_minimum": 20
+  },
+  "actual": {
+    "accepted_source_physical_sloc": 13150,
+    "accepted_source_executable_sloc": 13055,
+    "effective_changed_typescript_sloc": 26427,
+    "final_non_test_typescript_sloc": 36469,
+    "effective_behavior_test_sloc": 8902,
+    "adapter_ratio": 0,
+    "source_to_target_chain_count": 285,
+    "complete_source_to_target_chain_count": 285,
+    "unique_target_symbol_count": 50,
+    "maximum_mappings_per_target_symbol": 47,
+    "mutation_declared": 50,
+    "mutation_killed": 50,
+    "python_owner_paths_remaining": []
+  },
+  "evidence": {
+    "runtime-origin": {
+      "ok": true,
+      "probe_id": "e01.probe.runtime-origin"
+    },
+    "write-path": {
+      "ok": true,
+      "probe_id": "e01.probe.write-path"
+    },
+    "same-session-resume": {
+      "ok": true,
+      "probe_id": "e01.probe.same-session-resume"
+    },
+    "lost-ack": {
+      "ok": true,
+      "probe_id": "e01.probe.lost-ack"
+    },
+    "disable": {
+      "ok": true,
+      "probe_id": "e01.probe.disable"
+    },
+    "dependencies": {
+      "ok": true,
+      "probe_id": "e01.probe.dependencies"
+    },
+    "toolchain": {
+      "ok": true,
+      "probe_id": "e01.probe.toolchain"
+    },
+    "cleanroom": {
+      "ok": true,
+      "probe_id": "e01.probe.cleanroom"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": "reviewer.e01.summary/v1",
+  "execution_id": "E01",
+  "verdict": "FAIL",
+  "recommended_state": "ready_for_fix",
+  "frozen": {
+    "verified_head": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "implementation_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+    "implementation_candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+    "candidate_evidence_commit": "9ab8fd49a652bb662e13f090b472d7d6e6d66ee3",
+    "self_review_commit": "018864090d3301a3f63528156e9206f17e309d8f",
+    "metadata_commit": "2324cbf7616e993d8e42680fe1f2b587e82077c8",
+    "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102"
+  },
+  "hard_findings": [
+    {
+      "id": "E01-V6-P0-001",
+      "severity": "P0",
+      "title": "Frozen baseline receipt records an unclean worktree, while both gate implementations fail open",
+      "evidence": "manifest-audit.json and execution-01-baseline-receipt.json",
+      "effect": "The candidate does not satisfy the clean baseline/G0 authority contract."
+    },
+    {
+      "id": "E01-V6-P0-002",
+      "severity": "P0",
+      "title": "Deterministic semantic sample finds 11 false accepted five-hop mappings out of 24",
+      "evidence": "nonce-semantic-sample.json",
+      "effect": "Machine-reported 285/285 coverage is structural only and cannot close source custody."
+    },
+    {
+      "id": "E01-V6-P1-003",
+      "severity": "P1",
+      "title": "Default context decision does not implement the credited completion/diminishing token-budget state machine",
+      "evidence": "E01RuntimeCoordinator.decideContext at candidate lines 516-546",
+      "effect": "Four accepted source records receive credit for behavior absent from the default path."
+    },
+    {
+      "id": "E01-V6-P1-004",
+      "severity": "P1",
+      "title": "Mutation IDs are not required to mutate the mapping's claimed target symbol",
+      "evidence": "e01-mut-030-result-budget targets budget.ts while four mappings claim ToolResultRuntime.deliver; e01-mut-026-usage does not test gateway detection",
+      "effect": "A 50/50 kill result cannot validate the declared five-hop semantics."
+    }
+  ],
+  "passing_checks": {
+    "strict_checker": {"exit_code":0,"effective_changed_typescript":30841,"failures":0},
+    "generic_checker": {"exit_code":0,"structural_mappings":"285/285","generic_effective_typescript":26427},
+    "runtime_tests": {"passed":388,"failed":0},
+    "mutations": {"declared":50,"killed":50,"invalid":0,"restored_sha_match":true},
+    "runtime_probes": ["runtime-origin","write-path","same-session-resume","lost-ack","disable","dependencies"],
+    "cleanroom": {"target":"16e8c83a0b9c67ae6fabacfa16d1da029581f96a","exit_code":0},
+    "python_deletion_sample": {"population":763,"sample":153,"all_ok":true}
+  },
+  "line_buckets": {
+    "effective_changed_production_typescript": 30841,
+    "minimum_required": 25416,
+    "final_production_typescript": 48420,
+    "final_test_typescript": 10679,
+    "winnowing_deduction": 654,
+    "deleted_python": 35151
+  },
+  "decision": "Keep verified head unchanged, return E01 to implementation repair, and keep E02/E03 blocked."
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "probe_id": "e01.probe.lost-ack",
+  "generated_at_utc": "2026-07-16T02:31:33.928Z",
+  "ok": true,
+  "transition_id": "review-ed457-ack-session:epoch0:revision0:sequence1:a5cecf25-f4c7-4f75-a469-d21c65cb519c",
+  "duplicate_retry": true,
+  "revision_at_commit": 1,
+  "revision_after_retries": 1,
+  "committed_count_before_ack": 1,
+  "committed_count_after_ack": 1,
+  "outbox_id": "review-ed457-ack-session:epoch0:revision0:sequence1:a5cecf25-f4c7-4f75-a469-d21c65cb519c:outbox:1",
+  "first_delivered_at": "2026-07-15T00:00:00.000Z",
+  "replay_delivered_at": "2026-07-15T00:00:00.000Z",
+  "repeated_effect_count": 0
+}

@@ -1,0 +1,423 @@
+$ bun test packages/runtime/claude-runtime/test/e01 packages/runtime/claude-runtime/test/runtime.test.ts
+bun test v1.2.15 (df017990)
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\runtime.test.ts:
+(pass) runtime owns multi-turn lifecycle and read-only batches [125.00ms]
+(pass) runtime rejects invalid tool arguments before the Python host [31.00ms]
+(pass) runtime externalizes large tool results and compacts context [47.00ms]
+(pass) runtime commits provider prompt usage and recovery state through default loop [94.00ms]
+(pass) runtime lets canonical recovery policy stop a non-retryable provider request [31.00ms]
+(pass) runtime clears canonical recovery state after a retry succeeds [203.00ms]
+(pass) runtime restores its exact TypeScript snapshot [141.00ms]
+(pass) runtime stops on max turns, abort and model error [109.00ms]
+(pass) runtime projects control commands and failure recovery signals [79.00ms]
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\coordinator-cutover.behavior.test.ts:
+(pass) E01 coordinator default TypeScript cutover > constructs all canonical owners without bootstrapping hidden work
+(pass) E01 coordinator default TypeScript cutover > does not permit event recording before explicit bootstrap [15.00ms]
+(pass) E01 coordinator default TypeScript cutover > bootstraps a fresh TypeScript-owned journal transition
+(pass) E01 coordinator default TypeScript cutover > activates the durable session and query lifecycle on bootstrap
+(pass) E01 coordinator default TypeScript cutover > creates the initial execution plan and system context section
+(pass) E01 coordinator default TypeScript cutover > installs default hook stop routing rate and command policy
+(pass) E01 coordinator default TypeScript cutover > rejects a second bootstrap without adding another transition
+(pass) E01 coordinator default TypeScript cutover > accepts a normal nonempty query turn [16.00ms]
+(pass) E01 coordinator default TypeScript cutover > rejects an empty turn unless empty input is explicitly allowed
+(pass) E01 coordinator default TypeScript cutover > enforces the query turn limit in canonical state
+(pass) E01 coordinator default TypeScript cutover > cancels query lifecycle when the caller aborts
+(pass) E01 coordinator default TypeScript cutover > default query hook blocks an aborted payload [15.00ms]
+(pass) E01 coordinator default TypeScript cutover > default query hook permits a live payload
+(pass) E01 coordinator default TypeScript cutover > keeps context unchanged while within the configured budget
+(pass) E01 coordinator default TypeScript cutover > requests compaction when explicitly forced
+(pass) E01 coordinator default TypeScript cutover > requests compaction when characters exceed the hard threshold
+(pass) E01 coordinator default TypeScript cutover > does not compact the same turn twice
+(pass) E01 coordinator default TypeScript cutover > routes provider phases to the provider journal domain
+(pass) E01 coordinator default TypeScript cutover > routes compact budget phases to the context domain [16.00ms]
+(pass) E01 coordinator default TypeScript cutover > routes tool permission phases to the tool domain
+(pass) E01 coordinator default TypeScript cutover > routes ACK and correlation phases to the protocol domain
+(pass) E01 coordinator default TypeScript cutover > uses query as the fallback domain for an unclassified phase
+(pass) E01 coordinator default TypeScript cutover > advances exactly one journal revision per recorded phase
+(pass) E01 coordinator default TypeScript cutover > records effectful tool completion through prepare effect commit ACK [16.00ms]
+(pass) E01 coordinator default TypeScript cutover > creates history correlation protocol and framing evidence per transition
+(pass) E01 coordinator default TypeScript cutover > creates a cited compact summary on the real context_compacted phase
+(pass) E01 coordinator default TypeScript cutover > turns provider failure events into recovery observations
+(pass) E01 coordinator default TypeScript cutover > finishes durable session state on session_completed [15.00ms]
+(pass) E01 coordinator default TypeScript cutover > finishes durable session state on session_failed
+(pass) E01 coordinator default TypeScript cutover > inventory reports changing owner state from live operations
+(pass) E01 coordinator default TypeScript cutover > captures every owner in a checksummed v6 composite snapshot
+(pass) E01 coordinator default TypeScript cutover > rejects composite checksum tampering before restoring owners [16.00ms]
+(pass) E01 coordinator default TypeScript cutover > rejects a valid snapshot for a different session
+(pass) E01 coordinator default TypeScript cutover > rejects a valid snapshot for a different task [16.00ms]
+(pass) E01 coordinator default TypeScript cutover > requires restore before bootstrap
+(pass) E01 coordinator default TypeScript cutover > restores a journal-only snapshot before resume bootstrap
+(pass) E01 coordinator default TypeScript cutover > restores all composite owners for the same session in a new run [15.00ms]
+(pass) E01 coordinator default TypeScript cutover > resume bootstrap preserves prior owner state and appends one revision [31.00ms]
+(pass) E01 coordinator default TypeScript cutover > creates zero overlapping transition IDs after full composite resume [16.00ms]
+(pass) E01 coordinator default TypeScript cutover > does not replay committed effects while resuming a lost bootstrap ACK [16.00ms]
+(pass) E01 coordinator default TypeScript cutover > disconnecting the abort hook changes observable admission behavior [15.00ms]
+(pass) E01 coordinator default TypeScript cutover > disabling the default route changes provider selection behavior
+(pass) E01 coordinator default TypeScript cutover > rejects a recomputed snapshot whose nested journal belongs to another session
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\default-loop-adversarial.behavior.test.ts:
+(pass) default permission execution custody > e01.mutation.permission-deny-is-never-delegated [16.00ms]
+(pass) default permission execution custody > e01.mutation.permission-ask-is-suspended-without-gateway-execution
+(pass) default permission execution custody > e01.mutation.permission-mixed-batch-delegates-only-allowed-calls
+(pass) compatible provider protocol > e01.mutation.compatible-envelope-uses-chat-completions-and-bearer-auth
+(pass) compatible provider protocol > e01.mutation.compatible-stream-assembles-tool-deltas
+(pass) compatible provider protocol > compatible SSE parser rejects malformed event JSON
+(pass) compatible provider protocol > e01.mutation.transport-slot-closes-after-parser-failure
+(pass) model iteration recovery > e01.mutation.provider-observation-requires-a-new-provider-round
+(pass) model iteration recovery > e01.mutation.iteration-resume-does-not-replay-transition-ids
+(pass) model iteration recovery > e01.mutation.iteration-repeated-tool-id-is-rejected-across-rounds
+(pass) model iteration recovery > e01.mutation.iteration-snapshot-checksum-rejects-tampering
+(pass) execution settlement custody > e01.mutation.settlement-blocked-call-cannot-reach-gateway
+(pass) execution settlement custody > settlement preserves request order across blocked and delegated calls [16.00ms]
+(pass) execution settlement custody > settlement restore fences an in-flight delegated side effect
+(pass) execution settlement custody > settlement progress enforces sequence and bounded storage
+(pass) generic permission enforcement protocol > enforcement rejects extra gateway receipts
+(pass) generic permission enforcement protocol > enforcement synthesizes a missing receipt and preserves cardinality
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\durable-session.behavior.test.ts:
+(pass) durable session lifecycle > starts as a scoped created session
+(pass) durable session lifecycle > activates once and records the lifecycle mutation as a message
+(pass) durable session lifecycle > pauses and resumes an active session with distinct events
+(pass) durable session lifecycle > cannot pause a session before activation
+(pass) durable session lifecycle > finishes an active session exactly once
+(pass) durable session lifecycle > cannot reactivate a terminal session
+(pass) durable session lifecycle > refuses terminal completion while an external effect executes
+(pass) durable session messages and state > appends a stable message with causal identity
+(pass) durable session messages and state > deduplicates a message ID only for identical content
+(pass) durable session messages and state > normalizes optional message identifiers
+(pass) durable session messages and state > replaces the root state using compare-and-swap
+(pass) durable session messages and state > updates a nested state path without deleting siblings
+(pass) durable session messages and state > compares the digest at the exact nested state path
+(pass) durable session messages and state > rejects prototype-bearing state paths
+(pass) durable session messages and state > projects counts and state digest without exposing mutable state
+(pass) durable external effect fencing > prepares an effect without executing it
+(pass) durable external effect fencing > deduplicates effect preparation by idempotency key
+(pass) durable external effect fencing > leases a prepared effect to one owner
+(pass) durable external effect fencing > commits an executing effect and fences its response
+(pass) durable external effect fencing > rejects conflicting response replay after effect commit
+(pass) durable external effect fencing > cannot commit an effect that was never started
+(pass) durable external effect fencing > records a failed effect and permits a new execution attempt
+(pass) durable external effect fencing > returns the committed effect for future preparation retries
+(pass) durable outbox delivery > enqueues a pending ordered delivery
+(pass) durable outbox delivery > deduplicates outbox enqueue and rejects payload conflicts
+(pass) durable outbox delivery > leases pending deliveries in creation order with a maximum
+(pass) durable outbox delivery > does not lease work already held by another live owner
+(pass) durable outbox delivery > ACKs only for the active lease owner and remains idempotent
+(pass) durable outbox delivery > NACK returns a leased delivery to delayed pending state
+(pass) durable checkpoint and resume > checkpoints state pending effects outbox and message head
+(pass) durable checkpoint and resume > chains checkpoints through their parent identity
+(pass) durable checkpoint and resume > issues a signed token for the latest checkpoint
+(pass) durable checkpoint and resume > creates a checkpoint automatically before issuing the first token
+(pass) durable checkpoint and resume > consumes a token once and advances restart epoch
+(pass) durable checkpoint and resume > rejects a token whose signed fields were changed
+(pass) durable checkpoint and resume > rejects an expired signed token [15.00ms]
+(pass) durable checkpoint and resume > restores state and increments restart epoch
+(pass) durable checkpoint and resume > returns expired effect and outbox leases to recoverable state
+(pass) durable checkpoint and resume > rejects a snapshot from another session or branch
+(pass) durable checkpoint and resume > rejects checksum and nested content corruption
+(pass) durable checkpoint and resume > routes lifecycle and snapshot module actions into canonical state
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\effect-protocol.behavior.test.ts:
+(pass) effect envelope custody > creates a checksummed envelope with producer identity [16.00ms]
+(pass) effect envelope custody > allocates one pending delivery per new envelope
+(pass) effect envelope custody > increments producer sequence independently from aggregate sequence
+(pass) effect envelope custody > deduplicates envelope creation by idempotency key
+(pass) effect envelope custody > rejects idempotency key reuse with different payload
+(pass) effect envelope custody > normalizes optional causation and expiration timestamps
+(pass) effect envelope custody > rejects preparation of an expired envelope
+(pass) effect envelope custody > routes the envelope module into canonical delivery state
+(pass) effect transaction and aggregate CAS > prepares against the current immutable aggregate snapshot
+(pass) effect transaction and aggregate CAS > returns the same prepared transaction on retry
+(pass) effect transaction and aggregate CAS > rejects an envelope whose expected aggregate sequence is stale
+(pass) effect transaction and aggregate CAS > sets a nested aggregate value
+(pass) effect transaction and aggregate CAS > merges object state without deleting siblings
+(pass) effect transaction and aggregate CAS > appends ordered values to an aggregate list
+(pass) effect transaction and aggregate CAS > removes an existing nested aggregate path
+(pass) effect transaction and aggregate CAS > marks a requested mutation ineffective when state does not change
+(pass) effect transaction and aggregate CAS > honors an explicit non-effective observation
+(pass) effect transaction and aggregate CAS > rejects unsafe prototype state paths
+(pass) effect transaction and aggregate CAS > commits one aggregate sequence with the after state
+(pass) effect transaction and aggregate CAS > deduplicates transaction commit and future envelope creation
+(pass) effect transaction and aggregate CAS > quarantines the loser of concurrent aggregate transactions
+(pass) effect transaction and aggregate CAS > rolls back prepared state without mutating the aggregate
+(pass) effect transaction and aggregate CAS > cannot roll back a committed transaction
+(pass) effect transaction and aggregate CAS > refuses snapshots with applied uncommitted state
+(pass) effect delivery and restart > leases one pending delivery to a stable owner
+(pass) effect delivery and restart > rejects another owner while a delivery lease is live
+(pass) effect delivery and restart > does not ACK delivery before its state transaction commits
+(pass) effect delivery and restart > ACKs committed delivery exactly once
+(pass) effect delivery and restart > NACK schedules a retry and stores bounded error evidence
+(pass) effect delivery and restart > limits pending delivery projection without mutating queue
+(pass) effect delivery and restart > round-trips committed aggregate and acknowledged delivery
+(pass) effect delivery and restart > recovers a live delivery lease after process restart
+(pass) effect delivery and restart > uses the incremented restart epoch for new envelopes
+(pass) effect delivery and restart > rejects checksum and nested envelope digest corruption
+(pass) effect delivery and restart > rejects a snapshot owned by another session
+(pass) effect delivery and restart > routes transaction and delivery modules through the same state owners
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\health-verification.behavior.test.ts:
+(pass) E01 health verification projection > keeps productized health incomplete when candidate evidence is unavailable
+(pass) E01 health verification projection > reports completion only for identity-bound independent PASS evidence [15.00ms]
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\mutation-contract.behavior.test.ts:
+(pass) e01.mutation.restore-before-bootstrap
+(pass) e01.mutation.revision-monotonic
+(pass) e01.mutation.transition-unique
+(pass) e01.mutation.payload-digest
+(pass) e01.mutation.pending-committed
+(pass) e01.mutation.effect-fence
+(pass) e01.mutation.lost-ack
+(pass) E01 effect snapshot restores multiple committed revisions for one aggregate [16.00ms]
+(pass) E01 provider events enter prompt usage and recovery state owners
+(pass) e01.mutation.corrupt-snapshot
+(pass) e01.mutation.session-scope
+(pass) e01.mutation.outbox-once
+(pass) e01.mutation.turn-limit
+(pass) e01.mutation.cancel
+(pass) e01.mutation.empty-turn [16.00ms]
+(pass) e01.mutation.query-revision
+(pass) e01.mutation.failure-route
+(pass) e01.mutation.compact-threshold
+(pass) e01.mutation.compact-tool-pair
+(pass) e01.mutation.compact-suffix
+(pass) e01.mutation.compact-restore
+(pass) e01.mutation.compact-cleanup
+(pass) e01.mutation.retry-delay
+(pass) e01.mutation.retry-class
+(pass) e01.mutation.max-retries
+(pass) e01.mutation.fallback
+(pass) e01.mutation.stream-final
+(pass) e01.mutation.usage
+(pass) e01.mutation.cache-lineage
+(pass) e01.mutation.tool-schema
+(pass) e01.mutation.write-serialization
+(pass) e01.mutation.result-budget
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\provider-policy.behavior.test.ts:
+(pass) provider credential custody > stores the secret in the vault and exposes only metadata in snapshots
+(pass) provider credential custody > selects credentials by provider model scope and priority
+(pass) provider credential custody > builds bearer oauth and custom authentication headers
+(pass) provider credential custody > returns signing material only for the SigV4 strategy
+(pass) provider credential custody > places a failed credential in exponential cooldown and then reactivates it
+(pass) provider credential custody > quarantines after the configured failure threshold
+(pass) provider credential custody > grants a single refresh lease and rotates the secret atomically
+(pass) provider credential custody > expires an abandoned refresh lease and restores active status
+(pass) provider credential custody > requires the expected revision when rotating a credential
+(pass) provider credential custody > revocation deletes secret material and prevents resolution
+(pass) provider credential custody > restores metadata while reusing an external persistent vault
+(pass) provider routing policy > selects the only route satisfying capability and privacy constraints
+(pass) provider routing policy > rejects routes whose context or output limits are too small
+(pass) provider routing policy > enforces estimated cost and latency ceilings
+(pass) provider routing policy > reserves route concurrency and refuses saturation
+(pass) provider routing policy > records success, updates latency EWMA, and creates session affinity
+(pass) provider routing policy > opens a circuit after repeated transport failures
+(pass) provider routing policy > opens a circuit immediately for authentication failures
+(pass) provider routing policy > honors explicit exclusion and a preferred provider bonus
+(pass) provider routing policy > expires an abandoned lease without leaking concurrency
+(pass) provider routing policy > restores routes leases and affinity with checksum validation
+(pass) provider rate limit reservations > reserves capacity and commits actual usage with a refund
+(pass) provider rate limit reservations > releases a held reservation without consuming quota
+(pass) provider rate limit reservations > denies demand above capacity and computes the next refill time
+(pass) provider rate limit reservations > applies multiple scoped dimensions to one atomic reservation
+(pass) provider rate limit reservations > rejects actual usage that exceeds both reservation and free capacity
+(pass) provider rate limit reservations > expires held reservations and returns their capacity
+(pass) provider rate limit reservations > uses provider remaining and retry-after headers as hard ceilings
+(pass) provider rate limit reservations > refills discrete token bucket intervals without exceeding burst
+(pass) provider rate limit reservations > restores buckets and rejects a tampered reservation snapshot
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\provider-request-response.behavior.test.ts:
+(pass) provider request lifecycle > creates an idempotent durable request without duplicating state
+(pass) provider request lifecycle > rejects reused idempotency keys with different payloads [16.00ms]
+(pass) provider request lifecycle > runs prepare dispatch stream and completion with usage custody
+(pass) provider request lifecycle > rejects response chunks with a sequence gap without advancing state
+(pass) provider request lifecycle > deduplicates a repeated response chunk by chunk id and digest
+(pass) provider request lifecycle > schedules a retry and permits a different fallback route when due
+(pass) provider request lifecycle > terminates immediately for a non-retryable request error
+(pass) provider request lifecycle > stops retrying after the attempt budget is exhausted
+(pass) provider request lifecycle > rejects attempt preparation after the request deadline
+(pass) provider request lifecycle > rejects output usage that exceeds token budget
+(pass) provider request lifecycle > accepts fractional cost but rejects cost above the request ceiling
+(pass) provider request lifecycle > cancels an active attempt and prevents later completion
+(pass) provider request lifecycle > converts an in-flight restored request to retry-wait
+(pass) provider request lifecycle > rejects a snapshot whose request payload changed
+(pass) provider response normalization > normalizes a streamed text response and usage metadata
+(pass) provider response normalization > normalizes reasoning and a structured tool use
+(pass) provider response normalization > maps provider-specific stop reason aliases
+(pass) provider response normalization > rejects event sequence gaps without recording the event
+(pass) provider response normalization > deduplicates repeated event ids and rejects conflicting replays
+(pass) provider response normalization > rejects starting two blocks at the same index
+(pass) provider response normalization > refuses finalization while a content block remains open
+(pass) provider response normalization > rejects duplicate tool use identifiers across blocks
+(pass) provider response normalization > enforces the aggregate response character limit
+(pass) provider response normalization > records provider error state and prevents further stream events
+(pass) provider response normalization > replays only events after the requested aggregate sequence
+(pass) provider response normalization > restores a complete response with identical normalized digest
+(pass) provider response normalization > rejects snapshot event payload tampering
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\query-context.behavior.test.ts:
+(pass) query hook runtime > orders hooks by dependency before priority and preserves audit order
+(pass) query hook runtime > applies add replace test and remove patches atomically
+(pass) query hook runtime > fail-open hook records error and permits the next handler
+(pass) query hook runtime > fail-closed hook blocks and prevents lower-priority execution
+(pass) query hook runtime > quarantines a failing hook and persists quarantine across restore
+(pass) query hook runtime > rejects dependency cycles during configuration
+(pass) query hook runtime > enforces retry delay bounds supplied by a hook
+(pass) query hook runtime > rejects tampered hook snapshots before replacing live descriptors
+(pass) query execution plan > executes a complete reason tool observe revise loop
+(pass) query execution plan > permission denial returns the plan to revision without an effect
+(pass) query execution plan > rejects reasoning tokens that exceed the durable plan budget
+(pass) query execution plan > enforces wall deadline before starting another reasoning turn
+(pass) query execution plan > prevents a completed idempotent effect from running twice
+(pass) query execution plan > restores a suspended plan and advances restart epoch on resume
+(pass) query execution plan > tracks consecutive tool failures and rejects the next tool start
+(pass) query execution plan > rejects cancellation after the plan has completed
+(pass) query stop policy > selects the highest-priority matching terminal rule
+(pass) query stop policy > requires a terminal answer when a rule declares that obligation
+(pass) query stop policy > evaluates numeric and collection conditions from JSON pointers
+(pass) query stop policy > does not apply a decision to a newer query revision
+(pass) query stop policy > persists decisions and rejects a modified decision digest
+(pass) context cache runtime > moves from miss through a build lease to a verified cache hit
+(pass) context cache runtime > prevents two workers from building the same context key
+(pass) context cache runtime > rejects a build whose dependency changed while the worker built
+(pass) context cache runtime > expires entries at the configured TTL and records a stale lookup
+(pass) context cache runtime > evicts the least recently used entry when entry capacity is reached
+(pass) context cache runtime > invalidates only entries owned by the selected branch
+(pass) context cache runtime > detects a selected and omitted message conflict before commit
+(pass) context cache runtime > round-trips entries and rejects a modified value digest
+(pass) compact summary runtime > renders cited objectives decisions effects recovery and open loops
+(pass) compact summary runtime > merges the same normalized fact and upgrades confidence
+(pass) compact summary runtime > omits lower-importance facts when the character budget is exhausted
+(pass) compact summary runtime > resolves and retracts items with new evidence
+(pass) compact summary runtime > drops expired inherited facts from the next generation
+(pass) compact summary runtime > rejects an observed item that has no source citation
+(pass) compact summary runtime > round-trips summary generations and catches checksum tampering [15.00ms]
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\semantic-custody.behavior.test.ts:
+(pass) e01.semantic.output-token-recovery-is-bounded
+(pass) e01.semantic.tool-planning-partitions-read-only-and-write-calls
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\session-recovery.behavior.test.ts:
+(pass) session correlation custody > opens a scoped root with a stable payload digest
+(pass) session correlation custody > deduplicates an identical external key without creating a second node
+(pass) session correlation custody > rejects external key reuse with a different payload
+(pass) session correlation custody > creates an explicit contains edge for a child node
+(pass) session correlation custody > rejects a parent from another correlation scope
+(pass) session correlation custody > annotates only at the expected node revision
+(pass) session correlation custody > closes a node idempotently with monotonic sequence bounds
+(pass) session correlation custody > rejects a terminal close conflict and sequence regression
+(pass) session correlation custody > links causal nodes once and returns the existing edge on retry
+(pass) session correlation custody > rejects causal cycles before they enter the graph
+(pass) session correlation custody > rejects self edges and cross-session edges
+(pass) session correlation custody > walks ancestors descendants and a shortest causal path
+(pass) session correlation custody > projects an auditable trace with open and terminal nodes
+(pass) session correlation custody > restores a graph before opening nodes in a new restart epoch
+(pass) session correlation custody > rejects a checksum-tampered graph snapshot
+(pass) session correlation custody > enforces configured graph capacity [16.00ms]
+(pass) session history branch and compact custody > appends a parent-linked main transcript with monotonic sequence
+(pass) session history branch and compact custody > edits a middle node and rewires its visible child
+(pass) session history branch and compact custody > updates branch head when editing the last visible node
+(pass) session history branch and compact custody > cannot edit a node owned by an inactive branch
+(pass) session history branch and compact custody > forks from the active head and diverges without mutating main
+(pass) session history branch and compact custody > forks a child branch from an ancestor lineage node
+(pass) session history branch and compact custody > rejects a fork point outside the active branch lineage
+(pass) session history branch and compact custody > compacts a contiguous prefix and preserves following visible nodes
+(pass) session history branch and compact custody > rejects an empty or noncontiguous compact selection
+(pass) session history branch and compact custody > rejects compaction that crosses branch ownership
+(pass) session history branch and compact custody > chains compact boundaries in creation order
+(pass) session history branch and compact custody > searches only visible transcript content and metadata
+(pass) session history branch and compact custody > round-trips branch history and resumes the sequence
+(pass) session history branch and compact custody > rejects a checksum-tampered history snapshot
+(pass) session history branch and compact custody > routes module actions into real history state
+(pass) compact restore selection and path custody > allows a non-file candidate without weakening file roots
+(pass) compact restore selection and path custody > allows a normalized path inside the workspace root
+(pass) compact restore selection and path custody > denies traversal outside every allowed root
+(pass) compact restore selection and path custody > denies configured secret path patterns
+(pass) compact restore selection and path custody > deduplicates discovery by candidate identity
+(pass) compact restore selection and path custody > provides normalized content and records its digest
+(pass) compact restore selection and path custody > cannot provide content after path policy denied a candidate
+(pass) compact restore selection and path custody > reads a file through the injected reader and stores canonical metadata
+(pass) compact restore selection and path custody > rejects a reader that resolves a symlink outside the workspace
+(pass) compact restore selection and path custody > persists a reader failure without inventing content
+(pass) compact restore selection and path custody > selects higher priority and required candidates first
+(pass) compact restore selection and path custody > drops duplicate source content after selecting the first candidate
+(pass) compact restore selection and path custody > enforces file and skill count limits independently
+(pass) compact restore selection and path custody > truncates an oversized attachment at its kind token budget
+(pass) compact restore selection and path custody > drops optional candidates when the total token budget is consumed
+(pass) compact restore selection and path custody > re-evaluates existing candidates after policy tightening
+(pass) compact restore selection and path custody > projects allowed content into context attachment candidates [15.00ms]
+(pass) compact restore selection and path custody > round-trips candidates receipts and policy through a snapshot
+(pass) compact restore selection and path custody > rejects checksum and content digest tampering
+(pass) compact restore selection and path custody > routes module discovery selection and inspection into canonical state
+(pass) E01 durable transition journal > starts with an empty TypeScript-owned session state
+(pass) E01 durable transition journal > prepares a transition without mutating canonical state
+(pass) E01 durable transition journal > deduplicates the same prepared command identity
+(pass) E01 durable transition journal > rejects transition ID reuse with a changed command
+(pass) E01 durable transition journal > reserves write sets until the owning transition commits
+(pass) E01 durable transition journal > allows disjoint prepared writes but commits with compare-and-swap
+(pass) E01 durable transition journal > requires prepare before effect or commit
+(pass) E01 durable transition journal > records one terminal effect for repeated delivery
+(pass) E01 durable transition journal > blocks an effectful commit until a terminal effect exists
+(pass) E01 durable transition journal > does not commit canonical success after a failed side effect
+(pass) E01 durable transition journal > deep-merges committed state while preserving sibling domains
+(pass) E01 durable transition journal > emits durable ordered outbox records from commit
+(pass) E01 durable transition journal > projects an outbox effect exactly once across lost acknowledgements
+(pass) E01 durable transition journal > deduplicates commit replay before and after ACK
+(pass) E01 durable transition journal > quarantines a pending transition without advancing revision
+(pass) E01 durable transition journal > restores committed state before allocating a new transition identity
+(pass) E01 durable transition journal > reconstructs pending write locks during same-session restore
+(pass) E01 durable transition journal > keeps undelivered outbox work after a process restart
+(pass) E01 durable transition journal > rejects a snapshot for a different session
+(pass) E01 durable transition journal > rejects checksum and state digest corruption before mutation
+(pass) E01 durable transition journal > rejects stale run epoch and revision command identities
+(pass) E01 durable transition journal > rejects Python ownership in command and payload
+(pass) E01 durable transition journal > rejects payload digest tampering and duplicate write paths
+(pass) E01 durable transition journal > produces zero transition ID overlap after same-session resume
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\tool-observation-budget.behavior.test.ts:
+(pass) e01.mutation.observation-budget-enforces-cross-result-limit
+(pass) e01.mutation.observation-budget-restore-rejects-tampering
+(pass) e01.integration.model-iteration-applies-observation-budget [16.00ms]
+
+G:\agent-zoo\zyra\packages\runtime\claude-runtime\test\e01\tool-protocol.behavior.test.ts:
+(pass) tool result custody > assembles ordered chunks into a sealed delivery
+(pass) tool result custody > rejects a chunk sequence gap without advancing expected sequence
+(pass) tool result custody > deduplicates a repeated chunk and rejects a conflicting digest
+(pass) tool result custody > truncates a large text block while preserving head and tail
+(pass) tool result custody > withholds a block above the caller sensitivity ceiling
+(pass) tool result custody > redacts bearer tokens from internal text results
+(pass) tool result custody > redacts a complete private key block
+(pass) tool result custody > omits diagnostics when delivery policy excludes them
+(pass) tool result custody > enforces maximum block count across chunks
+(pass) tool result custody > cannot deliver an open result before a terminal state
+(pass) tool result custody > cancels an open result and delivers a failed terminal projection
+(pass) tool result custody > marks a sealed result as late without changing its content
+(pass) tool result custody > deduplicates begin calls by tool call identity
+(pass) tool result custody > restores accumulators deliveries and redaction rules
+(pass) runtime command protocol > accepts authorizes executes and commits an inspected result
+(pass) runtime command protocol > rejects actors missing a required command capability
+(pass) runtime command protocol > rejects commands in an incompatible session state
+(pass) runtime command protocol > validates required string number enum and maximum length fields
+(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them
+(pass) runtime command protocol > persists an authorization denial as a terminal command
+(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key
+(pass) runtime command protocol > records handler failure and permits retry for an idempotent command
+(pass) runtime command protocol > does not retry a non-idempotent command
+(pass) runtime command protocol > times out a slow command and stores deterministic failure [31.00ms]
+(pass) runtime command protocol > expires accepted commands before authorization
+(pass) runtime command protocol > restores descriptors and rebinds existing local handlers
+(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements
+(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks
+(pass) runtime protocol framing > rejects an inbound sequence gap
+(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame
+(pass) runtime protocol framing > rejects a frame from a different run identity
+(pass) runtime protocol framing > enforces maximum encoded frame bytes
+(pass) runtime protocol framing > round-trips framing state and unacknowledged frames
+(pass) runtime protocol framing > rejects framing snapshots with a different session identity
+(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot
+
+ 388 pass
+ 0 fail
+ 1233 expect() calls
+Ran 388 tests across 14 files. [1449.00ms]

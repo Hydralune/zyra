@@ -1,0 +1,12 @@
+{
+  "name": "runtime-e01-test",
+  "command": [
+    "C:\\Users\\CodexSandboxOffline\\.codex\\.sandbox\\cwd\\16a1cf6d90d088dd\\node_modules\\.bin\\bun.exe",
+    "run",
+    "runtime:e01:test"
+  ],
+  "exit_code": 0,
+  "duration_ms": 1727,
+  "log": "runtime-e01-test.log",
+  "tail": "eries and redaction rules\r\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\r\n(pass) runtime command protocol > rejects actors missing a required command capability\r\n(pass) runtime command protocol > rejects commands in an incompatible session state\r\n(pass) runtime command protocol > validates required string number enum and maximum length fields\r\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\r\n(pass) runtime command protocol > persists an authorization denial as a terminal command\r\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\r\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\r\n(pass) runtime command protocol > does not retry a non-idempotent command\r\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [31.00ms]\r\n(pass) runtime command protocol > expires accepted commands before authorization\r\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\r\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\r\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\r\n(pass) runtime protocol framing > rejects an inbound sequence gap\r\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\r\n(pass) runtime protocol framing > rejects a frame from a different run identity\r\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\r\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\r\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\r\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\r\n\r\n 388 pass\r\n 0 fail\r\n 1233 expect() calls\r\nRan 388 tests across 14 files. [1449.00ms]"
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "probe_id": "e01.probe.runtime-origin",
+  "generated_at_utc": "2026-07-16T02:31:32.634Z",
+  "ok": true,
+  "entry_path": "apps/code-worker/src/main.ts",
+  "entry_command": [
+    "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+    "apps/code-worker/src/main.ts",
+    "--e01-inventory"
+  ],
+  "runtime_version": "zyra.e01-runtime/v6",
+  "canonical_owner": "typescript",
+  "journal_revision": 1,
+  "command_receipt": {
+    "command": [
+      "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+      "apps/code-worker/src/main.ts",
+      "--e01-inventory"
+    ],
+    "exit_code": 0,
+    "duration_ms": 201,
+    "stdout_sha256": "80cd3c9fb22ed3d59b4c2690d8dd47b44917e4d11dca3a837ed210119b018bbd",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_excerpt": ",\"payload_digest\":\"sha256:1c0561044243d9c2686ec4dc7671c2121d1276ee563724eb64a0acfac5b24c7b\",\"revision\":1},\"payloadDigest\":\"sha256:aeffa2030b682a3b86cd8c5f6ad7b7346ad4ec6ba7f02c1a2e0947104fe55e9a\",\"createdAt\":\"2026-07-16T02:31:32.608Z\",\"checksum\":\"sha256:ef3ef84ba1541dc7bbfeed980785f70120cd90aef875e3150ad6d11933e7e4b0\"}],\"receipts\":[{\"receiptId\":\"ee1c2fd8-e8bb-4fc4-8547-1fe457852b89\",\"frameId\":\"14511aab-30d6-473f-9176-93f1707829ae\",\"direction\":\"inbound\",\"sequence\":1,\"accepted\":true,\"duplicate\":false,\"reason\":\"accepted\",\"receivedAt\":\"2026-07-16T02:31:32.606Z\"}],\"checksum\":\"sha256:4924670a797653bc7313cd8ced756569f1b71cc27d52dbada3e993e918881914\"},\"commands\":{\"version\":\"zyra.protocol-commands/v1\",\"descriptors\":[{\"commandName\":\"runtime.inventory\",\"owner\":\"e01-coordinator\",\"description\":\"Return the live E01 runtime custody inventory.\",\"risk\":\"read\",\"fields\":[],\"requiredCapabilities\":[\"runtime.read\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}},{\"commandName\":\"session.cancel\",\"owner\":\"e01-coordinator\",\"description\":\"Cancel the active query using the canonical lifecycle owner.\",\"risk\":\"interrupt\",\"fields\":[{\"name\":\"reason\",\"type\":\"string\",\"required\":true,\"enumValues\":[],\"minimum\":null,\"maximum\":null,\"maximumLength\":1000}],\"requiredCapabilities\":[\"runtime.control\"],\"allowedSessionStates\":[\"active\",\"paused\"],\"timeoutMilliseconds\":5000,\"idempotent\":true,\"enabled\":true,\"revision\":1,\"metadata\":{\"canonical_owner\":\"typescript\"}}],\"executions\":[],\"checksum\":\"e89c4858a7f47ca14479e0b29ad540df421cb030e725dfda03719f7c68a412a4\"},\"custody\":{\"version\":\"zyra.e01-execution-custody/v1\",\"sessionId\":\"inventory\",\"runId\":\"inventory\",\"revision\":0,\"restartEpoch\":0,\"providers\":[],\"tools\":[],\"turns\":[],\"messages\":[],\"checksum\":\"sha256:a222da6175181f82fb4fbd8e7471571e3023d2cc62a8ef55639250e02019531c\"},\"checksum\":\"sha256:1d98d1bdfc262ea2a1b450846e99371b5b778e73dcaab8626cc5b46f17fd9edd\"}}",
+    "stderr_excerpt": ""
+  }
+}

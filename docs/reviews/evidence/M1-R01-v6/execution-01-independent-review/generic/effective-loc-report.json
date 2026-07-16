@@ -1,0 +1,580 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E01",
+  "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "production_roots": [
+    "apps/code-worker/src",
+    "packages/runtime/claude-runtime/src"
+  ],
+  "production_file_count": 73,
+  "semantically_counted_production_file_count": 51,
+  "semantically_counted_production_files": [
+    "apps/code-worker/src/main.ts",
+    "packages/runtime/claude-runtime/src/budget.ts",
+    "packages/runtime/claude-runtime/src/capability-host.ts",
+    "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    "packages/runtime/claude-runtime/src/compact/restore-runtime.ts",
+    "packages/runtime/claude-runtime/src/compact/summary-runtime.ts",
+    "packages/runtime/claude-runtime/src/context/assembly-runtime.ts",
+    "packages/runtime/claude-runtime/src/context/cache-runtime.ts",
+    "packages/runtime/claude-runtime/src/context/token-runtime.ts",
+    "packages/runtime/claude-runtime/src/contracts.ts",
+    "packages/runtime/claude-runtime/src/core/runtime-primitives.ts",
+    "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    "packages/runtime/claude-runtime/src/e01/custody-helpers.ts",
+    "packages/runtime/claude-runtime/src/e01/execution-custody-runtime.ts",
+    "packages/runtime/claude-runtime/src/e01/kernel.ts",
+    "packages/runtime/claude-runtime/src/index.ts",
+    "packages/runtime/claude-runtime/src/input/query-input-runtime.ts",
+    "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts",
+    "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+    "packages/runtime/claude-runtime/src/model-stream.ts",
+    "packages/runtime/claude-runtime/src/protocol/command-runtime.ts",
+    "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts",
+    "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts",
+    "packages/runtime/claude-runtime/src/protocol.ts",
+    "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/request-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/response-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/routing-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+    "packages/runtime/claude-runtime/src/provider/transport-runtime.ts",
+    "packages/runtime/claude-runtime/src/query/execution-plan-runtime.ts",
+    "packages/runtime/claude-runtime/src/query/hook-runtime.ts",
+    "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
+    "packages/runtime/claude-runtime/src/query/stop-runtime.ts",
+    "packages/runtime/claude-runtime/src/query/stream-runtime.ts",
+    "packages/runtime/claude-runtime/src/query-engine.ts",
+    "packages/runtime/claude-runtime/src/session/correlation-runtime.ts",
+    "packages/runtime/claude-runtime/src/session/durable-runtime.ts",
+    "packages/runtime/claude-runtime/src/session/history-runtime.ts",
+    "packages/runtime/claude-runtime/src/session.ts",
+    "packages/runtime/claude-runtime/src/stdio.ts",
+    "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+    "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+    "packages/runtime/claude-runtime/src/tools/permission-enforcement-runtime.ts",
+    "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
+    "packages/runtime/claude-runtime/src/tools.ts"
+  ],
+  "raw_non_test_typescript_physical_sloc": 39623,
+  "final_non_test_typescript_physical_sloc": 36469,
+  "semantically_dormant_production_sloc": 3154,
+  "semantically_dormant_production": [
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/contracts.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/definitions.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/fork.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/index.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/lifecycle.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/memory.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/resume.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/run-agent.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/agents/scope.ts",
+      "reason": "live agents subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/capabilities.ts",
+      "reason": "live capability catalog owned by later permission/MCP/skill/subagent execution units; not counted toward E01 runtime-core SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/control/contracts.ts",
+      "reason": "live control subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/control/index.ts",
+      "reason": "live control subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/control/runtime.ts",
+      "reason": "live control subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/permission/canonical.ts",
+      "reason": "live permission subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/permission/contracts.ts",
+      "reason": "live permission subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/permission/index.ts",
+      "reason": "live permission subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/permission/policy.ts",
+      "reason": "live permission subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/skills/contracts.ts",
+      "reason": "live skills subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/skills/frontmatter.ts",
+      "reason": "live skills subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/skills/index.ts",
+      "reason": "live skills subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/skills/runtime.ts",
+      "reason": "live skills subsystem owned by a later execution unit; excluded from E01-only SLOC"
+    }
+  ],
+  "excluded_type_only_and_uninitialized_declaration_sloc": 4488,
+  "effective_changed_by_file": [
+    {
+      "path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+      "ast_units": 57,
+      "effective_sloc": 2159
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+      "ast_units": 72,
+      "effective_sloc": 1378
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+      "ast_units": 76,
+      "effective_sloc": 1024
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+      "ast_units": 6,
+      "effective_sloc": 997
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/e01/execution-custody-runtime.ts",
+      "ast_units": 50,
+      "effective_sloc": 916
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
+      "ast_units": 48,
+      "effective_sloc": 896
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/tools/execution-settlement-runtime.ts",
+      "ast_units": 36,
+      "effective_sloc": 877
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts",
+      "ast_units": 52,
+      "effective_sloc": 778
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/query/execution-plan-runtime.ts",
+      "ast_units": 27,
+      "effective_sloc": 778
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/loop/model-iteration-runtime.ts",
+      "ast_units": 38,
+      "effective_sloc": 726
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+      "ast_units": 40,
+      "effective_sloc": 699
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts",
+      "ast_units": 39,
+      "effective_sloc": 694
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/query/hook-runtime.ts",
+      "ast_units": 29,
+      "effective_sloc": 690
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/request-runtime.ts",
+      "ast_units": 24,
+      "effective_sloc": 668
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
+      "ast_units": 26,
+      "effective_sloc": 628
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/loop/tool-observation-budget-runtime.ts",
+      "ast_units": 42,
+      "effective_sloc": 618
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/compact/summary-runtime.ts",
+      "ast_units": 31,
+      "effective_sloc": 616
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/model-stream.ts",
+      "ast_units": 4,
+      "effective_sloc": 613
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts",
+      "ast_units": 30,
+      "effective_sloc": 611
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/routing-runtime.ts",
+      "ast_units": 28,
+      "effective_sloc": 611
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/protocol/command-runtime.ts",
+      "ast_units": 24,
+      "effective_sloc": 558
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/session/correlation-runtime.ts",
+      "ast_units": 19,
+      "effective_sloc": 551
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/response-runtime.ts",
+      "ast_units": 24,
+      "effective_sloc": 537
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+      "ast_units": 29,
+      "effective_sloc": 521
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/session/durable-runtime.ts",
+      "ast_units": 29,
+      "effective_sloc": 505
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/tools/permission-enforcement-runtime.ts",
+      "ast_units": 17,
+      "effective_sloc": 493
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts",
+      "ast_units": 46,
+      "effective_sloc": 474
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/context/assembly-runtime.ts",
+      "ast_units": 38,
+      "effective_sloc": 462
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/protocol/effect-runtime.ts",
+      "ast_units": 27,
+      "effective_sloc": 461
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/input/query-input-runtime.ts",
+      "ast_units": 35,
+      "effective_sloc": 448
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/transport-runtime.ts",
+      "ast_units": 30,
+      "effective_sloc": 420
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/context/cache-runtime.ts",
+      "ast_units": 26,
+      "effective_sloc": 404
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/core/runtime-primitives.ts",
+      "ast_units": 49,
+      "effective_sloc": 395
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/query/stop-runtime.ts",
+      "ast_units": 19,
+      "effective_sloc": 382
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/compact/restore-runtime.ts",
+      "ast_units": 33,
+      "effective_sloc": 380
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/e01/kernel.ts",
+      "ast_units": 24,
+      "effective_sloc": 336
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts",
+      "ast_units": 26,
+      "effective_sloc": 306
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/capability-host.ts",
+      "ast_units": 3,
+      "effective_sloc": 298
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/stdio.ts",
+      "ast_units": 6,
+      "effective_sloc": 286
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/session/history-runtime.ts",
+      "ast_units": 18,
+      "effective_sloc": 274
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts",
+      "ast_units": 20,
+      "effective_sloc": 273
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/context/token-runtime.ts",
+      "ast_units": 17,
+      "effective_sloc": 248
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/query/stream-runtime.ts",
+      "ast_units": 14,
+      "effective_sloc": 212
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/e01/custody-helpers.ts",
+      "ast_units": 13,
+      "effective_sloc": 193
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/session.ts",
+      "ast_units": 1,
+      "effective_sloc": 31
+    },
+    {
+      "path": "apps/code-worker/src/main.ts",
+      "ast_units": 2,
+      "effective_sloc": 2
+    }
+  ],
+  "line_buckets": {
+    "production_e01_physical": 36469,
+    "production_excluded_later_unit_physical": 3154,
+    "production_type_only_excluded_physical": 4488,
+    "behavior_test_effective": 8902,
+    "generated": 0,
+    "data_as_code": 0,
+    "vendor_like_source_pool": 0,
+    "adapter_only": 0,
+    "mock_fixture": 0,
+    "docs": 0
+  },
+  "provider_activation_contracts": [
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts",
+      "owner": "providerPrompt",
+      "method": "build",
+      "caller": "E01RuntimeCoordinator.prepareProviderLifecycle",
+      "snapshot": "providerPrompt",
+      "assertion": "providerPrompt.lastPrompt",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/request-runtime.ts",
+      "owner": "providerRequests",
+      "method": "create",
+      "caller": "E01RuntimeCoordinator.prepareProviderLifecycle",
+      "snapshot": "providerRequests",
+      "assertion": "providerRequests.requests",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/response-runtime.ts",
+      "owner": "providerResponses",
+      "method": "begin",
+      "caller": "E01RuntimeCoordinator.prepareProviderLifecycle",
+      "snapshot": "providerResponses",
+      "assertion": "providerResponses.responses",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/routing-runtime.ts",
+      "owner": "providerRouting",
+      "method": "decide",
+      "caller": "E01RuntimeCoordinator.prepareProviderLifecycle",
+      "snapshot": "providerRouting",
+      "assertion": "providerRouting.states",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/rate-limit-runtime.ts",
+      "owner": "providerRateLimits",
+      "method": "reserve",
+      "caller": "E01RuntimeCoordinator.prepareProviderLifecycle",
+      "snapshot": "providerRateLimits",
+      "assertion": "providerRateLimits.reservations",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+      "owner": "provider",
+      "method": "prepare",
+      "caller": "E01RuntimeCoordinator.prepareProviderLifecycle",
+      "snapshot": "provider",
+      "assertion": "provider.requests",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+      "owner": "provider",
+      "method": "execute",
+      "caller": "E01RuntimeCoordinator.executePreparedProvider",
+      "snapshot": "provider",
+      "assertion": "provider.requests",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/transport-runtime.ts",
+      "owner": "providerTransport",
+      "method": "execute",
+      "caller": "E01RuntimeCoordinator.executePreparedProvider",
+      "snapshot": "providerTransport",
+      "assertion": "providerTransport.requests",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+      "owner": "providerCredentials",
+      "method": "register",
+      "caller": "E01RuntimeCoordinator.configureProviderRuntime",
+      "snapshot": "providerCredentials",
+      "assertion": "providerCredentials.records",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+      "owner": "providerCredentials",
+      "method": "select",
+      "caller": "E01RuntimeCoordinator.configureProviderRuntime",
+      "snapshot": "providerCredentials",
+      "assertion": "providerCredentials.records",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/provider/credential-runtime.ts",
+      "owner": "providerCredentials",
+      "method": "resolve",
+      "caller": "E01RuntimeCoordinator.configureProviderRuntime",
+      "snapshot": "providerCredentials",
+      "assertion": "providerCredentials.records",
+      "entry_connected": true,
+      "owner_invoked": true,
+      "snapshot_owned": true,
+      "behavior_asserted": true,
+      "complete": true
+    }
+  ],
+  "baseline_ast_unit_hash_count": 90,
+  "baseline_ast_structural_hash_count": 88,
+  "current_ast_unit_count": 1914,
+  "exact_changed_ast_unit_count": 1710,
+  "exact_changed_typescript_sloc": 27668,
+  "effective_changed_ast_unit_count": 1344,
+  "effective_changed_typescript_sloc": 26427,
+  "structural_clone_excluded_production_sloc": 1241,
+  "behavior_test_files": [
+    "packages/runtime/claude-runtime/test/e01/coordinator-cutover.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/durable-session.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/effect-protocol.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/health-verification.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/mutation-contract.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/provider-policy.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/provider-request-response.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/query-context.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/semantic-custody.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/session-recovery.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/tool-observation-budget.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e01/tool-protocol.behavior.test.ts"
+  ],
+  "behavior_test_ast_unit_count": 152,
+  "exact_behavior_test_ast_unit_count": 149,
+  "exact_behavior_test_sloc": 8910,
+  "effective_behavior_test_ast_unit_count": 146,
+  "effective_behavior_test_sloc": 8902,
+  "structural_clone_excluded_behavior_test_sloc": 8,
+  "adapter_files": [],
+  "adapter_sloc": 0,
+  "adapter_ratio": 0,
+  "algorithm": "TypeScript AST declaration/member units from semantically active production modules; exact hashes plus identifier/literal-normalized structural hashes; baseline, repeated structural units, and inspect/snapshot/restore-only modules excluded"
+}

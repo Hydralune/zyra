@@ -1,0 +1,1236 @@
+{
+  "schema_version": "reviewer.e01.python-deletion-sample/v1",
+  "nonce": "ed45733d91e909e610b566d878a691da21f63d2c111df81057e94b251eb9a3c4",
+  "population": 763,
+  "sample_size": 153,
+  "sample_fraction": 0.20052424639580602,
+  "all_ok": true,
+  "baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+  "candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+  "sample": [
+    {
+      "id": "e01-py-0032",
+      "path": "packages/runtime/zyra_runtime/claude_control_commands.py",
+      "rank": "00944a8c688cb2bb2d01d77cacbd39aa000511140dc1ca5cf2859b7b129fbac6",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0417",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_effect_fingerprint.py",
+      "rank": "009b7c24af507effffbd7a36abd8945bbdb1206a75549e638ceab761cdf046aa",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0001",
+      "path": "packages/runtime/zyra_runtime/claude_context_window.py",
+      "rank": "00a83ce77237e9acfafdf1e7807fe05085275166bff979630bfc0827eaf7fc07",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0171",
+      "path": "packages/runtime/zyra_runtime/context_epoch_runtime.py",
+      "rank": "00c0bd35d37dc0181a0ec3860781541d9aaea4b0fed88adbfcec470d8d243013",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0578",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_handoff.py",
+      "rank": "00fc578d274358280b78cc3130feb2a114d5eb3e589932dba67676d471c0a80d",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0097",
+      "path": "packages/runtime/zyra_runtime/claude_tool_use_runtime.py",
+      "rank": "016c424b7edcc28d75817ed75c78ba7a79e7306e3fd890d3c532b297ced6fa40",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0101",
+      "path": "packages/runtime/zyra_runtime/claude_tool_use_runtime.py",
+      "rank": "01713652f5915168653fe3b93f17efc7504e8973d23d5c3f6a4cea28bc1f9b1b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0227",
+      "path": "packages/runtime/zyra_runtime/model_provider_runtime.py",
+      "rank": "01c45cd71a00c56730ae4fe5957c36764e54e4584cd75ccf90434e5650b20c9e",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0203",
+      "path": "packages/runtime/zyra_runtime/model_api_runtime.py",
+      "rank": "01cc47e5f4f24acef790ccc478653a01e2842b437bdb199ff14a05a568753b2f",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0465",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation.py",
+      "rank": "023fc8a317f227f50aee7dff1643235f22394a610b5cc7075af66f5fb7096fae",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0401",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_contract_gate.py",
+      "rank": "025d85b6eece545cf60ebcf1ee3305759ba88e32bce7d3ff814c718f6e16993c",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0621",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_replay_state.py",
+      "rank": "0266c21b5df04354727f0b381b614f7ef01bb558cdafc882289e13b63cb26145",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0294",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+      "rank": "026a52f141a4cd2da21b6f97c64bb70f77477bf4be46f516f4ee07926d2e4157",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0317",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_budget_chain.py",
+      "rank": "027acc8c18e53b97683bf9563171581928b9fdcd0ba8dbcde55a303adc14ddfd",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0675",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "027ba2dccd86f731ffac6d784f4b281b2e7fe76992c9d29a9bab5596c56cb328",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0510",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation_persistence.py",
+      "rank": "0284a0dcf0126cf379b7595839fd0de02782cdfc823c74cc92bc8f703e510b2c",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0246",
+      "path": "packages/runtime/zyra_runtime/model_provider_runtime.py",
+      "rank": "02d90e6c6ee1462435379dd351ac9a5e00a926001104d9faee20623a23187ad0",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0049",
+      "path": "packages/runtime/zyra_runtime/claude_input_processor.py",
+      "rank": "0349c4744da3603ca5a4b2661a4b3abcff9acd4d22daa5c177ea0ef3e3df053e",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0701",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "03507512bd3a6d8a288ca3387ecf397496cfb97a948f3aefa6f778dcf117dcc4",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0397",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_contract_gate.py",
+      "rank": "035113f39488089a3453dcb1259439b15b84da92164a751775fd20520c5661b7",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0732",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_effects.py",
+      "rank": "03adc4777d635a48678b822d22f4b494c25758f8709617e04b8915871cf13d39",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0112",
+      "path": "packages/runtime/zyra_runtime/claude_tool_use_runtime.py",
+      "rank": "0412479a06574fede1f2dc1c8f36a10b98086198f0fb81d63b512845e9deaa09",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0006",
+      "path": "packages/runtime/zyra_runtime/claude_context_window.py",
+      "rank": "045b5017719c6362e05afa9146e02b2139ae2c12bbbd96fb26c672088291347b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0177",
+      "path": "packages/runtime/zyra_runtime/context_epoch_runtime.py",
+      "rank": "04abd8c3bbcb4493084b149b0b3785adc15ac84ab94f02155303f298303c7afd",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0751",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_streaming.py",
+      "rank": "04c384e272f3c302fb58632a09fec3878416b45224ed49432fa52b2080cd0577",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0518",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation_persistence.py",
+      "rank": "04d0298e2be0dda014c45f5fe69dd7b4d03bb6e84b8dc507f1988a06ca33b2c3",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0680",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "04df3d2dc785b0a11f7f9cc5507c3eee88440700a63fdf689f98deaa5747bf5a",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0107",
+      "path": "packages/runtime/zyra_runtime/claude_tool_use_runtime.py",
+      "rank": "054a8d24f08ca81ba1e805997d1eab21adde5c0e579bf658fae26e7736089e66",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0190",
+      "path": "packages/runtime/zyra_runtime/model_api_runtime.py",
+      "rank": "0632a660b6499f0c945ebbbef0a31a8408811be278492d869fac0d988d437d78",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0400",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_contract_gate.py",
+      "rank": "06bd88cd5ef6c48705f954823fb227f1f2558d321e1152c3ee36acb96abeaa2d",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0269",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py",
+      "rank": "075ba7e1a2b8f1a1aacfe5e13ca6691d014626d960d4de26ceffd88fe6ce5a40",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0741",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_effects.py",
+      "rank": "07b4f94ff57d19efbf43d1c4c9f0bf72971de437616b19b930896f2316e3d4ea",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0048",
+      "path": "packages/runtime/zyra_runtime/claude_input_processor.py",
+      "rank": "07f08fbb35a7c1d9c19ab3997fb935c25f2ef4302ad05f79aa30daf679446d86",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0571",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_handoff.py",
+      "rank": "0837344baf73a82e2fb9f4031b055b5147b7b939b356dbdee24c07829144be19",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0545",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_output_store.py",
+      "rank": "09272b9018975a6c9b1617c4e40812dab4ca5101313f0d68bd2df636a36c9eb8",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0289",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+      "rank": "092fb06665e7a995fe677719ed351c5aac5f35d33744430869228e0d187543e7",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0375",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_continuation.py",
+      "rank": "0afd222a1bdaa91cf26b80374fe17145d718c1019eabbb1b8e5f11ace09a1304",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0297",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+      "rank": "0b0e556e90b36783165df927875a5c4212f0fe775e670ed6ddbb72a31e35ae6a",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0416",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_effect_fingerprint.py",
+      "rank": "0c01e07d13e2686775683c7c4d89932c08cc719c2968a30f11a8abc9e733830f",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0377",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_continuation.py",
+      "rank": "0c0ec07269f6f83b0c7cb514a5c9ba5dd4fbc9289386552b0c6c06153fdd3209",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0024",
+      "path": "packages/runtime/zyra_runtime/claude_control_commands.py",
+      "rank": "0c462c5579b98df2f78d4beeda1df58ad712c3dbe6b7cfbfa577af47a1fa2192",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0237",
+      "path": "packages/runtime/zyra_runtime/model_provider_runtime.py",
+      "rank": "0c801ddebad8c808c123005e9d8024ba319d97f1c66ed19bc7d5edf782b3dc2b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0735",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_effects.py",
+      "rank": "0c9a80309e9a95cbca0082cebde7832d0c87e84aca281bb7b86044c081efdb6d",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0271",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py",
+      "rank": "0cee662b306cbedcf991f9c13a43db5d1c7b39cbf79e042857ea9eda53ea14de",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0699",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "0d8e1c2a13e18788e487ee3a03c7ee5922e794ae220baaea0773c84d93467bfe",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0627",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_result_context.py",
+      "rank": "0ddfbb138780233ddcc12f5fe7b42c4931a38379d4705e0b33a464c6351cf6c5",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0722",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_decisions.py",
+      "rank": "0e30f313927c2fe0a4530c4f1afb390e09bdd63f563de266ee829eaa7d2b4f01",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0142",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "0e97266374a60678b1354ffa60987c2756e0bef29de3dd972b8de6ac4ddc47e2",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0605",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_readiness_matrix.py",
+      "rank": "0ebac7af91dbeb09fc9cb8e623d2d0195b352749ae98e7c067728d18170a61f7",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0694",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "0edc316419a41737008b021e092221b94753f1525766599cf6bdb72d44f03ba9",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0387",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_continuation_packet.py",
+      "rank": "0f37cea61b918c7842938c27455e35f9e0c659cb5e500645ea0f27c811d5abbc",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0092",
+      "path": "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
+      "rank": "0f3b15e30820b5efc11c64fde12ba72221907e3d2eff37dadf0a46eb9de241b1",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0337",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_budget_policy.py",
+      "rank": "0f690220fb09e40dda79da6acba063547bc2cfc6252718734bb05e36bae5d534",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0164",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "0fb626308bedf94831ba453f2fb392b8dfe766e001446e7604684ca1bb3e25ed",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0380",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_continuation.py",
+      "rank": "0fcbe9ac76413df63f900e5a4c6e1ab7d5b67795bf6cef4e2c3dad3cd2fe43a4",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0379",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_continuation.py",
+      "rank": "10396394ba4979736b527bb4c430c17886a8939ea84363047ceebc8d80a8fc8b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0592",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_readiness_matrix.py",
+      "rank": "104000f0e3ea53d7a3e4fa3adca19e3e1976163570e81b4397cac01508f9f9f9",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0717",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_settlement.py",
+      "rank": "10bc6fe7f757e20f25ae4026ff81e78153374df94dc0d591b554f61b51fced7f",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0251",
+      "path": "packages/runtime/zyra_runtime/model_stream_watchdog_runtime.py",
+      "rank": "10c42e64945a7ae760ef43fef3c844d121ed830361a87511a8836e3159c035c4",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0028",
+      "path": "packages/runtime/zyra_runtime/claude_control_commands.py",
+      "rank": "1131dfef4570bf2940297fb5b83fccbe884db6a93a8ae2f4b2fbe200eff2e568",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0731",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_effects.py",
+      "rank": "11d816659079a760187eed8b40058c29c7c75b8e437e65b2edb93b33876c5e49",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0703",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "11f580ca981f750db7be25fd6b7efe2a31a1a059afbbf37839306891d5200057",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0209",
+      "path": "packages/runtime/zyra_runtime/model_api_runtime.py",
+      "rank": "12168c037f6088cabffe3cc8bffa2562692b4c01b271eeb12b3c000e4c558f12",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0277",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py",
+      "rank": "12c12ff0bad216a950a0fa346128a0b3f49fead5552a98ff7a823245de4d31d9",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0349",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_cleanroom.py",
+      "rank": "12ca0ee09af611394bc7385663b026fe2d8d50338736ebbf4ea72c0f394a0b17",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0436",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_execution_timeline.py",
+      "rank": "12ed43689e0474e01aa93fce1b9178f396449c64f0140361fd31494994fdcca2",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0728",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_decisions.py",
+      "rank": "12fd2995a0f87e5e54d4ac675c03849b847dff387fc4631a42e66ec90c3e0e12",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0312",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_budget_chain.py",
+      "rank": "1301ea4d0ff0aa7bd7ec6e6b857d860d4c07abbc9cbba5891363ad94cba8db8e",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0043",
+      "path": "packages/runtime/zyra_runtime/claude_input_processor.py",
+      "rank": "134b1e5290c2d11085132804448828024c5765ae20c8366cc8cf2c6977cdf269",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0284",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py",
+      "rank": "136d89b34a88a66ead1b9cec4eddf6a0a6f3ec132d7adebcedcbf8759b4f582d",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0214",
+      "path": "packages/runtime/zyra_runtime/model_api_runtime.py",
+      "rank": "145c20a834b40369d2c09df7c426aea6fc859949b195fa63c0578e5cad4ca0c6",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0143",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "14f696e287d658d6baf47ea70aad3304ec636566f8bd6e6dedf7e1e55230efeb",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0499",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation_audit.py",
+      "rank": "152b8a0ddf8255d0228d2e28bcf9218832c37fd8f5d575474e6a9450177aeac5",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0688",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "157c4383184edcba82dedb553764e713e462c6a7cf1321d23b64376c598faee8",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0399",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_contract_gate.py",
+      "rank": "165ad92f313df1984e3181ad6417a1ca549738fff2c6ba263f36c3d080913114",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0444",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_failure_policy.py",
+      "rank": "165c660e8dd9db856f35b30fd1b3be694b988bb975c12c764cb35c10084abbf7",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0373",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_continuation.py",
+      "rank": "169f71df6c193ab806c786af2d0667bfbba6f652f0c8802bb2f3d840f8ca5534",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0471",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation.py",
+      "rank": "16e20b1c1e7c1c5f748977f51b95b5c02030aa1a54e58cd86d609908eaa74b72",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0452",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_failure_policy.py",
+      "rank": "16e301b927af5fe81172dc8d178173df45b52e10be9f530f83966c41544f19e6",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0546",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_output_store.py",
+      "rank": "16eabd7e07ac7e81e5963f2e055eab54ae84fa914c264efc805bea96f5114c79",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0014",
+      "path": "packages/runtime/zyra_runtime/claude_context_window.py",
+      "rank": "1774bb317bd65b56241fdf4768f4cc147835d5abee378c188bec11a6f541b8c4",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0296",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+      "rank": "17d0438ed0f481a662383c1c8fd5bb6cd2718f18ddc468a3fad09664f5bf33cf",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0407",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_contract_gate.py",
+      "rank": "17d3b50327fb72cc6d656ba8aafd1d38f2946a898f62b12f205c59ce7efcea97",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0570",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_handoff.py",
+      "rank": "1819f1e6553a234353ce1c23b8500620bd39810f054e08ef16ae28a65455135f",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0602",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_readiness_matrix.py",
+      "rank": "18841617f1c63a8a06edff997673fb417b426b4a1b095fa7ae467fa577c62bea",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0157",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "1899436da6d971410ed8a7a0e010fea09d86effe17c0edc16c8850c5b8709e95",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0245",
+      "path": "packages/runtime/zyra_runtime/model_provider_runtime.py",
+      "rank": "1949056af49666e1e3bd55254bf3f7cefdc679153429e99836330b7063ece6a6",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0138",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "198cb34a46887b2f7def544925484602844303be0d443543d3d8c79d72a38968",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0306",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+      "rank": "19f6bf8a1a04d3b51709b8b6052820abc6b23fec535e488c3bb7fde883b43a1d",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0558",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_checkpoint.py",
+      "rank": "1a30b6a092089263f598bfcc655475b68eb811ecc5cfcbedebf7008cb5319a8d",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0625",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_result_context.py",
+      "rank": "1aeb61442774f38ab36f73bbad2033847a6140523c5ad796e29d650b7945591b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0609",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_replay_state.py",
+      "rank": "1afa7da2a742ebabe29d26163f17452b1b82768151216302cafcff0f2d0379a7",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0208",
+      "path": "packages/runtime/zyra_runtime/model_api_runtime.py",
+      "rank": "1b4706813abe6d658207bd18eb463c25b1f6e43103b38ee6a26984c308877956",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0154",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "1b9dbd3f7ca1610927383fefe415db4d72bb24ee1f889afb97d6ee272ff69fb7",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0411",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_effect_fingerprint.py",
+      "rank": "1bc3416836f3c6eb557c889acb7800f9d9e83c631a04a4c9860caea856c5604c",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0137",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "1be899fa31cb43309f37b50a609e4f21a1115506e034b56e13ded9ae0c6db55f",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0408",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_effect_fingerprint.py",
+      "rank": "1c156ff5eace8c6e94331a084a82eebe48a5f9456174e6d2e326ce70f6ab0b01",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0268",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py",
+      "rank": "1c771fa9cbe084a5022910bd8fb8cf386f787e832a0739929b2706b6bce66dff",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0622",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_replay_state.py",
+      "rank": "1cf6fafe0267685fe577f1f3fbe7da1bfe010caec15b4c13e83f733180c4526a",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0572",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_handoff.py",
+      "rank": "1d4624b4c3a6fb0298314174e9ccac7766430f8ad22f27797c063a86ff272dad",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0025",
+      "path": "packages/runtime/zyra_runtime/claude_control_commands.py",
+      "rank": "1d5bd36df5f6ace04685a18c7e32cd442d930c858340dbc2c1e2c347bf496dd0",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0758",
+      "path": "packages/workers/zyra_workers/code_query_loop.py",
+      "rank": "1da70bc22829dd4cd4bdadc1272caaa17a085f25a0967b3d6d3b24128c2543c4",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0706",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_settlement.py",
+      "rank": "1df867c903d8e24eae597d087bc02ec0f47c184952c71169572d642b90e26c74",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0676",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "1e3310322c5e62ff2dc32492095c91ef4f51790a5710286368ccda22db1b1fb6",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0607",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_readiness_matrix.py",
+      "rank": "1e3b0e5a13953c10f28e508f6ae9a7ede20bb218581887980fd9d5768818b060",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0527",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_integration_audit.py",
+      "rank": "1ed1133d37038fc865540d5ff46a7a816cbad489b451ba2e94a793efc33caf82",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0648",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_result_replay_index.py",
+      "rank": "1ef25066f8acdca52e1798bff88bcdb542eac3fc16b869ec09f92d4b97aeadb8",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0061",
+      "path": "packages/runtime/zyra_runtime/claude_input_processor.py",
+      "rank": "1f0114f47f30c57465471d40983321f708fe8a439ca401e6a3dc9f3cacfbcfb4",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0620",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_replay_state.py",
+      "rank": "2066d0dbc618a55bf7d806ee2247a363e0a5991d94035d61d1355bb597a84f9e",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0204",
+      "path": "packages/runtime/zyra_runtime/model_api_runtime.py",
+      "rank": "208ab06d022be3de060e52e7b990ebb92b82ddbd84c73e05622d4916eae51438",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0105",
+      "path": "packages/runtime/zyra_runtime/claude_tool_use_runtime.py",
+      "rank": "20995b182ab8c74c92351ffb0e92baa4d7d13c6fdcf7fd01694cdd0d8806d9dc",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0058",
+      "path": "packages/runtime/zyra_runtime/claude_input_processor.py",
+      "rank": "216261c589f7b87d19d8a967ae0d4eac62c0b9f26d2f6830fedba94667481be6",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0721",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_decisions.py",
+      "rank": "216c8558e3325f8cdb2433400557febbcc59ce745c84f4108db7014777ef2391",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0133",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "2193d0b8443e4ce2b9c652b8454b684ab51aca6a28e3ae649b4f618dab687f00",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0755",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_streaming.py",
+      "rank": "21b2403e5f1156faf66d3e09e00cc7af276a3b52f0d3491d2e2cc2e07bfc33c6",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0689",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "21b8b75f083875586359fabd5e5a817fe66f108929eab073b7d8a6acbab86ff8",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0729",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_decisions.py",
+      "rank": "228df8566559f9d30229317578cf26fda051232793579bdea1fe8818d3fe3953",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0714",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_settlement.py",
+      "rank": "22af239d0074c3dbde095c6f23985e895b8918aae79d6e931681738e5bcc400b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0425",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_execution_timeline.py",
+      "rank": "22fb8afcbe6f7797f836c09ff38b9f2779faea6754fbf1dacf91f3c14297ceea",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0261",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_replay_runtime.py",
+      "rank": "23cc40b3c6f56c0ed8aed1a689411a1b28cbeb200aa34feb6bac249a1f416d8f",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0108",
+      "path": "packages/runtime/zyra_runtime/claude_tool_use_runtime.py",
+      "rank": "24776ac7a4efb77939e396688433ab4425590c859395148ee0a33af336f8660c",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0320",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_budget_chain.py",
+      "rank": "24dcefd4195aaceacc8d997cfca2459173beb6a994c37bde9add499db89318ef",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0075",
+      "path": "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
+      "rank": "251914bc8c6a3e73f6ed01fbc08f53d0a6104679a322e04113c7e9a5a0dd4c6a",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0658",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_semantic_effects.py",
+      "rank": "25378b912c2d4f5eaeb2212b3519f72fd410494214e8f6a6c126edd3b64aed32",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0441",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_execution_timeline.py",
+      "rank": "25af5c5a3fc675368542fe74297662a95153e8dfa13f7027b7b2132e30d0e903",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0343",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_budget_policy.py",
+      "rank": "266cc8e07f5914793bdb4aad6970fcefb0ea962a294a9a2cf4605081bd8bae87",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0295",
+      "path": "packages/runtime/zyra_runtime/runtime_budget_state.py",
+      "rank": "2687b73c9b843409fa97cfccce4fbe161d14daca39de43fb683f8ccfebec1353",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0593",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_readiness_matrix.py",
+      "rank": "26c98492f32835812f589681f0c6ffca8ef96eb0a453ee5a232f9827bfab7e4e",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0581",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_session.py",
+      "rank": "2749c27e4e9287cffdb6a6e5806a0b234c2f9b753a99336b44f254cb70954f36",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0449",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_failure_policy.py",
+      "rank": "279d2160f83217ad634c76bb068a807f68ce10c07af6574d8f26eea9b1b7d110",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0613",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_replay_state.py",
+      "rank": "27c155ff442bbe7a5567efa16c5f64ae1f57cc5448a253ccf6baa4ba44c1b7fb",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0473",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation.py",
+      "rank": "27d028aa47cf2d291280b99d8e2035a909cfddada8c9ee11e0e2663a2b60d32b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0590",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_session.py",
+      "rank": "27df0b800f8e27b7cf26af516e78ab357dbf5c8d788e064c59628c64416dda61",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0657",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_semantic_effects.py",
+      "rank": "280f6c38c28429b53de543e040ace9532a454fe4af7a10280ecda0d01f59ede5",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0080",
+      "path": "packages/runtime/zyra_runtime/claude_query_engine_runtime.py",
+      "rank": "2827b1401f5f906377f53b85867c111f1512b82dcdc050ce423a8ccc524b04d8",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0761",
+      "path": "packages/workers/zyra_workers/code_query_loop.py",
+      "rank": "288071a9cd0526496492d887e4005f639708cdd5bfd6f329387a96cc264a256b",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0165",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "28f5e562fdb27e3cf7169f9c4ddda343543090f84f34663c1ceaaa3364d1fc69",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0746",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_source_effects.py",
+      "rank": "29e9ae5a2ec5c65761f82a61eb127d1fd26e0f3057dccd71edb24980c3ce0c52",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0036",
+      "path": "packages/runtime/zyra_runtime/claude_control_commands.py",
+      "rank": "2a126aee701169b7ccb72510c62021b31399f19c0fd18be36955b2ad3b1e47aa",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0705",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_settlement.py",
+      "rank": "2a330ed2b63abb447c28e3175974c07b890e460aa309586e2ad5b14a2c9fa9fb",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0333",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_budget_chain.py",
+      "rank": "2a37c2d5ad24bee895ccd743cf9345b89c6492cf94aca3613edc5cebc79b7895",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0517",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation_persistence.py",
+      "rank": "2a5aa5d3b700a14ba5504c5e86f4b7bec7756a6d509390719b94ef4fd7c72718",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0353",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_cleanroom.py",
+      "rank": "2aa4f94a338c8ca3e1057025e1db3f980985152e34b9b8235b3344f9db3546a7",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0587",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_permission_session.py",
+      "rank": "2acd01f1034e503beb2420ea186c9248877c6a2ac9c97ac54015129b4da466cc",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0526",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_integration_audit.py",
+      "rank": "2b6f474664bc1f063615a1f0f6b8cebda3fe6ac522c5fd290e20206173971a8c",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0033",
+      "path": "packages/runtime/zyra_runtime/claude_control_commands.py",
+      "rank": "2be694b2d2d9d8660288d65a2077c8fe05421adec1a27aad62153db12ad45155",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0057",
+      "path": "packages/runtime/zyra_runtime/claude_input_processor.py",
+      "rank": "2c42b66187557fd2913020bc75925f85705f07f6b3057fa4f5d162ec2fb5226a",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0431",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_execution_timeline.py",
+      "rank": "2c6398207435a0ab0bf7172c16852025a01e3f9fe88762ffa6be3d890259ba85",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0160",
+      "path": "packages/runtime/zyra_runtime/compact_restore_runtime.py",
+      "rank": "2c8cd62943a026f92a5d0f4abdb555d76f15c8c6b746189d329b8758cdabb112",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0420",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_effect_fingerprint.py",
+      "rank": "2cc3dcceb6f19eb29a4b908c132f4b48ae0f10ddd439ab0c09b3882ddd8eb9cf",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0511",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_foundation_persistence.py",
+      "rank": "2d01de0f1aadc11a2a4a353440d03c6a1252f71e1f16e6dc53f95a0e655a0ce3",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0710",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_settlement.py",
+      "rank": "2d956fd9aa42863b337569c92484452ea4391b0ba7dc7efdb14293a1869cc320",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    },
+    {
+      "id": "e01-py-0691",
+      "path": "packages/runtime/zyra_runtime/tool_runtime_session_bridge.py",
+      "rank": "2e35c5831d2f94ec8450fa9b88d9bd0a784cdc34268db26cbce212021e675b42",
+      "present_at_baseline": true,
+      "absent_at_candidate": true,
+      "ok": true
+    }
+  ]
+}

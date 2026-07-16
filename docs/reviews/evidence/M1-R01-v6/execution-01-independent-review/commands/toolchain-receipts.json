@@ -1,0 +1,45 @@
+[
+  {
+    "name": "bun-version",
+    "command": [
+      "C:\\Users\\CodexSandboxOffline\\.codex\\.sandbox\\cwd\\16a1cf6d90d088dd\\node_modules\\.bin\\bun.exe",
+      "--version"
+    ],
+    "exit_code": 0,
+    "duration_ms": 115,
+    "log": "bun-version.log"
+  },
+  {
+    "name": "typecheck-e01",
+    "command": [
+      "C:\\Users\\CodexSandboxOffline\\.codex\\.sandbox\\cwd\\16a1cf6d90d088dd\\node_modules\\.bin\\bun.exe",
+      "run",
+      "typecheck:e01"
+    ],
+    "exit_code": 0,
+    "duration_ms": 3215,
+    "log": "typecheck-e01.log"
+  },
+  {
+    "name": "build",
+    "command": [
+      "C:\\Users\\CodexSandboxOffline\\.codex\\.sandbox\\cwd\\16a1cf6d90d088dd\\node_modules\\.bin\\bun.exe",
+      "run",
+      "build"
+    ],
+    "exit_code": 0,
+    "duration_ms": 216,
+    "log": "build.log"
+  },
+  {
+    "name": "built-health",
+    "command": [
+      "C:\\Users\\CodexSandboxOffline\\.codex\\.sandbox\\cwd\\16a1cf6d90d088dd\\node_modules\\.bin\\bun.exe",
+      "run",
+      "runtime:built:health"
+    ],
+    "exit_code": 0,
+    "duration_ms": 278,
+    "log": "built-health.log"
+  }
+]

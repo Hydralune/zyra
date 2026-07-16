@@ -1,0 +1,246 @@
+{
+  "schema": "zyra.m1-r01-e01-reviewer-manifest-audit/v1",
+  "generated_at_utc": "2026-07-16T02:18:15.353Z",
+  "identity": {
+    "V": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "B": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+    "I": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+    "E": "9ab8fd49a652bb662e13f090b472d7d6e6d66ee3",
+    "A": "018864090d3301a3f63528156e9206f17e309d8f",
+    "M": "2324cbf7616e993d8e42680fe1f2b587e82077c8",
+    "ancestor_pairs": [
+      {
+        "from": "c34535a783e88f9481387ced89cba4fbc333dc74",
+        "to": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+        "ok": true
+      },
+      {
+        "from": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
+        "to": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+        "ok": true
+      },
+      {
+        "from": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+        "to": "9ab8fd49a652bb662e13f090b472d7d6e6d66ee3",
+        "ok": true
+      },
+      {
+        "from": "9ab8fd49a652bb662e13f090b472d7d6e6d66ee3",
+        "to": "018864090d3301a3f63528156e9206f17e309d8f",
+        "ok": true
+      },
+      {
+        "from": "018864090d3301a3f63528156e9206f17e309d8f",
+        "to": "2324cbf7616e993d8e42680fe1f2b587e82077c8",
+        "ok": true
+      }
+    ],
+    "baseline_parent": "c34535a783e88f9481387ced89cba4fbc333dc74"
+  },
+  "counts": {
+    "source_total": 360,
+    "accepted": 285,
+    "rejected": 75,
+    "source_files": 21,
+    "target_mappings": 285,
+    "mutations": 50,
+    "python_owner_rows": 763
+  },
+  "ordering": {
+    "source": true,
+    "target": true,
+    "mutation": true,
+    "python": true
+  },
+  "uniqueness": {
+    "source": true,
+    "target": true,
+    "mutation": true,
+    "python": true
+  },
+  "raw_source": {
+    "snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "blob_hash_mismatches": 0,
+    "range_invalid": 0,
+    "snapshot_mismatch": 0
+  },
+  "target": {
+    "candidate": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+    "path_missing": 0,
+    "hash_mismatches": 0
+  },
+  "receipt": {
+    "clean_worktree": false,
+    "dirty_paths_at_capture": [
+      "M docs/reviews/evidence/M1-R01-v3/execution-01/candidate-gate-result.json",
+      " M docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json",
+      " M docs/reviews/evidence/M1-R01-v3/execution-01/effective-loc-report.json",
+      " M docs/reviews/evidence/M1-R01-v3/execution-01/source-to-target-five-hop.jsonl",
+      " M docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json",
+      "?? .tmp/"
+    ],
+    "captured_at_utc": "2026-07-16T01:47:40.133Z",
+    "current_control_plane_head": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+    "input_hashes": {
+      "execution-01-source-manifest.jsonl": {
+        "declared": "6ef0aea81ca8d35173eef4d290a9920ac8b226ba7ac292925f885153498f563f",
+        "actual": "6ef0aea81ca8d35173eef4d290a9920ac8b226ba7ac292925f885153498f563f",
+        "match": true
+      },
+      "execution-01-python-owner-baseline.jsonl": {
+        "declared": "66e07494ff8895384f155367a069f0a9a6e2e158644e792619a822498bdf2a3d",
+        "actual": "66e07494ff8895384f155367a069f0a9a6e2e158644e792619a822498bdf2a3d",
+        "match": true
+      },
+      "execution-01-target-custody-map.jsonl": {
+        "declared": "68e13333015f9a2f71b992930f08238cf8030f544f3d9a6eb83cbe2311734b72",
+        "actual": "68e13333015f9a2f71b992930f08238cf8030f544f3d9a6eb83cbe2311734b72",
+        "match": true
+      },
+      "execution-01-mutation-manifest.jsonl": {
+        "declared": "1b586197df6134e54c9f9f6f83db084301149b872866791b333f22522c907903",
+        "actual": "1b586197df6134e54c9f9f6f83db084301149b872866791b333f22522c907903",
+        "match": true
+      },
+      "execution-01-gate-profile.json": {
+        "declared": "08f1272659934ca5d88323e7c932d34c4d62986ea029e83142d7e9a375a3355b",
+        "actual": "08f1272659934ca5d88323e7c932d34c4d62986ea029e83142d7e9a375a3355b",
+        "match": true
+      }
+    }
+  },
+  "profile": {
+    "runtime_event_spine_in_scope": true,
+    "bun": "1.2.15",
+    "typescript": "5.8.3",
+    "verified": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239"
+  },
+  "known_false_symbols": [
+    {
+      "symbol": "snipProjection",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "snipModule",
+      "rows": 2,
+      "accepted": 0,
+      "rejected": 2
+    },
+    {
+      "symbol": "cachedMCModule",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "buildToolNameMap",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "getPersistenceThreshold",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "formatImageRef",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "restoreSessionStateFromLog",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "currentFlushPromise",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "createBudgetTracker",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "skillPrefetch",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "jobClassifier",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "taskSummaryModule",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "autoModeStateModule",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "createStderrLogger",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "verifyApiKey",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "sessionTranscriptModule",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "getCachedMCModule",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "isToolResultContentEmpty",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "resolveStoredPastedContent",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    },
+    {
+      "symbol": "createCompactCanUseTool",
+      "rows": 1,
+      "accepted": 0,
+      "rejected": 1
+    }
+  ],
+  "failures": [
+    "baseline receipt clean_worktree is not true",
+    "baseline receipt records dirty paths"
+  ],
+  "ok": false
+}
