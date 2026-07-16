@@ -50,7 +50,6 @@ const semanticRejections = new Map<string, string>([
   ["PERSIST_THRESHOLD_OVERRIDE_FLAG", "the process-global GrowthBook threshold override is rejected in favor of deterministic Zyra runtime configuration"],
   ["isPersistError", "the source raw-filesystem persistence error guard is not used by Zyra's typed artifact host boundary"],
   ["consumePendingCacheEdits", "the process-global pending cache-edit slot is rejected; E01 prompt state is committed directly by ProviderTelemetryRuntime"],
-  ["getEffectiveContextWindowSize", "the source model/env window helper is not credited because E01 receives an explicit runtime context limit"],
 ]);
 
 const sha256 = (value: Uint8Array | string): string =>
@@ -259,6 +258,15 @@ const newlyAcceptedPostCutoff = new Set([
   "getRateLimitResetDelayMs",
   "categorizeRetryableAPIError",
   "getErrorMessageIfRefusal",
+  "buildSystemPromptBlocks",
+  "queryHaiku",
+  "queryWithModel",
+  "adjustParamsForNonStreaming",
+  "getMaxOutputTokensForModel",
+  "getEffectiveContextWindowSize",
+  "collectReadToolFilePaths",
+  "truncateToTokens",
+  "shouldExcludeFromPostCompactRestore",
 ]);
 
 const specificPostCutoffReason = (record: JsonRecord): string => {
@@ -766,6 +774,7 @@ const routeSessionRestore = (target: JsonRecord, source: JsonRecord): void => {
 const CACHE_CUSTODY_PATH = "packages/runtime/claude-runtime/src/provider/cache-custody-runtime.ts";
 const COMPACTION_CUSTODY_PATH = "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts";
 const SOURCE_CUSTODY_TEST_PATH = "packages/runtime/claude-runtime/test/e01/source-custody-specific.behavior.test.ts";
+const V9_DEFAULT_PATH_TEST_PATH = "packages/runtime/claude-runtime/test/e01/source-custody-default-path.behavior.test.ts";
 
 interface ExactCustodyRoute {
   targetPath: string;
@@ -837,7 +846,6 @@ const compactCustodyRoute = (
 });
 
 const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
-  ["getAnthropicClient", providerCustodyRoute("getAnthropicClient", "e01.custody.provider-creates-anthropic-client-descriptor", ["credentialFingerprint", "[redacted]"])],
   ["should1hCacheTTL", providerCustodyRoute("should1hCacheTTL", "e01.custody.provider-one-hour-ttl-is-session-latched", ["oneHourSessions", "toEqual([\"s1\"])"])],
   ["addCacheBreakpoints", providerCustodyRoute("addCacheBreakpoints", "e01.custody.provider-cache-breakpoint-is-unique", ["cacheControl", "toHaveLength(1)"])],
   ["logToolUseToolResultMismatch", providerCustodyRoute("logToolUseToolResultMismatch", "e01.custody.provider-tool-mismatch-retains-index-evidence", ["missingResultIds", "orphanResultIds"])],
@@ -873,6 +881,141 @@ const exactCustodyRoutes = new Map<string, ExactCustodyRoute>([
   ["shouldUseSessionMemoryCompaction", compactCustodyRoute("shouldUseSessionMemoryCompaction", "e01.custody.compact-session-memory-must-save-tokens", ["summaryTokenCount", "currentTokenCount"])],
   ["createCompactionResultFromSessionMemory", compactCustodyRoute("createCompactionResultFromSessionMemory", "e01.custody.compact-session-memory-builds-real-result", ["stored summary", "savedTokenCount"])],
   ["trySessionMemoryCompaction", compactCustodyRoute("trySessionMemoryCompaction", "e01.custody.compact-session-memory-fallback-is-null", ["toBeNull", "enabled: false"])],
+  ["buildSystemPromptBlocks", {
+    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    targetSymbol: "ProviderModelRuntime.buildSystemPromptBlocks",
+    callsitePath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    callsiteSymbol: "ProviderModelRuntime.prepare",
+    owner: "e01.provider-model",
+    stateStore: "ProviderModelRuntime.snapshot",
+    stateProperty: "provider",
+    stateKind: "provider-request",
+    stateObservation: "requests[].request.body.system[].cache_control",
+    testName: "e01.v9.provider-default-path-owns-cache-custody-and-parameters",
+    testAnchor: "sourceCustody.breakpointCount",
+    testTokens: ["sourceCustody.breakpointCount", "cache_control"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["adjustParamsForNonStreaming", {
+    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    targetSymbol: "ProviderModelRuntime.adjustParamsForNonStreaming",
+    callsitePath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    callsiteSymbol: "ProviderModelRuntime.prepare",
+    owner: "e01.provider-model",
+    stateStore: "ProviderModelRuntime.snapshot",
+    stateProperty: "provider",
+    stateKind: "provider-request",
+    stateObservation: "requests[].request.body.max_tokens + thinking.budget_tokens",
+    testName: "e01.v9.provider-default-path-owns-cache-custody-and-parameters",
+    testAnchor: "MAX_NON_STREAMING_TOKENS",
+    testTokens: ["MAX_NON_STREAMING_TOKENS", "max_tokens"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["getMaxOutputTokensForModel", {
+    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    targetSymbol: "ProviderModelRuntime.getMaxOutputTokensForModel",
+    callsitePath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    callsiteSymbol: "ProviderModelRuntime.prepare",
+    owner: "e01.provider-model",
+    stateStore: "ProviderModelRuntime.snapshot",
+    stateProperty: "provider",
+    stateKind: "provider-request",
+    stateObservation: "requests[].request.body.max_tokens",
+    testName: "e01.v9.provider-default-path-owns-cache-custody-and-parameters",
+    testAnchor: "max_tokens",
+    testTokens: ["max_tokens", "maxOutputTokens"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["queryWithModel", {
+    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    targetSymbol: "ProviderModelRuntime.queryWithModel",
+    callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    callsiteSymbol: "E01RuntimeCoordinator.executePreparedProvider",
+    owner: "e01.provider-model",
+    stateStore: "ProviderModelRuntime.snapshot",
+    stateProperty: "provider",
+    stateKind: "provider-request",
+    stateObservation: "requests[].state + requests[].responseDigest",
+    testName: "e01.v9.provider-query-wrapper-settles-real-request-state",
+    testAnchor: "queryWithModel",
+    testTokens: ["queryWithModel", "completed"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["queryHaiku", {
+    targetPath: "packages/runtime/claude-runtime/src/provider/model-runtime.ts",
+    targetSymbol: "ProviderModelRuntime.queryHaiku",
+    callsitePath: "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+    callsiteSymbol: "E01RuntimeCoordinator.executePreparedProvider",
+    owner: "e01.provider-model",
+    stateStore: "ProviderModelRuntime.snapshot",
+    stateProperty: "provider",
+    stateKind: "provider-request",
+    stateObservation: "requests[].request.model + requests[].state",
+    testName: "e01.v9.provider-query-wrapper-settles-real-request-state",
+    testAnchor: "queryHaiku",
+    testTokens: ["queryHaiku", "claude-haiku-3-5"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["getEffectiveContextWindowSize", {
+    targetPath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    targetSymbol: "ContextCompactionRuntime.getEffectiveContextWindowSize",
+    callsitePath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    callsiteSymbol: "ContextCompactionRuntime.autoCompactIfNeeded",
+    owner: "e01.context-compaction",
+    stateStore: "ContextCompactionRuntime.snapshot",
+    stateProperty: "compact",
+    stateKind: "compaction-lifecycle",
+    stateObservation: "sourceCustody.lastMicrocompactAt + boundaries[]",
+    testName: "e01.v9.compaction-default-path-custody-is-canonical",
+    testAnchor: "getEffectiveContextWindowSize",
+    testTokens: ["getEffectiveContextWindowSize", "sourceCustody"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["collectReadToolFilePaths", {
+    targetPath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    targetSymbol: "ContextCompactionRuntime.collectReadToolFilePaths",
+    callsitePath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    callsiteSymbol: "ContextCompactionRuntime.createPostCompactAttachments",
+    owner: "e01.context-compaction",
+    stateStore: "ContextCompactionRuntime.snapshot",
+    stateProperty: "compact",
+    stateKind: "post-compact-restore",
+    stateObservation: "boundaries[].attachmentIds + summary attachment blocks",
+    testName: "e01.v9.post-compact-restore-follows-read-lineage-and-budgets",
+    testAnchor: "collectReadToolFilePaths",
+    testTokens: ["collectReadToolFilePaths", "/workspace/read.txt"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["truncateToTokens", {
+    targetPath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    targetSymbol: "ContextCompactionRuntime.truncateToTokens",
+    callsitePath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    callsiteSymbol: "ContextCompactionRuntime.createPostCompactAttachments",
+    owner: "e01.context-compaction",
+    stateStore: "ContextCompactionRuntime.snapshot",
+    stateProperty: "compact",
+    stateKind: "post-compact-restore",
+    stateObservation: "attachment.content + attachment.truncated",
+    testName: "e01.v9.post-compact-restore-follows-read-lineage-and-budgets",
+    testAnchor: "truncateToTokens",
+    testTokens: ["truncateToTokens", "truncated"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
+  ["shouldExcludeFromPostCompactRestore", {
+    targetPath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    targetSymbol: "ContextCompactionRuntime.shouldExcludeFromPostCompactRestore",
+    callsitePath: "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    callsiteSymbol: "ContextCompactionRuntime.createPostCompactAttachments",
+    owner: "e01.context-compaction",
+    stateStore: "ContextCompactionRuntime.snapshot",
+    stateProperty: "compact",
+    stateKind: "post-compact-restore",
+    stateObservation: "boundaries[].attachmentIds",
+    testName: "e01.v9.post-compact-restore-follows-read-lineage-and-budgets",
+    testAnchor: "shouldExcludeFromPostCompactRestore",
+    testTokens: ["shouldExcludeFromPostCompactRestore", "node_modules"],
+    testPath: V9_DEFAULT_PATH_TEST_PATH,
+  }],
   ["StreamingToolExecutor", {
     targetPath: "packages/runtime/claude-runtime/src/capability-host.ts",
     targetSymbol: "PermissionedCapabilityHost.executeBatch",
@@ -1144,6 +1287,7 @@ const addTargetDisconnectMutations = (
 const v8SemanticRejections = new Map<string, string>([
   ["messageSelector", "rejected in V8: UI message selection has no independent E01 runtime state effect"],
   ["getCoordinatorUserContext", "rejected in V8: coordinator presentation context is outside the E01 canonical runtime owner boundary"],
+  ["getAnthropicClient", "rejected in V9: the source SDK/auth/provider client factory is not semantically equivalent to Zyra's static redacted descriptor builder"],
 ]);
 
 const initialWorktreeDirtyPaths = gitText(["status", "--short"])
@@ -1176,8 +1320,16 @@ for (const record of sourceRecords) {
     record.accepted = true;
     record.migration_mode = "adapted";
     record.source_role = "supplementary";
-    record.supplementary_gap =
-      "closes a concrete retry classification, limit, or delay mechanism already owned by ProviderRecoveryRuntime but omitted by the original source cutoff";
+    record.supplementary_gap = [
+      "getDefaultMaxRetries",
+      "getMaxRetries",
+      "getRetryAfterMs",
+      "getRateLimitResetDelayMs",
+      "categorizeRetryableAPIError",
+      "getErrorMessageIfRefusal",
+    ].includes(name)
+      ? "closes a concrete retry classification, limit, or delay mechanism already owned by ProviderRecoveryRuntime but omitted by the original source cutoff"
+      : "closes a concrete default-path provider or compaction mechanism with canonical Zyra state and behavior-test custody";
     record.exclusion_reason = null;
     continue;
   }

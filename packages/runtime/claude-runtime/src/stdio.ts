@@ -61,7 +61,8 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
       ? discoveredMetadata
       : null;
   const strictGate = verificationObject(root, STRICT_GATE_PATH);
-  const implementationCandidate = commit(metadata?.implementation_candidate);
+  const runtimeCandidate = commit(process.env.E01_IMPLEMENTATION_CANDIDATE);
+  const implementationCandidate = runtimeCandidate ?? commit(metadata?.implementation_candidate);
   const evidenceCommit = commit(metadata?.candidate_evidence_commit);
   const reviewTarget = commit(metadata?.independent_review_target);
   const reviewCommit = commit(metadata?.independent_review_commit);

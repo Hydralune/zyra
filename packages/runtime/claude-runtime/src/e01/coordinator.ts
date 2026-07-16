@@ -843,7 +843,12 @@ export class E01RuntimeCoordinator {
     };
     this.custody.beginProviderExecution(requestId);
     try {
-      const response = await this.provider.execute(request, this.providerTransport);
+      const response = request.model.canonicalName.toLowerCase().includes("haiku") &&
+          request.toolCount === 0 &&
+          request.body.stream !== true &&
+          request.body.thinking === undefined
+        ? await this.provider.queryHaiku(request, this.providerTransport)
+        : await this.provider.queryWithModel(request, this.providerTransport);
       if (binding.credentialId) this.providerCredentials.recordSuccess(binding.credentialId);
       return providerExecutionSuccess(response);
     } catch (error) {

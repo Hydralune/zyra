@@ -431,7 +431,10 @@ async function dependencies(): Promise<void> {
   });
 }
 
-async function runToolchain(cwd: string): Promise<{ ok: boolean; receipts: Obj[] }> {
+async function runToolchain(
+  cwd: string,
+  implementationCandidate = process.env.E01_IMPLEMENTATION_CANDIDATE?.trim(),
+): Promise<{ ok: boolean; receipts: Obj[] }> {
   const scope = hash(resolve(cwd)).slice(0, 16);
   const isolatedTemp = join(tmpdir(), "zyra-e01-toolchain", scope, "tmp");
   const isolatedCache = join(tmpdir(), "zyra-e01-toolchain", scope, "bun-cache");
@@ -445,6 +448,7 @@ async function runToolchain(cwd: string): Promise<{ ok: boolean; receipts: Obj[]
     BUN_INSTALL_CACHE_DIR: isolatedCache,
     npm_config_cache: join(isolatedCache, "npm"),
     NODE_PATH: "",
+    ...(implementationCandidate ? { E01_IMPLEMENTATION_CANDIDATE: implementationCandidate } : {}),
   };
   const commands = [
     [process.execPath, "--version"],
@@ -495,7 +499,7 @@ async function cleanroom(): Promise<void> {
   invariant(extract.exitCode === 0, "cleanroom archive extraction failed");
   let toolchainResult: { ok: boolean; receipts: Obj[] };
   try {
-    toolchainResult = await runToolchain(cleanroomRoot);
+    toolchainResult = await runToolchain(cleanroomRoot, head);
   } finally {
     await rm(archivePath, { force: true });
     await rm(cleanroomRoot, { recursive: true, force: true });

@@ -1,4 +1,7 @@
-import { providerCacheCustodyRuntime } from "./cache-custody-runtime.js";
+import {
+  ProviderCacheCustodyRuntime,
+  type ProviderRequestCustodyEffect,
+} from "./cache-custody-runtime.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -187,6 +190,7 @@ export interface ProviderRequestOptions {
 }
 
 export interface PreparedProviderRequest {
+  sourceCustody: ProviderRequestCustodyEffect;
   requestId: string;
   provider: ProviderKind;
   endpoint: ProviderEndpoint;
@@ -272,6 +276,7 @@ export interface ProviderModelSnapshot {
   credential: Omit<ProviderCredential, "apiKey" | "accessToken">;
   requests: RequestRecord[];
   usage: ProviderUsage;
+  sourceCustody?: ReturnType<ProviderCacheCustodyRuntime["snapshot"]>;
   checksum: string;
 }
 
@@ -456,6 +461,7 @@ export class ProviderProtocolError extends Error {
 }
 
 export class ProviderModelRuntime {
+  private readonly sourceCustody = new ProviderCacheCustodyRuntime();
   private readonly models = new Map<string, ModelDescriptor>();
   private readonly aliases = new Map<string, string>();
   private readonly requests = new Map<string, RequestRecord>();
@@ -587,14 +593,64 @@ export class ProviderModelRuntime {
     return structuredClone(this.credential);
   }
 
+  buildSystemPromptBlocks(
+    blocks: readonly ProviderTextBlock[],
+    ttl: CacheControl["ttl"] = "5m",
+  ): ProviderTextBlock[] {
+    const normalized = normalizeSystemBlocks(blocks);
+    if (normalized.length === 0) return [];
+    return normalized.map((block, index) => ({
+      ...block,
+      cacheControl: index === normalized.length - 1 ? { type: "ephemeral", ttl } : block.cacheControl,
+    }));
+  }
+
+  getMaxOutputTokensForModel(model: ModelDescriptor, requested: number): number {
+    const environmentLimit = Number(process.env.ZYRA_MAX_OUTPUT_TOKENS ?? "");
+    const configuredLimit = Number.isSafeInteger(environmentLimit) && environmentLimit > 0
+      ? environmentLimit
+      : model.maxOutputTokens;
+    return clampInteger(requested, 1, Math.min(model.maxOutputTokens, configuredLimit));
+  }
+
+  adjustParamsForNonStreaming(
+    maxTokens: number,
+    thinking: ThinkingConfiguration,
+    stream: boolean,
+  ): { maxTokens: number; thinking: ThinkingConfiguration } {
+    if (stream) return { maxTokens, thinking: structuredClone(thinking) };
+    const cappedTokens = Math.min(maxTokens, MAX_NON_STREAMING_TOKENS);
+    const cappedThinking = thinking.enabled
+      ? { ...thinking, budgetTokens: Math.min(thinking.budgetTokens, Math.max(1, cappedTokens - 1)) }
+      : structuredClone(thinking);
+    return { maxTokens: cappedTokens, thinking: cappedThinking };
+  }
+
   prepare(options: ProviderRequestOptions): PreparedProviderRequest {
-    providerCacheCustodyRuntime.applyProviderRequestCustody(arguments[0]);
+    const custodyEnvelope: Record<string, unknown> = {
+      ...options,
+      providerId: this.endpoint.provider,
+      endpoint: this.endpoint.baseUrl,
+      model: options.model || this.activeModel,
+      messages: structuredClone(options.messages),
+      metadata: structuredClone(options.metadata),
+      credential: this.credential.apiKey ?? this.credential.accessToken ?? "",
+      oauth: this.credential.kind === "oauth",
+      oneHourCacheEnabled: options.metadata.oneHourCacheEnabled === true,
+    };
+    const sourceCustody = this.sourceCustody.applyProviderRequestCustody(custodyEnvelope);
+    const effectiveOptions: ProviderRequestOptions = {
+      ...options,
+      messages: Array.isArray(custodyEnvelope.messages)
+        ? custodyEnvelope.messages as ProviderMessage[]
+        : options.messages,
+    };
     const model = this.resolveModel(options.model || this.activeModel);
     assertCapability(model, "text");
     if (options.stream) assertCapability(model, "streaming");
     if (options.tools.length > 0) assertCapability(model, "tools");
     if (options.thinking.enabled) assertCapability(model, "thinking");
-    const messages = normalizeMessages(options.messages);
+    const messages = normalizeMessages(effectiveOptions.messages);
     enforceToolPairs(messages);
     const mediaCount = countMedia(messages);
     if (mediaCount > MAX_MEDIA_PER_REQUEST) {
@@ -604,18 +660,21 @@ export class ProviderModelRuntime {
         { media_count: mediaCount, maximum: MAX_MEDIA_PER_REQUEST },
       );
     }
-    const maxTokens = clampInteger(options.maxTokens, 1, model.maxOutputTokens);
-    const thinking = normalizeThinking(options.thinking, maxTokens, model);
+    const requestedMaxTokens = this.getMaxOutputTokensForModel(model, options.maxTokens);
+    const requestedThinking = normalizeThinking(options.thinking, requestedMaxTokens, model);
+    const adjusted = this.adjustParamsForNonStreaming(requestedMaxTokens, requestedThinking, options.stream);
+    const maxTokens = adjusted.maxTokens;
+    const thinking = normalizeThinking(adjusted.thinking, maxTokens, model);
     const requestId = randomUUID();
     const timeoutMs = clampInteger(
       options.timeoutMs ?? this.endpoint.timeoutMs,
       this.endpoint.connectTimeoutMs,
       3_600_000,
     );
-    const system = normalizeSystemBlocks(options.system);
+    const system = this.buildSystemPromptBlocks(options.system, sourceCustody.ttl);
     const tools = normalizeTools(options.tools);
     const body = this.buildBody({
-      ...options,
+      ...effectiveOptions,
       messages,
       system,
       tools,
@@ -626,6 +685,7 @@ export class ProviderModelRuntime {
     const headers = this.buildHeaders(requestId, options.betaHeaders);
     const now = Date.now();
     const prepared: PreparedProviderRequest = {
+      sourceCustody,
       requestId,
       provider: this.endpoint.provider,
       endpoint: structuredClone(this.endpoint),
@@ -652,6 +712,31 @@ export class ProviderModelRuntime {
     });
     this.revision += 1;
     return structuredClone(prepared);
+  }
+
+  async queryWithModel(
+    prepared: PreparedProviderRequest,
+    transport: ProviderTransport,
+    signal?: AbortSignal,
+  ): Promise<ProviderResponse> {
+    return this.execute(prepared, transport, signal);
+  }
+
+  async queryHaiku(
+    prepared: PreparedProviderRequest,
+    transport: ProviderTransport,
+    signal?: AbortSignal,
+  ): Promise<ProviderResponse> {
+    if (!prepared.model.canonicalName.toLowerCase().includes("haiku")) {
+      throw new ProviderConfigurationError("haiku_model_required", "queryHaiku requires a Haiku model");
+    }
+    if (prepared.toolCount > 0 || prepared.body.stream === true || prepared.body.thinking !== undefined) {
+      throw new ProviderConfigurationError(
+        "haiku_query_contract",
+        "queryHaiku requires a non-streaming request without tools or extended thinking",
+      );
+    }
+    return this.queryWithModel(prepared, transport, signal);
   }
 
   async execute(
@@ -809,6 +894,7 @@ export class ProviderModelRuntime {
       },
       requests: [...this.requests.values()].map((value) => structuredClone(value)),
       usage: { ...this.usage },
+      sourceCustody: this.sourceCustody.snapshot(),
     };
     return {
       ...unsigned,
@@ -838,6 +924,7 @@ export class ProviderModelRuntime {
       this.requests.set(record.request.requestId, structuredClone(record));
     }
     this.usage = normalizeUsage(snapshot.usage);
+    this.sourceCustody.restore(snapshot.sourceCustody ?? { oneHourSessions: [], samples: [] });
     this.revision = snapshot.revision;
   }
 

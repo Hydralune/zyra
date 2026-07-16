@@ -1,4 +1,7 @@
-import { compactionSourceCustodyRuntime } from "./compaction-custody-runtime.js";
+import {
+  CompactionSourceCustodyRuntime,
+  type SummaryStreamEvent,
+} from "./compaction-custody-runtime.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { asBoolean, asObject, asString, type JsonObject, type JsonValue } from "../contracts.ts";
@@ -198,6 +201,10 @@ export interface CompactOptions {
   customInstructions: string;
   attachments: readonly AttachmentCandidate[];
   querySource: string;
+  sessionId?: string;
+  microcompactIntervalMs?: number;
+  cacheRoot?: string;
+  summaryMaxAttempts?: number;
   now?: string;
 }
 
@@ -222,6 +229,7 @@ export interface ContextCompactionSnapshot {
   microcompactPinnedToolIds: string[];
   microcompactSentToolIds: string[];
   tokenRuntime: ReturnType<ContextTokenRuntime["snapshot"]>;
+  sourceCustody?: ReturnType<CompactionSourceCustodyRuntime["snapshot"]>;
   checksum: string;
 }
 
@@ -243,6 +251,7 @@ interface SelectionPlan {
 
 export class ContextCompactionRuntime {
   private readonly tokens: ContextTokenRuntime;
+  private readonly sourceCustody = new CompactionSourceCustodyRuntime();
   private readonly boundaries: CompactBoundary[] = [];
   private readonly microcompactPinnedToolIds = new Set<string>();
   private readonly microcompactSentToolIds = new Set<string>();
@@ -255,6 +264,37 @@ export class ContextCompactionRuntime {
     this.tokens = new ContextTokenRuntime(contextWindow);
     this.sessionMemory = defaultSessionMemory();
     this.cleanup = defaultCleanupState();
+  }
+
+  private applySourceCustody(
+    messages: readonly CompactMessage[],
+    options: CompactOptions,
+    summary = "",
+  ): { messages: CompactMessage[]; envelope: Record<string, unknown> } {
+    const effectiveContextWindow = this.getEffectiveContextWindowSize(options.model, options.contextWindow);
+    const envelope: Record<string, unknown> = {
+      sessionId: options.sessionId ?? "default",
+      source: options.querySource,
+      querySource: options.querySource,
+      nowMs: Date.parse(normalizeTimestamp(options.now)),
+      microcompactIntervalMs: options.microcompactIntervalMs ?? 5 * 60_000,
+      cacheRoot: options.cacheRoot ?? ".cache/compact",
+      keepLastMessages: Math.max(1, options.preserveRecentMessages),
+      messages: structuredClone(messages),
+      currentTokens: estimateMessages(this.tokens, messages),
+      contextWindow: effectiveContextWindow,
+      reservedTokens: options.maxOutputTokens,
+      minimumFreeTokens: AUTOCOMPACT_BUFFER_TOKENS,
+      summary,
+      summaryTokenCount: summary ? this.tokens.estimate(summary).estimatedTokens : 0,
+      sessionMemoryEnabled: this.sessionMemory.enabled,
+      attachments: structuredClone(options.attachments),
+    };
+    this.sourceCustody.applyCompactionCustody(envelope);
+    const custodyMessages = Array.isArray(envelope.messages)
+      ? envelope.messages as CompactMessage[]
+      : [...messages];
+    return { messages: normalizeMessages(custodyMessages), envelope };
   }
 
   microCompact_module(value: JsonObject): JsonObject {
@@ -316,9 +356,14 @@ export class ContextCompactionRuntime {
 
   getEffectiveContextWindowSize(model: string, configured = 200_000): number {
     const name = model.toLowerCase();
-    if (name.includes("haiku") && configured > 200_000) return 200_000;
-    if (name.includes("local") && configured > 128_000) return 128_000;
-    return Math.max(8_192, Math.floor(configured));
+    let effective = Math.max(8_192, Math.floor(configured));
+    if (name.includes("haiku")) effective = Math.min(effective, 200_000);
+    if (name.includes("local")) effective = Math.min(effective, 128_000);
+    const configuredCap = Number(process.env.ZYRA_CONTEXT_WINDOW_CAP ?? "");
+    if (Number.isSafeInteger(configuredCap) && configuredCap >= 8_192) {
+      effective = Math.min(effective, configuredCap);
+    }
+    return effective;
   }
 
   getAutoCompactThreshold(contextWindow: number, maxOutputTokens: number): number {
@@ -369,9 +414,10 @@ export class ContextCompactionRuntime {
     options: CompactOptions,
     summarize: SummaryProvider,
   ): Promise<CompactionResult | null> {
-    compactionSourceCustodyRuntime.applyCompactionCustody(arguments[0]);
-    if (!this.shouldAutoCompact(messages, options.contextWindow, options.maxOutputTokens)) return null;
-    return this.compactConversation(messages, { ...options, trigger: "auto_threshold" }, summarize);
+    const custody = this.applySourceCustody(messages, options);
+    const contextWindow = this.getEffectiveContextWindowSize(options.model, options.contextWindow);
+    if (!this.shouldAutoCompact(custody.messages, contextWindow, options.maxOutputTokens)) return null;
+    return this.compactConversation(custody.messages, { ...options, contextWindow, trigger: "auto_threshold" }, summarize);
   }
 
   stripImagesFromMessages(messages: readonly CompactMessage[]): CompactMessage[] {
@@ -511,25 +557,42 @@ export class ContextCompactionRuntime {
     options: CompactOptions,
     summarize: SummaryProvider,
   ): Promise<CompactionResult> {
-    compactionSourceCustodyRuntime.applyCompactionCustody(arguments[0]);
-    if (messages.length < 3) throw new Error("not enough messages to compact");
-    const stripped = this.stripImagesFromMessages(this.stripReinjectedAttachments(messages));
+    const custody = this.applySourceCustody(messages, options);
+    if (custody.messages.length < 3) throw new Error("not enough messages to compact");
+    const stripped = this.stripImagesFromMessages(this.stripReinjectedAttachments(custody.messages));
     const plan = this.planCompaction(stripped, options);
     if (plan.compact.length === 0) throw new Error("compaction did not select source messages");
     const previousSummary = this.sessionMemory.summary;
-    let summary = await summarize({
+    const summaryRequest: SummaryRequest = {
       trigger: options.trigger,
       messages: plan.compact,
       previousSummary,
       systemPrompt: options.systemPrompt,
       customInstructions: options.customInstructions,
       tokenBudget: Math.max(1_024, options.targetTokens - plan.preserveTokens),
+    };
+    const streamedSummary = await this.sourceCustody.streamCompactSummary({
+      maxAttempts: options.summaryMaxAttempts ?? 2,
+      stream: async function* (): AsyncIterable<SummaryStreamEvent> {
+        try {
+          const output = (await summarize(summaryRequest)).trim();
+          if (!output) throw new Error("compaction summary provider returned empty output");
+          yield { type: "delta", text: output };
+          yield { type: "complete" };
+        } catch (error) {
+          yield { type: "error", error };
+        }
+      },
     });
-    summary = summary.trim();
-    if (!summary) throw new Error("compaction summary provider returned empty output");
+    let summary = streamedSummary.summary;
     summary = this.mergeHookInstructions(summary, [options.customInstructions]);
+    const completedCustody = this.applySourceCustody(stripped, options, summary);
+    const custodyBoundary = completedCustody.envelope.sourceCustodyPartialBoundary;
+    const custodyBoundaryId = custodyBoundary !== null && typeof custodyBoundary === "object"
+      ? asString((custodyBoundary as JsonObject).boundaryId)
+      : "";
     const now = normalizeTimestamp(options.now);
-    const attachments = this.createPostCompactAttachments(options.attachments);
+    const attachments = this.createPostCompactAttachments(options.attachments, stripped);
     this.compactGeneration += 1;
     const summaryMessage: CompactMessage = {
       id: randomUUID(),
@@ -546,7 +609,9 @@ export class ContextCompactionRuntime {
       },
     };
     const boundary: CompactBoundary = {
-      boundaryId: randomUUID(),
+      boundaryId: custodyBoundaryId
+        ? `${custodyBoundaryId}-${this.compactGeneration}`
+        : randomUUID(),
       trigger: options.trigger,
       summary,
       sourceMessageIds: plan.compact.map((item) => item.id),
@@ -748,9 +813,51 @@ export class ContextCompactionRuntime {
     );
   }
 
-  createPostCompactAttachments(candidates: readonly AttachmentCandidate[]): CompactAttachmentBlock[] {
+  collectReadToolFilePaths(messages: readonly CompactMessage[]): string[] {
+    const reads = new Map<string, string>();
+    const unchanged = new Set<string>();
+    for (const message of messages) {
+      for (const block of message.content) {
+        if (block.type === "tool_use" && /^(?:read|read_file|readfile)$/i.test(block.name)) {
+          const path = asString(block.input.path ?? block.input.file_path ?? block.input.filePath).trim();
+          if (path) reads.set(block.id, path.replaceAll("\\", "/"));
+        }
+        if (block.type === "tool_result") {
+          const content = typeof block.content === "string" ? block.content : JSON.stringify(block.content);
+          if (/unchanged|not modified|already current/i.test(content)) unchanged.add(block.toolUseId);
+        }
+      }
+    }
+    return [...reads]
+      .filter(([toolUseId]) => !unchanged.has(toolUseId))
+      .map(([, path]) => path)
+      .filter((path, index, values) => values.indexOf(path) === index)
+      .sort();
+  }
+
+  truncateToTokens(content: string, maximumTokens: number): { content: string; truncated: boolean } {
+    return truncateToTokens(this.tokens, content, maximumTokens);
+  }
+
+  shouldExcludeFromPostCompactRestore(
+    path: string,
+    messages: readonly CompactMessage[] = [],
+  ): boolean {
+    const normalized = path.trim().replaceAll("\\", "/");
+    if (!normalized) return true;
+    if (/(?:^|\/)(?:\.git|node_modules|\.cache|dist)(?:\/|$)/i.test(normalized)) return true;
+    if (/\.(?:tmp|temp|lock)$/i.test(normalized)) return true;
+    const readPaths = this.collectReadToolFilePaths(messages);
+    return readPaths.length > 0 && !readPaths.includes(normalized);
+  }
+
+  createPostCompactAttachments(
+    candidates: readonly AttachmentCandidate[],
+    messages: readonly CompactMessage[] = [],
+  ): CompactAttachmentBlock[] {
     const files = candidates
       .filter((item) => item.kind === "file")
+      .filter((item) => !this.shouldExcludeFromPostCompactRestore(item.path ?? "", messages))
       .sort(candidateOrder)
       .slice(0, POST_COMPACT_MAX_FILES_TO_RESTORE);
     const skills = candidates
@@ -768,7 +875,7 @@ export class ContextCompactionRuntime {
         : candidate.kind === "file"
         ? POST_COMPACT_MAX_TOKENS_PER_FILE
         : 10_000;
-      const truncated = truncateToTokens(this.tokens, candidate.content, perItemLimit);
+      const truncated = this.truncateToTokens(candidate.content, perItemLimit);
       const tokenCount = this.tokens.estimate(truncated.content).estimatedTokens;
       if (totalTokens + tokenCount > POST_COMPACT_TOKEN_BUDGET) continue;
       if (candidate.kind === "skill" && skillTokens + tokenCount > POST_COMPACT_SKILLS_TOKEN_BUDGET) continue;
@@ -832,6 +939,7 @@ export class ContextCompactionRuntime {
       microcompactPinnedToolIds: [...this.microcompactPinnedToolIds].sort(),
       microcompactSentToolIds: [...this.microcompactSentToolIds].sort(),
       tokenRuntime: this.tokens.snapshot(),
+      sourceCustody: this.sourceCustody.snapshot(),
     };
     return { ...unsigned, checksum: digest(unsigned) };
   }
@@ -855,6 +963,7 @@ export class ContextCompactionRuntime {
     this.microcompactSentToolIds.clear();
     for (const id of snapshot.microcompactSentToolIds) this.microcompactSentToolIds.add(id);
     this.tokens.restore(snapshot.tokenRuntime);
+    this.sourceCustody.restore(snapshot.sourceCustody ?? { lastMicrocompactAt: {}, pendingEdits: {} });
     this.compactGeneration = snapshot.compactGeneration;
     this.revision = snapshot.revision;
   }
