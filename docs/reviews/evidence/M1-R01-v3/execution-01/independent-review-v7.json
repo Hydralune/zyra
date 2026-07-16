@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "execution_id": "E01",
+  "review_revision": "v7",
+  "reviewed_on": "2026-07-16",
+  "verdict": "FAIL",
+  "identities": {
+    "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
+    "implementation_candidate": "050c68e1e80cbe942b248111288981bffd6f3be5",
+    "evidence_commit": "5a991ce20fdb2b6490d289acf44600961e55cfdc",
+    "attestation_review_target": "68b0e6e91da7087afc11060e6a0523459a0c1c0c"
+  },
+  "reviewer_nonce": "b5f9b110ee4767d124ba2ce0ba2448e766adec3c15cf84fc6ec0e4cb4e0b9b49",
+  "source_coverage": {
+    "mechanical_unique_accepted_executable_lines": 10613,
+    "threshold": 10587,
+    "confirmed_invalid_mapping_count": 26,
+    "confirmed_invalid_unique_executable_lines": 2349,
+    "recognized_upper_bound": 8264,
+    "shortfall": 2323,
+    "line_rule": "trimmed nonempty line not starting with //, /*, or *",
+    "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "invalid_mappings": [
+      { "id": "e01-src-0001", "lines": 3, "source": "messageSelector", "target": "ClaudeRuntimeCore.run", "reason": "lazy UI module loader is not query-loop behavior" },
+      { "id": "e01-src-0002", "lines": 6, "source": "getCoordinatorUserContext", "target": "E01RuntimeCoordinator.decideQuery", "reason": "coordinator context construction is not query admission" },
+      { "id": "e01-src-0019", "lines": 163, "source": "getAnthropicClient", "target": "E01RuntimeCoordinator.executePreparedProvider", "reason": "provider/auth client creation is not execution of an already prepared request" },
+      { "id": "e01-src-0028", "lines": 32, "source": "should1hCacheTTL", "target": "ProviderTelemetryRuntime.recordPromptState", "reason": "TTL policy and latching are absent from telemetry recording" },
+      { "id": "e01-src-0049", "lines": 113, "source": "addCacheBreakpoints", "target": "ProviderTelemetryRuntime.recordPromptState", "reason": "message cache marker/edit/reference mutation is absent from telemetry recording" },
+      { "id": "e01-src-0105", "lines": 150, "source": "logToolUseToolResultMismatch", "target": "ProviderRecoveryRuntime.classify", "reason": "forensic sequence reconstruction and logging are not error classification" },
+      { "id": "e01-src-0108", "lines": 401, "source": "getAssistantMessageFromError", "target": "ProviderRecoveryRuntime.plan", "reason": "user-visible error rendering is absent from retry planning" },
+      { "id": "e01-src-0120", "lines": 8, "source": "getCacheBreakDiffPath", "target": "ProviderTelemetryRuntime.recordPromptState", "reason": "filesystem diff path creation is absent" },
+      { "id": "e01-src-0127", "lines": 3, "source": "isExcludedModel", "target": "ProviderTelemetryRuntime.recordPromptState", "reason": "Haiku exclusion is absent" },
+      { "id": "e01-src-0136", "lines": 189, "source": "checkResponseForCacheBreak", "target": "detectPromptBreak", "reason": "post-response token-delta, TTL, exclusion, and diff behavior is absent from hash comparison" },
+      { "id": "e01-src-0153", "lines": 3, "source": "pendingCacheEdits", "target": "ContextCompactionRuntime.compactConversation", "reason": "pending cache-edit state is absent" },
+      { "id": "e01-src-0164", "lines": 3, "source": "isMainThreadSource", "target": "ContextCompactionRuntime.compactConversation", "reason": "main-thread cache isolation is absent" },
+      { "id": "e01-src-0165", "lines": 23, "source": "microcompactMessages", "target": "ContextCompactionRuntime.compactConversation", "reason": "microcompact dispatcher is not full summarizing compaction" },
+      { "id": "e01-src-0166", "lines": 71, "source": "cachedMicrocompactPath", "target": "ContextCompactionRuntime.compactConversation", "reason": "cache-edit-without-local-mutation conflicts with local summary replacement" },
+      { "id": "e01-src-0168", "lines": 28, "source": "maybeTimeBasedMicrocompact", "target": "ContextCompactionRuntime.compactConversation", "reason": "time-gap tool-result clearing is absent" },
+      { "id": "e01-rej-0029", "lines": 33, "source": "maybeTimeBasedMicrocompact continuation", "target": "ContextCompactionRuntime.compactConversation", "reason": "accepted supplementary continuation retains unmatched time-based behavior" },
+      { "id": "e01-src-0179", "lines": 41, "source": "shouldAutoCompact", "target": "ContextCompactionRuntime.calculateTokenWarningState", "reason": "eligibility gates are not owned by the calculator" },
+      { "id": "e01-src-0180", "lines": 57, "source": "autoCompactIfNeeded", "target": "ContextCompactionRuntime.calculateTokenWarningState", "reason": "conditional compaction execution is not owned by the calculator" },
+      { "id": "e01-rej-0030", "lines": 30, "source": "autoCompactIfNeeded continuation", "target": "ContextCompactionRuntime.calculateTokenWarningState", "reason": "accepted supplementary execution behavior is absent" },
+      { "id": "e01-src-0198", "lines": 19, "source": "annotateBoundaryWithPreservedSegment", "target": "ContextCompactionRuntime.compactConversation", "reason": "head-anchor-tail relink metadata is not asserted or owned by the mapped symbol" },
+      { "id": "e01-src-0201", "lines": 288, "source": "partialCompactConversation", "target": "ContextCompactionRuntime.compactConversation", "reason": "partial directional compaction maps to the wrong target symbol" },
+      { "id": "e01-src-0204", "lines": 205, "source": "streamCompactSummary", "target": "ContextCompactionRuntime.compactConversation", "reason": "stream lifecycle is absent from Promise-string summary compaction" },
+      { "id": "e01-src-0222", "lines": 25, "source": "shouldUseSessionMemoryCompaction", "target": "ContextCompactionRuntime.planCompaction", "reason": "session-memory eligibility is absent from the planner" },
+      { "id": "e01-src-0223", "lines": 56, "source": "createCompactionResultFromSessionMemory", "target": "ContextCompactionRuntime.planCompaction", "reason": "result construction is not selection planning" },
+      { "id": "e01-rej-0036", "lines": 44, "source": "trySessionMemoryCompaction continuation", "target": "ContextCompactionRuntime.planCompaction", "reason": "accepted supplementary session-memory execution is absent" },
+      { "id": "e01-src-0236", "lines": 355, "source": "StreamingToolExecutor", "target": "ToolExecutionSettlementRuntime.appendProgress", "reason": "full queue/concurrency/abort/result executor is not one progress append method" }
+    ]
+  },
+  "mutation_audit": {
+    "declared": 103,
+    "disconnect_target": 51,
+    "other_operators": 52,
+    "runner_defect": "expected killer attribution checks name presence in process output, not failure of the named test",
+    "semantic_mutant": {
+      "target": "ToolExecutionSettlementRuntime.appendProgress",
+      "change": "disable maximumCharacters truncation while retaining reachability and sequence handling",
+      "test_process_exit": 1,
+      "declared_mapping_killer": "settlement preserves request order across blocked and delegated calls",
+      "declared_mapping_killer_result": "PASS",
+      "actual_failing_test": "settlement progress enforces sequence and bounded storage",
+      "actual_failing_test_result": "FAIL",
+      "current_runner_would_mark_killed": true
+    }
+  },
+  "nonce_sample": [
+    { "family": "query", "id": "e01-src-0002", "result": "REJECT" },
+    { "family": "query", "id": "e01-src-0014", "result": "ACCEPT" },
+    { "family": "query", "id": "e01-rej-0001", "result": "ACCEPT" },
+    { "family": "query", "id": "e01-src-0001", "result": "REJECT" },
+    { "family": "provider", "id": "e01-src-0019", "result": "REJECT" },
+    { "family": "provider", "id": "e01-src-0081", "result": "ACCEPT" },
+    { "family": "provider", "id": "e01-src-0120", "result": "REJECT" },
+    { "family": "provider", "id": "e01-src-0127", "result": "REJECT" },
+    { "family": "context", "id": "e01-src-0227", "result": "ACCEPT" },
+    { "family": "context", "id": "e01-src-0229", "result": "ACCEPT" },
+    { "family": "context", "id": "e01-src-0226", "result": "ACCEPT" },
+    { "family": "context", "id": "e01-rej-0038", "result": "ACCEPT" },
+    { "family": "compact", "id": "e01-src-0198", "result": "REJECT" },
+    { "family": "compact", "id": "e01-src-0153", "result": "REJECT" },
+    { "family": "compact", "id": "e01-src-0164", "result": "REJECT" },
+    { "family": "compact", "id": "e01-src-0222", "result": "REJECT" },
+    { "family": "tool", "id": "e01-src-0259", "result": "ACCEPT" },
+    { "family": "tool", "id": "e01-src-0236", "result": "REJECT" },
+    { "family": "tool", "id": "e01-src-0263", "result": "ACCEPT" },
+    { "family": "tool", "id": "e01-src-0261", "result": "ACCEPT" },
+    { "family": "session", "id": "e01-src-0310", "result": "ACCEPT" },
+    { "family": "session", "id": "e01-src-0304", "result": "ACCEPT" },
+    { "family": "session", "id": "e01-src-0306", "result": "ACCEPT" },
+    { "family": "session", "id": "e01-src-0305", "result": "ACCEPT" }
+  ],
+  "reviewer_probes": {
+    "default_entry": {
+      "health": "PASS",
+      "stdio_exit": 0,
+      "frame_count": 16,
+      "terminal_frame": "run.result",
+      "canonical_owner": "typescript",
+      "python_policy_fallback": false,
+      "python_agent_fallback": false
+    },
+    "same_session_lost_ack": {
+      "result": "PASS",
+      "old_commit_ids": 2,
+      "fresh_commit_ids": 4,
+      "duplicate_ids": 0,
+      "restart_epoch": 1,
+      "revision_delta": 4,
+      "effects_before": 1,
+      "effects_after": 1,
+      "tool_state_preserved": true,
+      "undelivered_after": 0
+    },
+    "semantic_mutation": "FAILS candidate mutation-attribution gate as described in mutation_audit"
+  },
+  "toolchain_and_tests": {
+    "typecheck": { "exit": 0 },
+    "bun_build": { "exit": 0, "modules": 78, "artifact_megabytes": 1.17 },
+    "node_esm_build": { "exit": 0, "modules": 78, "artifact_megabytes": 1.17 },
+    "bun_artifact_health": { "exit": 0, "canonical_owner": "typescript" },
+    "node_artifact_health": { "exit": 0, "canonical_owner": "typescript" },
+    "runtime_tests": { "exit": 0, "passed": 388, "failed": 0, "files": 19 }
+  },
+  "candidate_protocol": {
+    "assigned_review_target": "68b0e6e91da7087afc11060e6a0523459a0c1c0c",
+    "candidate_metadata_independent_review_target": "5a991ce20fdb2b6490d289acf44600961e55cfdc",
+    "consistent": false,
+    "verdict_dependency": false
+  }
+}
