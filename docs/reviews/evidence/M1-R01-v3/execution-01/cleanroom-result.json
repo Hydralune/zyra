@@ -2,9 +2,9 @@
   "schema_version": "3.0",
   "execution_id": "E01",
   "probe_id": "e01.probe.cleanroom",
-  "generated_at_utc": "2026-07-16T01:53:20.138Z",
+  "generated_at_utc": "2026-07-16T03:38:10.744Z",
   "ok": true,
-  "target_commit": "16e8c83a0b9c67ae6fabacfa16d1da029581f96a",
+  "target_commit": "f7e7a35c6f8ea80a6cc7aef108cad08ab737b08b",
   "source": "git archive",
   "cache_state": "fresh extracted tree without node_modules, dist, .tmp, or git metadata",
   "cleanroom_root_parent": "C:\\Users\\libin\\AppData\\Local\\Temp\\zyra-e01-cleanroom",
@@ -16,7 +16,7 @@
         "--version"
       ],
       "exit_code": 0,
-      "duration_ms": 53,
+      "duration_ms": 48,
       "stdout_sha256": "091d55b64de2013341ba60beea22ca1392e1c258d68ff2aa2e8f901cf9723d63",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stdout_excerpt": "1.2.15",
@@ -29,10 +29,10 @@
         "--frozen-lockfile"
       ],
       "exit_code": 0,
-      "duration_ms": 10069,
-      "stdout_sha256": "c92de67301615a04a4538bd11dbe137ead8d7f08f45e836b57c4d90af3f22de7",
+      "duration_ms": 11025,
+      "stdout_sha256": "fc173fda3e7b5aa89a28bf3c771f8d4dd62829b5920583457e7ee3844d5d4e60",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ typescript@5.8.3\n\n10 packages installed [10.01s]",
+      "stdout_excerpt": "bun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ typescript@5.8.3\n\n10 packages installed [10.95s]",
       "stderr_excerpt": ""
     },
     {
@@ -42,7 +42,7 @@
         "typecheck:e01"
       ],
       "exit_code": 0,
-      "duration_ms": 2850,
+      "duration_ms": 8273,
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stderr_sha256": "97c71f9cafa7e1e6b971587726cb7ea7105e4d8a43bee0ae06b6026113b59d51",
       "stdout_excerpt": "",
@@ -55,10 +55,10 @@
         "build"
       ],
       "exit_code": 0,
-      "duration_ms": 200,
-      "stdout_sha256": "25b43e56a857b8c11765b46e80374c467a9a0ff27a6c74fea65ff3d4eedc9a8c",
+      "duration_ms": 218,
+      "stdout_sha256": "b5da122f048e88d60fe6f4dfe99f97e19711cb4834521eb1e8260502bf6e0c5a",
       "stderr_sha256": "65431c908d5f420fd2b75f75cbdb9ddeb8d8001428d8c9584ad475532ce1cd71",
-      "stdout_excerpt": "Bundled 78 modules in 49ms\n\n  main.js  1.16 MB  (entry point)",
+      "stdout_excerpt": "Bundled 78 modules in 52ms\n\n  main.js  1.17 MB  (entry point)",
       "stderr_excerpt": "$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun"
     },
     {
@@ -68,11 +68,11 @@
         "runtime:e01:test"
       ],
       "exit_code": 0,
-      "duration_ms": 1444,
+      "duration_ms": 1909,
       "stdout_sha256": "11a0cc41569f7e0e890f4f768aea6f6fb679a37222b2ae46d26c9a2c285957bb",
-      "stderr_sha256": "4ddba19966e9f8012b8c6fc32853e6eff3c5b10932859688f4bff3a8f9180c14",
+      "stderr_sha256": "fd6231a9400ff0a470f458a1e3b6b3d30f1092f1954a84206b7061ce90696d4f",
       "stdout_excerpt": "bun test v1.2.15 (df017990)",
-      "stderr_excerpt": "estores accumulators deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [15.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 388 pass\n 0 fail\n 1233 expect() calls\nRan 388 tests across 14 files. [1263.00ms]"
+      "stderr_excerpt": "tors deliveries and redaction rules\n(pass) runtime command protocol > accepts authorizes executes and commits an inspected result [16.00ms]\n(pass) runtime command protocol > rejects actors missing a required command capability\n(pass) runtime command protocol > rejects commands in an incompatible session state\n(pass) runtime command protocol > validates required string number enum and maximum length fields\n(pass) runtime command protocol > rejects unknown command arguments instead of silently dropping them\n(pass) runtime command protocol > persists an authorization denial as a terminal command\n(pass) runtime command protocol > deduplicates accepted commands by session and idempotency key\n(pass) runtime command protocol > records handler failure and permits retry for an idempotent command\n(pass) runtime command protocol > does not retry a non-idempotent command\n(pass) runtime command protocol > times out a slow command and stores deterministic failure [15.00ms]\n(pass) runtime command protocol > expires accepted commands before authorization\n(pass) runtime command protocol > restores descriptors and rebinds existing local handlers\n(pass) runtime protocol framing > assigns monotonic outbound sequence and tracks acknowledgements [16.00ms]\n(pass) runtime protocol framing > encodes a frame as JSONL and feeds partial transport chunks\n(pass) runtime protocol framing > rejects an inbound sequence gap\n(pass) runtime protocol framing > does not advance inbound sequence for a checksum-tampered frame\n(pass) runtime protocol framing > rejects a frame from a different run identity\n(pass) runtime protocol framing > enforces maximum encoded frame bytes\n(pass) runtime protocol framing > round-trips framing state and unacknowledged frames\n(pass) runtime protocol framing > rejects framing snapshots with a different session identity\n(pass) runtime protocol framing > rejects a checksum-tampered framing snapshot\n\n 390 pass\n 0 fail\n 1245 expect() calls\nRan 390 tests across 14 files. [1.74s]"
     },
     {
       "command": [
@@ -81,10 +81,10 @@
         "runtime:built:health"
       ],
       "exit_code": 0,
-      "duration_ms": 217,
-      "stdout_sha256": "d8e13d0278cb67f13cdd30ffd902998e3a850d0580b39ef66780fbbf1962a612",
+      "duration_ms": 263,
+      "stdout_sha256": "6054818ff5488ca7d0306fc3c0daac07166740f2bd5c2ee6a9f4075ae7d9de16",
       "stderr_sha256": "29d97decfbe8a94d5d09903b661e84808e3d17e1a5476b8b9e476cb0f621e53e",
-      "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"ready_for_independent_review\",\"effectiveLineCount\":30841,\"implementationCandidate\":\"7e498446d9c42715f99f3fb9c5e36ffe68bc1a0c\",\"evidenceCommit\":\"7bf8777c6a61c62eee04ab2bb1d907765b737d9d\",\"reviewTarget\":\"c21f1ac0aa13531121f24a766178e9d576165f46\",\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
+      "stdout_excerpt": "{\"ok\":true,\"worker\":\"CodeWorkerRuntime\",\"runtime\":\"zyra-typescript-claude-runtime\",\"canonicalOwner\":\"typescript\",\"protocol\":\"zyra.claude-runtime.v1\",\"source\":\"zyra-typescript-runtime\",\"upstreamSource\":\"claude-code-best\",\"entrypoint\":\"apps/code-worker/src/main.ts\",\"packageRoot\":\"packages/runtime/claude-runtime\",\"requiresRootSourceRepo\":false,\"requiresVendorRuntime\":false,\"requiresLegacyInspectionSidecar\":false,\"productizedRuntime\":{\"complete\":false,\"verificationStatus\":\"implementation_generated_pending_validation\",\"effectiveLineCount\":null,\"implementationCandidate\":\"2958e4d5d13e247bee3828fd95520a4c95d8b544\",\"evidenceCommit\":null,\"reviewTarget\":null,\"reviewCommit\":null,\"metadataSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/candidate-metadata.json\",\"verificationContractVersion\":\"zyra.e01-verification/v5\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v3/execution-01/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}",
       "stderr_excerpt": "$ bun dist/code-worker/main.js --health"
     }
   ],
