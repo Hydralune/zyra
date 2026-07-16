@@ -1,15 +1,15 @@
 {
   "execution_id": "E01",
   "files": {
-    "execution-01-baseline-receipt.json": "38a9ffa0781ff4b394a6e4736d0af256ebe7bb619b57dca92da9860a59f585f8",
-    "execution-01-gate-profile.json": "619218e646528c0bcaa4ec8018a4cc89c26629d61ed044a310d1daa07f989738",
-    "execution-01-mutation-manifest.jsonl": "679fb471262f44baf1d1ca81905e9740b8397d32077591b6d466958269d3d38c",
+    "execution-01-baseline-receipt.json": "f69c68112d0a0d58cb13f5e31898093aec197788fd9ba1774356ee02fb63c2b8",
+    "execution-01-gate-profile.json": "e5400b4f1b10a2f6e3eec25e881e7f19a71f1081f3d355fb3629aecc8bd8d362",
+    "execution-01-mutation-manifest.jsonl": "95451e246b702ca9c33f7c7ccbe03ab15e0a78041be14a38679b3a21e6cd46b4",
     "execution-01-python-owner-baseline.jsonl": "66e07494ff8895384f155367a069f0a9a6e2e158644e792619a822498bdf2a3d",
     "execution-01-source-manifest.jsonl": "7b58eb1c445c63f614d7ddce6035946176400a6bd283ad667b4a6c42f7906e49",
-    "execution-01-target-custody-map.jsonl": "fa1904649dd207a8798e47418cadc81650ee082816f3d2403987d5ef55af99a9"
+    "execution-01-target-custody-map.jsonl": "cebc4556a7fecff7a1db7c30d06e349c1c073bbc129317ad888a9e1bc88f663b"
   },
   "generator": "scripts/remediation/m1_r01_e01_v6.ts",
-  "implementation_candidate": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+  "implementation_candidate": "567b14acfbbabcf59a82868d1c20b042f056a80c",
   "schema_version": "1.0",
   "verifier": "scripts/remediation/verify_m1_r01_e01_v4.ts"
 }

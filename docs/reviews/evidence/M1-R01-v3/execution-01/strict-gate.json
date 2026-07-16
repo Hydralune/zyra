@@ -2,7 +2,7 @@
   "schema_version": "4.0",
   "execution_id": "E01",
   "verifier": "verify_m1_r01_e01_v4",
-  "candidate": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+  "candidate": "567b14acfbbabcf59a82868d1c20b042f056a80c",
   "ok": true,
   "checks": {
     "source_manifest": {
@@ -21,16 +21,16 @@
       "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
       "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
       "preexisting_baseline_e01_credit": 0,
-      "candidate": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b"
+      "candidate": "567b14acfbbabcf59a82868d1c20b042f056a80c"
     },
     "effective_lines": {
-      "gross_changed_executable_typescript": 33309,
+      "gross_changed_executable_typescript": 33449,
       "token_winnowing": {
         "shingle_tokens": 5,
         "window_shingles": 8,
         "minimum_length_ratio": 0.8,
         "minimum_jaccard": 0.8,
-        "compared_units": 2273,
+        "compared_units": 2290,
         "duplicate_pairs": [
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1546:canonicalJson",
@@ -293,28 +293,28 @@
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts:118:optionalNumber",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1920:nullableNumber",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1974:nullableNumber",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/protocol/framing-runtime.ts:377:integer",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1924:integer",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1978:integer",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1546:canonicalJson",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1952:canonicalJson",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:2006:canonicalJson",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 8
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/compact/context-runtime.ts:1555:digest",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1961:digest",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:2015:digest",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 3
@@ -328,7 +328,7 @@
           },
           {
             "retainedUnit": "packages/runtime/claude-runtime/src/provider/compatible-runtime.ts:71:Constructor",
-            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:439:Constructor",
+            "deductedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:467:Constructor",
             "similarity": 1,
             "lengthRatio": 1,
             "deductedLines": 6
@@ -348,7 +348,7 @@
             "deductedLines": 4
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1942:sortJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1996:sortJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/prompt-runtime.ts:625:sortJson",
             "similarity": 1,
             "lengthRatio": 1,
@@ -467,7 +467,7 @@
             "deductedLines": 3
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1760:usageToJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1814:usageToJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/provider/telemetry-runtime.ts:932:usageToJson",
             "similarity": 1,
             "lengthRatio": 1,
@@ -761,7 +761,7 @@
             "deductedLines": 6
           },
           {
-            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1942:sortJson",
+            "retainedUnit": "packages/runtime/claude-runtime/src/provider/model-runtime.ts:1996:sortJson",
             "deductedUnit": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts:989:sortJson",
             "similarity": 1,
             "lengthRatio": 1,
@@ -840,9 +840,9 @@
         ],
         "deducted_lines": 671
       },
-      "effective_changed_typescript": 32638,
-      "final_production_typescript": 50229,
-      "final_test_typescript": 11253,
+      "effective_changed_typescript": 32778,
+      "final_production_typescript": 50371,
+      "final_test_typescript": 11352,
       "python_deleted_lines": 35151
     },
     "mutations": {

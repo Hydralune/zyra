@@ -1,21 +1,21 @@
 {
-  "candidate_evidence_commit": "b74cf37148f313e45595f23be39a73ae8743eb60",
-  "candidate_status": "independent_review_pending",
-  "cleanroom_target": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+  "candidate_evidence_commit": null,
+  "candidate_status": "validation_passed_pending_self_review",
+  "cleanroom_target": "567b14acfbbabcf59a82868d1c20b042f056a80c",
   "execution_id": "E01",
-  "implementation_candidate": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
+  "implementation_candidate": "567b14acfbbabcf59a82868d1c20b042f056a80c",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
-  "independent_review_target": "0573394868f170ec3f73fac882af5422510c6a96",
+  "independent_review_target": null,
   "independent_review_verdict": "PENDING",
   "notes": [
-    "V11 rejects source symbols without a material target effect instead of preserving generic domain templates; four session-memory global config symbols are explicitly rejected.",
-    "V11 records mapping-specific default-entry, immediate-callsite, target mutation, state assertion, named behavior-test and killer-mutation links and verifies them through TypeScript AST analysis.",
-    "V11 getAnthropicClient returns an executable provider client with Anthropic, Bedrock, Foundry and Vertex credential binding plus bounded retry behavior.",
+    "V12 binds the default candidate gate to the V7 TypeChecker-based strict verifier instead of the retired schema-v3 manifest verifier.",
+    "V12 installs mature post-compact messages, auto-compact thresholds and provider retry headers into the default runtime path.",
+    "V12 kills all 123 compilable frozen-patch mutations, including exact target state-effect suppression.",
     "The pre-E01 runtime-event-spine checkpoint remains zero-credit but is explicitly included in candidate-scope auditing."
   ],
   "root_manifest_commit_boundary": "G:/agent-zoo/docs/remediations is outside the Zyra Git repository and is delivered as an explicit workspace boundary.",
   "schema_version": "3.0",
-  "verification_contract_version": "zyra.e01-verification/v6",
+  "verification_contract_version": "zyra.e01-verification/v7",
   "verified_baseline": "c34535a783e88f9481387ced89cba4fbc333dc74",
   "verified_complete": false
 }
