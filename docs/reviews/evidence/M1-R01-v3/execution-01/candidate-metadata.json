@@ -1,11 +1,11 @@
 {
-  "candidate_evidence_commit": null,
-  "candidate_status": "validation_passed_pending_self_review",
+  "candidate_evidence_commit": "70c0d97af385dca39927e9a9d4860020ef3886f7",
+  "candidate_status": "independent_review_pending",
   "cleanroom_target": "567b14acfbbabcf59a82868d1c20b042f056a80c",
   "execution_id": "E01",
   "implementation_candidate": "567b14acfbbabcf59a82868d1c20b042f056a80c",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
-  "independent_review_target": null,
+  "independent_review_target": "0fd1f452a28b5b74db096fc42da856368a2b2f01",
   "independent_review_verdict": "PENDING",
   "notes": [
     "V12 binds the default candidate gate to the V7 TypeChecker-based strict verifier instead of the retired schema-v3 manifest verifier.",
