@@ -448,11 +448,14 @@ async function runToolchain(cwd: string): Promise<{ ok: boolean; receipts: Obj[]
   };
   const commands = [
     [process.execPath, "--version"],
+    ["node", "--version"],
     [process.execPath, "install", "--frozen-lockfile"],
     [process.execPath, "run", "typecheck:e01"],
-    [process.execPath, "run", "build"],
+    [process.execPath, "run", "build:bun"],
+    [process.execPath, "run", "runtime:built:bun:health"],
+    [process.execPath, "run", "build:node"],
+    ["node", "dist/code-worker-node/main.js", "--health"],
     [process.execPath, "run", "runtime:e01:test"],
-    [process.execPath, "run", "runtime:built:health"],
   ];
   const receipts: Obj[] = [];
   for (const commandLine of commands) {
@@ -471,7 +474,8 @@ async function toolchain(): Promise<void> {
 }
 
 async function cleanroom(): Promise<void> {
-  const headResult = await run(["git", "rev-parse", "HEAD"]);
+  const requestedTarget = process.env.E01_CLEANROOM_TARGET?.trim() || "HEAD";
+  const headResult = await run(["git", "rev-parse", requestedTarget]);
   invariant(headResult.exitCode === 0, "cannot resolve cleanroom target commit");
   const head = headResult.stdout.trim();
   const cleanroomRoot = join(tmpdir(), "zyra-e01-cleanroom", `e01-cleanroom-${head.slice(0, 12)}`);
