@@ -1,11 +1,11 @@
 {
-  "candidate_evidence_commit": "b74cf3763e71faef85d1d6a19639e098c514f91",
+  "candidate_evidence_commit": "b74cf37148f313e45595f23be39a73ae8743eb60",
   "candidate_status": "independent_review_pending",
   "cleanroom_target": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
   "execution_id": "E01",
   "implementation_candidate": "85a6ec230bc2d27d7a5b3bdd54d1580efce9266b",
   "implementation_diff_baseline": "0cd21bff5e2d160476f2ce3cef766bf53aab1239",
-  "independent_review_target": "7c577c3f67858fc371bb9670d4f6c91766d43690",
+  "independent_review_target": "0573394868f170ec3f73fac882af5422510c6a96",
   "independent_review_verdict": "PENDING",
   "notes": [
     "V11 rejects source symbols without a material target effect instead of preserving generic domain templates; four session-memory global config symbols are explicitly rejected.",
