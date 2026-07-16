@@ -1121,6 +1121,10 @@ const v8SemanticRejections = new Map<string, string>([
   ["getCoordinatorUserContext", "rejected in V8: coordinator presentation context is outside the E01 canonical runtime owner boundary"],
 ]);
 
+const initialWorktreeDirtyPaths = gitText(["status", "--short"])
+  .split(/\r?\n/)
+  .filter(Boolean);
+
 await import("./m1_r01_e01_v4.ts");
 
 const implementationHead = gitText(["rev-parse", "HEAD"]);
@@ -1219,6 +1223,9 @@ writeJson(gateProfilePath, profile);
 
 const receipt = readJson(receiptPath);
 receipt.current_control_plane_head = implementationHead;
+receipt.captured_at_utc = new Date().toISOString();
+receipt.clean_worktree = initialWorktreeDirtyPaths.length === 0;
+receipt.dirty_paths_at_capture = initialWorktreeDirtyPaths;
 receipt.implementation_diff_baseline = IMPLEMENTATION_DIFF_BASELINE;
 receipt.manifest_generator_command = ["npx", "--yes", "bun@1.2.15", GENERATOR];
 receipt.schema_validator_command = ["npx", "--yes", "bun@1.2.15", SCHEMA_VERIFIER];
