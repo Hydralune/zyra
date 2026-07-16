@@ -167,6 +167,19 @@ export class GitSemanticGraph {
     for (const source of this.program.getSourceFiles()) {
       const path = this.repoPath(source);
       if (!path) continue;
+      for (const statement of source.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const node of statement.declarationList.declarations) {
+          if (
+            ts.isIdentifier(node.name)
+            && node.initializer
+            && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+          ) {
+            this.register(path, node.name.text, node);
+            this.declarationByNode.set(node.initializer, this.declarations.get(symbolId(path, node.name.text))!);
+          }
+        }
+      }
       const visit = (node: ts.Node): void => {
         if (ts.isFunctionDeclaration(node) && node.name && node.body) {
           this.register(path, node.name.text, node);
@@ -180,16 +193,6 @@ export class GitSemanticGraph {
               this.register(path, `${node.name.text}.${declarationName(member, source)}`, member);
             }
           }
-        }
-        if (
-          ts.isVariableDeclaration(node)
-          && ts.isIdentifier(node.name)
-          && node.initializer
-          && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
-          && node.parent.parent.parent === source
-        ) {
-          this.register(path, node.name.text, node);
-          this.declarationByNode.set(node.initializer, this.declarations.get(symbolId(path, node.name.text))!);
         }
         if (ts.isCallExpression(node)) {
           const expression = node.expression;
