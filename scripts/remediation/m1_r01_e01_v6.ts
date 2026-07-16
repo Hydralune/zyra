@@ -126,7 +126,7 @@ const directEntryEdges = (
   targetPath: string,
   targetSymbol: string,
 ): JsonRecord[] => {
-  const output = [edge(MAIN_PATH, MAIN_SYMBOL, QUERY_PATH, QUERY_SYMBOL, "default-entry")];
+  const output: JsonRecord[] = [];
   if (targetPath === QUERY_PATH && targetSymbol === QUERY_SYMBOL) return output;
   if (callsitePath === QUERY_PATH && callsiteSymbol === QUERY_SYMBOL) {
     output.push(edge(QUERY_PATH, QUERY_SYMBOL, targetPath, targetSymbol, "runtime-target"));
@@ -274,7 +274,7 @@ const specificPostCutoffReason = (record: JsonRecord): string => {
   if (path.endsWith("/compact.ts")) {
     return `${name} depends on source worktree or skill-restore policy that is not part of E01 compaction custody`;
   }
-  return `${name} has no independently reachable E01 target behavior after source-role裁决`;
+  return `${name} has no independently reachable E01 target behavior after source-role decision`;
 };
 
 const recoveryEdges = (targetPath: string, targetSymbol: string): JsonRecord[] => {
@@ -282,7 +282,6 @@ const recoveryEdges = (targetPath: string, targetSymbol: string): JsonRecord[] =
   const planPath = "packages/runtime/claude-runtime/src/provider/recovery-runtime.ts";
   const plan = "ProviderRecoveryRuntime.plan";
   const output = [
-    edge(MAIN_PATH, MAIN_SYMBOL, QUERY_PATH, QUERY_SYMBOL, "default-entry"),
     edge(QUERY_PATH, QUERY_SYMBOL, COORDINATOR_PATH, decide, "recovery-callback"),
   ];
   if (targetSymbol === "ProviderRecoveryRuntime.createContext") {
@@ -511,25 +510,25 @@ const routeHistory = (target: JsonRecord, source: JsonRecord): void => {
 };
 
 const routeTokenBudget = (target: JsonRecord, source: JsonRecord): void => {
-  const targetPath = "packages/runtime/claude-runtime/src/context/token-runtime.ts";
-  const targetSymbol = "ContextTokenRuntime.decide";
+  const targetPath = COORDINATOR_PATH;
+  const targetSymbol = "E01RuntimeCoordinator.decideContext";
   setRoute(target, source, {
     targetPath,
     targetSymbol,
-    callsitePath: COORDINATOR_PATH,
-    callsiteSymbol: "E01RuntimeCoordinator.decideContext",
+    callsitePath: QUERY_PATH,
+    callsiteSymbol: QUERY_SYMBOL,
     owner: "e01.context-token-budget",
-    stateStore: "E01RuntimeSnapshot.tokens",
-    stateProperty: "tokens",
+    stateStore: "E01RuntimeSnapshot.journal",
+    stateProperty: "journal",
     stateKind: "context-budget-decision",
-    stateObservation: "tokens.remainingTokens/action",
+    stateObservation: "journal.entries[].context/compact_decision",
     adaptation:
       "Claude completion and diminishing thresholds are adapted to the durable ContextTokenRuntime tracker used by coordinator context decisions.",
     sourceClaim: `${sourceName(source)} computes continue, compact, or stop from remaining context budget`,
     targetClaim:
-      "ContextTokenRuntime.decide mutates and returns the canonical context budget action",
+      "E01RuntimeCoordinator.decideContext records the canonical compact decision and its token estimate",
     equivalence:
-      "Both enforce diminishing context budget; Zyra snapshots consumption and decision history under the coordinator tokens owner.",
+      "Both enforce diminishing context budget; Zyra snapshots the decision and token warning under the coordinator journal owner.",
     tests: Array.isArray(target.behavior_tests)
       ? (target.behavior_tests as JsonRecord[]).slice(0, 2)
       : [],
