@@ -61,7 +61,10 @@ async function run(command: string[], cwd: string): Promise<CommandEvidence> {
   const exitCode = await child.exited;
   const stdout = await stdoutPromise;
   const stderr = await stderrPromise;
-  const output = `${stdout}\n${stderr}`.replace(/\x1b\[[0-9;]*m/g, "").trim();
+  // Preserve the leading status column from `git status --porcelain`.  A
+  // leading space distinguishes an unstaged tracked edit from a staged one;
+  // trimming it corrupts the first path in the cleanroom dirt allowlist.
+  const output = `${stdout}\n${stderr}`.replace(/\x1b\[[0-9;]*m/g, "").trimEnd();
   return {
     command,
     started_at_utc: started.toISOString(),
