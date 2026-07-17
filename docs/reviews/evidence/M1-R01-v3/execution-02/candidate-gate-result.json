@@ -3,14 +3,20 @@
   "verification_contract_version": "zyra.e02-verification/v3",
   "execution_id": "E02",
   "verifier": "scripts/remediation/verify_m1_r01_e02.ts",
-  "generated_at_utc": "2026-07-17T09:22:04.592Z",
+  "generated_at_utc": "2026-07-17T11:44:46.141Z",
   "ok": true,
   "checks": {
     "baseline": {
       "verified_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
-      "candidate": "f7ef18c080533e81ea4e6b412007424696fa7423",
+      "candidate": "9de572bb993ce154ed588fe12f80870e849493e9",
       "dirty_paths": [
-        "docs/reviews/evidence/M1-R01-v3/execution-02/cleanroom-result.json"
+        "docs/reviews/evidence/M1-R01-v3/execution-02/cleanroom-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/disable-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/lost-ack-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/runtime-origin-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/same-session-resume-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/write-path-result.json"
       ],
       "frozen_manifest_hashes": "verified"
     },
@@ -24,7 +30,7 @@
       "claude_primary_credited_lines": 18448,
       "target_rows": 1481,
       "unique_target_symbols": 70,
-      "maximum_mappings_per_symbol": 23
+      "maximum_mappings_per_symbol": 40
     },
     "python_cutover": {
       "delete_paths": 61,
@@ -38,12 +44,12 @@
         "packages/skills/e02_ports.py": 0,
         "packages/workers/zyra_workers/typescript_claude_runtime.py": 1436
       },
-      "adapter_ratio": 0.051982,
+      "adapter_ratio": 0.051921,
       "fallback_findings": []
     },
     "effective_lines": {
-      "final_non_test_typescript": 44938,
-      "gross_changed_executable_typescript": 43184,
+      "final_non_test_typescript": 44986,
+      "gross_changed_executable_typescript": 43232,
       "production_clone_deduction": 4703,
       "production_clone_clusters": [
         {
@@ -489,14 +495,14 @@
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
-          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/client-runtime.ts:485:timestamp",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/client-runtime.ts:510:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:685:connectionError",
-          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/client-runtime.ts:505:clientError",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/client-runtime.ts:530:clientError",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 18
@@ -1615,99 +1621,99 @@
           "deductedLines": 10
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2034:dispatchSkillCommand",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2083:dispatchPluginCommand",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2073:dispatchSkillCommand",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2122:dispatchPluginCommand",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 16
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:745:validateSnapshot",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2945:validateSnapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2984:validateSnapshot",
           "similarity": 0.8,
           "lengthRatio": 1,
           "deductedLines": 38
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3069:timestamp",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3108:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3377:commandRoots",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3429:pluginRoots",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3416:commandRoots",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3468:pluginRoots",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 11
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3389:parseCommandRootValues",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3441:parsePluginRootValues",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3428:parseCommandRootValues",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3480:parsePluginRootValues",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 18
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3409:commandRoot",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3460:pluginRoot",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3448:commandRoot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3499:pluginRoot",
           "similarity": 0.9231,
           "lengthRatio": 0.8919,
           "deductedLines": 18
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3852:skillSourceKind",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3875:commandSourceKind",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3891:skillSourceKind",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3914:commandSourceKind",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 10
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3852:skillSourceKind",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3886:pluginSourceKind",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3891:skillSourceKind",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3925:pluginSourceKind",
           "similarity": 1,
           "lengthRatio": 0.9111,
           "deductedLines": 9
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1071:integer",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3950:nonNegativeInteger",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3989:nonNegativeInteger",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 3
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3968:controlRisk",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3989:checkpointPhase",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4007:controlRisk",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4028:checkpointPhase",
           "similarity": 1,
           "lengthRatio": 0.8182,
           "deductedLines": 10
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3977:controlPhase",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4043:executionPhase",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4016:controlPhase",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4082:executionPhase",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 11
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4055:integrationAuditDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4094:integrationAuditDigest",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:891:errorCode",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4072:errorCode",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4111:errorCode",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 7
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1051:checkpointError",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4100:coordinatorError",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4139:coordinatorError",
           "similarity": 1,
           "lengthRatio": 0.9804,
           "deductedLines": 11
@@ -1993,14 +1999,14 @@
           "deductedLines": 4
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3921:optionalString",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3960:optionalString",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:860:stringValue",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 3
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3954:nullableNonNegativeInteger",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3993:nullableNonNegativeInteger",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:864:safeInteger",
           "similarity": 1,
           "lengthRatio": 1,
@@ -2049,7 +2055,7 @@
           "deductedLines": 4
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3921:optionalString",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3960:optionalString",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1095:stringValue",
           "similarity": 1,
           "lengthRatio": 1,
@@ -2861,7 +2867,7 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3958:requiredControlString",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3997:requiredControlString",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1523:requiredString",
           "similarity": 0.8,
           "lengthRatio": 0.9057,
@@ -3778,36 +3784,43 @@
           "deductedLines": 12
         }
       ],
-      "effective_changed_typescript": 38481,
-      "explicit_behavior_cases": 128,
-      "unique_behavior_titles": 128,
-      "explicit_failure_cases": 87,
-      "gross_explicit_behavior_test_lines": 7338,
-      "test_clone_deduction": 14,
+      "effective_changed_typescript": 38529,
+      "explicit_behavior_cases": 151,
+      "unique_behavior_titles": 151,
+      "explicit_failure_cases": 109,
+      "gross_explicit_behavior_test_lines": 7620,
+      "test_clone_deduction": 18,
       "test_clone_clusters": [
         {
-          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:290:e02.mutation.mcp-5",
-          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:297:e02.mutation.mcp-6",
+          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:341:e02.mutation.mcp-5",
+          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:348:e02.mutation.mcp-6",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 6
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:468:e02.mutation.mcp-16",
-          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:478:e02.mutation.mcp-18",
+          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:519:e02.mutation.mcp-16",
+          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:529:e02.mutation.mcp-18",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 4
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:444:e02.mutation.mcp-13",
-          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:519:e02.mutation.mcp-20",
+          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:495:e02.mutation.mcp-13",
+          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:570:e02.mutation.mcp-20",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:668:e02.mutation.mcp-29",
+          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:673:e02.mutation.mcp-30",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 4
         }
       ],
-      "effective_behavior_test_lines": 7324,
+      "effective_behavior_test_lines": 7602,
       "excluded_generated_matrix_files": [
         "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
         "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",
@@ -3825,31 +3838,31 @@
       "forbidden_dependency_findings": []
     },
     "mutations": {
-      "declared": 48,
+      "declared": 70,
       "evidence": {
-        "declared": 48,
-        "applied": 48,
-        "compile_survived": 48,
-        "killed": 48,
+        "declared": 70,
+        "applied": 70,
+        "compile_survived": 70,
+        "killed": 70,
         "survived": 0,
         "invalid": 0,
         "kill_rate": 1,
-        "frozen_patch_matches": 48,
+        "frozen_patch_matches": 70,
         "restored_sha_match": true,
         "family": {
           "permission": {
-            "declared": 16,
-            "killed": 16,
+            "declared": 20,
+            "killed": 20,
             "kill_rate": 1
           },
           "mcp": {
-            "declared": 22,
-            "killed": 22,
+            "declared": 30,
+            "killed": 30,
             "kill_rate": 1
           },
           "skill": {
-            "declared": 10,
-            "killed": 10,
+            "declared": 20,
+            "killed": 20,
             "kill_rate": 1
           }
         }
