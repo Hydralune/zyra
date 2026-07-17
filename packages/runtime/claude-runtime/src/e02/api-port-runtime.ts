@@ -23,8 +23,10 @@ import {
 import {
   E02CapabilityCoordinator,
   type E02CapabilityCoordinatorSnapshot,
+  type E02AuthorizationInput,
   type E02ExecutionContext,
 } from "./coordinator.ts";
+import { digest } from "./canonical.ts";
 import type {
   PermissionApprovalResponse,
   PermissionMode,
@@ -273,6 +275,8 @@ export class E02ApiPortRuntime {
       else if (request.operation === "plugins") result = this.pluginsProjection(payload);
       else if (request.operation === "commands") result = this.commandsProjection(payload);
       else if (request.operation === "permission.get") result = this.permissionProjection(payload);
+      else if (request.operation === "permission.enforce") result = await this.permissionEnforce(payload);
+      else if (request.operation === "permission.claim") result = this.permissionClaim(payload);
       else if (request.operation === "permission.respond") result = this.permissionRespond(payload, request.request_id);
       else if (request.operation === "permission.cancel") result = this.permissionCancel(payload);
       else if (request.operation === "permission.expire") result = this.permissionExpire();
@@ -421,6 +425,113 @@ export class E02ApiPortRuntime {
         : transportJson(this.coordinator.permission.evaluator.rules.list()),
       requests: view === "rules" || view === "mode" || view === "decisions" ? [] : transportJson(approvals),
       decisions: view === "decisions" || view === "summary" ? transportJson(decisions) : [],
+    };
+  }
+
+  private async permissionEnforce(payload: JsonObject): Promise<JsonObject> {
+    const input = permissionInput(payload, this.coordinator.workspaceRoot);
+    const enforcement = await this.coordinator.permission.enforce(input);
+    const requestId = enforcement.decision.continuationRequestId;
+    const approval = requestId
+      ? this.coordinator.permission.approvals.get(requestId)
+      : null;
+    return {
+      schema: "zyra.e02-permission-enforcement-receipt/v1",
+      decision: transportJson(enforcement.decision),
+      allowed: enforcement.allowed,
+      blocked: enforcement.blocked,
+      pending_approval: enforcement.pendingApproval,
+      final_arguments: transportJson(enforcement.finalArguments),
+      recovery_input: enforcement.recoveryInput
+        ? transportJson(enforcement.recoveryInput)
+        : null,
+      replan_required: enforcement.replanRequired,
+      approval_request: approval ? safePermissionEnvelope(approval) : null,
+      state_digest: enforcement.stateDigest,
+      canonical_owner: "typescript.PermissionCoordinator",
+      canonical_entrypoint: "PermissionCoordinator.enforce",
+      python_decision_fallback: false,
+    };
+  }
+
+  private permissionClaim(payload: JsonObject): JsonObject {
+    const input = permissionInput(payload, this.coordinator.workspaceRoot);
+    const argumentsDigest = digest(input.arguments);
+    const requestedPermitId = asString(payload.permit_id).trim();
+    const permits = this.coordinator.executionLedger.snapshot().permits
+      .filter((permit) => permit.status === "issued")
+      .filter((permit) => !requestedPermitId || permit.permitId === requestedPermitId)
+      .filter((permit) => (
+        permit.runId === input.runId
+        && permit.taskId === input.taskId
+        && permit.sessionId === input.sessionId
+        && permit.sessionRevision === (input.sessionRevision ?? 0)
+        && permit.workerRequestId === input.workerRequestId
+        && permit.toolCallId === input.toolCallId
+        && permit.toolName === input.toolName
+        && permit.namespace === (input.namespace ?? "builtin")
+        && permit.argumentsDigest === argumentsDigest
+      ))
+      .sort((left, right) => left.issuedAt.localeCompare(right.issuedAt));
+    const selected = permits.at(-1) ?? null;
+    if (!selected) {
+      return {
+        schema: "zyra.e02-external-permission-claim/v1",
+        claimed: false,
+        canonical_owner: "typescript.PermissionCoordinator",
+        python_decision_fallback: false,
+      };
+    }
+    const evaluator = asObject(this.coordinator.permission.snapshot().evaluator);
+    const decision = (Array.isArray(evaluator.decisions) ? evaluator.decisions : [])
+      .map((value) => asObject(value))
+      .find((value) => asString(value.decisionId) === selected.decisionId);
+    if (!decision || asString(decision.canonicalOwner) !== "typescript" || decision.effect !== "allow") {
+      throw apiError(
+        "permission_external_permit_decision_invalid",
+        `External permission permit ${selected.permitId} has no canonical allow decision`,
+      );
+    }
+    const binding = asObject(decision.requestBinding);
+    if (
+      asString(binding.run_id) !== input.runId
+      || asString(binding.task_id) !== input.taskId
+      || asString(binding.session_id) !== input.sessionId
+      || nonNegativeInteger(binding.session_revision, -1) !== (input.sessionRevision ?? 0)
+      || asString(binding.worker_request_id) !== input.workerRequestId
+      || asString(binding.tool_call_id) !== input.toolCallId
+      || asString(binding.tool_name) !== input.toolName
+      || asString(binding.namespace) !== (input.namespace ?? "builtin")
+      || asString(binding.server_id) !== (input.serverId ?? "")
+      || asString(binding.operation) !== (input.operation ?? "")
+      || resolve(asString(binding.workspace_root)) !== resolve(input.workspaceRoot ?? this.coordinator.workspaceRoot)
+      || asString(binding.arguments_digest) !== argumentsDigest
+      || asString(decision.finalArgumentsDigest) !== argumentsDigest
+    ) {
+      throw apiError(
+        "permission_external_permit_binding_mismatch",
+        `External permission permit ${selected.permitId} does not match the exact physical call`,
+      );
+    }
+    const consumed = this.coordinator.executionLedger.consumePermit(selected.permitId, {
+      runId: input.runId,
+      sessionId: input.sessionId,
+      sessionRevision: input.sessionRevision ?? 0,
+      workerRequestId: input.workerRequestId,
+      toolCallId: input.toolCallId,
+      toolName: input.toolName,
+      argumentsDigest,
+    });
+    return {
+      schema: "zyra.e02-external-permission-claim/v1",
+      claimed: true,
+      decision: transportJson(decision),
+      final_arguments: transportJson(asObject(decision.finalArguments)),
+      permit: transportJson(consumed),
+      permit_id: consumed.permitId,
+      canonical_owner: "typescript.PermissionCoordinator",
+      canonical_entrypoint: "CapabilityExecutionLedger.consumePermit",
+      python_decision_fallback: false,
     };
   }
 
@@ -821,6 +932,46 @@ function executionContext(
   };
 }
 
+function permissionInput(payload: JsonObject, workspaceRoot: string): E02AuthorizationInput {
+  const input: E02AuthorizationInput = {
+    runId: asString(payload.run_id).trim(),
+    taskId: asString(payload.task_id).trim(),
+    sessionId: asString(payload.session_id).trim(),
+    sessionRevision: nonNegativeInteger(payload.session_revision, 0),
+    workerRequestId: asString(payload.worker_request_id).trim(),
+    toolCallId: asString(payload.tool_call_id).trim(),
+    toolName: asString(payload.tool_name).trim(),
+    namespace: asString(payload.namespace).trim() || "builtin",
+    serverId: asString(payload.server_id).trim(),
+    commandName: asString(payload.command_name).trim(),
+    resourceUri: asString(payload.resource_uri ?? payload.uri).trim(),
+    operation: asString(payload.operation).trim(),
+    workspaceRoot: resolve(asString(payload.workspace_root).trim() || workspaceRoot),
+    arguments: asObject(payload.arguments),
+    metadata: {
+      ...asObject(payload.metadata),
+      transport: "python-typed-effect-port",
+      python_decision: false,
+    },
+    awaitApprovalDelivery: payload.await_approval_delivery !== false,
+  };
+  if (
+    !input.runId
+    || !input.taskId
+    || !input.sessionId
+    || !input.workerRequestId
+    || !input.toolCallId
+    || !input.toolName
+    || !input.operation
+  ) {
+    throw apiError(
+      "permission_external_identity_incomplete",
+      "External permission enforcement requires exact run, task, session, worker, tool-call, tool, and operation identity",
+    );
+  }
+  return input;
+}
+
 function normalizeInitialization(value: E02ApiPortInitialization): E02ApiPortInitialization {
   const result = jsonClone(value);
   if (result.type !== "initialize" || !result.request_id || !result.workspace_root || !result.state_path) {
@@ -881,6 +1032,7 @@ function apiError(code: string, message: string, detail: JsonObject = {}): Error
 
 function safePermissionEnvelope(value: unknown): JsonObject {
   const envelope = asObject(value);
+  const metadata = asObject(envelope.metadata);
   return {
     envelope_id: asString(envelope.envelopeId),
     request_id: asString(envelope.requestId),
@@ -898,6 +1050,7 @@ function safePermissionEnvelope(value: unknown): JsonObject {
     server_id: asString(envelope.serverId),
     operation: asString(envelope.operation),
     arguments_digest: asString(envelope.argumentsDigest),
+    request_binding: transportJson(asObject(envelope.requestBinding)),
     policy_revision: nonNegativeInteger(envelope.policyRevision, 0),
     mode_revision: nonNegativeInteger(envelope.modeRevision, 0),
     expires_at: asString(envelope.expiresAt),
@@ -906,6 +1059,11 @@ function safePermissionEnvelope(value: unknown): JsonObject {
     delivery_receipt_id: asString(envelope.deliveryReceiptId) || null,
     created_at: asString(envelope.createdAt),
     updated_at: asString(envelope.updatedAt),
+    request_fingerprint: asString(metadata.request_fingerprint),
+    response_id: asString(metadata.response_id) || null,
+    response_effect: asString(metadata.response_effect) || null,
+    response_accepted: metadata.response_accepted === true,
+    responder: asString(metadata.responder) || null,
     final_arguments_projected: false,
     canonical_owner: "typescript.PermissionCoordinator",
   };

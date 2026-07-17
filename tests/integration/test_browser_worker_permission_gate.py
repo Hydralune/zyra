@@ -22,17 +22,11 @@ for package_path in [
 
 from zyra_core import create_task_state, to_jsonable  # noqa: E402
 from zyra_runtime import WorkerRequest  # noqa: E402
-from zyra_runtime.permission.action_gate import (  # noqa: E402
+from zyra_runtime.permission import (  # noqa: E402
     BrowserActionPermissionGate,
     BrowserActionPermissionInput,
 )
-from zyra_runtime.permission.models import (  # noqa: E402
-    PermissionEffect,
-    PermissionRequestRecord,
-    PermissionResolutionResponse,
-)
-from zyra_runtime.permission.request_queue import PermissionRequestQueue  # noqa: E402
-from zyra_runtime.permission.store import PermissionStateStore  # noqa: E402
+from zyra_runtime.permission.models import PermissionRequestRecord  # noqa: E402
 from zyra_workers.browser_worker import BrowserWorkerRuntime  # noqa: E402
 
 
@@ -70,29 +64,20 @@ def _pending_record(run: object) -> PermissionRequestRecord:
     raise AssertionError("browser run did not expose a pending permission request")
 
 
-def _approve_exact(state_path: Path, record: PermissionRequestRecord) -> None:
-    outcome = PermissionRequestQueue(
-        PermissionStateStore(state_path),
-        record.session_id,
-    ).resolve(
-        PermissionResolutionResponse(
-            request_id=record.request_id,
-            session_id=record.session_id,
-            tool_use_id=record.tool_use_id,
-            tool_identity=record.tool_identity,
-            arguments_digest=record.arguments_digest,
-            request_fingerprint=record.request_fingerprint,
-            scope=record.scope,
-            effect=PermissionEffect.ALLOW,
-            actor_id="browser-permission-test-authority",
-            expected_revision=record.revision,
-            channel="test",
-            reason="approve exact BrowserWorker retry",
-            idempotency_key=f"browser-test-approval:{record.request_id}",
+def _approve_exact(runtime: BrowserWorkerRuntime, record: PermissionRequestRecord) -> None:
+    port = runtime._new_e02_permission_port("default")
+    try:
+        outcome = port.permission_respond(
+            record.request_id,
+            "allow",
+            responder="browser-permission-test-authority",
+            response_id=f"browser-test-approval:{record.request_id}",
+            metadata={"test": "exact-browser-approval", "python_decision": False},
         )
-    )
-    if not outcome.accepted:
-        raise AssertionError(f"permission resolution failed: {outcome.code}: {outcome.reason}")
+    finally:
+        port.close()
+    if outcome.get("accepted") is not True or outcome.get("canonical_owner") != "typescript.PermissionCoordinator":
+        raise AssertionError(f"TypeScript permission resolution failed: {outcome}")
 
 
 class BrowserWorkerPermissionGateTests(unittest.TestCase):
@@ -119,12 +104,15 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
         node_id: str,
         url: str,
         constraints: dict[str, Any] | None = None,
+        request_id: str = "",
     ) -> WorkerRequest:
+        identity = {"request_id": request_id} if request_id else {}
         return WorkerRequest(
             run_id=run_id,
             task_id=task_id,
             node_id=node_id,
             worker_name="BrowserWorker",
+            **identity,
             constraints={
                 "browser_plan": [{"action": "open_url", "arguments": {"url": url}}],
                 **(constraints or {}),
@@ -240,19 +228,21 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
             runtime = self._runtime(root)
             state = create_task_state("Approve one exact browser action.")
             original_url = "https://example.test/exact"
+            stable_worker_request_id = "browser-exact-approval-request"
             first = runtime.run(
                 self._request(
                     run_id=state.run_id,
                     task_id=state.task_id,
                     node_id=state.root_node_id,
                     url=original_url,
+                    request_id=stable_worker_request_id,
                 )
             )
             self.assertEqual(runtime.load_url_count, 0)
             pending = _pending_record(first)
             token = first.permission_session_custody_token
             self.assertTrue(token)
-            _approve_exact(runtime.permission_state_path, pending)
+            _approve_exact(runtime, pending)
             authority = {
                 "permission_session_id": pending.session_id,
                 "permission_session_custody_token": token,
@@ -265,6 +255,7 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
                     node_id=state.root_node_id,
                     url="https://example.test/different",
                     constraints=authority,
+                    request_id=stable_worker_request_id,
                 )
             )
             self.assertFalse(mismatched.worker_result.ok)
@@ -278,6 +269,7 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
                     node_id=state.root_node_id,
                     url=original_url,
                     constraints=authority,
+                    request_id=stable_worker_request_id,
                 )
             )
             self.assertTrue(approved.worker_result.ok)
@@ -291,6 +283,7 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
                     node_id=state.root_node_id,
                     url=original_url,
                     constraints=authority,
+                    request_id=stable_worker_request_id,
                 )
             )
             self.assertFalse(replay.worker_result.ok)
@@ -377,7 +370,7 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
                 first = runtime.run(first_request)
             pending = _pending_record(first)
             token = first.permission_session_custody_token
-            _approve_exact(runtime.permission_state_path, pending)
+            _approve_exact(runtime, pending)
             self.assertEqual(remote_urls, [])
 
             page.write_text(
@@ -397,6 +390,7 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
                             "permission_session_id": pending.session_id,
                             "permission_session_custody_token": token,
                         },
+                        request_id=first_request.request_id,
                     )
                 )
 
@@ -782,25 +776,22 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
             token = first.permission_session_custody_token
             self.assertTrue(token)
 
-            def persist_sealed(owner_state: dict[str, Any]) -> None:
-                integration = owner_state.setdefault("metadata", {}).setdefault(
-                    "permission_integration",
+            port = runtime._new_e02_permission_port("default")
+            try:
+                transition = port.permission_policy(
                     {
-                        "schema": "zyra.permission-integration-state.v1",
-                        "owner_unit": "M1-S03A-02",
-                        "retry_descriptors": {},
-                        "session_modes": {},
-                        "event_links": {},
-                        "metadata": {"legacy_store_is_authority": False},
-                    },
+                        "action": "mode",
+                        "mode": "sealed",
+                        "actor_id": "browser-permission-test-authority",
+                        "reason": "verify durable TypeScript mode custody",
+                    }
                 )
-                integration.setdefault("session_modes", {})["persisted-browser-session"] = {
-                    "session_id": "persisted-browser-session",
-                    "mode": "sealed",
-                    "revision": 1,
-                }
-
-            PermissionStateStore(runtime.permission_state_path).mutate(persist_sealed)
+            finally:
+                port.close()
+            self.assertEqual(
+                transition["canonical_owner"],
+                "typescript.PermissionCoordinator",
+            )
             authority = {
                 "permission_session_id": "persisted-browser-session",
                 "permission_session_custody_token": token,
@@ -830,7 +821,10 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
                     self.assertEqual(_browser_events(run)[0].payload["browser_result"]["error"], "permission_denied")
                     self.assertEqual(run.worker_result.metadata["browser_permission_persisted_mode"], "sealed")
                     self.assertEqual(run.worker_result.metadata["browser_permission_effective_mode"], "sealed")
-                    self.assertEqual(run.worker_result.metadata["browser_permission_mode_source"], "state_owner")
+                    self.assertEqual(
+                        run.worker_result.metadata["browser_permission_mode_source"],
+                        "typescript_state_owner",
+                    )
                     self.assertEqual(run.worker_result.metadata["browser_permission_action_execution_count"], "0")
                     self.assertIn("recovery_input", _permission_kinds(run))
             self.assertEqual(runtime.load_url_count, 0)
@@ -874,6 +868,7 @@ class BrowserWorkerPermissionGateTests(unittest.TestCase):
                 request,
                 workspace_root=runtime.workspace_root,
                 state_path=runtime.permission_state_path,
+                e02_port_factory=runtime._new_e02_permission_port,
             )
             original = BrowserActionPermissionInput(
                 step_index=1,

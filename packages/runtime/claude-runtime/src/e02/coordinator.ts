@@ -662,13 +662,19 @@ export class E02CapabilityCoordinator {
     const enforcement = await this.permission.enforce(input);
     let permit: CapabilityPermit | null = null;
     if (enforcement.allowed && inputValue.issueExecutionPermit !== false) {
-      permit = this.executionLedger.issuePermit({
+      const externalSubject = !runtimeSubjectMatches(this.runtime, {
+        runId: input.runId,
+        taskId: input.taskId,
+        sessionId: input.sessionId,
+        workerRequestId: input.workerRequestId ?? input.toolCallId,
+      });
+      const permitInput = {
         decisionId: enforcement.decision.decisionId,
-        runId: this.runtime.runId,
-        taskId: this.runtime.taskId,
-        sessionId: this.runtime.sessionId,
+        runId: input.runId,
+        taskId: input.taskId,
+        sessionId: input.sessionId,
         sessionRevision: input.sessionRevision ?? 0,
-        workerRequestId: this.runtime.workerRequestId,
+        workerRequestId: input.workerRequestId ?? input.toolCallId,
         toolCallId: input.toolCallId,
         toolName: input.toolName,
         namespace: input.namespace ?? inferNamespace(input.toolName),
@@ -681,8 +687,14 @@ export class E02CapabilityCoordinator {
           original_arguments_digest: enforcement.decision.originalArgumentsDigest,
           final_arguments_digest: enforcement.decision.finalArgumentsDigest,
           permission_request_binding: cloneJson(enforcement.decision.requestBinding),
+          external_permission_subject: externalSubject,
+          restart_safe_exact_approval: false,
+          host_runtime_id: this.runtime.runtimeId,
         },
-      });
+      };
+      permit = externalSubject
+        ? this.executionLedger.issueExternalPermit(permitInput)
+        : this.executionLedger.issuePermit(permitInput);
     }
     return {
       enforcement,
@@ -832,13 +844,13 @@ export class E02CapabilityCoordinator {
     let permit: CapabilityPermit | null = null;
     if (enforcement.allowed) {
       const binding = enforcement.decision.requestBinding;
-      permit = this.executionLedger.issuePermit({
+      const permitInput = {
         decisionId: enforcement.decision.decisionId,
-        runId: this.runtime.runId,
-        taskId: this.runtime.taskId,
-        sessionId: this.runtime.sessionId,
+        runId: stringField(binding, "run_id", response.runId),
+        taskId: stringField(binding, "task_id", this.runtime.taskId),
+        sessionId: stringField(binding, "session_id", response.sessionId),
         sessionRevision: numberField(binding, "session_revision", response.sessionRevision),
-        workerRequestId: this.runtime.workerRequestId,
+        workerRequestId: stringField(binding, "worker_request_id", response.workerRequestId),
         toolCallId: response.toolCallId,
         toolName: stringField(binding, "tool_name", "unknown"),
         namespace: stringField(binding, "namespace", "builtin"),
@@ -849,8 +861,24 @@ export class E02CapabilityCoordinator {
           resumed_approval_response_id: response.responseId,
           continuation_request_id: response.requestId,
           responder: response.responder,
+          permission_request_binding: cloneJson(binding),
+          external_permission_subject: !runtimeSubjectMatches(this.runtime, {
+            runId: stringField(binding, "run_id", response.runId),
+            taskId: stringField(binding, "task_id", this.runtime.taskId),
+            sessionId: stringField(binding, "session_id", response.sessionId),
+            workerRequestId: stringField(
+              binding,
+              "worker_request_id",
+              response.workerRequestId,
+            ),
+          }),
+          restart_safe_exact_approval: true,
+          host_runtime_id: this.runtime.runtimeId,
         },
-      });
+      };
+      permit = permitInput.metadata.external_permission_subject
+        ? this.executionLedger.issueExternalPermit(permitInput)
+        : this.executionLedger.issuePermit(permitInput);
     }
     return {
       enforcement,
@@ -3874,6 +3902,21 @@ function optionalString(value: JsonValue | undefined): string {
 function stringField(value: JsonObject, key: string, fallback: string): string {
   const item = value[key];
   return typeof item === "string" && item ? item : fallback;
+}
+
+function runtimeSubjectMatches(
+  runtime: E02RuntimeIdentity,
+  subject: {
+    runId: string;
+    taskId: string;
+    sessionId: string;
+    workerRequestId: string;
+  },
+): boolean {
+  return subject.runId === runtime.runId
+    && subject.taskId === runtime.taskId
+    && subject.sessionId === runtime.sessionId
+    && subject.workerRequestId === runtime.workerRequestId;
 }
 
 function numberField(value: JsonObject, key: string, fallback: number): number {

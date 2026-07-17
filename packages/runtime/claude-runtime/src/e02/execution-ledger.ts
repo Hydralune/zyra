@@ -169,8 +169,19 @@ export class CapabilityExecutionLedger {
   }
 
   issuePermit(inputValue: CapabilityPermitInput): CapabilityPermit {
+    return this.issuePermitForSubject(inputValue, false);
+  }
+
+  issueExternalPermit(inputValue: CapabilityPermitInput): CapabilityPermit {
+    return this.issuePermitForSubject(inputValue, true);
+  }
+
+  private issuePermitForSubject(
+    inputValue: CapabilityPermitInput,
+    externalSubject: boolean,
+  ): CapabilityPermit {
     const input = cloneJson(inputValue);
-    this.validatePermitInput(input);
+    this.validatePermitInput(input, externalSubject);
     this.expirePermits();
     const issuedAt = this.timestamp();
     const expiresAt = new Date(
@@ -693,17 +704,36 @@ export class CapabilityExecutionLedger {
     this.audit.splice(0);
     this.sequence = snapshot.sequence;
     this.headHash = snapshot.headHash;
+    let revokedActivePermits = 0;
+    let preservedExternalApprovalPermits = 0;
+    const restoreObservedAt = this.now().getTime();
     for (const permitValue of snapshot.permits.slice(-this.maximumPermits)) {
       const permit = cloneJson(permitValue);
       if (permit.status === "issued") {
-        permit.status = "revoked";
-        permit.revokedAt = this.timestamp();
-        permit.metadata = {
-          ...permit.metadata,
-          revocation_reason: "restart_epoch_fence",
-          source_epoch: snapshot.runtime.epoch,
-          target_epoch: this.runtime.epoch,
-        };
+        const preserveExactExternalApproval = (
+          permit.metadata.external_permission_subject === true
+          && permit.metadata.restart_safe_exact_approval === true
+          && permit.metadata.host_runtime_id === this.runtime.runtimeId
+          && Date.parse(permit.expiresAt) > restoreObservedAt
+        );
+        if (preserveExactExternalApproval) {
+          preservedExternalApprovalPermits += 1;
+          permit.metadata = {
+            ...permit.metadata,
+            restored_source_epoch: snapshot.runtime.epoch,
+            restored_target_epoch: this.runtime.epoch,
+          };
+        } else {
+          revokedActivePermits += 1;
+          permit.status = "revoked";
+          permit.revokedAt = this.timestamp();
+          permit.metadata = {
+            ...permit.metadata,
+            revocation_reason: "restart_epoch_fence",
+            source_epoch: snapshot.runtime.epoch,
+            target_epoch: this.runtime.epoch,
+          };
+        }
       }
       this.permits.set(permit.permitId, permit);
     }
@@ -735,7 +765,8 @@ export class CapabilityExecutionLedger {
     this.appendAudit("restore_fence", this.runtime.runtimeId, {
       source_epoch: snapshot.runtime.epoch,
       target_epoch: this.runtime.epoch,
-      revoked_active_permits: snapshot.permits.filter((permit) => permit.status === "issued").length,
+      revoked_active_permits: revokedActivePermits,
+      preserved_external_approval_permits: preservedExternalApprovalPermits,
       recovery_required: this.recoveryRequired().length,
     });
   }
@@ -760,7 +791,10 @@ export class CapabilityExecutionLedger {
     };
   }
 
-  private validatePermitInput(input: CapabilityPermitInput): void {
+  private validatePermitInput(
+    input: CapabilityPermitInput,
+    externalSubject: boolean,
+  ): void {
     for (const [label, value] of Object.entries({
       decisionId: input.decisionId,
       runId: input.runId,
@@ -776,16 +810,55 @@ export class CapabilityExecutionLedger {
         throw ledgerError("capability_permit_identity_incomplete", `capability permit ${label} is required`);
       }
     }
-    if (
+    const runtimeBindingMismatch = (
       input.runId !== this.runtime.runId
       || input.taskId !== this.runtime.taskId
       || input.sessionId !== this.runtime.sessionId
       || input.workerRequestId !== this.runtime.workerRequestId
-    ) {
+    );
+    if (runtimeBindingMismatch && !externalSubject) {
       throw ledgerError(
         "capability_permit_runtime_binding_mismatch",
         "capability permit does not belong to this runtime binding",
       );
+    }
+    if (externalSubject) {
+      const requestBinding = input.metadata?.permission_request_binding;
+      if (
+        input.metadata?.external_permission_subject !== true
+        || input.metadata?.host_runtime_id !== this.runtime.runtimeId
+        || !requestBinding
+        || typeof requestBinding !== "object"
+        || Array.isArray(requestBinding)
+      ) {
+        throw ledgerError(
+          "capability_external_permit_custody_invalid",
+          "external capability permit requires canonical host and permission binding custody",
+        );
+      }
+      if (!runtimeBindingMismatch) {
+        throw ledgerError(
+          "capability_external_permit_subject_invalid",
+          "external capability permit must identify a subject outside the host runtime binding",
+        );
+      }
+      const binding = requestBinding as JsonObject;
+      if (
+        binding.run_id !== input.runId
+        || binding.task_id !== input.taskId
+        || binding.session_id !== input.sessionId
+        || binding.session_revision !== input.sessionRevision
+        || binding.worker_request_id !== input.workerRequestId
+        || binding.tool_call_id !== input.toolCallId
+        || binding.tool_name !== input.toolName
+        || binding.namespace !== input.namespace
+        || binding.arguments_digest !== input.argumentsDigest
+      ) {
+        throw ledgerError(
+          "capability_external_permit_binding_mismatch",
+          "external capability permit differs from its canonical permission request binding",
+        );
+      }
     }
     for (const [label, value] of Object.entries({
       sessionRevision: input.sessionRevision,

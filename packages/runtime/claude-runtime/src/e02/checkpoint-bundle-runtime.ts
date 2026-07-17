@@ -611,7 +611,9 @@ export class E02CheckpointBundleRuntime {
     if (bundle.runtimeId !== this.runtime.runtimeId) {
       errors.push({ code: "runtime_id_mismatch" });
     }
-    if (bundle.runtimeEpoch !== this.runtime.epoch) {
+    if (!Number.isSafeInteger(bundle.runtimeEpoch)
+      || bundle.runtimeEpoch < 1
+      || bundle.runtimeEpoch > this.runtime.epoch) {
       errors.push({ code: "runtime_epoch_mismatch" });
     }
     if (bundle.missingDomains.length > 0 && bundle.phase !== "open" && bundle.phase !== "aborted") {
@@ -836,7 +838,14 @@ export class E02CheckpointBundleRuntime {
   }
 
   private validateRestoredBundle(bundle: E02CheckpointBundle, sourceEpoch: number): void {
-    if (bundle.runtimeId !== this.runtime.runtimeId || bundle.runtimeEpoch !== sourceEpoch) {
+    // A durable snapshot contains the complete checkpoint chain, so bundles
+    // created by earlier process lifetimes remain bound to their original
+    // epoch.  They are valid history for the same runtime id, while epoch zero
+    // and future-epoch bundles must still fail closed.
+    if (bundle.runtimeId !== this.runtime.runtimeId
+      || !Number.isSafeInteger(bundle.runtimeEpoch)
+      || bundle.runtimeEpoch < 1
+      || bundle.runtimeEpoch > sourceEpoch) {
       throw checkpointError(
         "e02_checkpoint_bundle_binding",
         `restored checkpoint bundle ${bundle.bundleId} binding mismatch`,

@@ -21,6 +21,7 @@ export interface PermissionApprovalEnvelope {
   serverId: string;
   operation: string;
   argumentsDigest: string;
+  requestBinding: JsonObject;
   finalArguments: JsonObject;
   policyRevision: number;
   modeRevision: number;
@@ -291,6 +292,7 @@ function createEnvelope(decision: PermissionDecisionRecord, continuation: Permis
     serverId: text(binding.server_id),
     operation: text(binding.operation),
     argumentsDigest: decision.finalArgumentsDigest,
+    requestBinding: cloneJson(binding),
     finalArguments: cloneJson(decision.finalArguments),
     policyRevision: decision.policyRevision,
     modeRevision: decision.modeRevision,

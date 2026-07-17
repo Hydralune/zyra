@@ -10,6 +10,7 @@ import {
   E02RouteRuntime,
   type E02RuntimeIdentity,
 } from "../../src/e02/index.ts";
+import { digest } from "../../src/e02/canonical.ts";
 
 function runtime(epoch = 1): E02RuntimeIdentity {
   return {
@@ -183,6 +184,42 @@ test("atomic checkpoint bundle fails closed on partial state and records indeter
     reason: "provider confirmed absence",
   });
   assert.equal(reconciled.phase, "committed");
+});
+
+test("checkpoint history preserves prior runtime epochs and rejects future epoch injection", () => {
+  const epochOne = new E02CheckpointBundleRuntime({ runtime: runtime(1) });
+  const first = epochOne.begin("epoch-one");
+  epochOne.stageAll(first.bundleId, checkpointPayloads(1));
+  epochOne.seal(first.bundleId);
+  epochOne.commit(first.bundleId);
+
+  const epochTwo = new E02CheckpointBundleRuntime({
+    runtime: runtime(2),
+    snapshot: epochOne.snapshot(),
+  });
+  assert.equal(epochTwo.verifyBundle(first.bundleId).ok, true);
+  const second = epochTwo.begin("epoch-two");
+  epochTwo.stageAll(second.bundleId, checkpointPayloads(2));
+  epochTwo.seal(second.bundleId);
+  epochTwo.commit(second.bundleId);
+
+  const epochTwoSnapshot = epochTwo.snapshot();
+  const epochThree = new E02CheckpointBundleRuntime({
+    runtime: runtime(3),
+    snapshot: epochTwoSnapshot,
+  });
+  assert.equal(epochThree.verifyBundle(first.bundleId).ok, true);
+  assert.equal(epochThree.verifyBundle(second.bundleId).ok, true);
+  assert.equal(epochThree.verifyChain().ok, true);
+
+  const tampered = structuredClone(epochTwoSnapshot);
+  tampered.bundles[0]!.runtimeEpoch = 3;
+  const { snapshotHash: _ignored, ...withoutHash } = tampered;
+  tampered.snapshotHash = digest(withoutHash);
+  assert.throws(
+    () => new E02CheckpointBundleRuntime({ runtime: runtime(3), snapshot: tampered }),
+    /binding mismatch/,
+  );
 });
 
 test("control plane binds idempotency, CAS, effects, and durable results", async () => {

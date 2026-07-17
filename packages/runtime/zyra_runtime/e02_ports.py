@@ -61,6 +61,7 @@ class TypeScriptExecutionPermit:
     policy_revision: int
     mode_revision: int
     receipt_digest: str
+    physical_arguments_digest: str
     canonical_owner: str = "typescript"
 
     @property
@@ -125,7 +126,12 @@ class TypeScriptPermissionReceiptPort:
                 "TypeScript permission receipt is missing decision identity",
             )
         binding = _mapping(decision, "requestBinding", "request_binding")
-        arguments_digest = canonical_digest(arguments)
+        typescript_arguments_digest = str(binding.get("arguments_digest") or "")
+        if not typescript_arguments_digest:
+            raise TypeScriptPermissionReceiptError(
+                "e02_receipt_arguments_digest_missing",
+                "TypeScript permission receipt is missing its canonical arguments digest",
+            )
         expected = {
             "run_id": self.run_id,
             "task_id": self.task_id,
@@ -136,7 +142,6 @@ class TypeScriptPermissionReceiptPort:
             "namespace": str(namespace),
             "server_id": str(server_id),
             "operation": str(operation),
-            "arguments_digest": arguments_digest,
         }
         for key, value in expected.items():
             actual = str(binding.get(key) or "")
@@ -146,20 +151,30 @@ class TypeScriptPermissionReceiptPort:
                     f"TypeScript permission receipt binding mismatch for {key}",
                 )
         final_digest = _text(decision, "finalArgumentsDigest", "final_arguments_digest")
-        if not final_digest or not hmac.compare_digest(final_digest, arguments_digest):
-            raise TypeScriptPermissionReceiptError(
-                "e02_receipt_arguments_mismatch",
-                "physical arguments do not match the TypeScript-authorized arguments",
-            )
-        final_arguments = _mapping(decision, "finalArguments", "final_arguments")
-        if final_arguments and not hmac.compare_digest(
-            canonical_digest(final_arguments),
-            arguments_digest,
+        if not final_digest or not hmac.compare_digest(
+            final_digest,
+            typescript_arguments_digest,
         ):
             raise TypeScriptPermissionReceiptError(
-                "e02_receipt_final_arguments_corrupt",
-                "TypeScript final arguments and their digest disagree",
+                "e02_receipt_arguments_mismatch",
+                "TypeScript decision and request binding disagree on the authorized arguments",
             )
+        final_arguments_value = decision.get(
+            "finalArguments",
+            decision.get("final_arguments"),
+        )
+        if not isinstance(final_arguments_value, Mapping):
+            raise TypeScriptPermissionReceiptError(
+                "e02_receipt_final_arguments_missing",
+                "TypeScript permission receipt is missing the authorized final arguments",
+            )
+        final_arguments = dict(final_arguments_value)
+        if not _json_transport_equal(final_arguments, dict(arguments)):
+            raise TypeScriptPermissionReceiptError(
+                "e02_receipt_physical_arguments_mismatch",
+                "physical arguments do not match the TypeScript-authorized final arguments",
+            )
+        physical_arguments_digest = canonical_digest(dict(arguments))
         workspace = str(Path(str(binding.get("workspace_root") or "")).resolve())
         if workspace != self.workspace_root:
             raise TypeScriptPermissionReceiptError(
@@ -180,7 +195,8 @@ class TypeScriptPermissionReceiptPort:
             {
                 "decision_id": decision_id,
                 "tool_call_id": tool_call_id,
-                "arguments_digest": arguments_digest,
+                "typescript_arguments_digest": typescript_arguments_digest,
+                "physical_arguments_digest": physical_arguments_digest,
                 "receipt_digest": receipt_digest,
             }
         )[:40]
@@ -200,11 +216,12 @@ class TypeScriptPermissionReceiptPort:
                 server_name=str(server_id),
                 operation=str(operation),
                 workspace_root=self.workspace_root,
-                arguments_digest=arguments_digest,
+                arguments_digest=typescript_arguments_digest,
             ),
             policy_revision=policy_revision,
             mode_revision=mode_revision,
             receipt_digest=receipt_digest,
+            physical_arguments_digest=physical_arguments_digest,
         )
         with self._lock:
             prior = self._issued.get(permit_id)
@@ -234,7 +251,7 @@ class TypeScriptPermissionReceiptPort:
                 or str(getattr(call, "tool_name", "")) != binding.tool_name
                 or not hmac.compare_digest(
                     canonical_digest(dict(getattr(call, "arguments", {}) or {})),
-                    binding.arguments_digest,
+                    permit.physical_arguments_digest,
                 )
             ):
                 return False
@@ -261,6 +278,51 @@ def canonical_digest(value: Mapping[str, Any] | list[Any] | str | int | float | 
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _json_transport_equal(left: Any, right: Any) -> bool:
+    """Compare values exactly as the JSON transport represents them.
+
+    JavaScript serializes integral floats as integers and normalizes negative
+    zero.  This structural comparison keeps booleans distinct from numbers,
+    accepts those JSON-number normalizations, and otherwise requires identical
+    arrays, object keys, and scalar values.  The TypeScript digest remains the
+    canonical binding; this function only proves that the Python physical call
+    carries the same JSON value returned in the signed decision.
+    """
+
+    if left is None or right is None:
+        return left is None and right is None
+    if isinstance(left, bool) or isinstance(right, bool):
+        return isinstance(left, bool) and isinstance(right, bool) and left is right
+    if isinstance(left, (int, float)) or isinstance(right, (int, float)):
+        if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+            return False
+        if isinstance(left, float) and not _finite(left):
+            return False
+        if isinstance(right, float) and not _finite(right):
+            return False
+        return left == right
+    if isinstance(left, str) or isinstance(right, str):
+        return isinstance(left, str) and isinstance(right, str) and left == right
+    if isinstance(left, Mapping) or isinstance(right, Mapping):
+        if not isinstance(left, Mapping) or not isinstance(right, Mapping):
+            return False
+        if set(left) != set(right) or any(not isinstance(key, str) for key in left):
+            return False
+        return all(_json_transport_equal(left[key], right[key]) for key in left)
+    if isinstance(left, (list, tuple)) or isinstance(right, (list, tuple)):
+        if not isinstance(left, (list, tuple)) or not isinstance(right, (list, tuple)):
+            return False
+        return len(left) == len(right) and all(
+            _json_transport_equal(left_item, right_item)
+            for left_item, right_item in zip(left, right, strict=True)
+        )
+    return False
+
+
+def _finite(value: float) -> bool:
+    return value == value and value not in {float("inf"), float("-inf")}
 
 
 def _text(value: Mapping[str, Any], *keys: str) -> str:

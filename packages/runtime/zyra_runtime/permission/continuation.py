@@ -529,11 +529,13 @@ class PermissionContinuationStore:
         *,
         disabled: bool = False,
         claim_lease_seconds: float = PERMISSION_CONTINUATION_CLAIM_LEASE_SECONDS,
+        external_permission_authority: bool = False,
     ) -> None:
         if not isinstance(state_store, PermissionStateStore):
             raise TypeError("PermissionContinuationStore requires PermissionStateStore")
         self.state_store = state_store
         self.disabled = bool(disabled)
+        self.external_permission_authority = bool(external_permission_authority)
         self.claim_lease_seconds = float(claim_lease_seconds)
         if not math.isfinite(self.claim_lease_seconds) or not 1.0 <= self.claim_lease_seconds <= 3600.0:
             raise ValueError("claim_lease_seconds must be finite and in [1, 3600]")
@@ -591,7 +593,11 @@ class PermissionContinuationStore:
         selected: list[PermissionContinuationRecord] = []
 
         def mutate(state: dict[str, Any]) -> None:
-            authoritative = _authoritative_request(state, request.request_id)
+            authoritative = self._resolve_authoritative_request(
+                state,
+                request.request_id,
+                supplied=request,
+            )
             _assert_request_records_equal(authoritative, request)
             container = _container(state, create=True, now=now)
             by_request = container["by_request_id"]
@@ -664,6 +670,7 @@ class PermissionContinuationStore:
         claimant: str,
         idempotency_key: str,
         expected_record_revision: int,
+        authoritative_request: PermissionRequestRecord | None = None,
         expected_state_revision: int | None = None,
     ) -> PermissionContinuationRecord:
         self._ensure_enabled()
@@ -677,7 +684,11 @@ class PermissionContinuationStore:
             container = _container(state, create=False, now=now)
             record = _record_by_request(container, request_id)
             _expect_record_revision(record, expected_record_revision)
-            authoritative = _authoritative_request(state, request_id)
+            authoritative = self._resolve_authoritative_request(
+                state,
+                request_id,
+                supplied=authoritative_request,
+            )
             _assert_request_identity(record, authoritative)
             if (
                 authoritative.phase is not PermissionRequestPhase.RESOLVED
@@ -774,6 +785,7 @@ class PermissionContinuationStore:
         request_id: str,
         *,
         expected_record_revision: int,
+        authoritative_request: PermissionRequestRecord | None = None,
         expected_state_revision: int | None = None,
     ) -> PermissionContinuationRecord:
         """Fence a crashed claim whose one-use approval was already consumed.
@@ -806,7 +818,11 @@ class PermissionContinuationStore:
                 raise PermissionContinuationAlreadyClaimed(
                     "permission continuation claim lease is still active"
                 )
-            authoritative = _authoritative_request(state, request_id)
+            authoritative = self._resolve_authoritative_request(
+                state,
+                request_id,
+                supplied=authoritative_request,
+            )
             _assert_request_identity(record, authoritative)
             if authoritative.revision == record.permission_request_revision:
                 if _parse_time(record.expires_at) <= now_value:
@@ -1170,7 +1186,11 @@ class PermissionContinuationStore:
             container = _container(state, create=False, now=now)
             record = _record_by_request(container, request.request_id)
             _expect_record_revision(record, expected_record_revision)
-            authoritative = _authoritative_request(state, request.request_id)
+            authoritative = self._resolve_authoritative_request(
+                state,
+                request.request_id,
+                supplied=request,
+            )
             _assert_request_records_equal(authoritative, request)
             _assert_request_identity(record, request)
             if record.terminal or record.phase is PermissionContinuationPhase.CLAIMED:
@@ -1311,6 +1331,28 @@ class PermissionContinuationStore:
         state = self.state_store.read_state()
         return copy.deepcopy(_container(state, create=True, now=self._now_iso(), persist=False))
 
+    def _resolve_authoritative_request(
+        self,
+        state: Mapping[str, Any],
+        request_id: str,
+        *,
+        supplied: PermissionRequestRecord | None,
+    ) -> PermissionRequestRecord:
+        if self.external_permission_authority:
+            if supplied is None:
+                raise PermissionContinuationStateError(
+                    "external permission authority did not supply the current request"
+                )
+            if supplied.request_id != request_id:
+                raise PermissionContinuationIdentityError(
+                    "external permission authority returned another request"
+                )
+            return supplied
+        authoritative = _authoritative_request(state, request_id)
+        if supplied is not None:
+            _assert_request_records_equal(authoritative, supplied)
+        return authoritative
+
     def _ensure_enabled(self) -> None:
         if self.disabled:
             raise PermissionContinuationDisabledError("PermissionContinuationStore is disabled")
@@ -1344,6 +1386,7 @@ class PermissionContinuationRuntime:
         payload_resolver: PayloadResolver | None = None,
         disabled: bool = False,
         claim_lease_seconds: float = PERMISSION_CONTINUATION_CLAIM_LEASE_SECONDS,
+        external_permission_authority: bool = False,
     ) -> None:
         if not str(session_id).strip():
             raise ValueError("PermissionContinuationRuntime requires session_id")
@@ -1352,6 +1395,7 @@ class PermissionContinuationRuntime:
             state_store,
             disabled=disabled,
             claim_lease_seconds=claim_lease_seconds,
+            external_permission_authority=external_permission_authority,
         )
         self.payload_resolver = payload_resolver
         self.disabled = bool(disabled)
@@ -1413,9 +1457,16 @@ class PermissionContinuationRuntime:
         idempotency_key: str,
         expected_record_revision: int | None = None,
         payload_resolver: PayloadResolver | None = None,
+        authoritative_request: PermissionRequestRecord | None = None,
         expected_state_revision: int | None = None,
     ) -> PermissionContinuationClaim:
         self._ensure_enabled()
+        if authoritative_request is not None:
+            self._ensure_owned_request(authoritative_request)
+            if authoritative_request.request_id != request_id:
+                raise PermissionContinuationIdentityError(
+                    "authoritative permission request id does not match continuation"
+                )
         record = self.store.get_by_request(request_id)
         self._ensure_owned(record)
         if record.phase is PermissionContinuationPhase.CLAIMED:
@@ -1465,6 +1516,7 @@ class PermissionContinuationRuntime:
             expected_record_revision=(
                 record.revision if expected_record_revision is None else expected_record_revision
             ),
+            authoritative_request=authoritative_request,
             expected_state_revision=expected_state_revision,
         )
         return PermissionContinuationClaim(

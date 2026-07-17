@@ -253,6 +253,143 @@ test("API approval transport forwards a response and TS issues the exact retry p
   }
 });
 
+test("external permission transport binds approval and one-use permit to the physical call", async () => {
+  const port = await openPort("external-permission");
+  const external: JsonObject = {
+    run_id: "external-browser-run",
+    task_id: "external-browser-task",
+    session_id: "external-browser-session",
+    session_revision: 4,
+    worker_request_id: "external-browser-worker",
+    tool_call_id: "external-browser-call",
+    tool_name: "open_url",
+    namespace: "browser",
+    server_id: "",
+    operation: "execute",
+    workspace_root: port.initialization.workspace_root,
+    arguments: { url: "https://example.test/original" },
+    metadata: {
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: false,
+      },
+    },
+    await_approval_delivery: true,
+  };
+  try {
+    const enforcement = object(await port.runtime.dispatch(request(
+      "permission.enforce",
+      external,
+      "external-enforce",
+    )));
+    assert.equal(enforcement.canonical_owner, "typescript.PermissionCoordinator");
+    assert.equal(enforcement.python_decision_fallback, false);
+    assert.equal(enforcement.allowed, false);
+    assert.equal(enforcement.pending_approval, true);
+    const asked = object(enforcement.decision as JsonValue);
+    assert.equal(asked.effect, "ask");
+    const binding = object(asked.requestBinding as JsonValue);
+    assert.equal(binding.run_id, external.run_id);
+    assert.equal(binding.task_id, external.task_id);
+    assert.equal(binding.session_id, external.session_id);
+    assert.equal(binding.worker_request_id, external.worker_request_id);
+    assert.equal(binding.tool_call_id, external.tool_call_id);
+    const approval = object(enforcement.approval_request as JsonValue);
+    const approvalBinding = object(approval.request_binding as JsonValue);
+    assert.equal(approvalBinding.run_id, external.run_id);
+    assert.equal(approvalBinding.tool_call_id, external.tool_call_id);
+    assert.equal(approvalBinding.arguments_digest, binding.arguments_digest);
+
+    const response = object(await port.runtime.dispatch(request("permission.respond", {
+      request_id: approval.request_id,
+      response_id: "external-browser-approval",
+      effect: "allow",
+      responder: "behavior-test",
+    }, "external-respond")));
+    assert.equal(response.accepted, true);
+    assert.ok(response.permit_id);
+
+    await port.runtime.close();
+    port.runtime = await E02ApiPortRuntime.open({
+      ...port.initialization,
+      request_id: "initialize-external-permission-restored",
+    });
+    assert.ok(Number(object(port.runtime.health().state as JsonValue).generation) >= 2);
+
+    const mismatch = object(await port.runtime.dispatch(request("permission.claim", {
+      ...external,
+      arguments: { url: "https://example.test/tampered" },
+      permit_id: response.permit_id,
+    }, "external-claim-mismatch")));
+    assert.equal(mismatch.claimed, false);
+
+    const claimed = object(await port.runtime.dispatch(request("permission.claim", {
+      ...external,
+      permit_id: response.permit_id,
+    }, "external-claim-exact")));
+    assert.equal(claimed.claimed, true);
+    assert.equal(claimed.permit_id, response.permit_id);
+    assert.equal(claimed.canonical_owner, "typescript.PermissionCoordinator");
+    const allowed = object(claimed.decision as JsonValue);
+    assert.equal(allowed.effect, "allow");
+    assert.equal(object(allowed.requestBinding as JsonValue).run_id, external.run_id);
+
+    const replay = object(await port.runtime.dispatch(request("permission.claim", {
+      ...external,
+      permit_id: response.permit_id,
+    }, "external-claim-replay")));
+    assert.equal(replay.claimed, false);
+  } finally {
+    await disposePort(port);
+  }
+});
+
+test("restart revokes an unconsumed ordinary host permit", async () => {
+  const port = await openPort("ordinary-permit-restart");
+  const executionPayload: JsonObject = {
+    tool_name: "command",
+    arguments: { input: "/e02-reload" },
+    operation: "execute",
+    tool_call_id: "ordinary-restart-call",
+    actor_id: "behavior-test",
+    correlation_id: "ordinary-restart-correlation",
+  };
+  try {
+    await assert.rejects(
+      () => port.runtime.dispatch(request("execute", executionPayload, "ordinary-restart-ask")),
+      /capability requires exact approval/,
+    );
+    const projection = object(await port.runtime.dispatch(request("permission.get", {
+      view: "requests",
+    }, "ordinary-restart-list")));
+    const approval = object((projection.requests as JsonValue[])[0]!);
+    const response = object(await port.runtime.dispatch(request("permission.respond", {
+      request_id: approval.request_id,
+      response_id: "ordinary-restart-response",
+      effect: "allow",
+      responder: "behavior-test",
+    }, "ordinary-restart-response")));
+    assert.ok(response.permit_id);
+
+    await port.runtime.close();
+    port.runtime = await E02ApiPortRuntime.open({
+      ...port.initialization,
+      request_id: "initialize-ordinary-permit-restored",
+    });
+    await assert.rejects(
+      () => port.runtime.dispatch(request("execute", {
+        ...executionPayload,
+        permit_id: response.permit_id,
+      }, "ordinary-restart-replay")),
+      /permit .* (?:revoked|does not exist|runtime epoch)/,
+    );
+  } finally {
+    await disposePort(port);
+  }
+});
+
 test("exclusive state lock rejects a second live logical owner", async () => {
   const port = await openPort("lock");
   try {
@@ -269,13 +406,14 @@ test("exclusive state lock rejects a second live logical owner", async () => {
   }
 });
 
-test("checkpoint close and reopen restores state before bootstrap", async () => {
+test("checkpoint close and multiple reopens preserve prior-epoch history before bootstrap", async () => {
   const port = await openPort("restore");
   const first = object(await port.runtime.dispatch(request("snapshot", {}, "snapshot-before-close")));
   const firstHash = String(first.snapshotHash);
   await port.runtime.close();
 
   let restored: E02ApiPortRuntime | null = null;
+  let restoredAgain: E02ApiPortRuntime | null = null;
   try {
     restored = await E02ApiPortRuntime.open({
       ...port.initialization,
@@ -288,8 +426,25 @@ test("checkpoint close and reopen restores state before bootstrap", async () => 
     const state = object(restored.health().state as JsonValue);
     assert.ok(Number(state.generation) >= 2);
     assert.equal(state.lock_held, true);
+    await restored.close();
+    restored = null;
+
+    restoredAgain = await E02ApiPortRuntime.open({
+      ...port.initialization,
+      request_id: "initialize-restored-again",
+    });
+    const thirdSnapshot = object(await restoredAgain.dispatch(request(
+      "snapshot",
+      {},
+      "snapshot-restored-again",
+    )));
+    assert.equal(thirdSnapshot.opened, true);
+    const thirdState = object(restoredAgain.health().state as JsonValue);
+    assert.ok(Number(thirdState.generation) >= 3);
+    assert.equal(thirdState.lock_held, true);
   } finally {
     await restored?.close();
+    await restoredAgain?.close();
     await rm(port.root, { recursive: true, force: true });
   }
 });

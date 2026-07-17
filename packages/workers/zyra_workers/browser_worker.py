@@ -18,6 +18,7 @@ from urllib.parse import unquote, urljoin, urlparse
 
 from zyra_core import ArtifactKind, ControlCommand, EventRecord, EventType, to_jsonable
 from zyra_integrations import browser_use_snapshot
+from zyra_integrations.e02_ports import TypeScriptE02ApiPort
 from zyra_runtime import LocalArtifactStore, WorkerRequest, WorkerResult
 from zyra_runtime.permission import (
     BrowserActionPermissionCustodyError,
@@ -158,6 +159,7 @@ class BrowserWorkerRuntime:
         workspace_edit_port: Any | None = None,
         workspace_gateway_required: bool = False,
         sandbox_gateway_boundary: Any | None = None,
+        e02_permission_port: Any | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -185,6 +187,7 @@ class BrowserWorkerRuntime:
             if permission_state_path is not None
             else self.artifact_store.root / ".permission" / "state.json"
         )
+        self.e02_permission_port = e02_permission_port
         self.timeout_seconds = timeout_seconds
         self.action_registry = default_browser_action_registry(self.project_root)
         self.browser_use_health: BrowserUseRuntimeHealth = inspect_browser_use_runtime(self.project_root)
@@ -1506,6 +1509,12 @@ class BrowserWorkerRuntime:
                 request,
                 workspace_root=self.workspace_root,
                 state_path=self.permission_state_path,
+                e02_port=self.e02_permission_port,
+                e02_port_factory=(
+                    None
+                    if self.e02_permission_port is not None
+                    else self._new_e02_permission_port
+                ),
             )
         except BrowserActionPermissionDisabled as error:
             return self._permission_setup_failure(
@@ -1516,6 +1525,7 @@ class BrowserWorkerRuntime:
                 code=error.code,
                 reason=str(error),
             )
+
         except BrowserActionPermissionCustodyError as error:
             return self._permission_setup_failure(
                 request,
@@ -1534,6 +1544,22 @@ class BrowserWorkerRuntime:
                 code="browser_action_permission_setup_failed",
                 reason=str(error),
             )
+
+    def _new_e02_permission_port(self, permission_mode: str) -> TypeScriptE02ApiPort:
+        suffix = self.permission_state_path.suffix or ".json"
+        stem = self.permission_state_path.stem
+        state_path = self.permission_state_path.with_name(
+            f"{stem}.e02-browser{suffix}"
+        )
+        return TypeScriptE02ApiPort(
+            project_root=self.project_root,
+            workspace_root=self.workspace_root,
+            state_path=state_path,
+            artifact_root=self.artifact_store.root,
+            timeout_seconds=float(self.timeout_seconds),
+            permission_mode=permission_mode,
+            sealed_autonomous=permission_mode == "sealed",
+        )
 
     def _permission_setup_failure(
         self,

@@ -670,6 +670,7 @@ def get_browser_runtime_services(
         browser_runtime_registry=_BROWSER_RUNTIME_REGISTRY,
         workspace_edit_port=workspace_edit_port,
         workspace_gateway_required=workspace_gateway_required,
+        e02_permission_port=get_mcp_runtime(),
     )
     return runtime, worker
 

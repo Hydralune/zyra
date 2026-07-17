@@ -6,11 +6,9 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+from zyra_integrations.e02_ports import TypeScriptE02ApiPort
 from zyra_runtime import WorkerRequest
-from zyra_runtime.permission.action_gate import BrowserActionPermissionGate
-from zyra_runtime.permission.models import PermissionEffect, PermissionResolutionResponse
-from zyra_runtime.permission.request_queue import PermissionRequestQueue
-from zyra_runtime.permission.store import PermissionStateStore
+from zyra_runtime.permission import BrowserActionPermissionGate
 from zyra_workers.browser_action import (
     ActionArgumentValidator,
     ActionIdentity,
@@ -64,6 +62,44 @@ from zyra_workers.browser_state.contracts import (
     BrowserSelectorResolution,
     SelectorMapIdentity,
 )
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _e02_state_path(state_path: Path) -> Path:
+    suffix = state_path.suffix or ".json"
+    return state_path.with_name(f"{state_path.stem}.e02-browser{suffix}")
+
+
+def _e02_port_factory(root: Path, state_path: Path):
+    def factory(permission_mode: str) -> TypeScriptE02ApiPort:
+        return TypeScriptE02ApiPort(
+            project_root=ROOT,
+            workspace_root=root / "workspace",
+            state_path=_e02_state_path(state_path),
+            artifact_root=root / "artifacts",
+            permission_mode=permission_mode,
+            sealed_autonomous=permission_mode == "sealed",
+        )
+
+    return factory
+
+
+def _approve_exact(root: Path, state_path: Path, request_id: str) -> None:
+    port = _e02_port_factory(root, state_path)("default")
+    try:
+        outcome = port.permission_respond(
+            request_id,
+            "allow",
+            responder="browser-foundation-test-authority",
+            response_id=f"browser-foundation:{request_id}",
+            metadata={"test": "exact-browser-foundation-approval", "python_decision": False},
+        )
+    finally:
+        port.close()
+    if outcome.get("accepted") is not True or outcome.get("canonical_owner") != "typescript.PermissionCoordinator":
+        raise AssertionError(f"TypeScript permission approval failed: {outcome}")
 
 
 class _SelectorStore:
@@ -471,6 +507,7 @@ class BrowserSelectorGeometryGatewayTests(unittest.TestCase):
                 worker_request,
                 workspace_root=root / "workspace",
                 state_path=root / "permission-state.json",
+                e02_port_factory=_e02_port_factory(root, root / "permission-state.json"),
             )
             resolution, expectation = _selector_resolution()
             form_entry = replace(
@@ -552,6 +589,7 @@ class BrowserSelectorGeometryGatewayTests(unittest.TestCase):
                 worker_request,
                 workspace_root=root / "workspace",
                 state_path=root / "permission-state.json",
+                e02_port_factory=_e02_port_factory(root, root / "permission-state.json"),
             )
             selector_resolution, _expectation = _selector_resolution()
             transport = RecordingCdpTransport(
@@ -621,6 +659,7 @@ class BrowserSelectorGeometryGatewayTests(unittest.TestCase):
                 worker_request,
                 workspace_root=root / "workspace",
                 state_path=state_path,
+                e02_port_factory=_e02_port_factory(root, state_path),
             )
             selector_resolution, _expectation = _selector_resolution()
             transport = RecordingCdpTransport(
@@ -661,24 +700,8 @@ class BrowserSelectorGeometryGatewayTests(unittest.TestCase):
             self.assertEqual(transport.count("Page.navigate"), 0)
             record = pending.permission.decision.guard.pending_request
             self.assertIsNotNone(record)
-            outcome = PermissionRequestQueue(PermissionStateStore(state_path), record.session_id).resolve(
-                PermissionResolutionResponse(
-                    request_id=record.request_id,
-                    session_id=record.session_id,
-                    tool_use_id=record.tool_use_id,
-                    tool_identity=record.tool_identity,
-                    arguments_digest=record.arguments_digest,
-                    request_fingerprint=record.request_fingerprint,
-                    scope=record.scope,
-                    effect=PermissionEffect.ALLOW,
-                    actor_id="browser-foundation-test",
-                    expected_revision=record.revision,
-                    channel="test",
-                    reason="approve exact browser action",
-                    idempotency_key=f"approve:{record.request_id}",
-                )
-            )
-            self.assertTrue(outcome.accepted)
+            assert record is not None
+            _approve_exact(root, state_path, record.request_id)
             allowed = foundation.gateway.authorize(prepared)
             self.assertTrue(allowed.allowed)
             completed = foundation.gateway.execute(allowed)
@@ -703,6 +726,7 @@ class BrowserSelectorGeometryGatewayTests(unittest.TestCase):
                 worker_request,
                 workspace_root=root / "workspace",
                 state_path=state_path,
+                e02_port_factory=_e02_port_factory(root, state_path),
             )
             resolution, expectation = _selector_resolution()
             selector_store = _SelectorStore(resolution)
@@ -739,24 +763,9 @@ class BrowserSelectorGeometryGatewayTests(unittest.TestCase):
             pending = foundation.gateway.authorize(prepared)
             self.assertTrue(pending.pending)
             record = pending.permission.decision.guard.pending_request
-            outcome = PermissionRequestQueue(PermissionStateStore(state_path), record.session_id).resolve(
-                PermissionResolutionResponse(
-                    request_id=record.request_id,
-                    session_id=record.session_id,
-                    tool_use_id=record.tool_use_id,
-                    tool_identity=record.tool_identity,
-                    arguments_digest=record.arguments_digest,
-                    request_fingerprint=record.request_fingerprint,
-                    scope=record.scope,
-                    effect=PermissionEffect.ALLOW,
-                    actor_id="selector-stale-test",
-                    expected_revision=record.revision,
-                    channel="test",
-                    reason="approve exact selector action",
-                    idempotency_key=f"approve:{record.request_id}",
-                )
-            )
-            self.assertTrue(outcome.accepted)
+            self.assertIsNotNone(record)
+            assert record is not None
+            _approve_exact(root, state_path, record.request_id)
             allowed = foundation.gateway.authorize(prepared)
             self.assertTrue(allowed.allowed)
             selector_store.resolution = BrowserSelectorResolution(

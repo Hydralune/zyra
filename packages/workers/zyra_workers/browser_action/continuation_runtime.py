@@ -5,7 +5,7 @@ import json
 import os
 import threading
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -285,6 +285,7 @@ class BrowserActionContinuationRuntime:
             session_id=permission_gate.session_id,
             payload_resolver=payload_store.resolve_replay,
             disabled=disabled,
+            external_permission_authority=True,
         )
         self._parked = 0
         self._claimed = 0
@@ -314,10 +315,10 @@ class BrowserActionContinuationRuntime:
                 "browser ASK request is not deliverable at the continuation boundary"
             )
         permission_arguments = authorized.permission.permission_input.permission_arguments
-        if arguments_digest(permission_arguments) != pending.arguments_digest:
-            raise PermissionContinuationIdentityError(
-                "browser continuation arguments do not match pending permission request"
-            )
+        continuation_pending = self._continuation_request_projection(
+            pending,
+            permission_arguments,
+        )
         existing: PermissionContinuationRecord | None
         try:
             existing = self.runtime.get(pending.request_id)
@@ -334,15 +335,15 @@ class BrowserActionContinuationRuntime:
             raise PermissionContinuationIdentityError("existing browser continuation locator changed")
         sequence = existing.session_sequence if existing else self._next_sequence()
         replay = {
-            "session_id": pending.session_id,
-            "task_id": pending.task_id,
-            "run_id": pending.run_id,
-            "tool_use_id": pending.tool_use_id,
-            "tool_identity": pending.tool_identity.to_dict(),
+            "session_id": continuation_pending.session_id,
+            "task_id": continuation_pending.task_id,
+            "run_id": continuation_pending.run_id,
+            "tool_use_id": continuation_pending.tool_use_id,
+            "tool_identity": continuation_pending.tool_identity.to_dict(),
             "arguments": to_jsonable(permission_arguments),
-            "arguments_digest": pending.arguments_digest,
-            "request_fingerprint": pending.request_fingerprint,
-            "scope": pending.scope.to_dict(),
+            "arguments_digest": continuation_pending.arguments_digest,
+            "request_fingerprint": continuation_pending.request_fingerprint,
+            "scope": continuation_pending.scope.to_dict(),
             "payload_locator": locator,
             "session_sequence": sequence,
             "source": "BrowserSessionContinuationPayloadStore",
@@ -400,7 +401,7 @@ class BrowserActionContinuationRuntime:
         self.payload_store.write(payload)
         if existing is None:
             record = self.runtime.park(
-                pending,
+                continuation_pending,
                 payload_locator=locator,
                 session_sequence=sequence,
                 metadata={
@@ -409,6 +410,9 @@ class BrowserActionContinuationRuntime:
                     "browser_plan_id": plan.plan_id,
                     "browser_session_id": plan.browser_session_id,
                     "payload_owner": "BrowserSessionContinuationPayloadStore",
+                    "canonical_permission_owner": "typescript",
+                    "typescript_arguments_digest": pending.arguments_digest,
+                    "python_transport_arguments_digest": continuation_pending.arguments_digest,
                     "raw_arguments_persisted_in_permission_state": False,
                 },
             )
@@ -416,7 +420,7 @@ class BrowserActionContinuationRuntime:
             record = existing
         if record.phase is PermissionContinuationPhase.PARKED:
             record = self.runtime.deliver(
-                pending,
+                continuation_pending,
                 expected_record_revision=record.revision,
             )
         self._parked += 1
@@ -450,6 +454,11 @@ class BrowserActionContinuationRuntime:
         request = self.permission_gate.runtime.request_queue.get(record.request_id)
         if request is None:
             raise PermissionContinuationStateError("authoritative permission request is missing")
+        continuation_request = self._continuation_request_projection(
+            request,
+            authorized.permission.permission_input.permission_arguments,
+            parked_record=record,
+        )
         if request.phase in {
             PermissionRequestPhase.EXPIRED,
             PermissionRequestPhase.CANCELLED,
@@ -466,7 +475,7 @@ class BrowserActionContinuationRuntime:
             raise PermissionContinuationStateError("browser permission request is not resolved")
         if record.phase is not PermissionContinuationPhase.RESOLUTION_READY:
             record = self.runtime.resolution_ready(
-                request,
+                continuation_request,
                 expected_record_revision=record.revision,
             )
         if request.resolution_effect is PermissionEffect.DENY:
@@ -493,9 +502,116 @@ class BrowserActionContinuationRuntime:
             claimant=claimant,
             idempotency_key=stable_id("brclaim", request.request_id, prepared.action_id, plan.digest),
             expected_record_revision=record.revision,
+            authoritative_request=continuation_request,
         )
         self._claimed += 1
         return BrowserContinuationClaim(claim, checkpoint, payload.application)
+
+    @staticmethod
+    def _continuation_request_projection(
+        request: PermissionRequestRecord,
+        permission_arguments: Mapping[str, Any],
+        *,
+        parked_record: PermissionContinuationRecord | None = None,
+    ) -> PermissionRequestRecord:
+        """Project a TS request into the retained Python payload-custody codec.
+
+        TypeScript's digest remains the canonical permission identity.  The
+        older Python continuation codec recomputes its own JSON digest while
+        validating the session-owned replay payload, so that transport digest
+        is kept in a projection-only record and never used to decide or grant
+        permission.
+        """
+
+        typescript_digest = str(
+            request.metadata.get("typescript_arguments_digest")
+            or request.arguments_digest
+        )
+        if request.arguments_digest != typescript_digest:
+            raise PermissionContinuationIdentityError(
+                "browser continuation lost the TypeScript permission digest"
+            )
+        transport_digest = arguments_digest(permission_arguments)
+        expected_transport_digest = str(
+            request.metadata.get("python_transport_arguments_digest") or ""
+        )
+        if expected_transport_digest and expected_transport_digest != transport_digest:
+            raise PermissionContinuationIdentityError(
+                "browser continuation arguments changed after TypeScript evaluation"
+            )
+        if parked_record is not None:
+            parked_typescript_digest = str(
+                parked_record.metadata.get("typescript_arguments_digest")
+                or parked_record.scope.metadata.get("typescript_arguments_digest")
+                or ""
+            )
+            mismatches: list[str] = []
+            for expected, actual, name in (
+                (parked_record.request_id, request.request_id, "request_id"),
+                (parked_record.session_id, request.session_id, "session_id"),
+                (parked_record.task_id, request.task_id, "task_id"),
+                (parked_record.run_id, request.run_id, "run_id"),
+                (parked_record.worker_request_id, request.worker_request_id, "worker_request_id"),
+                (parked_record.tool_use_id, request.tool_use_id, "tool_use_id"),
+                (parked_record.request_fingerprint, request.request_fingerprint, "request_fingerprint"),
+                (parked_record.expires_at, request.expires_at, "expires_at"),
+                (parked_record.tool_identity.namespace, request.tool_identity.namespace, "tool_namespace"),
+                (parked_record.tool_identity.name, request.tool_identity.name, "tool_name"),
+                (parked_record.tool_identity.server_id, request.tool_identity.server_id, "server_id"),
+                (parked_typescript_digest, typescript_digest, "typescript_arguments_digest"),
+            ):
+                if expected != actual:
+                    mismatches.append(name)
+            if (
+                request.scope.workspace_root
+                and parked_record.scope.workspace_root != request.scope.workspace_root
+            ):
+                mismatches.append("workspace_root")
+            if parked_record.arguments_digest != transport_digest:
+                mismatches.append("python_transport_arguments_digest")
+            if mismatches:
+                raise PermissionContinuationIdentityError(
+                    "TypeScript approval no longer matches parked browser continuation: "
+                    + ", ".join(mismatches)
+                )
+            return replace(
+                request,
+                tool_identity=parked_record.tool_identity,
+                arguments_digest=parked_record.arguments_digest,
+                request_fingerprint=parked_record.request_fingerprint,
+                scope=parked_record.scope,
+                metadata={
+                    **request.metadata,
+                    "canonical_owner": "typescript",
+                    "typescript_arguments_digest": typescript_digest,
+                    "python_transport_arguments_digest": transport_digest,
+                    "projection_role": "browser_continuation_payload_custody",
+                    "python_decision_fallback": False,
+                },
+            )
+        scope = replace(
+            request.scope,
+            argument_digest=transport_digest,
+            metadata={
+                **request.scope.metadata,
+                "canonical_permission_owner": "typescript",
+                "typescript_arguments_digest": typescript_digest,
+                "python_continuation_projection": True,
+            },
+        )
+        return replace(
+            request,
+            arguments_digest=transport_digest,
+            scope=scope,
+            metadata={
+                **request.metadata,
+                "canonical_owner": "typescript",
+                "typescript_arguments_digest": typescript_digest,
+                "python_transport_arguments_digest": transport_digest,
+                "projection_role": "browser_continuation_payload_custody",
+                "python_decision_fallback": False,
+            },
+        )
 
     def complete(self, claim: BrowserContinuationClaim) -> PermissionContinuationRecord:
         record = self.runtime.complete(

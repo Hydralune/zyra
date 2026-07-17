@@ -138,6 +138,16 @@ class TypeScriptE02ApiPort:
             )
         )
 
+    def permission_enforce(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Forward an exact physical-call identity to the TypeScript owner."""
+
+        return _object(self.request("permission.enforce", dict(payload)))
+
+    def permission_claim(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Consume a TypeScript-issued approval permit for one exact call."""
+
+        return _object(self.request("permission.claim", dict(payload)))
+
     def permission_respond(
         self,
         request_id: str,

@@ -21,12 +21,11 @@ for package_path in (
         sys.path.insert(0, str(package_path))
 
 from zyra_integrations.browser_use import BrowserEventBus  # noqa: E402
+from zyra_integrations.e02_ports import TypeScriptE02ApiPort  # noqa: E402
 from zyra_core import to_jsonable  # noqa: E402
 from zyra_runtime import WorkerRequest  # noqa: E402
-from zyra_runtime.permission.action_gate import BrowserActionPermissionGate  # noqa: E402
-from zyra_runtime.permission.models import PermissionEffect, PermissionRequestRecord, PermissionResolutionResponse  # noqa: E402
-from zyra_runtime.permission.request_queue import PermissionRequestQueue  # noqa: E402
-from zyra_runtime.permission.store import PermissionStateStore  # noqa: E402
+from zyra_runtime.permission import BrowserActionPermissionGate  # noqa: E402
+from zyra_runtime.permission.models import PermissionRequestRecord  # noqa: E402
 from zyra_workers.browser_session import (  # noqa: E402
     BrowserRuntimeConfig,
     BrowserSessionCommand,
@@ -294,10 +293,12 @@ def _request(root: Path) -> WorkerRequest:
 
 
 def _permission_gate(request: WorkerRequest, root: Path) -> BrowserActionPermissionGate:
+    state_path = root / "permission-state.json"
     return BrowserActionPermissionGate.for_worker_request(
         request,
         workspace_root=root / "workspace",
-        state_path=root / "permission-state.json",
+        state_path=state_path,
+        e02_port_factory=_e02_port_factory(root, state_path),
     )
 
 
@@ -332,26 +333,68 @@ def _find_pending(value: object) -> PermissionRequestRecord | None:
     return None
 
 
-def _approve_exact(state_path: Path, record: PermissionRequestRecord) -> None:
-    outcome = PermissionRequestQueue(PermissionStateStore(state_path), record.session_id).resolve(
-        PermissionResolutionResponse(
-            request_id=record.request_id,
-            session_id=record.session_id,
-            tool_use_id=record.tool_use_id,
-            tool_identity=record.tool_identity,
-            arguments_digest=record.arguments_digest,
-            request_fingerprint=record.request_fingerprint,
-            scope=record.scope,
-            effect=PermissionEffect.ALLOW,
-            actor_id="productized-browser-test-authority",
-            expected_revision=record.revision,
-            channel="test",
-            reason="approve the exact productized browser action",
-            idempotency_key=f"productized-browser:{record.request_id}",
+def _e02_state_path(state_path: Path) -> Path:
+    suffix = state_path.suffix or ".json"
+    return state_path.with_name(f"{state_path.stem}.e02-browser{suffix}")
+
+
+def _e02_port_factory(root: Path, state_path: Path):
+    def factory(permission_mode: str) -> TypeScriptE02ApiPort:
+        return TypeScriptE02ApiPort(
+            project_root=ROOT,
+            workspace_root=root / "workspace",
+            state_path=_e02_state_path(state_path),
+            artifact_root=root / "artifacts",
+            permission_mode=permission_mode,
+            sealed_autonomous=permission_mode == "sealed",
         )
-    )
-    if not outcome.accepted:
-        raise AssertionError(f"permission approval failed: {outcome.code}: {outcome.reason}")
+
+    return factory
+
+
+def _typescript_permission_request(
+    root: Path,
+    state_path: Path,
+    request_id: str = "",
+) -> dict[str, object]:
+    port = _e02_port_factory(root, state_path)("default")
+    try:
+        projection = port.permission_get(
+            view="request" if request_id else "requests",
+            request_id=request_id,
+        )
+    finally:
+        port.close()
+    requests = projection.get("requests")
+    if (
+        projection.get("canonical_owner") != "typescript.PermissionCoordinator"
+        or not isinstance(requests, list)
+        or len(requests) != 1
+        or not isinstance(requests[0], dict)
+    ):
+        raise AssertionError(f"TypeScript permission request lookup failed: {projection}")
+    return dict(requests[0])
+
+
+def _approve_exact(
+    root: Path,
+    state_path: Path,
+    record: PermissionRequestRecord | str,
+) -> None:
+    request_id = record.request_id if isinstance(record, PermissionRequestRecord) else str(record)
+    port = _e02_port_factory(root, state_path)("default")
+    try:
+        outcome = port.permission_respond(
+            request_id,
+            "allow",
+            responder="productized-browser-test-authority",
+            response_id=f"productized-browser:{request_id}",
+            metadata={"test": "exact-productized-browser-approval", "python_decision": False},
+        )
+    finally:
+        port.close()
+    if outcome.get("accepted") is not True or outcome.get("canonical_owner") != "typescript.PermissionCoordinator":
+        raise AssertionError(f"TypeScript permission approval failed: {outcome}")
 
 
 class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
@@ -437,15 +480,14 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             ))
             self.assertFalse(first.worker_result.ok)
             self.assertEqual(first.worker_result.metadata["browser_permission_action_execution_count"], "0")
-            pending_request_id = first.worker_result.metadata["browser_pending_permission_request_id"]
-            pending = PermissionStateStore(permission_state).get_request(pending_request_id)
-            self.assertIsNotNone(pending)
-            assert pending is not None
+            pending = _typescript_permission_request(root, permission_state)
+            pending_request_id = str(pending["request_id"])
             session_id = first.worker_result.metadata["browser_session_id"]
             self.assertEqual(runtime.get_session(session_id).status, "running")
             self.assertEqual(runtime._runtime._cdp[session_id].snapshot().completed_requests, 0)
-            continuation_root = root / "state" / "action-continuations" / session_id
-            self.assertTrue(any(continuation_root.glob("*.json")))
+            self.assertEqual(pending["status"], "delivered")
+            self.assertEqual(pending["worker_request_id"], "request-productized-approval")
+            self.assertEqual(pending["canonical_owner"], "typescript.PermissionCoordinator")
             pending_tool_results = [
                 event.payload["tool_result"]
                 for event in first.event_records
@@ -454,12 +496,12 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
             self.assertEqual(len(pending_tool_results), 1)
             self.assertTrue(pending_tool_results[0]["partial"])
             self.assertFalse(pending_tool_results[0]["final"])
-            _approve_exact(permission_state, pending)
+            _approve_exact(root, permission_state, pending_request_id)
             runtime._runtime._cdp[session_id].close()
             responder = _CdpResponder()
             bus = _install_memory_cdp(runtime, session_id, responder)
             authority = {
-                "permission_session_id": pending.session_id,
+                "permission_session_id": str(pending["session_id"]),
                 "permission_session_custody_token": first.permission_session_custody_token,
             }
             try:
@@ -830,7 +872,7 @@ class BrowserSessionProductizationIntegrationTests(unittest.TestCase):
                 if permission_request is None:
                     failed = pending
                 else:
-                    _approve_exact(root / "permission-state.json", permission_request)
+                    _approve_exact(root, root / "permission-state.json", permission_request)
                     failed = BrowserSessionApplication(runtime).execute_plan(request, started, plan, gate)
             finally:
                 bus.stop()
