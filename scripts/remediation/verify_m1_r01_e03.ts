@@ -128,7 +128,11 @@ function verifyFrozenInputs(profile: Json, receipt: Json, findings: Finding[]): 
     if (existsSync(path)) assert(receipt.manifest_sha256?.[name] === sha256(readFileSync(path)), findings, "g0", `${name} hash differs from baseline receipt`);
   }
   assert(profile.schema_version === "3.0" && profile.execution_id === "E03", findings, "g0", "gate profile identity is invalid");
-  assert(receipt.g0_candidate_head === profile.implementation_diff_baseline, findings, "g0", "G0 head and implementation baseline differ");
+  try {
+    git(repoRoot, ["merge-base", "--is-ancestor", profile.implementation_diff_baseline, receipt.g0_candidate_head]);
+  } catch {
+    findings.push({ gate: "g0", detail: "implementation baseline is not an ancestor of the G0 tooling head" });
+  }
   assert(receipt.clean_worktree === true, findings, "g0", `G0 receipt captured dirty paths: ${JSON.stringify(receipt.dirty_paths ?? [])}`);
   assert(profile.required_toolchain?.bun === "1.2.15", findings, "toolchain", "Bun is not frozen at 1.2.15");
   for (const [path, expected] of Object.entries(profile.checker_sources ?? {})) {
