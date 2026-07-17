@@ -633,6 +633,15 @@ function sourceRows(finalizeTargets = false): { source: Json[]; target: Json[] }
   const source: Json[] = [];
   const target: Json[] = [];
   const mutations = mutationRows();
+  const targetHashes = new Map<string, string>();
+  const targetHash = (path: string): string | null => {
+    if (!finalizeTargets) return null;
+    const cached = targetHashes.get(path);
+    if (cached) return cached;
+    const digest = sha256(gitBytes(repoRoot, ["show", `HEAD:${path}`]));
+    targetHashes.set(path, digest);
+    return digest;
+  };
   let claudeRanges: SelectedRange[] = [];
   for (const spec of sourceSpecs) {
     const selected = selectSourceRanges(spec);
@@ -701,7 +710,7 @@ function sourceRows(finalizeTargets = false): { source: Json[]; target: Json[] }
         source_behavior_claim: `${sourceSymbol} lines ${range.startLine}-${range.endLine} contribute ${spec.domain} executable behavior at ${spec.snapshot}`,
         target_path: route[0],
         target_symbol: route[1],
-        target_sha256: finalizeTargets ? sha256(gitBytes(repoRoot, ["show", `HEAD:${route[0]}`])) : null,
+        target_sha256: targetHash(route[0]),
         planned_method: route[1].split(".").at(-1),
         target_behavior_claim: `${route[1]} in ${route[0]} owns the ${spec.domain} transition consolidated from ${sourceSymbol}`,
         adaptation: spec.role === "primary"
