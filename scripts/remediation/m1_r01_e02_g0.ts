@@ -634,7 +634,7 @@ const semanticNoise = new Set([
 ]);
 
 const semanticAlternatives: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  attachment: ["context", "invocation", "resource"],
+  attachment: ["context", "invocation", "parse", "registry", "reload", "resource", "source"],
   compact: ["context", "invocation", "reload"],
   policy: ["evaluate", "hook", "scope"],
   schema: ["manifest", "parse", "registry"],
