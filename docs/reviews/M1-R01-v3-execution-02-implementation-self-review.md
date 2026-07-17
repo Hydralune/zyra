@@ -5,7 +5,7 @@
 - Failed original implementation target: `8db12e16edaa72b810eacefe3ede3f1ead59d321`
 - Failed original evidence candidate: `8f31f6a38af71bac3eddf94fd35956499bda21c9`
 - Original FAIL review evidence commit: `09c07fbb0e9e71e309b77b55449684875e89ca87`
-- Repaired implementation target: `77e33da8dd8a2f4015d000544537eb87365fc627`
+- Repaired implementation target: `f7ef18c080533e81ea4e6b412007424696fa7423`
 - Evidence payload: `docs/reviews/evidence/M1-R01-v3/execution-02/**`
 - Verdict at this checkpoint: implementation complete; a fresh independent review is still required
 
@@ -85,9 +85,9 @@ The repair series adds gate/probe/test code only where it closes a concrete find
 | Built Bun and Node health | PASS |
 | Full E02 TypeScript behavior suite | PASS, 777/777 across 12 files |
 | Python browser/API/continuation adjacent suite | PASS, 26 tests plus 5 subtests on the repaired candidate |
-| Candidate custody verifier | PASS against `77e33da8dd8a2f4015d000544537eb87365fc627`; no failures |
+| Candidate custody verifier | PASS against `f7ef18c080533e81ea4e6b412007424696fa7423`; no failures |
 | Mutation gate | PASS, 48/48 killed, no invalid/surviving mutation, source hashes restored |
-| Source-free cleanroom | PASS against exact implementation `77e33da8dd8a2f4015d000544537eb87365fc627` |
+| Source-free cleanroom | PASS against exact implementation `f7ef18c080533e81ea4e6b412007424696fa7423` |
 
 The cleanroom uses `git archive` of the exact implementation target, starts without repository caches or build output, performs a frozen Bun `1.2.15` install, and reruns typecheck, Bun/Node build, built health, and all 777 TypeScript tests. Its first strict run correctly rejected CRLF-dependent prerequisite hashes after install/typecheck/build; the repaired implementation validates LF-normalized Git-blob hashes and the subsequent exact-commit cleanroom passed both Bun and Node health projections with `complete=true` and `evidenceIntegrity=true`.
 

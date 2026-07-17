@@ -1,8 +1,8 @@
 {
   "schema_version": "3.0",
   "execution_id": "E02",
-  "generated_at_utc": "2026-07-17T09:12:24.012Z",
-  "candidate": "77e33da8dd8a2f4015d000544537eb87365fc627",
+  "generated_at_utc": "2026-07-17T09:20:59.082Z",
+  "candidate": "f7ef18c080533e81ea4e6b412007424696fa7423",
   "source": "git archive of exact candidate commit",
   "forbidden_workspace_source_dependencies": [
     "../claude-code-best",
@@ -20,11 +20,11 @@
         "archive",
         "--format=tar",
         "--output=G:\\agent-zoo\\zyra\\.tmp\\m1-r01-e02-cleanroom.tar",
-        "77e33da8dd8a2f4015d000544537eb87365fc627"
+        "f7ef18c080533e81ea4e6b412007424696fa7423"
       ],
-      "started_at_utc": "2026-07-17T09:11:51.435Z",
-      "finished_at_utc": "2026-07-17T09:11:54.288Z",
-      "duration_ms": 2853,
+      "started_at_utc": "2026-07-17T09:20:27.311Z",
+      "finished_at_utc": "2026-07-17T09:20:29.946Z",
+      "duration_ms": 2635,
       "exit_code": 0,
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -38,9 +38,9 @@
         "-C",
         "G:\\agent-zoo\\zyra\\.tmp\\m1-r01-e02-cleanroom"
       ],
-      "started_at_utc": "2026-07-17T09:11:54.293Z",
-      "finished_at_utc": "2026-07-17T09:11:58.185Z",
-      "duration_ms": 3892,
+      "started_at_utc": "2026-07-17T09:20:29.954Z",
+      "finished_at_utc": "2026-07-17T09:20:33.939Z",
+      "duration_ms": 3985,
       "exit_code": 0,
       "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -54,13 +54,13 @@
         "install",
         "--frozen-lockfile"
       ],
-      "started_at_utc": "2026-07-17T09:11:58.185Z",
-      "finished_at_utc": "2026-07-17T09:12:01.694Z",
-      "duration_ms": 3509,
+      "started_at_utc": "2026-07-17T09:20:33.939Z",
+      "finished_at_utc": "2026-07-17T09:20:36.873Z",
+      "duration_ms": 2934,
       "exit_code": 0,
-      "stdout_sha256": "0dd388f393030647e1b8e672e472ef8a127398f2517016412dbafce3ccaab22e",
+      "stdout_sha256": "0ae8b68cd6ca16f4da7b11b146d3f570928f394f5ef212e3b59cae9093caa7a2",
       "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "output_tail": "Active code page: 65001\r\nbun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ typescript@5.8.3\n\n10 packages installed [534.00ms]"
+      "output_tail": "Active code page: 65001\r\nbun install v1.2.15 (df017990)\n\n+ @types/bun@1.2.15\n+ @types/node@22.15.29\n+ typescript@5.8.3\n\n10 packages installed [449.00ms]"
     },
     {
       "command": [
@@ -70,9 +70,9 @@
         "run",
         "typecheck:e02"
       ],
-      "started_at_utc": "2026-07-17T09:12:01.694Z",
-      "finished_at_utc": "2026-07-17T09:12:10.987Z",
-      "duration_ms": 9293,
+      "started_at_utc": "2026-07-17T09:20:36.873Z",
+      "finished_at_utc": "2026-07-17T09:20:45.190Z",
+      "duration_ms": 8317,
       "exit_code": 0,
       "stdout_sha256": "2b06cdf30ade079c57f6e8ec16fa27563855265463bede417a2dd63a631b6a21",
       "stderr_sha256": "9eb00b2ac4960978755a51a1f93384b5c2ef27fbe48b62c107caefca048ae0a6",
@@ -86,13 +86,13 @@
         "run",
         "build"
       ],
-      "started_at_utc": "2026-07-17T09:12:10.987Z",
-      "finished_at_utc": "2026-07-17T09:12:13.719Z",
-      "duration_ms": 2732,
+      "started_at_utc": "2026-07-17T09:20:45.191Z",
+      "finished_at_utc": "2026-07-17T09:20:49.422Z",
+      "duration_ms": 4232,
       "exit_code": 0,
-      "stdout_sha256": "3d401b897c76271ae34b79c87ac5a89ceda6baa982b34194da3d076c67508887",
+      "stdout_sha256": "a18bd03ca764eb5d60aaf69d8d61de444c36c5ea0b64a57ea4ecb0c5f76210d6",
       "stderr_sha256": "d0cceb056485fe36f1b2e96c3e28667558fe3611ac4516865edee6a95b7669f5",
-      "output_tail": "Active code page: 65001\r\nBundled 180 modules in 55ms\n\n  main.js  2.60 MB  (entry point)\n\nBundled 180 modules in 47ms\n\n  main.js  2.60 MB  (entry point)\n\n\n$ bun run build:bun && bun run build:node\n$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun\n$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker-node --target node"
+      "output_tail": "Active code page: 65001\r\nBundled 180 modules in 58ms\n\n  main.js  2.60 MB  (entry point)\n\nBundled 180 modules in 52ms\n\n  main.js  2.60 MB  (entry point)\n\n\n$ bun run build:bun && bun run build:node\n$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun\n$ bun build apps/code-worker/src/main.ts --outdir dist/code-worker-node --target node"
     },
     {
       "command": [
@@ -102,9 +102,9 @@
         "run",
         "runtime:built:health"
       ],
-      "started_at_utc": "2026-07-17T09:12:13.719Z",
-      "finished_at_utc": "2026-07-17T09:12:16.175Z",
-      "duration_ms": 2456,
+      "started_at_utc": "2026-07-17T09:20:49.424Z",
+      "finished_at_utc": "2026-07-17T09:20:52.446Z",
+      "duration_ms": 3022,
       "exit_code": 0,
       "stdout_sha256": "deac9a2534fd0957f0d83105b7dcbd61ccb53127a91fb012a7aa6f7097aa6034",
       "stderr_sha256": "3fa920a3e92ce64f6cb05a97b6ee9f5c2772bbd118baa57249794ee0621ec8fd",
@@ -119,13 +119,13 @@
         "packages/runtime/claude-runtime/test/e02",
         "packages/integrations/claude-mcp/test/e02"
       ],
-      "started_at_utc": "2026-07-17T09:12:16.175Z",
-      "finished_at_utc": "2026-07-17T09:12:22.442Z",
-      "duration_ms": 6267,
+      "started_at_utc": "2026-07-17T09:20:52.447Z",
+      "finished_at_utc": "2026-07-17T09:20:57.721Z",
+      "duration_ms": 5274,
       "exit_code": 0,
       "stdout_sha256": "099b16775ece59dfb6f0b1e70c7ad3768df70be9bddd6cf59b1664cac121ad6d",
-      "stderr_sha256": "21c62817c6c8043687cc80051aa99b55ccad4a1bd3c11bf33fd9f018805d7037",
-      "output_tail": "atrix route-071 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-072 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-073 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-074 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-075 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-076 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-077 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-078 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-079 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-080 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-081 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-082 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-083 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-084 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-085 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-086 selects, binds, consumes, snapshots, and rejects replay [16.00ms]\n(pass) route matrix route-087 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-088 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-089 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-090 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-091 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-092 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-093 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-094 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-095 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-096 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-097 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-098 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-099 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-100 selects, binds, consumes, snapshots, and rejects replay [16.00ms]\n(pass) route matrix route-101 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-102 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-103 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-104 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-105 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-106 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-107 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-108 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-109 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-110 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-111 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-112 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-113 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-114 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-115 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-116 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-117 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-118 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-119 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-120 selects, binds, consumes, snapshots, and rejects replay\n\npackages\\runtime\\claude-runtime\\test\\e02\\runtime-custody.test.ts:\n(pass) route custody selects one canonical TypeScript owner and consumes an exact lease\n(pass) route custody rejects equal-priority owners and stale lease bindings\n(pass) atomic checkpoint bundle stages every required domain before CAS commit [15.00ms]\n(pass) atomic checkpoint bundle fails closed on partial state and records indeterminate delivery\n(pass) checkpoint history preserves prior runtime epochs and rejects future epoch injection\n(pass) control plane binds idempotency, CAS, effects, and durable results\n(pass) control plane rejects unknown fields, foreign bindings, stale CAS, and idempotency collisions\n(pass) projection runtime redacts secrets, payloads, history, and exposes stable cursor pages\n(pass) projection runtime computes deterministic path-level diffs and subscription acknowledgements\n(pass) recovery runtime diagnoses an indeterminate effect without ever scheduling effect replay\n(pass) recovery runtime fences claims and requires ordered evidence-bearing steps\n\npackages\\runtime\\claude-runtime\\test\\e02\\skill-plugin-command-custody.behavior.test.ts:\n(pass) e02.live.skill.disk-reload atomically observes add change and delete before the next invocation [16.00ms]\n(pass) e02.custody.skills-plugins-commands.default-path [16.00ms]\n(pass) e02.custody.skills-plugins-commands.failure-path\n(pass) skill frontmatter preserves arguments, tool scope, hooks, resources, and unknown-key warnings\n(pass) skill registry resolves precedence, aliases, pins, revisions, filters, and exact snapshot restore\n(pass) skill context composition renders inherited sections and durable resource provenance\n(pass) skill context budgets truncate optional sections but reject missing required resources [15.00ms]\n(pass) skill tool scope intersects parent policy and blocks write, namespace, server, and call overflow\n(pass) skill invocation execution deduplicates exact requests and records background, failure, and budget states\n(pass) skill invocation journal fences effect, result, acknowledgement, restore, and reconciliation\n(pass) skill search supports exact, alias, tag, source, plugin, availability, update, and removal filters\n(pass) skill root runtime commits project and plugin roots with CAS, reachability, failure, and restore custody [16.00ms]\n(pass) skill watcher deduplicates change batches, bounds overflow, emits listeners, and restores pending state\n(pass) plugin manifest parsing internalizes dependencies, capabilities, paths, permissions, and boundary failures\n(pass) plugin cache enforces per-plugin CAS, content keys, usage accounting, eviction, invalidation, and restore\n(pass) plugin dependency resolution orders valid graphs and fences missing, mismatched, cyclic, stale, and restored states [15.00ms]\n(pass) plugin capability registry owns claims, permission scopes, leases, conflicts, pins, removal, and restore\n(pass) plugin hook pipeline orders mutations, ask and deny effects and fails closed on invalid or failed hooks\n(pass) plugin runtime loads, deduplicates, reloads, restores, rolls back failed integration, and unloads cleanly\n(pass) command descriptors and registry enforce precedence, alias ownership, revisions, pins, filters, and restore [16.00ms]\n(pass) command help and completion expose visible commands, options, enums, paths, dynamic values, and stable documents\n(pass) local command execution deduplicates calls and preserves emitted artifacts, events, failures, cancellation, and retention\n(pass) command dispatch and history enforce allow, deny, ask, sealed recovery, exact digests, external routing, and hash restore\n\n 777 pass\n 0 fail\nRan 777 tests across 12 files. [3.67s]"
+      "stderr_sha256": "233a9bd380d2a3cc59d1eb4f6746c7865996afdff8b2ac132e82752994b366e9",
+      "output_tail": " rejects replay\n(pass) route matrix route-071 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-072 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-073 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-074 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-075 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-076 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-077 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-078 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-079 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-080 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-081 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-082 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-083 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-084 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-085 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-086 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-087 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-088 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-089 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-090 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-091 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-092 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-093 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-094 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-095 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-096 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-097 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-098 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-099 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-100 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-101 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-102 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-103 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-104 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-105 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-106 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-107 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-108 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-109 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-110 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-111 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-112 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-113 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-114 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-115 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-116 selects, binds, consumes, snapshots, and rejects replay [16.00ms]\n(pass) route matrix route-117 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-118 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-119 selects, binds, consumes, snapshots, and rejects replay\n(pass) route matrix route-120 selects, binds, consumes, snapshots, and rejects replay\n\npackages\\runtime\\claude-runtime\\test\\e02\\runtime-custody.test.ts:\n(pass) route custody selects one canonical TypeScript owner and consumes an exact lease\n(pass) route custody rejects equal-priority owners and stale lease bindings\n(pass) atomic checkpoint bundle stages every required domain before CAS commit\n(pass) atomic checkpoint bundle fails closed on partial state and records indeterminate delivery\n(pass) checkpoint history preserves prior runtime epochs and rejects future epoch injection\n(pass) control plane binds idempotency, CAS, effects, and durable results\n(pass) control plane rejects unknown fields, foreign bindings, stale CAS, and idempotency collisions\n(pass) projection runtime redacts secrets, payloads, history, and exposes stable cursor pages\n(pass) projection runtime computes deterministic path-level diffs and subscription acknowledgements\n(pass) recovery runtime diagnoses an indeterminate effect without ever scheduling effect replay\n(pass) recovery runtime fences claims and requires ordered evidence-bearing steps\n\npackages\\runtime\\claude-runtime\\test\\e02\\skill-plugin-command-custody.behavior.test.ts:\n(pass) e02.live.skill.disk-reload atomically observes add change and delete before the next invocation [16.00ms]\n(pass) e02.custody.skills-plugins-commands.default-path\n(pass) e02.custody.skills-plugins-commands.failure-path [15.00ms]\n(pass) skill frontmatter preserves arguments, tool scope, hooks, resources, and unknown-key warnings\n(pass) skill registry resolves precedence, aliases, pins, revisions, filters, and exact snapshot restore\n(pass) skill context composition renders inherited sections and durable resource provenance\n(pass) skill context budgets truncate optional sections but reject missing required resources\n(pass) skill tool scope intersects parent policy and blocks write, namespace, server, and call overflow\n(pass) skill invocation execution deduplicates exact requests and records background, failure, and budget states\n(pass) skill invocation journal fences effect, result, acknowledgement, restore, and reconciliation\n(pass) skill search supports exact, alias, tag, source, plugin, availability, update, and removal filters\n(pass) skill root runtime commits project and plugin roots with CAS, reachability, failure, and restore custody [16.00ms]\n(pass) skill watcher deduplicates change batches, bounds overflow, emits listeners, and restores pending state\n(pass) plugin manifest parsing internalizes dependencies, capabilities, paths, permissions, and boundary failures [16.00ms]\n(pass) plugin cache enforces per-plugin CAS, content keys, usage accounting, eviction, invalidation, and restore\n(pass) plugin dependency resolution orders valid graphs and fences missing, mismatched, cyclic, stale, and restored states\n(pass) plugin capability registry owns claims, permission scopes, leases, conflicts, pins, removal, and restore\n(pass) plugin hook pipeline orders mutations, ask and deny effects and fails closed on invalid or failed hooks\n(pass) plugin runtime loads, deduplicates, reloads, restores, rolls back failed integration, and unloads cleanly [15.00ms]\n(pass) command descriptors and registry enforce precedence, alias ownership, revisions, pins, filters, and restore\n(pass) command help and completion expose visible commands, options, enums, paths, dynamic values, and stable documents\n(pass) local command execution deduplicates calls and preserves emitted artifacts, events, failures, cancellation, and retention\n(pass) command dispatch and history enforce allow, deny, ask, sealed recovery, exact digests, external routing, and hash restore\n\n 777 pass\n 0 fail\nRan 777 tests across 12 files. [2.68s]"
     }
   ]
 }

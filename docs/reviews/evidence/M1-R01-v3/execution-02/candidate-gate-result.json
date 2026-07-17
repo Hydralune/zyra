@@ -3,20 +3,14 @@
   "verification_contract_version": "zyra.e02-verification/v3",
   "execution_id": "E02",
   "verifier": "scripts/remediation/verify_m1_r01_e02.ts",
-  "generated_at_utc": "2026-07-17T09:14:44.995Z",
+  "generated_at_utc": "2026-07-17T09:22:04.592Z",
   "ok": true,
   "checks": {
     "baseline": {
       "verified_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
-      "candidate": "77e33da8dd8a2f4015d000544537eb87365fc627",
+      "candidate": "f7ef18c080533e81ea4e6b412007424696fa7423",
       "dirty_paths": [
-        "ocs/reviews/evidence/M1-R01-v3/execution-02/cleanroom-result.json",
-        "docs/reviews/evidence/M1-R01-v3/execution-02/mutation-results.json",
-        "docs/reviews/evidence/M1-R01-v3/execution-02/disable-result.json",
-        "docs/reviews/evidence/M1-R01-v3/execution-02/lost-ack-result.json",
-        "docs/reviews/evidence/M1-R01-v3/execution-02/runtime-origin-result.json",
-        "docs/reviews/evidence/M1-R01-v3/execution-02/same-session-resume-result.json",
-        "docs/reviews/evidence/M1-R01-v3/execution-02/write-path-result.json"
+        "docs/reviews/evidence/M1-R01-v3/execution-02/cleanroom-result.json"
       ],
       "frozen_manifest_hashes": "verified"
     },
