@@ -1246,6 +1246,9 @@ function main(): void {
     .split(/\r?\n/)
     .filter(Boolean)
     .map((line) => line.slice(3).replaceAll("\\", "/"));
+  const nonEvidenceDirtyPaths = dirtyPaths.filter(
+    (path) => !path.startsWith("docs/reviews/evidence/M1-R01-v3/execution-02/"),
+  );
   const files = [sourcePath, pythonPath, targetPath, mutationPath, profilePath];
   const receipt = {
     schema_version: SCHEMA_VERSION,
@@ -1257,8 +1260,9 @@ function main(): void {
     g0_candidate_tree: gitText(repoRoot, ["rev-parse", `${candidateHead}^{tree}`]),
     captured_at_utc: new Date().toISOString(),
     verified_head_tree: gitText(repoRoot, ["rev-parse", `${VERIFIED_BASELINE}^{tree}`]),
-    clean_worktree: dirtyPaths.length === 0,
-    dirty_paths: dirtyPaths,
+    clean_worktree: nonEvidenceDirtyPaths.length === 0,
+    dirty_paths: nonEvidenceDirtyPaths,
+    preexisting_evidence_dirty_paths: dirtyPaths.filter((path) => !nonEvidenceDirtyPaths.includes(path)),
     source_hash_semantics: "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
     source_snapshots: {
       "claude-code-best": {
