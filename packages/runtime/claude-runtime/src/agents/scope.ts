@@ -1,4 +1,9 @@
-import { asObject, asString, type JsonObject, type RuntimeRunInput } from "../contracts.ts";
+import {
+  asObject,
+  asString,
+  type JsonObject,
+  type RuntimeRunInput,
+} from "../contracts.ts";
 import type { AgentBudget, AgentDefinition, AgentScope } from "./contracts.ts";
 import { normalizeBudget } from "./definitions.ts";
 import { canonicalDigest } from "./memory.ts";
@@ -19,19 +24,27 @@ export function deriveAgentScope(
   argumentsValue: JsonObject,
 ): AgentScope {
   const parentTools = input.tools.map((tool) => tool.name);
-  const requested = tokens(argumentsValue.tools ?? argumentsValue.requested_tools);
+  const requested = tokens(
+    argumentsValue.tools ?? argumentsValue.requested_tools,
+  );
   const declared = definition.tools.length > 0 ? definition.tools : parentTools;
   const candidates = requested.length > 0 ? requested : declared;
   const denied = new Set(definition.deniedTools);
-  const childTools = candidates.filter((tool) => parentTools.includes(tool) && !denied.has(tool));
+  const childTools = candidates.filter(
+    (tool) => parentTools.includes(tool) && !denied.has(tool),
+  );
   const missing = candidates.filter((tool) => !parentTools.includes(tool));
   if (missing.length > 0) {
-    throw new Error("agent tool scope expands parent authority: " + missing.join(","));
+    throw new Error(
+      "agent tool scope expands parent authority: " + missing.join(","),
+    );
   }
   const required = tokens(argumentsValue.required_tools);
   const unavailable = required.filter((tool) => !childTools.includes(tool));
   if (unavailable.length > 0) {
-    throw new Error("required child tools are unavailable: " + unavailable.join(","));
+    throw new Error(
+      "required child tools are unavailable: " + unavailable.join(","),
+    );
   }
   const policy = asObject(input.config.permissionPolicy);
   const parentMode = normalizePermissionMode(
@@ -42,25 +55,49 @@ export function deriveAgentScope(
     argumentsValue.permission_mode ?? definition.permissionMode,
     parentMode,
   );
-  if ((PERMISSION_RANK[requestedMode] ?? 99) > (PERMISSION_RANK[parentMode] ?? 0)) {
+  if (
+    (PERMISSION_RANK[requestedMode] ?? 99) > (PERMISSION_RANK[parentMode] ?? 0)
+  ) {
     throw new Error("agent permission mode expands parent authority");
   }
   const metadata = asObject(input.metadata);
   const constraints = asObject(input.config.runtimeConstraints);
-  const depth = Number(metadata.agent_depth ?? constraints.agentDepth ?? constraints.agent_depth ?? 0) + 1;
-  const lineage = tokens(metadata.agent_lineage ?? constraints.agentLineage ?? constraints.agent_lineage);
-  const cycleKey = canonicalDigest([definition.digest, canonicalDigest(asString(argumentsValue.prompt))]);
+  const depth =
+    Number(
+      metadata.agent_depth ??
+        constraints.agentDepth ??
+        constraints.agent_depth ??
+        0,
+    ) + 1;
+  const lineage = tokens(
+    metadata.agent_lineage ??
+      constraints.agentLineage ??
+      constraints.agent_lineage,
+  );
+  const cycleKey = canonicalDigest([
+    definition.digest,
+    canonicalDigest(asString(argumentsValue.prompt)),
+  ]);
   if (lineage.includes(cycleKey)) {
     throw new Error("agent cycle detected");
   }
-  const parentBudget = normalizeBudget(asObject(constraints.agentBudget ?? constraints.agent_budget));
+  const parentBudget = normalizeBudget(
+    asObject(constraints.agentBudget ?? constraints.agent_budget),
+  );
   const requestedBudget = normalizeBudget(asObject(argumentsValue.budget));
-  const budget = narrowBudget(narrowBudget(parentBudget, definition.budget), requestedBudget);
+  const budget = narrowBudget(
+    narrowBudget(parentBudget, definition.budget),
+    requestedBudget,
+  );
   if (depth > budget.maxDepth) {
     throw new Error("agent depth exceeds inherited budget");
   }
   const toolCatalogDigest = canonicalDigest(
-    input.tools.map((tool) => [tool.name, tool.execution_provenance ?? {}, tool.input_schema]),
+    input.tools.map((tool) => [
+      tool.name,
+      tool.execution_provenance ?? {},
+      tool.input_schema,
+    ]),
   );
   const permissionCeilingDigest = canonicalDigest({
     mode: parentMode,
@@ -94,7 +131,10 @@ export function deriveAgentScope(
   };
 }
 
-export function narrowBudget(parent: AgentBudget, child: AgentBudget): AgentBudget {
+export function narrowBudget(
+  parent: AgentBudget,
+  child: AgentBudget,
+): AgentBudget {
   return {
     maxTurns: Math.min(parent.maxTurns, child.maxTurns),
     maxToolCalls: Math.min(parent.maxToolCalls, child.maxToolCalls),

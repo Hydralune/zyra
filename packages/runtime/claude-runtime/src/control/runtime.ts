@@ -1,4 +1,9 @@
-import { asObject, asString, type JsonObject, type JsonValue } from "../contracts.ts";
+import {
+  asObject,
+  asString,
+  type JsonObject,
+  type JsonValue,
+} from "../contracts.ts";
 import type { ControlReceipt, ControlRuntimeState } from "./contracts.ts";
 import { canonicalDigest } from "../agents/memory.ts";
 
@@ -25,7 +30,9 @@ export class TypeScriptControlRuntime {
       modelName: asString(snapshot.model_name, modelName),
       receipts: [],
     };
-    for (const raw of Array.isArray(snapshot.receipts) ? snapshot.receipts : []) {
+    for (const raw of Array.isArray(snapshot.receipts)
+      ? snapshot.receipts
+      : []) {
       const value = asObject(raw);
       const receipt: ControlReceipt = {
         requestId: asString(value.request_id),
@@ -49,8 +56,9 @@ export class TypeScriptControlRuntime {
     const command = asObject(raw);
     const name = asString(command.name).trim().replace(/^\//, "");
     const action = asString(command.action, inferAction(name, command));
-    const requestId = asString(command.request_id)
-      || "control_" + canonicalDigest([name, action, command]).slice(7, 31);
+    const requestId =
+      asString(command.request_id) ||
+      "control_" + canonicalDigest([name, action, command]).slice(7, 31);
     const replay = this.idempotency.get(requestId);
     if (replay) {
       return replay;
@@ -79,7 +87,19 @@ export class TypeScriptControlRuntime {
       command_name: name,
       action,
     };
-    if (["context", "tools", "doctor", "permissions", "mcp", "skills", "agents", "task", "session"].includes(name)) {
+    if (
+      [
+        "context",
+        "tools",
+        "doctor",
+        "permissions",
+        "mcp",
+        "skills",
+        "agents",
+        "task",
+        "session",
+      ].includes(name)
+    ) {
       effect.read_only = true;
     } else if (name === "resume") {
       changed = true;
@@ -98,7 +118,9 @@ export class TypeScriptControlRuntime {
       effect.clear_requested = true;
       effect.context_epoch = this.state.contextEpoch;
     } else if (name === "model") {
-      const model = asString(command.model ?? asObject(command.arguments).model).trim();
+      const model = asString(
+        command.model ?? asObject(command.arguments).model,
+      ).trim();
       if (!model) {
         status = "rejected";
         error = "model_control_requires_model";
@@ -190,12 +212,17 @@ function inferAction(name: string, command: JsonObject): string {
   if (["compact", "clear", "cancel", "resume"].includes(name)) {
     return name;
   }
-  if (name === "model" && (command.model || asObject(command.arguments).model)) {
+  if (
+    name === "model" &&
+    (command.model || asObject(command.arguments).model)
+  ) {
     return "set";
   }
   return "inspect";
 }
 
 function integer(value: unknown): number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : 0;
 }

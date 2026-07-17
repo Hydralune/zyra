@@ -4,7 +4,9 @@ import type { JsonObject, JsonValue } from "../contracts.ts";
 import type { AgentContextSnapshot } from "./contracts.ts";
 
 export function canonicalDigest(value: JsonValue | unknown): string {
-  return "sha256:" + createHash("sha256").update(canonicalJson(value)).digest("hex");
+  return (
+    "sha256:" + createHash("sha256").update(canonicalJson(value)).digest("hex")
+  );
 }
 
 export function canonicalJson(value: unknown): string {
@@ -15,9 +17,14 @@ export function canonicalJson(value: unknown): string {
     return "[" + value.map((item) => canonicalJson(item)).join(",") + "]";
   }
   const record = value as Record<string, unknown>;
-  return "{" + Object.keys(record).sort().map(
-    (key) => JSON.stringify(key) + ":" + canonicalJson(record[key]),
-  ).join(",") + "}";
+  return (
+    "{" +
+    Object.keys(record)
+      .sort()
+      .map((key) => JSON.stringify(key) + ":" + canonicalJson(record[key]))
+      .join(",") +
+    "}"
+  );
 }
 
 export function createContextSnapshot(input: {

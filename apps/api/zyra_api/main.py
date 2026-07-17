@@ -2952,7 +2952,34 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             reason = str(payload.get("reason") or "Cancelled by control API.")
             events = cancel_task_graph(state, reason=reason)
-            cancelled_subagents = get_typescript_agent_port().cancel_for_parent(state.task_id, reason=reason)
+            agent_port = get_typescript_agent_port()
+            cancelled_subagents = []
+            subagent_cancel_errors: list[dict[str, str]] = []
+            for child in agent_port.records(parent_task_id=state.task_id):
+                if child.status.terminal:
+                    continue
+                cancel_request_id = new_id("parent-agent-cancel")
+                cancel_run = _run_typescript_agent_request(
+                    state,
+                    tool_name="agent_cancel",
+                    arguments={
+                        "task_id": child.task_id,
+                        "expected_revision": child.revision,
+                        "reason": reason,
+                        "idempotency_key": f"parent-cancel:{state.task_id}:{child.task_id}:{child.revision}",
+                    },
+                    request_id=cancel_request_id,
+                    session_id=child.parent_session_id,
+                    session_custody_token=extract_bearer_token(self.headers, payload),
+                )
+                events.extend(cancel_run.event_records)
+                if cancel_run.worker_result.ok:
+                    cancelled_subagents.append(agent_port.get_task(child.task_id))
+                else:
+                    subagent_cancel_errors.append({
+                        "task_id": child.task_id,
+                        "error": str(cancel_run.worker_result.error or "typescript_agent_cancel_rejected"),
+                    })
             persist_events(store, events)
             store.save_checkpoint(state)
             self._send_json(
@@ -2961,6 +2988,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "task": to_jsonable(state),
                     "events": [to_jsonable(event) for event in events],
                     "cancelled_subagents": [item.safe_dict() for item in cancelled_subagents],
+                    "subagent_cancel_errors": subagent_cancel_errors,
+                    "canonical_agent_owner": "typescript",
                 },
             )
             return

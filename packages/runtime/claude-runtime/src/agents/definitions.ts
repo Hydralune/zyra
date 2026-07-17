@@ -65,8 +65,9 @@ export class AgentDefinitionRegistry {
 
   static fromInput(input: RuntimeRunInput): AgentDefinitionRegistry {
     const constraints = asObject(input.config.runtimeConstraints);
-    const configured = constraints.typescriptAgentDefinitions
-      ?? constraints.typescript_agent_definitions;
+    const configured =
+      constraints.typescriptAgentDefinitions ??
+      constraints.typescript_agent_definitions;
     const values: JsonObject[] = [];
     if (Array.isArray(configured)) {
       values.push(...configured.map((item) => asObject(item)));
@@ -76,7 +77,9 @@ export class AgentDefinitionRegistry {
         values.push({ name, ...asObject(raw) });
       }
     }
-    return new AgentDefinitionRegistry(values.length > 0 ? values : DEFAULT_DEFINITIONS);
+    return new AgentDefinitionRegistry(
+      values.length > 0 ? values : DEFAULT_DEFINITIONS,
+    );
   }
 
   get(name: string): AgentDefinition {
@@ -88,7 +91,9 @@ export class AgentDefinitionRegistry {
   }
 
   list(): AgentDefinition[] {
-    return [...this.definitions.values()].sort((left, right) => left.name.localeCompare(right.name));
+    return [...this.definitions.values()].sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
   }
 
   snapshot(): JsonObject {
@@ -131,7 +136,9 @@ function normalizeDefinition(raw: JsonObject): AgentDefinition {
     throw new Error("agent allow/deny overlap: " + overlap.join(","));
   }
   const isolation = asString(raw.isolation, "workspace");
-  if (!["none", "workspace", "worktree", "sandbox", "remote"].includes(isolation)) {
+  if (
+    !["none", "workspace", "worktree", "sandbox", "remote"].includes(isolation)
+  ) {
     throw new Error("invalid agent isolation kind: " + isolation);
   }
   const budget = normalizeBudget(asObject(raw.budget));
@@ -141,7 +148,10 @@ function normalizeDefinition(raw: JsonObject): AgentDefinition {
     version: asString(raw.version, "1"),
     tools,
     denied_tools: deniedTools,
-    permission_mode: asString(raw.permission_mode ?? raw.permissionMode, "inherit"),
+    permission_mode: asString(
+      raw.permission_mode ?? raw.permissionMode,
+      "inherit",
+    ),
     mcp_servers: tokens(raw.mcp_servers ?? raw.mcpServers),
     skills: tokens(raw.skills),
     model: asString(raw.model, "inherit"),
@@ -174,14 +184,38 @@ function normalizeDefinition(raw: JsonObject): AgentDefinition {
 
 export function normalizeBudget(raw: JsonObject): AgentBudget {
   return {
-    maxTurns: positiveInteger(raw.maxTurns ?? raw.max_turns, DEFAULT_AGENT_BUDGET.maxTurns),
-    maxToolCalls: positiveInteger(raw.maxToolCalls ?? raw.max_tool_calls, DEFAULT_AGENT_BUDGET.maxToolCalls),
-    maxInputTokens: positiveInteger(raw.maxInputTokens ?? raw.max_input_tokens, DEFAULT_AGENT_BUDGET.maxInputTokens),
-    maxOutputTokens: positiveInteger(raw.maxOutputTokens ?? raw.max_output_tokens, DEFAULT_AGENT_BUDGET.maxOutputTokens),
-    maxResultChars: positiveInteger(raw.maxResultChars ?? raw.max_result_chars, DEFAULT_AGENT_BUDGET.maxResultChars),
-    maxWallTimeMs: positiveInteger(raw.maxWallTimeMs ?? raw.max_wall_time_ms, DEFAULT_AGENT_BUDGET.maxWallTimeMs),
-    maxChildren: positiveInteger(raw.maxChildren ?? raw.max_children, DEFAULT_AGENT_BUDGET.maxChildren),
-    maxDepth: positiveInteger(raw.maxDepth ?? raw.max_depth, DEFAULT_AGENT_BUDGET.maxDepth),
+    maxTurns: positiveInteger(
+      raw.maxTurns ?? raw.max_turns,
+      DEFAULT_AGENT_BUDGET.maxTurns,
+    ),
+    maxToolCalls: positiveInteger(
+      raw.maxToolCalls ?? raw.max_tool_calls,
+      DEFAULT_AGENT_BUDGET.maxToolCalls,
+    ),
+    maxInputTokens: positiveInteger(
+      raw.maxInputTokens ?? raw.max_input_tokens,
+      DEFAULT_AGENT_BUDGET.maxInputTokens,
+    ),
+    maxOutputTokens: positiveInteger(
+      raw.maxOutputTokens ?? raw.max_output_tokens,
+      DEFAULT_AGENT_BUDGET.maxOutputTokens,
+    ),
+    maxResultChars: positiveInteger(
+      raw.maxResultChars ?? raw.max_result_chars,
+      DEFAULT_AGENT_BUDGET.maxResultChars,
+    ),
+    maxWallTimeMs: positiveInteger(
+      raw.maxWallTimeMs ?? raw.max_wall_time_ms,
+      DEFAULT_AGENT_BUDGET.maxWallTimeMs,
+    ),
+    maxChildren: positiveInteger(
+      raw.maxChildren ?? raw.max_children,
+      DEFAULT_AGENT_BUDGET.maxChildren,
+    ),
+    maxDepth: positiveInteger(
+      raw.maxDepth ?? raw.max_depth,
+      DEFAULT_AGENT_BUDGET.maxDepth,
+    ),
   };
 }
 

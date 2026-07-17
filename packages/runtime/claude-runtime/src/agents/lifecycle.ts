@@ -1,4 +1,8 @@
-import type { AgentTask, AgentTaskStatus, AgentToolResult } from "./contracts.ts";
+import type {
+  AgentTask,
+  AgentTaskStatus,
+  AgentToolResult,
+} from "./contracts.ts";
 
 const TRANSITIONS: Record<AgentTaskStatus, AgentTaskStatus[]> = {
   created: ["validating", "cancelled", "failed"],
@@ -21,8 +25,13 @@ export class AgentLifecycle {
     const replayId = this.idempotency.get(task.idempotencyKey);
     if (replayId) {
       const replay = this.require(replayId);
-      if (replay.promptDigest !== task.promptDigest || replay.definition.digest !== task.definition.digest) {
-        throw new Error("agent idempotency key was reused with different input");
+      if (
+        replay.promptDigest !== task.promptDigest ||
+        replay.definition.digest !== task.definition.digest
+      ) {
+        throw new Error(
+          "agent idempotency key was reused with different input",
+        );
       }
       return replay;
     }
@@ -49,7 +58,10 @@ export class AgentLifecycle {
   hydrate(task: AgentTask): AgentTask {
     const existing = this.tasks.get(task.taskId);
     if (existing) {
-      if (existing.idempotencyKey !== task.idempotencyKey || existing.promptDigest !== task.promptDigest) {
+      if (
+        existing.idempotencyKey !== task.idempotencyKey ||
+        existing.promptDigest !== task.promptDigest
+      ) {
         throw new Error("durable agent task identity conflict");
       }
       return existing;
@@ -63,13 +75,19 @@ export class AgentLifecycle {
     return task;
   }
 
-  transition(taskId: string, status: AgentTaskStatus, expectedRevision: number): AgentTask {
+  transition(
+    taskId: string,
+    status: AgentTaskStatus,
+    expectedRevision: number,
+  ): AgentTask {
     const task = this.require(taskId);
     if (task.revision !== expectedRevision) {
       throw new Error("agent revision conflict");
     }
     if (status !== task.status && !TRANSITIONS[task.status].includes(status)) {
-      throw new Error("invalid agent transition " + task.status + " -> " + status);
+      throw new Error(
+        "invalid agent transition " + task.status + " -> " + status,
+      );
     }
     task.status = status;
     task.revision += 1;
@@ -77,7 +95,11 @@ export class AgentLifecycle {
     return task;
   }
 
-  acceptDurable(taskId: string, status: AgentTaskStatus, revision: number): AgentTask {
+  acceptDurable(
+    taskId: string,
+    status: AgentTaskStatus,
+    revision: number,
+  ): AgentTask {
     const task = this.require(taskId);
     if (revision < task.revision) {
       throw new Error("durable agent revision regressed");
@@ -88,7 +110,11 @@ export class AgentLifecycle {
     return task;
   }
 
-  commitResult(taskId: string, result: AgentToolResult, digest: string): AgentTask {
+  commitResult(
+    taskId: string,
+    result: AgentToolResult,
+    digest: string,
+  ): AgentTask {
     const task = this.require(taskId);
     if (task.status === "cancelled") {
       throw new Error("late agent result cannot commit after cancellation");

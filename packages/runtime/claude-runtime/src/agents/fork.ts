@@ -1,4 +1,9 @@
-import { asObject, asString, type JsonObject, type RuntimeRunInput } from "../contracts.ts";
+import {
+  asObject,
+  asString,
+  type JsonObject,
+  type RuntimeRunInput,
+} from "../contracts.ts";
 import type { AgentScope } from "./contracts.ts";
 import { createContextSnapshot } from "./memory.ts";
 
@@ -11,7 +16,7 @@ export function forkAgentContext(
   const parentContext = asObject(argumentsValue.context);
   const modeValue = asString(argumentsValue.context_mode, "isolated");
   const mode = ["isolated", "fork", "resume"].includes(modeValue)
-    ? modeValue as "isolated" | "fork" | "resume"
+    ? (modeValue as "isolated" | "fork" | "resume")
     : "isolated";
   return createContextSnapshot({
     snapshotId: "agentctx_" + taskId,
@@ -27,12 +32,17 @@ export function forkAgentContext(
     metadata: {
       parent_context_digest: asString(parentContext.digest),
       compact_boundary_id: asString(parentContext.compact_boundary_id),
-      context_epoch: typeof parentContext.context_epoch === "number" ? parentContext.context_epoch : 0,
+      context_epoch:
+        typeof parentContext.context_epoch === "number"
+          ? parentContext.context_epoch
+          : 0,
       fork_owner: "typescript-agent-runtime",
     },
   });
 }
 
 function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+  return Array.isArray(value)
+    ? value.map((item) => String(item)).filter(Boolean)
+    : [];
 }

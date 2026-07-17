@@ -1,4 +1,10 @@
-import { asObject, asString, type JsonObject, type RuntimeRunInput, type RuntimeRunResult } from "../contracts.ts";
+import {
+  asObject,
+  asString,
+  type JsonObject,
+  type RuntimeRunInput,
+  type RuntimeRunResult,
+} from "../contracts.ts";
 import type { AgentExecutionContext, AgentTask } from "./contracts.ts";
 
 export function childRunInput(
@@ -9,12 +15,19 @@ export function childRunInput(
   const turns = Array.isArray(argumentsValue.turns) ? argumentsValue.turns : [];
   const messages = Array.isArray(argumentsValue.messages)
     ? argumentsValue.messages.map((item) => asObject(item))
-    : [{
-      role: "user",
-      content: asString(argumentsValue.prompt),
-      metadata: { agent_task_id: task.taskId, parent_task_id: task.parentTaskId },
-    }];
-  const childTools = parent.tools.filter((tool) => task.scope.childTools.includes(tool.name));
+    : [
+        {
+          role: "user",
+          content: asString(argumentsValue.prompt),
+          metadata: {
+            agent_task_id: task.taskId,
+            parent_task_id: task.parentTaskId,
+          },
+        },
+      ];
+  const childTools = parent.tools.filter((tool) =>
+    task.scope.childTools.includes(tool.name),
+  );
   return {
     runId: parent.runId,
     taskId: task.taskId,
@@ -28,9 +41,10 @@ export function childRunInput(
       ...parent.config,
       maxTurns: task.scope.budget.maxTurns,
       maxToolResultChars: task.scope.budget.maxResultChars,
-      modelName: task.definition.model === "inherit"
-        ? asString(parent.config.modelName, "zyra-local-code-model")
-        : task.definition.model,
+      modelName:
+        task.definition.model === "inherit"
+          ? asString(parent.config.modelName, "zyra-local-code-model")
+          : task.definition.model,
       runtimeConstraints: {
         ...asObject(parent.config.runtimeConstraints),
         agentDepth: task.scope.depth,
@@ -73,7 +87,9 @@ export async function runAgent(
   argumentsValue: JsonObject,
   context: AgentExecutionContext,
 ): Promise<RuntimeRunResult> {
-  return context.runChild(childRunInput(task, context.parentInput, argumentsValue));
+  return context.runChild(
+    childRunInput(task, context.parentInput, argumentsValue),
+  );
 }
 
 function budgetPayload(value: AgentTask["scope"]["budget"]): JsonObject {

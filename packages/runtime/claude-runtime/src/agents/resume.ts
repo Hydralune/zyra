@@ -7,7 +7,10 @@ export function resumeArguments(task: AgentTask, raw: JsonObject): JsonObject {
   if (!correlation) {
     throw new Error("agent resume requires resume_correlation_id");
   }
-  if (restored.agent_task_id && asString(restored.agent_task_id) !== task.taskId) {
+  if (
+    restored.agent_task_id &&
+    asString(restored.agent_task_id) !== task.taskId
+  ) {
     throw new Error("agent resume state belongs to another task");
   }
   return {
