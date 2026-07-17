@@ -15,8 +15,8 @@
   "strict_gate_path": "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/strict-gate.json",
   "strict_gate_sha256": "981766a7e7172ec9765107fb353b982458acdd5476f14a55fc2ff14af32dc449",
   "independent_review_receipt_path": "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/reviewer-evidence.json",
-  "independent_review_receipt_sha256": "1598b7e194387422f925a0b6eeeedb372b1ee1e8c5bf50ab588cb3a877746f05",
+  "independent_review_receipt_sha256": "dbbe4014f20b3e0f3bb046e78117198d1d506cba79cf5e3824aea1449247bff2",
   "independent_review_report_path": "docs/reviews/M1-R01-v14-execution-01-independent-review.md",
-  "independent_review_report_sha256": "af9d42afc0124b55ebb4171d0dcb977869bca17953f5eb44cd77c5b2572dfc6d",
+  "independent_review_report_sha256": "75bc305d4c19bd0b187b54c475a52c9ddf53d335b43a3a5680119fd978e060f4",
   "scope_note": "E02 records its immutable E01 prerequisite without rewriting protected E01 evidence."
 }

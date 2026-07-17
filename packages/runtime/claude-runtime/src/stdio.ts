@@ -63,8 +63,8 @@ function evidenceDigest(root: string, path: unknown, expected: unknown): boolean
   const relativePath = relative(rootPath, targetPath);
   if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) return false;
   try {
-    const value = readFileSync(targetPath);
-    return createHash("sha256").update(value).digest("hex") === expected;
+    const value = readFileSync(targetPath, "utf8").replaceAll("\r\n", "\n");
+    return createHash("sha256").update(value, "utf8").digest("hex") === expected;
   } catch {
     return false;
   }
