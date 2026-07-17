@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from zyra_runtime.permission.action_gate import BrowserActionPermissionGate
+from zyra_runtime.permission import BrowserActionPermissionGate
 
 from .cdp_probe import CdpElementProbePort
 from .clipboard_guard import BrowserClipboardGuard, ClipboardPort

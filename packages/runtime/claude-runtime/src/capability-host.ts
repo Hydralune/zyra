@@ -13,10 +13,6 @@ import type {
 } from "./contracts.ts";
 import { asObject, asString } from "./contracts.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
-import {
-  TypeScriptPermissionEvaluator,
-  type PermissionToolContext,
-} from "./permission/index.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
 import {
   ToolExecutionSettlementRuntime,
@@ -27,7 +23,6 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   private readonly delegate: RuntimeHost;
   private readonly input: RuntimeRunInput;
   private readonly capabilities: TypeScriptCapabilityRuntime;
-  private readonly permission: TypeScriptPermissionEvaluator;
   private readonly settlement: ToolExecutionSettlementRuntime;
 
   constructor(
@@ -48,18 +43,6 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     if (Object.keys(restoredSettlement).length > 0) {
       this.settlement.restore(restoredSettlement as unknown as ExecutionSettlementSnapshot, true);
     }
-    const constraints = input.config.runtimeConstraints as JsonObject | undefined;
-    this.permission = new TypeScriptPermissionEvaluator(
-      input.config.permissionPolicy,
-      {
-        sessionId: input.sessionId,
-        workspaceRoot: typeof constraints?.workspaceRoot === "string"
-          ? constraints.workspaceRoot
-          : typeof constraints?.workspace_root === "string"
-            ? constraints.workspace_root
-            : "",
-      },
-    );
   }
 
   emitEvent(event: RuntimeEvent): Promise<void> {
@@ -77,41 +60,65 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     batch: ToolBatch,
     requests: ToolExecutionRequest[],
   ): Promise<ToolExecutionResponse[]> {
-    const enriched = requests.map((request) => {
+    const enriched = [];
+    for (const request of requests) {
       const tool = this.input.tools.find((item) => item.name === request.toolName);
       const identity = inferToolIdentity(
         request.toolName,
         tool,
       );
-      const context: PermissionToolContext = {
-        runId: this.input.runId,
-        taskId: this.input.taskId,
-        sessionId: this.input.sessionId,
+      const local = this.capabilities.owns(request.toolName);
+      const permissionRuntime = this.capabilities.e02.runtime;
+      const authorization = await this.capabilities.authorize({
+        runId: permissionRuntime.runId,
+        taskId: permissionRuntime.taskId,
+        sessionId: permissionRuntime.sessionId,
+        sessionRevision: 0,
+        workerRequestId: permissionRuntime.workerRequestId,
         toolCallId: request.toolCallId,
         toolName: request.toolName,
         namespace: identity.namespace,
         serverId: identity.serverId,
-        version: identity.version,
-        schemaDigest: identity.schemaDigest,
         operation: inferOperation(request.toolName, tool),
+        workspaceRoot: workspaceRoot(this.input),
         arguments: request.arguments,
-        metadata: request.metadata,
-      };
-      const local = this.capabilities.owns(request.toolName);
-      return {
+        issueExecutionPermit: local,
+        metadata: {
+          ...request.metadata,
+          version: identity.version,
+          schema_digest: identity.schemaDigest,
+          worker_request_id: this.input.workerRequestId,
+          session_revision: sessionRevision(this.input),
+          delegated_run_id: this.input.runId,
+          delegated_task_id: this.input.taskId,
+          delegated_session_id: this.input.sessionId,
+          delegated_worker_request_id: this.input.workerRequestId,
+          authority_inheritance: this.input.sessionId === permissionRuntime.sessionId
+            ? "direct"
+            : "parent-e02-permission-ceiling",
+        },
+      });
+      enriched.push({
         ...request,
-        permissionDecision: this.permission.evaluate(context),
+        arguments: authorization.finalArguments,
+        permissionDecision: authorization.enforcement.decision as unknown as JsonObject,
         executionOwner: local ? this.capabilities.owner(request.toolName) : "python-tool-executor",
         permissionOnly: local,
+        e02PermitId: authorization.permitId,
+        e02SessionRevision: 0,
         metadata: {
           ...request.metadata,
           canonical_permission_owner: "typescript",
           canonical_capability_owner: local
             ? this.capabilities.owner(request.toolName)
             : "python-tool-executor",
+          e02_permit_id: authorization.permitId ?? "",
+          e02_permission_decision_id: authorization.enforcement.decision.decisionId,
+          e02_final_arguments_digest: authorization.enforcement.decision.finalArgumentsDigest,
+          e02_replan_required: String(authorization.enforcement.replanRequired),
         },
-      };
-    });
+      });
+    }
     this.settlement.planBatch({
       batchId: batch.batchId,
       executionMode: batch.executionMode,
@@ -188,6 +195,15 @@ export class PermissionedCapabilityHost implements RuntimeHost {
               childInput,
               new PermissionedCapabilityHost(this.delegate, childInput, this.capabilities),
             ),
+          },
+          {
+            toolCallId: request.toolCallId,
+            permitId: request.e02PermitId,
+            sessionRevision: request.e02SessionRevision,
+            namespace: inferToolIdentity(request.toolName, this.input.tools.find((item) => item.name === request.toolName)).namespace,
+            serverId: inferToolIdentity(request.toolName, this.input.tools.find((item) => item.name === request.toolName)).serverId,
+            operation: inferOperation(request.toolName, this.input.tools.find((item) => item.name === request.toolName)),
+            metadata: request.metadata,
           },
         );
         settlementAttempted = true;
@@ -286,10 +302,11 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   }
 
   snapshot(): JsonObject {
+    const capabilities = this.capabilities.snapshot();
     return {
-      permission: this.permission.snapshot(),
+      permission: capabilities.permission as unknown as JsonObject,
       settlement: this.settlement.snapshot() as unknown as JsonObject,
-      capabilities: this.capabilities.snapshot(),
+      capabilities: capabilities as unknown as JsonObject,
     };
   }
 }
@@ -310,6 +327,27 @@ function permissionCommitAccepted(response: ToolExecutionResponse): boolean {
   return response.ok
     && response.metadata.permission_effect === "allow"
     && response.metadata.permission_commit_only === "true";
+}
+
+function sessionRevision(input: RuntimeRunInput): number {
+  const metadataRevision = asObject(input.metadata).session_revision;
+  if (typeof metadataRevision === "number" && Number.isSafeInteger(metadataRevision) && metadataRevision >= 0) {
+    return metadataRevision;
+  }
+  const restored = restoredCapabilityState(input.restoredState);
+  const runtime = asObject(asObject(restored.capabilities).runtime);
+  const restoredRevision = runtime.sessionRevision;
+  return typeof restoredRevision === "number" && Number.isSafeInteger(restoredRevision) && restoredRevision >= 0
+    ? restoredRevision
+    : 0;
+}
+
+function workspaceRoot(input: RuntimeRunInput): string {
+  const constraints = asObject(input.config.runtimeConstraints);
+  return asString(constraints.workspace_root)
+    || asString(constraints.workspaceRoot)
+    || asString(asObject(input.metadata).workspace_root)
+    || process.cwd();
 }
 
 function inferToolIdentity(

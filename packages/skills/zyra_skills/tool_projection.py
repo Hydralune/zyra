@@ -28,7 +28,6 @@ from .models import (
     new_id,
     utc_now,
 )
-from .runtime import SkillRuntime
 
 
 class RuntimeToolTypes(Protocol):

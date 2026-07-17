@@ -1,59 +1,9 @@
-from .registry import (
-    COMMAND_RUNTIME_EVENT_ONLY,
-    COMMAND_RUNTIME_STATEFUL,
-    CommandSpec,
-    ParsedSlashCommand,
-    SlashCommandRegistry,
-    default_command_registry,
-    parse_slash_command,
-)
-from .runtime import (
-    CommandOrigin,
-    ControlCommandRegistry,
-    ControlCommandRequest,
-    ControlCommandResponse,
-    ControlRequestStore,
-    ControlResult,
-    PromptQueueRuntime,
-    RuntimeControlContext,
-    RuntimeControlDispatcher,
-    SideQuestionRuntime,
-    SideQuestionContextSnapshot,
-    StructuredControlIO,
-    StructuredEnvelope,
-    StructuredControlHub,
-    ControlFrameStore,
-    CommandRegistryCoordinator,
-    SessionControlRuntime,
-    CanonicalOwnerHandlerSet,
-    default_control_command_registry,
-)
+"""Durable control-plane descriptors retained after E02 command cutover.
 
-__all__ = [
-    "CommandSpec",
-    "COMMAND_RUNTIME_EVENT_ONLY",
-    "COMMAND_RUNTIME_STATEFUL",
-    "ParsedSlashCommand",
-    "SlashCommandRegistry",
-    "default_command_registry",
-    "parse_slash_command",
-    "ControlCommandRegistry",
-    "CommandOrigin",
-    "ControlCommandRequest",
-    "ControlCommandResponse",
-    "ControlRequestStore",
-    "ControlResult",
-    "PromptQueueRuntime",
-    "RuntimeControlContext",
-    "RuntimeControlDispatcher",
-    "SideQuestionRuntime",
-    "SideQuestionContextSnapshot",
-    "StructuredControlIO",
-    "StructuredEnvelope",
-    "StructuredControlHub",
-    "ControlFrameStore",
-    "CommandRegistryCoordinator",
-    "SessionControlRuntime",
-    "CanonicalOwnerHandlerSet",
-    "default_control_command_registry",
-]
+Slash-command parsing and MCP local dispatch are TypeScript-owned.  The Python
+package continues to expose only the protected durable control-plane runtime.
+"""
+
+from .runtime import *
+
+__all__ = [name for name in globals() if not name.startswith("_")]

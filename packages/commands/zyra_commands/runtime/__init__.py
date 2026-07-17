@@ -71,6 +71,8 @@ __all__ = [
     "SideQuestionRuntime",
     "SideQuestionUsage",
     "StructuredControlIO",
+    "StructuredControlHub",
+    "ControlFrameStore",
     "StructuredEnvelope",
     "StructuredMessageType",
     "built_in_control_descriptors",

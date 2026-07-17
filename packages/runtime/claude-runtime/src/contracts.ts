@@ -43,6 +43,8 @@ export interface ToolExecutionRequest {
   permissionDecision?: JsonObject;
   executionOwner?: string;
   permissionOnly?: boolean;
+  e02PermitId?: string | null;
+  e02SessionRevision?: number;
 }
 
 export interface ArtifactReceipt {

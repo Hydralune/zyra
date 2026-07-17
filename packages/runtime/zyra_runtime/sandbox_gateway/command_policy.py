@@ -21,11 +21,6 @@ from .models import (
 )
 from .network_policy import NetworkPolicy, NetworkPolicyResult
 
-try:
-    from zyra_runtime.permission.shell_analysis import ShellCommandAnalyzer
-except ImportError:  # pragma: no cover - package is always co-located in Zyra.
-    ShellCommandAnalyzer = None  # type: ignore[assignment,misc]
-
 _SHELL_CONTROL = re.compile(r"(?:&&|\|\||[|;&<>\x60]|\$\(|\$\{|%\w+%|>\s*\S)")
 _POWERSHELL_CONTROL = re.compile(
     r"(?i)(?:invoke-expression|iex\b|-encodedcommand|-enc\b|start-process|"
@@ -358,7 +353,8 @@ class ShellBoundaryRule:
         return {
             "rule_id": self.rule_id,
             "shells": sorted(self._shells),
-            "uses_permission_shell_analyzer": ShellCommandAnalyzer is not None,
+            "uses_python_permission_shell_analyzer": False,
+            "requires_typescript_permission_receipt": True,
         }
 
     def evaluate(self, envelope: GatewayCommandEnvelope) -> tuple[CommandEvidence, ...]:
@@ -444,59 +440,24 @@ class ShellBoundaryRule:
         command: str,
         name: str,
     ) -> tuple[CommandEvidence, ...]:
-        if ShellCommandAnalyzer is None:
-            return (
-                CommandEvidence(
-                    code="shell.analyzer_unavailable",
-                    effect=CommandEffect.DENY,
-                    reason="authoritative shell evidence analyzer is unavailable",
-                    risk=CommandRisk.CRITICAL,
-                    source=self.rule_id,
-                ),
-            )
+        # Python only supplies immutable gateway evidence.  Shell parsing and
+        # the allow/deny/ask decision were cut over to PermissionCoordinator;
+        # without its bound receipt the gateway remains approval-required.
         dialect = "powershell" if name in {"powershell", "powershell.exe", "pwsh"} else (
             "cmd" if name in {"cmd", "cmd.exe"} else "bash"
         )
-        try:
-            analysis = ShellCommandAnalyzer().analyze(
-                command,
-                dialect=dialect,
-            )
-        except Exception as error:
-            return (
-                CommandEvidence(
-                    code="shell.analysis_failed",
-                    effect=CommandEffect.DENY,
-                    reason=f"shell analysis failed closed: {type(error).__name__}",
-                    risk=CommandRisk.CRITICAL,
-                    source=self.rule_id,
-                ),
-            )
-        effect = (
-            CommandEffect.DENY
-            if analysis.hard_denied
-            else CommandEffect.ASK
-            if analysis.requires_approval
-            else CommandEffect.ALLOW
-        )
         return (
             CommandEvidence(
-                code="shell.permission_analysis",
-                effect=effect,
-                reason="existing ToolPermissionRuntime shell analyzer supplied execution evidence",
-                risk=(
-                    CommandRisk.CRITICAL
-                    if analysis.hard_denied
-                    else CommandRisk.HIGH
-                    if analysis.requires_approval
-                    else CommandRisk.LOW
-                ),
+                code="shell.typescript_permission_required",
+                effect=CommandEffect.ASK,
+                reason="shell execution requires an exact TypeScript permission receipt",
+                risk=CommandRisk.HIGH,
                 source=self.rule_id,
                 metadata={
-                    "evidence_codes": list(analysis.evidence_codes()),
-                    "command_digest": analysis.command_digest,
-                    "dialect": str(analysis.dialect.value),
-                    "safe_read_only": analysis.safe_read_only,
+                    "command_digest": digest({"command": command, "dialect": dialect}),
+                    "dialect": dialect,
+                    "canonical_permission_owner": "typescript.PermissionCoordinator",
+                    "python_decision_fallback": False,
                 },
             ),
         )
@@ -666,7 +627,7 @@ class PackageManagerRule:
 
 
 class StructuredCommandPolicy:
-    """Evidence aggregator. ToolPermissionRuntime remains the final authority."""
+    """Gateway evidence aggregator; TypeScript remains permission authority."""
 
     def __init__(
         self,
@@ -693,7 +654,7 @@ class StructuredCommandPolicy:
     def descriptor(self) -> dict[str, Any]:
         return {
             "policy_id": "zyra.structured-command-policy.v1",
-            "final_authority": "ToolPermissionRuntime",
+            "final_authority": "typescript.PermissionCoordinator",
             "config": self.config.to_dict(),
             "rules": [dict(item.descriptor()) for item in self.rules],
             "network_policy_digest": self.network_policy.policy_digest,
@@ -770,7 +731,8 @@ class StructuredCommandPolicy:
                 "read_only": read_only,
                 "git": git_result.to_dict(),
                 "network": network_result.to_dict(),
-                "final_authority": "ToolPermissionRuntime",
+                "final_authority": "typescript.PermissionCoordinator",
+                "python_decision_fallback": False,
             },
         )
 

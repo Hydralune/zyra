@@ -13,6 +13,7 @@
   "scripts": {
     "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json",
     "typecheck:e01": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
+    "typecheck:e02": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json",
     "build": "bun run build:bun && bun run build:node",
     "build:bun": "bun build apps/code-worker/src/main.ts --outdir dist/code-worker --target bun",
     "build:node": "bun build apps/code-worker/src/main.ts --outdir dist/code-worker-node --target node",
@@ -32,7 +33,11 @@
     "e01:mutation": "bun scripts/remediation/run_m1_r01_e01_mutations.ts",
     "e01:audit:dependencies": "bun scripts/remediation/probe_m1_r01_e01.ts dependencies",
     "e01:toolchain": "bun scripts/remediation/probe_m1_r01_e01.ts toolchain",
-    "e01:cleanroom": "bun scripts/remediation/probe_m1_r01_e01.ts cleanroom"
+    "e01:cleanroom": "bun scripts/remediation/probe_m1_r01_e01.ts cleanroom",
+    "e02:gate": "bun scripts/remediation/verify_m1_r01_e02.ts",
+    "e02:candidate:gate": "bun scripts/remediation/verify_m1_r01_e02.ts --output docs/reviews/evidence/M1-R01-v3/execution-02/candidate-gate-result.json",
+    "e02:mutation": "bun scripts/remediation/run_m1_r01_e02_mutations.ts",
+    "e02:cleanroom": "bun scripts/remediation/cleanroom_m1_r01_e02.ts"
   },
   "devDependencies": {
     "@types/bun": "1.2.15",

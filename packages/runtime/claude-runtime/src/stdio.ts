@@ -324,7 +324,14 @@ export async function runStdioRuntime(): Promise<void> {
   });
   try {
     const input = normalizeRunInput(start.payload, start.run_id);
-    capabilities = await TypeScriptCapabilityRuntime.open(input);
+    capabilities = await TypeScriptCapabilityRuntime.open(input, {
+      emitEvent: (event) => host.emitEvent(event),
+      checkpoint: (snapshot) => host.checkpointState({
+        checkpointPhase: "e02_coordinator",
+        checkpointEventSequence: snapshot.events.sequence,
+        e02: snapshot as unknown as JsonObject,
+      }),
+    });
     const activeCapabilities = capabilities;
     const runtimeInput: RuntimeRunInput = {
       ...input,
@@ -352,9 +359,14 @@ export async function runStdioRuntime(): Promise<void> {
           canonical_permission_owner: "typescript",
           canonical_mcp_owner: "typescript",
           canonical_skill_owner: "typescript",
+          canonical_plugin_owner: "typescript",
+          canonical_command_owner: "typescript",
           canonical_agent_owner: "typescript",
           canonical_control_owner: "typescript",
+          default_capability_entrypoint: "E02CapabilityCoordinator.execute",
+          typescript_state_journal_owner: "E02CapabilityCoordinator",
           python_policy_fallback: "false",
+          python_capability_decision_fallback: "false",
           python_agent_fallback: "false",
         },
       } as unknown as JsonObject,
@@ -390,6 +402,8 @@ export function runtimeContract(
     requiresRootSourceRepo: false,
     requiresVendorRuntime: false,
     requiresLegacyInspectionSidecar: false,
+    defaultCapabilityEntrypoint: "E02CapabilityCoordinator.execute",
+    stateJournalOwner: "E02CapabilityCoordinator",
   };
   if (surface === "health") {
     return {
@@ -419,6 +433,11 @@ export function runtimeContract(
           sessionLifecycle: true,
           contextCompact: true,
           protocol: true,
+          permission: true,
+          mcp: true,
+          skills: true,
+          plugins: true,
+          commands: true,
         },
         referenceCrosswalk: { ok: true },
       },
@@ -430,12 +449,21 @@ export function runtimeContract(
         { name: "jsonl-protocol", path: "src/protocol.ts" },
         { name: "agent-tool-runtime", path: "src/agents/agent-tool.ts" },
         { name: "control-runtime", path: "src/control/runtime.ts" },
+        { name: "e02-coordinator", path: "src/e02/coordinator.ts" },
+        { name: "permission-runtime", path: "src/permission/coordinator.ts" },
+        { name: "mcp-runtime", path: "packages/integrations/claude-mcp/src/core/coordinator.ts" },
+        { name: "skill-runtime", path: "src/skills/coordinator.ts" },
+        { name: "plugin-runtime", path: "src/plugins/coordinator.ts" },
+        { name: "command-runtime", path: "src/commands/coordinator.ts" },
       ],
       toolRuntime: {
         baseToolSymbols: ["file_read", "file_write", "file_edit", "shell"],
       },
       commandRuntime: { commandCount: 12, canonicalOwner: "typescript" },
-      moduleEntrypoints: { queryEngine: "ClaudeRuntimeCore" },
+      moduleEntrypoints: {
+        queryEngine: "ClaudeRuntimeCore",
+        capabilityRuntime: "E02CapabilityCoordinator.execute",
+      },
     };
   }
   if (surface === "query") {
@@ -490,6 +518,8 @@ export function runtimeContract(
         durableReceiptOwner: "python-tool-gateway",
         tracksPermissionDenials: true,
         pythonPolicyFallback: false,
+        coordinator: "E02CapabilityCoordinator",
+        restoreBeforeBootstrap: true,
       },
     };
   }
@@ -514,6 +544,10 @@ export function runtimeContract(
     skillRuntimeOwner: "typescript",
     agentRuntimeOwner: "typescript",
     controlRuntimeOwner: "typescript",
+    pluginRuntimeOwner: "typescript",
+    commandRuntimeOwner: "typescript",
+    defaultCapabilityEntrypoint: "E02CapabilityCoordinator.execute",
+    pythonCapabilityDecisionFallback: false,
   };
 }
 

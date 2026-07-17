@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from zyra_core import EventRecord
-from zyra_runtime.permission.action_gate import (
+from zyra_runtime.permission import (
     BrowserActionPermissionConsumption,
     BrowserActionPermissionDecision,
     BrowserActionPermissionGate,

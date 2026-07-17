@@ -37,6 +37,7 @@ from zyra_core import (
     AgentRole,
     ArtifactKind,
     ArtifactRef,
+    ControlCommand,
     EventRecord,
     EventType,
     MessageIntent,
@@ -79,9 +80,7 @@ from zyra_commands import (
     StructuredControlHub,
     ControlFrameStore,
     StructuredEnvelope,
-    default_command_registry,
     default_control_command_registry,
-    parse_slash_command,
 )
 from zyra_commands.runtime import (
     CallbackSessionOwner,
@@ -135,46 +134,27 @@ def get_runtime_event_api() -> RuntimeEventApiFacade:
 
 
 from zyra_runtime import (
-    ContextAssemblyRuntime,
     ContextSessionRuntime,
-    CodeWorkerTaskApiContractRuntime,
-    CodeWorkerTaskApiProjectionRuntime,
-    CodeWorkerSessionFoundationRuntime,
-    CodeWorkerSessionReplayRuntime,
-    CodeWorkerSessionStore,
     JsonPermissionStore,
     LocalArtifactStore,
     PermissionEffect,
-    QueryInputProcessor,
-    QuerySessionIntegrationRuntime,
-    SessionAcceptanceRuntime,
-    SessionApiProjectionBuilder,
-    SessionFoundationAuditor,
-    SessionLifecycleRuntime,
-    SessionLineageRuntime,
     ToolCall,
     ToolExecutionContext,
-    ToolExecutionRuntime,
     ToolLoopScheduler,
-    ToolPermissionRuntime,
-    ToolRegistryRuntime,
-    ToolResultBudgetRuntime,
-    ToolUseContext,
-    TaskApiRouteKind,
     WorkerRequest,
-    assemble_claude_runtime_context,
-    build_api_inventory_contract_report,
-    build_claude_productization_integration_report,
-    build_claude_source_graph_audit,
-    build_productized_claude_runtime_contracts,
-    compact_state_projection_from_metadata,
     control_event_from_command,
     default_tool_registry,
     default_worker_descriptors,
-    foundation_audit_event,
     tool_result_event,
-    TurnLifecycleRuntime,
 )
+from zyra_runtime.claude_session_api_projection import SessionApiProjectionBuilder
+from zyra_runtime.claude_session_lifecycle_state import SessionLifecycleRuntime
+from zyra_runtime.claude_session_lineage_runtime import SessionLineageRuntime
+from zyra_runtime.codeworker_task_api_contract import (
+    CodeWorkerTaskApiContractRuntime,
+    TaskApiRouteKind,
+)
+from zyra_runtime.codeworker_task_api_projection import CodeWorkerTaskApiProjectionRuntime
 from zyra_runtime.permission.canonical import arguments_digest, build_tool_identity
 from zyra_runtime.permission.api import (
     PermissionApiAuthenticationError,
@@ -202,29 +182,6 @@ from zyra_runtime.permission.models import (
     PermissionRuleSource,
     PermissionScope,
     PermissionScopeKind,
-)
-from zyra_skills import (
-    SkillCommandSafetyClassifier,
-    SkillInvocationRequest,
-    SkillInvocationMode,
-    SkillIntegrationHealthProbe,
-    SkillOutcomeCommitRequest,
-    SkillOutcomeCommitRuntime,
-    InMemorySkillOutcomeEvidencePort,
-    SkillPermissionDenied,
-    SkillPermissionPending,
-    SkillRuntime,
-    SkillRuntimeConfig,
-    SkillRuntimeHealthProbe,
-    SkillSearchIndex,
-    SkillTaskIntegrationRuntime,
-    SkillUpdateControlRuntime,
-    SkillWorkerDisclosureBatch,
-    ToolPermissionRuntimeSkillGateway,
-    compact_reference_from_dict,
-    default_skill_registry,
-    default_skill_runtime,
-    utc_now,
 )
 from zyra_workers import (
     BrowserRuntimeConfig,
@@ -293,29 +250,15 @@ from zyra_integrations import (
     unit_review_payload,
     validate_entry_for_persistence,
 )
-from zyra_integrations.mcp.control import McpControlContext, McpControlRuntime
-from zyra_integrations.mcp.event_commit import (
-    CallableMcpEventSink,
-    CallableMcpEventStorePort,
-    McpEventCommitter,
-    McpEventStoreCommitResult,
-)
-from zyra_integrations.mcp.runtime import McpClientRuntime
-from zyra_commands.mcp_control import McpCommandAdapter
+from zyra_integrations.e02_ports import TypeScriptE02ApiPort, TypeScriptE02PortError
 
 if __package__:
     from .mcp_api import (
-        McpApiAuthorizationError,
         McpApiFacade,
-        McpMutationAuthorization,
-        McpMutationRequest,
     )
 else:  # pragma: no cover - direct development script entry.
     from mcp_api import (
-        McpApiAuthorizationError,
         McpApiFacade,
-        McpMutationAuthorization,
-        McpMutationRequest,
     )
 
 
@@ -496,8 +439,8 @@ def mcp_state_path() -> Path:
 
 
 _MCP_RUNTIME_LOCK = threading.RLock()
-_MCP_RUNTIME_INSTANCE: McpClientRuntime | None = None
-_MCP_RUNTIME_KEY: tuple[str, str] | None = None
+_MCP_RUNTIME_INSTANCE: TypeScriptE02ApiPort | None = None
+_MCP_RUNTIME_KEY: tuple[str, str, str] | None = None
 
 
 def _commit_mcp_runtime_event(event: EventRecord) -> None:
@@ -570,49 +513,85 @@ def _commit_mcp_runtime_event(event: EventRecord) -> None:
     sink.append(event)
 
 
-def get_mcp_runtime() -> McpClientRuntime:
-    """Return the process-live MCP runtime with durable Zyra state custody."""
+def get_mcp_runtime() -> TypeScriptE02ApiPort:
+    """Return the process-live transport to TypeScript-owned E02 state."""
 
     global _MCP_RUNTIME_INSTANCE, _MCP_RUNTIME_KEY
-    key = (str(mcp_state_path().resolve()), str(artifact_root_path().resolve()))
+    key = (
+        str(mcp_state_path().resolve()),
+        str(artifact_root_path().resolve()),
+        str(tool_workspace_path().resolve()),
+    )
     with _MCP_RUNTIME_LOCK:
         if _MCP_RUNTIME_INSTANCE is None or _MCP_RUNTIME_KEY != key:
             if _MCP_RUNTIME_INSTANCE is not None:
-                _MCP_RUNTIME_INSTANCE.connection_runtime.close_all()
-            _MCP_RUNTIME_INSTANCE = McpClientRuntime.from_paths(
+                _MCP_RUNTIME_INSTANCE.close()
+            _MCP_RUNTIME_INSTANCE = TypeScriptE02ApiPort(
+                project_root=PROJECT_ROOT,
+                workspace_root=key[2],
                 state_path=key[0],
                 artifact_root=key[1],
-                event_sink=_commit_mcp_runtime_event,
+                permission_mode=str(os.environ.get("ZYRA_E02_API_PERMISSION_MODE") or "default"),
+                sealed_autonomous=_truthy(
+                    os.environ.get("ZYRA_E02_API_SEALED_AUTONOMOUS"),
+                    default=False,
+                ),
             )
             _MCP_RUNTIME_KEY = key
         return _MCP_RUNTIME_INSTANCE
 
 
-def reset_mcp_runtime(runtime: McpClientRuntime | None = None) -> None:
-    """Test/development reset without changing the production state owner."""
+def reset_mcp_runtime(runtime: TypeScriptE02ApiPort | None = None) -> None:
+    """Test/development reset of the physical port, never of logical state."""
 
     global _MCP_RUNTIME_INSTANCE, _MCP_RUNTIME_KEY
     with _MCP_RUNTIME_LOCK:
         if _MCP_RUNTIME_INSTANCE is not None and _MCP_RUNTIME_INSTANCE is not runtime:
-            _MCP_RUNTIME_INSTANCE.connection_runtime.close_all()
+            _MCP_RUNTIME_INSTANCE.close()
         _MCP_RUNTIME_INSTANCE = runtime
         _MCP_RUNTIME_KEY = (
-            (str(mcp_state_path().resolve()), str(artifact_root_path().resolve()))
+            (
+                str(mcp_state_path().resolve()),
+                str(artifact_root_path().resolve()),
+                str(tool_workspace_path().resolve()),
+            )
             if runtime is not None
             else None
         )
 
 
-def get_mcp_command_adapter() -> McpCommandAdapter:
-    runtime = get_mcp_runtime()
-    return McpCommandAdapter(
-        runtime.control_runtime,
-        prompt_source=runtime,
-    )
+_E02_READ_COMMANDS = frozenset(
+    {
+        "e02-health",
+        "help",
+        "mcp",
+        "permissions",
+        "plugins",
+        "skills",
+        "tools",
+    }
+)
+_E02_MUTATING_COMMANDS = frozenset({"e02-reload"})
+
+
+def _e02_command_route(text: str) -> tuple[str, str] | None:
+    """Classify only the command names whose parser and dispatch moved to TS."""
+
+    stripped = str(text or "").strip()
+    if not stripped.startswith("/"):
+        return None
+    name = stripped[1:].partition(" ")[0].strip().lower()
+    if name in _E02_READ_COMMANDS:
+        return name, "read"
+    if name in _E02_MUTATING_COMMANDS:
+        return name, "execute"
+    return None
 
 
 def get_runtime_command_registry() -> Any:
-    return get_mcp_command_adapter().registry(default_command_registry())
+    """Retained control registry; E02 commands remain TypeScript projections."""
+
+    return get_control_command_registry()
 
 
 _CONTROL_RUNTIME_LOCK = threading.RLock()
@@ -752,62 +731,41 @@ def _build_command_source_coordinator(registry: Any) -> CommandRegistryCoordinat
     )
 
     def mcp_commands() -> tuple[Any, ...]:
-        return tuple(get_mcp_runtime().prompt_commands())
+        # MCP prompts stay visible through the TypeScript command projection;
+        # they are intentionally not registered as Python-dispatchable commands.
+        return ()
 
     coordinator.register(CallableCommandSourceProvider(
         "mcp-prompts",
         CommandSourceKind.MCP,
         mcp_commands,
-        revision_loader=lambda: str(get_mcp_runtime().diagnostics().get("catalog_generation") or "live"),
+        revision_loader=lambda: str(
+            get_mcp_runtime().snapshot(("mcp",)).get("snapshotHash") or "typescript"
+        ),
     ))
 
     def skill_commands() -> tuple[dict[str, Any], ...]:
-        runtime = default_skill_runtime()
-        runtime.reload_if_changed()
-        values = []
-        for skill in runtime.list():
-            if not bool(getattr(skill, "user_invocable", False)):
-                continue
-            values.append({
-                "name": f"/skill:{skill.qualified_name}",
-                "description": skill.description or f"Invoke skill {skill.qualified_name}.",
-                "handler_id": "skill.command",
-                "metadata": {
-                    "skill_ref": skill.qualified_name,
-                    "content_digest": skill.content_digest,
-                },
-            })
-        return tuple(values)
+        return ()
 
     coordinator.register(CallableCommandSourceProvider(
         "skill-registry",
         CommandSourceKind.SKILL,
         skill_commands,
-        revision_loader=lambda: str(default_skill_runtime().registry.snapshot().generation),
+        revision_loader=lambda: str(
+            get_mcp_runtime().snapshot(("skills",)).get("snapshotHash") or "typescript"
+        ),
     ))
 
     def plugin_commands() -> tuple[dict[str, Any], ...]:
-        snapshot = default_skill_runtime().plugin_runtime.snapshot()
-        values: list[dict[str, Any]] = []
-        for plugin_id, plugin in sorted(snapshot.plugins.items()):
-            for command in plugin.get("commands") or ():
-                raw = dict(command) if isinstance(command, dict) else {}
-                name = str(raw.get("name") or "").strip().lstrip("/")
-                if not name:
-                    continue
-                values.append({
-                    "name": f"/{plugin_id}:{name}",
-                    "description": str(raw.get("description") or f"Invoke plugin command {name}."),
-                    "handler_id": "skill_plugin.command",
-                    "metadata": {"plugin_id": plugin_id, "plugin_command": name},
-                })
-        return tuple(values)
+        return ()
 
     coordinator.register(CallableCommandSourceProvider(
         "plugin-cache",
         CommandSourceKind.PLUGIN,
         plugin_commands,
-        revision_loader=lambda: str(default_skill_runtime().plugin_runtime.snapshot().generation),
+        revision_loader=lambda: str(
+            get_mcp_runtime().snapshot(("plugins",)).get("snapshotHash") or "typescript"
+        ),
     ))
 
     project_commands = PROJECT_ROOT / ".zyra" / "commands.json"
@@ -966,7 +924,6 @@ def _run_typescript_agent_request(
         artifact_root=artifact_root_path(),
         permission_store=get_permission_store(),
         permission_state_path=permission_state_path(),
-        mcp_runtime=get_mcp_runtime(),
         tool_registry=default_tool_registry(),
         runtime_services={
             "workspace_edit_port": WorkspaceEditPort(
@@ -1072,268 +1029,15 @@ def get_permission_api_facade(*, task_id: str = "", session_id: str = "") -> Per
     )
 
 
-def _install_task_skill_permission_ceiling(
-    *,
-    state: Any,
-    permission_runtime: ToolPermissionRuntime,
-    permission_session_id: str,
-    workspace_root: str | Path,
-) -> tuple[SkillRuntime | None, str]:
-    """Restore task-owned 03C state into the active 03A hook adapter."""
-
-    snapshot = state.metadata.get("skill_runtime_state")
-    if not isinstance(snapshot, dict):
-        return None, ""
-    inner = snapshot.get("state_snapshot") if isinstance(snapshot.get("state_snapshot"), dict) else snapshot
-    if not inner.get("states"):
-        return None, ""
-    runtime = SkillRuntime(
-        SkillRuntimeConfig.for_project(
-            PROJECT_ROOT,
-            workspace_root=workspace_root,
-            include_user_skills=False,
-            disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
-        ),
-        state_snapshot=snapshot,
-    )
-    runtime.bootstrap()
-    hook_id = runtime.install_permission_hook(
-        permission_runtime.evaluator.hook_adapter,
-        permission_session_id=permission_session_id,
-    )
-    return runtime, hook_id
-
-
 def _task_skill_worker_messages(
     state: Any,
     *,
     worker_request_id: str = "",
-) -> tuple[list[AgentMessage], SkillWorkerDisclosureBatch | None]:
-    """Materialize exact skill revisions into the next real worker request."""
+) -> tuple[list[AgentMessage], None]:
+    """Skills are assembled inside the TypeScript E02 query context."""
 
-    checkpoint = state.metadata.get("skill_runtime_state")
-    context = state.metadata.get("skill_session_context")
-    if not isinstance(checkpoint, dict) or not isinstance(context, dict):
-        return [], None
-    raw_references = context.get("invoked_skill_refs")
-    if not isinstance(raw_references, list):
-        return [], None
-    runtime = SkillRuntime(
-        SkillRuntimeConfig.for_project(
-            PROJECT_ROOT,
-            workspace_root=tool_workspace_path(),
-            include_user_skills=False,
-            disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
-        ),
-        state_snapshot=checkpoint,
-    )
-    runtime.bootstrap()
-    bridge = SkillTaskIntegrationRuntime()
-    batch = bridge.prepare_disclosures(
-        metadata=state.metadata,
-        runtime=runtime,
-        run_id=state.run_id,
-        task_id=state.task_id,
-        worker_request_id=worker_request_id,
-    )
-    messages: list[AgentMessage] = []
-    for disclosure in batch.disclosures:
-        projection = disclosure.to_message_projection()
-        messages.append(
-            AgentMessage(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                sender_role=AgentRole.USER,
-                receiver_role=AgentRole.WORKER,
-                intent=MessageIntent.REQUEST,
-                content=str(projection["content"]),
-                summary=str(projection["summary"]),
-                message_budget_chars=int(projection["message_budget_chars"]),
-                metadata=dict(projection["metadata"]),
-            )
-        )
-    return messages, None if batch.empty else batch
-
-
-def _execute_guarded_api_tool(
-    *,
-    state: Any,
-    node_id: str,
-    tool_name: str,
-    arguments: dict[str, Any],
-    context: ToolExecutionContext,
-    session_id: str,
-    worker_request_id: str,
-    tool_call_id: str,
-    custody_token: str = "",
-    external_session_exists: bool = False,
-) -> tuple[
-    ToolCall,
-    Any,
-    tuple[EventRecord, ...],
-    PermissionCustodyEnvelope,
-]:
-    """Execute one API tool through the same deterministic permission guard.
-
-    The legacy permission JSON remains a compatibility projection for older
-    graph context.  It is never accepted as execution authority; structured
-    resolve/retry and execution grants share ``PermissionStateStore``.
-    Exact, one-use rules below represent only low-risk actions explicitly
-    initiated through this interactive API route; shell/network stay on ASK.
-    """
-
-    control_plane = get_permission_control_plane()
-    custody_receipt = control_plane.custody_store.claim(
-        PermissionSessionCustodyBinding(
-            session_id=session_id,
-            run_id=state.run_id,
-            task_id=state.task_id,
-            workspace_root=str(context.workspace_root),
-        ),
-        presented_token=custody_token,
-        external_session_exists=external_session_exists,
-    )
-    custody_envelope = PermissionCustodyEnvelope.from_receipt(custody_receipt)
-    materialization = ToolRegistryRuntime(context.registry).materialize(
-        worker_request_id=worker_request_id,
-        session_id=session_id,
-        workspace_root=context.workspace_root,
-    )
-    scheduler = ToolLoopScheduler(materialization.to_registry())
-    plan = scheduler.plan_turn(
-        run_id=state.run_id,
-        task_id=state.task_id,
-        node_id=node_id,
-        worker_request_id=worker_request_id,
-        turn_index=1,
-        steps=[
-            {
-                "tool_name": tool_name,
-                "arguments": dict(arguments),
-                "tool_call_id": tool_call_id,
-                "metadata": {
-                    "permission_session_custody_fingerprint": (
-                        custody_receipt.custody_fingerprint
-                    ),
-                    "api_exact_retry": str(external_session_exists).lower(),
-                },
-            }
-        ],
-    )
-    scheduled = plan.requests[0]
-    permission_runtime = ToolPermissionRuntime.for_session(
-        session_id=session_id,
-        state_path=permission_state_path(),
-        workspace_root=context.workspace_root,
-        custody_fingerprint=custody_receipt.custody_fingerprint,
-    )
-    skill_policy_runtime, skill_policy_hook_id = _install_task_skill_permission_ceiling(
-        state=state,
-        permission_runtime=permission_runtime,
-        permission_session_id=session_id,
-        workspace_root=context.workspace_root,
-    )
-    if _api_low_risk_explicit_action(context, scheduled.call):
-        permission_runtime.rule_store.add(
-            PermissionRuleRecord(
-                rule_id=f"api-exact-{scheduled.call.tool_call_id}",
-                effect=RuntimePermissionEffect.ALLOW,
-                source=PermissionRuleSource.COMMAND,
-                scope=PermissionScope(
-                    PermissionScopeKind.ACTION,
-                    session_id=session_id,
-                    task_id=state.task_id,
-                    run_id=state.run_id,
-                    workspace_root=str(context.workspace_root),
-                    tool_namespace="builtin",
-                    tool_name=scheduled.tool_name,
-                    argument_digest=arguments_digest(scheduled.arguments),
-                ),
-                namespace_pattern="builtin",
-                tool_pattern=scheduled.tool_name,
-                reason="exact low-risk action explicitly invoked through the task API",
-                max_uses=1,
-                metadata={
-                    "authority": "interactive_task_api",
-                    "projection_only_legacy_store": True,
-                },
-            )
-        )
-    tool_context = ToolUseContext.for_turn(
-        run_id=state.run_id,
-        task_id=state.task_id,
-        node_id=node_id,
-        worker_request_id=worker_request_id,
-        session_id=session_id,
-        turn_id=f"api-turn:{scheduled.call.tool_call_id}",
-        turn_index=1,
-        materialization=materialization,
-    )
-    receipt = ToolExecutionRuntime(
-        context,
-        scheduler=scheduler,
-        budget_runtime=ToolResultBudgetRuntime(max_result_chars=context.max_inline_chars),
-        permission_runtime=permission_runtime,
-    ).execute_batch(
-        plan.batches[0],
-        tool_context=tool_context,
-        max_workers=1,
-    )[0]
-    return (
-        receipt.request.call,
-        receipt.bounded_result,
-        receipt.permission_events,
-        custody_envelope,
-    )
-
-
-def _api_low_risk_explicit_action(context: ToolExecutionContext, call: ToolCall) -> bool:
-    arguments = call.arguments
-    tool_name = call.tool_name
-    root = context.workspace_root.resolve()
-
-    def workspace_path(value: Any) -> Path | None:
-        if value is None:
-            return None
-        candidate = Path(str(value))
-        target = (root / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
-        try:
-            target.relative_to(root)
-        except (OSError, ValueError):
-            return None
-        return target
-
-    if tool_name == "file_write":
-        target = workspace_path(arguments.get("path"))
-        return bool(
-            target is not None
-            and len(str(arguments.get("content") or "")) <= 2_000_000
-            and context.permission_policy.decide_write(target).effect is PermissionEffect.ALLOW
-        )
-    if tool_name == "file_edit":
-        target = workspace_path(arguments.get("path"))
-        return bool(
-            target is not None
-            and target.is_file()
-            and arguments.get("old") is not None
-            and context.permission_policy.decide_read(target).effect is PermissionEffect.ALLOW
-            and context.permission_policy.decide_write(target).effect is PermissionEffect.ALLOW
-        )
-    if tool_name == "browser":
-        return bool(arguments.get("html")) and not bool(
-            arguments.get("url") or arguments.get("allow_network")
-        )
-    if tool_name == "web_search":
-        if arguments.get("url") or arguments.get("allow_network"):
-            return False
-        paths = arguments.get("paths")
-        values = paths if isinstance(paths, list) and paths else ["."]
-        return all(workspace_path(value) is not None for value in values)
-    if tool_name in {"trace", "checkpoint", "artifact_write"}:
-        return True
-    return False
-
-
+    del state, worker_request_id
+    return [], None
 def get_store() -> SQLiteStore:
     store = SQLiteStore(sqlite_path())
     store.initialize()
@@ -1459,193 +1163,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             actor_id=self._permission_actor_id(),
         )
 
-    def _authorize_mcp_mutation(
-        self,
-        request: McpMutationRequest,
-        *,
-        payload: dict[str, Any],
-        store: SQLiteStore,
-    ) -> McpMutationAuthorization:
-        """Authorize and atomically consume one exact 03A execution grant.
-
-        The custody bearer proves ownership of the permission session; it is
-        not itself an MCP grant.  ``ToolPermissionRuntime`` binds the grant to
-        action, server, canonical argument digest, task/run/session, and the
-        caller-supplied stable tool-use identity, then consumes it before the
-        facade invokes any MCP runtime mutation.
-        """
-
-        session_id = str(payload.get("session_id") or "").strip()
-        run_id = str(payload.get("run_id") or "").strip()
-        task_id = str(payload.get("task_id") or "").strip()
-        worker_request_id = str(payload.get("worker_request_id") or "").strip()
-        tool_use_id = str(payload.get("tool_use_id") or "").strip()
-        if not all((session_id, run_id, task_id, worker_request_id, tool_use_id)):
-            raise McpApiAuthorizationError(
-                "mcp_permission_identity_required",
-                retryable=False,
-            )
-        # Execution grants are private capabilities consumed inside this
-        # method.  Accepting a caller-presented grant id/token would create a
-        # second authority path and permit confused-deputy replay.
-        if payload.get("permission_grant_id") or payload.get("permission_grant_token"):
-            raise McpApiAuthorizationError(
-                "mcp_presented_grant_rejected",
-                retryable=False,
-            )
-
-        facade = get_permission_api_facade(
-            task_id=task_id,
-            session_id=session_id,
-        )
-        try:
-            authority = self._permission_authority(
-                facade,
-                payload,
-                session_id=session_id,
-                allow_payload_token=False,
-            )
-            self._require_permission_task_identity(
-                store,
-                task_id=task_id,
-                run_id=run_id,
-            )
-        except Exception as error:  # noqa: BLE001 - never expose custody details.
-            raise McpApiAuthorizationError(
-                "mcp_permission_authority_invalid",
-                retryable=False,
-            ) from error
-
-        workspace = Path(authority.workspace_root).resolve()
-        permission_runtime = ToolPermissionRuntime.for_session(
-            session_id=session_id,
-            state_path=permission_state_path(),
-            workspace_root=workspace,
-            custody_fingerprint=authority.custody_fingerprint,
-        )
-        task_state = store.load_task(task_id)
-        if task_state is None:
-            raise McpApiAuthorizationError("mcp_permission_task_not_found", retryable=False)
-        _install_task_skill_permission_ceiling(
-            state=task_state,
-            permission_runtime=permission_runtime,
-            permission_session_id=session_id,
-            workspace_root=workspace,
-        )
-        evaluation = PermissionEvaluationRequest(
-            run_id=run_id,
-            task_id=task_id,
-            session_id=session_id,
-            worker_request_id=worker_request_id,
-            tool_use_id=tool_use_id,
-            node_id=str(payload.get("node_id") or "") or None,
-            tool_identity=build_tool_identity(
-                request.action,
-                namespace="mcp-control",
-                server_id=request.server_id,
-                version="v1",
-            ),
-            arguments=dict(request.arguments),
-            operation="mcp_control_mutation",
-            workspace_root=str(workspace),
-            principal_id=authority.principal_id or authority.actor_id,
-            interactive=True,
-            requires_interaction=True,
-            risk_tags=("mcp_control_mutation", "external_runtime_state"),
-            attributes={
-                "mcp_action": request.action,
-                "mcp_server_id": request.server_id,
-                "authority_id": authority.authority_id,
-            },
-            metadata={
-                "owner_unit": "M1-03B",
-                "permission_custody": "M1-03A.PermissionSessionCustodyStore",
-                "grant_custody": "ToolPermissionRuntime.ExecutionGrantStore",
-                "http_facade": "McpApiFacade",
-            },
-        )
-        guarded = permission_runtime.guard(evaluation)
-        permission_events = list(guarded.events)
-        if permission_events:
-            persist_events(store, permission_events)
-        evidence = {
-            "effect": str(guarded.effect),
-            "decision_id": guarded.decision.decision_id,
-            "request_id": guarded.decision.request_id,
-            "request_fingerprint": guarded.request.request_fingerprint,
-            "arguments_digest": guarded.request.arguments_digest,
-            "custody_fingerprint": authority.custody_fingerprint,
-            "restored_approval": guarded.restored_approval,
-            "pending_request": (
-                guarded.pending_request.to_dict() if guarded.pending_request is not None else None
-            ),
-            "events": [to_jsonable(event) for event in permission_events],
-            "exact_one_shot": True,
-        }
-        if guarded.effect is RuntimePermissionEffect.ASK:
-            raise McpApiAuthorizationError(
-                "mcp_permission_pending",
-                status=HTTPStatus.CONFLICT,
-                permission=evidence,
-            )
-        if guarded.effect is not RuntimePermissionEffect.ALLOW or guarded.execution_grant is None:
-            raise McpApiAuthorizationError(
-                "mcp_permission_denied",
-                status=HTTPStatus.FORBIDDEN,
-                retryable=False,
-                permission=evidence,
-            )
-
-        grant = guarded.execution_grant
-        call = ToolCall(
-            run_id=run_id,
-            task_id=task_id,
-            node_id=str(payload.get("node_id") or "") or None,
-            tool_name=request.action,
-            arguments=dict(request.arguments),
-            tool_call_id=tool_use_id,
-            metadata={
-                "tool_namespace": "mcp-control",
-                "server_id": request.server_id,
-            },
-        )
-        consumed = permission_runtime.validate_and_consume(
-            call,
-            grant,
-            SimpleNamespace(workspace_root=workspace, registry=None),
-        )
-        consumption_events = list(permission_runtime.drain_execution_events(tool_use_id))
-        if consumption_events:
-            persist_events(store, consumption_events)
-        all_events = [*permission_events, *consumption_events]
-        if not consumed:
-            raise McpApiAuthorizationError(
-                "mcp_permission_grant_rejected",
-                retryable=False,
-                permission={
-                    **evidence,
-                    "grant_id": grant.grant_id,
-                    "events": [to_jsonable(event) for event in all_events],
-                },
-            )
-        return McpMutationAuthorization(
-            allowed=True,
-            decision_id=guarded.decision.decision_id,
-            request_id=guarded.decision.request_id,
-            grant_id=grant.grant_id,
-            custody_fingerprint=authority.custody_fingerprint,
-            reason_code=guarded.decision.reason_code,
-            events=tuple(to_jsonable(event) for event in all_events),
-            metadata={
-                "permission_runtime": "ToolPermissionRuntime",
-                "control_plane": "PermissionControlPlane",
-                "grant_consumed_before_mutation": True,
-                "request_fingerprint": guarded.request.request_fingerprint,
-            },
-        )
-
-    @staticmethod
     def _require_permission_task_identity(
+        self,
         store: SQLiteStore,
         *,
         task_id: str,
@@ -1683,29 +1202,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         )
         operation = PermissionApiOperation.HEALTH
         try:
-            if parts == ["permissions", "health"]:
-                response = facade.health()
-            elif parts == ["permissions"] and not parameters.get("session_id"):
-                health = facade.health()
-                response = PermissionApiResponse(
-                    status=HTTPStatus.OK,
-                    operation=PermissionApiOperation.HEALTH,
-                    body={
-                        **health.body,
-                        "compatibility_projection": {
-                            "legacy_json_store_authority": False,
-                            "state_listing_requires_session_custody": True,
-                            "structured_paths": [
-                                "/permissions/requests",
-                                "/permissions/rules",
-                                "/permissions/mode",
-                                "/permissions/decisions",
-                            ],
-                        },
-                    },
-                    headers=health.headers,
-                )
-            else:
+            session_id = str(parameters.get("session_id") or "")
+            authority = None
+            if parts != ["permissions", "health"] and session_id:
                 if any(
                     key in parameters
                     for key in (
@@ -1727,47 +1226,94 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     parameters,
                     allow_payload_token=False,
                 )
-                if parts == ["permissions"]:
-                    operation = PermissionApiOperation.REQUEST_QUERY
-                    requests = facade.query_requests(authority, parameters)
-                    rules = facade.query_rules(authority)
-                    mode = facade.get_mode(authority)
-                    response = PermissionApiResponse(
-                        status=HTTPStatus.OK,
-                        operation=operation,
-                        body={
-                            "schema": "zyra.permission-api.v1",
-                            "ok": True,
-                            "operation": operation.value,
-                            "state_owner": "PermissionStateStore",
-                            "legacy_json_store_authority": False,
-                            "requests": requests.body.get("requests", {}),
-                            "rules": rules.body.get("rules", []),
-                            "mode": mode.body.get("mode", "default"),
-                            "session_id": authority.session_id,
-                        },
-                        headers=requests.headers,
-                    )
-                elif parts == ["permissions", "requests"]:
-                    operation = PermissionApiOperation.REQUEST_QUERY
-                    response = facade.query_requests(authority, parameters)
-                elif len(parts) == 3 and parts[:2] == ["permissions", "requests"]:
-                    operation = PermissionApiOperation.REQUEST_GET
-                    response = facade.get_request(authority, parts[2])
-                elif parts == ["permissions", "rules"]:
-                    operation = PermissionApiOperation.RULE_QUERY
-                    response = facade.query_rules(authority)
-                elif parts == ["permissions", "mode"]:
-                    operation = PermissionApiOperation.MODE_GET
-                    response = facade.get_mode(authority)
-                elif parts == ["permissions", "decisions"]:
-                    operation = PermissionApiOperation.DECISION_QUERY
-                    response = facade.query_decisions(
-                        authority,
-                        limit=_bounded_permission_limit(parameters.get("limit")),
-                    )
-                else:
-                    return False
+            if parts == ["permissions", "health"]:
+                view = "summary"
+                operation = PermissionApiOperation.HEALTH
+            elif parts == ["permissions"]:
+                view = "summary"
+                operation = PermissionApiOperation.REQUEST_QUERY
+            elif parts == ["permissions", "requests"]:
+                view = "requests"
+                operation = PermissionApiOperation.REQUEST_QUERY
+            elif len(parts) == 3 and parts[:2] == ["permissions", "requests"]:
+                view = "request"
+                operation = PermissionApiOperation.REQUEST_GET
+            elif parts == ["permissions", "rules"]:
+                view = "rules"
+                operation = PermissionApiOperation.RULE_QUERY
+            elif parts == ["permissions", "mode"]:
+                view = "mode"
+                operation = PermissionApiOperation.MODE_GET
+            elif parts == ["permissions", "decisions"]:
+                view = "decisions"
+                operation = PermissionApiOperation.DECISION_QUERY
+            else:
+                return False
+            projection = get_mcp_runtime().permission_get(
+                view=view,
+                request_id=(parts[2] if view == "request" else str(parameters.get("request_id") or "")),
+                status=str(parameters.get("status") or ""),
+                limit=_bounded_permission_limit(parameters.get("limit")),
+            )
+            body = {
+                "schema": "zyra.permission-api.v2",
+                "ok": True,
+                "operation": operation.value,
+                "state_owner": "typescript.PermissionCoordinator",
+                "canonical_entrypoint": "E02CapabilityCoordinator.resumePermission",
+                "python_decision_fallback": False,
+                "session_id": authority.session_id if authority is not None else "",
+                "health": projection.get("health", {}),
+            }
+            if view == "summary":
+                visible_requests = projection.get("requests", []) if authority is not None else []
+                visible_rules = projection.get("rules", []) if authority is not None else []
+                visible_decisions = projection.get("decisions", []) if authority is not None else []
+                body.update(
+                    {
+                        "requests": {"items": visible_requests, "total": len(visible_requests)},
+                        "rules": visible_rules,
+                        "mode": projection.get("mode", {}),
+                        "decisions": {"items": visible_decisions, "total": len(visible_decisions)},
+                        "state_listing_requires_session_custody": not bool(authority),
+                    }
+                )
+            elif view == "requests":
+                body["requests"] = {"items": projection.get("requests", []), "total": len(projection.get("requests", []))}
+            elif view == "request":
+                body["request"] = (projection.get("requests") or [None])[0]
+            elif view == "rules":
+                body["rules"] = projection.get("rules", [])
+            elif view == "mode":
+                body["mode"] = projection.get("mode", {})
+            elif view == "decisions":
+                body["decisions"] = {"items": projection.get("decisions", []), "total": len(projection.get("decisions", []))}
+            response = PermissionApiResponse(
+                status=HTTPStatus.OK,
+                operation=operation,
+                body=body,
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "X-Zyra-Permission-State-Owner": "typescript.PermissionCoordinator",
+                    "X-Zyra-Python-Decision-Fallback": "false",
+                },
+            )
+        except TypeScriptE02PortError as error:
+            response = PermissionApiResponse(
+                status=(HTTPStatus.NOT_FOUND if "not_found" in error.code else HTTPStatus.CONFLICT),
+                operation=operation,
+                body={
+                    "schema": "zyra.permission-api.v2",
+                    "ok": False,
+                    "error": error.code,
+                    "message": str(error),
+                    "detail": error.detail,
+                    "state_owner": "typescript.PermissionCoordinator",
+                    "python_decision_fallback": False,
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
         except Exception as error:  # noqa: BLE001 - mapped to a redacted permission response.
             response = permission_api_error_response(operation, error)
         self._send_permission_response(store, response)
@@ -1830,77 +1376,147 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     run_id=str(payload.get("run_id") or ""),
                 )
                 authority = self._permission_authority(facade, payload)
-                node_id = None if payload.get("node_id") is None else str(payload.get("node_id"))
+                receipt: dict[str, Any]
+                status = HTTPStatus.OK
                 if parts == ["permissions", "requests"]:
                     operation = PermissionApiOperation.REQUEST_CREATE
-                    response = facade.create_request(
-                        authority,
-                        payload,
-                        service_token=str(self.headers.get("X-Zyra-Service-Token") or ""),
-                    )
+                    status = HTTPStatus.CONFLICT
+                    receipt = {
+                        "error": "typescript_permission_evaluation_required",
+                        "message": "Permission requests are created only by TypeScript tool enforcement.",
+                    }
                 elif parts == ["permissions", "requests", "expire"]:
                     operation = PermissionApiOperation.REQUEST_EXPIRE
-                    response = facade.expire_requests(authority, node_id=node_id)
+                    receipt = get_mcp_runtime().permission_expire()
                 elif len(parts) == 4 and parts[:2] == ["permissions", "requests"]:
                     request_id = parts[2]
                     action = parts[3]
                     if action == "deliver":
                         operation = PermissionApiOperation.REQUEST_DELIVER
-                        response = facade.deliver_request(
-                            authority,
-                            request_id,
-                            payload,
-                            node_id=node_id,
+                        projection = get_mcp_runtime().permission_get(
+                            view="request",
+                            request_id=request_id,
                         )
+                        receipt = {
+                            "request": (projection.get("requests") or [None])[0],
+                            "transport": "e02-api-poll",
+                            "logical_state_changed": False,
+                        }
                     elif action == "resolve":
                         operation = PermissionApiOperation.REQUEST_RESOLVE
-                        response = facade.resolve_request(
-                            authority,
+                        receipt = get_mcp_runtime().permission_respond(
                             request_id,
-                            payload,
-                            node_id=node_id,
+                            str(payload.get("effect") or ""),
+                            responder=authority.actor_id,
+                            response_id=str(payload.get("response_id") or payload.get("idempotency_key") or ""),
+                            metadata={
+                                "authority_id": authority.authority_id,
+                                "channel": str(authority.channel),
+                                "custody_verified": True,
+                            },
                         )
                     elif action == "cancel":
                         operation = PermissionApiOperation.REQUEST_CANCEL
-                        response = facade.cancel_request(
-                            authority,
+                        receipt = get_mcp_runtime().permission_cancel(
                             request_id,
-                            payload,
-                            node_id=node_id,
+                            reason=str(payload.get("reason") or "cancelled by operator"),
                         )
                     elif action == "abort":
                         operation = PermissionApiOperation.REQUEST_ABORT
-                        response = facade.abort_request(
-                            authority,
+                        receipt = get_mcp_runtime().permission_cancel(
                             request_id,
-                            payload,
-                            node_id=node_id,
+                            reason=str(payload.get("reason") or "aborted by operator"),
                         )
                     elif action == "retry":
                         operation = PermissionApiOperation.REQUEST_RETRY
-                        response = facade.prepare_retry(
-                            authority,
-                            request_id,
-                            payload,
-                            node_id=node_id,
-                        )
+                        status = HTTPStatus.CONFLICT
+                        receipt = {
+                            "error": "typescript_exact_retry_required",
+                            "message": "Retry the original tool call with the permit_id returned by the TypeScript decision receipt.",
+                            "request_id": request_id,
+                        }
                     else:
                         return False
                 elif parts == ["permissions", "rules"]:
                     operation = PermissionApiOperation.RULE_CREATE
-                    response = facade.create_rule(authority, payload, node_id=node_id)
+                    receipt = get_mcp_runtime().permission_policy(
+                        {
+                            "action": "replace_rules",
+                            "rules": payload.get("rules"),
+                            "expected_revision": payload.get("expected_revision"),
+                            "actor_id": authority.actor_id,
+                        }
+                    )
                 elif (
                     len(parts) == 4
                     and parts[:2] == ["permissions", "rules"]
                     and parts[3] == "remove"
                 ):
                     operation = PermissionApiOperation.RULE_REMOVE
-                    response = facade.remove_rule(authority, parts[2], node_id=node_id)
+                    receipt = get_mcp_runtime().permission_policy(
+                        {
+                            "action": "remove_rule",
+                            "rule_id": parts[2],
+                            "expected_revision": payload.get("expected_revision"),
+                            "actor_id": authority.actor_id,
+                        }
+                    )
                 elif parts == ["permissions", "mode"]:
                     operation = PermissionApiOperation.MODE_UPDATE
-                    response = facade.update_mode(authority, payload, node_id=node_id)
+                    receipt = get_mcp_runtime().permission_policy(
+                        {
+                            "action": "mode",
+                            "mode": payload.get("mode"),
+                            "expected_revision": payload.get("expected_revision"),
+                            "actor_id": authority.actor_id,
+                            "reason": str(payload.get("reason") or "permission API mode update"),
+                        }
+                    )
                 else:
                     return False
+                response = PermissionApiResponse(
+                    status=status,
+                    operation=operation,
+                    body={
+                        "schema": "zyra.permission-api.v2",
+                        "ok": 200 <= int(status) < 300,
+                        "operation": operation.value,
+                        "state_owner": "typescript.PermissionCoordinator",
+                        "canonical_entrypoint": "E02CapabilityCoordinator.resumePermission",
+                        "python_decision_fallback": False,
+                        "session_id": authority.session_id,
+                        "receipt": receipt,
+                        **({"error": receipt.get("error"), "message": receipt.get("message")} if receipt.get("error") else {}),
+                    },
+                    headers={
+                        "Cache-Control": "no-store, max-age=0",
+                        "Pragma": "no-cache",
+                        "X-Zyra-Permission-State-Owner": "typescript.PermissionCoordinator",
+                        "X-Zyra-Python-Decision-Fallback": "false",
+                    },
+                )
+        except TypeScriptE02PortError as error:
+            response = PermissionApiResponse(
+                status=(
+                    HTTPStatus.NOT_FOUND
+                    if "not_found" in error.code
+                    else HTTPStatus.FORBIDDEN
+                    if "permission" in error.code or "forbidden" in error.code
+                    else HTTPStatus.CONFLICT
+                ),
+                operation=operation,
+                body={
+                    "schema": "zyra.permission-api.v2",
+                    "ok": False,
+                    "operation": operation.value,
+                    "error": error.code,
+                    "message": str(error),
+                    "detail": error.detail,
+                    "state_owner": "typescript.PermissionCoordinator",
+                    "python_decision_fallback": False,
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
         except Exception as error:  # noqa: BLE001 - mapped to a redacted permission response.
             response = permission_api_error_response(operation, error)
         self._send_permission_response(store, response)
@@ -2174,74 +1790,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["skills"]:
-            skill_runtime = default_skill_runtime()
             query = parse_qs(parsed.query)
-            reload_status = skill_runtime.reload_if_changed()
             search_text = str((query.get("q") or query.get("query") or [""])[0]).strip()
-            listing_session = str((query.get("session_id") or [""])[0]).strip()
-            listing_agent = str((query.get("agent_id") or ["CodeWorkerRuntime"])[0]).strip()
-            search_result = (
-                SkillSearchIndex(skill_runtime.registry).search(search_text)
-                if search_text
-                else None
-            )
-            listing_projection = (
-                skill_runtime.listing_projection(
-                    session_id=listing_session,
-                    agent_id=listing_agent,
-                )
-                if listing_session and search_result is None
-                else None
-            )
-            if search_result is not None:
-                skills = list(search_result.hits)
-            elif listing_projection is not None:
-                skills = list(listing_projection.entries)
-            else:
-                skills = list(skill_runtime.list())
-            self._send_json(
-                HTTPStatus.OK,
-                {
-                    "skills": [to_jsonable(skill) for skill in skills],
-                    "search": to_jsonable(search_result) if search_result is not None else None,
-                    "listing_projection": (
-                        listing_projection.to_dict() if listing_projection is not None else None
-                    ),
-                    "reload": reload_status.to_dict(),
-                    "registry": skill_runtime.registry.snapshot().to_dict(),
-                    "health": SkillRuntimeHealthProbe().probe(skill_runtime).to_dict(),
-                    "integration_health": SkillIntegrationHealthProbe().probe(
-                        product_root=PROJECT_ROOT,
-                        workspace_root=tool_workspace_path(),
-                        runtime=skill_runtime,
-                    ).to_dict(),
-                    "progressive_disclosure": True,
-                    "body_loaded": False,
-                },
-            )
+            projection = get_mcp_runtime().skills(query=search_text)
+            projection.setdefault("canonical_entrypoint", "E02CapabilityCoordinator.execute")
+            projection.setdefault("python_registry_enabled", False)
+            self._send_json(HTTPStatus.OK, projection, headers={
+                "Cache-Control": "no-store, max-age=0",
+                "X-Zyra-Skill-State-Owner": "SkillCoordinator",
+                "X-Zyra-Python-Decision-Fallback": "false",
+            })
             return
 
         if parts == ["tools"]:
-            base_context = ToolExecutionContext.for_workspace(
-                workspace_root=tool_workspace_path(),
-                artifact_root=artifact_root_path(),
-                permission_store=get_permission_store(),
-            )
-            mcp_projection = get_mcp_runtime().worker_projection(
-                base_context,
-                run_id="api-tools-catalog",
-                task_id="api-tools-catalog",
-                node_id=None,
-                session_id="api-tools-catalog",
-                worker_request_id="api-tools-catalog",
-            )
-            self._send_json(
-                HTTPStatus.OK,
-                {
-                    "tools": [to_jsonable(tool) for tool in mcp_projection.context.registry.list()],
-                    "mcp": mcp_projection.safe_dict(),
-                },
-            )
+            projection = get_mcp_runtime().tools()
+            projection.setdefault("canonical_entrypoint", "E02CapabilityCoordinator.execute")
+            projection.setdefault("python_registry_enabled", False)
+            self._send_json(HTTPStatus.OK, projection, headers={
+                "Cache-Control": "no-store, max-age=0",
+                "X-Zyra-Tool-Registry-Owner": "E02CapabilityCoordinator",
+                "X-Zyra-Python-Decision-Fallback": "false",
+            })
             return
 
         if parts == ["workers"]:
@@ -3288,30 +2857,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         mcp_runtime = get_mcp_runtime()
-        mcp_response = McpApiFacade(
-            mcp_runtime,
-            mutation_authorizer=lambda request: self._authorize_mcp_mutation(
-                request,
-                payload=payload,
-                store=store,
-            ),
-        ).handle_post(
+        mcp_response = McpApiFacade(mcp_runtime).handle_post(
             parts,
             payload,
             self._permission_actor_id(),
         )
         if mcp_response is not None:
             status, body, headers = mcp_response
-            run_id = str(payload.get("run_id") or "")
-            task_id = str(payload.get("task_id") or "")
-            mcp_events = (
-                list(mcp_runtime.drain_events(run_id=run_id, task_id=task_id))
-                if run_id and task_id
-                else []
-            )
-            if mcp_events:
-                persist_events(store, mcp_events)
-                body = {**body, "events": [to_jsonable(event) for event in mcp_events]}
             self._send_json(status, body, headers=headers)
             return
 
@@ -3694,6 +3246,101 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
             text = str(payload.get("text") or "")
+            e02_route = _e02_command_route(text)
+            if e02_route is not None:
+                command_name, operation = e02_route
+                tool_call_id = str(payload.get("tool_call_id") or new_id("e02command"))
+                try:
+                    execution = get_mcp_runtime().execute(
+                        "command",
+                        {"input": text},
+                        identity={
+                            "tool_call_id": tool_call_id,
+                            "command_name": command_name,
+                            "operation": operation,
+                            "permit_id": str(payload.get("permit_id") or ""),
+                            "actor_id": str(payload.get("actor_id") or "api-user"),
+                            "correlation_id": str(payload.get("correlation_id") or tool_call_id),
+                        },
+                    )
+                except TypeScriptE02PortError as error:
+                    status = HTTPStatus.FORBIDDEN if "permission" in error.code else HTTPStatus.CONFLICT
+                    self._send_json(
+                        status,
+                        {
+                            "ok": False,
+                            "error": error.code,
+                            "message": str(error),
+                            "detail": error.detail,
+                            "tool_call_id": tool_call_id,
+                            "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                            "canonical_command_owner": "typescript.CommandCoordinator",
+                            "python_parser_fallback": False,
+                            "python_dispatch_fallback": False,
+                        },
+                        headers={"Cache-Control": "no-store, max-age=0"},
+                    )
+                    return
+                receipt = dict(execution.get("receipt") or {})
+                capability_result = dict(receipt.get("result") or {})
+                command_output = dict(capability_result.get("output") or {})
+                invocation = dict(command_output.get("invocation") or {})
+                invocation_status = str(invocation.get("status") or "failed")
+                if invocation_status not in {"completed", "pending_approval", "denied"}:
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {
+                            "ok": False,
+                            "error": "typescript_command_receipt_invalid",
+                            "message": "TypeScript command execution returned no terminal invocation receipt.",
+                            "receipt": receipt,
+                            "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                            "python_dispatch_fallback": False,
+                        },
+                        headers={"Cache-Control": "no-store, max-age=0"},
+                    )
+                    return
+                status = (
+                    HTTPStatus.CREATED
+                    if invocation_status == "completed"
+                    else HTTPStatus.ACCEPTED
+                    if invocation_status == "pending_approval"
+                    else HTTPStatus.FORBIDDEN
+                )
+                command_result = {
+                    **invocation,
+                    "name": f"/{command_name}",
+                    "summary": str(capability_result.get("summary") or f"Command {command_name} {invocation_status}"),
+                    "data": invocation.get("output"),
+                    "runtime_status": "typescript_stateful",
+                    "receipt": receipt,
+                    "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                    "canonical_command_owner": "typescript.CommandCoordinator",
+                    "python_parser_fallback": False,
+                    "python_dispatch_fallback": False,
+                }
+                self._send_json(
+                    status,
+                    {
+                        "task": to_jsonable(state),
+                        "control_request": {
+                            "input": text,
+                            "canonical_name": f"/{command_name}",
+                            "tool_call_id": tool_call_id,
+                            "transport_only": True,
+                        },
+                        "command": {
+                            "name": f"/{command_name}",
+                            "operation": operation,
+                            "canonical_owner": "typescript.CommandCoordinator",
+                        },
+                        "command_result": command_result,
+                        "event": receipt.get("commit"),
+                        "event_only_stateful_fallback": False,
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
             control_request = _control_command_request_from_text(state, text, payload)
             if control_request is None:
                 self._send_json(
@@ -3956,116 +3603,62 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
-            tool_name = str(payload.get("tool_name") or payload.get("tool") or "")
+            tool_name = str(payload.get("tool_name") or payload.get("tool") or "").strip()
             arguments = payload.get("arguments")
-            if not isinstance(arguments, dict):
-                arguments = {}
-            node_id = str(payload.get("node_id") or state.root_node_id)
-            context = ToolExecutionContext.for_workspace(
-                workspace_root=tool_workspace_path(),
-                artifact_root=artifact_root_path(),
-                permission_store=get_permission_store(),
-                event_reader=store.task_events,
-                checkpoint_reader=lambda task_id: _checkpoint_json(store, task_id),
-            )
-            context = get_mcp_runtime().worker_projection(
-                context,
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=node_id,
-                session_id=str(payload.get("session_id") or ""),
-                worker_request_id=str(payload.get("worker_request_id") or ""),
-            ).context
-            existing_permission_session = str(
-                payload.get("permission_session_id") or ""
-            ).strip()
-            permission_session_id = existing_permission_session or (
-                f"api-tool:{state.task_id}:{new_id('permsession')}"
-            )
-            permission_tool_use_id = str(
-                payload.get("permission_tool_use_id")
-                or payload.get("tool_call_id")
-                or ""
-            ).strip()
-            permission_worker_request_id = str(
-                payload.get("permission_worker_request_id") or ""
-            ).strip()
-            if existing_permission_session and (
-                not permission_tool_use_id or not permission_worker_request_id
-            ):
+            if not tool_name or not isinstance(arguments, dict):
                 self._send_json(
                     HTTPStatus.BAD_REQUEST,
+                    {"error": "invalid_tool_request", "message": "tool_name and object arguments are required"},
+                )
+                return
+            tool_call_id = str(payload.get("tool_call_id") or new_id("toolcall"))
+            try:
+                execution = get_mcp_runtime().execute(
+                    tool_name,
+                    arguments,
+                    identity={
+                        "tool_call_id": tool_call_id,
+                        "namespace": str(payload.get("namespace") or ""),
+                        "server_id": str(payload.get("server_id") or ""),
+                        "operation": str(payload.get("operation") or "api.execute"),
+                        "actor_id": self._permission_actor_id(),
+                        "correlation_id": str(payload.get("correlation_id") or tool_call_id),
+                        "task_id": state.task_id,
+                        "run_id": state.run_id,
+                    },
+                )
+            except TypeScriptE02PortError as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
                     {
-                        "error": "permission_retry_identity_required",
-                        "message": (
-                            "permission_tool_use_id and permission_worker_request_id "
-                            "are required when resuming an existing permission session"
-                        ),
+                        "ok": False,
+                        "error": error.code,
+                        "message": str(error),
+                        "detail": error.detail,
+                        "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                        "python_execution_fallback": False,
                     },
                     headers={"Cache-Control": "no-store, max-age=0"},
                 )
                 return
-            permission_tool_use_id = permission_tool_use_id or new_id("toolcall")
-            permission_worker_request_id = permission_worker_request_id or new_id(
-                "api-tool-request"
-            )
-            try:
-                call, result, permission_events, custody_envelope = _execute_guarded_api_tool(
-                    state=state,
-                    node_id=node_id,
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    context=context,
-                    session_id=permission_session_id,
-                    worker_request_id=permission_worker_request_id,
-                    tool_call_id=permission_tool_use_id,
-                    custody_token=extract_bearer_token(self.headers, payload),
-                    external_session_exists=bool(existing_permission_session),
-                )
-            except Exception as error:  # noqa: BLE001 - return redacted permission error.
-                response = permission_api_error_response(
-                    PermissionApiOperation.SESSION_RESUME,
-                    error,
-                )
-                self._send_permission_response(store, response)
-                return
-            event = tool_result_event(call, result)
-            if result.artifacts:
-                state.artifacts.extend(result.artifacts)
-            state.budget.tool_calls += 1
-            state.updated_at = event.created_at
-            persist_events(store, [*permission_events, event])
-            store.save_checkpoint(state)
-            status = HTTPStatus.CREATED if result.ok else HTTPStatus.CONFLICT
             self._send_json(
-                status,
+                HTTPStatus.CREATED,
                 {
-                    "task": to_jsonable(state),
-                    "tool_call": to_jsonable(call),
-                    "tool_result": to_jsonable(result),
-                    "event": to_jsonable(event),
-                    "permission_events": [to_jsonable(item) for item in permission_events],
-                    "permission_session": (
-                        custody_envelope.private_dict()
-                        if custody_envelope.created
-                        else custody_envelope.public_dict()
-                    ),
-                    "permission_retry_identity": {
-                        "permission_session_id": permission_session_id,
-                        "permission_worker_request_id": permission_worker_request_id,
-                        "permission_tool_use_id": call.tool_call_id,
-                        "arguments_digest": arguments_digest(call.arguments),
-                        "raw_arguments_included": False,
-                    },
+                    "ok": True,
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "tool_call_id": tool_call_id,
+                    "execution": execution,
+                    "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                    "python_execution_fallback": False,
                 },
                 headers={
                     "Cache-Control": "no-store, max-age=0",
-                    "Pragma": "no-cache",
-                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
+                    "X-Zyra-Permission-State-Owner": "PermissionCoordinator",
+                    "X-Zyra-Capability-State-Owner": "E02CapabilityCoordinator",
                 },
             )
             return
-
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "workers" and parts[3] == "code":
             self._execute_code_worker_post(store, parts[1], payload)
             return
@@ -4381,16 +3974,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         task_id: str,
         payload: dict[str, Any],
     ) -> None:
-        """Invoke a versioned skill through the 03C -> 03A main path.
-
-        Skill state is embedded in the existing task/session checkpoint.  The
-        registry and revision loader remain 03C-owned; the permission runtime
-        remains the only decision owner.  An exact rule is created only for
-        immutable Zyra builtins explicitly invoked through this API.  It does
-        not authorize any downstream tool; the skill policy hook only denies
-        tools outside the skill ceiling and every admitted tool still needs a
-        separate 03A one-use grant at execution time.
-        """
+        """Invoke SkillTool through the persistent TypeScript E02 owner."""
 
         with _task_lock(task_id):
             state = store.load_task(task_id)
@@ -4399,286 +3983,70 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             skill_name = str(payload.get("skill_name") or payload.get("skill") or "").strip()
             if not skill_name:
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {"error": "skill_name_required"},
-                )
-                return
-            node_id = str(payload.get("node_id") or state.root_node_id)
-            if node_id not in _task_node_ids(state):
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {"error": "invalid_task_node", "task_id": task_id, "node_id": node_id},
-                )
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "skill_name_required"})
                 return
             arguments = payload.get("arguments")
-            if not isinstance(arguments, dict):
-                arguments = {}
             resources = payload.get("resources")
-            if not isinstance(resources, list) or not all(isinstance(item, str) for item in resources):
-                resources = []
-            session_id = str(payload.get("session_id") or "").strip() or f"skill:{task_id}"
-            worker_request_id = str(payload.get("worker_request_id") or "").strip() or new_id(
-                "skill-worker-request"
-            )
-
-            invocation_id = str(payload.get("invocation_id") or "").strip() or new_id("skillinv")
-            tool_use_id = str(payload.get("tool_use_id") or payload.get("tool_call_id") or "").strip() or invocation_id
-            idempotency_key = str(
-                self.headers.get("Idempotency-Key")
-                or payload.get("idempotency_key")
-                or ""
-            ).strip()
-            if len(idempotency_key) > 200:
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {"error": "invalid_idempotency_key", "message": "Idempotency-Key exceeds 200 characters."},
-                )
-                return
-
-            control_plane = get_permission_control_plane()
-            try:
-                custody_receipt = control_plane.custody_store.claim(
-                    PermissionSessionCustodyBinding(
-                        session_id=session_id,
-                        run_id=state.run_id,
-                        task_id=state.task_id,
-                        workspace_root=str(tool_workspace_path()),
-                    ),
-                    presented_token=extract_bearer_token(self.headers, payload),
-                    external_session_exists=bool(payload.get("session_id")),
-                )
-            except Exception as error:  # noqa: BLE001 - custody details must remain private.
-                response = permission_api_error_response(
-                    PermissionApiOperation.SESSION_RESUME,
-                    error,
-                )
-                self._send_permission_response(store, response)
-                return
-            permission_runtime = ToolPermissionRuntime.for_session(
-                session_id=session_id,
-                state_path=permission_state_path(),
-                workspace_root=tool_workspace_path(),
-                custody_fingerprint=custody_receipt.custody_fingerprint,
-            )
-            state_snapshot = state.metadata.get("skill_runtime_state")
-            config = SkillRuntimeConfig.for_project(
-                PROJECT_ROOT,
-                workspace_root=tool_workspace_path(),
-                include_user_skills=False,
-                disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
-            )
-            runtime = SkillRuntime(
-                config,
-                permission_port=ToolPermissionRuntimeSkillGateway(
-                    permission_runtime,
-                    workspace_root=str(tool_workspace_path()),
-                ),
-                state_snapshot=state_snapshot if isinstance(state_snapshot, dict) else None,
+            tool_call_id = str(
+                payload.get("tool_call_id")
+                or payload.get("tool_use_id")
+                or payload.get("invocation_id")
+                or new_id("skillcall")
             )
             try:
-                runtime.bootstrap()
-                revision = runtime.registry.resolve(
-                    skill_name,
-                    require_user_invocable=True,
-                )
-            except Exception as error:  # noqa: BLE001 - skill errors provide safe structured detail.
-                self._send_json(
-                    HTTPStatus.NOT_FOUND,
+                execution = get_mcp_runtime().execute(
+                    "skill",
                     {
-                        "error": str(getattr(error, "code", "skill_not_found")),
-                        "message": str(error),
-                        "skill_name": skill_name,
-                        "detail": dict(getattr(error, "detail", {}) or {}),
+                        "skill": skill_name,
+                        "arguments": dict(arguments) if isinstance(arguments, dict) else {},
+                        "resources": list(resources)
+                        if isinstance(resources, list) and all(isinstance(item, str) for item in resources)
+                        else [],
+                    },
+                    identity={
+                        "tool_call_id": tool_call_id,
+                        "namespace": "skill",
+                        "operation": "invoke",
+                        "actor_id": self._permission_actor_id(),
+                        "correlation_id": str(payload.get("correlation_id") or tool_call_id),
+                        "task_id": state.task_id,
+                        "run_id": state.run_id,
                     },
                 )
-                return
-            request = SkillInvocationRequest(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                session_id=session_id,
-                agent_id=str(payload.get("agent_id") or "CodeWorkerRuntime"),
-                skill_name=skill_name,
-                arguments=dict(arguments),
-                node_id=node_id,
-                worker_request_id=worker_request_id,
-                parent_tool_use_id=tool_use_id,
-                context_refs=tuple(str(item) for item in payload.get("context_refs") or ()),
-                attachment_refs=tuple(str(item) for item in payload.get("attachment_refs") or ()),
-                skill_depth=int(payload.get("skill_depth") or 0),
-                idempotency_key=idempotency_key,
-                interactive=True,
-                headless=False,
-                invocation_id=invocation_id,
-            )
-            active_ref = runtime.registry.snapshot().active_by_qualified_name.get(
-                revision.qualified_name,
-                "",
-            )
-            admission = SkillCommandSafetyClassifier().classify(
-                request,
-                revision,
-                requested_resources=tuple(resources),
-                active_ref=active_ref,
-            )
-            if not admission.valid:
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {"error": "skill_admission_invalid", "admission": admission.to_dict()},
-                    headers={"Cache-Control": "no-store, max-age=0"},
-                )
-                return
-            permission_arguments = {
-                "skill_ref": revision.version_ref.immutable_ref,
-                "arguments": dict(arguments),
-                "invocation_mode": str(revision.metadata.invocation.mode),
-            }
-            if admission.bootstrap_allow:
-                permission_runtime.rule_store.add(
-                    PermissionRuleRecord(
-                        rule_id=f"api-skill-exact-{invocation_id}",
-                        effect=RuntimePermissionEffect.ALLOW,
-                        source=PermissionRuleSource.COMMAND,
-                        scope=PermissionScope(
-                            PermissionScopeKind.ACTION,
-                            session_id=session_id,
-                            task_id=state.task_id,
-                            run_id=state.run_id,
-                            workspace_root=str(tool_workspace_path()),
-                            tool_namespace="skill",
-                            tool_name=revision.metadata.name,
-                            server_id=revision.provenance.source_namespace,
-                            argument_digest=arguments_digest(permission_arguments),
-                        ),
-                        namespace_pattern="skill",
-                        tool_pattern=revision.metadata.name,
-                        server_pattern=revision.provenance.source_namespace,
-                        operation_pattern="skill_context_expansion",
-                        reason="exact immutable builtin skill explicitly invoked through task API",
-                        max_uses=1,
-                        metadata={
-                            "authority": "interactive_task_api",
-                            "downstream_tools_authorized": False,
-                            "owner_unit": "M1-03C",
-                            "admission_digest": admission.request_digest,
-                        },
-                    )
-                )
-            try:
-                plan = runtime.invoke(
-                    request,
-                    load_resources=tuple(resources),
-                    require_user_invocable=True,
-                )
-            except (SkillPermissionPending, SkillPermissionDenied) as error:
+            except TypeScriptE02PortError as error:
                 self._send_json(
                     HTTPStatus.CONFLICT,
                     {
-                        "error": str(getattr(error, "code", "skill_permission_denied")),
+                        "ok": False,
+                        "error": error.code,
                         "message": str(error),
-                        "detail": dict(getattr(error, "detail", {}) or {}),
-                        "permission_session": PermissionCustodyEnvelope.from_receipt(
-                            custody_receipt
-                        ).private_dict(),
-                    },
-                    headers={
-                        "Cache-Control": "no-store, max-age=0",
-                        "X-Zyra-Permission-State-Owner": "PermissionStateStore",
-                    },
-                )
-                return
-            except Exception as error:  # noqa: BLE001 - report fail-closed skill contract errors.
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {
-                        "error": str(getattr(error, "code", "skill_invocation_failed")),
-                        "message": str(error),
-                        "detail": dict(getattr(error, "detail", {}) or {}),
+                        "detail": error.detail,
+                        "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                        "python_skill_fallback": False,
                     },
                     headers={"Cache-Control": "no-store, max-age=0"},
                 )
                 return
-
-            records = list(runtime.invocation_runtime.event_records(plan.state.invocation_id))
-            persist_events(store, records)
-            policy_hook_id = runtime.install_permission_hook(
-                permission_runtime.evaluator.hook_adapter,
-                permission_session_id=session_id,
-            )
-            session_mutation = runtime.session_bridge.mutation_for_plan(
-                plan,
-                runtime.invocation_runtime.events(plan.state.invocation_id),
-            )
-            session_checkpoint = runtime.session_bridge.checkpoint(
-                session_id=session_id,
-                agent_id=request.agent_id,
-                runtime_state_snapshot=runtime.state_snapshot(),
-            )
-            state.metadata["skill_runtime_state"] = session_checkpoint.to_dict()
-            state.metadata["skill_session_context"] = {
-                "owner": "02B/02D session aggregate via M1-03C SkillSessionBridge",
-                "latest_mutation": {
-                    "invocation_id": session_mutation.invocation_id,
-                    "mutation_digest": session_mutation.mutation_digest,
-                    "policy_snapshot": dict(session_mutation.policy_snapshot),
-                    "state": dict(session_mutation.state),
-                },
-                "message_delta_refs": list(plan.state.message_delta_refs),
-                "attachment_refs": list(plan.state.attachment_refs),
-                "invoked_skill_refs": [
-                    reference.to_dict() for reference in session_checkpoint.compact_references
-                ],
-                "permission_hook_id": policy_hook_id,
-                "body_in_checkpoint": False,
-            }
-            state.metadata["skill_registry_generation"] = runtime.registry.generation
             state.metadata["skill_invocation_projection"] = {
-                "invocation_id": plan.state.invocation_id,
-                "qualified_name": plan.revision.qualified_name,
-                "version_ref": plan.revision.version_ref.to_dict(),
-                "status": str(plan.state.status),
-                "policy_snapshot_digest": plan.policy_snapshot.policy_digest,
-                "attachment_refs": [item.immutable_ref for item in plan.attachments],
-                "body_in_checkpoint": False,
-                "permission_owner": "M1-03A",
-                "skill_owner": "M1-03C",
+                "canonical_owner": "typescript.SkillCoordinator",
+                "tool_call_id": tool_call_id,
+                "skill": skill_name,
+                "snapshot_hash": execution.get("snapshot_hash"),
             }
-            state.updated_at = plan.state.updated_at
             store.save_checkpoint(state)
             self._send_json(
                 HTTPStatus.CREATED,
                 {
+                    "ok": True,
                     "task": to_jsonable(state),
-                    "skill": plan.revision.to_dict(),
-                    "events": [to_jsonable(record) for record in records],
-                    "skill_result": {
-                        "ok": True,
-                        "summary": (
-                            f"Skill {plan.revision.qualified_name} loaded as immutable revision "
-                            f"{plan.revision.version_ref.content_digest[:12]}."
-                        ),
-                        "runtime_status": str(plan.state.status),
-                        "invocation": plan.to_dict(include_body=False),
-                        "message_deltas": [message.to_dict() for message in plan.messages],
-                        "body_returned": (
-                            plan.revision.metadata.invocation.mode
-                            is SkillInvocationMode.INLINE
-                        ),
-                        "body_in_checkpoint": False,
-                        "admission": admission.to_dict(),
-                        "session_mutation": session_mutation.to_dict(),
-                        "session_checkpoint": session_checkpoint.to_dict(),
-                        "permission_hook_id": policy_hook_id,
-                    },
-                    "permission_session": PermissionCustodyEnvelope.from_receipt(
-                        custody_receipt
-                    ).private_dict(),
+                    "execution": execution,
+                    "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                    "python_skill_fallback": False,
                 },
                 headers={
                     "Cache-Control": "no-store, max-age=0",
-                    "Pragma": "no-cache",
-                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
-                    "X-Zyra-Skill-State-Owner": "SkillInvocationStateStore",
+                    "X-Zyra-Skill-State-Owner": "SkillCoordinator",
+                    "X-Zyra-Permission-State-Owner": "PermissionCoordinator",
                 },
             )
 
@@ -4688,146 +4056,50 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         task_id: str,
         payload: dict[str, Any],
     ) -> None:
-        """Run a trusted-local install/update/control request through 03A."""
+        """Rescan skill roots through the TypeScript atomic reload path."""
 
-        with _task_lock(task_id):
-            state = store.load_task(task_id)
-            if state is None:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
-                return
-            session_id = str(payload.get("session_id") or f"skill-update:{task_id}")
-            custody = None
-            try:
-                custody = get_permission_control_plane().custody_store.claim(
-                    PermissionSessionCustodyBinding(
-                        session_id=session_id,
-                        run_id=state.run_id,
-                        task_id=state.task_id,
-                        workspace_root=str(tool_workspace_path()),
-                    ),
-                    presented_token=extract_bearer_token(self.headers, payload),
-                    external_session_exists=bool(payload.get("session_id")),
-                )
-                permission_runtime = ToolPermissionRuntime.for_session(
-                    session_id=session_id,
-                    state_path=permission_state_path(),
-                    workspace_root=tool_workspace_path(),
-                    custody_fingerprint=custody.custody_fingerprint,
-                )
-                checkpoint = state.metadata.get("skill_runtime_state")
-                skill_runtime = SkillRuntime(
-                    SkillRuntimeConfig.for_project(
-                        PROJECT_ROOT,
-                        workspace_root=tool_workspace_path(),
-                        include_user_skills=False,
-                    ),
-                    state_snapshot=checkpoint if isinstance(checkpoint, dict) else None,
-                )
-                skill_runtime.bootstrap()
-                update_control = SkillUpdateControlRuntime(
-                    product_root=PROJECT_ROOT,
-                    workspace_root=tool_workspace_path(),
-                    permission_runtime=permission_runtime,
-                    skill_runtime=skill_runtime,
-                    state_snapshot=(
-                        state.metadata.get("skill_update_runtime_state")
-                        if isinstance(state.metadata.get("skill_update_runtime_state"), dict)
-                        else None
-                    ),
-                )
-                receipt = update_control.execute(
-                    payload,
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    session_id=session_id,
-                    task_metadata=state.metadata,
-                )
-                state.metadata["skill_runtime_state"] = (
-                    update_control.skill_runtime.state_snapshot()
-                )
-                skill_context = state.metadata.get("skill_session_context")
-                if isinstance(skill_context, dict) and receipt.state.invalidated_invocations:
-                    invalidated = set(receipt.state.invalidated_invocations)
-                    skill_context["invoked_skill_refs"] = [
-                        item
-                        for item in skill_context.get("invoked_skill_refs") or ()
-                        if isinstance(item, dict)
-                        and str(item.get("invocation_id") or "") not in invalidated
-                    ]
-            except Exception as error:  # noqa: BLE001 - structured fail-closed control response.
-                code = str(getattr(error, "code", "skill_update_failed"))
-                if "skill_update_runtime_state" in state.metadata:
-                    store.save_checkpoint(state)
-                status = (
-                    HTTPStatus.CONFLICT
-                    if code.endswith(("pending", "denied"))
-                    else HTTPStatus.BAD_REQUEST
-                )
-                self._send_json(
-                    status,
-                    {
-                        "error": code,
-                        "message": str(error),
-                        "detail": dict(getattr(error, "detail", {}) or {}),
-                        "permission_session": (
-                            PermissionCustodyEnvelope.from_receipt(custody).private_dict()
-                            if custody is not None and custody.created
-                            else PermissionCustodyEnvelope.from_receipt(custody).public_dict()
-                            if custody is not None
-                            else None
-                        ),
-                        "update_id": str(
-                            payload.get("update_id")
-                            or dict(getattr(error, "detail", {}) or {}).get("update_id")
-                            or ""
-                        ),
-                    },
-                    headers={"Cache-Control": "no-store, max-age=0"},
-                )
-                return
-            events = [
-                EventRecord(
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    node_id=state.root_node_id,
-                    event_type=EventType.SKILL_INVOKED,
-                    payload=value,
-                )
-                for value in receipt.event_payloads
-            ]
-            events.append(
-                EventRecord(
-                    run_id=state.run_id,
-                    task_id=state.task_id,
-                    node_id=state.root_node_id,
-                    event_type=EventType.SKILL_INVOKED,
-                    payload={
-                        "phase": "skill_update_committed",
-                        "owner_unit": "M1-03C",
-                        "control": receipt.to_dict(),
-                        "body_persisted": False,
-                    },
-                )
+        state = store.load_task(task_id)
+        if state is None:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+            return
+        tool_call_id = str(payload.get("tool_call_id") or new_id("skillreload"))
+        try:
+            execution = get_mcp_runtime().execute(
+                "reload_skills",
+                {},
+                identity={
+                    "tool_call_id": tool_call_id,
+                    "namespace": "skill",
+                    "operation": "reload",
+                    "actor_id": self._permission_actor_id(),
+                    "correlation_id": str(payload.get("correlation_id") or tool_call_id),
+                },
             )
-            persist_events(store, events)
-            state.updated_at = events[-1].created_at
-            store.save_checkpoint(state)
+        except TypeScriptE02PortError as error:
             self._send_json(
-                HTTPStatus.OK,
+                HTTPStatus.CONFLICT,
                 {
-                    "task": to_jsonable(state),
-                    "skill_update": receipt.to_dict(),
-                    "events": [to_jsonable(event) for event in events],
-                    "permission_session": PermissionCustodyEnvelope.from_receipt(
-                        custody
-                    ).private_dict(),
+                    "ok": False,
+                    "error": error.code,
+                    "message": str(error),
+                    "detail": error.detail,
+                    "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                    "python_skill_fallback": False,
                 },
-                headers={
-                    "Cache-Control": "no-store, max-age=0",
-                    "X-Zyra-Permission-State-Owner": "PermissionStateStore",
-                    "X-Zyra-Skill-Update-State-Owner": "SkillUpdateRuntime",
-                },
+                headers={"Cache-Control": "no-store, max-age=0"},
             )
+            return
+        self._send_json(
+            HTTPStatus.OK,
+            {
+                "ok": True,
+                "task_id": state.task_id,
+                "execution": execution,
+                "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                "python_skill_fallback": False,
+            },
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
 
     def _execute_skill_lifecycle_post(
         self,
@@ -4838,164 +4110,26 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         action: str,
         payload: dict[str, Any],
     ) -> None:
-        with _task_lock(task_id):
-            state = store.load_task(task_id)
-            if state is None:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
-                return
-            checkpoint = state.metadata.get("skill_runtime_state")
-            if not isinstance(checkpoint, dict):
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "skill_runtime_state_not_found"})
-                return
-            runtime = SkillRuntime(
-                SkillRuntimeConfig.for_project(
-                    PROJECT_ROOT,
-                    workspace_root=tool_workspace_path(),
-                    include_user_skills=False,
-                    disabled=_truthy(os.environ.get("ZYRA_SKILL_RUNTIME_DISABLED"), default=False),
-                ),
-                state_snapshot=checkpoint,
-            )
-            try:
-                runtime.bootstrap()
-                current = runtime.state_store.get(invocation_id)
-                if current.task_id != task_id:
-                    raise ValueError("skill invocation belongs to another task")
-                if action == "cancel":
-                    terminal = runtime.invocation_runtime.cancel(
-                        invocation_id,
-                        reason=str(payload.get("reason") or "cancelled by task API"),
-                    )
-                    outcome_commit = None
-                else:
-                    task_events = [to_jsonable(item) for item in store.task_events(task_id)]
-                    task_artifacts = [to_jsonable(item) for item in state.artifacts]
-                    evidence_port = InMemorySkillOutcomeEvidencePort(
-                        events=(item for item in task_events if isinstance(item, dict)),
-                        artifacts=(item for item in task_artifacts if isinstance(item, dict)),
-                    )
-                    known_event_ids = {
-                        str(item.get("event_id") or "")
-                        for item in task_events
-                        if isinstance(item, dict)
-                    }
-                    supplied_evidence = tuple(
-                        str(item) for item in payload.get("evidence_refs") or ()
-                    )
-                    event_ids = [str(item) for item in payload.get("event_ids") or ()]
-                    explicit_refs = [str(item) for item in payload.get("explicit_refs") or ()]
-                    for reference in supplied_evidence:
-                        candidate = reference.rstrip("/").rsplit("/", 1)[-1]
-                        if candidate in known_event_ids:
-                            event_ids.append(candidate)
-                        else:
-                            explicit_refs.append(reference)
-                    explicit_refs.extend(
-                        str(item) for item in payload.get("outcome_refs") or ()
-                    )
-                    artifact_ids = [str(item) for item in payload.get("artifact_ids") or ()]
-                    artifact_ids.extend(
-                        str(item).rstrip("/").rsplit("/", 1)[-1]
-                        for item in payload.get("artifact_refs") or ()
-                    )
-                    if not event_ids and not artifact_ids and not explicit_refs:
-                        event_ids.extend(
-                            str(item.get("event_id"))
-                            for item in task_events
-                            if isinstance(item, dict)
-                            and isinstance(item.get("payload"), dict)
-                            and str(
-                                item["payload"].get("invocation_id")
-                                or (
-                                    item["payload"].get("skill_runtime", {}).get("invocation_id")
-                                    if isinstance(item["payload"].get("skill_runtime"), dict)
-                                    else ""
-                                )
-                                or ""
-                            )
-                            == invocation_id
-                        )
-                    outcome_commit = SkillOutcomeCommitRuntime(
-                        skill_runtime=runtime,
-                        evidence_port=evidence_port,
-                    ).commit(
-                        SkillOutcomeCommitRequest(
-                            commit_id=str(payload.get("commit_id") or new_id("skillcommit")),
-                            invocation_id=invocation_id,
-                            run_id=current.run_id,
-                            task_id=current.task_id,
-                            session_id=current.session_id,
-                            worker_request_id=str(payload.get("worker_request_id") or ""),
-                            child_task_id=str(payload.get("child_task_id") or ""),
-                            event_ids=tuple(dict.fromkeys(event_ids)),
-                            artifact_ids=tuple(dict.fromkeys(artifact_ids)),
-                            explicit_refs=tuple(dict.fromkeys(explicit_refs)),
-                            expected_state_revision=current.revision,
-                        )
-                    )
-                    terminal = runtime.state_store.get(invocation_id)
-            except Exception as error:  # noqa: BLE001 - fail-closed lifecycle response.
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {
-                        "error": str(getattr(error, "code", "skill_lifecycle_failed")),
-                        "message": str(error),
-                    },
-                )
-                return
-            session_checkpoint = runtime.session_bridge.checkpoint(
-                session_id=terminal.session_id,
-                agent_id=terminal.agent_id,
-                runtime_state_snapshot=runtime.state_snapshot(),
-            )
-            state.metadata["skill_runtime_state"] = session_checkpoint.to_dict()
-            context = state.metadata.setdefault("skill_session_context", {})
-            context["invoked_skill_refs"] = [
-                reference.to_dict() for reference in session_checkpoint.compact_references
-            ]
-            context["latest_terminal_state"] = terminal.to_dict()
-            context["permission_hook_id"] = ""
-            context["permission_hook_active"] = False
-            outcome = (
-                outcome_commit.outcome_projection.to_dict()
-                if action == "complete" and outcome_commit is not None
-                else None
-            )
-            if outcome_commit is not None:
-                context["latest_outcome_commit"] = outcome_commit.to_dict()
-            projection = state.metadata.get("skill_invocation_projection")
-            if isinstance(projection, dict) and projection.get("invocation_id") == invocation_id:
-                projection["status"] = str(terminal.status)
-                projection["outcome_projection"] = outcome
-                projection["permission_hook_active"] = False
-            event = EventRecord(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=state.root_node_id,
-                event_type=EventType.SKILL_INVOKED,
-                payload={
-                    "phase": f"skill_{action}",
-                    "invocation_id": invocation_id,
-                    "status": str(terminal.status),
-                    "outcome_projection": outcome,
-                    "owner_unit": "M1-03C",
-                },
-            )
-            persist_events(store, (event,))
-            state.updated_at = terminal.updated_at
-            store.save_checkpoint(state)
-            self._send_json(
-                HTTPStatus.OK,
-                {
-                    "task": to_jsonable(state),
-                    "skill_state": terminal.to_dict(),
-                    "outcome_projection": outcome,
-                    "event": to_jsonable(event),
-                    "session_checkpoint": session_checkpoint.to_dict(),
-                },
-                headers={"Cache-Control": "no-store, max-age=0"},
-            )
+        """Reject the removed Python invocation journal instead of shadowing TS."""
 
+        del payload
+        if store.load_task(task_id) is None:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+            return
+        self._send_json(
+            HTTPStatus.CONFLICT,
+            {
+                "ok": False,
+                "error": "typescript_skill_lifecycle_owned",
+                "message": "Skill completion/cancellation is committed by SkillCoordinator during execution.",
+                "task_id": task_id,
+                "invocation_id": invocation_id,
+                "action": action,
+                "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+                "python_skill_fallback": False,
+            },
+            headers={"Cache-Control": "no-store, max-age=0"},
+        )
     def _execute_code_worker_post(self, store: SQLiteStore, task_id: str, payload: dict[str, Any]) -> None:
         with _task_lock(task_id):
             state = store.load_task(task_id)
@@ -5032,15 +4166,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 if key in {"constraints", "node_id", "idempotency_key"}:
                     continue
                 constraints.setdefault(key, value)
-            skill_checkpoint = state.metadata.get("skill_runtime_state")
-            skill_context = state.metadata.get("skill_session_context")
-            if isinstance(skill_checkpoint, dict) and isinstance(skill_context, dict):
-                for key, value in SkillTaskIntegrationRuntime().worker_constraints(
-                    state.metadata
-                ).items():
-                    constraints.setdefault(key, value)
             worker_request_id = new_id("workerreq")
-            worker_messages, skill_disclosure_batch = _task_skill_worker_messages(
+            worker_messages, _skill_disclosure_batch = _task_skill_worker_messages(
                 state,
                 worker_request_id=worker_request_id,
             )
@@ -5096,7 +4223,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 messages=worker_messages,
                 request_id=worker_request_id,
                 constraints=constraints,
-                metadata={"skill_context_owner": "M1-03C.SkillSessionBridge"},
+                metadata={
+                    "skill_context_owner": "typescript.SkillCoordinator",
+                    "canonical_permission_owner": "typescript",
+                    "python_decision_fallback": False,
+                },
             )
             try:
                 run_result = CodeWorkerRuntime(
@@ -5105,7 +4236,6 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     artifact_root=artifact_root_path(),
                     permission_store=get_permission_store(),
                     permission_state_path=permission_state_path(),
-                    mcp_runtime=get_mcp_runtime(),
                     tool_registry=default_tool_registry(),
                     runtime_services={
                         "workspace_edit_port": WorkspaceEditPort(
@@ -5133,12 +4263,6 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     indeterminate=bool(browser_context_batch.source_ids),
                 )
                 store.save_checkpoint(state)
-                if skill_disclosure_batch is not None:
-                    SkillTaskIntegrationRuntime().abort_disclosures(
-                        metadata=state.metadata,
-                        batch=skill_disclosure_batch,
-                        reason=f"worker raised {type(error).__name__}",
-                    )
                 self._send_json(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     {
@@ -5191,22 +4315,6 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     # The turn projection is explicitly a reconstructable read
                     # model. Canonical consumption remains in TaskState.
                     pass
-            skill_task_bridge = SkillTaskIntegrationRuntime()
-            skill_ingest_receipt = skill_task_bridge.ingest_worker_events(
-                metadata=state.metadata,
-                events=run_result.event_records,
-                run_id=state.run_id,
-                task_id=state.task_id,
-                worker_request_id=worker_request_id,
-            )
-            if skill_disclosure_batch is not None:
-                skill_task_bridge.commit_disclosures(
-                    metadata=state.metadata,
-                    batch=skill_disclosure_batch,
-                    worker_event_ids=tuple(
-                        event.event_id for event in run_result.event_records
-                    ),
-                )
             state.budget.tool_calls += sum(1 for event in run_result.event_records if "tool_result" in event.payload)
             if run_result.event_records:
                 state.updated_at = run_result.event_records[-1].created_at
@@ -5233,7 +4341,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 "compact_state": codeworker_api_projection.compact_state.to_dict(),
                 "tool_trace": codeworker_api_projection.tool_trace.to_dict(),
                 "events": [to_jsonable(event) for event in projected_events],
-                "skill_task_ingest": skill_ingest_receipt.to_dict(),
+                "skill_task_ingest": {
+                    "canonical_owner": "typescript.SkillCoordinator",
+                    "python_skill_dispatch": False,
+                },
                 "browser_context_delivery": browser_context_batch.to_dict(),
                 "browser_context_provider_selection": browser_context_selection.to_dict(),
                 "browser_context": _BROWSER_CONTEXT_TASK_INTEGRATION.public_projection(
@@ -5799,7 +4910,8 @@ def _control_command_request_from_text(state: Any, text: str, payload: dict[str,
         ),
         metadata={
             "actor_id": str(payload.get("actor_id") or "api-user"),
-            "permission_authority": "PermissionStateStore deterministic control allowlist",
+            "permission_authority": "retained non-E02 task-control allowlist",
+            "e02_command_dispatch": "typescript-only",
         },
     )
 
@@ -5814,12 +4926,23 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
     def permission_authorize(request: ControlCommandRequest, descriptor: Any) -> bool:
         # Interactive command permission remains under the 03A state owner.
-        # Foundation exposes only a deterministic low-risk allowlist; commands
-        # that would change permission, provider, MCP, plugin or session custody
-        # fail closed until their canonical owner supplies an exact handler/grant.
+        # E02 command families are never evaluated or dispatched here: their
+        # API route enters the TypeScript CommandCoordinator above.  Alternate
+        # legacy transports therefore fail closed instead of becoming a shadow
+        # parser/permission path.
+        if descriptor.handler_id in {
+            "mcp.control",
+            "mcp.prompt",
+            "permission.control",
+            "permission.plan",
+            "skill.command",
+            "skill_plugin.command",
+            "skill_plugin.hooks",
+        }:
+            return False
         get_permission_control_plane().state_store.snapshot()
         raw = str(request.arguments.get("raw") or "").strip().lower()
-        if descriptor.handler_id in {"mcp.control", "permission.control", "provider.model"} and raw in {"", "status", "list", "show"}:
+        if descriptor.handler_id == "provider.model" and raw in {"", "status", "list", "show"}:
             return True
         return descriptor.permission_action in {
             "task.goal",
@@ -5834,16 +4957,21 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
     handlers: dict[str, Any] = {}
 
-    def read_projection(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
-        legacy = parse_slash_command(
-            f"{request.canonical_name} {request.arguments.get('raw', '')}".strip(),
+    def read_projection(request: ControlCommandRequest, descriptor: Any, _context: Any) -> ControlResult:
+        command = ControlCommand(
             run_id=state.run_id,
             task_id=state.task_id,
-            registry=get_runtime_command_registry(),
+            name=request.canonical_name,
+            arguments=dict(request.arguments),
+            command_id=request.command_id,
+            metadata={
+                "category": str(getattr(descriptor, "category", "projection")),
+                "handler_id": str(getattr(descriptor, "handler_id", "")),
+                "runtime_status": "projection",
+                "canonical_command_registry_owner": "typescript",
+            },
         )
-        if legacy is None:
-            raise RuntimeError(f"read projection is unavailable for {request.canonical_name}")
-        event = control_event_from_command(legacy.control_command, node_id=state.root_node_id)
+        event = control_event_from_command(command, node_id=state.root_node_id)
         projected = _command_result_for_event(state, event, store)
         projected_data = dict(projected.get("data") or {})
         if request.canonical_name == "/context":
@@ -5854,7 +4982,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         return ControlResult(
             display_text=str(projected.get("summary") or request.canonical_name),
             data=projected_data,
-            metadata={"legacy_parser_only": True, "event_only_stateful_fallback": False},
+            metadata={"python_parser_enabled": False, "event_only_stateful_fallback": False},
         )
 
     for handler_id in {
@@ -5907,63 +5035,43 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
     def mcp_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         if action not in {"status", "health", "servers", "server", "catalog", "tools", "resources", "prompts", "tasks", "elicitations"}:
-            raise RuntimeError("mutating MCP control requires an exact McpClientRuntime authorization")
+            raise RuntimeError("mutating MCP control requires E02CapabilityCoordinator.execute")
         target = str(arguments.get("target") or "").strip()
-        raw = " ".join(item for item in (action, target) if item)
-        control_result = get_mcp_command_adapter().execute(
-            "/mcp",
-            raw,
-            context=McpControlContext(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=str(state.root_node_id or ""),
-                session_id=str(state.metadata.get("code_worker_session_id") or ""),
-                worker_request_id=str(request.request_id),
-                tool_use_id=str(request.command_id),
-                actor_id=str(request.metadata.get("actor_id") or "control-command"),
-                cause_event_id=str(request.request_id),
-            ),
-        )
-        payload = control_result.safe_dict()
+        route = {
+            "status": "health",
+            "health": "health",
+            "servers": "servers",
+            "server": "servers",
+            "catalog": "catalog",
+            "tools": "tools",
+            "resources": "resources",
+            "prompts": "prompts",
+            "tasks": "health",
+            "elicitations": "elicitations",
+        }[action]
+        parts = ["mcp", route, *([target] if action == "server" and target else [])]
+        payload = get_mcp_runtime().mcp_get(parts).get("body", {})
         return {
-            "ok": control_result.ok,
-            "summary": control_result.summary,
-            **dict(control_result.data),
-            "control": payload,
-            "runtime_status": "live" if control_result.ok else "blocked",
-            "owner_slice": "M1-S03B-02",
-            "requires_node_sidecar": False,
-            "sidecar_contracts_used": False,
+            "ok": True,
+            "summary": "TypeScript MCP capability projection.",
+            **(dict(payload) if isinstance(payload, dict) else {}),
+            "runtime_status": "live",
+            "canonical_owner": "typescript.McpRuntimeCoordinator",
+            "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+            "python_dispatch": False,
         }
 
     def permission_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         if action not in {"inspect", "status", "list", "rules", "requests", "decisions", "mode"}:
-            raise RuntimeError("mutating permission control requires an exact PermissionStateStore authorization")
-        plane = get_permission_control_plane()
-        permission_requests = [
-            item
-            for item in plane.state_store.list_requests()
-            if item.task_id == state.task_id and item.run_id == state.run_id
-        ]
-        status_counts: dict[str, int] = {}
-        for item in permission_requests:
-            status = item.status.value
-            status_counts[status] = status_counts.get(status, 0) + 1
+            raise RuntimeError("mutating permission control requires E02CapabilityCoordinator.execute")
+        projection = get_mcp_runtime().snapshot(("permission",))
         return {
             "ok": True,
-            "summary": "Permission runtime summary; session details require custody.",
+            "summary": "TypeScript permission runtime projection.",
             "action": action,
-            "legacy_json_store_authority": False,
-            "request_count": len(permission_requests),
-            "request_status_counts": status_counts,
-            "session_count": len({item.session_id for item in permission_requests}),
-            "custody_required_for_details": True,
-            "structured_routes": [
-                "/permissions/requests",
-                "/permissions/rules",
-                "/permissions/mode",
-                "/permissions/decisions",
-            ],
+            "permission": projection.get("permission", {}),
+            "canonical_owner": "typescript.PermissionCoordinator",
+            "python_decision_fallback": False,
         }
 
     def model_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
@@ -5979,14 +5087,14 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
     def plugin_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         if action not in {"inspect", "status", "list", "hooks", "plugins"}:
-            raise RuntimeError("plugin mutation requires an exact SkillPluginRuntime authorization")
-        snapshot = default_skill_runtime().plugin_runtime.snapshot()
+            raise RuntimeError("plugin mutation requires E02CapabilityCoordinator.execute")
+        snapshot = get_mcp_runtime().plugins()
         return {
             "ok": True,
-            "summary": "Plugin capability state.",
-            "generation": snapshot.generation,
-            "plugins": snapshot.plugins,
-            "errors": list(snapshot.errors),
+            "summary": "TypeScript plugin capability state.",
+            **snapshot,
+            "canonical_owner": "typescript.PluginCoordinator",
+            "python_dispatch": False,
         }
 
     def subagent_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
@@ -6180,16 +5288,21 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
     handlers["task.goal"] = task_goal
 
-    def legacy_real_mutation(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
-        legacy = parse_slash_command(
-            f"{request.canonical_name} {request.arguments.get('raw', '')}".strip(),
+    def legacy_real_mutation(request: ControlCommandRequest, descriptor: Any, _context: Any) -> ControlResult:
+        command = ControlCommand(
             run_id=state.run_id,
             task_id=state.task_id,
-            registry=get_runtime_command_registry(),
+            name=request.canonical_name,
+            arguments=dict(request.arguments),
+            command_id=request.command_id,
+            metadata={
+                "category": str(getattr(descriptor, "category", "task-control")),
+                "handler_id": str(getattr(descriptor, "handler_id", "")),
+                "runtime_status": "stateful",
+                "canonical_command_registry_owner": "typescript",
+            },
         )
-        if legacy is None:
-            raise RuntimeError(f"canonical mutation owner is unavailable for {request.canonical_name}")
-        event = control_event_from_command(legacy.control_command, node_id=state.root_node_id)
+        event = control_event_from_command(command, node_id=state.root_node_id)
         applied = _apply_control_event_to_state(state, event)
         persist_events(store, [event, *applied])
         projected = _command_result_for_event(state, event, store)
@@ -6366,54 +5479,28 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
         result["summary"] = "Task artifacts."
         result["data"] = {"artifacts": [_artifact_entry(catalog, artifact) for artifact in state.artifacts]}
     elif name == "/tools":
-        base_context = ToolExecutionContext.for_workspace(
-            workspace_root=tool_workspace_path(),
-            artifact_root=artifact_root_path(),
-            permission_store=get_permission_store(),
-        )
-        projection = get_mcp_runtime().worker_projection(
-            base_context,
-            run_id=state.run_id,
-            task_id=state.task_id,
-            node_id=state.root_node_id,
-        )
-        result["summary"] = "Registered tools."
+        projection = get_mcp_runtime().tools()
+        result["summary"] = "TypeScript-owned capability tools."
         result["data"] = {
-            "tools": [to_jsonable(tool) for tool in projection.context.registry.list()],
-            "mcp": projection.safe_dict(),
+            **projection,
+            "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+            "python_registry_enabled": False,
         }
     elif name == "/permissions":
-        control_plane = get_permission_control_plane()
-        permission_requests = [
-            request
-            for request in control_plane.state_store.list_requests()
-            if request.task_id == state.task_id and request.run_id == state.run_id
-        ]
-        status_counts: dict[str, int] = {}
-        for request in permission_requests:
-            status = request.status.value
-            status_counts[status] = status_counts.get(status, 0) + 1
-        result["summary"] = "Permission runtime summary; session details require custody."
+        projection = get_mcp_runtime().snapshot(("permission",))
+        result["summary"] = "TypeScript-owned permission runtime summary."
         result["data"] = {
-            "state_owner": "PermissionStateStore",
-            "legacy_json_store_authority": False,
-            "request_count": len(permission_requests),
-            "request_status_counts": status_counts,
-            "session_count": len({request.session_id for request in permission_requests}),
-            "custody_required_for_details": True,
-            "structured_routes": [
-                "/permissions/requests",
-                "/permissions/rules",
-                "/permissions/mode",
-                "/permissions/decisions",
-            ],
+            **projection,
+            "state_owner": "typescript.PermissionCoordinator",
+            "python_decision_fallback": False,
         }
     elif name == "/help":
-        commands = [to_jsonable(command_spec) for command_spec in default_command_registry().list()]
-        result["summary"] = "Available slash commands."
+        projection = get_mcp_runtime().commands()
+        result["summary"] = "TypeScript-owned command registry."
         result["data"] = {
-            "commands": commands,
-            "groups": _command_groups(commands),
+            **projection,
+            "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+            "python_parser_enabled": False,
         }
     elif name in {"/cost", "/usage"}:
         result["summary"] = "Task resource usage."
@@ -6448,46 +5535,42 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
     elif name == "/mcp" or str(metadata.get("command_kind") or "") == "mcp_prompt":
         arguments = command.get("arguments")
         raw = str(arguments.get("raw") or "") if isinstance(arguments, dict) else ""
-        control_result = get_mcp_command_adapter().execute(
-            name,
-            raw,
-            context=McpControlContext(
-                run_id=state.run_id,
-                task_id=state.task_id,
-                node_id=str(state.root_node_id or ""),
-                session_id=str(state.metadata.get("code_worker_session_id") or ""),
-                worker_request_id=str(event.event_id),
-                tool_use_id=str(event.event_id),
-                actor_id="control-command",
-                cause_event_id=str(event.event_id),
-            ),
-        )
-        control_payload = control_result.safe_dict()
-        result["ok"] = control_result.ok
-        result["summary"] = control_result.summary
-        result["runtime_status"] = "live" if control_result.ok else "blocked"
+        tokens = [token for token in raw.strip().split() if token]
+        route = tokens[0].lower() if tokens else "health"
+        route = {
+            "status": "health",
+            "server": "servers",
+        }.get(route, route)
+        if route not in {"health", "config", "servers", "catalog", "tools", "resources", "prompts", "elicitations"}:
+            route = "health"
+        parts = ["mcp", route]
+        if route == "servers" and len(tokens) > 1:
+            parts.append(tokens[1])
+        projection = get_mcp_runtime().mcp_get(parts)
+        status = int(projection.get("status") or HTTPStatus.OK)
+        body = dict(projection.get("body") or {})
+        result["ok"] = status < HTTPStatus.BAD_REQUEST
+        result["summary"] = "TypeScript-owned MCP capability projection."
+        result["runtime_status"] = "live" if result["ok"] else "blocked"
         result["data"] = {
-            **dict(control_result.data),
-            "control": control_payload,
+            **body,
             "runtime_status": result["runtime_status"],
-            "owner_slice": "M1-S03B-02",
-            "state_owner": "McpClientRuntime",
-            "permission_owner": "ToolPermissionRuntime",
-            "requires_node_sidecar": False,
-            "sidecar_contracts_used": False,
+            "state_owner": "typescript.McpRuntimeCoordinator",
+            "permission_owner": "typescript.PermissionCoordinator",
+            "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+            "python_dispatch": False,
         }
     elif name == "/skills":
-        skill_runtime = default_skill_runtime()
-        result["summary"] = "Versioned skills and the task-scoped invocation projection."
+        projection = get_mcp_runtime().skills()
+        result["summary"] = "TypeScript-owned skills and invocation state."
         result["data"] = {
-            "skills": [to_jsonable(skill) for skill in skill_runtime.list()],
-            "registry": skill_runtime.registry.snapshot().to_dict(),
+            **projection,
             "skill_invocation": dict(state.metadata.get("skill_invocation_projection") or {}),
-            "runtime_state": dict(state.metadata.get("skill_runtime_state") or {}),
             "body_in_projection": False,
-            "owner_slice": "M1-S03C-01",
-            "state_owner": "SkillInvocationStateStore",
-            "permission_owner": "ToolPermissionRuntime",
+            "state_owner": "typescript.SkillCoordinator",
+            "permission_owner": "typescript.PermissionCoordinator",
+            "canonical_entrypoint": "E02CapabilityCoordinator.execute",
+            "python_dispatch": False,
         }
     elif name == "/doctor":
         result["summary"] = "Development runtime health checks."

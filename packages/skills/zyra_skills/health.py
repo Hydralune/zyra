@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from .models import utc_now
-from .runtime import SkillRuntime
 
 
 class SkillHealthStatus(StrEnum):
@@ -61,7 +60,7 @@ class SkillRuntimeHealth:
 
 
 class SkillRuntimeHealthProbe:
-    def probe(self, runtime: SkillRuntime, *, session_id: str = "") -> SkillRuntimeHealth:
+    def probe(self, runtime: Any, *, session_id: str = "") -> SkillRuntimeHealth:
         checks: list[SkillHealthCheck] = []
         try:
             runtime.bootstrap()

@@ -1,147 +1,112 @@
-import { resolve } from "node:path";
-
-import {
-  parseMcpServerConfigs,
-  TypeScriptMcpRuntime,
-  type McpExecutionResult,
-} from "../../../integrations/claude-mcp/src/index.ts";
-import {
-  asObject,
-  asString,
-  type JsonObject,
-  type RuntimeRunInput,
-  type ToolSpecContract,
+import type {
+  JsonObject,
+  RuntimeRunInput,
+  ToolSpecContract,
 } from "./contracts.ts";
-import {
-  isLegacySkillTool,
-  parseSkillRoots,
-  TypeScriptSkillRuntime,
-  type SkillExecutionResult,
-} from "./skills/index.ts";
-import {
-  isLegacyAgentTool,
-  TypeScriptAgentRuntime,
-  type AgentCapabilityResult,
-  type AgentExecutionContext,
+import type {
+  AgentCapabilityResult,
+  AgentExecutionContext,
 } from "./agents/index.ts";
+import {
+  E02CapabilityCoordinator,
+  type E02AuthorizationInput,
+  type E02AuthorizationResult,
+  type E02CapabilityCoordinatorSnapshot,
+  type E02CoordinatorPorts,
+  type E02ExecutionContext,
+  type E02ExecutionReceipt,
+} from "./e02/index.ts";
+import type { McpCoordinatorExecution } from "../../../integrations/claude-mcp/src/index.ts";
+import type { SkillCoordinatorExecution } from "./skills/index.ts";
+import type { PluginCoordinatorExecution } from "./plugins/index.ts";
+import type { CommandCoordinatorExecution } from "./commands/index.ts";
 
 export type CapabilityExecutionResult =
-  | McpExecutionResult
-  | SkillExecutionResult
+  | McpCoordinatorExecution
+  | SkillCoordinatorExecution
+  | PluginCoordinatorExecution
+  | CommandCoordinatorExecution
   | AgentCapabilityResult;
 
 export class TypeScriptCapabilityRuntime {
-  private readonly mcp: TypeScriptMcpRuntime;
-  private readonly skills: TypeScriptSkillRuntime;
-  private readonly agents: TypeScriptAgentRuntime;
+  readonly e02: E02CapabilityCoordinator;
 
-  private constructor(
-    mcp: TypeScriptMcpRuntime,
-    skills: TypeScriptSkillRuntime,
-    agents: TypeScriptAgentRuntime,
-  ) {
-    this.mcp = mcp;
-    this.skills = skills;
-    this.agents = agents;
+  private constructor(e02: E02CapabilityCoordinator) {
+    this.e02 = e02;
   }
 
-  static async open(input: RuntimeRunInput): Promise<TypeScriptCapabilityRuntime> {
-    const constraints = asObject(input.config.runtimeConstraints);
-    const mcpConfigs = parseMcpServerConfigs(
-      constraints.typescriptMcpServers ?? constraints.typescript_mcp_servers,
+  static async open(
+    input: RuntimeRunInput,
+    ports: E02CoordinatorPorts = {},
+  ): Promise<TypeScriptCapabilityRuntime> {
+    return new TypeScriptCapabilityRuntime(
+      await E02CapabilityCoordinator.open(input, ports),
     );
-    const workspaceRoot = asString(constraints.workspaceRoot ?? constraints.workspace_root);
-    const projectRoot = asString(constraints.projectRoot ?? constraints.project_root) || workspaceRoot;
-    const defaultSkillRoots = [
-      resolve(workspaceRoot || process.cwd(), ".zyra", "skills"),
-      resolve(projectRoot || process.cwd(), "skills"),
-      resolve(workspaceRoot || process.cwd(), ".claude", "skills"),
-      resolve(projectRoot || process.cwd(), ".claude", "commands"),
-      resolve(projectRoot || process.cwd(), ".claude", "plugins"),
-    ];
-    const skillRoots = parseSkillRoots(
-      constraints.typescriptSkillRoots ?? constraints.typescript_skill_roots,
-      defaultSkillRoots,
-    );
-    const runtime = new TypeScriptCapabilityRuntime(
-      new TypeScriptMcpRuntime(mcpConfigs),
-      new TypeScriptSkillRuntime(skillRoots),
-      new TypeScriptAgentRuntime(input),
-    );
-    await Promise.all([runtime.mcp.open(), runtime.skills.open()]);
-    return runtime;
   }
 
   mergeToolSpecs(existing: ToolSpecContract[]): ToolSpecContract[] {
-    const retained = existing.filter(
-      (tool) => !isLegacyMcpTool(tool) && !isLegacySkillTool(tool) && !isLegacyAgentTool(tool),
-    );
-    const local = [
-      ...this.mcp.toolSpecs(),
-      ...this.mcp.catalogToolSpecs(),
-      ...this.skills.toolSpecs(),
-      ...this.agents.toolSpecs(),
-    ] as ToolSpecContract[];
-    const byName = new Map<string, ToolSpecContract>();
-    for (const tool of [...retained, ...local]) {
-      byName.set(tool.name, tool);
-    }
-    return [...byName.values()].sort((left, right) => left.name.localeCompare(right.name));
+    return this.e02.mergeToolSpecs(existing);
+  }
+
+  toolSpecs(): ToolSpecContract[] {
+    return this.e02.toolSpecs();
   }
 
   owns(toolName: string): boolean {
-    return this.mcp.owns(toolName) || this.skills.owns(toolName) || this.agents.owns(toolName);
+    return this.e02.owns(toolName);
   }
 
   owner(toolName: string): string {
-    if (this.mcp.owns(toolName)) {
-      return "typescript-mcp";
-    }
-    return this.agents.owns(toolName) ? "typescript-agent" : "typescript-skill";
+    return this.e02.owner(toolName);
+  }
+
+  authorize(input: E02AuthorizationInput): Promise<E02AuthorizationResult> {
+    return this.e02.authorize(input);
   }
 
   async execute(
     toolName: string,
     argumentsValue: JsonObject,
     agentContext?: AgentExecutionContext,
+    executionContext: Partial<E02ExecutionContext> = {},
   ): Promise<CapabilityExecutionResult> {
-    if (this.mcp.owns(toolName)) {
-      return this.mcp.execute(toolName, argumentsValue);
-    }
-    if (this.agents.owns(toolName)) {
-      if (!agentContext) {
-        throw new Error("AgentTool execution requires a child QueryEngine context");
-      }
-      return this.agents.execute(toolName, argumentsValue, agentContext);
-    }
-    return this.skills.execute(toolName, argumentsValue);
+    const receipt = await this.executeWithReceipt(
+      toolName,
+      argumentsValue,
+      agentContext,
+      executionContext,
+    );
+    return receipt.result as CapabilityExecutionResult;
+  }
+
+  executeWithReceipt(
+    toolName: string,
+    argumentsValue: JsonObject,
+    agentContext?: AgentExecutionContext,
+    executionContext: Partial<E02ExecutionContext> = {},
+  ): Promise<E02ExecutionReceipt> {
+    const toolCallId = executionContext.toolCallId
+      || `direct:${toolName}:${this.e02.runtime.workerRequestId}`;
+    return this.e02.execute(toolName, argumentsValue, {
+      ...executionContext,
+      toolCallId,
+      agentContext,
+    });
   }
 
   async drainBackground(context: AgentExecutionContext): Promise<void> {
-    await this.agents.drainBackground(context);
+    await this.e02.drainBackground(context);
   }
 
-  snapshot(): JsonObject {
-    return {
-      version: "zyra.typescript-capability-runtime.v1",
-      canonical_owner: "typescript",
-      mcp: this.mcp.snapshot(),
-      skills: this.skills.snapshot(),
-      agents: this.agents.snapshot(),
-      python_runtime_fallback: false,
-    };
+  snapshot(): E02CapabilityCoordinatorSnapshot {
+    return this.e02.snapshot();
+  }
+
+  health(): ReturnType<E02CapabilityCoordinator["health"]> {
+    return this.e02.health();
   }
 
   async close(): Promise<void> {
-    await this.mcp.close();
+    await this.e02.close();
   }
-}
-
-function isLegacyMcpTool(tool: ToolSpecContract): boolean {
-  const provenance = asObject(tool.execution_provenance);
-  return tool.name.startsWith("mcp__")
-    || tool.name.startsWith("mcp_")
-    || asString(provenance.namespace) === "mcp"
-    || tool.source.includes("mcp-projection")
-    || tool.source.includes("python-mcp");
 }

@@ -19,7 +19,7 @@ from urllib.parse import unquote, urljoin, urlparse
 from zyra_core import ArtifactKind, ControlCommand, EventRecord, EventType, to_jsonable
 from zyra_integrations import browser_use_snapshot
 from zyra_runtime import LocalArtifactStore, WorkerRequest, WorkerResult
-from zyra_runtime.permission.action_gate import (
+from zyra_runtime.permission import (
     BrowserActionPermissionCustodyError,
     BrowserActionPermissionDisabled,
     BrowserActionPermissionGate,

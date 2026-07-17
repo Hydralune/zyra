@@ -239,14 +239,14 @@ class ToolExecutor:
                     call,
                     "permission grant does not match immutable dynamic handler provenance",
                 )
-            # The executor owns its authority binding.  A model/plugin/caller
-            # cannot provide an arbitrary ``lambda: True`` validator.
+            # E02 accepts only the concrete TypeScript receipt port.  The port
+            # validates a committed receipt; it never evaluates policy.
             try:
-                from .permission.runtime import ToolPermissionRuntime
+                from .e02_ports import TypeScriptPermissionReceiptPort
             except ImportError:
-                return self._invalid_grant_result(call, "permission authority is unavailable")
-            if not isinstance(self._permission_authority, ToolPermissionRuntime):
-                return self._invalid_grant_result(call, "permission authority is missing or untrusted")
+                return self._invalid_grant_result(call, "TypeScript receipt port is unavailable")
+            if not isinstance(self._permission_authority, TypeScriptPermissionReceiptPort):
+                return self._invalid_grant_result(call, "TypeScript receipt port is missing or untrusted")
             try:
                 authorized = bool(
                     self._permission_authority.validate_and_consume(

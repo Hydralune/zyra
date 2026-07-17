@@ -56,9 +56,10 @@ class CodeWorkerRun:
 class CodeWorkerRuntime:
     """Narrow Python host for the canonical TypeScript CodeWorker runtime.
 
-    Python owns process launch, durable byte storage, permission state, artifacts,
-    tools and EventRecord projection. Query, context, session, model, compact and
-    tool-loop state transitions are produced only by TypeScript.
+    Python owns process launch, durable byte storage, physical tools, artifacts,
+    and EventRecord projection. Query, context, session, model, compact,
+    permission, MCP, skill/plugin/command and tool-loop state transitions are
+    produced only by TypeScript.
     """
 
     def __init__(
@@ -75,7 +76,6 @@ class CodeWorkerRuntime:
         permission_accept_edits_available: bool = False,
         permission_extension_registry: Any | None = None,
         permission_state_path: str | Path | None = None,
-        mcp_runtime: Any | None = None,
         tool_registry: Any | None = None,
         dynamic_handlers: Mapping[str, Any] | None = None,
         runtime_services: Mapping[str, Any] | None = None,
@@ -88,7 +88,6 @@ class CodeWorkerRuntime:
         self.permission_auto_available = bool(permission_auto_available)
         self.permission_accept_edits_available = bool(permission_accept_edits_available)
         self.permission_extension_registry = permission_extension_registry
-        self.mcp_runtime = mcp_runtime
         self.skill_fork_port = skill_fork_port
         services = install_gateway_runtime_services(
             runtime_services,

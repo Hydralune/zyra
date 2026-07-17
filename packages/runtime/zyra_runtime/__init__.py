@@ -53,15 +53,6 @@ from .tool_loop import (
     tool_failure_signal_from_result,
     watchdog_signal_payload,
 )
-from .permission.runtime import (
-    PERMISSION_RUNTIME_ID,
-    PERMISSION_RUNTIME_OWNER_UNIT,
-    PermissionGrantConsumption,
-    PermissionGuardResult,
-    PermissionRuntimeConfig,
-    ToolPermissionRuntime,
-    ToolPermissionRuntimeDisabledError,
-)
 from .permission.store import PermissionRuleStore, PermissionStateStore
 from .permission.custody import (
     PermissionSessionCustodyBinding,
@@ -71,24 +62,14 @@ from .permission.custody import (
 )
 from .permission.request_queue import PermissionRequestQueue
 from .permission.decision_log import PermissionDecisionLog
-from .permission.modes import PermissionModeRuntime
-from .permission.hooks import PermissionHookAdapter
-from .permission.classifier import PermissionClassifierAdapter
 from .permission import (
-    BROWSER_ACTION_GATE_RUNTIME_ID,
-    BrowserActionPermissionConsumption,
-    BrowserActionPermissionDecision,
-    BrowserActionPermissionGate,
-    BrowserActionPermissionInput,
     PermissionApiFacade,
     PermissionContinuationRuntime,
     PermissionContinuationStore,
     PermissionControlAuthority,
     PermissionControlCapability,
     PermissionControlPlane,
-    PermissionExtensionRegistry,
     PermissionTransportRegistry,
-    ShellCommandAnalyzer,
 )
 from .workers import (
     WorkerRequest,
@@ -996,38 +977,21 @@ __all__ = [
     "DisableSemanticsSurface",
     "default_disable_semantics_source_decisions",
     "disable_semantics_metadata",
-    "PERMISSION_RUNTIME_ID",
-    "PERMISSION_RUNTIME_OWNER_UNIT",
-    "BROWSER_ACTION_GATE_RUNTIME_ID",
-    "BrowserActionPermissionConsumption",
-    "BrowserActionPermissionDecision",
-    "BrowserActionPermissionGate",
-    "BrowserActionPermissionInput",
     "PermissionApiFacade",
     "PermissionContinuationRuntime",
     "PermissionContinuationStore",
     "PermissionControlAuthority",
     "PermissionControlCapability",
     "PermissionControlPlane",
-    "PermissionExtensionRegistry",
     "PermissionTransportRegistry",
-    "ShellCommandAnalyzer",
-    "PermissionClassifierAdapter",
     "PermissionDecisionLog",
-    "PermissionGrantConsumption",
-    "PermissionGuardResult",
-    "PermissionHookAdapter",
-    "PermissionModeRuntime",
     "PermissionRequestQueue",
     "PermissionRuleStore",
-    "PermissionRuntimeConfig",
     "PermissionStateStore",
     "PermissionSessionCustodyBinding",
     "PermissionSessionCustodyError",
     "PermissionSessionCustodyReceipt",
     "PermissionSessionCustodyStore",
-    "ToolPermissionRuntime",
-    "ToolPermissionRuntimeDisabledError",
     "stable_foundation_id",
 ]
 from .runtime_events import (

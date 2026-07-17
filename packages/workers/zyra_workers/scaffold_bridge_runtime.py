@@ -15,20 +15,10 @@ from zyra_runtime import (
     ToolCall,
     ToolExecutionContext,
     ToolExecutor,
-    ToolPermissionRuntime,
     ToolPermissionPolicy,
+    ToolResult,
     WorkerBridgeContract,
     default_m1_01b_runtime_scaffold,
-)
-from zyra_runtime.permission.canonical import arguments_digest
-from zyra_runtime.permission.models import (
-    PermissionEffect,
-    PermissionEvaluationRequest,
-    PermissionRuleRecord,
-    PermissionRuleSource,
-    PermissionScope,
-    PermissionScopeKind,
-    ToolIdentity,
 )
 from zyra_runtime.scaffold_lifecycle import RuntimeScaffoldLifecycle, build_default_lifecycle
 
@@ -252,75 +242,17 @@ class WorkerBridgeRuntime:
         *,
         explicit_low_risk: bool = False,
     ):
-        session_id = f"scaffold-probe:{call.task_id}"
-        runtime = ToolPermissionRuntime.for_session(
-            session_id=session_id,
-            state_path=self.artifact_root / ".permission" / "state.json",
-            workspace_root=context.workspace_root,
-        )
-        digest = arguments_digest(call.arguments)
-        if explicit_low_risk:
-            runtime.rule_store.add(
-                PermissionRuleRecord(
-                    rule_id=f"scaffold-exact-{call.tool_call_id}",
-                    effect=PermissionEffect.ALLOW,
-                    source=PermissionRuleSource.COMMAND,
-                    scope=PermissionScope(
-                        PermissionScopeKind.ACTION,
-                        session_id=session_id,
-                        task_id=call.task_id,
-                        run_id=call.run_id,
-                        workspace_root=str(context.workspace_root),
-                        tool_namespace="builtin",
-                        tool_name=call.tool_name,
-                        argument_digest=digest,
-                    ),
-                    namespace_pattern="builtin",
-                    tool_pattern=call.tool_name,
-                    max_uses=1,
-                    reason="exact low-risk scaffold behavior probe",
-                )
-            )
-        raw_path = call.arguments.get("path")
-        target = (context.workspace_root / str(raw_path)).resolve() if raw_path else None
-        path_safe = False
-        if target is not None:
-            try:
-                target.relative_to(context.workspace_root)
-                path_safe = True
-            except ValueError:
-                path_safe = False
-        request = PermissionEvaluationRequest(
-            run_id=call.run_id,
-            task_id=call.task_id,
-            session_id=session_id,
-            worker_request_id=f"scaffold-worker:{self.contract.worker_id}",
-            node_id=call.node_id,
-            tool_use_id=call.tool_call_id,
-            tool_identity=ToolIdentity(namespace="builtin", name=call.tool_name),
-            arguments=dict(call.arguments),
-            workspace_root=str(context.workspace_root),
-            attributes={
-                "path": str(raw_path or ""),
-                "capabilities": ["workspace_edit"] if call.tool_name == "file_write" else [],
+        del context, explicit_low_risk
+        return ToolResult(
+            tool_call_id=call.tool_call_id,
+            ok=False,
+            summary="Legacy scaffold probe requires the TypeScript E02 permission host.",
+            error="typescript_permission_receipt_required",
+            metadata={
+                "canonical_permission_owner": "typescript",
+                "python_policy_fallback": "false",
+                "probe_execution_disabled": "true",
             },
-        )
-        guarded = runtime.guard(
-            request,
-            workspace_state={
-                "workspace_scoped": path_safe if raw_path else True,
-                "path_validated": path_safe if raw_path else True,
-                "read_before_write": bool(target is not None and not target.exists()),
-                "baseline_current": bool(target is not None and not target.exists()),
-                "bounded_change": len(str(call.arguments.get("content") or "")) <= 2_000_000,
-            },
-        )
-        return ToolExecutor(
-            context,
-            permission_authority=runtime,
-        ).execute(
-            call,
-            permission_grant=guarded.execution_grant,
         )
 
     def _probe_memory(self) -> list[BridgeProbeStep]:

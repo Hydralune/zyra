@@ -30,7 +30,6 @@ from .models import (
     PermissionScopeKind,
     ToolIdentity,
 )
-from .rules import RuleEvaluation, RuleMatch, RuleMatcher, evaluate_rules
 
 
 PERMISSION_STATE_SCHEMA = "zyra.permission-state"
@@ -959,18 +958,20 @@ class PermissionStateStore:
 
 
 class PermissionRuleStore:
-    """Logical rule facade over ``PermissionStateStore`` session state."""
+    """Storage-only facade for TypeScript-owned permission policy input.
+
+    E02 deliberately exposes no match/evaluate operation in Python.  The
+    retained store can persist and enumerate configuration, while the live
+    TypeScript coordinator is the only rule-selection owner.
+    """
 
     def __init__(
         self,
         state_store: PermissionStateStore,
         session_id: str = "",
-        *,
-        matcher: RuleMatcher | None = None,
     ) -> None:
         self.state_store = state_store
         self.session_id = session_id
-        self.matcher = matcher or RuleMatcher()
 
     def add(
         self,
@@ -1017,26 +1018,6 @@ class PermissionRuleStore:
         )
 
     list_rules = list
-
-    def matches(
-        self,
-        request: PermissionEvaluationRequest,
-        *,
-        at: datetime | None = None,
-    ) -> tuple[RuleMatch, ...]:
-        session_id = self.session_id or request.session_id
-        rules = self.state_store.effective_rules(session_id)
-        return self.matcher.matches(rules, request, at=at)
-
-    def evaluate(
-        self,
-        request: PermissionEvaluationRequest,
-        *,
-        at: datetime | None = None,
-    ) -> RuleEvaluation:
-        session_id = self.session_id or request.session_id
-        rules = self.state_store.effective_rules(session_id)
-        return evaluate_rules(rules, request, matcher=self.matcher, at=at)
 
     def snapshot(self) -> dict[str, Any]:
         return self.state_store.snapshot(self.session_id or None)

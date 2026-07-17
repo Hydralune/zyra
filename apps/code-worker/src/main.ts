@@ -3,6 +3,10 @@ import {
   runtimeContract,
 } from "../../../packages/runtime/claude-runtime/src/index.ts";
 import { E01RuntimeCoordinator } from "../../../packages/runtime/claude-runtime/src/e01/coordinator.ts";
+import { E02CapabilityCoordinator } from "../../../packages/runtime/claude-runtime/src/e02/coordinator.ts";
+import { runE02ApiPort } from "../../../packages/runtime/claude-runtime/src/e02/api-port-runtime.ts";
+
+export const DEFAULT_CAPABILITY_ENTRYPOINT = E02CapabilityCoordinator.prototype.execute;
 
 type ContractSurface = "health" | "snapshot" | "inventory" | "query" | "session" | "tools";
 type JsonWriter = (value: unknown) => void;
@@ -30,6 +34,7 @@ export class CodeWorkerApplication {
   async run(args: readonly string[]): Promise<number> {
     const command = args[0] ?? "--health";
     if (command === "--stdio") return this.runTaskRuntime();
+    if (command === "--e02-api") return this.runCapabilityApiPort();
     if (command === "--e01-inventory") return this.runRuntimeInventory();
     const surface = CONTRACT_COMMANDS[command];
     if (!surface) {
@@ -42,6 +47,11 @@ export class CodeWorkerApplication {
 
   private async runTaskRuntime(): Promise<number> {
     await runStdioRuntime();
+    return process.exitCode ?? 0;
+  }
+
+  private async runCapabilityApiPort(): Promise<number> {
+    await runE02ApiPort();
     return process.exitCode ?? 0;
   }
 
