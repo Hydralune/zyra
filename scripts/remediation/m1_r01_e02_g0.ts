@@ -633,6 +633,13 @@ const semanticNoise = new Set([
   "handler", "handlers", "manager", "manage", "index", "types", "type", "create", "apply", "record",
 ]);
 
+const semanticAlternatives: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  attachment: ["context", "invocation", "resource"],
+  compact: ["context", "invocation", "reload"],
+  policy: ["evaluate", "hook", "scope"],
+  schema: ["manifest", "parse", "registry"],
+});
+
 function semanticTokens(value: string): Set<string> {
   const words = value
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -642,7 +649,7 @@ function semanticTokens(value: string): Set<string> {
   return new Set(words.flatMap((word) => {
     const singular = word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") ? word.slice(0, -1) : word;
     const family = semanticFamilies[singular] ?? semanticFamilies[word] ?? singular;
-    return family === singular ? [singular] : [singular, family];
+    return [...new Set([singular, family, ...(semanticAlternatives[singular] ?? [])])];
   }));
 }
 
