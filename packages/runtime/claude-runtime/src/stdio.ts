@@ -151,6 +151,27 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
   };
 }
 
+export function e02CapabilityReadinessProjection(): JsonObject {
+  const candidate = commit(process.env.E02_IMPLEMENTATION_CANDIDATE);
+  const reviewStatus = process.env.E02_REVIEW_STATUS === "independent_review_passed"
+    ? "independent_review_passed"
+    : "implementation_complete_review_pending";
+  return {
+    schema: "zyra.e02-built-readiness/v1",
+    implementationReady: true,
+    reviewStatus,
+    independentReviewPassed: reviewStatus === "independent_review_passed",
+    implementationCandidate: candidate,
+    canonicalOwner: "typescript",
+    canonicalEntrypoint: "E02CapabilityCoordinator.execute",
+    stateJournalOwner: "E02CapabilityCoordinator",
+    builtApiEntrypoint: "CodeWorkerApplication.runCapabilityApiPort",
+    sourceImportProbeAccepted: false,
+    liveBuiltProbeRequired: true,
+    pythonDecisionFallback: false,
+  };
+}
+
 class JsonlRuntimeHost implements RuntimeHost {
   private readonly outputSequence = new FrameSequence();
   private readonly inputSequence = new FrameSequence();
@@ -405,6 +426,7 @@ export function runtimeContract(
   surface: "health" | "snapshot" | "inventory" | "query" | "session" | "tools",
 ): JsonObject {
   const verification = runtimeVerificationProjection();
+  const e02Readiness = e02CapabilityReadinessProjection();
   const base = {
     ok: true,
     worker: "CodeWorkerRuntime",
@@ -430,6 +452,7 @@ export function runtimeContract(
         canonicalOwner: "typescript",
         referenceCrosswalk: { ok: true },
       },
+      e02CapabilityRuntime: e02Readiness,
       vendor: {
         complete: false,
         requiredForMainPath: false,
@@ -457,6 +480,7 @@ export function runtimeContract(
         },
         referenceCrosswalk: { ok: true },
       },
+      e02CapabilityRuntime: e02Readiness,
       modules: [
         { name: "query-engine", path: "src/query-engine.ts" },
         { name: "query-session", path: "src/session.ts" },

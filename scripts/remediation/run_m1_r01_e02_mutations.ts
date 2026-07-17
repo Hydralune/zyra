@@ -167,7 +167,7 @@ async function main(): Promise<void> {
     .split(/\r?\n/)
     .filter(Boolean)
     .map((line) => JSON.parse(line) as ManifestRow);
-  if (rows.length !== 48) throw new Error(`expected exactly 48 frozen E02 mutations, received ${rows.length}`);
+  if (rows.length !== 70) throw new Error(`expected exactly 70 target-specific E02 mutations, received ${rows.length}`);
   const ids = new Set<string>();
   for (const row of rows) {
     if (row.execution_id !== "E02" || row.mutation_operator !== "disconnect-target" || row.compile_survives !== true) {

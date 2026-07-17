@@ -751,6 +751,39 @@ export class E02CapabilityCoordinator {
     }
     const context = this.executionContext(toolName, effectiveContext);
     let finalArguments = canonicalize(argumentsValue) as JsonObject;
+    const requestArgumentsDigest = digest(finalArguments);
+    const idempotencyKey = capabilityIdempotencyKey(toolName, finalArguments, context);
+    const priorExecution = this.executionLedger.executionByKey(idempotencyKey);
+    if (priorExecution) {
+      const priorRequestDigest = optionalString(priorExecution.metadata.request_arguments_digest)
+        || priorExecution.argumentsDigest;
+      if (
+        priorExecution.toolName !== toolName
+        || priorExecution.toolCallId !== context.toolCallId
+        || !constantTimeDigestEquals(priorRequestDigest, requestArgumentsDigest)
+      ) {
+        throw coordinatorError(
+          "e02_execution_idempotency_binding_mismatch",
+          `execution idempotency key ${idempotencyKey} is bound to another physical request`,
+          { execution_id: priorExecution.executionId },
+        );
+      }
+      // A committed physical call is authoritative.  Re-running permission
+      // first would create a new epoch-bound permit and can conflict with the
+      // restored permission transition before the execution ledger gets a
+      // chance to replay its result.  Exact committed replay therefore occurs
+      // before any new authorization or external side effect.
+      if (priorExecution.phase === "committed" && priorExecution.result) {
+        return replayReceipt(priorExecution, this.snapshot().snapshotHash);
+      }
+      if (priorExecution.phase === "recovery_required") {
+        throw coordinatorError(
+          "e02_execution_recovery_required",
+          `execution ${priorExecution.executionId} requires reconciliation before replay`,
+          { execution_id: priorExecution.executionId, recovery: priorExecution.recovery },
+        );
+      }
+    }
     let permitId = context.permitId ?? null;
     if (!permitId) {
       const authorization = await this.authorize({
@@ -798,7 +831,6 @@ export class E02CapabilityCoordinator {
     });
     const domain = capabilityDomain(toolName, this);
     const owner = this.owner(toolName);
-    const idempotencyKey = capabilityIdempotencyKey(toolName, finalArguments, context);
     const ledgerRecord = this.executionLedger.prepareExecution({
       permitId: permit.permitId,
       domain,
@@ -809,6 +841,7 @@ export class E02CapabilityCoordinator {
         idempotencyKey,
         metadata: {
           ...context.metadata,
+          request_arguments_digest: requestArgumentsDigest,
           route_lease_id: routeLease.leaseId,
           route_id: routeLease.routeId,
           route_revision: routeLease.routeRevision,
@@ -1265,6 +1298,12 @@ export class E02CapabilityCoordinator {
       });
     }
     try {
+      // Persist the consumed permit, prepared transition, execution record,
+      // and effect-start fence before crossing the physical capability port.
+      // Without this pre-effect checkpoint a process kill after the provider
+      // committed but before its response was observed restored an empty
+      // ledger and silently allowed the same side effect to run again.
+      await this.checkpoint("capability_effect_prepared");
       const result = await this.dispatchCapability(
         toolName,
         argumentsValue,

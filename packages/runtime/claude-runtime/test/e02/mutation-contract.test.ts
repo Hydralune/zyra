@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "bun:test";
 
 import {
+  AcpPermissionTransport,
   PermissionContinuationRuntime,
   PermissionEvaluator,
   PermissionHookRuntime,
@@ -24,7 +25,15 @@ import type {
   PermissionDecisionRecord,
 } from "../../src/e02/contracts.ts";
 import {
+  CommandDescriptorRuntime,
+  CommandDispatchRuntime,
+  CommandRegistryRuntime,
+  LocalCommandRuntime,
+  PluginCacheRuntime,
+  PluginHookRuntime,
+  PluginRuntime,
   PluginManifestRuntime,
+  SkillSourceRuntime,
   SkillFrontmatterRuntime,
   SkillInvocationRuntime,
   SkillRegistryRuntime,
@@ -38,9 +47,14 @@ import {
 import {
   HttpMcpTransport,
   McpCapabilityCatalog,
+  McpConfigStore,
   McpConnectionRuntime,
+  McpElicitationRuntime,
   McpInstructionRuntime,
   McpOAuthRuntime,
+  McpSamplingRuntime,
+  McpServerPolicy,
+  McpTaskRuntime,
   McpPromptProjection,
   McpRequestJournal,
   McpResourceProjection,
@@ -228,6 +242,43 @@ test("e02.mutation.permission-16", () => {
   const identity = PermissionIdentity.create(permissionInput("permission-16"));
   const prepared = new PermissionJournal(runtimeFor("permission-16"), () => instant).prepare(identity, 0);
   assert.equal(prepared.transition.domain, "permission");
+});
+
+test("e02.mutation.permission-17", () => {
+  const identity = PermissionIdentity.create(permissionInput("permission-17"));
+  assert.equal(identity.context.toolCallId, "call-permission-17");
+  assert.equal(identity.requestFingerprint.length, 64);
+});
+
+test("e02.mutation.permission-18", () => {
+  const identity = PermissionIdentity.create(permissionInput("permission-18"));
+  const journal = new PermissionJournal(runtimeFor("permission-18"), () => instant);
+  const prepared = journal.prepare(identity, 0);
+  const receipt = journal.commit(prepared.transition.transitionId, askDecision(identity));
+  assert.equal(receipt.transitionId, prepared.transition.transitionId);
+  assert.equal(receipt.commitHash.length, 64);
+});
+
+test("e02.mutation.permission-19", () => {
+  const identity = PermissionIdentity.create(permissionInput("permission-19"));
+  const original = new PermissionJournal(runtimeFor("permission-19"), () => instant);
+  original.prepare(identity, 0);
+  const restored = new PermissionJournal({ ...runtimeFor("permission-19"), epoch: 2 }, () => instant);
+  restored.restore(original.snapshot(), 2);
+  assert.equal((restored.state().runtime as any).epoch, 2);
+  assert.equal((restored.state().pending as unknown[]).length, 1);
+});
+
+test("e02.mutation.permission-20", () => {
+  const identity = PermissionIdentity.create(permissionInput("permission-20"));
+  const continuation = new PermissionContinuationRuntime(() => instant).park(
+    identity,
+    askDecision(identity),
+    { ttlMs: 60_000 },
+  );
+  const correlated = new AcpPermissionTransport().correlate(continuation, "Allow exact mutation test request?");
+  assert.equal(correlated.requestId, continuation.requestId);
+  assert.equal(correlated.requestDigest.length, 64);
 });
 
 function fakeTransportRequest(id: string) {
@@ -548,6 +599,82 @@ test("e02.mutation.mcp-22", () => {
   assert.equal(committed.status, "committed");
 });
 
+test("e02.mutation.mcp-23", () => {
+  const store = new McpConfigStore();
+  assert.throws(() => store.merge({} as any, 1), /revision/i);
+});
+
+test("e02.mutation.mcp-24", () => {
+  const policy = new McpServerPolicy();
+  assert.throws(() => policy.evaluate({
+    serverId: "policy-a",
+    config: { serverId: "policy-b" },
+  } as any), /differs from config/i);
+});
+
+test("e02.mutation.mcp-25", () => {
+  const original = new McpRequestJournal({ now: () => new Date(instant) });
+  original.prepare(requestJournalInput("mcp-25"));
+  const restored = new McpRequestJournal({ now: () => new Date(instant) });
+  restored.restore(original.snapshot());
+  assert.equal(restored.snapshot().records.length, 1);
+});
+
+test("e02.mutation.mcp-26", async () => {
+  const sampling = new McpSamplingRuntime({
+    provider: async () => {
+      throw new Error("provider must not be reached");
+    },
+  });
+  await assert.rejects(sampling.sample({} as any, { maxTokens: 1 } as any), /identity is incomplete/i);
+});
+
+function elicitationIdentity(id: string) {
+  return {
+    runId: `run-${id}`,
+    taskId: `task-${id}`,
+    sessionId: `session-${id}`,
+    sessionRevision: 1,
+    workerRequestId: `worker-${id}`,
+    toolCallId: `call-${id}`,
+    serverId: `server-${id}`,
+    connectionId: `connection-${id}`,
+    connectionEpoch: 1,
+    requestId: `request-${id}`,
+  };
+}
+
+test("e02.mutation.mcp-27", () => {
+  const elicitation = new McpElicitationRuntime({ allowUrlMode: false });
+  assert.throws(() => elicitation.request(elicitationIdentity("mcp-27"), {
+    mode: "url",
+    message: "Open callback",
+    url: "https://identity.example.test/callback",
+    elicitationId: "remote-mcp-27",
+    meta: {},
+  }), /disabled/i);
+});
+
+test("e02.mutation.mcp-28", () => {
+  const elicitation = new McpElicitationRuntime();
+  assert.throws(() => elicitation.resume({
+    ...elicitationIdentity("mcp-28"),
+    elicitationId: "missing-elicitation",
+    continuationId: "missing-continuation",
+    result: { action: "decline", content: null, meta: {} },
+  }), /not found|unknown/i);
+});
+
+test("e02.mutation.mcp-29", async () => {
+  const tasks = new McpTaskRuntime();
+  await assert.rejects(tasks.poll("server-mcp-29", "missing-task", {} as any), /not found/i);
+});
+
+test("e02.mutation.mcp-30", async () => {
+  const tasks = new McpTaskRuntime();
+  await assert.rejects(tasks.cancel("server-mcp-30", "missing-task", {} as any), /not found/i);
+});
+
 const skillMarkdown = `---
 name: mutation-skill
 description: Mutation contract skill
@@ -706,4 +833,107 @@ test("e02.mutation.skill-10", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("e02.mutation.skill-11", async () => {
+  const discovery = await new SkillSourceRuntime({ now: () => new Date(instant) }).discover([]);
+  assert.equal(discovery.files.length, 0);
+  assert.equal(discovery.errors.length, 0);
+});
+
+test("e02.mutation.skill-12", async () => {
+  await assert.rejects(
+    (PluginRuntime.prototype.load as any).call({
+      manifests: { parse: async () => { throw new Error("manifest parse boundary"); } },
+    }, "missing-plugin.json", "project"),
+    /manifest parse boundary/i,
+  );
+});
+
+test("e02.mutation.skill-13", async () => {
+  await assert.rejects(
+    (PluginRuntime.prototype.reload as any).call({
+      records: new Map(),
+      load: async () => { throw new Error("plugin reload boundary"); },
+    }, "missing-plugin", "missing-plugin.json", "project"),
+    /plugin reload boundary/i,
+  );
+});
+
+test("e02.mutation.skill-14", async () => {
+  const hooks = new PluginHookRuntime({
+    executor: async () => { throw new Error("executor must not be reached"); },
+  });
+  await assert.rejects(hooks.beforeTool({
+    arguments: {},
+    argumentsDigest: "invalid-digest",
+  } as any), /context arguments digest mismatch/i);
+});
+
+test("e02.mutation.skill-15", () => {
+  const cache = new PluginCacheRuntime();
+  assert.throws(() => cache.commit({
+    manifest: {
+      pluginId: "mutation-cache-plugin",
+      version: "1.0.0",
+      manifestDigest: "a".repeat(64),
+    } as any,
+    sourceDigest: "b".repeat(64),
+    compiledCapabilities: {},
+    status: "active",
+    expectedRevision: 1,
+  }), /revision/i);
+});
+
+test("e02.mutation.skill-16", async () => {
+  const root = await mkdtemp(join(tmpdir(), "zyra-e02-command-parse-"));
+  try {
+    await assert.rejects(new CommandDescriptorRuntime().parse({
+      path: join(root, "missing-command.md"),
+      sourceKind: "project",
+      sourceId: "mutation-command",
+      sourcePriority: 100,
+    }), /ENOENT|no such file/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("e02.mutation.skill-17", () => {
+  const registry = new CommandRegistryRuntime({ now: () => new Date(instant) });
+  assert.throws(() => registry.register([], 1), /revision/i);
+});
+
+test("e02.mutation.skill-18", async () => {
+  await assert.rejects(
+    (CommandDispatchRuntime.prototype.dispatch as any).call({}, { identity: {} }),
+    /identity is incomplete/i,
+  );
+});
+
+test("e02.mutation.skill-19", async () => {
+  const descriptor = {
+    commandId: "mutation-command",
+    descriptorDigest: "descriptor-digest",
+    permission: {},
+  } as any;
+  const request = { identity: { commandCallId: "mutation-call" }, sealedAutonomous: false } as any;
+  await assert.rejects(
+    (CommandDispatchRuntime.prototype.requirePermission as any).call({
+      permission: async () => ({
+        effect: "allow",
+        requestDigest: "incorrect-digest",
+      }),
+    }, descriptor, request, {}),
+    /request digest mismatch/i,
+  );
+});
+
+test("e02.mutation.skill-20", async () => {
+  const local = new LocalCommandRuntime();
+  await assert.rejects(local.execute({
+    commandId: "mutation-local",
+    descriptorDigest: "descriptor-digest",
+    handler: { handlerId: "missing-local-handler" },
+  } as any, {} as any, {}), /not registered/i);
 });

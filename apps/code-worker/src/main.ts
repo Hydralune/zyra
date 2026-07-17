@@ -45,8 +45,14 @@ export class CodeWorkerApplication {
     this.writeJson(contract);
     if (surface === "health") {
       const productized = contract.productizedRuntime;
+      const e02 = contract.e02CapabilityRuntime;
       if (!productized || typeof productized !== "object" || Array.isArray(productized)
-        || productized.complete !== true || productized.evidenceIntegrity !== true) {
+        || productized.complete !== true || productized.evidenceIntegrity !== true
+        || !e02 || typeof e02 !== "object" || Array.isArray(e02)
+        || e02.implementationReady !== true
+        || e02.canonicalEntrypoint !== "E02CapabilityCoordinator.execute"
+        || e02.stateJournalOwner !== "E02CapabilityCoordinator"
+        || e02.pythonDecisionFallback !== false) {
         return 1;
       }
     }

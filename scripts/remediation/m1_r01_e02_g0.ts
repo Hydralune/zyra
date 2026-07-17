@@ -595,7 +595,85 @@ const mutationDefinitions = [
   ...permissionRoutes.slice(1, 17).map((route, index) => ({ route, risk: `permission-${index + 1}` })),
   ...mcpRoutes.slice(2, 24).map((route, index) => ({ route, risk: `mcp-${index + 1}` })),
   ...skillRoutes.slice(1, 11).map((route, index) => ({ route, risk: `skill-${index + 1}` })),
+  ...[
+    permissionRoutes[0],
+    ...permissionRoutes.slice(17),
+  ].map((route, index) => ({ route, risk: `permission-${index + 17}` })),
+  ...[
+    ...mcpRoutes.slice(0, 2),
+    ...mcpRoutes.slice(24),
+  ].map((route, index) => ({ route, risk: `mcp-${index + 23}` })),
+  ...[
+    skillRoutes[0],
+    ...skillRoutes.slice(11),
+  ].map((route, index) => ({ route, risk: `skill-${index + 11}` })),
 ] as const;
+
+type CustodyRoute = readonly [string, string];
+
+const semanticFamilies: Readonly<Record<string, string>> = Object.freeze({
+  acp: "continuation", approval: "continuation", ask: "continuation", interactive: "continuation",
+  auth: "oauth", callback: "oauth", credential: "oauth", login: "oauth", token: "oauth", xaa: "oauth",
+  cache: "cache", cancel: "cancel", catalogue: "catalog", catalog: "catalog", classify: "risk", classifier: "risk",
+  command: "command", config: "config", connect: "connection", connection: "connection", correlate: "continuation",
+  decision: "evaluate", deny: "evaluate", discover: "source", dispatch: "dispatch", effect: "effect",
+  elicit: "elicitation", elicitation: "elicitation", evaluate: "evaluate", grant: "grant", headers: "http",
+  hook: "hook", http: "http", instruction: "instruction", invoke: "invocation", journal: "journal",
+  list: "catalog", load: "source", manifest: "manifest", mode: "mode", notification: "notification",
+  oauth: "oauth", parse: "parse", parser: "parse", permission: "evaluate", plugin: "plugin", policy: "policy",
+  poll: "task", prompt: "prompt", read: "resource", reconnect: "connection", registry: "registry",
+  reload: "reload", request: "request", resource: "resource", resume: "continuation", risk: "risk",
+  rule: "rule", sample: "sampling", sampling: "sampling", scope: "scope", search: "source", serialize: "parse",
+  server: "config", skill: "skill", slash: "command", sse: "sse", stdio: "stdio", task: "task",
+  tool: "tool", transport: "transport", update: "reload", validate: "policy", vault: "oauth", websocket: "sse",
+});
+
+const semanticNoise = new Set([
+  "src", "services", "service", "utils", "runtime", "claude", "zyra", "typescript", "component", "components",
+  "handler", "handlers", "manager", "manage", "index", "types", "type", "create", "apply", "record",
+]);
+
+function semanticTokens(value: string): Set<string> {
+  const words = value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 2 && !semanticNoise.has(word));
+  return new Set(words.flatMap((word) => {
+    const singular = word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") ? word.slice(0, -1) : word;
+    const family = semanticFamilies[singular] ?? semanticFamilies[word] ?? singular;
+    return family === singular ? [singular] : [singular, family];
+  }));
+}
+
+function routeKey(route: CustodyRoute): string {
+  return `${route[0]}::${route[1]}`;
+}
+
+function selectSemanticRoute(
+  domain: Domain,
+  sourcePath: string,
+  sourceSymbol: string,
+  usage: Map<string, number>,
+  weight: number,
+): { route: CustodyRoute; anchors: string[]; score: number } {
+  const sourceTokens = semanticTokens(`${sourcePath} ${sourceSymbol}`);
+  const scored = routesFor(domain).map((route) => {
+    const targetTokens = semanticTokens(`${route[0]} ${route[1]}`);
+    const anchors = [...sourceTokens].filter((token) => targetTokens.has(token)).sort();
+    return { route, anchors, score: anchors.length };
+  });
+  const bestScore = Math.max(...scored.map((item) => item.score));
+  const candidates = scored
+    .filter((item) => item.score === bestScore)
+    .sort((left, right) => {
+      const usageDelta = (usage.get(routeKey(left.route)) ?? 0) - (usage.get(routeKey(right.route)) ?? 0);
+      return usageDelta || routeKey(left.route).localeCompare(routeKey(right.route));
+    });
+  const selected = candidates[0]!;
+  usage.set(routeKey(selected.route), (usage.get(routeKey(selected.route)) ?? 0) + weight);
+  return selected;
+}
 
 function mutationId(index: number, risk: string): string {
   return `e02-mut-${String(index + 1).padStart(3, "0")}-${risk}`;
@@ -653,6 +731,8 @@ function sourceRows(finalizeTargets = false): { source: Json[]; target: Json[] }
     const paths = new Set(spec.paths);
     return claudeRanges.filter((range) => paths.has(range.path));
   });
+  const routeUsage = new Map<string, number>();
+  const routeSelections = new Map<string, ReturnType<typeof selectSemanticRoute>>();
   let ordinal = 0;
   for (let specIndex = 0; specIndex < sourceSpecs.length; specIndex += 1) {
     const spec = sourceSpecs[specIndex]!;
@@ -685,12 +765,34 @@ function sourceRows(finalizeTargets = false): { source: Json[]; target: Json[] }
           : null,
       };
       source.push(row);
-      const routes = routesFor(spec.domain);
-      const route = routes[ordinal % routes.length]!;
+      // A source symbol split only for line-count accounting must retain the
+      // same semantic owner.  Exception: a very large symbol may be
+      // decomposed into bounded groups of at most forty mappings, matching the
+      // frozen consolidation ceiling without spraying one function across the
+      // entire target catalog.
+      const routeGroup = Math.floor((range.part - 1) / 40);
+      const selectionKey = `${spec.repo}:${spec.snapshot}:${spec.domain}:${range.path}:${range.symbol}:${routeGroup}`;
+      let selection = routeSelections.get(selectionKey);
+      if (!selection) {
+        const groupSize = Math.min(40, range.partCount - routeGroup * 40);
+        selection = selectSemanticRoute(
+          spec.domain,
+          range.path,
+          range.symbol,
+          routeUsage,
+          Math.max(1, groupSize),
+        );
+        routeSelections.set(selectionKey, selection);
+      }
+      const route = selection.route;
       const relatedMutations = mutations.filter((mutation) =>
         mutation.target_path === route[0] && mutation.target_symbol === route[1]
       );
-      const fallbackMutation = mutations[ordinal % mutations.length]!;
+      if (relatedMutations.length !== 1) {
+        throw new Error(`E02 custody target must have exactly one mutation: ${routeKey(route)}`);
+      }
+      const targetMutation = relatedMutations[0]!;
+      const targetTestId = (targetMutation.expected_killer_test_ids as string[])[0]!;
       const canonicalOwnerId = spec.domain === "permission"
         ? "typescript.PermissionCoordinator"
         : spec.domain === "mcp"
@@ -707,12 +809,16 @@ function sourceRows(finalizeTargets = false): { source: Json[]; target: Json[] }
         execution_id: EXECUTION_ID,
         mapping_id: mappingId,
         source_symbol: sourceSymbol,
-        source_behavior_claim: `${sourceSymbol} lines ${range.startLine}-${range.endLine} contribute ${spec.domain} executable behavior at ${spec.snapshot}`,
+        source_behavior_claim: `${sourceSymbol} lines ${range.startLine}-${range.endLine} contribute ${spec.domain} behavior through ${selection.anchors.length ? selection.anchors.join(", ") : "bounded domain consolidation"} at ${spec.snapshot}`,
         target_path: route[0],
         target_symbol: route[1],
         target_sha256: targetHash(route[0]),
         planned_method: route[1].split(".").at(-1),
-        target_behavior_claim: `${route[1]} in ${route[0]} owns the ${spec.domain} transition consolidated from ${sourceSymbol}`,
+        target_behavior_claim: `${route[1]} in ${route[0]} owns the ${spec.domain} transition selected from ${sourceSymbol} by path/symbol semantic-family scoring`,
+        mapping_basis: "source-path-symbol-semantic-family-v1",
+        semantic_anchor_tokens: selection.anchors,
+        semantic_match_score: selection.score,
+        bounded_source_group: routeGroup,
         adaptation: spec.role === "primary"
           ? "Claude behavior is decomposed into Zyra-owned typed state, journal, permission, event, and failure boundaries"
           : "Only the declared gap is consolidated into the existing Claude-primary owner; no second evaluator, client, or registry is created",
@@ -731,12 +837,12 @@ function sourceRows(finalizeTargets = false): { source: Json[]; target: Json[] }
         default_entry_id: "E02.default.CodeWorkerApplication.runTaskRuntime",
         default_callsite_path: "packages/runtime/claude-runtime/src/capability-host.ts",
         default_callsite_symbol: "PermissionedCapabilityHost.executeBatch",
-        state_effect_assertion: stateAssertion,
+        state_effect_assertion: targetTestId,
         behavior_contract_id: `e02.contract.${mappingId}`,
-        success_test_ids: [`e02.custody.${spec.domain}.default-path`],
-        failure_test_ids: [`e02.custody.${spec.domain}.failure-path`],
+        success_test_ids: [stateAssertion, targetTestId],
+        failure_test_ids: [targetTestId],
         disable_test_ids: ["e02.disable.typescript-runtime fails closed before any Python fallback can open"],
-        mutation_ids: [(relatedMutations[0] ?? fallbackMutation).mutation_id],
+        mutation_ids: [targetMutation.mutation_id],
         restore_probe_id: "e02.probe.exact-resume",
         runtime_origin_probe_id: "e02.probe.runtime-origin",
         write_path_probe_id: "e02.probe.write-path",

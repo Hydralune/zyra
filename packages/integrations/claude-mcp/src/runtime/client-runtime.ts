@@ -295,8 +295,33 @@ export class McpClientRuntime {
     const idempotencyKey = idempotent
       ? deterministicMcpId("mcp-idempotency", { identity, operation, params }, 40)
       : null;
+    // The client identity also carries policy-only fields such as
+    // `interactive`, `sealedAutonomous`, and `workspaceRoot`.  Those fields
+    // must never leak into the durable request identity: the journal schema
+    // deliberately owns only correlation and connection-epoch data.  Passing
+    // the structural superset used to make the journal validate booleans as
+    // strings and rejected every projected MCP tool on the real coordinator
+    // path even though isolated transports still worked.
+    const journalIdentity: McpRequestIdentity = {
+      runId: identity.runId,
+      taskId: identity.taskId,
+      sessionId: identity.sessionId,
+      sessionRevision: identity.sessionRevision,
+      workerRequestId: identity.workerRequestId,
+      toolCallId: identity.toolCallId,
+      serverId: identity.serverId,
+      connectionId: identity.connectionId,
+      connectionEpoch: identity.connectionEpoch,
+      requestId: identity.requestId,
+      // Bind the durable identity to the physical JSON-RPC operation.  The
+      // coordinator-level identity uses the placeholder `dynamic` before a
+      // projected capability is resolved; persisting that placeholder would
+      // make recovery unable to distinguish tools/call, resources/read, and
+      // prompts/get for the same correlation tuple.
+      method: operation,
+    };
     const prepared = this.journal.prepare({
-      identity,
+      identity: journalIdentity,
       message,
       arguments: params,
       idempotent,

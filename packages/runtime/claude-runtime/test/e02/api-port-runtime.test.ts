@@ -484,3 +484,111 @@ test("unknown API operations fail without checkpointing a fallback decision", as
     await disposePort(port);
   }
 });
+
+test("default API coordinator executes a live projected MCP tool and journals only durable identity", async () => {
+  const root = await mkdtemp(join(tmpdir(), "zyra-e02-api-live-mcp-"));
+  const workspace = join(root, "workspace");
+  const serverPath = join(root, "server.mjs");
+  const effectPath = join(root, "effect-count.txt");
+  const statePath = join(root, "state", "e02.json");
+  await mkdir(workspace, { recursive: true });
+  await writeFile(serverPath, [
+    'import { createInterface } from "node:readline";',
+    'import { existsSync, readFileSync, writeFileSync } from "node:fs";',
+    'const effectPath = process.argv[2];',
+    'const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });',
+    'const send = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");',
+    'for await (const line of lines) {',
+    '  const request = JSON.parse(line);',
+    '  if (request.id === undefined || request.id === null) continue;',
+    '  if (request.method === "initialize") send(request.id, { protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "e02-api-live", version: "1.0.0" } });',
+    '  else if (request.method === "tools/list") send(request.id, { tools: [{ name: "nonce_effect", description: "commit one test effect", inputSchema: { type: "object", properties: { nonce: { type: "string" } }, required: ["nonce"], additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }] });',
+    '  else if (request.method === "tools/call") { const before = existsSync(effectPath) ? Number(readFileSync(effectPath, "utf8")) : 0; const count = before + 1; writeFileSync(effectPath, String(count), "utf8"); send(request.id, { content: [{ type: "text", text: `effect:${count}` }], structuredContent: { effect_count: count }, isError: false }); }',
+    '  else send(request.id, {});',
+    '}',
+  ].join("\n"), "utf8");
+
+  const initialization: E02ApiPortInitialization = {
+    type: "initialize",
+    request_id: "initialize-live-mcp",
+    workspace_root: workspace,
+    state_path: statePath,
+    permission_mode: "default",
+    sealed_autonomous: false,
+    runtime_constraints: {
+      typescriptMcpServers: {
+        review: {
+          transport: {
+            kind: "stdio",
+            command: process.execPath,
+            arguments: [serverPath, effectPath],
+            cwd: root,
+            inherit_environment: [],
+          },
+          network_policy: "offline",
+          allowed_operations: ["*"],
+          timeouts: {
+            connect_ms: 5_000,
+            initialize_ms: 5_000,
+            request_ms: 5_000,
+            shutdown_ms: 2_000,
+          },
+        },
+      },
+    },
+  };
+  let runtime: E02ApiPortRuntime | null = null;
+  try {
+    runtime = await E02ApiPortRuntime.open(initialization);
+    const policy = object(await runtime.dispatch(request("permission.policy", {
+      action: "replace_rules",
+      expected_revision: 0,
+      actor_id: "behavior-test",
+      rules: [{
+        ruleId: "allow-live-mcp-effect",
+        effect: "allow",
+        source: "session",
+        kind: "tool",
+        toolPattern: "mcp__review__nonce_effect",
+        namespacePattern: "mcp",
+        serverPattern: "review",
+        operationPattern: "tools-call",
+        priority: 10_000,
+      }],
+    }, "live-mcp-policy")));
+    assert.equal(policy.canonical_owner, "typescript.PermissionCoordinator");
+    assert.ok(policy.commit);
+
+    const payload: JsonObject = {
+      tool_name: "mcp__review__nonce_effect",
+      arguments: { nonce: "api-live-mcp" },
+      operation: "tools/call",
+      namespace: "mcp",
+      server_id: "review",
+      tool_call_id: "api-live-mcp-call",
+      session_revision: 0,
+    };
+    const first = object(await runtime.dispatch(request("execute", payload, "live-mcp-first")));
+    const firstReceipt = object(first.receipt as JsonValue);
+    assert.equal(firstReceipt.owner, "typescript-mcp");
+    assert.equal(firstReceipt.replayed, false);
+    assert.equal(await readFile(effectPath, "utf8"), "1");
+
+    const mcp = runtime.coordinator.mcp.snapshot();
+    const journalIdentity = mcp.journal.records.find((record) => record.identity.toolCallId === "api-live-mcp-call")?.identity;
+    assert.ok(journalIdentity);
+    assert.equal(journalIdentity.method, "tools/call");
+    assert.equal("interactive" in journalIdentity, false);
+    assert.equal("sealedAutonomous" in journalIdentity, false);
+    assert.equal("workspaceRoot" in journalIdentity, false);
+
+    await runtime.close();
+    runtime = await E02ApiPortRuntime.open({ ...initialization, request_id: "initialize-live-mcp-restored" });
+    const replay = object(await runtime.dispatch(request("execute", payload, "live-mcp-replay")));
+    assert.equal(object(replay.receipt as JsonValue).replayed, true);
+    assert.equal(await readFile(effectPath, "utf8"), "1");
+  } finally {
+    await runtime?.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

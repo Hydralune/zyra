@@ -588,10 +588,32 @@ for (const [path, expected] of Object.entries(checkerSources ?? {})) {
   }
 }
 if (!args.worktree) {
+  const resolvedCandidate = gitText(repoRoot, ["rev-parse", args.candidate]);
   try {
     gitText(repoRoot, ["merge-base", "--is-ancestor", baseline, args.candidate]);
   } catch {
     fail(`candidate ${args.candidate} does not descend from verified baseline ${baseline}`);
+  }
+  if (String(profile.candidate_head_at_g0 ?? "") !== resolvedCandidate) {
+    fail(`gate profile candidate binding ${String(profile.candidate_head_at_g0 ?? "<missing>")} does not equal ${resolvedCandidate}`);
+  }
+  if (String(receipt.g0_candidate_head ?? "") !== resolvedCandidate) {
+    fail(`baseline receipt candidate binding ${String(receipt.g0_candidate_head ?? "<missing>")} does not equal ${resolvedCandidate}`);
+  }
+  if (String(receipt.g0_candidate_tree ?? "") !== gitText(repoRoot, ["show", "-s", "--format=%T", resolvedCandidate])) {
+    fail("baseline receipt candidate tree does not bind the reviewed implementation tree");
+  }
+  const allowedControlPlaneCommits = nonEmptyStringArray(profile, "allowed_control_plane_commits");
+  if (!allowedControlPlaneCommits.includes(resolvedCandidate)) {
+    fail("reviewed implementation candidate is absent from allowed_control_plane_commits");
+  }
+  for (const commitValue of allowedControlPlaneCommits) {
+    try {
+      gitText(repoRoot, ["merge-base", "--is-ancestor", baseline, commitValue]);
+      gitText(repoRoot, ["merge-base", "--is-ancestor", commitValue, resolvedCandidate]);
+    } catch {
+      fail(`allowed control-plane commit is outside baseline..candidate ancestry: ${commitValue}`);
+    }
   }
 }
 if (!args.allowDirty && !args.worktree && dirty.length) {
@@ -776,7 +798,9 @@ if (targetRows.length !== sourceRows.length || new Set(targetIds).size !== targe
 for (const id of sourceIds) if (!targetIds.includes(id)) fail(`accepted source mapping lacks custody mapping: ${id}`);
 const sourceById = new Map(sourceRows.map((row) => [String(row.mapping_id), row]));
 const frozenMutationIds = new Set(mutationRows.map((row) => String(row.mutation_id)));
+const frozenMutationById = new Map(mutationRows.map((row) => [String(row.mutation_id), row]));
 const mappingsPerSymbol = new Map<string, number>();
+const targetsByBaseSource = new Map<string, Set<string>>();
 const ownersByDomain = new Map<string, Set<string>>();
 const behaviorContracts = new Set<string>();
 const testIds = new Set<string>();
@@ -799,6 +823,10 @@ for (const row of targetRows) {
   ownersByDomain.set(semanticDomain, domainOwners);
   const key = `${targetPath}::${targetSymbol}`;
   mappingsPerSymbol.set(key, (mappingsPerSymbol.get(key) ?? 0) + 1);
+  const baseSource = String(row.source_symbol ?? "").replace(/#\d+\/\d+$/, "");
+  const sourceTargets = targetsByBaseSource.get(baseSource) ?? new Set<string>();
+  sourceTargets.add(key);
+  targetsByBaseSource.set(baseSource, sourceTargets);
   if (!candidateExists(targetPath)) fail(`custody target is absent: ${id}:${targetPath}`);
   else {
     if (!declarationExists(targetPath, targetSymbol)) fail(`custody target symbol is absent: ${id}:${targetSymbol}`);
@@ -819,6 +847,7 @@ for (const row of targetRows) {
     "state_effect_assertion",
     "runtime_origin_probe_id",
     "write_path_probe_id",
+    "mapping_basis",
   ]) {
     if (!String(row[field] ?? "").trim()) fail(`custody mapping ${id} lacks ${field}`);
   }
@@ -838,7 +867,14 @@ for (const row of targetRows) {
     if (!ids.length) fail(`custody mapping ${id} lacks ${field}`);
     for (const referenced of ids) {
       if (field === "mutation_ids") {
-        if (!frozenMutationIds.has(referenced)) fail(`custody mapping ${id} references unknown mutation ${referenced}`);
+        if (!frozenMutationIds.has(referenced)) {
+          fail(`custody mapping ${id} references unknown mutation ${referenced}`);
+        } else {
+          const mutation = frozenMutationById.get(referenced)!;
+          if (String(mutation.target_path) !== targetPath || String(mutation.target_symbol) !== targetSymbol) {
+            fail(`custody mapping ${id} mutation ${referenced} disconnects another target`);
+          }
+        }
       } else if (!testIds.has(referenced)) {
         fail(`custody mapping ${id} references unknown behavior test ${referenced}`);
       }
@@ -847,6 +883,9 @@ for (const row of targetRows) {
   const assertionId = String(row.state_effect_assertion ?? "");
   if (!testIds.has(assertionId)) fail(`custody mapping ${id} state assertion is not executable: ${assertionId}`);
   if (!String(row.restore_probe_id ?? "").trim()) fail(`custody mapping ${id} lacks restore_probe_id`);
+}
+for (const [sourceSymbol, targets] of targetsByBaseSource) {
+  if (targets.size > 2) fail(`source symbol ${sourceSymbol} is mechanically sprayed across ${targets.size} targets`);
 }
 for (const [domain, owners] of ownersByDomain) {
   if (owners.size !== 1) fail(`semantic domain ${domain} has ${owners.size} canonical target owners`);
@@ -864,6 +903,10 @@ const declaredBehaviorIds = new Set(targetRows.flatMap((row) => [
   ...((row.failure_test_ids as unknown[] | undefined) ?? []).map(String),
   ...((row.disable_test_ids as unknown[] | undefined) ?? []).map(String),
 ]));
+const uniqueStateAssertions = new Set(targetRows.map((row) => String(row.state_effect_assertion)));
+if (uniqueStateAssertions.size < uniqueTargetSymbols) {
+  fail(`target-specific state assertions ${uniqueStateAssertions.size} < unique custody targets ${uniqueTargetSymbols}`);
+}
 for (const id of declaredBehaviorIds) if (!testIds.has(id)) fail(`frozen custody behavior test id is not executable: ${id}`);
 
 const allCandidatePaths = candidatePaths();
@@ -1041,16 +1084,46 @@ if (!existsSync(cleanroomEvidencePath)) {
     fail("cleanroom evidence does not bind the exact successful candidate");
   }
   const commands = Array.isArray(cleanroom.commands) ? cleanroom.commands as Json[] : [];
+  const liveProbe = commands.find((command) => Array.isArray(command.command)
+    && (command.command as unknown[]).map(String).includes("scripts/remediation/probe_m1_r01_e02.ts")
+    && (command.command as unknown[]).map(String).includes("all"));
+  if (Number(liveProbe?.exit_code ?? -1) !== 0) {
+    fail("cleanroom did not execute the built-only E02 live probe suite");
+  }
   const built = commands.find((command) => Array.isArray(command.command)
     && (command.command as unknown[]).map(String).includes("runtime:built:health"));
   const builtOutput = String(built?.output_tail ?? "");
-  const completeCount = builtOutput.split('"complete":true').length - 1;
-  const integrityCount = builtOutput.split('"evidenceIntegrity":true').length - 1;
-  if (Number(built?.exit_code ?? -1) !== 0 || completeCount < 2 || integrityCount < 2) {
-    fail("cleanroom built-entry evidence did not verify complete Bun and Node health projections");
+  const builtProjections = builtOutput.split(/\r?\n/).flatMap((line) => {
+    try {
+      const value = JSON.parse(line.trim()) as Json;
+      return value.e02CapabilityRuntime ? [value] : [];
+    } catch {
+      return [];
+    }
+  });
+  if (Number(built?.exit_code ?? -1) !== 0 || builtProjections.length < 2) {
+    fail("cleanroom built-entry evidence did not return Bun and Node E02 readiness projections");
+  }
+  for (const projection of builtProjections) {
+    const capability = projection.e02CapabilityRuntime as Json;
+    if (
+      projection.defaultCapabilityEntrypoint !== "E02CapabilityCoordinator.execute"
+      || projection.stateJournalOwner !== "E02CapabilityCoordinator"
+      || capability.schema !== "zyra.e02-built-readiness/v1"
+      || capability.implementationReady !== true
+      || capability.reviewStatus !== "implementation_complete_review_pending"
+      || capability.independentReviewPassed !== false
+      || String(capability.implementationCandidate) !== expectedCandidate
+      || capability.sourceImportProbeAccepted !== false
+      || capability.liveBuiltProbeRequired !== true
+      || capability.pythonDecisionFallback !== false
+    ) {
+      fail("cleanroom built-entry E02 readiness projection is incomplete or bound to another candidate");
+    }
   }
 }
 
+let resumeRestoreEvidence = false;
 for (const name of requiredProbeEvidence) {
   const path = join(repoRoot, "docs/reviews/evidence/M1-R01-v3/execution-02", name);
   if (!existsSync(path)) {
@@ -1059,17 +1132,78 @@ for (const name of requiredProbeEvidence) {
   }
   const probe = readJson(path);
   if (probe.ok !== true || probe.execution_id !== "E02") fail(`required E02 probe failed: ${name}`);
+  const expectedProbeCandidate = args.worktree ? String(profile.candidate_head_at_g0 ?? "") : gitText(repoRoot, ["rev-parse", args.candidate]);
+  if (String(probe.implementation_candidate ?? "") !== expectedProbeCandidate) {
+    fail(`required E02 probe is bound to another implementation candidate: ${name}`);
+  }
+  if (
+    String(probe.reviewer_nonce ?? "").length < 24
+    || probe.source_imports_used !== false
+    || probe.built_default_entry_executed !== true
+    || probe.built_entry !== "dist/code-worker-node/main.js --e02-api"
+    || !/^[0-9a-f]{64}$/.test(String(probe.built_entry_sha256 ?? ""))
+  ) {
+    fail(`required E02 probe lacks reviewer nonce or built-only runtime provenance: ${name}`);
+  }
+  if (name === "runtime-origin-result.json") {
+    if (
+      Number(probe.process_id) <= 0
+      || !String(probe.default_entry ?? "").startsWith("node dist/code-worker-node/main.js --e02-api")
+      || probe.canonical_owner !== "typescript-e02-control"
+      || probe.python_decision_fallback !== false
+    ) {
+      fail("runtime-origin probe did not execute the built default TypeScript owner");
+    }
+  }
+  if (name === "write-path-result.json") {
+    if (probe.persisted_state_exists !== true || Number(probe.state_generation) < 1 || !String(probe.state_store).startsWith("E02ApiStateStore")) {
+      fail("write-path probe did not persist the built E02 API state owner");
+    }
+  }
   if (name === "same-session-resume-result.json") {
     if (Number(probe.process_restart_count) < 2 || Number(probe.repeated_effect_count) !== 0) {
       fail("same-session resume probe lacks two process restarts or repeated-effect fencing");
     }
     const processIds = Array.isArray(probe.process_ids) ? probe.process_ids as unknown[] : [];
     if (new Set(processIds.map(String)).size < 3) fail("same-session resume probe reused an owner process");
+    const restored = Array.isArray(probe.restored_before_bootstrap) ? probe.restored_before_bootstrap : [];
+    const epochs = Array.isArray(probe.runtime_epochs) ? probe.runtime_epochs : [];
+    const replayed = Array.isArray(probe.stable_replayed) ? probe.stable_replayed : [];
+    resumeRestoreEvidence = JSON.stringify(restored) === JSON.stringify([false, true, true]);
+    if (
+      !resumeRestoreEvidence
+      || JSON.stringify(epochs) !== JSON.stringify([1, 2, 3])
+      || JSON.stringify(replayed) !== JSON.stringify([false, true, true])
+      || !String(probe.stable_execution_id ?? "")
+    ) {
+      fail("same-session resume probe lacks exact built restore/replay evidence");
+    }
   }
-  if (name === "lost-ack-result.json" && Number(probe.repeated_effect_count) !== 0) {
-    fail("lost-ACK probe repeated an external effect");
+  if (name === "lost-ack-result.json") {
+    const processIds = Array.isArray(probe.process_ids) ? probe.process_ids as unknown[] : [];
+    if (
+      new Set(processIds.map(String)).size < 2
+      || Number(probe.external_effect_count) !== 1
+      || Number(probe.repeated_effect_count) !== 0
+      || probe.restored_before_bootstrap !== true
+      || probe.restored_execution_phase !== "recovery_required"
+      || probe.restored_transition_phase !== "effect_started"
+      || probe.recovery_kind !== "indeterminate_restart_effect"
+      || probe.reexecute_without_receipt !== false
+      || probe.retry_before_reconcile_error !== "e02_execution_recovery_required"
+      || probe.final_execution_phase !== "committed"
+      || probe.replayed_after_reconciliation !== true
+    ) {
+      fail("lost-ACK probe lacks real external single-effect fencing and reconciliation");
+    }
   }
-  if (name === "disable-result.json" && (probe.default_owner_failed !== true || probe.python_fallback_observed !== false)) {
+  if (name === "disable-result.json" && (
+    probe.default_owner_failed !== true
+    || probe.python_fallback_observed !== false
+    || probe.ready_frame_observed !== false
+    || probe.error_code !== "e02_typescript_runtime_disabled"
+    || Number(probe.process_id) <= 0
+  )) {
     fail("disable probe did not fail closed without Python fallback");
   }
 }
@@ -1121,7 +1255,7 @@ checks.runtime_custody = {
   default_entry: defaultPath,
   default_symbol: String((profile.default_entry as Json).e02_symbol),
   state_journal_owner: "E02CapabilityCoordinator",
-  restore_before_bootstrap: true,
+  restore_before_bootstrap: resumeRestoreEvidence,
   forbidden_dependency_findings: dependencyFindings,
 };
 checks.mutations = {
