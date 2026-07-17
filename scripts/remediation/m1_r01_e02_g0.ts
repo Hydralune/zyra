@@ -797,9 +797,9 @@ const pythonDeleteFragments = [
 ] as const;
 
 const pythonBlockedFragments = [
-  "/zyra_skills/budget_runtime.py",
   "/zyra_skills/compact_bridge.py",
   "/zyra_skills/compact_integration.py",
+  "/zyra_skills/disclosure.py",
   "/zyra_skills/fork_scope.py",
   "/zyra_skills/session_bridge.py",
   "/zyra_skills/session_integration.py",
