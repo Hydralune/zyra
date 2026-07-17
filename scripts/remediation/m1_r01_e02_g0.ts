@@ -612,16 +612,16 @@ const mutationDefinitions = [
 type CustodyRoute = readonly [string, string];
 
 const semanticFamilies: Readonly<Record<string, string>> = Object.freeze({
-  acp: "continuation", approval: "continuation", ask: "continuation", interactive: "continuation",
+  acp: "continuation", approval: "continuation", ask: "continuation", attachment: "resource", interactive: "continuation",
   auth: "oauth", callback: "oauth", credential: "oauth", login: "oauth", token: "oauth", xaa: "oauth",
   cache: "cache", cancel: "cancel", catalogue: "catalog", catalog: "catalog", classify: "risk", classifier: "risk",
-  command: "command", config: "config", connect: "connection", connection: "connection", correlate: "continuation",
+  command: "command", compact: "context", config: "config", connect: "connection", connection: "connection", correlate: "continuation",
   decision: "evaluate", deny: "evaluate", discover: "source", dispatch: "dispatch", effect: "effect",
   elicit: "elicitation", elicitation: "elicitation", evaluate: "evaluate", grant: "grant", headers: "http",
   hook: "hook", http: "http", instruction: "instruction", invoke: "invocation", journal: "journal",
   list: "catalog", load: "source", manifest: "manifest", mode: "mode", notification: "notification",
-  oauth: "oauth", parse: "parse", parser: "parse", permission: "evaluate", plugin: "plugin", policy: "policy",
-  poll: "task", prompt: "prompt", read: "resource", reconnect: "connection", registry: "registry",
+  oauth: "oauth", parse: "parse", parser: "parse", permission: "evaluate", plugin: "plugin", policy: "scope",
+  poll: "task", prompt: "context", read: "resource", reconnect: "connection", registry: "registry",
   reload: "reload", request: "request", resource: "resource", resume: "continuation", risk: "risk",
   rule: "rule", sample: "sampling", sampling: "sampling", scope: "scope", search: "source", serialize: "parse",
   server: "config", skill: "skill", slash: "command", sse: "sse", stdio: "stdio", task: "task",
