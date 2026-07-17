@@ -11,10 +11,13 @@ import {
 
 import type { JsonObject } from "../contracts.ts";
 import {
+  createId,
   E03RuntimeError,
   digest,
   requireString,
+  type E03Clock,
   type E03AgentDefinition,
+  SystemE03Clock,
 } from "../e03/contracts.ts";
 import {
   AgentDefinitionRegistry,
@@ -1022,5 +1025,529 @@ export class DefinitionReloadRuntime {
     const next = { ...payload, digest: digest(payload) };
     assertDefinitionReloadPlan(next);
     return next;
+  }
+}
+
+export type DefinitionSourceState =
+  | "discovered"
+  | "stable"
+  | "changed"
+  | "missing"
+  | "quarantined";
+export interface DefinitionSourceObservation {
+  observationId: string;
+  root: string;
+  path: string;
+  relativePath: string;
+  source: E03AgentDefinition["source"];
+  state: DefinitionSourceState;
+  size: number;
+  modifiedAt: string;
+  contentDigest: string | null;
+  previousDigest: string | null;
+  symlink: boolean;
+  quarantineReason: string | null;
+  observedAt: string;
+  revision: number;
+  digest: string;
+}
+export interface DefinitionLoadTransaction {
+  transactionId: string;
+  generation: string;
+  roots: string[];
+  observationIds: string[];
+  state: "open" | "validated" | "committed" | "rolled_back" | "failed";
+  addedNames: string[];
+  changedNames: string[];
+  removedNames: string[];
+  quarantinedPaths: string[];
+  expectedRegistryRevision: number;
+  committedRegistryRevision: number | null;
+  error: string | null;
+  openedAt: string;
+  validatedAt: string | null;
+  completedAt: string | null;
+  revision: number;
+  digest: string;
+}
+function assertSourceObservation(value: DefinitionSourceObservation): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_source_observation_digest",
+      `definition source observation ${value.observationId} is corrupt`,
+    );
+  if (!value.observationId || !value.root || !value.path || !value.relativePath)
+    throw new E03RuntimeError(
+      "definition_source_observation_identity",
+      "definition source observation identity is required",
+    );
+  if (
+    !Number.isSafeInteger(value.size) ||
+    value.size < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "definition_source_observation_revision",
+      `definition source observation ${value.observationId} is invalid`,
+    );
+  if (value.state === "quarantined" && !value.quarantineReason)
+    throw new E03RuntimeError(
+      "definition_source_observation_quarantine",
+      `quarantined source ${value.path} requires a reason`,
+    );
+}
+function assertLoadTransaction(value: DefinitionLoadTransaction): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_load_transaction_digest",
+      `definition load transaction ${value.transactionId} is corrupt`,
+    );
+  if (!value.transactionId || !value.generation || !value.roots.length)
+    throw new E03RuntimeError(
+      "definition_load_transaction_identity",
+      "definition load transaction identity is required",
+    );
+  if (
+    !Number.isSafeInteger(value.expectedRegistryRevision) ||
+    value.expectedRegistryRevision < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "definition_load_transaction_revision",
+      `definition load transaction ${value.transactionId} is invalid`,
+    );
+  if (
+    (value.state === "committed" ||
+      value.state === "rolled_back" ||
+      value.state === "failed") &&
+    value.completedAt === null
+  )
+    throw new E03RuntimeError(
+      "definition_load_transaction_completion",
+      `definition load transaction ${value.transactionId} lacks completion time`,
+    );
+}
+export class AgentDefinitionSourceCustody {
+  private observations = new Map<string, DefinitionSourceObservation>();
+  private latestByPath = new Map<string, string>();
+  private transactions = new Map<string, DefinitionLoadTransaction>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  observe(input: {
+    root: string;
+    path: string;
+    relativePath: string;
+    source: E03AgentDefinition["source"];
+    size: number;
+    modifiedAt: string;
+    contentDigest?: string | null;
+    symlink?: boolean;
+    exists?: boolean;
+  }): DefinitionSourceObservation {
+    const path = resolve(input.path);
+    const root = resolve(input.root);
+    if (
+      relative(root, path).startsWith(`..${sep}`) ||
+      relative(root, path) === ".."
+    )
+      throw new E03RuntimeError(
+        "definition_source_path_escape",
+        `definition source ${path} escapes ${root}`,
+      );
+    if (
+      !Number.isSafeInteger(input.size) ||
+      input.size < 0 ||
+      Number.isNaN(Date.parse(input.modifiedAt))
+    )
+      throw new E03RuntimeError(
+        "definition_source_metadata",
+        `definition source ${path} metadata is invalid`,
+      );
+    const previousId = this.latestByPath.get(path);
+    const previous = previousId ? this.requireObservation(previousId) : null;
+    const exists = input.exists ?? true;
+    const state: DefinitionSourceState = !exists
+      ? "missing"
+      : !input.contentDigest
+        ? "discovered"
+        : previous?.contentDigest === input.contentDigest
+          ? "stable"
+          : previous
+            ? "changed"
+            : "discovered";
+    const payload = {
+      observationId: createId("definition-source-observation"),
+      root,
+      path,
+      relativePath: input.relativePath.replaceAll("\\", "/"),
+      source: input.source,
+      state,
+      size: input.size,
+      modifiedAt: input.modifiedAt,
+      contentDigest: input.contentDigest ?? null,
+      previousDigest: previous?.contentDigest ?? null,
+      symlink: input.symlink ?? false,
+      quarantineReason: null,
+      observedAt: this.clock.now(),
+      revision: 1,
+    };
+    const observation = { ...payload, digest: digest(payload) };
+    assertSourceObservation(observation);
+    this.observations.set(observation.observationId, observation);
+    this.latestByPath.set(path, observation.observationId);
+    return structuredClone(observation);
+  }
+  quarantine(
+    observationId: string,
+    expectedRevision: number,
+    reason: string,
+  ): DefinitionSourceObservation {
+    const observation = this.requireObservation(observationId);
+    this.assertObservationRevision(observation, expectedRevision);
+    if (observation.state === "missing")
+      throw new E03RuntimeError(
+        "definition_source_quarantine_state",
+        `missing definition source ${observation.path} cannot be quarantined`,
+      );
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "definition_source_quarantine_reason",
+        "definition source quarantine reason is required",
+      );
+    return this.transitionObservation(observation, {
+      state: "quarantined",
+      quarantineReason: reason.trim(),
+    });
+  }
+  stabilize(
+    observationId: string,
+    expectedRevision: number,
+    contentDigest: string,
+  ): DefinitionSourceObservation {
+    const observation = this.requireObservation(observationId);
+    this.assertObservationRevision(observation, expectedRevision);
+    if (observation.state === "missing" || observation.state === "quarantined")
+      throw new E03RuntimeError(
+        "definition_source_stabilize_state",
+        `definition source ${observation.path} is ${observation.state}`,
+      );
+    if (!/^[a-f0-9]{32,128}$/i.test(contentDigest))
+      throw new E03RuntimeError(
+        "definition_source_content_digest",
+        "definition source digest is invalid",
+      );
+    return this.transitionObservation(observation, {
+      state: "stable",
+      contentDigest,
+      quarantineReason: null,
+    });
+  }
+  begin(input: {
+    roots: readonly string[];
+    expectedRegistryRevision: number;
+  }): DefinitionLoadTransaction {
+    const roots = [
+      ...new Set(input.roots.map((value) => resolve(value))),
+    ].sort();
+    if (
+      !roots.length ||
+      !Number.isSafeInteger(input.expectedRegistryRevision) ||
+      input.expectedRegistryRevision < 0
+    )
+      throw new E03RuntimeError(
+        "definition_load_transaction_input",
+        "definition load transaction input is invalid",
+      );
+    const visible = [...this.latestByPath.values()]
+      .map((id) => this.requireObservation(id))
+      .filter((value) => roots.includes(value.root));
+    const generation = digest(
+      visible.map((value) => [value.path, value.contentDigest, value.state]),
+    );
+    const existing = [...this.transactions.values()].find(
+      (value) =>
+        value.generation === generation &&
+        value.state !== "rolled_back" &&
+        value.state !== "failed",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      transactionId: createId("definition-load-transaction"),
+      generation,
+      roots,
+      observationIds: visible.map((value) => value.observationId).sort(),
+      state: "open" as const,
+      addedNames: [],
+      changedNames: [],
+      removedNames: [],
+      quarantinedPaths: visible
+        .filter((value) => value.state === "quarantined")
+        .map((value) => value.path)
+        .sort(),
+      expectedRegistryRevision: input.expectedRegistryRevision,
+      committedRegistryRevision: null,
+      error: null,
+      openedAt: this.clock.now(),
+      validatedAt: null,
+      completedAt: null,
+      revision: 1,
+    };
+    const transaction = { ...payload, digest: digest(payload) };
+    assertLoadTransaction(transaction);
+    this.transactions.set(transaction.transactionId, transaction);
+    return structuredClone(transaction);
+  }
+  validate(input: {
+    transactionId: string;
+    expectedRevision: number;
+    addedNames: readonly string[];
+    changedNames: readonly string[];
+    removedNames: readonly string[];
+    allowQuarantined?: boolean;
+  }): DefinitionLoadTransaction {
+    const transaction = this.requireTransaction(input.transactionId);
+    this.assertTransactionRevision(transaction, input.expectedRevision);
+    if (transaction.state !== "open")
+      throw new E03RuntimeError(
+        "definition_load_transaction_validate_state",
+        `definition load transaction ${transaction.transactionId} is ${transaction.state}`,
+      );
+    const observations = transaction.observationIds.map((id) =>
+      this.requireObservation(id),
+    );
+    if (
+      observations.some(
+        (value) => value.state === "discovered" || value.state === "changed",
+      )
+    )
+      throw new E03RuntimeError(
+        "definition_load_transaction_unstable",
+        "definition load transaction includes unstable sources",
+      );
+    if (
+      !input.allowQuarantined &&
+      observations.some((value) => value.state === "quarantined")
+    )
+      throw new E03RuntimeError(
+        "definition_load_transaction_quarantined",
+        "definition load transaction includes quarantined sources",
+      );
+    const added = new Set(input.addedNames);
+    const changed = new Set(input.changedNames);
+    const removed = new Set(input.removedNames);
+    if ([added, changed, removed].some((set) => set.has("")))
+      throw new E03RuntimeError(
+        "definition_load_transaction_names",
+        "definition load transaction names are invalid",
+      );
+    for (const name of added)
+      if (changed.has(name) || removed.has(name))
+        throw new E03RuntimeError(
+          "definition_load_transaction_overlap",
+          `definition ${name} has conflicting load actions`,
+        );
+    for (const name of changed)
+      if (removed.has(name))
+        throw new E03RuntimeError(
+          "definition_load_transaction_overlap",
+          `definition ${name} has conflicting load actions`,
+        );
+    return this.transitionTransaction(transaction, {
+      state: "validated",
+      addedNames: [...added].sort(),
+      changedNames: [...changed].sort(),
+      removedNames: [...removed].sort(),
+      validatedAt: this.clock.now(),
+    });
+  }
+  commit(
+    transactionId: string,
+    expectedRevision: number,
+    committedRegistryRevision: number,
+  ): DefinitionLoadTransaction {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state !== "validated")
+      throw new E03RuntimeError(
+        "definition_load_transaction_commit_state",
+        `definition load transaction ${transactionId} is ${transaction.state}`,
+      );
+    if (
+      !Number.isSafeInteger(committedRegistryRevision) ||
+      committedRegistryRevision <= transaction.expectedRegistryRevision
+    )
+      throw new E03RuntimeError(
+        "definition_load_transaction_registry_revision",
+        "definition registry revision did not advance",
+      );
+    return this.transitionTransaction(transaction, {
+      state: "committed",
+      committedRegistryRevision,
+      completedAt: this.clock.now(),
+    });
+  }
+  rollback(
+    transactionId: string,
+    expectedRevision: number,
+    error?: string,
+  ): DefinitionLoadTransaction {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state === "committed")
+      throw new E03RuntimeError(
+        "definition_load_transaction_rollback_state",
+        `committed definition load transaction ${transactionId} cannot roll back`,
+      );
+    if (transaction.state === "rolled_back" || transaction.state === "failed")
+      return structuredClone(transaction);
+    return this.transitionTransaction(transaction, {
+      state: error ? "failed" : "rolled_back",
+      error: error?.trim() || null,
+      completedAt: this.clock.now(),
+    });
+  }
+  current(path: string): DefinitionSourceObservation | null {
+    const id = this.latestByPath.get(resolve(path));
+    return id ? structuredClone(this.requireObservation(id)) : null;
+  }
+  snapshot(): {
+    observations: DefinitionSourceObservation[];
+    latestByPath: Array<[string, string]>;
+    transactions: DefinitionLoadTransaction[];
+  } {
+    return {
+      observations: [...this.observations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      latestByPath: [...this.latestByPath.entries()].map(([path, id]) => [
+        path,
+        id,
+      ]),
+      transactions: [...this.transactions.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    observations: readonly DefinitionSourceObservation[];
+    latestByPath: ReadonlyArray<readonly [string, string]>;
+    transactions: readonly DefinitionLoadTransaction[];
+  }): void {
+    const observations = new Map<string, DefinitionSourceObservation>();
+    const latestByPath = new Map<string, string>();
+    const transactions = new Map<string, DefinitionLoadTransaction>();
+    for (const value of snapshot.observations) {
+      assertSourceObservation(value);
+      if (observations.has(value.observationId))
+        throw new E03RuntimeError(
+          "definition_source_restore_duplicate",
+          `duplicate source observation ${value.observationId}`,
+        );
+      observations.set(value.observationId, structuredClone(value));
+    }
+    for (const [path, id] of snapshot.latestByPath) {
+      const observation = observations.get(id);
+      if (!observation || observation.path !== path || latestByPath.has(path))
+        throw new E03RuntimeError(
+          "definition_source_restore_latest",
+          `definition source latest index ${path} is invalid`,
+        );
+      latestByPath.set(path, id);
+    }
+    for (const value of snapshot.transactions) {
+      assertLoadTransaction(value);
+      if (
+        transactions.has(value.transactionId) ||
+        value.observationIds.some((id) => !observations.has(id))
+      )
+        throw new E03RuntimeError(
+          "definition_load_transaction_restore",
+          `definition load transaction ${value.transactionId} is invalid`,
+        );
+      transactions.set(value.transactionId, structuredClone(value));
+    }
+    this.observations = observations;
+    this.latestByPath = latestByPath;
+    this.transactions = transactions;
+  }
+  private requireObservation(id: string): DefinitionSourceObservation {
+    const value = this.observations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_source_observation_missing",
+        `definition source observation ${id} does not exist`,
+      );
+    assertSourceObservation(value);
+    return value;
+  }
+  private requireTransaction(id: string): DefinitionLoadTransaction {
+    const value = this.transactions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_load_transaction_missing",
+        `definition load transaction ${id} does not exist`,
+      );
+    assertLoadTransaction(value);
+    return value;
+  }
+  private assertObservationRevision(
+    value: DefinitionSourceObservation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_source_observation_stale_revision",
+        `definition source observation ${value.observationId} revision is stale`,
+      );
+  }
+  private assertTransactionRevision(
+    value: DefinitionLoadTransaction,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_load_transaction_stale_revision",
+        `definition load transaction ${value.transactionId} revision is stale`,
+      );
+  }
+  private transitionObservation(
+    value: DefinitionSourceObservation,
+    patch: Partial<
+      Omit<DefinitionSourceObservation, "observationId" | "revision" | "digest">
+    >,
+  ): DefinitionSourceObservation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      observationId: value.observationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertSourceObservation(next);
+    this.observations.set(next.observationId, next);
+    this.latestByPath.set(next.path, next.observationId);
+    return structuredClone(next);
+  }
+  private transitionTransaction(
+    value: DefinitionLoadTransaction,
+    patch: Partial<
+      Omit<DefinitionLoadTransaction, "transactionId" | "revision" | "digest">
+    >,
+  ): DefinitionLoadTransaction {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      transactionId: value.transactionId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertLoadTransaction(next);
+    this.transactions.set(next.transactionId, next);
+    return structuredClone(next);
   }
 }

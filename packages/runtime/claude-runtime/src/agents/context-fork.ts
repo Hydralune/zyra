@@ -1290,3 +1290,811 @@ export class ContextMergeRuntime {
     return next;
   }
 }
+
+export type ContextCheckpointState =
+  | "staged"
+  | "committed"
+  | "superseded"
+  | "expired"
+  | "corrupt";
+
+export interface ContextCheckpointRecord {
+  checkpointId: string;
+  taskId: string;
+  sessionId: string;
+  branchId: string;
+  sequence: number;
+  state: ContextCheckpointState;
+  snapshot: E03ContextSnapshot;
+  parentCheckpointId: string | null;
+  writerId: string;
+  idempotencyKey: string;
+  pinCount: number;
+  retainUntil: string | null;
+  stagedAt: string;
+  committedAt: string | null;
+  supersededAt: string | null;
+  expiredAt: string | null;
+  revision: number;
+  digest: string;
+}
+
+export interface ContextCheckpointPin {
+  pinId: string;
+  checkpointId: string;
+  ownerId: string;
+  reason: string;
+  expiresAt: string;
+  releasedAt: string | null;
+  revision: number;
+  digest: string;
+}
+
+function assertCheckpoint(record: ContextCheckpointRecord): void {
+  assertDigest(record, "digest", `context checkpoint ${record.checkpointId}`);
+  assertDigest(
+    record.snapshot,
+    "checksum",
+    `context ${record.snapshot.snapshotId}`,
+  );
+  if (!record.checkpointId || !record.writerId || !record.idempotencyKey)
+    throw new E03RuntimeError(
+      "context_checkpoint_identity",
+      "context checkpoint identity is required",
+    );
+  if (
+    record.taskId !== record.snapshot.taskId ||
+    record.sessionId !== record.snapshot.sessionId ||
+    record.branchId !== record.snapshot.branchId ||
+    record.sequence !== record.snapshot.sequence
+  )
+    throw new E03RuntimeError(
+      "context_checkpoint_custody",
+      `context checkpoint ${record.checkpointId} custody does not match its snapshot`,
+    );
+  if (
+    !Number.isSafeInteger(record.pinCount) ||
+    record.pinCount < 0 ||
+    !Number.isSafeInteger(record.revision) ||
+    record.revision < 1
+  )
+    throw new E03RuntimeError(
+      "context_checkpoint_revision",
+      `context checkpoint ${record.checkpointId} counters are invalid`,
+    );
+  if (record.state === "committed" && record.committedAt === null)
+    throw new E03RuntimeError(
+      "context_checkpoint_commit_time",
+      `context checkpoint ${record.checkpointId} lacks commit time`,
+    );
+  if (record.state === "superseded" && record.supersededAt === null)
+    throw new E03RuntimeError(
+      "context_checkpoint_supersede_time",
+      `context checkpoint ${record.checkpointId} lacks supersede time`,
+    );
+  if (record.state === "expired" && record.expiredAt === null)
+    throw new E03RuntimeError(
+      "context_checkpoint_expire_time",
+      `context checkpoint ${record.checkpointId} lacks expiry time`,
+    );
+}
+
+function assertCheckpointPin(pin: ContextCheckpointPin): void {
+  assertDigest(pin, "digest", `context checkpoint pin ${pin.pinId}`);
+  if (!pin.pinId || !pin.checkpointId || !pin.ownerId || !pin.reason.trim())
+    throw new E03RuntimeError(
+      "context_checkpoint_pin_identity",
+      "context checkpoint pin identity is required",
+    );
+  if (
+    !Number.isSafeInteger(pin.revision) ||
+    pin.revision < 1 ||
+    Number.isNaN(Date.parse(pin.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "context_checkpoint_pin_revision",
+      `context checkpoint pin ${pin.pinId} is invalid`,
+    );
+}
+
+export class ContextCheckpointArchive {
+  private checkpoints = new Map<string, ContextCheckpointRecord>();
+  private idempotency = new Map<string, string>();
+  private branchHeads = new Map<string, string>();
+  private pins = new Map<string, ContextCheckpointPin>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  stage(input: {
+    snapshot: E03ContextSnapshot;
+    writerId: string;
+    idempotencyKey: string;
+    parentCheckpointId?: string | null;
+    retainUntil?: string | null;
+  }): ContextCheckpointRecord {
+    assertDigest(
+      input.snapshot,
+      "checksum",
+      `context ${input.snapshot.snapshotId}`,
+    );
+    if (!input.writerId.trim() || !input.idempotencyKey.trim())
+      throw new E03RuntimeError(
+        "context_checkpoint_stage_identity",
+        "checkpoint writer and idempotency key are required",
+      );
+    const priorId = this.idempotency.get(input.idempotencyKey);
+    if (priorId) {
+      const prior = this.requireCheckpoint(priorId);
+      if (
+        prior.snapshot.checksum !== input.snapshot.checksum ||
+        prior.writerId !== input.writerId
+      )
+        throw new E03RuntimeError(
+          "context_checkpoint_idempotency_conflict",
+          `checkpoint idempotency key ${input.idempotencyKey} was reused`,
+        );
+      return structuredClone(prior);
+    }
+    const branchHead = this.branchHeads.get(input.snapshot.branchId) ?? null;
+    const parentCheckpointId =
+      input.parentCheckpointId === undefined
+        ? branchHead
+        : input.parentCheckpointId;
+    if (parentCheckpointId) {
+      const parent = this.requireCheckpoint(parentCheckpointId);
+      if (
+        parent.taskId !== input.snapshot.taskId ||
+        parent.sessionId !== input.snapshot.sessionId ||
+        parent.branchId !== input.snapshot.branchId
+      )
+        throw new E03RuntimeError(
+          "context_checkpoint_parent_custody",
+          `checkpoint parent ${parentCheckpointId} belongs to another branch`,
+        );
+      if (parent.sequence >= input.snapshot.sequence)
+        throw new E03RuntimeError(
+          "context_checkpoint_sequence",
+          "checkpoint sequence must advance its parent",
+        );
+    }
+    if (
+      input.retainUntil !== undefined &&
+      input.retainUntil !== null &&
+      Number.isNaN(Date.parse(input.retainUntil))
+    )
+      throw new E03RuntimeError(
+        "context_checkpoint_retention",
+        "checkpoint retention time is invalid",
+      );
+    const payload = {
+      checkpointId: createId("context-checkpoint"),
+      taskId: input.snapshot.taskId,
+      sessionId: input.snapshot.sessionId,
+      branchId: input.snapshot.branchId,
+      sequence: input.snapshot.sequence,
+      state: "staged" as const,
+      snapshot: structuredClone(input.snapshot),
+      parentCheckpointId: parentCheckpointId ?? null,
+      writerId: input.writerId.trim(),
+      idempotencyKey: input.idempotencyKey.trim(),
+      pinCount: 0,
+      retainUntil: input.retainUntil ?? null,
+      stagedAt: this.clock.now(),
+      committedAt: null,
+      supersededAt: null,
+      expiredAt: null,
+      revision: 1,
+    };
+    const checkpoint = { ...payload, digest: digest(payload) };
+    assertCheckpoint(checkpoint);
+    this.checkpoints.set(checkpoint.checkpointId, checkpoint);
+    this.idempotency.set(checkpoint.idempotencyKey, checkpoint.checkpointId);
+    return structuredClone(checkpoint);
+  }
+
+  commit(
+    checkpointId: string,
+    expectedRevision: number,
+  ): ContextCheckpointRecord {
+    const checkpoint = this.requireCheckpoint(checkpointId);
+    this.assertRevision(checkpoint, expectedRevision);
+    if (checkpoint.state !== "staged")
+      throw new E03RuntimeError(
+        "context_checkpoint_commit_state",
+        `context checkpoint ${checkpointId} is ${checkpoint.state}`,
+      );
+    const headId = this.branchHeads.get(checkpoint.branchId);
+    if (headId) {
+      const head = this.requireCheckpoint(headId);
+      if (head.sequence >= checkpoint.sequence)
+        throw new E03RuntimeError(
+          "context_checkpoint_head_conflict",
+          `branch ${checkpoint.branchId} already has sequence ${head.sequence}`,
+        );
+      if (checkpoint.parentCheckpointId !== head.checkpointId)
+        throw new E03RuntimeError(
+          "context_checkpoint_head_changed",
+          `branch ${checkpoint.branchId} head changed before commit`,
+        );
+      this.transition(head, {
+        state: "superseded",
+        supersededAt: this.clock.now(),
+      });
+    }
+    const committed = this.transition(checkpoint, {
+      state: "committed",
+      committedAt: this.clock.now(),
+    });
+    this.branchHeads.set(committed.branchId, committed.checkpointId);
+    return committed;
+  }
+
+  pin(input: {
+    checkpointId: string;
+    ownerId: string;
+    reason: string;
+    ttlMs: number;
+  }): ContextCheckpointPin {
+    const checkpoint = this.requireCheckpoint(input.checkpointId);
+    if (checkpoint.state === "expired" || checkpoint.state === "corrupt")
+      throw new E03RuntimeError(
+        "context_checkpoint_pin_state",
+        `context checkpoint ${checkpoint.checkpointId} cannot be pinned`,
+      );
+    if (
+      !input.ownerId.trim() ||
+      !input.reason.trim() ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "context_checkpoint_pin_input",
+        "checkpoint pin input is invalid",
+      );
+    const existing = [...this.pins.values()].find(
+      (pin) =>
+        pin.checkpointId === input.checkpointId &&
+        pin.ownerId === input.ownerId &&
+        pin.releasedAt === null &&
+        Date.parse(pin.expiresAt) > Date.parse(this.clock.now()),
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      pinId: createId("context-checkpoint-pin"),
+      checkpointId: checkpoint.checkpointId,
+      ownerId: input.ownerId.trim(),
+      reason: input.reason.trim(),
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      releasedAt: null,
+      revision: 1,
+    };
+    const pin = { ...payload, digest: digest(payload) };
+    assertCheckpointPin(pin);
+    this.pins.set(pin.pinId, pin);
+    this.transition(checkpoint, { pinCount: checkpoint.pinCount + 1 });
+    return structuredClone(pin);
+  }
+
+  releasePin(pinId: string, expectedRevision: number): ContextCheckpointPin {
+    const pin = this.requirePin(pinId);
+    if (pin.revision !== expectedRevision)
+      throw new E03RuntimeError(
+        "context_checkpoint_pin_stale_revision",
+        `context checkpoint pin ${pinId} revision is stale`,
+      );
+    if (pin.releasedAt !== null) return structuredClone(pin);
+    const next = this.transitionPin(pin, { releasedAt: this.clock.now() });
+    const checkpoint = this.requireCheckpoint(pin.checkpointId);
+    this.transition(checkpoint, {
+      pinCount: Math.max(0, checkpoint.pinCount - 1),
+    });
+    return next;
+  }
+
+  collect(now = this.clock.now()): ContextCheckpointRecord[] {
+    const timestamp = Date.parse(now);
+    if (Number.isNaN(timestamp))
+      throw new E03RuntimeError(
+        "context_checkpoint_collect_time",
+        "checkpoint collection time is invalid",
+      );
+    for (const pin of this.pins.values())
+      if (pin.releasedAt === null && Date.parse(pin.expiresAt) <= timestamp)
+        this.releasePin(pin.pinId, pin.revision);
+    const expired: ContextCheckpointRecord[] = [];
+    for (const checkpoint of this.checkpoints.values()) {
+      if (
+        checkpoint.pinCount > 0 ||
+        checkpoint.state === "expired" ||
+        checkpoint.state === "staged"
+      )
+        continue;
+      if (this.branchHeads.get(checkpoint.branchId) === checkpoint.checkpointId)
+        continue;
+      if (
+        checkpoint.retainUntil !== null &&
+        Date.parse(checkpoint.retainUntil) > timestamp
+      )
+        continue;
+      expired.push(
+        this.transition(checkpoint, { state: "expired", expiredAt: now }),
+      );
+    }
+    return expired;
+  }
+
+  recover(branchId: string, atSequence?: number): E03ContextSnapshot {
+    const candidates = [...this.checkpoints.values()]
+      .filter(
+        (checkpoint) =>
+          checkpoint.branchId === branchId &&
+          (checkpoint.state === "committed" ||
+            checkpoint.state === "superseded") &&
+          (atSequence === undefined || checkpoint.sequence <= atSequence),
+      )
+      .sort((left, right) => right.sequence - left.sequence);
+    const checkpoint = candidates[0];
+    if (!checkpoint)
+      throw new E03RuntimeError(
+        "context_checkpoint_recovery_missing",
+        `branch ${branchId} has no recoverable checkpoint`,
+      );
+    try {
+      assertCheckpoint(checkpoint);
+    } catch (error) {
+      this.transition(checkpoint, { state: "corrupt" });
+      throw error;
+    }
+    return structuredClone(checkpoint.snapshot);
+  }
+
+  lineage(checkpointId: string): ContextCheckpointRecord[] {
+    const values: ContextCheckpointRecord[] = [];
+    const seen = new Set<string>();
+    let cursor: ContextCheckpointRecord | null =
+      this.requireCheckpoint(checkpointId);
+    while (cursor) {
+      if (seen.has(cursor.checkpointId))
+        throw new E03RuntimeError(
+          "context_checkpoint_lineage_cycle",
+          `checkpoint lineage cycles at ${cursor.checkpointId}`,
+        );
+      seen.add(cursor.checkpointId);
+      values.push(structuredClone(cursor));
+      cursor = cursor.parentCheckpointId
+        ? this.requireCheckpoint(cursor.parentCheckpointId)
+        : null;
+    }
+    return values;
+  }
+
+  snapshot(): {
+    checkpoints: ContextCheckpointRecord[];
+    pins: ContextCheckpointPin[];
+    branchHeads: Array<[string, string]>;
+  } {
+    return {
+      checkpoints: [...this.checkpoints.values()].map((value) =>
+        structuredClone(value),
+      ),
+      pins: [...this.pins.values()].map((value) => structuredClone(value)),
+      branchHeads: [...this.branchHeads.entries()].map(
+        ([branchId, checkpointId]) => [branchId, checkpointId],
+      ),
+    };
+  }
+
+  restore(snapshot: {
+    checkpoints: readonly ContextCheckpointRecord[];
+    pins: readonly ContextCheckpointPin[];
+    branchHeads: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const checkpoints = new Map<string, ContextCheckpointRecord>();
+    const idempotency = new Map<string, string>();
+    const pins = new Map<string, ContextCheckpointPin>();
+    const branchHeads = new Map<string, string>();
+    for (const checkpoint of snapshot.checkpoints) {
+      assertCheckpoint(checkpoint);
+      if (
+        checkpoints.has(checkpoint.checkpointId) ||
+        idempotency.has(checkpoint.idempotencyKey)
+      )
+        throw new E03RuntimeError(
+          "context_checkpoint_restore_duplicate",
+          `duplicate context checkpoint ${checkpoint.checkpointId}`,
+        );
+      checkpoints.set(checkpoint.checkpointId, structuredClone(checkpoint));
+      idempotency.set(checkpoint.idempotencyKey, checkpoint.checkpointId);
+    }
+    for (const checkpoint of checkpoints.values())
+      if (
+        checkpoint.parentCheckpointId &&
+        !checkpoints.has(checkpoint.parentCheckpointId)
+      )
+        throw new E03RuntimeError(
+          "context_checkpoint_restore_parent",
+          `checkpoint ${checkpoint.checkpointId} has no parent`,
+        );
+    for (const pin of snapshot.pins) {
+      assertCheckpointPin(pin);
+      if (pins.has(pin.pinId) || !checkpoints.has(pin.checkpointId))
+        throw new E03RuntimeError(
+          "context_checkpoint_restore_pin",
+          `checkpoint pin ${pin.pinId} is invalid`,
+        );
+      pins.set(pin.pinId, structuredClone(pin));
+    }
+    for (const [branchId, checkpointId] of snapshot.branchHeads) {
+      const checkpoint = checkpoints.get(checkpointId);
+      if (
+        !checkpoint ||
+        checkpoint.branchId !== branchId ||
+        checkpoint.state !== "committed"
+      )
+        throw new E03RuntimeError(
+          "context_checkpoint_restore_head",
+          `branch head ${branchId} is invalid`,
+        );
+      if (branchHeads.has(branchId))
+        throw new E03RuntimeError(
+          "context_checkpoint_restore_duplicate_head",
+          `branch ${branchId} has duplicate heads`,
+        );
+      branchHeads.set(branchId, checkpointId);
+    }
+    this.checkpoints = checkpoints;
+    this.idempotency = idempotency;
+    this.pins = pins;
+    this.branchHeads = branchHeads;
+  }
+
+  private requireCheckpoint(checkpointId: string): ContextCheckpointRecord {
+    const checkpoint = this.checkpoints.get(checkpointId);
+    if (!checkpoint)
+      throw new E03RuntimeError(
+        "context_checkpoint_missing",
+        `context checkpoint ${checkpointId} does not exist`,
+      );
+    assertCheckpoint(checkpoint);
+    return checkpoint;
+  }
+  private requirePin(pinId: string): ContextCheckpointPin {
+    const pin = this.pins.get(pinId);
+    if (!pin)
+      throw new E03RuntimeError(
+        "context_checkpoint_pin_missing",
+        `context checkpoint pin ${pinId} does not exist`,
+      );
+    assertCheckpointPin(pin);
+    return pin;
+  }
+  private assertRevision(
+    checkpoint: ContextCheckpointRecord,
+    expected: number,
+  ): void {
+    if (checkpoint.revision !== expected)
+      throw new E03RuntimeError(
+        "context_checkpoint_stale_revision",
+        `context checkpoint ${checkpoint.checkpointId} revision is stale`,
+      );
+  }
+  private transition(
+    checkpoint: ContextCheckpointRecord,
+    patch: Partial<
+      Omit<ContextCheckpointRecord, "checkpointId" | "revision" | "digest">
+    >,
+  ): ContextCheckpointRecord {
+    const { digest: _, ...prior } = checkpoint;
+    const payload = {
+      ...prior,
+      ...patch,
+      checkpointId: checkpoint.checkpointId,
+      revision: checkpoint.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCheckpoint(next);
+    this.checkpoints.set(next.checkpointId, next);
+    return structuredClone(next);
+  }
+  private transitionPin(
+    pin: ContextCheckpointPin,
+    patch: Partial<Omit<ContextCheckpointPin, "pinId" | "revision" | "digest">>,
+  ): ContextCheckpointPin {
+    const { digest: _, ...prior } = pin;
+    const payload = {
+      ...prior,
+      ...patch,
+      pinId: pin.pinId,
+      revision: pin.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCheckpointPin(next);
+    this.pins.set(next.pinId, next);
+    return structuredClone(next);
+  }
+}
+
+export interface ContextBranchRecord {
+  branchRecordId: string;
+  taskId: string;
+  sessionId: string;
+  branchId: string;
+  parentBranchId: string | null;
+  forkSnapshotId: string;
+  headSnapshotId: string;
+  state: "active" | "frozen" | "merged" | "abandoned";
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+function assertBranchRecord(record: ContextBranchRecord): void {
+  assertDigest(record, "digest", `context branch ${record.branchRecordId}`);
+  if (
+    !record.branchRecordId ||
+    !record.taskId ||
+    !record.sessionId ||
+    !record.branchId ||
+    !record.forkSnapshotId ||
+    !record.headSnapshotId ||
+    !record.ownerId
+  )
+    throw new E03RuntimeError(
+      "context_branch_identity",
+      "context branch identity is required",
+    );
+  if (!Number.isSafeInteger(record.revision) || record.revision < 1)
+    throw new E03RuntimeError(
+      "context_branch_revision",
+      `context branch ${record.branchId} revision is invalid`,
+    );
+  if (record.parentBranchId === record.branchId)
+    throw new E03RuntimeError(
+      "context_branch_self_parent",
+      `context branch ${record.branchId} cannot parent itself`,
+    );
+}
+
+export class ContextBranchLineageRuntime {
+  private branches = new Map<string, ContextBranchRecord>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  create(input: {
+    snapshot: E03ContextSnapshot;
+    parentBranchId?: string | null;
+    ownerId: string;
+  }): ContextBranchRecord {
+    assertDigest(
+      input.snapshot,
+      "checksum",
+      `context ${input.snapshot.snapshotId}`,
+    );
+    if (this.branches.has(input.snapshot.branchId))
+      throw new E03RuntimeError(
+        "context_branch_duplicate",
+        `context branch ${input.snapshot.branchId} already exists`,
+      );
+    if (input.parentBranchId) {
+      const parent = this.require(input.parentBranchId);
+      if (
+        parent.taskId !== input.snapshot.taskId ||
+        parent.sessionId !== input.snapshot.sessionId
+      )
+        throw new E03RuntimeError(
+          "context_branch_parent_custody",
+          "context branch parent has different custody",
+        );
+      if (parent.state !== "active" && parent.state !== "frozen")
+        throw new E03RuntimeError(
+          "context_branch_parent_state",
+          `context branch parent is ${parent.state}`,
+        );
+    }
+    const payload = {
+      branchRecordId: createId("context-branch-record"),
+      taskId: input.snapshot.taskId,
+      sessionId: input.snapshot.sessionId,
+      branchId: input.snapshot.branchId,
+      parentBranchId: input.parentBranchId ?? null,
+      forkSnapshotId: input.snapshot.snapshotId,
+      headSnapshotId: input.snapshot.snapshotId,
+      state: "active" as const,
+      ownerId: input.ownerId.trim(),
+      createdAt: this.clock.now(),
+      updatedAt: this.clock.now(),
+      revision: 1,
+    };
+    const record = { ...payload, digest: digest(payload) };
+    assertBranchRecord(record);
+    this.branches.set(record.branchId, record);
+    return structuredClone(record);
+  }
+  advance(
+    branchId: string,
+    expectedRevision: number,
+    snapshot: E03ContextSnapshot,
+  ): ContextBranchRecord {
+    const branch = this.require(branchId);
+    this.assertRevision(branch, expectedRevision);
+    if (branch.state !== "active")
+      throw new E03RuntimeError(
+        "context_branch_advance_state",
+        `context branch ${branchId} is ${branch.state}`,
+      );
+    assertDigest(snapshot, "checksum", `context ${snapshot.snapshotId}`);
+    if (
+      snapshot.taskId !== branch.taskId ||
+      snapshot.sessionId !== branch.sessionId ||
+      snapshot.branchId !== branch.branchId
+    )
+      throw new E03RuntimeError(
+        "context_branch_advance_custody",
+        "context snapshot belongs to another branch",
+      );
+    return this.transition(branch, { headSnapshotId: snapshot.snapshotId });
+  }
+  freeze(branchId: string, expectedRevision: number): ContextBranchRecord {
+    const branch = this.require(branchId);
+    this.assertRevision(branch, expectedRevision);
+    if (branch.state !== "active")
+      throw new E03RuntimeError(
+        "context_branch_freeze_state",
+        `context branch ${branchId} is ${branch.state}`,
+      );
+    return this.transition(branch, { state: "frozen" });
+  }
+  reopen(branchId: string, expectedRevision: number): ContextBranchRecord {
+    const branch = this.require(branchId);
+    this.assertRevision(branch, expectedRevision);
+    if (branch.state !== "frozen")
+      throw new E03RuntimeError(
+        "context_branch_reopen_state",
+        `context branch ${branchId} is ${branch.state}`,
+      );
+    return this.transition(branch, { state: "active" });
+  }
+  merge(
+    branchId: string,
+    expectedRevision: number,
+    targetBranchId: string,
+  ): { source: ContextBranchRecord; target: ContextBranchRecord } {
+    const source = this.require(branchId);
+    const target = this.require(targetBranchId);
+    this.assertRevision(source, expectedRevision);
+    if (source.state !== "frozen" || target.state !== "active")
+      throw new E03RuntimeError(
+        "context_branch_merge_state",
+        "context branch merge requires frozen source and active target",
+      );
+    if (
+      source.taskId !== target.taskId ||
+      source.sessionId !== target.sessionId
+    )
+      throw new E03RuntimeError(
+        "context_branch_merge_custody",
+        "context branches have different custody",
+      );
+    if (
+      !this.ancestors(source.branchId).some(
+        (candidate) => candidate.branchId === target.branchId,
+      ) &&
+      !this.ancestors(target.branchId).some(
+        (candidate) => candidate.branchId === source.branchId,
+      )
+    )
+      throw new E03RuntimeError(
+        "context_branch_merge_lineage",
+        "context branches do not share direct lineage",
+      );
+    const nextSource = this.transition(source, { state: "merged" });
+    const nextTarget = this.transition(target, {
+      headSnapshotId: source.headSnapshotId,
+    });
+    return { source: nextSource, target: nextTarget };
+  }
+  abandon(branchId: string, expectedRevision: number): ContextBranchRecord {
+    const branch = this.require(branchId);
+    this.assertRevision(branch, expectedRevision);
+    if (branch.state === "merged" || branch.state === "abandoned")
+      throw new E03RuntimeError(
+        "context_branch_abandon_state",
+        `context branch ${branchId} is ${branch.state}`,
+      );
+    if (
+      [...this.branches.values()].some(
+        (candidate) =>
+          candidate.parentBranchId === branchId && candidate.state === "active",
+      )
+    )
+      throw new E03RuntimeError(
+        "context_branch_live_child",
+        `context branch ${branchId} has an active child`,
+      );
+    return this.transition(branch, { state: "abandoned" });
+  }
+  ancestors(branchId: string): ContextBranchRecord[] {
+    const values: ContextBranchRecord[] = [];
+    const seen = new Set<string>();
+    let cursor: ContextBranchRecord | null = this.require(branchId);
+    while (cursor) {
+      if (seen.has(cursor.branchId))
+        throw new E03RuntimeError(
+          "context_branch_lineage_cycle",
+          `context branch lineage cycles at ${cursor.branchId}`,
+        );
+      seen.add(cursor.branchId);
+      values.push(structuredClone(cursor));
+      cursor = cursor.parentBranchId
+        ? this.require(cursor.parentBranchId)
+        : null;
+    }
+    return values;
+  }
+  snapshot(): ContextBranchRecord[] {
+    return [...this.branches.values()]
+      .sort((left, right) => left.branchId.localeCompare(right.branchId))
+      .map((value) => structuredClone(value));
+  }
+  restore(records: readonly ContextBranchRecord[]): void {
+    const next = new Map<string, ContextBranchRecord>();
+    for (const record of records) {
+      assertBranchRecord(record);
+      if (next.has(record.branchId))
+        throw new E03RuntimeError(
+          "context_branch_restore_duplicate",
+          `duplicate context branch ${record.branchId}`,
+        );
+      next.set(record.branchId, structuredClone(record));
+    }
+    for (const record of next.values())
+      if (record.parentBranchId && !next.has(record.parentBranchId))
+        throw new E03RuntimeError(
+          "context_branch_restore_parent",
+          `context branch ${record.branchId} has no parent`,
+        );
+    this.branches = next;
+    for (const record of next.values()) this.ancestors(record.branchId);
+  }
+  private require(branchId: string): ContextBranchRecord {
+    const branch = this.branches.get(branchId);
+    if (!branch)
+      throw new E03RuntimeError(
+        "context_branch_missing",
+        `context branch ${branchId} does not exist`,
+      );
+    assertBranchRecord(branch);
+    return branch;
+  }
+  private assertRevision(branch: ContextBranchRecord, expected: number): void {
+    if (branch.revision !== expected)
+      throw new E03RuntimeError(
+        "context_branch_stale_revision",
+        `context branch ${branch.branchId} revision is stale`,
+      );
+  }
+  private transition(
+    branch: ContextBranchRecord,
+    patch: Partial<
+      Omit<
+        ContextBranchRecord,
+        "branchRecordId" | "branchId" | "revision" | "digest"
+      >
+    >,
+  ): ContextBranchRecord {
+    const { digest: _, ...prior } = branch;
+    const payload = {
+      ...prior,
+      ...patch,
+      branchRecordId: branch.branchRecordId,
+      branchId: branch.branchId,
+      updatedAt: this.clock.now(),
+      revision: branch.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertBranchRecord(next);
+    this.branches.set(next.branchId, next);
+    return structuredClone(next);
+  }
+}

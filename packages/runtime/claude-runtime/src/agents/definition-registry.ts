@@ -2,6 +2,7 @@ import { type E03Clock, SystemE03Clock } from "../e03/contracts.ts";
 import type { JsonObject } from "../contracts.ts";
 import {
   cloneJson,
+  createId,
   DEFAULT_E03_BUDGET,
   digest,
   E03RuntimeError,
@@ -1123,4 +1124,562 @@ function canonicalCycle(cycle: readonly string[]): string[] {
     left.join("->").localeCompare(right.join("->")),
   );
   return [...rotations[0]!, rotations[0]![0]!];
+}
+
+export interface DefinitionActivation {
+  activationId: string;
+  name: string;
+  version: string;
+  definitionDigest: string;
+  state: "candidate" | "active" | "draining" | "retired" | "rejected";
+  trafficWeight: number;
+  minimumHealthyRuns: number;
+  healthyRuns: number;
+  failedRuns: number;
+  failureThreshold: number;
+  activatedAt: string | null;
+  drainedAt: string | null;
+  retiredAt: string | null;
+  rejectionReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface DefinitionBinding {
+  bindingId: string;
+  taskId: string;
+  activationId: string;
+  definitionName: string;
+  definitionVersion: string;
+  state: "reserved" | "bound" | "released" | "revoked";
+  reservedAt: string;
+  boundAt: string | null;
+  releasedAt: string | null;
+  revision: number;
+  digest: string;
+}
+function assertActivation(value: DefinitionActivation): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_activation_digest",
+      `definition activation ${value.activationId} is corrupt`,
+    );
+  if (
+    !value.activationId ||
+    !value.name ||
+    !value.version ||
+    !value.definitionDigest
+  )
+    throw new E03RuntimeError(
+      "definition_activation_identity",
+      "definition activation identity is required",
+    );
+  if (
+    !Number.isFinite(value.trafficWeight) ||
+    value.trafficWeight < 0 ||
+    value.trafficWeight > 1 ||
+    !Number.isSafeInteger(value.minimumHealthyRuns) ||
+    value.minimumHealthyRuns < 0 ||
+    !Number.isSafeInteger(value.healthyRuns) ||
+    value.healthyRuns < 0 ||
+    !Number.isSafeInteger(value.failedRuns) ||
+    value.failedRuns < 0 ||
+    !Number.isSafeInteger(value.failureThreshold) ||
+    value.failureThreshold < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "definition_activation_counters",
+      `definition activation ${value.activationId} counters are invalid`,
+    );
+  if (value.state === "active" && value.activatedAt === null)
+    throw new E03RuntimeError(
+      "definition_activation_time",
+      `active definition ${value.activationId} lacks activation time`,
+    );
+}
+function assertBinding(value: DefinitionBinding): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_binding_digest",
+      `definition binding ${value.bindingId} is corrupt`,
+    );
+  if (
+    !value.bindingId ||
+    !value.taskId ||
+    !value.activationId ||
+    !value.definitionName ||
+    !value.definitionVersion ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "definition_binding_identity",
+      "definition binding is invalid",
+    );
+}
+export class AgentDefinitionActivationRuntime {
+  private activations = new Map<string, DefinitionActivation>();
+  private bindings = new Map<string, DefinitionBinding>();
+  private activeByName = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  nominate(
+    definition: E03AgentDefinition,
+    input?: {
+      trafficWeight?: number;
+      minimumHealthyRuns?: number;
+      failureThreshold?: number;
+    },
+  ): DefinitionActivation {
+    const existing = [...this.activations.values()].find(
+      (value) =>
+        value.name === definition.name &&
+        value.version === definition.version &&
+        value.definitionDigest === definition.digest &&
+        value.state !== "retired" &&
+        value.state !== "rejected",
+    );
+    if (existing) return structuredClone(existing);
+    const trafficWeight = input?.trafficWeight ?? 0;
+    const minimumHealthyRuns = input?.minimumHealthyRuns ?? 1;
+    const failureThreshold = input?.failureThreshold ?? 3;
+    const payload = {
+      activationId: createId("definition-activation"),
+      name: definition.name,
+      version: definition.version,
+      definitionDigest: definition.digest,
+      state: "candidate" as const,
+      trafficWeight,
+      minimumHealthyRuns,
+      healthyRuns: 0,
+      failedRuns: 0,
+      failureThreshold,
+      activatedAt: null,
+      drainedAt: null,
+      retiredAt: null,
+      rejectionReason: null,
+      revision: 1,
+    };
+    const activation = { ...payload, digest: digest(payload) };
+    assertActivation(activation);
+    this.activations.set(activation.activationId, activation);
+    return structuredClone(activation);
+  }
+  reportRun(
+    activationId: string,
+    expectedRevision: number,
+    healthy: boolean,
+  ): DefinitionActivation {
+    const activation = this.requireActivation(activationId);
+    this.assertActivationRevision(activation, expectedRevision);
+    if (activation.state !== "candidate" && activation.state !== "active")
+      throw new E03RuntimeError(
+        "definition_activation_report_state",
+        `definition activation ${activationId} is ${activation.state}`,
+      );
+    const next = this.transitionActivation(
+      activation,
+      healthy
+        ? { healthyRuns: activation.healthyRuns + 1 }
+        : { failedRuns: activation.failedRuns + 1 },
+    );
+    if (next.failedRuns >= next.failureThreshold)
+      return this.reject(
+        next.activationId,
+        next.revision,
+        "failure threshold reached",
+      );
+    return next;
+  }
+  activate(
+    activationId: string,
+    expectedRevision: number,
+    trafficWeight = 1,
+  ): DefinitionActivation {
+    const activation = this.requireActivation(activationId);
+    this.assertActivationRevision(activation, expectedRevision);
+    if (activation.state !== "candidate")
+      throw new E03RuntimeError(
+        "definition_activation_state",
+        `definition activation ${activationId} is ${activation.state}`,
+      );
+    if (activation.healthyRuns < activation.minimumHealthyRuns)
+      throw new E03RuntimeError(
+        "definition_activation_health",
+        `definition activation ${activationId} has insufficient healthy runs`,
+      );
+    if (
+      !Number.isFinite(trafficWeight) ||
+      trafficWeight <= 0 ||
+      trafficWeight > 1
+    )
+      throw new E03RuntimeError(
+        "definition_activation_weight",
+        "definition activation traffic weight is invalid",
+      );
+    const priorId = this.activeByName.get(activation.name);
+    if (priorId) {
+      const prior = this.requireActivation(priorId);
+      if (
+        prior.activationId !== activation.activationId &&
+        prior.state === "active"
+      )
+        this.transitionActivation(prior, {
+          state: "draining",
+          trafficWeight: Math.max(0, 1 - trafficWeight),
+          drainedAt: this.clock.now(),
+        });
+    }
+    const next = this.transitionActivation(activation, {
+      state: "active",
+      trafficWeight,
+      activatedAt: this.clock.now(),
+    });
+    this.activeByName.set(next.name, next.activationId);
+    return next;
+  }
+  adjustTraffic(
+    activationId: string,
+    expectedRevision: number,
+    trafficWeight: number,
+  ): DefinitionActivation {
+    const activation = this.requireActivation(activationId);
+    this.assertActivationRevision(activation, expectedRevision);
+    if (activation.state !== "active" && activation.state !== "draining")
+      throw new E03RuntimeError(
+        "definition_activation_traffic_state",
+        `definition activation ${activationId} is ${activation.state}`,
+      );
+    if (
+      !Number.isFinite(trafficWeight) ||
+      trafficWeight < 0 ||
+      trafficWeight > 1
+    )
+      throw new E03RuntimeError(
+        "definition_activation_traffic_weight",
+        "definition activation traffic weight is invalid",
+      );
+    return this.transitionActivation(activation, {
+      trafficWeight,
+      state: trafficWeight === 0 ? "draining" : activation.state,
+      drainedAt: trafficWeight === 0 ? this.clock.now() : activation.drainedAt,
+    });
+  }
+  reject(
+    activationId: string,
+    expectedRevision: number,
+    reason: string,
+  ): DefinitionActivation {
+    const activation = this.requireActivation(activationId);
+    this.assertActivationRevision(activation, expectedRevision);
+    if (activation.state === "active" || activation.state === "retired")
+      throw new E03RuntimeError(
+        "definition_activation_reject_state",
+        `definition activation ${activationId} is ${activation.state}`,
+      );
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "definition_activation_reject_reason",
+        "definition activation rejection reason is required",
+      );
+    return this.transitionActivation(activation, {
+      state: "rejected",
+      trafficWeight: 0,
+      rejectionReason: reason.trim(),
+    });
+  }
+  retire(activationId: string, expectedRevision: number): DefinitionActivation {
+    const activation = this.requireActivation(activationId);
+    this.assertActivationRevision(activation, expectedRevision);
+    if (activation.state !== "draining" && activation.state !== "rejected")
+      throw new E03RuntimeError(
+        "definition_activation_retire_state",
+        `definition activation ${activationId} is ${activation.state}`,
+      );
+    if (
+      [...this.bindings.values()].some(
+        (binding) =>
+          binding.activationId === activationId &&
+          (binding.state === "reserved" || binding.state === "bound"),
+      )
+    )
+      throw new E03RuntimeError(
+        "definition_activation_live_binding",
+        `definition activation ${activationId} has live bindings`,
+      );
+    const next = this.transitionActivation(activation, {
+      state: "retired",
+      trafficWeight: 0,
+      retiredAt: this.clock.now(),
+    });
+    if (this.activeByName.get(next.name) === next.activationId)
+      this.activeByName.delete(next.name);
+    return next;
+  }
+  reserve(
+    taskId: string,
+    definitionName: string,
+    entropy: number,
+  ): DefinitionBinding {
+    if (!taskId.trim() || !definitionName.trim() || !Number.isFinite(entropy))
+      throw new E03RuntimeError(
+        "definition_binding_input",
+        "definition binding input is invalid",
+      );
+    const existing = [...this.bindings.values()].find(
+      (value) =>
+        value.taskId === taskId &&
+        (value.state === "reserved" || value.state === "bound"),
+    );
+    if (existing) return structuredClone(existing);
+    const candidates = [...this.activations.values()]
+      .filter(
+        (value) =>
+          value.name === definitionName &&
+          (value.state === "active" || value.state === "draining") &&
+          value.trafficWeight > 0,
+      )
+      .sort((left, right) =>
+        left.activationId.localeCompare(right.activationId),
+      );
+    if (!candidates.length)
+      throw new E03RuntimeError(
+        "definition_binding_no_activation",
+        `definition ${definitionName} has no active version`,
+      );
+    const total = candidates.reduce(
+      (sum, value) => sum + value.trafficWeight,
+      0,
+    );
+    let cursor = Math.abs(entropy % 1) * total;
+    let selected = candidates[candidates.length - 1]!;
+    for (const candidate of candidates) {
+      cursor -= candidate.trafficWeight;
+      if (cursor <= 0) {
+        selected = candidate;
+        break;
+      }
+    }
+    const payload = {
+      bindingId: createId("definition-binding"),
+      taskId: taskId.trim(),
+      activationId: selected.activationId,
+      definitionName: selected.name,
+      definitionVersion: selected.version,
+      state: "reserved" as const,
+      reservedAt: this.clock.now(),
+      boundAt: null,
+      releasedAt: null,
+      revision: 1,
+    };
+    const binding = { ...payload, digest: digest(payload) };
+    assertBinding(binding);
+    this.bindings.set(binding.bindingId, binding);
+    return structuredClone(binding);
+  }
+  bind(bindingId: string, expectedRevision: number): DefinitionBinding {
+    const binding = this.requireBinding(bindingId);
+    this.assertBindingRevision(binding, expectedRevision);
+    if (binding.state !== "reserved")
+      throw new E03RuntimeError(
+        "definition_binding_bind_state",
+        `definition binding ${bindingId} is ${binding.state}`,
+      );
+    const activation = this.requireActivation(binding.activationId);
+    if (activation.state !== "active" && activation.state !== "draining")
+      return this.transitionBinding(binding, {
+        state: "revoked",
+        releasedAt: this.clock.now(),
+      });
+    return this.transitionBinding(binding, {
+      state: "bound",
+      boundAt: this.clock.now(),
+    });
+  }
+  release(bindingId: string, expectedRevision: number): DefinitionBinding {
+    const binding = this.requireBinding(bindingId);
+    this.assertBindingRevision(binding, expectedRevision);
+    if (binding.state === "released" || binding.state === "revoked")
+      return structuredClone(binding);
+    return this.transitionBinding(binding, {
+      state: "released",
+      releasedAt: this.clock.now(),
+    });
+  }
+  rollback(
+    name: string,
+    targetActivationId: string,
+  ): { target: DefinitionActivation; prior: DefinitionActivation | null } {
+    const target = this.requireActivation(targetActivationId);
+    if (
+      target.name !== name ||
+      (target.state !== "draining" && target.state !== "active")
+    )
+      throw new E03RuntimeError(
+        "definition_activation_rollback_target",
+        `definition activation ${targetActivationId} cannot be rollback target`,
+      );
+    const priorId = this.activeByName.get(name);
+    const prior =
+      priorId && priorId !== targetActivationId
+        ? this.requireActivation(priorId)
+        : null;
+    const nextTarget =
+      target.state === "active"
+        ? target
+        : this.transitionActivation(target, {
+            state: "active",
+            trafficWeight: 1,
+            activatedAt: this.clock.now(),
+            drainedAt: null,
+          });
+    if (prior && prior.state === "active")
+      this.transitionActivation(prior, {
+        state: "draining",
+        trafficWeight: 0,
+        drainedAt: this.clock.now(),
+      });
+    this.activeByName.set(name, nextTarget.activationId);
+    return { target: nextTarget, prior: prior ? structuredClone(prior) : null };
+  }
+  snapshot(): {
+    activations: DefinitionActivation[];
+    bindings: DefinitionBinding[];
+    activeByName: Array<[string, string]>;
+  } {
+    return {
+      activations: [...this.activations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      bindings: [...this.bindings.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeByName: [...this.activeByName.entries()].map(([name, id]) => [
+        name,
+        id,
+      ]),
+    };
+  }
+  restore(snapshot: {
+    activations: readonly DefinitionActivation[];
+    bindings: readonly DefinitionBinding[];
+    activeByName: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const activations = new Map<string, DefinitionActivation>();
+    const bindings = new Map<string, DefinitionBinding>();
+    const activeByName = new Map<string, string>();
+    for (const value of snapshot.activations) {
+      assertActivation(value);
+      if (activations.has(value.activationId))
+        throw new E03RuntimeError(
+          "definition_activation_restore_duplicate",
+          `duplicate definition activation ${value.activationId}`,
+        );
+      activations.set(value.activationId, structuredClone(value));
+    }
+    for (const value of snapshot.bindings) {
+      assertBinding(value);
+      if (bindings.has(value.bindingId) || !activations.has(value.activationId))
+        throw new E03RuntimeError(
+          "definition_binding_restore",
+          `definition binding ${value.bindingId} is invalid`,
+        );
+      bindings.set(value.bindingId, structuredClone(value));
+    }
+    for (const [name, id] of snapshot.activeByName) {
+      const activation = activations.get(id);
+      if (
+        !activation ||
+        activation.name !== name ||
+        activation.state !== "active" ||
+        activeByName.has(name)
+      )
+        throw new E03RuntimeError(
+          "definition_activation_restore_index",
+          `definition activation index ${name} is invalid`,
+        );
+      activeByName.set(name, id);
+    }
+    this.activations = activations;
+    this.bindings = bindings;
+    this.activeByName = activeByName;
+  }
+  private requireActivation(id: string): DefinitionActivation {
+    const value = this.activations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_activation_missing",
+        `definition activation ${id} does not exist`,
+      );
+    assertActivation(value);
+    return value;
+  }
+  private requireBinding(id: string): DefinitionBinding {
+    const value = this.bindings.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_binding_missing",
+        `definition binding ${id} does not exist`,
+      );
+    assertBinding(value);
+    return value;
+  }
+  private assertActivationRevision(
+    value: DefinitionActivation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_activation_stale_revision",
+        `definition activation ${value.activationId} revision is stale`,
+      );
+  }
+  private assertBindingRevision(
+    value: DefinitionBinding,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_binding_stale_revision",
+        `definition binding ${value.bindingId} revision is stale`,
+      );
+  }
+  private transitionActivation(
+    value: DefinitionActivation,
+    patch: Partial<
+      Omit<DefinitionActivation, "activationId" | "revision" | "digest">
+    >,
+  ): DefinitionActivation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      activationId: value.activationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertActivation(next);
+    this.activations.set(next.activationId, next);
+    return structuredClone(next);
+  }
+  private transitionBinding(
+    value: DefinitionBinding,
+    patch: Partial<
+      Omit<DefinitionBinding, "bindingId" | "revision" | "digest">
+    >,
+  ): DefinitionBinding {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      bindingId: value.bindingId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertBinding(next);
+    this.bindings.set(next.bindingId, next);
+    return structuredClone(next);
+  }
 }

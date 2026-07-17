@@ -2978,6 +2978,65 @@ export class DeliveryArtifactRuntime {
     };
   }
 
+  restore(snapshot: {
+    bundles: readonly DeliveryArtifactBundle[];
+    chunks: readonly DeliveryArtifactChunk[];
+  }): void {
+    const bundles = new Map<string, DeliveryArtifactBundle>();
+    const chunks = new Map<string, DeliveryArtifactChunk>();
+    for (const bundle of snapshot.bundles) {
+      assertDeliveryArtifactBundle(bundle);
+      if (bundles.has(bundle.bundleId))
+        throw new E03RuntimeError(
+          "delivery_artifact_restore_duplicate_bundle",
+          `duplicate delivery artifact bundle ${bundle.bundleId}`,
+        );
+      bundles.set(bundle.bundleId, structuredClone(bundle));
+    }
+    for (const chunk of snapshot.chunks) {
+      if (chunks.has(chunk.chunkId))
+        throw new E03RuntimeError(
+          "delivery_artifact_restore_duplicate_chunk",
+          `duplicate delivery artifact chunk ${chunk.chunkId}`,
+        );
+      const bundle = bundles.get(chunk.bundleId);
+      if (!bundle)
+        throw new E03RuntimeError(
+          "delivery_artifact_restore_orphan_chunk",
+          `delivery artifact chunk ${chunk.chunkId} has no bundle`,
+        );
+      if (
+        !bundle.entries.some((entry) => entry.chunkIds.includes(chunk.chunkId))
+      )
+        throw new E03RuntimeError(
+          "delivery_artifact_restore_unreferenced_chunk",
+          `delivery artifact chunk ${chunk.chunkId} is not referenced`,
+        );
+      chunks.set(chunk.chunkId, structuredClone(chunk));
+    }
+    for (const bundle of bundles.values()) {
+      const seen = new Set<string>();
+      for (const entry of bundle.entries) {
+        for (const chunkId of entry.chunkIds) {
+          if (seen.has(chunkId))
+            throw new E03RuntimeError(
+              "delivery_artifact_restore_duplicate_reference",
+              `delivery artifact chunk ${chunkId} is referenced twice`,
+            );
+          seen.add(chunkId);
+          const chunk = chunks.get(chunkId);
+          if (!chunk || chunk.artifactId !== entry.artifactId)
+            throw new E03RuntimeError(
+              "delivery_artifact_restore_missing_chunk",
+              `delivery artifact entry ${entry.artifactId} has an invalid chunk`,
+            );
+        }
+      }
+    }
+    this.bundles = bundles;
+    this.chunks = chunks;
+  }
+
   private requireBundle(bundleId: string): DeliveryArtifactBundle {
     const bundle = this.bundles.get(bundleId);
     if (!bundle)

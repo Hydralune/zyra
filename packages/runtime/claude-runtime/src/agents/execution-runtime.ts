@@ -1168,3 +1168,1019 @@ export class AgentRunLeaseRuntime {
     return structuredClone(next);
   }
 }
+
+export type AgentExecutionIncidentKind =
+  | "heartbeat_timeout"
+  | "deadline_exceeded"
+  | "budget_exhausted"
+  | "host_failure"
+  | "protocol_violation"
+  | "output_rejected";
+export interface AgentExecutionIncident {
+  incidentId: string;
+  taskId: string;
+  runId: string;
+  attempt: number;
+  kind: AgentExecutionIncidentKind;
+  severity: "warning" | "recoverable" | "fatal";
+  state: "open" | "triaged" | "recovering" | "resolved" | "escalated";
+  evidence: JsonObject;
+  summary: string;
+  recoveryPlanId: string | null;
+  detectedAt: string;
+  triagedAt: string | null;
+  resolvedAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface AgentExecutionRecoveryPlan {
+  planId: string;
+  incidentId: string;
+  taskId: string;
+  strategy:
+    | "retry"
+    | "resume_checkpoint"
+    | "replace_host"
+    | "reduce_scope"
+    | "fail";
+  state:
+    | "planned"
+    | "authorized"
+    | "executing"
+    | "succeeded"
+    | "failed"
+    | "cancelled";
+  checkpointId: string | null;
+  targetHostId: string | null;
+  maximumAttempts: number;
+  attemptsStarted: number;
+  backoffMs: number;
+  authorizationId: string | null;
+  outcome: string | null;
+  createdAt: string;
+  authorizedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  revision: number;
+  digest: string;
+}
+function assertExecutionIncident(value: AgentExecutionIncident): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "agent_execution_incident_digest",
+      `agent execution incident ${value.incidentId} is corrupt`,
+    );
+  if (
+    !value.incidentId ||
+    !value.taskId ||
+    !value.runId ||
+    !value.summary.trim()
+  )
+    throw new E03RuntimeError(
+      "agent_execution_incident_identity",
+      "agent execution incident identity is required",
+    );
+  if (
+    !Number.isSafeInteger(value.attempt) ||
+    value.attempt < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "agent_execution_incident_revision",
+      `agent execution incident ${value.incidentId} is invalid`,
+    );
+  if (value.state === "triaged" && value.triagedAt === null)
+    throw new E03RuntimeError(
+      "agent_execution_incident_triage_time",
+      `triaged incident ${value.incidentId} lacks time`,
+    );
+  if (value.state === "resolved" && value.resolvedAt === null)
+    throw new E03RuntimeError(
+      "agent_execution_incident_resolution_time",
+      `resolved incident ${value.incidentId} lacks time`,
+    );
+}
+function assertExecutionRecovery(value: AgentExecutionRecoveryPlan): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "agent_execution_recovery_digest",
+      `agent execution recovery ${value.planId} is corrupt`,
+    );
+  if (!value.planId || !value.incidentId || !value.taskId)
+    throw new E03RuntimeError(
+      "agent_execution_recovery_identity",
+      "agent execution recovery identity is required",
+    );
+  if (
+    !Number.isSafeInteger(value.maximumAttempts) ||
+    value.maximumAttempts < 1 ||
+    !Number.isSafeInteger(value.attemptsStarted) ||
+    value.attemptsStarted < 0 ||
+    value.attemptsStarted > value.maximumAttempts ||
+    !Number.isSafeInteger(value.backoffMs) ||
+    value.backoffMs < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "agent_execution_recovery_counters",
+      `agent execution recovery ${value.planId} counters are invalid`,
+    );
+  if (value.state === "authorized" && value.authorizedAt === null)
+    throw new E03RuntimeError(
+      "agent_execution_recovery_authorization_time",
+      `authorized recovery ${value.planId} lacks time`,
+    );
+  if (
+    (value.state === "succeeded" ||
+      value.state === "failed" ||
+      value.state === "cancelled") &&
+    value.completedAt === null
+  )
+    throw new E03RuntimeError(
+      "agent_execution_recovery_completion_time",
+      `completed recovery ${value.planId} lacks time`,
+    );
+}
+export class AgentExecutionWatchdogRuntime {
+  private incidents = new Map<string, AgentExecutionIncident>();
+  private plans = new Map<string, AgentExecutionRecoveryPlan>();
+  private openByTaskKind = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  detect(input: {
+    task: E03TaskState;
+    kind: AgentExecutionIncidentKind;
+    severity: AgentExecutionIncident["severity"];
+    summary: string;
+    evidence?: JsonObject;
+  }): AgentExecutionIncident {
+    if (isTerminal(input.task.status))
+      throw new E03RuntimeError(
+        "agent_execution_incident_terminal",
+        `terminal task ${input.task.identity.taskId} cannot open an incident`,
+      );
+    if (!input.summary.trim())
+      throw new E03RuntimeError(
+        "agent_execution_incident_summary",
+        "agent execution incident summary is required",
+      );
+    const key = `${input.task.identity.taskId}:${input.kind}`;
+    const existingId = this.openByTaskKind.get(key);
+    if (existingId) {
+      const existing = this.requireIncident(existingId);
+      if (existing.state !== "resolved") return structuredClone(existing);
+    }
+    const payload = {
+      incidentId: createId("agent-execution-incident"),
+      taskId: input.task.identity.taskId,
+      runId: input.task.identity.runId,
+      attempt: input.task.identity.attempt,
+      kind: input.kind,
+      severity: input.severity,
+      state: "open" as const,
+      evidence: structuredClone(input.evidence ?? {}),
+      summary: input.summary.trim(),
+      recoveryPlanId: null,
+      detectedAt: this.clock.now(),
+      triagedAt: null,
+      resolvedAt: null,
+      revision: 1,
+    };
+    const incident = { ...payload, digest: digest(payload) };
+    assertExecutionIncident(incident);
+    this.incidents.set(incident.incidentId, incident);
+    this.openByTaskKind.set(key, incident.incidentId);
+    return structuredClone(incident);
+  }
+  inspectLease(
+    task: E03TaskState,
+    lease: AgentRunLease,
+    now = this.clock.now(),
+  ): AgentExecutionIncident | null {
+    if (lease.taskId !== task.identity.taskId)
+      throw new E03RuntimeError(
+        "agent_execution_watchdog_lease_custody",
+        "agent run lease belongs to another task",
+      );
+    if (
+      lease.state !== "claimed" &&
+      lease.state !== "running" &&
+      lease.state !== "waiting"
+    )
+      return null;
+    const timestamp = Date.parse(now);
+    if (Number.isNaN(timestamp))
+      throw new E03RuntimeError(
+        "agent_execution_watchdog_time",
+        "agent execution watchdog time is invalid",
+      );
+    if (Date.parse(lease.expiresAt) <= timestamp)
+      return this.detect({
+        task,
+        kind: "heartbeat_timeout",
+        severity: "recoverable",
+        summary: `agent run lease ${lease.leaseId} expired`,
+        evidence: {
+          lease_id: lease.leaseId,
+          expires_at: lease.expiresAt,
+          observed_at: now,
+        },
+      });
+    if (
+      task.definition.budget.deadlineAt &&
+      Date.parse(task.definition.budget.deadlineAt) <= timestamp
+    )
+      return this.detect({
+        task,
+        kind: "deadline_exceeded",
+        severity: "fatal",
+        summary: `task ${task.identity.taskId} exceeded its deadline`,
+        evidence: {
+          deadline_at: task.definition.budget.deadlineAt,
+          observed_at: now,
+        },
+      });
+    return null;
+  }
+  triage(
+    incidentId: string,
+    expectedRevision: number,
+    strategy: AgentExecutionRecoveryPlan["strategy"],
+    input?: {
+      checkpointId?: string | null;
+      targetHostId?: string | null;
+      maximumAttempts?: number;
+      backoffMs?: number;
+    },
+  ): { incident: AgentExecutionIncident; plan: AgentExecutionRecoveryPlan } {
+    const incident = this.requireIncident(incidentId);
+    this.assertIncidentRevision(incident, expectedRevision);
+    if (incident.state !== "open")
+      throw new E03RuntimeError(
+        "agent_execution_incident_triage_state",
+        `agent execution incident ${incidentId} is ${incident.state}`,
+      );
+    if (
+      incident.severity === "fatal" &&
+      strategy !== "fail" &&
+      strategy !== "replace_host"
+    )
+      throw new E03RuntimeError(
+        "agent_execution_incident_fatal_strategy",
+        `fatal incident ${incidentId} requires fail or host replacement`,
+      );
+    if (strategy === "resume_checkpoint" && !input?.checkpointId)
+      throw new E03RuntimeError(
+        "agent_execution_recovery_checkpoint",
+        "checkpoint recovery requires checkpoint id",
+      );
+    if (strategy === "replace_host" && !input?.targetHostId)
+      throw new E03RuntimeError(
+        "agent_execution_recovery_host",
+        "host replacement requires target host id",
+      );
+    const payload = {
+      planId: createId("agent-execution-recovery"),
+      incidentId: incident.incidentId,
+      taskId: incident.taskId,
+      strategy,
+      state: "planned" as const,
+      checkpointId: input?.checkpointId ?? null,
+      targetHostId: input?.targetHostId ?? null,
+      maximumAttempts: input?.maximumAttempts ?? 1,
+      attemptsStarted: 0,
+      backoffMs: input?.backoffMs ?? 0,
+      authorizationId: null,
+      outcome: null,
+      createdAt: this.clock.now(),
+      authorizedAt: null,
+      startedAt: null,
+      completedAt: null,
+      revision: 1,
+    };
+    const plan = { ...payload, digest: digest(payload) };
+    assertExecutionRecovery(plan);
+    this.plans.set(plan.planId, plan);
+    const nextIncident = this.transitionIncident(incident, {
+      state: "triaged",
+      recoveryPlanId: plan.planId,
+      triagedAt: this.clock.now(),
+    });
+    return { incident: nextIncident, plan: structuredClone(plan) };
+  }
+  authorize(
+    planId: string,
+    expectedRevision: number,
+    authorizationId: string,
+  ): AgentExecutionRecoveryPlan {
+    const plan = this.requirePlan(planId);
+    this.assertPlanRevision(plan, expectedRevision);
+    if (plan.state !== "planned")
+      throw new E03RuntimeError(
+        "agent_execution_recovery_authorize_state",
+        `agent execution recovery ${planId} is ${plan.state}`,
+      );
+    if (!authorizationId.trim())
+      throw new E03RuntimeError(
+        "agent_execution_recovery_authorization",
+        "agent execution recovery authorization is required",
+      );
+    return this.transitionPlan(plan, {
+      state: "authorized",
+      authorizationId: authorizationId.trim(),
+      authorizedAt: this.clock.now(),
+    });
+  }
+  start(
+    planId: string,
+    expectedRevision: number,
+  ): { plan: AgentExecutionRecoveryPlan; incident: AgentExecutionIncident } {
+    const plan = this.requirePlan(planId);
+    this.assertPlanRevision(plan, expectedRevision);
+    if (plan.state !== "authorized" && plan.state !== "executing")
+      throw new E03RuntimeError(
+        "agent_execution_recovery_start_state",
+        `agent execution recovery ${planId} is ${plan.state}`,
+      );
+    if (plan.attemptsStarted >= plan.maximumAttempts)
+      throw new E03RuntimeError(
+        "agent_execution_recovery_attempts",
+        `agent execution recovery ${planId} exhausted attempts`,
+      );
+    const nextPlan = this.transitionPlan(plan, {
+      state: "executing",
+      attemptsStarted: plan.attemptsStarted + 1,
+      startedAt: plan.startedAt ?? this.clock.now(),
+    });
+    const incident = this.requireIncident(plan.incidentId);
+    const nextIncident =
+      incident.state === "recovering"
+        ? structuredClone(incident)
+        : this.transitionIncident(incident, { state: "recovering" });
+    return { plan: nextPlan, incident: nextIncident };
+  }
+  complete(
+    planId: string,
+    expectedRevision: number,
+    outcome: { ok: boolean; summary: string; retryable?: boolean },
+  ): { plan: AgentExecutionRecoveryPlan; incident: AgentExecutionIncident } {
+    const plan = this.requirePlan(planId);
+    this.assertPlanRevision(plan, expectedRevision);
+    if (plan.state !== "executing")
+      throw new E03RuntimeError(
+        "agent_execution_recovery_complete_state",
+        `agent execution recovery ${planId} is ${plan.state}`,
+      );
+    if (!outcome.summary.trim())
+      throw new E03RuntimeError(
+        "agent_execution_recovery_outcome",
+        "agent execution recovery outcome is required",
+      );
+    if (
+      !outcome.ok &&
+      outcome.retryable &&
+      plan.attemptsStarted < plan.maximumAttempts
+    )
+      return {
+        plan: this.transitionPlan(plan, {
+          state: "authorized",
+          outcome: outcome.summary.trim(),
+        }),
+        incident: structuredClone(this.requireIncident(plan.incidentId)),
+      };
+    const nextPlan = this.transitionPlan(plan, {
+      state: outcome.ok ? "succeeded" : "failed",
+      outcome: outcome.summary.trim(),
+      completedAt: this.clock.now(),
+    });
+    const incident = this.requireIncident(plan.incidentId);
+    const nextIncident = this.transitionIncident(incident, {
+      state: outcome.ok ? "resolved" : "escalated",
+      resolvedAt: outcome.ok ? this.clock.now() : null,
+    });
+    if (outcome.ok)
+      this.openByTaskKind.delete(`${incident.taskId}:${incident.kind}`);
+    return { plan: nextPlan, incident: nextIncident };
+  }
+  cancel(
+    planId: string,
+    expectedRevision: number,
+    reason: string,
+  ): AgentExecutionRecoveryPlan {
+    const plan = this.requirePlan(planId);
+    this.assertPlanRevision(plan, expectedRevision);
+    if (
+      plan.state === "succeeded" ||
+      plan.state === "failed" ||
+      plan.state === "cancelled"
+    )
+      return structuredClone(plan);
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "agent_execution_recovery_cancel_reason",
+        "agent execution recovery cancellation reason is required",
+      );
+    const next = this.transitionPlan(plan, {
+      state: "cancelled",
+      outcome: reason.trim(),
+      completedAt: this.clock.now(),
+    });
+    const incident = this.requireIncident(plan.incidentId);
+    if (incident.state !== "resolved")
+      this.transitionIncident(incident, { state: "escalated" });
+    return next;
+  }
+  unresolved(taskId?: string): AgentExecutionIncident[] {
+    return [...this.incidents.values()]
+      .filter(
+        (value) =>
+          value.state !== "resolved" && (!taskId || value.taskId === taskId),
+      )
+      .sort((left, right) => left.detectedAt.localeCompare(right.detectedAt))
+      .map((value) => structuredClone(value));
+  }
+  snapshot(): {
+    incidents: AgentExecutionIncident[];
+    plans: AgentExecutionRecoveryPlan[];
+    openByTaskKind: Array<[string, string]>;
+  } {
+    return {
+      incidents: [...this.incidents.values()].map((value) =>
+        structuredClone(value),
+      ),
+      plans: [...this.plans.values()].map((value) => structuredClone(value)),
+      openByTaskKind: [...this.openByTaskKind.entries()].map(([key, id]) => [
+        key,
+        id,
+      ]),
+    };
+  }
+  restore(snapshot: {
+    incidents: readonly AgentExecutionIncident[];
+    plans: readonly AgentExecutionRecoveryPlan[];
+    openByTaskKind: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const incidents = new Map<string, AgentExecutionIncident>();
+    const plans = new Map<string, AgentExecutionRecoveryPlan>();
+    const openByTaskKind = new Map<string, string>();
+    for (const value of snapshot.incidents) {
+      assertExecutionIncident(value);
+      if (incidents.has(value.incidentId))
+        throw new E03RuntimeError(
+          "agent_execution_incident_restore_duplicate",
+          `duplicate agent execution incident ${value.incidentId}`,
+        );
+      incidents.set(value.incidentId, structuredClone(value));
+    }
+    for (const value of snapshot.plans) {
+      assertExecutionRecovery(value);
+      const incident = incidents.get(value.incidentId);
+      if (
+        plans.has(value.planId) ||
+        !incident ||
+        incident.taskId !== value.taskId
+      )
+        throw new E03RuntimeError(
+          "agent_execution_recovery_restore",
+          `agent execution recovery ${value.planId} is invalid`,
+        );
+      plans.set(value.planId, structuredClone(value));
+    }
+    for (const [key, id] of snapshot.openByTaskKind) {
+      const incident = incidents.get(id);
+      if (
+        !incident ||
+        incident.state === "resolved" ||
+        key !== `${incident.taskId}:${incident.kind}` ||
+        openByTaskKind.has(key)
+      )
+        throw new E03RuntimeError(
+          "agent_execution_incident_restore_index",
+          `agent execution incident index ${key} is invalid`,
+        );
+      openByTaskKind.set(key, id);
+    }
+    this.incidents = incidents;
+    this.plans = plans;
+    this.openByTaskKind = openByTaskKind;
+  }
+  private requireIncident(id: string): AgentExecutionIncident {
+    const value = this.incidents.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "agent_execution_incident_missing",
+        `agent execution incident ${id} does not exist`,
+      );
+    assertExecutionIncident(value);
+    return value;
+  }
+  private requirePlan(id: string): AgentExecutionRecoveryPlan {
+    const value = this.plans.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "agent_execution_recovery_missing",
+        `agent execution recovery ${id} does not exist`,
+      );
+    assertExecutionRecovery(value);
+    return value;
+  }
+  private assertIncidentRevision(
+    value: AgentExecutionIncident,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "agent_execution_incident_stale_revision",
+        `agent execution incident ${value.incidentId} revision is stale`,
+      );
+  }
+  private assertPlanRevision(
+    value: AgentExecutionRecoveryPlan,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "agent_execution_recovery_stale_revision",
+        `agent execution recovery ${value.planId} revision is stale`,
+      );
+  }
+  private transitionIncident(
+    value: AgentExecutionIncident,
+    patch: Partial<
+      Omit<AgentExecutionIncident, "incidentId" | "revision" | "digest">
+    >,
+  ): AgentExecutionIncident {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      incidentId: value.incidentId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertExecutionIncident(next);
+    this.incidents.set(next.incidentId, next);
+    return structuredClone(next);
+  }
+  private transitionPlan(
+    value: AgentExecutionRecoveryPlan,
+    patch: Partial<
+      Omit<AgentExecutionRecoveryPlan, "planId" | "revision" | "digest">
+    >,
+  ): AgentExecutionRecoveryPlan {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      planId: value.planId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertExecutionRecovery(next);
+    this.plans.set(next.planId, next);
+    return structuredClone(next);
+  }
+}
+
+export interface AgentExecutionBudgetAccount {
+  accountId: string;
+  taskId: string;
+  tokenLimit: number;
+  toolCallLimit: number;
+  wallTimeLimitMs: number;
+  tokensReserved: number;
+  tokensConsumed: number;
+  toolCallsReserved: number;
+  toolCallsConsumed: number;
+  wallTimeConsumedMs: number;
+  state: "open" | "exhausted" | "closed";
+  openedAt: string;
+  closedAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface AgentExecutionBudgetReservation {
+  reservationId: string;
+  accountId: string;
+  taskId: string;
+  tokens: number;
+  toolCalls: number;
+  state: "held" | "consumed" | "released" | "expired";
+  expiresAt: string;
+  settledAt: string | null;
+  revision: number;
+  digest: string;
+}
+function assertBudgetAccount(value: AgentExecutionBudgetAccount): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "agent_execution_budget_digest",
+      `agent execution budget ${value.accountId} is corrupt`,
+    );
+  const numbers = [
+    value.tokenLimit,
+    value.toolCallLimit,
+    value.wallTimeLimitMs,
+    value.tokensReserved,
+    value.tokensConsumed,
+    value.toolCallsReserved,
+    value.toolCallsConsumed,
+    value.wallTimeConsumedMs,
+  ];
+  if (
+    !value.accountId ||
+    !value.taskId ||
+    numbers.some((number) => !Number.isSafeInteger(number) || number < 0) ||
+    value.tokensReserved + value.tokensConsumed > value.tokenLimit ||
+    value.toolCallsReserved + value.toolCallsConsumed > value.toolCallLimit ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "agent_execution_budget_account",
+      `agent execution budget ${value.accountId} is invalid`,
+    );
+}
+function assertBudgetReservation(value: AgentExecutionBudgetReservation): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "agent_execution_budget_reservation_digest",
+      `agent execution budget reservation ${value.reservationId} is corrupt`,
+    );
+  if (
+    !value.reservationId ||
+    !value.accountId ||
+    !value.taskId ||
+    !Number.isSafeInteger(value.tokens) ||
+    value.tokens < 0 ||
+    !Number.isSafeInteger(value.toolCalls) ||
+    value.toolCalls < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "agent_execution_budget_reservation",
+      `agent execution budget reservation ${value.reservationId} is invalid`,
+    );
+}
+export class AgentExecutionBudgetRuntime {
+  private accounts = new Map<string, AgentExecutionBudgetAccount>();
+  private reservations = new Map<string, AgentExecutionBudgetReservation>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  open(
+    task: E03TaskState,
+    input?: {
+      tokenLimit?: number;
+      toolCallLimit?: number;
+      wallTimeLimitMs?: number;
+    },
+  ): AgentExecutionBudgetAccount {
+    const existing = [...this.accounts.values()].find(
+      (value) =>
+        value.taskId === task.identity.taskId && value.state !== "closed",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      accountId: createId("agent-execution-budget"),
+      taskId: task.identity.taskId,
+      tokenLimit:
+        input?.tokenLimit ??
+        task.definition.budget.maxInputTokens +
+          task.definition.budget.maxOutputTokens,
+      toolCallLimit:
+        input?.toolCallLimit ?? task.definition.budget.maxToolCalls,
+      wallTimeLimitMs:
+        input?.wallTimeLimitMs ?? task.definition.budget.maxWallTimeMs,
+      tokensReserved: 0,
+      tokensConsumed: 0,
+      toolCallsReserved: 0,
+      toolCallsConsumed: 0,
+      wallTimeConsumedMs: 0,
+      state: "open" as const,
+      openedAt: this.clock.now(),
+      closedAt: null,
+      revision: 1,
+    };
+    const account = { ...payload, digest: digest(payload) };
+    assertBudgetAccount(account);
+    this.accounts.set(account.accountId, account);
+    return structuredClone(account);
+  }
+  reserve(input: {
+    accountId: string;
+    expectedRevision: number;
+    tokens: number;
+    toolCalls: number;
+    ttlMs: number;
+  }): {
+    account: AgentExecutionBudgetAccount;
+    reservation: AgentExecutionBudgetReservation;
+  } {
+    const account = this.requireAccount(input.accountId);
+    this.assertAccountRevision(account, input.expectedRevision);
+    if (account.state !== "open")
+      throw new E03RuntimeError(
+        "agent_execution_budget_reserve_state",
+        `agent execution budget ${account.accountId} is ${account.state}`,
+      );
+    if (
+      !Number.isSafeInteger(input.tokens) ||
+      input.tokens < 0 ||
+      !Number.isSafeInteger(input.toolCalls) ||
+      input.toolCalls < 0 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "agent_execution_budget_reserve_input",
+        "agent execution budget reservation is invalid",
+      );
+    if (
+      account.tokensConsumed + account.tokensReserved + input.tokens >
+        account.tokenLimit ||
+      account.toolCallsConsumed + account.toolCallsReserved + input.toolCalls >
+        account.toolCallLimit
+    )
+      throw new E03RuntimeError(
+        "agent_execution_budget_exceeded",
+        `agent execution budget ${account.accountId} cannot satisfy reservation`,
+      );
+    const payload = {
+      reservationId: createId("agent-execution-budget-reservation"),
+      accountId: account.accountId,
+      taskId: account.taskId,
+      tokens: input.tokens,
+      toolCalls: input.toolCalls,
+      state: "held" as const,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      settledAt: null,
+      revision: 1,
+    };
+    const reservation = { ...payload, digest: digest(payload) };
+    assertBudgetReservation(reservation);
+    this.reservations.set(reservation.reservationId, reservation);
+    const nextAccount = this.transitionAccount(account, {
+      tokensReserved: account.tokensReserved + input.tokens,
+      toolCallsReserved: account.toolCallsReserved + input.toolCalls,
+    });
+    return { account: nextAccount, reservation: structuredClone(reservation) };
+  }
+  consume(input: {
+    reservationId: string;
+    expectedRevision: number;
+    actualTokens: number;
+    actualToolCalls: number;
+    wallTimeMs: number;
+  }): {
+    account: AgentExecutionBudgetAccount;
+    reservation: AgentExecutionBudgetReservation;
+  } {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state !== "held")
+      throw new E03RuntimeError(
+        "agent_execution_budget_consume_state",
+        `agent execution budget reservation ${reservation.reservationId} is ${reservation.state}`,
+      );
+    if (Date.parse(reservation.expiresAt) <= Date.parse(this.clock.now()))
+      return this.expire(reservation.reservationId, reservation.revision);
+    if (
+      !Number.isSafeInteger(input.actualTokens) ||
+      input.actualTokens < 0 ||
+      input.actualTokens > reservation.tokens ||
+      !Number.isSafeInteger(input.actualToolCalls) ||
+      input.actualToolCalls < 0 ||
+      input.actualToolCalls > reservation.toolCalls ||
+      !Number.isSafeInteger(input.wallTimeMs) ||
+      input.wallTimeMs < 0
+    )
+      throw new E03RuntimeError(
+        "agent_execution_budget_consumption",
+        "agent execution budget consumption is invalid",
+      );
+    const account = this.requireAccount(reservation.accountId);
+    const tokensConsumed = account.tokensConsumed + input.actualTokens;
+    const toolCallsConsumed = account.toolCallsConsumed + input.actualToolCalls;
+    const wallTimeConsumedMs = account.wallTimeConsumedMs + input.wallTimeMs;
+    const exhausted =
+      tokensConsumed >= account.tokenLimit ||
+      toolCallsConsumed >= account.toolCallLimit ||
+      wallTimeConsumedMs >= account.wallTimeLimitMs;
+    const nextAccount = this.transitionAccount(account, {
+      tokensReserved: account.tokensReserved - reservation.tokens,
+      toolCallsReserved: account.toolCallsReserved - reservation.toolCalls,
+      tokensConsumed,
+      toolCallsConsumed,
+      wallTimeConsumedMs,
+      state: exhausted ? "exhausted" : account.state,
+    });
+    const nextReservation = this.transitionReservation(reservation, {
+      state: "consumed",
+      settledAt: this.clock.now(),
+    });
+    return { account: nextAccount, reservation: nextReservation };
+  }
+  release(
+    reservationId: string,
+    expectedRevision: number,
+  ): {
+    account: AgentExecutionBudgetAccount;
+    reservation: AgentExecutionBudgetReservation;
+  } {
+    const reservation = this.requireReservation(reservationId);
+    this.assertReservationRevision(reservation, expectedRevision);
+    if (reservation.state !== "held")
+      return {
+        account: structuredClone(this.requireAccount(reservation.accountId)),
+        reservation: structuredClone(reservation),
+      };
+    const account = this.requireAccount(reservation.accountId);
+    const nextAccount = this.transitionAccount(account, {
+      tokensReserved: account.tokensReserved - reservation.tokens,
+      toolCallsReserved: account.toolCallsReserved - reservation.toolCalls,
+    });
+    const nextReservation = this.transitionReservation(reservation, {
+      state: "released",
+      settledAt: this.clock.now(),
+    });
+    return { account: nextAccount, reservation: nextReservation };
+  }
+  expire(
+    reservationId: string,
+    expectedRevision: number,
+  ): {
+    account: AgentExecutionBudgetAccount;
+    reservation: AgentExecutionBudgetReservation;
+  } {
+    const reservation = this.requireReservation(reservationId);
+    this.assertReservationRevision(reservation, expectedRevision);
+    if (reservation.state !== "held")
+      return {
+        account: structuredClone(this.requireAccount(reservation.accountId)),
+        reservation: structuredClone(reservation),
+      };
+    const account = this.requireAccount(reservation.accountId);
+    const nextAccount = this.transitionAccount(account, {
+      tokensReserved: account.tokensReserved - reservation.tokens,
+      toolCallsReserved: account.toolCallsReserved - reservation.toolCalls,
+    });
+    const nextReservation = this.transitionReservation(reservation, {
+      state: "expired",
+      settledAt: this.clock.now(),
+    });
+    return { account: nextAccount, reservation: nextReservation };
+  }
+  close(
+    accountId: string,
+    expectedRevision: number,
+  ): AgentExecutionBudgetAccount {
+    const account = this.requireAccount(accountId);
+    this.assertAccountRevision(account, expectedRevision);
+    if (
+      [...this.reservations.values()].some(
+        (value) => value.accountId === accountId && value.state === "held",
+      )
+    )
+      throw new E03RuntimeError(
+        "agent_execution_budget_live_reservation",
+        `agent execution budget ${accountId} has live reservations`,
+      );
+    if (account.state === "closed") return structuredClone(account);
+    return this.transitionAccount(account, {
+      state: "closed",
+      closedAt: this.clock.now(),
+    });
+  }
+  snapshot(): {
+    accounts: AgentExecutionBudgetAccount[];
+    reservations: AgentExecutionBudgetReservation[];
+  } {
+    return {
+      accounts: [...this.accounts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      reservations: [...this.reservations.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    accounts: readonly AgentExecutionBudgetAccount[];
+    reservations: readonly AgentExecutionBudgetReservation[];
+  }): void {
+    const accounts = new Map<string, AgentExecutionBudgetAccount>();
+    const reservations = new Map<string, AgentExecutionBudgetReservation>();
+    for (const value of snapshot.accounts) {
+      assertBudgetAccount(value);
+      if (accounts.has(value.accountId))
+        throw new E03RuntimeError(
+          "agent_execution_budget_restore_duplicate",
+          `duplicate agent execution budget ${value.accountId}`,
+        );
+      accounts.set(value.accountId, structuredClone(value));
+    }
+    for (const value of snapshot.reservations) {
+      assertBudgetReservation(value);
+      const account = accounts.get(value.accountId);
+      if (
+        reservations.has(value.reservationId) ||
+        !account ||
+        account.taskId !== value.taskId
+      )
+        throw new E03RuntimeError(
+          "agent_execution_budget_reservation_restore",
+          `agent execution budget reservation ${value.reservationId} is invalid`,
+        );
+      reservations.set(value.reservationId, structuredClone(value));
+    }
+    this.accounts = accounts;
+    this.reservations = reservations;
+  }
+  private requireAccount(id: string): AgentExecutionBudgetAccount {
+    const value = this.accounts.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "agent_execution_budget_missing",
+        `agent execution budget ${id} does not exist`,
+      );
+    assertBudgetAccount(value);
+    return value;
+  }
+  private requireReservation(id: string): AgentExecutionBudgetReservation {
+    const value = this.reservations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "agent_execution_budget_reservation_missing",
+        `agent execution budget reservation ${id} does not exist`,
+      );
+    assertBudgetReservation(value);
+    return value;
+  }
+  private assertAccountRevision(
+    value: AgentExecutionBudgetAccount,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "agent_execution_budget_stale_revision",
+        `agent execution budget ${value.accountId} revision is stale`,
+      );
+  }
+  private assertReservationRevision(
+    value: AgentExecutionBudgetReservation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "agent_execution_budget_reservation_stale_revision",
+        `agent execution budget reservation ${value.reservationId} revision is stale`,
+      );
+  }
+  private transitionAccount(
+    value: AgentExecutionBudgetAccount,
+    patch: Partial<
+      Omit<AgentExecutionBudgetAccount, "accountId" | "revision" | "digest">
+    >,
+  ): AgentExecutionBudgetAccount {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      accountId: value.accountId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertBudgetAccount(next);
+    this.accounts.set(next.accountId, next);
+    return structuredClone(next);
+  }
+  private transitionReservation(
+    value: AgentExecutionBudgetReservation,
+    patch: Partial<
+      Omit<
+        AgentExecutionBudgetReservation,
+        "reservationId" | "revision" | "digest"
+      >
+    >,
+  ): AgentExecutionBudgetReservation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      reservationId: value.reservationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertBudgetReservation(next);
+    this.reservations.set(next.reservationId, next);
+    return structuredClone(next);
+  }
+}

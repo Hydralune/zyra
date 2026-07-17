@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { digest } from "../e03/contracts.ts";
+import {
+  createId,
+  digest,
+  type E03Clock,
+  SystemE03Clock,
+} from "../e03/contracts.ts";
 import {
   E03RuntimeError,
   requireInteger,
@@ -2280,8 +2285,10 @@ export interface ControlBatchValidation {
 }
 
 function controlOwner(command: ControlCommand): "E01" | "E02" | "E03" {
-  if (["context.compact", "context.clear", "session.model"].includes(command)) return "E01";
-  if (["permission.inspect", "mcp.inspect", "skills.inspect"].includes(command)) return "E02";
+  if (["context.compact", "context.clear", "session.model"].includes(command))
+    return "E01";
+  if (["permission.inspect", "mcp.inspect", "skills.inspect"].includes(command))
+    return "E02";
   return "E03";
 }
 
@@ -2316,7 +2323,10 @@ function assertControlBatch(batch: ControlBatch): void {
       "control_batch_identity",
       "control batch identity is incomplete",
     );
-  if (!Number.isSafeInteger(batch.maximumConcurrency) || batch.maximumConcurrency < 1)
+  if (
+    !Number.isSafeInteger(batch.maximumConcurrency) ||
+    batch.maximumConcurrency < 1
+  )
     throw new E03RuntimeError(
       "control_batch_concurrency",
       "control batch concurrency is invalid",
@@ -2354,9 +2364,19 @@ export class ControlBatchSchema {
 
   parse(value: unknown): ControlBatch {
     const root = requireObject(value, "control_batch");
-    const batchId = requireString(root.batch_id, "control_batch.batch_id", 1, 512);
+    const batchId = requireString(
+      root.batch_id,
+      "control_batch.batch_id",
+      1,
+      512,
+    );
     const runId = requireString(root.run_id, "control_batch.run_id", 1, 512);
-    const sessionId = requireString(root.session_id, "control_batch.session_id", 1, 512);
+    const sessionId = requireString(
+      root.session_id,
+      "control_batch.session_id",
+      1,
+      512,
+    );
     const parentTaskId = requireString(
       root.parent_task_id,
       "control_batch.parent_task_id",
@@ -2426,8 +2446,18 @@ export class ControlBatchSchema {
         1,
       ),
       stopOnFailure: root.stop_on_failure !== false,
-      createdAt: requireString(root.created_at, "control_batch.created_at", 1, 128),
-      deadlineAt: requireString(root.deadline_at, "control_batch.deadline_at", 1, 128),
+      createdAt: requireString(
+        root.created_at,
+        "control_batch.created_at",
+        1,
+        128,
+      ),
+      deadlineAt: requireString(
+        root.deadline_at,
+        "control_batch.deadline_at",
+        1,
+        128,
+      ),
     };
     const batch = { ...payload, digest: digest(payload) };
     assertControlBatch(batch);
@@ -2441,7 +2471,9 @@ export class ControlBatchSchema {
     for (const item of batch.items)
       for (const dependencyId of item.dependencyItemIds)
         if (!byId.has(dependencyId))
-          errors.push(`item ${item.itemId} depends on missing item ${dependencyId}`);
+          errors.push(
+            `item ${item.itemId} depends on missing item ${dependencyId}`,
+          );
     const duplicateRequestIds = duplicates(
       batch.items.map((item) => item.envelope.request_id),
     );
@@ -2451,7 +2483,9 @@ export class ControlBatchSchema {
     if (duplicateRequestIds.length)
       errors.push(`duplicate request ids: ${duplicateRequestIds.join(", ")}`);
     if (duplicateIdempotencyKeys.length)
-      errors.push(`duplicate idempotency keys: ${duplicateIdempotencyKeys.join(", ")}`);
+      errors.push(
+        `duplicate idempotency keys: ${duplicateIdempotencyKeys.join(", ")}`,
+      );
     if (batch.mode === "atomic") {
       const missingCompensation = batch.items
         .filter((item) => !item.optional && item.compensationCommand === null)
@@ -2462,8 +2496,7 @@ export class ControlBatchSchema {
         );
     }
     const { order, groups, cycles } = orderControlBatchItems(batch.items);
-    if (cycles.length)
-      errors.push(`control batch contains dependency cycles`);
+    if (cycles.length) errors.push(`control batch contains dependency cycles`);
     const owners = new Map<"E01" | "E02" | "E03", string[]>();
     for (const item of batch.items) {
       const owner = controlOwner(item.envelope.command);
@@ -2505,7 +2538,9 @@ function orderControlBatchItems(items: readonly ControlBatchItem[]): {
   const remaining = new Map(
     items.map((item) => [
       item.itemId,
-      new Set(item.dependencyItemIds.filter((dependencyId) => byId.has(dependencyId))),
+      new Set(
+        item.dependencyItemIds.filter((dependencyId) => byId.has(dependencyId)),
+      ),
     ]),
   );
   const order: string[] = [];
@@ -2548,7 +2583,9 @@ function traceBatchCycles(
           ...body.slice(0, index),
           body[index]!,
         ]);
-      rotations.sort((left, right) => left.join("->").localeCompare(right.join("->")));
+      rotations.sort((left, right) =>
+        left.join("->").localeCompare(right.join("->")),
+      );
       output.set(rotations[0]!.join("->"), rotations[0]!);
       return;
     }
@@ -2559,4 +2596,737 @@ function traceBatchCycles(
   };
   for (const itemId of pending) walk(itemId, []);
   return [...output.values()];
+}
+
+export interface ControlAuthorizationPolicy {
+  policyId: string;
+  name: string;
+  commandPatterns: string[];
+  principals: string[];
+  requiredClaims: Record<string, string[]>;
+  effect: "allow" | "deny";
+  priority: number;
+  validFrom: string;
+  validUntil: string | null;
+  state: "active" | "disabled" | "revoked";
+  revision: number;
+  digest: string;
+}
+export interface ControlAuthorizationDecision {
+  decisionId: string;
+  requestId: string;
+  principalId: string;
+  command: ControlCommand;
+  outcome: "allowed" | "denied";
+  matchedPolicyIds: string[];
+  missingClaims: string[];
+  reason: string;
+  decidedAt: string;
+  sequence: number;
+  previousDigest: string;
+  digest: string;
+}
+function assertAuthorizationPolicy(value: ControlAuthorizationPolicy): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_authorization_policy_digest",
+      `control authorization policy ${value.policyId} is corrupt`,
+    );
+  if (
+    !value.policyId ||
+    !value.name ||
+    !value.commandPatterns.length ||
+    !value.principals.length ||
+    !Number.isSafeInteger(value.priority) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.validFrom)) ||
+    (value.validUntil !== null && Number.isNaN(Date.parse(value.validUntil)))
+  )
+    throw new E03RuntimeError(
+      "control_authorization_policy",
+      `control authorization policy ${value.policyId} is invalid`,
+    );
+}
+function assertAuthorizationDecision(
+  value: ControlAuthorizationDecision,
+): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_authorization_decision_digest",
+      `control authorization decision ${value.decisionId} is corrupt`,
+    );
+  if (
+    !value.decisionId ||
+    !value.requestId ||
+    !value.principalId ||
+    !value.reason ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1
+  )
+    throw new E03RuntimeError(
+      "control_authorization_decision",
+      `control authorization decision ${value.decisionId} is invalid`,
+    );
+}
+export class ControlCommandAuthorizationRuntime {
+  private policies = new Map<string, ControlAuthorizationPolicy>();
+  private decisions: ControlAuthorizationDecision[] = [];
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  register(
+    input: Omit<ControlAuthorizationPolicy, "policyId" | "revision" | "digest">,
+  ): ControlAuthorizationPolicy {
+    if (
+      [...this.policies.values()].some(
+        (value) => value.name === input.name && value.state !== "revoked",
+      )
+    )
+      throw new E03RuntimeError(
+        "control_authorization_policy_duplicate",
+        `control authorization policy ${input.name} already exists`,
+      );
+    const payload = {
+      ...structuredClone(input),
+      policyId: createId("control-authorization-policy"),
+      commandPatterns: [...new Set(input.commandPatterns)].sort(),
+      principals: [...new Set(input.principals)].sort(),
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertAuthorizationPolicy(policy);
+    this.policies.set(policy.policyId, policy);
+    return structuredClone(policy);
+  }
+  update(
+    policyId: string,
+    expectedRevision: number,
+    patch: Partial<
+      Pick<
+        ControlAuthorizationPolicy,
+        | "commandPatterns"
+        | "principals"
+        | "requiredClaims"
+        | "effect"
+        | "priority"
+        | "validFrom"
+        | "validUntil"
+        | "state"
+      >
+    >,
+  ): ControlAuthorizationPolicy {
+    const policy = this.requirePolicy(policyId);
+    this.assertPolicyRevision(policy, expectedRevision);
+    if (policy.state === "revoked")
+      throw new E03RuntimeError(
+        "control_authorization_policy_update_state",
+        `control authorization policy ${policyId} is revoked`,
+      );
+    const { digest: _, ...prior } = policy;
+    const payload = {
+      ...prior,
+      ...structuredClone(patch),
+      policyId: policy.policyId,
+      commandPatterns: patch.commandPatterns
+        ? [...new Set(patch.commandPatterns)].sort()
+        : policy.commandPatterns,
+      principals: patch.principals
+        ? [...new Set(patch.principals)].sort()
+        : policy.principals,
+      revision: policy.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertAuthorizationPolicy(next);
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+  revoke(
+    policyId: string,
+    expectedRevision: number,
+  ): ControlAuthorizationPolicy {
+    const policy = this.requirePolicy(policyId);
+    this.assertPolicyRevision(policy, expectedRevision);
+    if (policy.state === "revoked") return structuredClone(policy);
+    return this.update(policyId, expectedRevision, { state: "revoked" });
+  }
+  authorize(input: {
+    requestId: string;
+    principalId: string;
+    command: ControlCommand;
+    claims?: Record<string, readonly string[]>;
+    now?: string;
+  }): ControlAuthorizationDecision {
+    if (!input.requestId.trim() || !input.principalId.trim())
+      throw new E03RuntimeError(
+        "control_authorization_request",
+        "control authorization request is invalid",
+      );
+    const duplicate = this.decisions.find(
+      (value) => value.requestId === input.requestId,
+    );
+    if (duplicate) {
+      if (
+        duplicate.principalId !== input.principalId ||
+        duplicate.command !== input.command
+      )
+        throw new E03RuntimeError(
+          "control_authorization_request_conflict",
+          `control authorization request ${input.requestId} was reused`,
+        );
+      return structuredClone(duplicate);
+    }
+    const now = input.now ?? this.clock.now();
+    const timestamp = Date.parse(now);
+    if (Number.isNaN(timestamp))
+      throw new E03RuntimeError(
+        "control_authorization_time",
+        "control authorization time is invalid",
+      );
+    const matches = [...this.policies.values()]
+      .filter(
+        (policy) =>
+          policy.state === "active" &&
+          (policy.principals.includes(input.principalId) ||
+            policy.principals.includes("*")) &&
+          policy.commandPatterns.some((pattern) =>
+            this.matches(input.command, pattern),
+          ) &&
+          Date.parse(policy.validFrom) <= timestamp &&
+          (policy.validUntil === null ||
+            Date.parse(policy.validUntil) > timestamp),
+      )
+      .sort(
+        (left, right) =>
+          right.priority - left.priority ||
+          left.policyId.localeCompare(right.policyId),
+      );
+    const missingClaims: string[] = [];
+    for (const policy of matches)
+      for (const [claim, accepted] of Object.entries(policy.requiredClaims)) {
+        const supplied = input.claims?.[claim] ?? [];
+        if (!supplied.some((value) => accepted.includes(value)))
+          missingClaims.push(`${policy.policyId}:${claim}`);
+      }
+    const highestPriority = matches[0]?.priority;
+    const winning =
+      highestPriority === undefined
+        ? []
+        : matches.filter((value) => value.priority === highestPriority);
+    const denied =
+      !winning.length ||
+      winning.some((value) => value.effect === "deny") ||
+      missingClaims.length > 0;
+    const reason = !matches.length
+      ? "no matching authorization policy"
+      : missingClaims.length
+        ? "required claims are missing"
+        : denied
+          ? "authorization policy denied command"
+          : "authorization policy allowed command";
+    const payload = {
+      decisionId: createId("control-authorization-decision"),
+      requestId: input.requestId.trim(),
+      principalId: input.principalId.trim(),
+      command: input.command,
+      outcome: denied ? ("denied" as const) : ("allowed" as const),
+      matchedPolicyIds: matches.map((value) => value.policyId),
+      missingClaims: [...new Set(missingClaims)].sort(),
+      reason,
+      decidedAt: now,
+      sequence: this.decisions.length + 1,
+      previousDigest:
+        this.decisions[this.decisions.length - 1]?.digest ?? "root",
+    };
+    const decision = { ...payload, digest: digest(payload) };
+    assertAuthorizationDecision(decision);
+    this.decisions.push(decision);
+    return structuredClone(decision);
+  }
+  verify(): void {
+    let previousDigest = "root";
+    let sequence = 1;
+    const requestIds = new Set<string>();
+    for (const decision of this.decisions) {
+      assertAuthorizationDecision(decision);
+      if (
+        decision.sequence !== sequence ||
+        decision.previousDigest !== previousDigest ||
+        requestIds.has(decision.requestId)
+      )
+        throw new E03RuntimeError(
+          "control_authorization_decision_chain",
+          `control authorization decision ${decision.decisionId} breaks chain`,
+        );
+      requestIds.add(decision.requestId);
+      previousDigest = decision.digest;
+      sequence += 1;
+    }
+  }
+  snapshot(): {
+    policies: ControlAuthorizationPolicy[];
+    decisions: ControlAuthorizationDecision[];
+  } {
+    this.verify();
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      decisions: this.decisions.map((value) => structuredClone(value)),
+    };
+  }
+  restore(snapshot: {
+    policies: readonly ControlAuthorizationPolicy[];
+    decisions: readonly ControlAuthorizationDecision[];
+  }): void {
+    const policies = new Map<string, ControlAuthorizationPolicy>();
+    for (const value of snapshot.policies) {
+      assertAuthorizationPolicy(value);
+      if (policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "control_authorization_policy_restore_duplicate",
+          `duplicate control authorization policy ${value.policyId}`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+    }
+    this.policies = policies;
+    this.decisions = snapshot.decisions.map((value) => structuredClone(value));
+    this.verify();
+    for (const decision of this.decisions)
+      if (decision.matchedPolicyIds.some((id) => !policies.has(id)))
+        throw new E03RuntimeError(
+          "control_authorization_decision_policy",
+          `control authorization decision ${decision.decisionId} references missing policy`,
+        );
+  }
+  private matches(command: string, pattern: string): boolean {
+    if (pattern === "*") return true;
+    if (pattern.endsWith(".*")) return command.startsWith(pattern.slice(0, -1));
+    return command === pattern;
+  }
+  private requirePolicy(id: string): ControlAuthorizationPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_authorization_policy_missing",
+        `control authorization policy ${id} does not exist`,
+      );
+    assertAuthorizationPolicy(value);
+    return value;
+  }
+  private assertPolicyRevision(
+    value: ControlAuthorizationPolicy,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_authorization_policy_stale_revision",
+        `control authorization policy ${value.policyId} revision is stale`,
+      );
+  }
+}
+
+export interface ControlSchemaVersion {
+  schemaId: string;
+  version: string;
+  state: "draft" | "active" | "deprecated" | "retired";
+  commandSetDigest: string;
+  minimumPeerVersion: string;
+  maximumPeerVersion: string;
+  activatedAt: string | null;
+  deprecatedAt: string | null;
+  retiredAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface ControlSchemaMigration {
+  migrationId: string;
+  fromSchemaId: string;
+  toSchemaId: string;
+  state: "registered" | "validated" | "active" | "disabled";
+  reversible: boolean;
+  transformedFields: string[];
+  removedFields: string[];
+  defaultedFields: string[];
+  validationDigest: string | null;
+  registeredAt: string;
+  validatedAt: string | null;
+  revision: number;
+  digest: string;
+}
+function assertSchemaVersion(value: ControlSchemaVersion): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_schema_version_digest",
+      `control schema version ${value.schemaId} is corrupt`,
+    );
+  if (
+    !value.schemaId ||
+    !/^\d+\.\d+$/.test(value.version) ||
+    !value.commandSetDigest ||
+    !/^\d+\.\d+$/.test(value.minimumPeerVersion) ||
+    !/^\d+\.\d+$/.test(value.maximumPeerVersion) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "control_schema_version",
+      `control schema version ${value.schemaId} is invalid`,
+    );
+}
+function assertSchemaMigration(value: ControlSchemaMigration): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_schema_migration_digest",
+      `control schema migration ${value.migrationId} is corrupt`,
+    );
+  if (
+    !value.migrationId ||
+    !value.fromSchemaId ||
+    !value.toSchemaId ||
+    value.fromSchemaId === value.toSchemaId ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "control_schema_migration",
+      `control schema migration ${value.migrationId} is invalid`,
+    );
+}
+export class ControlSchemaEvolutionRuntime {
+  private versions = new Map<string, ControlSchemaVersion>();
+  private migrations = new Map<string, ControlSchemaMigration>();
+  private activeSchemaId: string | null = null;
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  registerVersion(
+    input: Omit<
+      ControlSchemaVersion,
+      | "schemaId"
+      | "state"
+      | "activatedAt"
+      | "deprecatedAt"
+      | "retiredAt"
+      | "revision"
+      | "digest"
+    >,
+  ): ControlSchemaVersion {
+    if (
+      [...this.versions.values()].some(
+        (value) => value.version === input.version && value.state !== "retired",
+      )
+    )
+      throw new E03RuntimeError(
+        "control_schema_version_duplicate",
+        `control schema version ${input.version} already exists`,
+      );
+    const payload = {
+      ...input,
+      schemaId: createId("control-schema-version"),
+      state: "draft" as const,
+      activatedAt: null,
+      deprecatedAt: null,
+      retiredAt: null,
+      revision: 1,
+    };
+    const version = { ...payload, digest: digest(payload) };
+    assertSchemaVersion(version);
+    this.versions.set(version.schemaId, version);
+    return structuredClone(version);
+  }
+  registerMigration(
+    input: Omit<
+      ControlSchemaMigration,
+      | "migrationId"
+      | "state"
+      | "validationDigest"
+      | "registeredAt"
+      | "validatedAt"
+      | "revision"
+      | "digest"
+    >,
+  ): ControlSchemaMigration {
+    this.requireVersion(input.fromSchemaId);
+    this.requireVersion(input.toSchemaId);
+    if (
+      [...this.migrations.values()].some(
+        (value) =>
+          value.fromSchemaId === input.fromSchemaId &&
+          value.toSchemaId === input.toSchemaId &&
+          value.state !== "disabled",
+      )
+    )
+      throw new E03RuntimeError(
+        "control_schema_migration_duplicate",
+        "control schema migration already exists",
+      );
+    const payload = {
+      ...structuredClone(input),
+      migrationId: createId("control-schema-migration"),
+      transformedFields: [...new Set(input.transformedFields)].sort(),
+      removedFields: [...new Set(input.removedFields)].sort(),
+      defaultedFields: [...new Set(input.defaultedFields)].sort(),
+      state: "registered" as const,
+      validationDigest: null,
+      registeredAt: this.clock.now(),
+      validatedAt: null,
+      revision: 1,
+    };
+    const migration = { ...payload, digest: digest(payload) };
+    assertSchemaMigration(migration);
+    this.migrations.set(migration.migrationId, migration);
+    return structuredClone(migration);
+  }
+  validateMigration(
+    migrationId: string,
+    expectedRevision: number,
+    fixtures: readonly { inputDigest: string; outputDigest: string }[],
+  ): ControlSchemaMigration {
+    const migration = this.requireMigration(migrationId);
+    this.assertMigrationRevision(migration, expectedRevision);
+    if (migration.state !== "registered")
+      throw new E03RuntimeError(
+        "control_schema_migration_validate_state",
+        `control schema migration ${migrationId} is ${migration.state}`,
+      );
+    if (
+      !fixtures.length ||
+      fixtures.some((value) => !value.inputDigest || !value.outputDigest)
+    )
+      throw new E03RuntimeError(
+        "control_schema_migration_fixtures",
+        "control schema migration fixtures are required",
+      );
+    return this.transitionMigration(migration, {
+      state: "validated",
+      validationDigest: digest(fixtures),
+      validatedAt: this.clock.now(),
+    });
+  }
+  activate(schemaId: string, expectedRevision: number): ControlSchemaVersion {
+    const version = this.requireVersion(schemaId);
+    this.assertVersionRevision(version, expectedRevision);
+    if (version.state !== "draft" && version.state !== "deprecated")
+      throw new E03RuntimeError(
+        "control_schema_activate_state",
+        `control schema ${schemaId} is ${version.state}`,
+      );
+    if (this.activeSchemaId) {
+      const prior = this.requireVersion(this.activeSchemaId);
+      const migration = [...this.migrations.values()].find(
+        (value) =>
+          value.fromSchemaId === prior.schemaId &&
+          value.toSchemaId === version.schemaId &&
+          value.state === "validated",
+      );
+      if (!migration)
+        throw new E03RuntimeError(
+          "control_schema_activate_migration",
+          `control schema ${version.version} lacks validated migration`,
+        );
+      this.transitionMigration(migration, { state: "active" });
+      this.transitionVersion(prior, {
+        state: "deprecated",
+        deprecatedAt: this.clock.now(),
+      });
+    }
+    const next = this.transitionVersion(version, {
+      state: "active",
+      activatedAt: this.clock.now(),
+      deprecatedAt: null,
+    });
+    this.activeSchemaId = next.schemaId;
+    return next;
+  }
+  retire(schemaId: string, expectedRevision: number): ControlSchemaVersion {
+    const version = this.requireVersion(schemaId);
+    this.assertVersionRevision(version, expectedRevision);
+    if (version.state !== "deprecated")
+      throw new E03RuntimeError(
+        "control_schema_retire_state",
+        `control schema ${schemaId} is ${version.state}`,
+      );
+    if (this.activeSchemaId === schemaId)
+      throw new E03RuntimeError(
+        "control_schema_retire_active",
+        `active control schema ${schemaId} cannot retire`,
+      );
+    return this.transitionVersion(version, {
+      state: "retired",
+      retiredAt: this.clock.now(),
+    });
+  }
+  migrationPath(
+    fromVersion: string,
+    toVersion: string,
+  ): ControlSchemaMigration[] {
+    const from = [...this.versions.values()].find(
+      (value) => value.version === fromVersion,
+    );
+    const to = [...this.versions.values()].find(
+      (value) => value.version === toVersion,
+    );
+    if (!from || !to)
+      throw new E03RuntimeError(
+        "control_schema_path_version",
+        "control schema migration path endpoint is missing",
+      );
+    const queue: Array<{ schemaId: string; path: ControlSchemaMigration[] }> = [
+      { schemaId: from.schemaId, path: [] },
+    ];
+    const seen = new Set<string>();
+    while (queue.length) {
+      const cursor = queue.shift()!;
+      if (cursor.schemaId === to.schemaId)
+        return cursor.path.map((value) => structuredClone(value));
+      if (seen.has(cursor.schemaId)) continue;
+      seen.add(cursor.schemaId);
+      for (const migration of this.migrations.values())
+        if (
+          migration.fromSchemaId === cursor.schemaId &&
+          (migration.state === "validated" || migration.state === "active")
+        )
+          queue.push({
+            schemaId: migration.toSchemaId,
+            path: [...cursor.path, migration],
+          });
+    }
+    throw new E03RuntimeError(
+      "control_schema_path_missing",
+      `no control schema migration path from ${fromVersion} to ${toVersion}`,
+    );
+  }
+  snapshot(): {
+    versions: ControlSchemaVersion[];
+    migrations: ControlSchemaMigration[];
+    activeSchemaId: string | null;
+  } {
+    return {
+      versions: [...this.versions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      migrations: [...this.migrations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeSchemaId: this.activeSchemaId,
+    };
+  }
+  restore(snapshot: {
+    versions: readonly ControlSchemaVersion[];
+    migrations: readonly ControlSchemaMigration[];
+    activeSchemaId: string | null;
+  }): void {
+    const versions = new Map<string, ControlSchemaVersion>();
+    const migrations = new Map<string, ControlSchemaMigration>();
+    for (const value of snapshot.versions) {
+      assertSchemaVersion(value);
+      if (versions.has(value.schemaId))
+        throw new E03RuntimeError(
+          "control_schema_version_restore_duplicate",
+          `duplicate control schema version ${value.schemaId}`,
+        );
+      versions.set(value.schemaId, structuredClone(value));
+    }
+    for (const value of snapshot.migrations) {
+      assertSchemaMigration(value);
+      if (
+        migrations.has(value.migrationId) ||
+        !versions.has(value.fromSchemaId) ||
+        !versions.has(value.toSchemaId)
+      )
+        throw new E03RuntimeError(
+          "control_schema_migration_restore",
+          `control schema migration ${value.migrationId} is invalid`,
+        );
+      migrations.set(value.migrationId, structuredClone(value));
+    }
+    if (snapshot.activeSchemaId !== null) {
+      const active = versions.get(snapshot.activeSchemaId);
+      if (!active || active.state !== "active")
+        throw new E03RuntimeError(
+          "control_schema_active_restore",
+          "active control schema index is invalid",
+        );
+    }
+    this.versions = versions;
+    this.migrations = migrations;
+    this.activeSchemaId = snapshot.activeSchemaId;
+  }
+  private requireVersion(id: string): ControlSchemaVersion {
+    const value = this.versions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_schema_version_missing",
+        `control schema version ${id} does not exist`,
+      );
+    assertSchemaVersion(value);
+    return value;
+  }
+  private requireMigration(id: string): ControlSchemaMigration {
+    const value = this.migrations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_schema_migration_missing",
+        `control schema migration ${id} does not exist`,
+      );
+    assertSchemaMigration(value);
+    return value;
+  }
+  private assertVersionRevision(
+    value: ControlSchemaVersion,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_schema_version_stale_revision",
+        `control schema version ${value.schemaId} revision is stale`,
+      );
+  }
+  private assertMigrationRevision(
+    value: ControlSchemaMigration,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_schema_migration_stale_revision",
+        `control schema migration ${value.migrationId} revision is stale`,
+      );
+  }
+  private transitionVersion(
+    value: ControlSchemaVersion,
+    patch: Partial<
+      Omit<ControlSchemaVersion, "schemaId" | "revision" | "digest">
+    >,
+  ): ControlSchemaVersion {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      schemaId: value.schemaId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertSchemaVersion(next);
+    this.versions.set(next.schemaId, next);
+    return structuredClone(next);
+  }
+  private transitionMigration(
+    value: ControlSchemaMigration,
+    patch: Partial<
+      Omit<ControlSchemaMigration, "migrationId" | "revision" | "digest">
+    >,
+  ): ControlSchemaMigration {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      migrationId: value.migrationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertSchemaMigration(next);
+    this.migrations.set(next.migrationId, next);
+    return structuredClone(next);
+  }
 }

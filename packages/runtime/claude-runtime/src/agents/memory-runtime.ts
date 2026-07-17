@@ -1121,7 +1121,11 @@ function assertMemoryConflict(conflict: MemoryConflict): void {
       "memory_conflict_identity",
       "memory conflict identity is invalid",
     );
-  if (!Number.isFinite(conflict.confidence) || conflict.confidence < 0 || conflict.confidence > 1)
+  if (
+    !Number.isFinite(conflict.confidence) ||
+    conflict.confidence < 0 ||
+    conflict.confidence > 1
+  )
     throw new E03RuntimeError(
       "memory_conflict_confidence",
       "memory conflict confidence is invalid",
@@ -1131,7 +1135,10 @@ function assertMemoryConflict(conflict: MemoryConflict): void {
       "memory_conflict_revision",
       "memory conflict revision is invalid",
     );
-  if (conflict.state === "resolved" && (!conflict.resolution || !conflict.resolvedAt))
+  if (
+    conflict.state === "resolved" &&
+    (!conflict.resolution || !conflict.resolvedAt)
+  )
     throw new E03RuntimeError(
       "memory_conflict_state",
       "resolved memory conflict requires resolution metadata",
@@ -1164,7 +1171,10 @@ function assertMemoryConsolidation(consolidation: MemoryConsolidation): void {
       "memory_consolidation_importance",
       "memory consolidation importance is invalid",
     );
-  if (!Number.isSafeInteger(consolidation.revision) || consolidation.revision < 1)
+  if (
+    !Number.isSafeInteger(consolidation.revision) ||
+    consolidation.revision < 1
+  )
     throw new E03RuntimeError(
       "memory_consolidation_revision",
       "memory consolidation revision is invalid",
@@ -1221,7 +1231,9 @@ export class AgentMemoryConsolidationRuntime {
     if (existing) return structuredClone(existing);
     const leftTerms = new Set(memoryTerms(left.content));
     const rightTerms = new Set(memoryTerms(right.content));
-    const overlappingTerms = [...leftTerms].filter((term) => rightTerms.has(term));
+    const overlappingTerms = [...leftTerms].filter((term) =>
+      rightTerms.has(term),
+    );
     const denominator = Math.max(1, Math.min(leftTerms.size, rightTerms.size));
     const confidence = Math.min(
       1,
@@ -1260,7 +1272,9 @@ export class AgentMemoryConsolidationRuntime {
     targetImportance?: number;
   }): MemoryConsolidation {
     const sourceMemoryIds = [...new Set(input.sourceMemoryIds)];
-    const records = sourceMemoryIds.map((memoryId) => this.requireMemory(memoryId));
+    const records = sourceMemoryIds.map((memoryId) =>
+      this.requireMemory(memoryId),
+    );
     if (records.length < 2)
       throw new E03RuntimeError(
         "memory_consolidation_sources",
@@ -1269,7 +1283,9 @@ export class AgentMemoryConsolidationRuntime {
     const first = records[0]!;
     if (
       records.some(
-        (record) => record.taskId !== first.taskId || record.sessionId !== first.sessionId,
+        (record) =>
+          record.taskId !== first.taskId ||
+          record.sessionId !== first.sessionId,
       )
     )
       throw new E03RuntimeError(
@@ -1285,7 +1301,8 @@ export class AgentMemoryConsolidationRuntime {
       targetContent: input.targetContent.trim(),
       targetImportance:
         input.targetImportance ??
-        records.reduce((total, record) => total + record.importance, 0) / records.length,
+        records.reduce((total, record) => total + record.importance, 0) /
+          records.length,
       state: "planned" as const,
       resultingMemoryId: null,
       createdAt: this.clock.now(),
@@ -1299,7 +1316,10 @@ export class AgentMemoryConsolidationRuntime {
     return structuredClone(consolidation);
   }
 
-  validate(consolidationId: string, expectedRevision: number): MemoryConsolidation {
+  validate(
+    consolidationId: string,
+    expectedRevision: number,
+  ): MemoryConsolidation {
     const consolidation = this.requireConsolidation(consolidationId);
     this.assertConsolidationRevision(consolidation, expectedRevision);
     if (consolidation.state !== "planned")
@@ -1307,7 +1327,8 @@ export class AgentMemoryConsolidationRuntime {
         "memory_consolidation_validate_state",
         `memory consolidation ${consolidationId} is ${consolidation.state}`,
       );
-    for (const memoryId of consolidation.sourceMemoryIds) this.requireMemory(memoryId);
+    for (const memoryId of consolidation.sourceMemoryIds)
+      this.requireMemory(memoryId);
     const terms = memoryTerms(consolidation.targetContent);
     if (terms.length < 2)
       return this.transitionConsolidation(consolidation, { state: "rejected" });
@@ -1366,10 +1387,11 @@ export class AgentMemoryConsolidationRuntime {
         `memory conflict ${conflict.conflictId} is ${conflict.state}`,
       );
     if (input.resolution === "merge") {
-      if (!input.mergedMemoryId) throw new E03RuntimeError(
-        "memory_conflict_merge_result",
-        "merged conflict resolution requires a memory id",
-      );
+      if (!input.mergedMemoryId)
+        throw new E03RuntimeError(
+          "memory_conflict_merge_result",
+          "merged conflict resolution requires a memory id",
+        );
       this.requireMemory(input.mergedMemoryId);
     }
     const { digest: _, ...prior } = conflict;
@@ -1393,12 +1415,80 @@ export class AgentMemoryConsolidationRuntime {
     consolidations: MemoryConsolidation[];
   } {
     return {
-      records: [...this.records.values()].map((value) => structuredClone(value)),
-      conflicts: [...this.conflicts.values()].map((value) => structuredClone(value)),
+      records: [...this.records.values()].map((value) =>
+        structuredClone(value),
+      ),
+      conflicts: [...this.conflicts.values()].map((value) =>
+        structuredClone(value),
+      ),
       consolidations: [...this.consolidations.values()].map((value) =>
         structuredClone(value),
       ),
     };
+  }
+
+  restore(snapshot: {
+    records: readonly AgentMemoryRecord[];
+    conflicts: readonly MemoryConflict[];
+    consolidations: readonly MemoryConsolidation[];
+  }): void {
+    const records = new Map<string, AgentMemoryRecord>();
+    const conflicts = new Map<string, MemoryConflict>();
+    const consolidations = new Map<string, MemoryConsolidation>();
+    for (const record of snapshot.records) {
+      assertDigest(record, "digest", `memory ${record.memoryId}`);
+      if (records.has(record.memoryId))
+        throw new E03RuntimeError(
+          "memory_consolidation_restore_duplicate_record",
+          `duplicate memory ${record.memoryId}`,
+        );
+      records.set(record.memoryId, structuredClone(record));
+    }
+    for (const conflict of snapshot.conflicts) {
+      assertMemoryConflict(conflict);
+      if (conflicts.has(conflict.conflictId))
+        throw new E03RuntimeError(
+          "memory_consolidation_restore_duplicate_conflict",
+          `duplicate memory conflict ${conflict.conflictId}`,
+        );
+      if (
+        !records.has(conflict.leftMemoryId) ||
+        !records.has(conflict.rightMemoryId) ||
+        (conflict.mergedMemoryId !== null &&
+          !records.has(conflict.mergedMemoryId))
+      )
+        throw new E03RuntimeError(
+          "memory_consolidation_restore_conflict_reference",
+          `memory conflict ${conflict.conflictId} has an invalid reference`,
+        );
+      conflicts.set(conflict.conflictId, structuredClone(conflict));
+    }
+    for (const consolidation of snapshot.consolidations) {
+      assertMemoryConsolidation(consolidation);
+      if (consolidations.has(consolidation.consolidationId))
+        throw new E03RuntimeError(
+          "memory_consolidation_restore_duplicate_plan",
+          `duplicate memory consolidation ${consolidation.consolidationId}`,
+        );
+      if (
+        consolidation.sourceMemoryIds.some(
+          (memoryId) => !records.has(memoryId),
+        ) ||
+        (consolidation.resultingMemoryId !== null &&
+          !records.has(consolidation.resultingMemoryId))
+      )
+        throw new E03RuntimeError(
+          "memory_consolidation_restore_plan_reference",
+          `memory consolidation ${consolidation.consolidationId} has an invalid reference`,
+        );
+      consolidations.set(
+        consolidation.consolidationId,
+        structuredClone(consolidation),
+      );
+    }
+    this.records = records;
+    this.conflicts = conflicts;
+    this.consolidations = consolidations;
   }
 
   private requireMemory(memoryId: string): AgentMemoryRecord {
@@ -1433,7 +1523,10 @@ export class AgentMemoryConsolidationRuntime {
     return consolidation;
   }
 
-  private assertConsolidationRevision(consolidation: MemoryConsolidation, expected: number): void {
+  private assertConsolidationRevision(
+    consolidation: MemoryConsolidation,
+    expected: number,
+  ): void {
     if (consolidation.revision !== expected)
       throw new E03RuntimeError(
         "memory_consolidation_stale_revision",
@@ -1443,7 +1536,9 @@ export class AgentMemoryConsolidationRuntime {
 
   private transitionConsolidation(
     consolidation: MemoryConsolidation,
-    patch: Partial<Omit<MemoryConsolidation, "consolidationId" | "revision" | "digest">>,
+    patch: Partial<
+      Omit<MemoryConsolidation, "consolidationId" | "revision" | "digest">
+    >,
   ): MemoryConsolidation {
     const { digest: _, ...prior } = consolidation;
     const payload = {

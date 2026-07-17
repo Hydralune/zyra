@@ -1952,3 +1952,638 @@ export class ControlResultDeliveryRuntime {
     return structuredClone(next);
   }
 }
+
+export interface ControlSessionLease {
+  leaseId: string;
+  sessionId: string;
+  principalId: string;
+  generation: number;
+  state: "opening" | "attached" | "detached" | "closing" | "closed" | "expired";
+  connectionId: string | null;
+  resumeTokenDigest: string;
+  issuedAt: string;
+  attachedAt: string | null;
+  detachedAt: string | null;
+  lastHeartbeatAt: string | null;
+  expiresAt: string;
+  requestCursor: number;
+  responseCursor: number;
+  acknowledgedResponseCursor: number;
+  revision: number;
+  digest: string;
+}
+export interface ControlSessionReplayEntry {
+  entryId: string;
+  leaseId: string;
+  sessionId: string;
+  direction: "request" | "response";
+  cursor: number;
+  requestId: string;
+  command: ControlCommand;
+  payload: JsonObject;
+  state: "pending" | "delivered" | "acknowledged" | "discarded";
+  createdAt: string;
+  deliveredAt: string | null;
+  acknowledgedAt: string | null;
+  previousDigest: string;
+  revision: number;
+  digest: string;
+}
+function assertControlSessionLease(value: ControlSessionLease): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_session_lease_digest",
+      `control session lease ${value.leaseId} is corrupt`,
+    );
+  if (
+    !value.leaseId ||
+    !value.sessionId ||
+    !value.principalId ||
+    !value.resumeTokenDigest ||
+    !Number.isSafeInteger(value.generation) ||
+    value.generation < 1 ||
+    !Number.isSafeInteger(value.requestCursor) ||
+    value.requestCursor < 0 ||
+    !Number.isSafeInteger(value.responseCursor) ||
+    value.responseCursor < 0 ||
+    !Number.isSafeInteger(value.acknowledgedResponseCursor) ||
+    value.acknowledgedResponseCursor < 0 ||
+    value.acknowledgedResponseCursor > value.responseCursor ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "control_session_lease",
+      `control session lease ${value.leaseId} is invalid`,
+    );
+  if (value.state === "attached" && (!value.connectionId || !value.attachedAt))
+    throw new E03RuntimeError(
+      "control_session_attachment",
+      `attached control session lease ${value.leaseId} lacks connection`,
+    );
+}
+function assertControlReplayEntry(value: ControlSessionReplayEntry): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_session_replay_digest",
+      `control session replay entry ${value.entryId} is corrupt`,
+    );
+  if (
+    !value.entryId ||
+    !value.leaseId ||
+    !value.sessionId ||
+    !value.requestId ||
+    !Number.isSafeInteger(value.cursor) ||
+    value.cursor < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "control_session_replay",
+      `control session replay entry ${value.entryId} is invalid`,
+    );
+}
+export class ControlSessionLeaseRuntime {
+  private leases = new Map<string, ControlSessionLease>();
+  private activeBySession = new Map<string, string>();
+  private replay = new Map<string, ControlSessionReplayEntry[]>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  open(input: {
+    sessionId: string;
+    principalId: string;
+    resumeToken: string;
+    ttlMs: number;
+  }): ControlSessionLease {
+    if (
+      !input.sessionId.trim() ||
+      !input.principalId.trim() ||
+      !input.resumeToken ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "control_session_open_input",
+        "control session open input is invalid",
+      );
+    const activeId = this.activeBySession.get(input.sessionId);
+    if (activeId) {
+      const active = this.requireLease(activeId);
+      if (active.state !== "closed" && active.state !== "expired")
+        throw new E03RuntimeError(
+          "control_session_already_open",
+          `control session ${input.sessionId} already has a lease`,
+        );
+    }
+    const generation =
+      Math.max(
+        0,
+        ...[...this.leases.values()]
+          .filter((value) => value.sessionId === input.sessionId)
+          .map((value) => value.generation),
+      ) + 1;
+    const payload = {
+      leaseId: createId("control-session-lease"),
+      sessionId: input.sessionId.trim(),
+      principalId: input.principalId.trim(),
+      generation,
+      state: "opening" as const,
+      connectionId: null,
+      resumeTokenDigest: digest(input.resumeToken),
+      issuedAt: this.clock.now(),
+      attachedAt: null,
+      detachedAt: null,
+      lastHeartbeatAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      requestCursor: 0,
+      responseCursor: 0,
+      acknowledgedResponseCursor: 0,
+      revision: 1,
+    };
+    const lease = { ...payload, digest: digest(payload) };
+    assertControlSessionLease(lease);
+    this.leases.set(lease.leaseId, lease);
+    this.activeBySession.set(lease.sessionId, lease.leaseId);
+    return structuredClone(lease);
+  }
+  attach(input: {
+    leaseId: string;
+    expectedRevision: number;
+    principalId: string;
+    resumeToken: string;
+    connectionId: string;
+    ttlMs: number;
+  }): ControlSessionLease {
+    const lease = this.requireLease(input.leaseId);
+    this.assertLeaseRevision(lease, input.expectedRevision);
+    if (
+      lease.principalId !== input.principalId ||
+      lease.resumeTokenDigest !== digest(input.resumeToken)
+    )
+      throw new E03RuntimeError(
+        "control_session_resume_credentials",
+        `control session lease ${lease.leaseId} resume credentials are invalid`,
+      );
+    if (lease.state !== "opening" && lease.state !== "detached")
+      throw new E03RuntimeError(
+        "control_session_attach_state",
+        `control session lease ${lease.leaseId} is ${lease.state}`,
+      );
+    if (Date.parse(lease.expiresAt) <= Date.parse(this.clock.now()))
+      return this.transitionLease(lease, {
+        state: "expired",
+        connectionId: null,
+      });
+    if (
+      !input.connectionId.trim() ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "control_session_connection",
+        "control session connection is invalid",
+      );
+    return this.transitionLease(lease, {
+      state: "attached",
+      connectionId: input.connectionId.trim(),
+      attachedAt: this.clock.now(),
+      lastHeartbeatAt: this.clock.now(),
+      detachedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+    });
+  }
+  heartbeat(
+    leaseId: string,
+    expectedRevision: number,
+    connectionId: string,
+    ttlMs: number,
+  ): ControlSessionLease {
+    const lease = this.requireLease(leaseId);
+    this.assertLeaseRevision(lease, expectedRevision);
+    if (lease.state !== "attached" || lease.connectionId !== connectionId)
+      throw new E03RuntimeError(
+        "control_session_heartbeat_state",
+        `control session lease ${leaseId} is not attached to ${connectionId}`,
+      );
+    if (!Number.isSafeInteger(ttlMs) || ttlMs < 1)
+      throw new E03RuntimeError(
+        "control_session_heartbeat_ttl",
+        "control session heartbeat TTL is invalid",
+      );
+    return this.transitionLease(lease, {
+      lastHeartbeatAt: this.clock.now(),
+      expiresAt: new Date(Date.parse(this.clock.now()) + ttlMs).toISOString(),
+    });
+  }
+  detach(
+    leaseId: string,
+    expectedRevision: number,
+    connectionId: string,
+  ): ControlSessionLease {
+    const lease = this.requireLease(leaseId);
+    this.assertLeaseRevision(lease, expectedRevision);
+    if (lease.state !== "attached" || lease.connectionId !== connectionId)
+      throw new E03RuntimeError(
+        "control_session_detach_state",
+        `control session lease ${leaseId} is not attached to ${connectionId}`,
+      );
+    return this.transitionLease(lease, {
+      state: "detached",
+      connectionId: null,
+      detachedAt: this.clock.now(),
+    });
+  }
+  appendRequest(
+    leaseId: string,
+    expectedRevision: number,
+    envelope: E03ControlEnvelope,
+  ): { lease: ControlSessionLease; entry: ControlSessionReplayEntry } {
+    const lease = this.requireLease(leaseId);
+    this.assertLeaseRevision(lease, expectedRevision);
+    if (lease.state !== "attached")
+      throw new E03RuntimeError(
+        "control_session_request_state",
+        `control session lease ${leaseId} is ${lease.state}`,
+      );
+    if (envelope.session_id !== lease.sessionId)
+      throw new E03RuntimeError(
+        "control_session_request_custody",
+        `control request ${envelope.request_id} belongs to another session`,
+      );
+    const duplicate = this.entries(leaseId).find(
+      (value) =>
+        value.direction === "request" &&
+        value.requestId === envelope.request_id,
+    );
+    if (duplicate)
+      return {
+        lease: structuredClone(lease),
+        entry: structuredClone(duplicate),
+      };
+    const nextLease = this.transitionLease(lease, {
+      requestCursor: lease.requestCursor + 1,
+    });
+    const entry = this.appendEntry(nextLease, {
+      direction: "request",
+      cursor: nextLease.requestCursor,
+      requestId: envelope.request_id,
+      command: envelope.command,
+      payload: structuredClone(envelope.body),
+      state: "delivered",
+    });
+    return { lease: nextLease, entry };
+  }
+  appendResponse(
+    leaseId: string,
+    expectedRevision: number,
+    responseValue: E03ControlResponse,
+  ): { lease: ControlSessionLease; entry: ControlSessionReplayEntry } {
+    const lease = this.requireLease(leaseId);
+    this.assertLeaseRevision(lease, expectedRevision);
+    if (lease.state !== "attached" && lease.state !== "detached")
+      throw new E03RuntimeError(
+        "control_session_response_state",
+        `control session lease ${leaseId} is ${lease.state}`,
+      );
+    const duplicate = this.entries(leaseId).find(
+      (value) =>
+        value.direction === "response" &&
+        value.requestId === responseValue.request_id,
+    );
+    if (duplicate)
+      return {
+        lease: structuredClone(lease),
+        entry: structuredClone(duplicate),
+      };
+    const nextLease = this.transitionLease(lease, {
+      responseCursor: lease.responseCursor + 1,
+    });
+    const entry = this.appendEntry(nextLease, {
+      direction: "response",
+      cursor: nextLease.responseCursor,
+      requestId: responseValue.request_id,
+      command: responseValue.command,
+      payload: structuredClone(responseValue as unknown as JsonObject),
+      state: "pending",
+    });
+    return { lease: nextLease, entry };
+  }
+  markDelivered(
+    entryId: string,
+    expectedRevision: number,
+  ): ControlSessionReplayEntry {
+    const entry = this.requireEntry(entryId);
+    this.assertEntryRevision(entry, expectedRevision);
+    if (entry.direction !== "response" || entry.state !== "pending")
+      throw new E03RuntimeError(
+        "control_session_replay_deliver_state",
+        `control session replay entry ${entryId} is ${entry.state}`,
+      );
+    return this.transitionEntry(entry, {
+      state: "delivered",
+      deliveredAt: this.clock.now(),
+    });
+  }
+  acknowledge(
+    leaseId: string,
+    expectedRevision: number,
+    responseCursor: number,
+  ): { lease: ControlSessionLease; entries: ControlSessionReplayEntry[] } {
+    const lease = this.requireLease(leaseId);
+    this.assertLeaseRevision(lease, expectedRevision);
+    if (
+      !Number.isSafeInteger(responseCursor) ||
+      responseCursor <= lease.acknowledgedResponseCursor ||
+      responseCursor > lease.responseCursor
+    )
+      throw new E03RuntimeError(
+        "control_session_ack_cursor",
+        `control session response cursor ${responseCursor} is invalid`,
+      );
+    const candidates = this.entries(leaseId).filter(
+      (value) =>
+        value.direction === "response" &&
+        value.cursor <= responseCursor &&
+        (value.state === "pending" || value.state === "delivered"),
+    );
+    const entries = candidates.map((value) =>
+      this.transitionEntry(value, {
+        state: "acknowledged",
+        acknowledgedAt: this.clock.now(),
+      }),
+    );
+    const nextLease = this.transitionLease(lease, {
+      acknowledgedResponseCursor: responseCursor,
+    });
+    return { lease: nextLease, entries };
+  }
+  replayResponses(
+    leaseId: string,
+    afterCursor: number,
+  ): ControlSessionReplayEntry[] {
+    const lease = this.requireLease(leaseId);
+    if (
+      !Number.isSafeInteger(afterCursor) ||
+      afterCursor < 0 ||
+      afterCursor > lease.responseCursor
+    )
+      throw new E03RuntimeError(
+        "control_session_replay_cursor",
+        `control session replay cursor ${afterCursor} is invalid`,
+      );
+    return this.entries(leaseId)
+      .filter(
+        (value) =>
+          value.direction === "response" &&
+          value.cursor > afterCursor &&
+          value.state !== "discarded",
+      )
+      .map((value) => structuredClone(value));
+  }
+  close(leaseId: string, expectedRevision: number): ControlSessionLease {
+    const lease = this.requireLease(leaseId);
+    this.assertLeaseRevision(lease, expectedRevision);
+    if (lease.state === "closed" || lease.state === "expired")
+      return structuredClone(lease);
+    if (lease.responseCursor !== lease.acknowledgedResponseCursor)
+      throw new E03RuntimeError(
+        "control_session_unacknowledged_responses",
+        `control session lease ${leaseId} has unacknowledged responses`,
+      );
+    const next = this.transitionLease(lease, {
+      state: "closed",
+      connectionId: null,
+    });
+    this.activeBySession.delete(next.sessionId);
+    return next;
+  }
+  expire(now = this.clock.now()): ControlSessionLease[] {
+    const timestamp = Date.parse(now);
+    if (Number.isNaN(timestamp))
+      throw new E03RuntimeError(
+        "control_session_expire_time",
+        "control session expiry time is invalid",
+      );
+    const values: ControlSessionLease[] = [];
+    for (const lease of this.leases.values())
+      if (
+        lease.state !== "closed" &&
+        lease.state !== "expired" &&
+        Date.parse(lease.expiresAt) <= timestamp
+      ) {
+        const next = this.transitionLease(lease, {
+          state: "expired",
+          connectionId: null,
+        });
+        this.activeBySession.delete(next.sessionId);
+        values.push(next);
+      }
+    return values;
+  }
+  snapshot(): {
+    leases: ControlSessionLease[];
+    replay: ControlSessionReplayEntry[];
+    activeBySession: Array<[string, string]>;
+  } {
+    return {
+      leases: [...this.leases.values()].map((value) => structuredClone(value)),
+      replay: [...this.replay.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeBySession: [...this.activeBySession.entries()].map(
+        ([sessionId, leaseId]) => [sessionId, leaseId],
+      ),
+    };
+  }
+  restore(snapshot: {
+    leases: readonly ControlSessionLease[];
+    replay: readonly ControlSessionReplayEntry[];
+    activeBySession: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const leases = new Map<string, ControlSessionLease>();
+    const replay = new Map<string, ControlSessionReplayEntry[]>();
+    const activeBySession = new Map<string, string>();
+    for (const value of snapshot.leases) {
+      assertControlSessionLease(value);
+      if (leases.has(value.leaseId))
+        throw new E03RuntimeError(
+          "control_session_restore_duplicate",
+          `duplicate control session lease ${value.leaseId}`,
+        );
+      leases.set(value.leaseId, structuredClone(value));
+    }
+    for (const value of snapshot.replay) {
+      assertControlReplayEntry(value);
+      const lease = leases.get(value.leaseId);
+      if (!lease || lease.sessionId !== value.sessionId)
+        throw new E03RuntimeError(
+          "control_session_replay_restore",
+          `control session replay entry ${value.entryId} is invalid`,
+        );
+      const entries = replay.get(value.leaseId) ?? [];
+      if (entries.some((entry) => entry.entryId === value.entryId))
+        throw new E03RuntimeError(
+          "control_session_replay_restore_duplicate",
+          `duplicate control session replay entry ${value.entryId}`,
+        );
+      entries.push(structuredClone(value));
+      replay.set(value.leaseId, entries);
+    }
+    for (const [sessionId, leaseId] of snapshot.activeBySession) {
+      const lease = leases.get(leaseId);
+      if (
+        !lease ||
+        lease.sessionId !== sessionId ||
+        lease.state === "closed" ||
+        lease.state === "expired" ||
+        activeBySession.has(sessionId)
+      )
+        throw new E03RuntimeError(
+          "control_session_active_restore",
+          `control session active index ${sessionId} is invalid`,
+        );
+      activeBySession.set(sessionId, leaseId);
+    }
+    this.leases = leases;
+    this.replay = replay;
+    this.activeBySession = activeBySession;
+    for (const lease of leases.values()) this.verifyReplay(lease.leaseId);
+  }
+  private appendEntry(
+    lease: ControlSessionLease,
+    input: Pick<
+      ControlSessionReplayEntry,
+      "direction" | "cursor" | "requestId" | "command" | "payload" | "state"
+    >,
+  ): ControlSessionReplayEntry {
+    const entries = this.entries(lease.leaseId);
+    const payload = {
+      ...input,
+      entryId: createId("control-session-replay"),
+      leaseId: lease.leaseId,
+      sessionId: lease.sessionId,
+      createdAt: this.clock.now(),
+      deliveredAt: input.state === "delivered" ? this.clock.now() : null,
+      acknowledgedAt: null,
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+      revision: 1,
+    };
+    const entry = { ...payload, digest: digest(payload) };
+    assertControlReplayEntry(entry);
+    entries.push(entry);
+    this.replay.set(lease.leaseId, entries);
+    return structuredClone(entry);
+  }
+  private verifyReplay(leaseId: string): void {
+    let previousDigest = "root";
+    const requestCursors = new Set<number>();
+    const responseCursors = new Set<number>();
+    for (const entry of this.entries(leaseId)) {
+      assertControlReplayEntry(entry);
+      if (entry.previousDigest !== previousDigest)
+        throw new E03RuntimeError(
+          "control_session_replay_chain",
+          `control session replay entry ${entry.entryId} breaks chain`,
+        );
+      const cursors =
+        entry.direction === "request" ? requestCursors : responseCursors;
+      if (cursors.has(entry.cursor))
+        throw new E03RuntimeError(
+          "control_session_replay_duplicate_cursor",
+          `control session replay cursor ${entry.cursor} is duplicated`,
+        );
+      cursors.add(entry.cursor);
+      previousDigest = entry.digest;
+    }
+  }
+  private entries(leaseId: string): ControlSessionReplayEntry[] {
+    return this.replay.get(leaseId) ?? [];
+  }
+  private requireLease(id: string): ControlSessionLease {
+    const value = this.leases.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_session_lease_missing",
+        `control session lease ${id} does not exist`,
+      );
+    assertControlSessionLease(value);
+    return value;
+  }
+  private requireEntry(id: string): ControlSessionReplayEntry {
+    const value = [...this.replay.values()]
+      .flat()
+      .find((entry) => entry.entryId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_session_replay_missing",
+        `control session replay entry ${id} does not exist`,
+      );
+    assertControlReplayEntry(value);
+    return value;
+  }
+  private assertLeaseRevision(
+    value: ControlSessionLease,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_session_lease_stale_revision",
+        `control session lease ${value.leaseId} revision is stale`,
+      );
+  }
+  private assertEntryRevision(
+    value: ControlSessionReplayEntry,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_session_replay_stale_revision",
+        `control session replay entry ${value.entryId} revision is stale`,
+      );
+  }
+  private transitionLease(
+    value: ControlSessionLease,
+    patch: Partial<
+      Omit<ControlSessionLease, "leaseId" | "revision" | "digest">
+    >,
+  ): ControlSessionLease {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      leaseId: value.leaseId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlSessionLease(next);
+    this.leases.set(next.leaseId, next);
+    return structuredClone(next);
+  }
+  private transitionEntry(
+    value: ControlSessionReplayEntry,
+    patch: Partial<
+      Omit<ControlSessionReplayEntry, "entryId" | "revision" | "digest">
+    >,
+  ): ControlSessionReplayEntry {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      entryId: value.entryId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlReplayEntry(next);
+    const entries = this.entries(value.leaseId);
+    const index = entries.findIndex((entry) => entry.entryId === value.entryId);
+    entries[index] = next;
+    this.replay.set(value.leaseId, entries);
+    return structuredClone(next);
+  }
+}

@@ -1420,6 +1420,702 @@ export class CapabilityEscalationRuntime {
   }
 }
 
+export type DelegatedCapabilityKind =
+  | "tool"
+  | "skill"
+  | "mcp"
+  | "workspace"
+  | "background"
+  | "fanout"
+  | "team_message"
+  | "isolation";
+export interface CapabilityDelegation {
+  delegationId: string;
+  parentDelegationId: string | null;
+  issuerTaskId: string;
+  subjectTaskId: string;
+  state: "issued" | "accepted" | "revoked" | "expired" | "exhausted";
+  scope: E03CapabilityScope;
+  allowedKinds: DelegatedCapabilityKind[];
+  maximumUses: number;
+  consumedUses: number;
+  depth: number;
+  issuedAt: string;
+  acceptedAt: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  revokeReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface CapabilityDelegationUse {
+  useId: string;
+  delegationId: string;
+  subjectTaskId: string;
+  kind: DelegatedCapabilityKind;
+  resource: string;
+  outcome: "allowed" | "denied";
+  reason: string;
+  sequence: number;
+  usedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+function assertDelegation(value: CapabilityDelegation): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "capability_delegation_digest",
+      `capability delegation ${value.delegationId} is corrupt`,
+    );
+  if (
+    !value.delegationId ||
+    !value.issuerTaskId ||
+    !value.subjectTaskId ||
+    !value.allowedKinds.length
+  )
+    throw new E03RuntimeError(
+      "capability_delegation_identity",
+      "capability delegation identity is required",
+    );
+  if (
+    !Number.isSafeInteger(value.maximumUses) ||
+    value.maximumUses < 1 ||
+    !Number.isSafeInteger(value.consumedUses) ||
+    value.consumedUses < 0 ||
+    value.consumedUses > value.maximumUses ||
+    !Number.isSafeInteger(value.depth) ||
+    value.depth < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "capability_delegation_counters",
+      `capability delegation ${value.delegationId} is invalid`,
+    );
+  if (value.state === "accepted" && value.acceptedAt === null)
+    throw new E03RuntimeError(
+      "capability_delegation_accept_time",
+      `accepted delegation ${value.delegationId} lacks time`,
+    );
+  if (value.state === "revoked" && (!value.revokedAt || !value.revokeReason))
+    throw new E03RuntimeError(
+      "capability_delegation_revoke_time",
+      `revoked delegation ${value.delegationId} lacks reason or time`,
+    );
+}
+function assertDelegationUse(value: CapabilityDelegationUse): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "capability_delegation_use_digest",
+      `capability delegation use ${value.useId} is corrupt`,
+    );
+  if (
+    !value.useId ||
+    !value.delegationId ||
+    !value.subjectTaskId ||
+    !value.resource ||
+    !value.reason ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1
+  )
+    throw new E03RuntimeError(
+      "capability_delegation_use_identity",
+      `capability delegation use ${value.useId} is invalid`,
+    );
+}
+export class CapabilityDelegationRuntime {
+  private delegations = new Map<string, CapabilityDelegation>();
+  private uses = new Map<string, CapabilityDelegationUse[]>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  issue(input: {
+    issuerTaskId: string;
+    subjectTaskId: string;
+    parentDelegationId?: string | null;
+    issuerScope: E03CapabilityScope;
+    delegatedScope: E03CapabilityScope;
+    allowedKinds: readonly DelegatedCapabilityKind[];
+    maximumUses: number;
+    ttlMs: number;
+  }): CapabilityDelegation {
+    if (
+      !input.issuerTaskId.trim() ||
+      !input.subjectTaskId.trim() ||
+      input.issuerTaskId === input.subjectTaskId
+    )
+      throw new E03RuntimeError(
+        "capability_delegation_parties",
+        "capability delegation parties are invalid",
+      );
+    if (
+      !Number.isSafeInteger(input.maximumUses) ||
+      input.maximumUses < 1 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "capability_delegation_limits",
+        "capability delegation limits are invalid",
+      );
+    const allowedKinds: DelegatedCapabilityKind[] = [
+      ...new Set(input.allowedKinds),
+    ];
+    if (!allowedKinds.length)
+      throw new E03RuntimeError(
+        "capability_delegation_kinds",
+        "capability delegation kinds are required",
+      );
+    this.assertAttenuated(input.issuerScope, input.delegatedScope);
+    let depth = 0;
+    if (input.parentDelegationId) {
+      const parent = this.requireDelegation(input.parentDelegationId);
+      if (
+        parent.subjectTaskId !== input.issuerTaskId ||
+        parent.state !== "accepted"
+      )
+        throw new E03RuntimeError(
+          "capability_delegation_parent_state",
+          `parent delegation ${parent.delegationId} cannot delegate`,
+        );
+      if (Date.parse(parent.expiresAt) <= Date.parse(this.clock.now()))
+        throw new E03RuntimeError(
+          "capability_delegation_parent_expired",
+          `parent delegation ${parent.delegationId} expired`,
+        );
+      if (allowedKinds.some((kind) => !parent.allowedKinds.includes(kind)))
+        throw new E03RuntimeError(
+          "capability_delegation_parent_kind",
+          "child delegation expands parent kinds",
+        );
+      this.assertAttenuated(parent.scope, input.delegatedScope);
+      depth = parent.depth + 1;
+      if (depth > parent.scope.maxDepth)
+        throw new E03RuntimeError(
+          "capability_delegation_depth",
+          "capability delegation exceeds depth",
+        );
+    }
+    const payload = {
+      delegationId: createId("capability-delegation"),
+      parentDelegationId: input.parentDelegationId ?? null,
+      issuerTaskId: input.issuerTaskId.trim(),
+      subjectTaskId: input.subjectTaskId.trim(),
+      state: "issued" as const,
+      scope: structuredClone(input.delegatedScope),
+      allowedKinds,
+      maximumUses: input.maximumUses,
+      consumedUses: 0,
+      depth,
+      issuedAt: this.clock.now(),
+      acceptedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      revokedAt: null,
+      revokeReason: null,
+      revision: 1,
+    };
+    const delegation = { ...payload, digest: digest(payload) };
+    assertDelegation(delegation);
+    this.delegations.set(delegation.delegationId, delegation);
+    return structuredClone(delegation);
+  }
+  accept(
+    delegationId: string,
+    expectedRevision: number,
+    subjectTaskId: string,
+  ): CapabilityDelegation {
+    const delegation = this.requireDelegation(delegationId);
+    this.assertRevision(delegation, expectedRevision);
+    if (delegation.subjectTaskId !== subjectTaskId)
+      throw new E03RuntimeError(
+        "capability_delegation_subject",
+        `task ${subjectTaskId} cannot accept delegation ${delegationId}`,
+      );
+    if (delegation.state !== "issued")
+      throw new E03RuntimeError(
+        "capability_delegation_accept_state",
+        `capability delegation ${delegationId} is ${delegation.state}`,
+      );
+    if (Date.parse(delegation.expiresAt) <= Date.parse(this.clock.now()))
+      return this.transition(delegation, { state: "expired" });
+    return this.transition(delegation, {
+      state: "accepted",
+      acceptedAt: this.clock.now(),
+    });
+  }
+  authorize(input: {
+    delegationId: string;
+    subjectTaskId: string;
+    kind: DelegatedCapabilityKind;
+    resource: string;
+  }): { delegation: CapabilityDelegation; use: CapabilityDelegationUse } {
+    const delegation = this.requireDelegation(input.delegationId);
+    if (delegation.subjectTaskId !== input.subjectTaskId)
+      return this.recordUse(
+        delegation,
+        input,
+        false,
+        "delegation subject mismatch",
+      );
+    if (delegation.state !== "accepted")
+      return this.recordUse(
+        delegation,
+        input,
+        false,
+        `delegation is ${delegation.state}`,
+      );
+    if (Date.parse(delegation.expiresAt) <= Date.parse(this.clock.now())) {
+      const expired = this.transition(delegation, { state: "expired" });
+      return this.recordUse(expired, input, false, "delegation expired");
+    }
+    if (delegation.consumedUses >= delegation.maximumUses) {
+      const exhausted = this.transition(delegation, { state: "exhausted" });
+      return this.recordUse(
+        exhausted,
+        input,
+        false,
+        "delegation use budget exhausted",
+      );
+    }
+    if (!delegation.allowedKinds.includes(input.kind))
+      return this.recordUse(
+        delegation,
+        input,
+        false,
+        `delegation denies ${input.kind}`,
+      );
+    const reason = this.resourceAllowed(
+      delegation.scope,
+      input.kind,
+      input.resource,
+    );
+    if (reason !== null)
+      return this.recordUse(delegation, input, false, reason);
+    const next = this.transition(delegation, {
+      consumedUses: delegation.consumedUses + 1,
+      state:
+        delegation.consumedUses + 1 >= delegation.maximumUses
+          ? "exhausted"
+          : delegation.state,
+    });
+    return this.recordUse(next, input, true, "delegated capability allowed");
+  }
+  revoke(
+    delegationId: string,
+    expectedRevision: number,
+    issuerTaskId: string,
+    reason: string,
+  ): CapabilityDelegation[] {
+    const delegation = this.requireDelegation(delegationId);
+    this.assertRevision(delegation, expectedRevision);
+    if (delegation.issuerTaskId !== issuerTaskId)
+      throw new E03RuntimeError(
+        "capability_delegation_revoker",
+        `task ${issuerTaskId} cannot revoke delegation ${delegationId}`,
+      );
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "capability_delegation_revoke_reason",
+        "capability delegation revoke reason is required",
+      );
+    const revoked: CapabilityDelegation[] = [];
+    const cascade = (value: CapabilityDelegation): void => {
+      if (value.state === "revoked" || value.state === "expired") return;
+      const next = this.transition(value, {
+        state: "revoked",
+        revokedAt: this.clock.now(),
+        revokeReason: reason.trim(),
+      });
+      revoked.push(next);
+      for (const child of this.delegations.values())
+        if (child.parentDelegationId === value.delegationId) cascade(child);
+    };
+    cascade(delegation);
+    return revoked;
+  }
+  ancestry(delegationId: string): CapabilityDelegation[] {
+    const values: CapabilityDelegation[] = [];
+    const seen = new Set<string>();
+    let cursor: CapabilityDelegation | null =
+      this.requireDelegation(delegationId);
+    while (cursor) {
+      if (seen.has(cursor.delegationId))
+        throw new E03RuntimeError(
+          "capability_delegation_cycle",
+          `capability delegation cycles at ${cursor.delegationId}`,
+        );
+      seen.add(cursor.delegationId);
+      values.push(structuredClone(cursor));
+      cursor = cursor.parentDelegationId
+        ? this.requireDelegation(cursor.parentDelegationId)
+        : null;
+    }
+    return values;
+  }
+  snapshot(): {
+    delegations: CapabilityDelegation[];
+    uses: CapabilityDelegationUse[];
+  } {
+    return {
+      delegations: [...this.delegations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      uses: [...this.uses.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+    };
+  }
+  restore(snapshot: {
+    delegations: readonly CapabilityDelegation[];
+    uses: readonly CapabilityDelegationUse[];
+  }): void {
+    const delegations = new Map<string, CapabilityDelegation>();
+    const uses = new Map<string, CapabilityDelegationUse[]>();
+    for (const value of snapshot.delegations) {
+      assertDelegation(value);
+      if (delegations.has(value.delegationId))
+        throw new E03RuntimeError(
+          "capability_delegation_restore_duplicate",
+          `duplicate capability delegation ${value.delegationId}`,
+        );
+      delegations.set(value.delegationId, structuredClone(value));
+    }
+    for (const value of delegations.values())
+      if (
+        value.parentDelegationId &&
+        !delegations.has(value.parentDelegationId)
+      )
+        throw new E03RuntimeError(
+          "capability_delegation_restore_parent",
+          `capability delegation ${value.delegationId} has no parent`,
+        );
+    for (const value of snapshot.uses) {
+      assertDelegationUse(value);
+      if (!delegations.has(value.delegationId))
+        throw new E03RuntimeError(
+          "capability_delegation_use_restore",
+          `capability delegation use ${value.useId} has no delegation`,
+        );
+      const entries = uses.get(value.delegationId) ?? [];
+      const prior = entries[entries.length - 1];
+      if (
+        value.sequence !== entries.length + 1 ||
+        value.previousDigest !== (prior?.digest ?? "root")
+      )
+        throw new E03RuntimeError(
+          "capability_delegation_use_chain",
+          `capability delegation use ${value.useId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+      uses.set(value.delegationId, entries);
+    }
+    this.delegations = delegations;
+    this.uses = uses;
+    for (const value of delegations.values()) this.ancestry(value.delegationId);
+  }
+  private resourceAllowed(
+    scope: E03CapabilityScope,
+    kind: DelegatedCapabilityKind,
+    resource: string,
+  ): string | null {
+    if (!resource.trim()) return "delegated resource is empty";
+    if (kind === "tool" && !scope.tools.includes(resource))
+      return `tool ${resource} is outside delegated scope`;
+    if (kind === "skill" && !scope.skills.includes(resource))
+      return `skill ${resource} is outside delegated scope`;
+    if (kind === "mcp" && !scope.mcpServers.includes(resource))
+      return `MCP server ${resource} is outside delegated scope`;
+    if (kind === "workspace") {
+      const target = resolve(resource);
+      if (
+        !scope.workspaceRoots.some(
+          (root) =>
+            target === resolve(root) ||
+            target.startsWith(`${resolve(root)}${sep}`),
+        )
+      )
+        return `workspace ${resource} is outside delegated scope`;
+    }
+    if (kind === "background" && !scope.allowBackground)
+      return "background execution is outside delegated scope";
+    if (kind === "fanout" && !scope.allowFanout)
+      return "fanout is outside delegated scope";
+    if (kind === "team_message" && !scope.allowTeamMessaging)
+      return "team messaging is outside delegated scope";
+    if (
+      kind === "isolation" &&
+      !scope.isolationModes.includes(resource as IsolationMode)
+    )
+      return `isolation mode ${resource} is outside delegated scope`;
+    return null;
+  }
+  private assertAttenuated(
+    parent: E03CapabilityScope,
+    child: E03CapabilityScope,
+  ): void {
+    const subset = (values: readonly string[], allowed: readonly string[]) =>
+      values.every((value) => allowed.includes(value));
+    if (
+      !subset(child.tools, parent.tools) ||
+      !subset(child.skills, parent.skills) ||
+      !subset(child.mcpServers, parent.mcpServers) ||
+      !subset(
+        child.workspaceRoots.map((value) => resolve(value)),
+        parent.workspaceRoots.map((value) => resolve(value)),
+      )
+    )
+      throw new E03RuntimeError(
+        "capability_delegation_expansion",
+        "delegated scope expands list capability",
+      );
+    if (
+      (child.allowBackground && !parent.allowBackground) ||
+      (child.allowFanout && !parent.allowFanout) ||
+      (child.allowTeamMessaging && !parent.allowTeamMessaging) ||
+      child.maxDepth > parent.maxDepth ||
+      child.maxChildren > parent.maxChildren
+    )
+      throw new E03RuntimeError(
+        "capability_delegation_expansion",
+        "delegated scope expands scalar capability",
+      );
+    if (!subset(child.isolationModes, parent.isolationModes))
+      throw new E03RuntimeError(
+        "capability_delegation_isolation",
+        "delegated scope expands isolation modes",
+      );
+  }
+  private recordUse(
+    delegation: CapabilityDelegation,
+    input: {
+      delegationId: string;
+      subjectTaskId: string;
+      kind: DelegatedCapabilityKind;
+      resource: string;
+    },
+    allowed: boolean,
+    reason: string,
+  ): { delegation: CapabilityDelegation; use: CapabilityDelegationUse } {
+    const entries = this.uses.get(delegation.delegationId) ?? [];
+    const payload = {
+      useId: createId("capability-delegation-use"),
+      delegationId: delegation.delegationId,
+      subjectTaskId: input.subjectTaskId,
+      kind: input.kind,
+      resource: input.resource.trim(),
+      outcome: allowed ? ("allowed" as const) : ("denied" as const),
+      reason,
+      sequence: entries.length + 1,
+      usedAt: this.clock.now(),
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+    };
+    const use = { ...payload, digest: digest(payload) };
+    assertDelegationUse(use);
+    entries.push(use);
+    this.uses.set(delegation.delegationId, entries);
+    return {
+      delegation: structuredClone(delegation),
+      use: structuredClone(use),
+    };
+  }
+  private requireDelegation(id: string): CapabilityDelegation {
+    const value = this.delegations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "capability_delegation_missing",
+        `capability delegation ${id} does not exist`,
+      );
+    assertDelegation(value);
+    return value;
+  }
+  private assertRevision(value: CapabilityDelegation, expected: number): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "capability_delegation_stale_revision",
+        `capability delegation ${value.delegationId} revision is stale`,
+      );
+  }
+  private transition(
+    value: CapabilityDelegation,
+    patch: Partial<
+      Omit<CapabilityDelegation, "delegationId" | "revision" | "digest">
+    >,
+  ): CapabilityDelegation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      delegationId: value.delegationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDelegation(next);
+    this.delegations.set(next.delegationId, next);
+    return structuredClone(next);
+  }
+}
+
+export interface CapabilityAuditEvent {
+  eventId: string;
+  taskId: string;
+  actorId: string;
+  action:
+    | "derive"
+    | "issue"
+    | "accept"
+    | "allow"
+    | "deny"
+    | "escalate"
+    | "revoke"
+    | "expire";
+  capabilityKind: string;
+  resource: string;
+  decisionId: string | null;
+  metadata: Record<string, string | number | boolean | null>;
+  sequence: number;
+  occurredAt: string;
+  previousDigest: string;
+  digest: string;
+}
+function assertCapabilityAuditEvent(value: CapabilityAuditEvent): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "capability_audit_digest",
+      `capability audit event ${value.eventId} is corrupt`,
+    );
+  if (
+    !value.eventId ||
+    !value.taskId ||
+    !value.actorId ||
+    !value.capabilityKind ||
+    !value.resource ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1
+  )
+    throw new E03RuntimeError(
+      "capability_audit_identity",
+      `capability audit event ${value.eventId} is invalid`,
+    );
+}
+export class CapabilityAuditLedger {
+  private events = new Map<string, CapabilityAuditEvent[]>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  append(
+    input: Omit<
+      CapabilityAuditEvent,
+      "eventId" | "sequence" | "occurredAt" | "previousDigest" | "digest"
+    >,
+  ): CapabilityAuditEvent {
+    if (
+      !input.taskId.trim() ||
+      !input.actorId.trim() ||
+      !input.capabilityKind.trim() ||
+      !input.resource.trim()
+    )
+      throw new E03RuntimeError(
+        "capability_audit_input",
+        "capability audit input is invalid",
+      );
+    const entries = this.events.get(input.taskId) ?? [];
+    const payload = {
+      ...structuredClone(input),
+      eventId: createId("capability-audit-event"),
+      taskId: input.taskId.trim(),
+      actorId: input.actorId.trim(),
+      capabilityKind: input.capabilityKind.trim(),
+      resource: input.resource.trim(),
+      sequence: entries.length + 1,
+      occurredAt: this.clock.now(),
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+    };
+    const event = { ...payload, digest: digest(payload) };
+    assertCapabilityAuditEvent(event);
+    entries.push(event);
+    this.events.set(event.taskId, entries);
+    return structuredClone(event);
+  }
+  history(taskId: string, afterSequence = 0): CapabilityAuditEvent[] {
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < 0)
+      throw new E03RuntimeError(
+        "capability_audit_cursor",
+        "capability audit cursor is invalid",
+      );
+    return (this.events.get(taskId) ?? [])
+      .filter((value) => value.sequence > afterSequence)
+      .map((value) => structuredClone(value));
+  }
+  verify(taskId?: string): void {
+    const groups = taskId
+      ? [[taskId, this.events.get(taskId) ?? []] as const]
+      : [...this.events.entries()];
+    for (const [key, values] of groups) {
+      let previousDigest = "root";
+      let sequence = 1;
+      for (const event of values) {
+        assertCapabilityAuditEvent(event);
+        if (
+          event.taskId !== key ||
+          event.sequence !== sequence ||
+          event.previousDigest !== previousDigest
+        )
+          throw new E03RuntimeError(
+            "capability_audit_chain",
+            `capability audit chain for ${key} is invalid`,
+          );
+        previousDigest = event.digest;
+        sequence += 1;
+      }
+    }
+  }
+  projection(taskId: string): {
+    total: number;
+    allowed: number;
+    denied: number;
+    escalated: number;
+    revoked: number;
+    latestDigest: string;
+  } {
+    const values = this.events.get(taskId) ?? [];
+    this.verify(taskId);
+    return {
+      total: values.length,
+      allowed: values.filter((value) => value.action === "allow").length,
+      denied: values.filter((value) => value.action === "deny").length,
+      escalated: values.filter((value) => value.action === "escalate").length,
+      revoked: values.filter((value) => value.action === "revoke").length,
+      latestDigest: values[values.length - 1]?.digest ?? "root",
+    };
+  }
+  snapshot(): CapabilityAuditEvent[] {
+    this.verify();
+    return [...this.events.values()]
+      .flat()
+      .map((value) => structuredClone(value));
+  }
+  restore(events: readonly CapabilityAuditEvent[]): void {
+    const next = new Map<string, CapabilityAuditEvent[]>();
+    for (const event of events) {
+      assertCapabilityAuditEvent(event);
+      const values = next.get(event.taskId) ?? [];
+      if (values.some((value) => value.eventId === event.eventId))
+        throw new E03RuntimeError(
+          "capability_audit_restore_duplicate",
+          `duplicate capability audit event ${event.eventId}`,
+        );
+      values.push(structuredClone(event));
+      next.set(event.taskId, values);
+    }
+    for (const values of next.values())
+      values.sort((left, right) => left.sequence - right.sequence);
+    this.events = next;
+    this.verify();
+  }
+}
+
 function containsAny(roots: readonly string[], candidate: string): boolean {
   return roots.some((root) => contains(root, candidate));
 }

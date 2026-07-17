@@ -1377,3 +1377,748 @@ export class ControlCircuitRuntime {
     return structuredClone(next);
   }
 }
+
+export interface ControlQuotaPolicy {
+  policyId: string;
+  principalId: string;
+  commandPrefix: string;
+  capacity: number;
+  refillTokens: number;
+  refillIntervalMs: number;
+  maximumInFlight: number;
+  queueLimit: number;
+  enabled: boolean;
+  revision: number;
+  digest: string;
+}
+export interface ControlQuotaBucket {
+  bucketId: string;
+  policyId: string;
+  principalId: string;
+  commandPrefix: string;
+  tokens: number;
+  inFlight: number;
+  queued: number;
+  lastRefillAt: string;
+  revision: number;
+  digest: string;
+}
+export interface ControlQuotaPermit {
+  permitId: string;
+  bucketId: string;
+  requestId: string;
+  command: string;
+  state: "queued" | "granted" | "settled" | "rejected" | "expired";
+  tokenCost: number;
+  queuedAt: string | null;
+  grantedAt: string | null;
+  expiresAt: string;
+  settledAt: string | null;
+  outcome: string | null;
+  revision: number;
+  digest: string;
+}
+function assertQuotaPolicy(value: ControlQuotaPolicy): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_quota_policy_digest",
+      `control quota policy ${value.policyId} is corrupt`,
+    );
+  const numbers = [
+    value.capacity,
+    value.refillTokens,
+    value.refillIntervalMs,
+    value.maximumInFlight,
+    value.queueLimit,
+  ];
+  if (
+    !value.policyId ||
+    !value.principalId ||
+    !value.commandPrefix ||
+    numbers.some((number) => !Number.isSafeInteger(number) || number < 1) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "control_quota_policy",
+      `control quota policy ${value.policyId} is invalid`,
+    );
+}
+function assertQuotaBucket(value: ControlQuotaBucket): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_quota_bucket_digest",
+      `control quota bucket ${value.bucketId} is corrupt`,
+    );
+  if (
+    !value.bucketId ||
+    !value.policyId ||
+    !value.principalId ||
+    !Number.isFinite(value.tokens) ||
+    value.tokens < 0 ||
+    !Number.isSafeInteger(value.inFlight) ||
+    value.inFlight < 0 ||
+    !Number.isSafeInteger(value.queued) ||
+    value.queued < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.lastRefillAt))
+  )
+    throw new E03RuntimeError(
+      "control_quota_bucket",
+      `control quota bucket ${value.bucketId} is invalid`,
+    );
+}
+function assertQuotaPermit(value: ControlQuotaPermit): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_quota_permit_digest",
+      `control quota permit ${value.permitId} is corrupt`,
+    );
+  if (
+    !value.permitId ||
+    !value.bucketId ||
+    !value.requestId ||
+    !value.command ||
+    !Number.isSafeInteger(value.tokenCost) ||
+    value.tokenCost < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "control_quota_permit",
+      `control quota permit ${value.permitId} is invalid`,
+    );
+}
+export class ControlTrafficQuotaRuntime {
+  private policies = new Map<string, ControlQuotaPolicy>();
+  private buckets = new Map<string, ControlQuotaBucket>();
+  private permits = new Map<string, ControlQuotaPermit>();
+  private requestIndex = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  register(
+    input: Omit<ControlQuotaPolicy, "policyId" | "revision" | "digest">,
+  ): ControlQuotaPolicy {
+    const existing = [...this.policies.values()].find(
+      (value) =>
+        value.principalId === input.principalId &&
+        value.commandPrefix === input.commandPrefix,
+    );
+    if (existing)
+      throw new E03RuntimeError(
+        "control_quota_policy_duplicate",
+        `control quota policy for ${input.principalId}:${input.commandPrefix} already exists`,
+      );
+    const payload = {
+      ...structuredClone(input),
+      policyId: createId("control-quota-policy"),
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertQuotaPolicy(policy);
+    this.policies.set(policy.policyId, policy);
+    const bucketPayload = {
+      bucketId: createId("control-quota-bucket"),
+      policyId: policy.policyId,
+      principalId: policy.principalId,
+      commandPrefix: policy.commandPrefix,
+      tokens: policy.capacity,
+      inFlight: 0,
+      queued: 0,
+      lastRefillAt: this.clock.now(),
+      revision: 1,
+    };
+    const bucket = { ...bucketPayload, digest: digest(bucketPayload) };
+    assertQuotaBucket(bucket);
+    this.buckets.set(bucket.bucketId, bucket);
+    return structuredClone(policy);
+  }
+  update(
+    policyId: string,
+    expectedRevision: number,
+    patch: Partial<
+      Pick<
+        ControlQuotaPolicy,
+        | "capacity"
+        | "refillTokens"
+        | "refillIntervalMs"
+        | "maximumInFlight"
+        | "queueLimit"
+        | "enabled"
+      >
+    >,
+  ): ControlQuotaPolicy {
+    const policy = this.requirePolicy(policyId);
+    if (policy.revision !== expectedRevision)
+      throw new E03RuntimeError(
+        "control_quota_policy_stale_revision",
+        `control quota policy ${policyId} revision is stale`,
+      );
+    const { digest: _, ...prior } = policy;
+    const payload = {
+      ...prior,
+      ...patch,
+      policyId: policy.policyId,
+      revision: policy.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertQuotaPolicy(next);
+    this.policies.set(next.policyId, next);
+    const bucket = this.bucketForPolicy(next.policyId);
+    if (bucket.tokens > next.capacity)
+      this.transitionBucket(bucket, { tokens: next.capacity });
+    return structuredClone(next);
+  }
+  acquire(input: {
+    principalId: string;
+    requestId: string;
+    command: string;
+    tokenCost?: number;
+    ttlMs?: number;
+    allowQueue?: boolean;
+  }): { permit: ControlQuotaPermit; retryAfterMs: number } {
+    const existingId = this.requestIndex.get(input.requestId);
+    if (existingId) {
+      const existing = this.requirePermit(existingId);
+      if (existing.command !== input.command)
+        throw new E03RuntimeError(
+          "control_quota_request_conflict",
+          `request ${input.requestId} reused for another command`,
+        );
+      return { permit: structuredClone(existing), retryAfterMs: 0 };
+    }
+    const match = [...this.policies.values()]
+      .filter(
+        (value) =>
+          value.enabled &&
+          value.principalId === input.principalId &&
+          input.command.startsWith(value.commandPrefix),
+      )
+      .sort(
+        (left, right) => right.commandPrefix.length - left.commandPrefix.length,
+      )[0];
+    if (!match)
+      throw new E03RuntimeError(
+        "control_quota_policy_missing",
+        `no control quota policy for ${input.principalId}:${input.command}`,
+      );
+    let bucket = this.refill(this.bucketForPolicy(match.policyId), match);
+    const tokenCost = input.tokenCost ?? 1;
+    const ttlMs = input.ttlMs ?? match.refillIntervalMs;
+    if (
+      !Number.isSafeInteger(tokenCost) ||
+      tokenCost < 1 ||
+      tokenCost > match.capacity ||
+      !Number.isSafeInteger(ttlMs) ||
+      ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "control_quota_request",
+        "control quota request is invalid",
+      );
+    let state: ControlQuotaPermit["state"] = "granted";
+    let queuedAt: string | null = null;
+    let grantedAt: string | null = this.clock.now();
+    let retryAfterMs = 0;
+    if (bucket.tokens < tokenCost || bucket.inFlight >= match.maximumInFlight) {
+      if (!input.allowQueue || bucket.queued >= match.queueLimit) {
+        state = "rejected";
+        grantedAt = null;
+        retryAfterMs = Math.max(
+          1,
+          match.refillIntervalMs -
+            (Date.parse(this.clock.now()) - Date.parse(bucket.lastRefillAt)),
+        );
+      } else {
+        state = "queued";
+        queuedAt = this.clock.now();
+        grantedAt = null;
+        retryAfterMs = Math.max(
+          1,
+          match.refillIntervalMs -
+            (Date.parse(this.clock.now()) - Date.parse(bucket.lastRefillAt)),
+        );
+        bucket = this.transitionBucket(bucket, { queued: bucket.queued + 1 });
+      }
+    } else
+      bucket = this.transitionBucket(bucket, {
+        tokens: bucket.tokens - tokenCost,
+        inFlight: bucket.inFlight + 1,
+      });
+    const payload = {
+      permitId: createId("control-quota-permit"),
+      bucketId: bucket.bucketId,
+      requestId: input.requestId,
+      command: input.command,
+      state,
+      tokenCost,
+      queuedAt,
+      grantedAt,
+      expiresAt: new Date(Date.parse(this.clock.now()) + ttlMs).toISOString(),
+      settledAt: state === "rejected" ? this.clock.now() : null,
+      outcome: state === "rejected" ? "quota unavailable" : null,
+      revision: 1,
+    };
+    const permit = { ...payload, digest: digest(payload) };
+    assertQuotaPermit(permit);
+    this.permits.set(permit.permitId, permit);
+    this.requestIndex.set(permit.requestId, permit.permitId);
+    return { permit: structuredClone(permit), retryAfterMs };
+  }
+  promote(permitId: string, expectedRevision: number): ControlQuotaPermit {
+    const permit = this.requirePermit(permitId);
+    this.assertPermitRevision(permit, expectedRevision);
+    if (permit.state !== "queued")
+      throw new E03RuntimeError(
+        "control_quota_promote_state",
+        `control quota permit ${permitId} is ${permit.state}`,
+      );
+    if (Date.parse(permit.expiresAt) <= Date.parse(this.clock.now()))
+      return this.expire(permitId, expectedRevision);
+    const bucket = this.bucketForId(permit.bucketId);
+    const policy = this.requirePolicy(bucket.policyId);
+    const refilled = this.refill(bucket, policy);
+    if (
+      refilled.tokens < permit.tokenCost ||
+      refilled.inFlight >= policy.maximumInFlight
+    )
+      throw new E03RuntimeError(
+        "control_quota_promote_unavailable",
+        `control quota permit ${permitId} cannot be promoted`,
+      );
+    this.transitionBucket(refilled, {
+      tokens: refilled.tokens - permit.tokenCost,
+      inFlight: refilled.inFlight + 1,
+      queued: Math.max(0, refilled.queued - 1),
+    });
+    return this.transitionPermit(permit, {
+      state: "granted",
+      grantedAt: this.clock.now(),
+    });
+  }
+  settle(
+    permitId: string,
+    expectedRevision: number,
+    outcome: string,
+  ): ControlQuotaPermit {
+    const permit = this.requirePermit(permitId);
+    this.assertPermitRevision(permit, expectedRevision);
+    if (
+      permit.state === "settled" ||
+      permit.state === "rejected" ||
+      permit.state === "expired"
+    )
+      return structuredClone(permit);
+    if (permit.state !== "granted")
+      throw new E03RuntimeError(
+        "control_quota_settle_state",
+        `control quota permit ${permitId} is ${permit.state}`,
+      );
+    if (!outcome.trim())
+      throw new E03RuntimeError(
+        "control_quota_outcome",
+        "control quota outcome is required",
+      );
+    const bucket = this.bucketForId(permit.bucketId);
+    this.transitionBucket(bucket, {
+      inFlight: Math.max(0, bucket.inFlight - 1),
+    });
+    return this.transitionPermit(permit, {
+      state: "settled",
+      settledAt: this.clock.now(),
+      outcome: outcome.trim(),
+    });
+  }
+  expire(permitId: string, expectedRevision: number): ControlQuotaPermit {
+    const permit = this.requirePermit(permitId);
+    this.assertPermitRevision(permit, expectedRevision);
+    if (permit.state !== "queued" && permit.state !== "granted")
+      return structuredClone(permit);
+    const bucket = this.bucketForId(permit.bucketId);
+    this.transitionBucket(
+      bucket,
+      permit.state === "queued"
+        ? { queued: Math.max(0, bucket.queued - 1) }
+        : { inFlight: Math.max(0, bucket.inFlight - 1) },
+    );
+    return this.transitionPermit(permit, {
+      state: "expired",
+      settledAt: this.clock.now(),
+      outcome: "permit expired",
+    });
+  }
+  sweep(now = this.clock.now()): ControlQuotaPermit[] {
+    const timestamp = Date.parse(now);
+    if (Number.isNaN(timestamp))
+      throw new E03RuntimeError(
+        "control_quota_sweep_time",
+        "control quota sweep time is invalid",
+      );
+    const values: ControlQuotaPermit[] = [];
+    for (const permit of this.permits.values())
+      if (
+        (permit.state === "queued" || permit.state === "granted") &&
+        Date.parse(permit.expiresAt) <= timestamp
+      )
+        values.push(this.expire(permit.permitId, permit.revision));
+    return values;
+  }
+  snapshot(): {
+    policies: ControlQuotaPolicy[];
+    buckets: ControlQuotaBucket[];
+    permits: ControlQuotaPermit[];
+  } {
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      buckets: [...this.buckets.values()].map((value) =>
+        structuredClone(value),
+      ),
+      permits: [...this.permits.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    policies: readonly ControlQuotaPolicy[];
+    buckets: readonly ControlQuotaBucket[];
+    permits: readonly ControlQuotaPermit[];
+  }): void {
+    const policies = new Map<string, ControlQuotaPolicy>();
+    const buckets = new Map<string, ControlQuotaBucket>();
+    const permits = new Map<string, ControlQuotaPermit>();
+    const requestIndex = new Map<string, string>();
+    for (const value of snapshot.policies) {
+      assertQuotaPolicy(value);
+      if (policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "control_quota_policy_restore_duplicate",
+          `duplicate control quota policy ${value.policyId}`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+    }
+    for (const value of snapshot.buckets) {
+      assertQuotaBucket(value);
+      if (buckets.has(value.bucketId) || !policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "control_quota_bucket_restore",
+          `control quota bucket ${value.bucketId} is invalid`,
+        );
+      buckets.set(value.bucketId, structuredClone(value));
+    }
+    for (const value of snapshot.permits) {
+      assertQuotaPermit(value);
+      if (
+        permits.has(value.permitId) ||
+        requestIndex.has(value.requestId) ||
+        !buckets.has(value.bucketId)
+      )
+        throw new E03RuntimeError(
+          "control_quota_permit_restore",
+          `control quota permit ${value.permitId} is invalid`,
+        );
+      permits.set(value.permitId, structuredClone(value));
+      requestIndex.set(value.requestId, value.permitId);
+    }
+    this.policies = policies;
+    this.buckets = buckets;
+    this.permits = permits;
+    this.requestIndex = requestIndex;
+  }
+  private refill(
+    bucket: ControlQuotaBucket,
+    policy: ControlQuotaPolicy,
+  ): ControlQuotaBucket {
+    const elapsed =
+      Date.parse(this.clock.now()) - Date.parse(bucket.lastRefillAt);
+    const intervals = Math.floor(elapsed / policy.refillIntervalMs);
+    if (intervals <= 0) return bucket;
+    return this.transitionBucket(bucket, {
+      tokens: Math.min(
+        policy.capacity,
+        bucket.tokens + intervals * policy.refillTokens,
+      ),
+      lastRefillAt: new Date(
+        Date.parse(bucket.lastRefillAt) + intervals * policy.refillIntervalMs,
+      ).toISOString(),
+    });
+  }
+  private requirePolicy(id: string): ControlQuotaPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_quota_policy_missing",
+        `control quota policy ${id} does not exist`,
+      );
+    assertQuotaPolicy(value);
+    return value;
+  }
+  private bucketForPolicy(policyId: string): ControlQuotaBucket {
+    const value = [...this.buckets.values()].find(
+      (candidate) => candidate.policyId === policyId,
+    );
+    if (!value)
+      throw new E03RuntimeError(
+        "control_quota_bucket_missing",
+        `control quota policy ${policyId} has no bucket`,
+      );
+    assertQuotaBucket(value);
+    return value;
+  }
+  private bucketForId(id: string): ControlQuotaBucket {
+    const value = this.buckets.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_quota_bucket_missing",
+        `control quota bucket ${id} does not exist`,
+      );
+    assertQuotaBucket(value);
+    return value;
+  }
+  private requirePermit(id: string): ControlQuotaPermit {
+    const value = this.permits.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_quota_permit_missing",
+        `control quota permit ${id} does not exist`,
+      );
+    assertQuotaPermit(value);
+    return value;
+  }
+  private assertPermitRevision(
+    value: ControlQuotaPermit,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_quota_permit_stale_revision",
+        `control quota permit ${value.permitId} revision is stale`,
+      );
+  }
+  private transitionBucket(
+    value: ControlQuotaBucket,
+    patch: Partial<
+      Omit<ControlQuotaBucket, "bucketId" | "revision" | "digest">
+    >,
+  ): ControlQuotaBucket {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      bucketId: value.bucketId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertQuotaBucket(next);
+    this.buckets.set(next.bucketId, next);
+    return structuredClone(next);
+  }
+  private transitionPermit(
+    value: ControlQuotaPermit,
+    patch: Partial<
+      Omit<ControlQuotaPermit, "permitId" | "revision" | "digest">
+    >,
+  ): ControlQuotaPermit {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      permitId: value.permitId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertQuotaPermit(next);
+    this.permits.set(next.permitId, next);
+    return structuredClone(next);
+  }
+}
+
+export interface ControlRouteAffinity {
+  affinityId: string;
+  key: string;
+  owner: ControlRouteOwner;
+  routeId: string;
+  state: "bound" | "draining" | "released";
+  leaseCount: number;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+function assertRouteAffinity(value: ControlRouteAffinity): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_route_affinity_digest",
+      `control route affinity ${value.affinityId} is corrupt`,
+    );
+  if (
+    !value.affinityId ||
+    !value.key ||
+    !value.routeId ||
+    !Number.isSafeInteger(value.leaseCount) ||
+    value.leaseCount < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "control_route_affinity",
+      `control route affinity ${value.affinityId} is invalid`,
+    );
+}
+export class ControlRouteAffinityRuntime {
+  private affinities = new Map<string, ControlRouteAffinity>();
+  private byKey = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  bind(input: {
+    key: string;
+    owner: ControlRouteOwner;
+    routeId: string;
+  }): ControlRouteAffinity {
+    const existingId = this.byKey.get(input.key);
+    if (existingId) {
+      const existing = this.require(existingId);
+      if (existing.owner !== input.owner || existing.routeId !== input.routeId)
+        throw new E03RuntimeError(
+          "control_route_affinity_conflict",
+          `control route affinity ${input.key} already targets another route`,
+        );
+      return structuredClone(existing);
+    }
+    const payload = {
+      affinityId: createId("control-route-affinity"),
+      key: input.key.trim(),
+      owner: input.owner,
+      routeId: input.routeId.trim(),
+      state: "bound" as const,
+      leaseCount: 0,
+      createdAt: this.clock.now(),
+      updatedAt: this.clock.now(),
+      revision: 1,
+    };
+    const affinity = { ...payload, digest: digest(payload) };
+    assertRouteAffinity(affinity);
+    this.affinities.set(affinity.affinityId, affinity);
+    this.byKey.set(affinity.key, affinity.affinityId);
+    return structuredClone(affinity);
+  }
+  acquire(key: string): ControlRouteAffinity {
+    const id = this.byKey.get(key);
+    if (!id)
+      throw new E03RuntimeError(
+        "control_route_affinity_missing",
+        `control route affinity ${key} does not exist`,
+      );
+    const affinity = this.require(id);
+    if (affinity.state !== "bound")
+      throw new E03RuntimeError(
+        "control_route_affinity_acquire_state",
+        `control route affinity ${key} is ${affinity.state}`,
+      );
+    return this.transition(affinity, { leaseCount: affinity.leaseCount + 1 });
+  }
+  releaseLease(
+    affinityId: string,
+    expectedRevision: number,
+  ): ControlRouteAffinity {
+    const affinity = this.require(affinityId);
+    this.assertRevision(affinity, expectedRevision);
+    if (affinity.leaseCount < 1)
+      throw new E03RuntimeError(
+        "control_route_affinity_lease_underflow",
+        `control route affinity ${affinityId} has no lease`,
+      );
+    return this.transition(affinity, { leaseCount: affinity.leaseCount - 1 });
+  }
+  drain(affinityId: string, expectedRevision: number): ControlRouteAffinity {
+    const affinity = this.require(affinityId);
+    this.assertRevision(affinity, expectedRevision);
+    if (affinity.state !== "bound")
+      throw new E03RuntimeError(
+        "control_route_affinity_drain_state",
+        `control route affinity ${affinityId} is ${affinity.state}`,
+      );
+    return this.transition(affinity, { state: "draining" });
+  }
+  release(affinityId: string, expectedRevision: number): ControlRouteAffinity {
+    const affinity = this.require(affinityId);
+    this.assertRevision(affinity, expectedRevision);
+    if (affinity.state !== "draining" || affinity.leaseCount > 0)
+      throw new E03RuntimeError(
+        "control_route_affinity_release_state",
+        `control route affinity ${affinityId} cannot release`,
+      );
+    const next = this.transition(affinity, { state: "released" });
+    this.byKey.delete(next.key);
+    return next;
+  }
+  resolve(key: string): ControlRouteAffinity | null {
+    const id = this.byKey.get(key);
+    if (!id) return null;
+    const affinity = this.require(id);
+    return affinity.state === "released" ? null : structuredClone(affinity);
+  }
+  snapshot(): ControlRouteAffinity[] {
+    return [...this.affinities.values()].map((value) => structuredClone(value));
+  }
+  restore(values: readonly ControlRouteAffinity[]): void {
+    const affinities = new Map<string, ControlRouteAffinity>();
+    const byKey = new Map<string, string>();
+    for (const value of values) {
+      assertRouteAffinity(value);
+      if (
+        affinities.has(value.affinityId) ||
+        (value.state !== "released" && byKey.has(value.key))
+      )
+        throw new E03RuntimeError(
+          "control_route_affinity_restore_duplicate",
+          `duplicate control route affinity ${value.affinityId}`,
+        );
+      affinities.set(value.affinityId, structuredClone(value));
+      if (value.state !== "released") byKey.set(value.key, value.affinityId);
+    }
+    this.affinities = affinities;
+    this.byKey = byKey;
+  }
+  private require(id: string): ControlRouteAffinity {
+    const value = this.affinities.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_route_affinity_missing",
+        `control route affinity ${id} does not exist`,
+      );
+    assertRouteAffinity(value);
+    return value;
+  }
+  private assertRevision(value: ControlRouteAffinity, expected: number): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_route_affinity_stale_revision",
+        `control route affinity ${value.affinityId} revision is stale`,
+      );
+  }
+  private transition(
+    value: ControlRouteAffinity,
+    patch: Partial<
+      Omit<ControlRouteAffinity, "affinityId" | "revision" | "digest">
+    >,
+  ): ControlRouteAffinity {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      affinityId: value.affinityId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertRouteAffinity(next);
+    this.affinities.set(next.affinityId, next);
+    return structuredClone(next);
+  }
+}

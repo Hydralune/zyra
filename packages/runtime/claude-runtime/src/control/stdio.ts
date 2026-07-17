@@ -1774,3 +1774,692 @@ export class ControlFlowRuntime {
     return structuredClone(next);
   }
 }
+
+export interface ControlTransmission {
+  transmissionId: string;
+  connectionId: string;
+  streamId: string;
+  frameId: string;
+  sequence: number;
+  state:
+    | "queued"
+    | "sent"
+    | "acknowledged"
+    | "retry_wait"
+    | "failed"
+    | "discarded";
+  attempt: number;
+  maximumAttempts: number;
+  firstQueuedAt: string;
+  lastSentAt: string | null;
+  nextAttemptAt: string | null;
+  acknowledgedAt: string | null;
+  failure: string | null;
+  revision: number;
+  digest: string;
+}
+export interface ControlTransmissionAck {
+  ackId: string;
+  connectionId: string;
+  streamId: string;
+  cumulativeSequence: number;
+  selectiveSequences: number[];
+  rejectedSequences: number[];
+  receivedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+function assertTransmission(value: ControlTransmission): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_transmission_digest",
+      `control transmission ${value.transmissionId} is corrupt`,
+    );
+  if (
+    !value.transmissionId ||
+    !value.connectionId ||
+    !value.streamId ||
+    !value.frameId ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1 ||
+    !Number.isSafeInteger(value.attempt) ||
+    value.attempt < 0 ||
+    !Number.isSafeInteger(value.maximumAttempts) ||
+    value.maximumAttempts < 1 ||
+    value.attempt > value.maximumAttempts ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "control_transmission",
+      `control transmission ${value.transmissionId} is invalid`,
+    );
+  if (value.state === "acknowledged" && value.acknowledgedAt === null)
+    throw new E03RuntimeError(
+      "control_transmission_ack_time",
+      `acknowledged transmission ${value.transmissionId} lacks time`,
+    );
+}
+function assertTransmissionAck(value: ControlTransmissionAck): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_transmission_ack_digest",
+      `control transmission ACK ${value.ackId} is corrupt`,
+    );
+  if (
+    !value.ackId ||
+    !value.connectionId ||
+    !value.streamId ||
+    !Number.isSafeInteger(value.cumulativeSequence) ||
+    value.cumulativeSequence < 0 ||
+    [...value.selectiveSequences, ...value.rejectedSequences].some(
+      (sequence) => !Number.isSafeInteger(sequence) || sequence < 1,
+    )
+  )
+    throw new E03RuntimeError(
+      "control_transmission_ack",
+      `control transmission ACK ${value.ackId} is invalid`,
+    );
+}
+export class ControlRetransmissionRuntime {
+  private transmissions = new Map<string, ControlTransmission>();
+  private frameIndex = new Map<string, string>();
+  private acknowledgements = new Map<string, ControlTransmissionAck[]>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  enqueue(frame: ControlFrame, maximumAttempts = 3): ControlTransmission {
+    assertControlFrame(frame);
+    const existingId = this.frameIndex.get(frame.frameId);
+    if (existingId)
+      return structuredClone(this.requireTransmission(existingId));
+    if (!Number.isSafeInteger(maximumAttempts) || maximumAttempts < 1)
+      throw new E03RuntimeError(
+        "control_transmission_attempt_limit",
+        "control transmission attempt limit is invalid",
+      );
+    const payload = {
+      transmissionId: createId("control-transmission"),
+      connectionId: frame.connectionId,
+      streamId: frame.streamId,
+      frameId: frame.frameId,
+      sequence: frame.sequence,
+      state: "queued" as const,
+      attempt: 0,
+      maximumAttempts,
+      firstQueuedAt: this.clock.now(),
+      lastSentAt: null,
+      nextAttemptAt: null,
+      acknowledgedAt: null,
+      failure: null,
+      revision: 1,
+    };
+    const transmission = { ...payload, digest: digest(payload) };
+    assertTransmission(transmission);
+    if (
+      [...this.transmissions.values()].some(
+        (value) =>
+          value.connectionId === frame.connectionId &&
+          value.streamId === frame.streamId &&
+          value.sequence === frame.sequence &&
+          value.state !== "discarded",
+      )
+    )
+      throw new E03RuntimeError(
+        "control_transmission_sequence_duplicate",
+        `control transmission sequence ${frame.sequence} already exists`,
+      );
+    this.transmissions.set(transmission.transmissionId, transmission);
+    this.frameIndex.set(transmission.frameId, transmission.transmissionId);
+    return structuredClone(transmission);
+  }
+  ready(
+    connectionId: string,
+    maximum = 64,
+    now = this.clock.now(),
+  ): ControlTransmission[] {
+    if (
+      !Number.isSafeInteger(maximum) ||
+      maximum < 1 ||
+      Number.isNaN(Date.parse(now))
+    )
+      throw new E03RuntimeError(
+        "control_transmission_ready_input",
+        "control transmission ready input is invalid",
+      );
+    return [...this.transmissions.values()]
+      .filter(
+        (value) =>
+          value.connectionId === connectionId &&
+          (value.state === "queued" ||
+            (value.state === "retry_wait" &&
+              value.nextAttemptAt !== null &&
+              Date.parse(value.nextAttemptAt) <= Date.parse(now))),
+      )
+      .sort(
+        (left, right) =>
+          left.streamId.localeCompare(right.streamId) ||
+          left.sequence - right.sequence,
+      )
+      .slice(0, maximum)
+      .map((value) => structuredClone(value));
+  }
+  markSent(
+    transmissionId: string,
+    expectedRevision: number,
+    retryDelayMs: number,
+  ): ControlTransmission {
+    const transmission = this.requireTransmission(transmissionId);
+    this.assertTransmissionRevision(transmission, expectedRevision);
+    if (transmission.state !== "queued" && transmission.state !== "retry_wait")
+      throw new E03RuntimeError(
+        "control_transmission_send_state",
+        `control transmission ${transmissionId} is ${transmission.state}`,
+      );
+    if (transmission.attempt >= transmission.maximumAttempts)
+      throw new E03RuntimeError(
+        "control_transmission_attempts_exhausted",
+        `control transmission ${transmissionId} exhausted attempts`,
+      );
+    if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1)
+      throw new E03RuntimeError(
+        "control_transmission_retry_delay",
+        "control transmission retry delay is invalid",
+      );
+    const attempt = transmission.attempt + 1;
+    return this.transitionTransmission(transmission, {
+      state: "sent",
+      attempt,
+      lastSentAt: this.clock.now(),
+      nextAttemptAt: new Date(
+        Date.parse(this.clock.now()) + retryDelayMs * 2 ** (attempt - 1),
+      ).toISOString(),
+      failure: null,
+    });
+  }
+  timeout(
+    transmissionId: string,
+    expectedRevision: number,
+  ): ControlTransmission {
+    const transmission = this.requireTransmission(transmissionId);
+    this.assertTransmissionRevision(transmission, expectedRevision);
+    if (transmission.state !== "sent")
+      throw new E03RuntimeError(
+        "control_transmission_timeout_state",
+        `control transmission ${transmissionId} is ${transmission.state}`,
+      );
+    if (transmission.attempt >= transmission.maximumAttempts)
+      return this.transitionTransmission(transmission, {
+        state: "failed",
+        failure: "acknowledgement timeout",
+      });
+    return this.transitionTransmission(transmission, {
+      state: "retry_wait",
+      failure: "acknowledgement timeout",
+    });
+  }
+  acknowledge(input: {
+    connectionId: string;
+    streamId: string;
+    cumulativeSequence: number;
+    selectiveSequences?: readonly number[];
+    rejectedSequences?: readonly number[];
+  }): {
+    ack: ControlTransmissionAck;
+    acknowledged: ControlTransmission[];
+    retried: ControlTransmission[];
+  } {
+    const selectiveSequences = [
+      ...new Set(input.selectiveSequences ?? []),
+    ].sort((a, b) => a - b);
+    const rejectedSequences = [...new Set(input.rejectedSequences ?? [])].sort(
+      (a, b) => a - b,
+    );
+    const overlap = selectiveSequences.find((sequence) =>
+      rejectedSequences.includes(sequence),
+    );
+    if (overlap !== undefined)
+      throw new E03RuntimeError(
+        "control_transmission_ack_overlap",
+        `control transmission sequence ${overlap} is both accepted and rejected`,
+      );
+    const entries = this.acknowledgements.get(input.connectionId) ?? [];
+    const payload = {
+      ackId: createId("control-transmission-ack"),
+      connectionId: input.connectionId,
+      streamId: input.streamId,
+      cumulativeSequence: input.cumulativeSequence,
+      selectiveSequences,
+      rejectedSequences,
+      receivedAt: this.clock.now(),
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+    };
+    const ack = { ...payload, digest: digest(payload) };
+    assertTransmissionAck(ack);
+    entries.push(ack);
+    this.acknowledgements.set(input.connectionId, entries);
+    const acknowledged: ControlTransmission[] = [];
+    const retried: ControlTransmission[] = [];
+    for (const transmission of this.transmissions.values()) {
+      if (
+        transmission.connectionId !== input.connectionId ||
+        transmission.streamId !== input.streamId ||
+        transmission.state === "acknowledged" ||
+        transmission.state === "discarded"
+      )
+        continue;
+      if (
+        transmission.sequence <= input.cumulativeSequence ||
+        selectiveSequences.includes(transmission.sequence)
+      )
+        acknowledged.push(
+          this.transitionTransmission(transmission, {
+            state: "acknowledged",
+            acknowledgedAt: this.clock.now(),
+            nextAttemptAt: null,
+            failure: null,
+          }),
+        );
+      else if (rejectedSequences.includes(transmission.sequence)) {
+        if (transmission.attempt >= transmission.maximumAttempts)
+          retried.push(
+            this.transitionTransmission(transmission, {
+              state: "failed",
+              failure: "peer rejected frame",
+            }),
+          );
+        else
+          retried.push(
+            this.transitionTransmission(transmission, {
+              state: "retry_wait",
+              failure: "peer rejected frame",
+            }),
+          );
+      }
+    }
+    return { ack: structuredClone(ack), acknowledged, retried };
+  }
+  discard(
+    transmissionId: string,
+    expectedRevision: number,
+    reason: string,
+  ): ControlTransmission {
+    const transmission = this.requireTransmission(transmissionId);
+    this.assertTransmissionRevision(transmission, expectedRevision);
+    if (
+      transmission.state === "acknowledged" ||
+      transmission.state === "discarded"
+    )
+      return structuredClone(transmission);
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "control_transmission_discard_reason",
+        "control transmission discard reason is required",
+      );
+    return this.transitionTransmission(transmission, {
+      state: "discarded",
+      failure: reason.trim(),
+      nextAttemptAt: null,
+    });
+  }
+  verify(): void {
+    for (const [connectionId, values] of this.acknowledgements) {
+      let previousDigest = "root";
+      for (const ack of values) {
+        assertTransmissionAck(ack);
+        if (
+          ack.connectionId !== connectionId ||
+          ack.previousDigest !== previousDigest
+        )
+          throw new E03RuntimeError(
+            "control_transmission_ack_chain",
+            `control transmission ACK ${ack.ackId} breaks chain`,
+          );
+        previousDigest = ack.digest;
+      }
+    }
+    const sequences = new Set<string>();
+    for (const transmission of this.transmissions.values()) {
+      assertTransmission(transmission);
+      const key = `${transmission.connectionId}:${transmission.streamId}:${transmission.sequence}`;
+      if (sequences.has(key) && transmission.state !== "discarded")
+        throw new E03RuntimeError(
+          "control_transmission_sequence_duplicate",
+          `control transmission sequence ${key} is duplicated`,
+        );
+      sequences.add(key);
+    }
+  }
+  snapshot(): {
+    transmissions: ControlTransmission[];
+    acknowledgements: ControlTransmissionAck[];
+  } {
+    this.verify();
+    return {
+      transmissions: [...this.transmissions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      acknowledgements: [...this.acknowledgements.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+    };
+  }
+  restore(snapshot: {
+    transmissions: readonly ControlTransmission[];
+    acknowledgements: readonly ControlTransmissionAck[];
+  }): void {
+    const transmissions = new Map<string, ControlTransmission>();
+    const frameIndex = new Map<string, string>();
+    const acknowledgements = new Map<string, ControlTransmissionAck[]>();
+    for (const value of snapshot.transmissions) {
+      assertTransmission(value);
+      if (
+        transmissions.has(value.transmissionId) ||
+        frameIndex.has(value.frameId)
+      )
+        throw new E03RuntimeError(
+          "control_transmission_restore_duplicate",
+          `duplicate control transmission ${value.transmissionId}`,
+        );
+      transmissions.set(value.transmissionId, structuredClone(value));
+      frameIndex.set(value.frameId, value.transmissionId);
+    }
+    for (const value of snapshot.acknowledgements) {
+      assertTransmissionAck(value);
+      const entries = acknowledgements.get(value.connectionId) ?? [];
+      if (entries.some((entry) => entry.ackId === value.ackId))
+        throw new E03RuntimeError(
+          "control_transmission_ack_restore_duplicate",
+          `duplicate control transmission ACK ${value.ackId}`,
+        );
+      entries.push(structuredClone(value));
+      acknowledgements.set(value.connectionId, entries);
+    }
+    this.transmissions = transmissions;
+    this.frameIndex = frameIndex;
+    this.acknowledgements = acknowledgements;
+    this.verify();
+  }
+  private requireTransmission(id: string): ControlTransmission {
+    const value = this.transmissions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transmission_missing",
+        `control transmission ${id} does not exist`,
+      );
+    assertTransmission(value);
+    return value;
+  }
+  private assertTransmissionRevision(
+    value: ControlTransmission,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_transmission_stale_revision",
+        `control transmission ${value.transmissionId} revision is stale`,
+      );
+  }
+  private transitionTransmission(
+    value: ControlTransmission,
+    patch: Partial<
+      Omit<ControlTransmission, "transmissionId" | "revision" | "digest">
+    >,
+  ): ControlTransmission {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      transmissionId: value.transmissionId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTransmission(next);
+    this.transmissions.set(next.transmissionId, next);
+    return structuredClone(next);
+  }
+}
+
+export interface ControlFrameAssembly {
+  assemblyId: string;
+  connectionId: string;
+  streamId: string;
+  startSequence: number;
+  endSequence: number | null;
+  frameIds: string[];
+  state: "assembling" | "complete" | "rejected" | "consumed";
+  contentType: ControlFrame["contentType"];
+  encoding: ControlFrame["encoding"];
+  payloadBytes: number;
+  payloadDigest: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  revision: number;
+  digest: string;
+}
+function assertFrameAssembly(value: ControlFrameAssembly): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "control_frame_assembly_digest",
+      `control frame assembly ${value.assemblyId} is corrupt`,
+    );
+  if (
+    !value.assemblyId ||
+    !value.connectionId ||
+    !value.streamId ||
+    !Number.isSafeInteger(value.startSequence) ||
+    value.startSequence < 1 ||
+    (value.endSequence !== null &&
+      (!Number.isSafeInteger(value.endSequence) ||
+        value.endSequence < value.startSequence)) ||
+    !Number.isSafeInteger(value.payloadBytes) ||
+    value.payloadBytes < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "control_frame_assembly",
+      `control frame assembly ${value.assemblyId} is invalid`,
+    );
+}
+export class ControlFrameAssemblyRuntime {
+  private assemblies = new Map<string, ControlFrameAssembly>();
+  private frames = new Map<string, ControlFrame>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  begin(frame: ControlFrame): ControlFrameAssembly {
+    assertControlFrame(frame);
+    if (frame.final)
+      throw new E03RuntimeError(
+        "control_frame_assembly_single",
+        `final frame ${frame.frameId} does not require assembly`,
+      );
+    if (
+      [...this.assemblies.values()].some(
+        (value) =>
+          value.connectionId === frame.connectionId &&
+          value.streamId === frame.streamId &&
+          value.state === "assembling",
+      )
+    )
+      throw new E03RuntimeError(
+        "control_frame_assembly_active",
+        `stream ${frame.streamId} already has an assembly`,
+      );
+    this.frames.set(frame.frameId, structuredClone(frame));
+    const payload = {
+      assemblyId: createId("control-frame-assembly"),
+      connectionId: frame.connectionId,
+      streamId: frame.streamId,
+      startSequence: frame.sequence,
+      endSequence: null,
+      frameIds: [frame.frameId],
+      state: "assembling" as const,
+      contentType: frame.contentType,
+      encoding: frame.encoding,
+      payloadBytes: frame.payloadBytes,
+      payloadDigest: null,
+      rejectionReason: null,
+      createdAt: this.clock.now(),
+      completedAt: null,
+      revision: 1,
+    };
+    const assembly = { ...payload, digest: digest(payload) };
+    assertFrameAssembly(assembly);
+    this.assemblies.set(assembly.assemblyId, assembly);
+    return structuredClone(assembly);
+  }
+  append(
+    assemblyId: string,
+    expectedRevision: number,
+    frame: ControlFrame,
+  ): ControlFrameAssembly {
+    const assembly = this.requireAssembly(assemblyId);
+    this.assertAssemblyRevision(assembly, expectedRevision);
+    assertControlFrame(frame);
+    if (assembly.state !== "assembling")
+      throw new E03RuntimeError(
+        "control_frame_assembly_append_state",
+        `control frame assembly ${assemblyId} is ${assembly.state}`,
+      );
+    const prior = this.frames.get(
+      assembly.frameIds[assembly.frameIds.length - 1]!,
+    );
+    if (
+      !prior ||
+      frame.connectionId !== assembly.connectionId ||
+      frame.streamId !== assembly.streamId ||
+      frame.sequence !== prior.sequence + 1 ||
+      frame.previousDigest !== prior.digest ||
+      frame.contentType !== assembly.contentType ||
+      frame.encoding !== assembly.encoding
+    )
+      return this.transitionAssembly(assembly, {
+        state: "rejected",
+        rejectionReason: "frame continuity mismatch",
+      });
+    this.frames.set(frame.frameId, structuredClone(frame));
+    const frameIds = [...assembly.frameIds, frame.frameId];
+    const completed = frame.final;
+    const payloadDigest = completed
+      ? digest(frameIds.map((id) => this.frames.get(id)!.payloadDigest))
+      : null;
+    return this.transitionAssembly(assembly, {
+      frameIds,
+      payloadBytes: assembly.payloadBytes + frame.payloadBytes,
+      state: completed ? "complete" : "assembling",
+      endSequence: completed ? frame.sequence : null,
+      payloadDigest,
+      completedAt: completed ? this.clock.now() : null,
+    });
+  }
+  materialize(
+    assemblyId: string,
+    expectedRevision: number,
+  ): { assembly: ControlFrameAssembly; payload: Uint8Array } {
+    const assembly = this.requireAssembly(assemblyId);
+    this.assertAssemblyRevision(assembly, expectedRevision);
+    if (assembly.state !== "complete")
+      throw new E03RuntimeError(
+        "control_frame_assembly_materialize_state",
+        `control frame assembly ${assemblyId} is ${assembly.state}`,
+      );
+    const chunks = assembly.frameIds.map((id) => {
+      const frame = this.frames.get(id);
+      if (!frame)
+        throw new E03RuntimeError(
+          "control_frame_assembly_frame_missing",
+          `control frame ${id} does not exist`,
+        );
+      assertControlFrame(frame);
+      return frame.encoding === "base64"
+        ? Buffer.from(frame.payload, "base64")
+        : Buffer.from(frame.payload, "utf8");
+    });
+    const payload = Buffer.concat(chunks);
+    if (payload.byteLength !== assembly.payloadBytes)
+      throw new E03RuntimeError(
+        "control_frame_assembly_size",
+        `control frame assembly ${assemblyId} size mismatch`,
+      );
+    const next = this.transitionAssembly(assembly, { state: "consumed" });
+    return { assembly: next, payload: new Uint8Array(payload) };
+  }
+  snapshot(): { assemblies: ControlFrameAssembly[]; frames: ControlFrame[] } {
+    return {
+      assemblies: [...this.assemblies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      frames: [...this.frames.values()].map((value) => structuredClone(value)),
+    };
+  }
+  restore(snapshot: {
+    assemblies: readonly ControlFrameAssembly[];
+    frames: readonly ControlFrame[];
+  }): void {
+    const assemblies = new Map<string, ControlFrameAssembly>();
+    const frames = new Map<string, ControlFrame>();
+    for (const frame of snapshot.frames) {
+      assertControlFrame(frame);
+      if (frames.has(frame.frameId))
+        throw new E03RuntimeError(
+          "control_frame_assembly_frame_duplicate",
+          `duplicate control frame ${frame.frameId}`,
+        );
+      frames.set(frame.frameId, structuredClone(frame));
+    }
+    for (const value of snapshot.assemblies) {
+      assertFrameAssembly(value);
+      if (
+        assemblies.has(value.assemblyId) ||
+        value.frameIds.some((id) => !frames.has(id))
+      )
+        throw new E03RuntimeError(
+          "control_frame_assembly_restore",
+          `control frame assembly ${value.assemblyId} is invalid`,
+        );
+      assemblies.set(value.assemblyId, structuredClone(value));
+    }
+    this.assemblies = assemblies;
+    this.frames = frames;
+  }
+  private requireAssembly(id: string): ControlFrameAssembly {
+    const value = this.assemblies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_frame_assembly_missing",
+        `control frame assembly ${id} does not exist`,
+      );
+    assertFrameAssembly(value);
+    return value;
+  }
+  private assertAssemblyRevision(
+    value: ControlFrameAssembly,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_frame_assembly_stale_revision",
+        `control frame assembly ${value.assemblyId} revision is stale`,
+      );
+  }
+  private transitionAssembly(
+    value: ControlFrameAssembly,
+    patch: Partial<
+      Omit<ControlFrameAssembly, "assemblyId" | "revision" | "digest">
+    >,
+  ): ControlFrameAssembly {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      assemblyId: value.assemblyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertFrameAssembly(next);
+    this.assemblies.set(next.assemblyId, next);
+    return structuredClone(next);
+  }
+}
