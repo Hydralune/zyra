@@ -663,8 +663,10 @@ function selectSemanticRoute(
     const anchors = [...sourceTokens].filter((token) => targetTokens.has(token)).sort();
     return { route, anchors, score: anchors.length };
   });
-  const bestScore = Math.max(...scored.map((item) => item.score));
-  const candidates = scored
+  const withinBound = scored.filter((item) => (usage.get(routeKey(item.route)) ?? 0) + weight <= 40);
+  const eligible = withinBound.length ? withinBound : scored;
+  const bestScore = Math.max(...eligible.map((item) => item.score));
+  const candidates = eligible
     .filter((item) => item.score === bestScore)
     .sort((left, right) => {
       const usageDelta = (usage.get(routeKey(left.route)) ?? 0) - (usage.get(routeKey(right.route)) ?? 0);
