@@ -63,6 +63,17 @@ const mutationEvidencePath = join(
   repoRoot,
   "docs/reviews/evidence/M1-R01-v3/execution-02/mutation-results.json",
 );
+const cleanroomEvidencePath = join(
+  repoRoot,
+  "docs/reviews/evidence/M1-R01-v3/execution-02/cleanroom-result.json",
+);
+const requiredProbeEvidence = [
+  "runtime-origin-result.json",
+  "write-path-result.json",
+  "same-session-resume-result.json",
+  "lost-ack-result.json",
+  "disable-result.json",
+] as const;
 
 const args = parseArguments();
 const failures: string[] = [];
@@ -133,6 +144,14 @@ function executableLine(line: string): boolean {
     && value !== "*/";
 }
 
+function pythonExecutableLine(line: string): boolean {
+  const value = line.trim();
+  return Boolean(value)
+    && !value.startsWith("#")
+    && !value.startsWith('\"\"\"')
+    && !value.startsWith("'''");
+}
+
 const candidateTextCache = new Map<string, string>();
 function candidateText(path: string): string {
   const cached = candidateTextCache.get(path);
@@ -144,25 +163,23 @@ function candidateText(path: string): string {
   return text;
 }
 
-function candidateExists(path: string): boolean {
-  if (args.worktree) return existsSync(join(repoRoot, path));
-  try {
-    gitBytes(repoRoot, ["show", `${args.candidate}:${path}`]);
-    return true;
-  } catch {
-    return false;
-  }
+let cachedCandidatePaths: string[] | null = null;
+let cachedCandidatePathSet: Set<string> | null = null;
+function candidatePaths(): string[] {
+  if (cachedCandidatePaths) return cachedCandidatePaths;
+  cachedCandidatePaths = !args.worktree
+    ? gitText(repoRoot, ["ls-tree", "-r", "--name-only", args.candidate])
+      .split(/\r?\n/)
+      .filter(Boolean)
+    : gitText(repoRoot, ["ls-files", "--cached", "--others", "--exclude-standard"])
+      .split(/\r?\n/)
+      .filter((path) => path && existsSync(join(repoRoot, path)) && statSync(join(repoRoot, path)).isFile());
+  return cachedCandidatePaths;
 }
 
-function candidatePaths(): string[] {
-  if (!args.worktree) {
-    return gitText(repoRoot, ["ls-tree", "-r", "--name-only", args.candidate])
-      .split(/\r?\n/)
-      .filter(Boolean);
-  }
-  return gitText(repoRoot, ["ls-files", "--cached", "--others", "--exclude-standard"])
-    .split(/\r?\n/)
-    .filter((path) => path && existsSync(join(repoRoot, path)) && statSync(join(repoRoot, path)).isFile());
+function candidateExists(path: string): boolean {
+  cachedCandidatePathSet ??= new Set(candidatePaths());
+  return cachedCandidatePathSet.has(path);
 }
 
 function changedLineNumbers(baseline: string, path: string, untracked: boolean): Set<number> {
@@ -214,7 +231,9 @@ function normalizeTokens(text: string): string[] {
       || kind === ts.SyntaxKind.NumericLiteral
       || kind === ts.SyntaxKind.BigIntLiteral
     ) {
-      tokens.push(ts.tokenToString(kind) ?? "literal");
+      tokens.push("literal");
+    } else if (kind === ts.SyntaxKind.Identifier) {
+      tokens.push("identifier");
     } else {
       tokens.push(scanner.getTokenText());
     }
@@ -250,6 +269,17 @@ function duplicateUnits(units: readonly FingerprintedUnit[]): { deduction: numbe
   const eligible = units
     .filter((unit) => unit.tokenCount >= 20 && unit.executableLines >= 3)
     .sort((left, right) => left.id.localeCompare(right.id));
+  const fingerprintFrequency = new Map<string, number>();
+  for (const unit of eligible) {
+    for (const fingerprint of unit.fingerprints) {
+      fingerprintFrequency.set(fingerprint, (fingerprintFrequency.get(fingerprint) ?? 0) + 1);
+    }
+  }
+  const selectedFingerprints = (unit: FingerprintedUnit): string[] => [...unit.fingerprints]
+    .sort((left, right) =>
+      (fingerprintFrequency.get(left) ?? 0) - (fingerprintFrequency.get(right) ?? 0)
+      || left.localeCompare(right))
+    .slice(0, 12);
   const deducted = new Set<string>();
   const pairs: DuplicatePair[] = [];
   const priorByFingerprint = new Map<string, number[]>();
@@ -257,7 +287,7 @@ function duplicateUnits(units: readonly FingerprintedUnit[]): { deduction: numbe
     const right = eligible[rightIndex]!;
     let best: { unit: FingerprintedUnit; similarity: number; ratio: number } | undefined;
     const candidateIndices = new Set<number>();
-    for (const fingerprint of right.fingerprints) {
+    for (const fingerprint of selectedFingerprints(right)) {
       for (const index of priorByFingerprint.get(fingerprint) ?? []) candidateIndices.add(index);
     }
     for (const leftIndex of [...candidateIndices].sort((left, rightValue) => left - rightValue)) {
@@ -269,7 +299,7 @@ function duplicateUnits(units: readonly FingerprintedUnit[]): { deduction: numbe
       if (similarity < 0.8) continue;
       if (!best || similarity > best.similarity) best = { unit: left, similarity, ratio };
     }
-    for (const fingerprint of right.fingerprints) {
+    for (const fingerprint of selectedFingerprints(right)) {
       const indices = priorByFingerprint.get(fingerprint) ?? [];
       indices.push(rightIndex);
       priorByFingerprint.set(fingerprint, indices);
@@ -485,6 +515,22 @@ function pythonExecutableLines(path: string): number {
   }).length;
 }
 
+function nonEmptyString(row: Json, field: string): boolean {
+  return typeof row[field] === "string" && String(row[field]).trim().length > 0;
+}
+
+function nonEmptyStringArray(row: Json, field: string): string[] {
+  if (!Array.isArray(row[field])) return [];
+  return (row[field] as unknown[])
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
+function commandArray(value: unknown): value is string[] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((item) => typeof item === "string" && item.length > 0);
+}
+
 const profile = readJson(profilePath);
 const receipt = readJson(receiptPath);
 const thresholds = profile.thresholds as Json;
@@ -504,7 +550,42 @@ const dirty = gitText(repoRoot, ["status", "--porcelain=v1", "--untracked-files=
 if (String(profile.execution_id) !== "E02" || String(profile.schema_version) !== "3.0") {
   fail("gate profile is not the frozen E02 schema-v3 profile");
 }
+for (const field of [
+  "candidate_scope_paths",
+  "forbidden_runtime_paths",
+  "source_validator_command",
+  "effective_loc_clone_command",
+  "runtime_origin_probe_command",
+  "write_path_probe_command",
+  "same_session_resume_command",
+  "lost_ack_command",
+  "disable_command",
+  "clean_dependency_path_command",
+]) {
+  if (!commandArray(profile[field])) fail(`gate profile lacks executable array ${field}`);
+}
+const profileCommands = profile.commands as Json;
+for (const field of ["install", "typecheck", "build", "behavior_test", "built_entry", "candidate_gate", "mutation", "cleanroom"]) {
+  if (!commandArray(profileCommands?.[field])) fail(`gate profile command ${field} is not a non-empty argv array`);
+}
+if (String((profile.required_toolchain as Json)?.bun) !== "1.2.15") fail("gate profile does not lock Bun 1.2.15");
 if (String(receipt.verified_zyra_head) !== baseline) fail("baseline receipt and gate profile disagree");
+if (receipt.clean_worktree !== true) fail("baseline receipt was not finalized from a clean worktree");
+if (!nonEmptyString(receipt, "captured_at_utc") || !nonEmptyString(receipt, "verified_head_tree")) {
+  fail("baseline receipt lacks capture time or verified tree");
+}
+if (!commandArray(receipt.manifest_generator_command) || !commandArray(receipt.schema_validator_command)) {
+  fail("baseline receipt lacks reproducible generator or validator argv");
+}
+if (String(receipt.lockfile_sha256) !== sha256(readFileSync(join(repoRoot, "bun.lock")))) {
+  fail("baseline receipt lockfile digest drifted");
+}
+const checkerSources = profile.checker_sources as Json;
+for (const [path, expected] of Object.entries(checkerSources ?? {})) {
+  if (!candidateExists(path) || sha256(candidateText(path)) !== String(expected)) {
+    fail(`checker source digest drifted: ${path}`);
+  }
+}
 if (!args.worktree) {
   try {
     gitText(repoRoot, ["merge-base", "--is-ancestor", baseline, args.candidate]);
@@ -528,48 +609,144 @@ for (const path of frozenFiles) {
 const sourceIds = sourceRows.map((row) => String(row.mapping_id));
 if (new Set(sourceIds).size !== sourceIds.length) fail("source manifest repeats mapping_id");
 const sourceByRepo = new Map<string, Json[]>();
+const acceptedOwners = new Map<string, Set<string>>();
+const sourceLineOwners = new Map<string, string>();
+const sourceExecutableLines = new Set<string>();
 for (const row of sourceRows) {
   if (row.schema_version !== "3.0" || row.execution_id !== "E02" || row.record_type !== "source_range") {
     fail(`invalid source record ${String(row.mapping_id)}`);
   }
+  const id = String(row.mapping_id);
+  for (const field of ["mapping_id", "source_repo", "source_snapshot", "source_path", "source_sha256", "source_symbol", "source_role", "migration_mode", "semantic_domain"]) {
+    if (!nonEmptyString(row, field)) fail(`source record ${id} lacks ${field}`);
+  }
+  if (row.accepted !== true) fail(`E02 source record ${id} is not accepted`);
+  const start = Number(row.start_line);
+  const end = Number(row.end_line);
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 1 || end < start) {
+    fail(`source record ${id} has an invalid range`);
+  }
+  const semanticDomain = String(row.semantic_domain);
+  const role = String(row.source_role);
   const repo = String(row.source_repo);
+  if (role === "primary") {
+    const owners = acceptedOwners.get(semanticDomain) ?? new Set<string>();
+    owners.add(repo);
+    acceptedOwners.set(semanticDomain, owners);
+  } else if (role === "supplementary" && !nonEmptyString(row, "supplementary_gap")) {
+    fail(`supplementary source record ${id} lacks supplementary_gap`);
+  }
   sourceByRepo.set(repo, [...(sourceByRepo.get(repo) ?? []), row]);
 }
+for (const [domain, owners] of acceptedOwners) {
+  if (owners.size !== 1) fail(`semantic domain ${domain} has ${owners.size} primary source repositories`);
+}
+const sourceBlobCache = new Map<string, Buffer>();
 for (const [repo, rows] of sourceByRepo) {
   const sourceRepo = join(workspaceRoot, repo);
-  const seenFiles = new Set<string>();
   for (const row of rows) {
     const key = `${String(row.source_snapshot)}:${String(row.source_path)}`;
-    if (seenFiles.has(key)) continue;
-    seenFiles.add(key);
     try {
-      const bytes = gitBytes(sourceRepo, ["show", key]);
+      const cacheKey = `${repo}:${key}`;
+      let bytes = sourceBlobCache.get(cacheKey);
+      if (!bytes) {
+        bytes = gitBytes(sourceRepo, ["show", key]);
+        sourceBlobCache.set(cacheKey, bytes);
+      }
       if (sha256(bytes) !== String(row.source_sha256)) fail(`source blob digest drifted: ${repo}:${String(row.source_path)}`);
+      const lines = bytes.toString("utf8").replaceAll("\r", "").split("\n");
+      if (lines.at(-1) === "") lines.pop();
+      const start = Number(row.start_line);
+      const end = Number(row.end_line);
+      if (end > lines.length) fail(`source range exceeds blob: ${String(row.mapping_id)}`);
+      for (let line = start; line <= Math.min(end, lines.length); line += 1) {
+        const lineKey = `${repo}:${key}:${line}`;
+        const prior = sourceLineOwners.get(lineKey);
+        if (prior) fail(`accepted source ranges overlap: ${prior} and ${String(row.mapping_id)} at ${lineKey}`);
+        sourceLineOwners.set(lineKey, String(row.mapping_id));
+        if (executableLine(lines[line - 1] ?? "")) sourceExecutableLines.add(lineKey);
+      }
     } catch (error) {
       fail(`source blob unavailable: ${repo}:${String(row.source_path)} (${error instanceof Error ? error.message : String(error)})`);
     }
   }
 }
-const sourcePhysical = uniqueRangeLines(sourceRows, "source_path");
 const claudeRows = sourceByRepo.get("claude-code-best") ?? [];
-const claudePhysical = uniqueRangeLines(claudeRows, "source_path");
-const sourceCredit = Number(thresholds.accepted_source_executable_sloc);
-const claudeCredit = Number(thresholds.claude_primary_source_executable_sloc);
-if (sourcePhysical.size < sourceCredit) fail(`accepted source executable credit ${sourcePhysical.size} < ${sourceCredit}`);
-if (claudePhysical.size < claudeCredit) fail(`Claude primary source credit ${claudePhysical.size} < ${claudeCredit}`);
+const sourceCredit = sourceExecutableLines.size;
+const claudeCredit = [...sourceExecutableLines].filter((key) => key.startsWith("claude-code-best:")).length;
+if (sourceCredit < Number(thresholds.accepted_source_executable_sloc)) fail(`accepted source executable credit ${sourceCredit} < ${String(thresholds.accepted_source_executable_sloc)}`);
+if (claudeCredit < Number(thresholds.claude_primary_source_executable_sloc)) fail(`Claude primary source credit ${claudeCredit} < ${String(thresholds.claude_primary_source_executable_sloc)}`);
 if (new Set(claudeRows.map((row) => String(row.source_path))).size !== Number(thresholds.claude_primary_source_files)) {
   fail("Claude primary source file count drifted");
 }
 if (claudeRows.length !== Number(thresholds.claude_primary_source_ranges)) fail("Claude primary source range count drifted");
 
 const pythonByDisposition = new Map<string, Json[]>();
+const pythonBlobCache = new Map<string, Buffer>();
+const pythonLineOwners = new Map<string, string>();
+const pythonExecutableByDisposition = new Map<string, Set<string>>();
 for (const row of pythonRows) {
+  const ownerId = String(row.owner_id);
+  if (row.schema_version !== "3.0" || row.execution_id !== "E02" || row.record_type !== "python_owner") {
+    fail(`invalid Python owner record ${ownerId}`);
+  }
+  for (const field of [
+    "owner_id",
+    "verified_zyra_head",
+    "python_path",
+    "python_symbol",
+    "python_sha256",
+    "state_domain",
+    "disposition",
+    "default_entry",
+  ]) {
+    if (!nonEmptyString(row, field)) fail(`Python owner ${ownerId} lacks ${field}`);
+  }
   const disposition = String(row.disposition);
+  if (!new Set(["delete", "retain", "blocked"]).has(disposition)) {
+    fail(`Python owner ${ownerId} has invalid disposition ${disposition}`);
+  }
+  if (disposition === "delete" && !nonEmptyString(row, "deletion_test_id")) {
+    fail(`Python delete owner ${ownerId} lacks deletion_test_id`);
+  }
+  if (disposition === "retain") {
+    if (!nonEmptyStringArray(row, "allowed_adapter_symbols").length) {
+      fail(`Python retained owner ${ownerId} lacks bounded adapter symbols`);
+    }
+    if (row.call_direction !== "typescript-to-python-port-only") {
+      fail(`Python retained owner ${ownerId} has an invalid call direction`);
+    }
+  }
+  if (disposition === "blocked" && !nonEmptyString(row, "blocked_owner")) {
+    fail(`Python blocked owner ${ownerId} lacks blocked_owner`);
+  }
   pythonByDisposition.set(disposition, [...(pythonByDisposition.get(disposition) ?? []), row]);
-  if (String(row.verified_zyra_head) !== baseline) fail(`Python owner baseline mismatch: ${String(row.owner_id)}`);
+  if (String(row.verified_zyra_head) !== baseline) fail(`Python owner baseline mismatch: ${ownerId}`);
   try {
-    const bytes = gitBytes(repoRoot, ["show", `${baseline}:${String(row.python_path)}`]);
+    const path = String(row.python_path);
+    let bytes = pythonBlobCache.get(path);
+    if (!bytes) {
+      bytes = gitBytes(repoRoot, ["show", `${baseline}:${path}`]);
+      pythonBlobCache.set(path, bytes);
+    }
     if (sha256(bytes) !== String(row.python_sha256)) fail(`Python owner blob digest drifted: ${String(row.python_path)}`);
+    const lines = bytes.toString("utf8").replaceAll("\r", "").split("\n");
+    if (lines.at(-1) === "") lines.pop();
+    const start = Number(row.start_line);
+    const end = Number(row.end_line);
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 1 || end < start || end > lines.length) {
+      fail(`Python owner ${ownerId} has invalid range ${start}-${end}`);
+    } else {
+      const executable = pythonExecutableByDisposition.get(disposition) ?? new Set<string>();
+      for (let line = start; line <= end; line += 1) {
+        const lineKey = `${path}:${line}`;
+        const prior = pythonLineOwners.get(lineKey);
+        if (prior) fail(`Python owner ranges overlap: ${prior} and ${ownerId} at ${lineKey}`);
+        pythonLineOwners.set(lineKey, ownerId);
+        if (pythonExecutableLine(lines[line - 1] ?? "")) executable.add(lineKey);
+      }
+      pythonExecutableByDisposition.set(disposition, executable);
+    }
   } catch {
     fail(`Python owner baseline path unavailable: ${String(row.python_path)}`);
   }
@@ -580,7 +757,7 @@ const dispositionThresholds: Record<string, number> = {
   blocked: Number(thresholds.python_blocked_executable_sloc),
 };
 for (const [disposition, expected] of Object.entries(dispositionThresholds)) {
-  const lines = uniqueRangeLines(pythonByDisposition.get(disposition) ?? [], "python_path").size;
+  const lines = pythonExecutableByDisposition.get(disposition)?.size ?? 0;
   if (lines !== expected) fail(`Python ${disposition} frozen range total ${lines} != ${expected}`);
 }
 const deletedPaths = new Set((pythonByDisposition.get("delete") ?? []).map((row) => String(row.python_path)));
@@ -596,25 +773,82 @@ if (targetRows.length !== sourceRows.length || new Set(targetIds).size !== targe
   fail("target custody map is not a one-to-one mapping corpus");
 }
 for (const id of sourceIds) if (!targetIds.includes(id)) fail(`accepted source mapping lacks custody mapping: ${id}`);
+const sourceById = new Map(sourceRows.map((row) => [String(row.mapping_id), row]));
+const frozenMutationIds = new Set(mutationRows.map((row) => String(row.mutation_id)));
 const mappingsPerSymbol = new Map<string, number>();
+const ownersByDomain = new Map<string, Set<string>>();
+const behaviorContracts = new Set<string>();
 const testIds = new Set<string>();
 for (const path of candidatePaths().filter((path) => testTypeScript(path, behaviorRoots))) {
   for (const unit of testCaseUnits(path, candidateText(path))) testIds.add(unit.title);
 }
 for (const row of targetRows) {
   const id = String(row.mapping_id);
+  if (row.schema_version !== "3.0" || row.execution_id !== "E02" || row.record_type !== "custody_mapping") {
+    fail(`invalid custody mapping record ${id}`);
+  }
   const targetPath = String(row.target_path);
   const targetSymbol = String(row.target_symbol);
+  const source = sourceById.get(id);
+  if (!source) fail(`custody mapping ${id} has no source record`);
+  const semanticDomain = String(source?.semantic_domain ?? "");
+  const canonicalOwner = String(row.canonical_owner_id ?? "");
+  const domainOwners = ownersByDomain.get(semanticDomain) ?? new Set<string>();
+  if (canonicalOwner) domainOwners.add(canonicalOwner);
+  ownersByDomain.set(semanticDomain, domainOwners);
   const key = `${targetPath}::${targetSymbol}`;
   mappingsPerSymbol.set(key, (mappingsPerSymbol.get(key) ?? 0) + 1);
   if (!candidateExists(targetPath)) fail(`custody target is absent: ${id}:${targetPath}`);
-  else if (!declarationExists(targetPath, targetSymbol)) fail(`custody target symbol is absent: ${id}:${targetSymbol}`);
-  for (const field of ["source_behavior_claim", "target_behavior_claim", "adaptation", "semantic_equivalence", "state_store", "state_effect_kind", "runtime_origin_probe_id", "write_path_probe_id"]) {
+  else {
+    if (!declarationExists(targetPath, targetSymbol)) fail(`custody target symbol is absent: ${id}:${targetSymbol}`);
+    const expectedTargetSha = sha256(candidateText(targetPath));
+    if (String(row.target_sha256 ?? "") !== expectedTargetSha) fail(`custody target digest drifted: ${id}:${targetPath}`);
+  }
+  for (const field of [
+    "source_behavior_claim",
+    "target_behavior_claim",
+    "adaptation",
+    "semantic_equivalence",
+    "state_store",
+    "state_effect_kind",
+    "canonical_owner_id",
+    "default_entry_id",
+    "default_callsite_path",
+    "default_callsite_symbol",
+    "state_effect_assertion",
+    "runtime_origin_probe_id",
+    "write_path_probe_id",
+  ]) {
     if (!String(row[field] ?? "").trim()) fail(`custody mapping ${id} lacks ${field}`);
   }
-  for (const field of ["success_test_ids", "failure_test_ids", "mutation_ids"]) {
-    if (!Array.isArray(row[field]) || !(row[field] as unknown[]).length) fail(`custody mapping ${id} lacks ${field}`);
+  if (!new Set(["state", "event", "artifact", "permission", "tool", "checkpoint", "external_effect"]).has(String(row.state_effect_kind))) {
+    fail(`custody mapping ${id} has invalid state_effect_kind`);
   }
+  const callsitePath = String(row.default_callsite_path ?? "");
+  const callsiteSymbol = String(row.default_callsite_symbol ?? "");
+  if (!candidateExists(callsitePath) || !declarationExists(callsitePath, callsiteSymbol)) {
+    fail(`custody mapping ${id} default callsite is not parseable`);
+  }
+  const contractId = String(row.behavior_contract_id ?? "");
+  if (!contractId || behaviorContracts.has(contractId)) fail(`custody mapping ${id} lacks a unique behavior contract`);
+  behaviorContracts.add(contractId);
+  for (const field of ["success_test_ids", "failure_test_ids", "disable_test_ids", "mutation_ids"]) {
+    const ids = nonEmptyStringArray(row, field);
+    if (!ids.length) fail(`custody mapping ${id} lacks ${field}`);
+    for (const referenced of ids) {
+      if (field === "mutation_ids") {
+        if (!frozenMutationIds.has(referenced)) fail(`custody mapping ${id} references unknown mutation ${referenced}`);
+      } else if (!testIds.has(referenced)) {
+        fail(`custody mapping ${id} references unknown behavior test ${referenced}`);
+      }
+    }
+  }
+  const assertionId = String(row.state_effect_assertion ?? "");
+  if (!testIds.has(assertionId)) fail(`custody mapping ${id} state assertion is not executable: ${assertionId}`);
+  if (!String(row.restore_probe_id ?? "").trim()) fail(`custody mapping ${id} lacks restore_probe_id`);
+}
+for (const [domain, owners] of ownersByDomain) {
+  if (owners.size !== 1) fail(`semantic domain ${domain} has ${owners.size} canonical target owners`);
 }
 const uniqueTargetSymbols = mappingsPerSymbol.size;
 const maxMappings = Math.max(...mappingsPerSymbol.values());
@@ -627,6 +861,7 @@ if (maxMappings > Number(thresholds.source_to_target_max_mappings_per_symbol)) {
 const declaredBehaviorIds = new Set(targetRows.flatMap((row) => [
   ...((row.success_test_ids as unknown[] | undefined) ?? []).map(String),
   ...((row.failure_test_ids as unknown[] | undefined) ?? []).map(String),
+  ...((row.disable_test_ids as unknown[] | undefined) ?? []).map(String),
 ]));
 for (const id of declaredBehaviorIds) if (!testIds.has(id)) fail(`frozen custody behavior test id is not executable: ${id}`);
 
@@ -697,7 +932,8 @@ for (const root of adapterRoots) {
   adapterBreakdown[root] = count;
   adapterLines += count;
 }
-const adapterRatio = finalProduction ? adapterLines / finalProduction : 1;
+const adapterDenominator = effectiveChangedProduction + adapterLines;
+const adapterRatio = adapterDenominator ? adapterLines / adapterDenominator : 1;
 if (adapterLines > Number(thresholds.remaining_python_logical_adapter_sloc_maximum)) {
   fail(`remaining Python logical adapter SLOC ${adapterLines} > ${String(thresholds.remaining_python_logical_adapter_sloc_maximum)}`);
 }
@@ -795,6 +1031,48 @@ if (!args.skipMutationEvidence) {
   }
 }
 
+if (!existsSync(cleanroomEvidencePath)) {
+  fail("cleanroom evidence is absent");
+} else {
+  const cleanroom = readJson(cleanroomEvidencePath);
+  const expectedCandidate = args.worktree ? "WORKTREE" : gitText(repoRoot, ["rev-parse", args.candidate]);
+  if (cleanroom.ok !== true || (!args.worktree && String(cleanroom.candidate) !== expectedCandidate)) {
+    fail("cleanroom evidence does not bind the exact successful candidate");
+  }
+  const commands = Array.isArray(cleanroom.commands) ? cleanroom.commands as Json[] : [];
+  const built = commands.find((command) => Array.isArray(command.command)
+    && (command.command as unknown[]).map(String).includes("runtime:built:health"));
+  const builtOutput = String(built?.output_tail ?? "");
+  const completeCount = builtOutput.split('"complete":true').length - 1;
+  const integrityCount = builtOutput.split('"evidenceIntegrity":true').length - 1;
+  if (Number(built?.exit_code ?? -1) !== 0 || completeCount < 2 || integrityCount < 2) {
+    fail("cleanroom built-entry evidence did not verify complete Bun and Node health projections");
+  }
+}
+
+for (const name of requiredProbeEvidence) {
+  const path = join(repoRoot, "docs/reviews/evidence/M1-R01-v3/execution-02", name);
+  if (!existsSync(path)) {
+    fail(`required E02 probe evidence is absent: ${name}`);
+    continue;
+  }
+  const probe = readJson(path);
+  if (probe.ok !== true || probe.execution_id !== "E02") fail(`required E02 probe failed: ${name}`);
+  if (name === "same-session-resume-result.json") {
+    if (Number(probe.process_restart_count) < 2 || Number(probe.repeated_effect_count) !== 0) {
+      fail("same-session resume probe lacks two process restarts or repeated-effect fencing");
+    }
+    const processIds = Array.isArray(probe.process_ids) ? probe.process_ids as unknown[] : [];
+    if (new Set(processIds.map(String)).size < 3) fail("same-session resume probe reused an owner process");
+  }
+  if (name === "lost-ack-result.json" && Number(probe.repeated_effect_count) !== 0) {
+    fail("lost-ACK probe repeated an external effect");
+  }
+  if (name === "disable-result.json" && (probe.default_owner_failed !== true || probe.python_fallback_observed !== false)) {
+    fail("disable probe did not fail closed without Python fallback");
+  }
+}
+
 checks.baseline = {
   verified_head: baseline,
   candidate: args.worktree ? "WORKTREE" : gitText(repoRoot, ["rev-parse", args.candidate]),
@@ -803,11 +1081,11 @@ checks.baseline = {
 };
 checks.source_custody = {
   accepted_rows: sourceRows.length,
-  physical_selected_lines: sourcePhysical.size,
+  physical_selected_lines: sourceLineOwners.size,
   credited_executable_lines: sourceCredit,
   claude_primary_rows: claudeRows.length,
   claude_primary_files: new Set(claudeRows.map((row) => String(row.source_path))).size,
-  claude_primary_physical_lines: claudePhysical.size,
+  claude_primary_physical_lines: [...sourceLineOwners].filter(([key]) => key.startsWith("claude-code-best:")).length,
   claude_primary_credited_lines: claudeCredit,
   target_rows: targetRows.length,
   unique_target_symbols: uniqueTargetSymbols,

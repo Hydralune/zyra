@@ -507,6 +507,12 @@ export class E02CapabilityCoordinator {
     input: RuntimeRunInput,
     ports: E02CoordinatorPorts = {},
   ): Promise<E02CapabilityCoordinator> {
+    if (process.env.ZYRA_DISABLE_E02_TYPESCRIPT_RUNTIME === "1") {
+      throw coordinatorError(
+        "e02_typescript_runtime_disabled",
+        "The canonical TypeScript E02 capability runtime is disabled; no Python fallback is permitted",
+      );
+    }
     const snapshot = restoredE02Snapshot(input.restoredState);
     const coordinator = new E02CapabilityCoordinator(input, ports, snapshot);
     await coordinator.openRuntime();
@@ -1800,7 +1806,7 @@ export class E02CapabilityCoordinator {
         runId: this.runtime.runId,
         taskId: this.runtime.taskId,
         sessionId: this.runtime.sessionId,
-        sessionRevision: 0,
+        sessionRevision: inputSessionRevision(this.input),
         workerRequestId: this.runtime.workerRequestId,
         toolCallId: request.binding.toolCallId,
       }, skillParentContext(this.input), undefined, signal);
@@ -2921,7 +2927,7 @@ export class E02CapabilityCoordinator {
       runId,
       taskId,
       sessionId,
-      sessionRevision: value.sessionRevision ?? 0,
+      sessionRevision: value.sessionRevision ?? inputSessionRevision(this.input),
       workerRequestId,
       toolCallId: value.toolCallId,
       namespace: value.namespace ?? inferNamespace(toolName),
@@ -3145,6 +3151,23 @@ function runtimeIdentity(
     workerRequestId: input.workerRequestId,
     epoch,
   };
+}
+
+function inputSessionRevision(input: RuntimeRunInput): number {
+  const metadata = asObject(input.metadata);
+  const context = asObject(input.contextSnapshot);
+  const constraints = asObject(input.config.runtimeConstraints);
+  for (const value of [
+    metadata.session_revision,
+    metadata.sessionRevision,
+    context.session_revision,
+    context.sessionRevision,
+    constraints.session_revision,
+    constraints.sessionRevision,
+  ]) {
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+  }
+  return 0;
 }
 
 function workspaceRoot(input: RuntimeRunInput): string {

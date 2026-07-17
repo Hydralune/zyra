@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "bun:test";
 
@@ -17,6 +18,7 @@ import {
   PluginHookRuntime,
   PluginManifestRuntime,
   PluginRuntime,
+  SkillCoordinator,
   SkillContextRuntime,
   SkillFrontmatterRuntime,
   SkillInvocationJournal,
@@ -43,6 +45,90 @@ import {
 import { digest } from "../../src/e02/index.ts";
 
 const instant = "2026-07-17T08:00:00.000Z";
+
+test("e02.live.skill.disk-reload atomically observes add change and delete before the next invocation", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-live-skill-"));
+  const rootPath = join(workspace, "skills");
+  const alphaDirectory = join(rootPath, "alpha");
+  const betaDirectory = join(rootPath, "beta");
+  await mkdir(alphaDirectory, { recursive: true });
+  await writeFile(join(alphaDirectory, "SKILL.md"), skillMarkdown({
+    id: "live-alpha",
+    description: "alpha revision one",
+  }), "utf8");
+  const roots: SkillSourceRoot[] = [{
+    sourceId: "live-project-skills",
+    kind: "project",
+    rootPath,
+    priority: 300,
+    enabled: true,
+    recursive: true,
+    followSymlinks: false,
+    maximumDepth: 8,
+    includePatterns: ["**/SKILL.md"],
+    excludePatterns: ["**/.git/**"],
+    pluginId: null,
+    revision: 1,
+    metadata: { execution_id: "E02", live_disk_reload: true },
+  }];
+  const coordinator = new SkillCoordinator({
+    workspaceRoot: workspace,
+    epoch: 1,
+    roots,
+    watch: false,
+    executor: async () => ({
+      output: { ok: true },
+      artifacts: [],
+      inputTokens: 0,
+      outputTokens: 0,
+      costMicros: 0,
+    }),
+  });
+  try {
+    await coordinator.open();
+    assert.equal(coordinator.registry.revision, 1);
+    assert.equal(coordinator.registry.resolve("live-alpha").descriptor.description, "alpha revision one");
+
+    await writeFile(join(alphaDirectory, "SKILL.md"), skillMarkdown({
+      id: "live-alpha",
+      description: "alpha revision two",
+    }), "utf8");
+    await coordinator.execute("reload_skills", {}, {
+      runId: "live-skill-run",
+      taskId: "live-skill-task",
+      sessionId: "live-skill-session",
+      sessionRevision: 3,
+      workerRequestId: "live-skill-worker",
+      toolCallId: "live-skill-change",
+    });
+    assert.equal(coordinator.registry.revision, 2);
+    assert.equal(coordinator.registry.resolve("live-alpha").descriptor.description, "alpha revision two");
+
+    await mkdir(betaDirectory, { recursive: true });
+    await writeFile(join(betaDirectory, "SKILL.md"), skillMarkdown({
+      id: "live-beta",
+      description: "beta added from disk",
+    }), "utf8");
+    await coordinator.execute("reload_skills", {}, { toolCallId: "live-skill-add" });
+    assert.equal(coordinator.registry.revision, 3);
+    assert.equal(coordinator.registry.resolve("live-beta").descriptor.description, "beta added from disk");
+
+    await rm(alphaDirectory, { recursive: true, force: true });
+    await coordinator.execute("reload_skills", {}, { toolCallId: "live-skill-delete" });
+    assert.equal(coordinator.registry.revision, 4);
+    assert.throws(() => coordinator.registry.resolve("live-alpha"), /not found/i);
+    assert.equal(coordinator.registry.resolve("live-beta").descriptor.availability, "available");
+
+    const history = coordinator.snapshot().reloadHistory;
+    assert.ok(history.some((receipt) => receipt.updated.includes("live-alpha")));
+    assert.ok(history.some((receipt) => receipt.added.includes("live-beta")));
+    assert.ok(history.some((receipt) => receipt.removed.includes("live-alpha")));
+    assert.equal(coordinator.health().python_skill_fallback, false);
+  } finally {
+    await coordinator.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
 
 function skillSource(input: {
   skillId: string;

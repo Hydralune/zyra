@@ -26,6 +26,7 @@ type SourceUnit = {
   endLine: number;
   fileSha256: string;
   countsAsExecutable: boolean;
+  executableLineNumbers: number[];
 };
 type SelectedRange = SourceUnit & {
   part: number;
@@ -38,6 +39,7 @@ type PythonUnit = {
   endLine: number;
   fileSha256: string;
   category: "delete" | "retain" | "blocked";
+  executableLineNumbers: number[];
 };
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -291,18 +293,48 @@ function nodeName(node: ts.Node, source: ts.SourceFile, fallback: string): strin
   return fallback;
 }
 
+function typescriptExecutableLine(line: string): boolean {
+  const value = line.trim();
+  return Boolean(value)
+    && !value.startsWith("//")
+    && !value.startsWith("/*")
+    && !value.startsWith("*")
+    && value !== "*/";
+}
+
+function pythonExecutableLine(line: string): boolean {
+  const value = line.trim();
+  return Boolean(value)
+    && !value.startsWith("#")
+    && !value.startsWith('\"\"\"')
+    && !value.startsWith("'''");
+}
+
 function sourceUnits(spec: SourceSpec, path: string): SourceUnit[] {
   const raw = sourceBlob(spec.repo, spec.snapshot, path);
   const text = raw.toString("utf8");
   const kind = path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true, kind);
+  const lines = text.replaceAll("\r", "").split("\n");
   const output: SourceUnit[] = [];
   const fileSha256 = sha256(raw);
   const add = (node: ts.Node, symbol: string, countsAsExecutable = true): void => {
     const startLine = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
     const endLine = source.getLineAndCharacterOfPosition(Math.max(node.getStart(source), node.end - 1)).line + 1;
     if (endLine < startLine) return;
-    output.push({ path, symbol, startLine, endLine, fileSha256, countsAsExecutable });
+    const executableLineNumbers = countsAsExecutable
+      ? Array.from({ length: endLine - startLine + 1 }, (_, index) => startLine + index)
+        .filter((lineNumber) => typescriptExecutableLine(lines[lineNumber - 1] ?? ""))
+      : [];
+    output.push({
+      path,
+      symbol,
+      startLine,
+      endLine,
+      fileSha256,
+      countsAsExecutable,
+      executableLineNumbers,
+    });
   };
   for (const [statementIndex, statement] of source.statements.entries()) {
     if (
@@ -339,6 +371,7 @@ function sourceUnits(spec: SourceSpec, path: string): SourceUnit[] {
       endLine: lineCount,
       fileSha256,
       countsAsExecutable: false,
+      executableLineNumbers: [],
     });
   }
   return output.sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
@@ -390,7 +423,7 @@ function allocateQuotas(capacities: readonly number[], target: number): number[]
 function selectSourceRanges(spec: SourceSpec): SelectedRange[] {
   const unitsByPath = spec.paths.map((path) => sourceUnits(spec, path));
   const capacities = unitsByPath.map((units) => units.reduce(
-    (sum, unit) => sum + (unit.countsAsExecutable ? unit.endLine - unit.startLine + 1 : 0),
+    (sum, unit) => sum + unit.executableLineNumbers.length,
     0,
   ));
   const quotas = allocateQuotas(capacities, spec.executableLines);
@@ -405,11 +438,12 @@ function selectSourceRanges(spec: SourceSpec): SelectedRange[] {
     for (const unit of unitsByPath[fileIndex]!) {
       if (!remaining) break;
       if (!unit.countsAsExecutable) continue;
-      const length = unit.endLine - unit.startLine + 1;
-      const accepted = Math.min(length, remaining);
+      const accepted = Math.min(unit.executableLineNumbers.length, remaining);
+      if (!accepted) continue;
       selected.push({
         ...unit,
-        endLine: unit.startLine + accepted - 1,
+        endLine: unit.executableLineNumbers[accepted - 1]!,
+        executableLineNumbers: unit.executableLineNumbers.slice(0, accepted),
         part: 1,
         partCount: 1,
       });
@@ -442,12 +476,16 @@ function splitRanges(input: readonly SelectedRange[], targetCount: number): Sele
     const left: SelectedRange = {
       ...selected,
       endLine: selected.startLine + leftLength - 1,
+      executableLineNumbers: selected.executableLineNumbers.filter(
+        (lineNumber) => lineNumber <= selected.startLine + leftLength - 1,
+      ),
       part: 1,
       partCount: 2,
     };
     const right: SelectedRange = {
       ...selected,
       startLine: left.endLine + 1,
+      executableLineNumbers: selected.executableLineNumbers.filter((lineNumber) => lineNumber > left.endLine),
       part: 2,
       partCount: 2,
     };
@@ -591,7 +629,7 @@ function mutationRows(): Json[] {
   });
 }
 
-function sourceRows(): { source: Json[]; target: Json[] } {
+function sourceRows(finalizeTargets = false): { source: Json[]; target: Json[] } {
   const source: Json[] = [];
   const target: Json[] = [];
   const mutations = mutationRows();
@@ -644,18 +682,28 @@ function sourceRows(): { source: Json[]; target: Json[] } {
         mutation.target_path === route[0] && mutation.target_symbol === route[1]
       );
       const fallbackMutation = mutations[ordinal % mutations.length]!;
+      const canonicalOwnerId = spec.domain === "permission"
+        ? "typescript.PermissionCoordinator"
+        : spec.domain === "mcp"
+          ? "typescript.McpRuntimeCoordinator"
+          : "typescript.SkillPluginCommandCoordinator";
+      const stateAssertion = spec.domain === "permission"
+        ? "e02.custody.permission.default-path"
+        : spec.domain === "mcp"
+          ? "e02.custody.mcp.default-path"
+          : "e02.custody.skills-plugins-commands.default-path";
       target.push({
         schema_version: SCHEMA_VERSION,
         record_type: "custody_mapping",
         execution_id: EXECUTION_ID,
         mapping_id: mappingId,
         source_symbol: sourceSymbol,
-        source_behavior_claim: `${sourceSymbol} contributes ${spec.domain} executable behavior at the frozen source snapshot`,
+        source_behavior_claim: `${sourceSymbol} lines ${range.startLine}-${range.endLine} contribute ${spec.domain} executable behavior at ${spec.snapshot}`,
         target_path: route[0],
         target_symbol: route[1],
-        target_sha256: null,
+        target_sha256: finalizeTargets ? sha256(gitBytes(repoRoot, ["show", `HEAD:${route[0]}`])) : null,
         planned_method: route[1].split(".").at(-1),
-        target_behavior_claim: `${route[1]} owns the corresponding Zyra TypeScript state transition`,
+        target_behavior_claim: `${route[1]} in ${route[0]} owns the ${spec.domain} transition consolidated from ${sourceSymbol}`,
         adaptation: spec.role === "primary"
           ? "Claude behavior is decomposed into Zyra-owned typed state, journal, permission, event, and failure boundaries"
           : "Only the declared gap is consolidated into the existing Claude-primary owner; no second evaluator, client, or registry is created",
@@ -666,13 +714,19 @@ function sourceRows(): { source: Json[]; target: Json[] } {
             ? "E02RuntimeSnapshot.mcp"
             : "E02RuntimeSnapshot.capabilities",
         state_effect_kind: spec.domain === "permission"
-          ? "permission-decision-or-continuation"
+          ? "permission"
           : spec.domain === "mcp"
-            ? "mcp-connection-auth-capability-or-request"
-            : "skill-plugin-command-revision-or-invocation",
+            ? "external_effect"
+            : "state",
+        canonical_owner_id: canonicalOwnerId,
+        default_entry_id: "E02.default.CodeWorkerApplication.runTaskRuntime",
+        default_callsite_path: "packages/runtime/claude-runtime/src/capability-host.ts",
+        default_callsite_symbol: "PermissionedCapabilityHost.executeBatch",
+        state_effect_assertion: stateAssertion,
         behavior_contract_id: `e02.contract.${mappingId}`,
         success_test_ids: [`e02.custody.${spec.domain}.default-path`],
         failure_test_ids: [`e02.custody.${spec.domain}.failure-path`],
+        disable_test_ids: ["e02.disable.typescript-runtime fails closed before any Python fallback can open"],
         mutation_ids: [(relatedMutations[0] ?? fallbackMutation).mutation_id],
         restore_probe_id: "e02.probe.exact-resume",
         runtime_origin_probe_id: "e02.probe.runtime-origin",
@@ -713,6 +767,7 @@ const pythonDeleteFragments = [
   "/mcp/tasks.py",
   "/mcp/transport.py",
   "/zyra_skills/admission.py",
+  "/zyra_skills/atomic_update.py",
   "/zyra_skills/body_loader.py",
   "/zyra_skills/budget_runtime.py",
   "/zyra_skills/change_detector.py",
@@ -720,10 +775,12 @@ const pythonDeleteFragments = [
   "/zyra_skills/composition.py",
   "/zyra_skills/frontmatter.py",
   "/zyra_skills/hooks.py",
+  "/zyra_skills/integration_health.py",
   "/zyra_skills/invocation.py",
   "/zyra_skills/invocation_permission.py",
   "/zyra_skills/mcp_discovery.py",
   "/zyra_skills/mcp_integration.py",
+  "/zyra_skills/outcome_commit.py",
   "/zyra_skills/plugin_integration.py",
   "/zyra_skills/plugin_runtime.py",
   "/zyra_skills/policy.py",
@@ -735,10 +792,12 @@ const pythonDeleteFragments = [
   "/zyra_skills/search.py",
   "/zyra_skills/sources/",
   "/zyra_skills/tool_projection.py",
+  "/zyra_skills/update_integration.py",
   "/zyra_skills/update_runtime.py",
 ] as const;
 
 const pythonBlockedFragments = [
+  "/zyra_skills/budget_runtime.py",
   "/zyra_skills/compact_bridge.py",
   "/zyra_skills/compact_integration.py",
   "/zyra_skills/fork_scope.py",
@@ -802,6 +861,10 @@ function pythonUnits(path: string): PythonUnit[] {
       endLine: (next?.line ?? lines.length + 1) - 1,
       fileSha256,
       category: pythonCategory(path),
+      executableLineNumbers: Array.from(
+        { length: (next?.line ?? lines.length + 1) - current.line },
+        (_, offset) => current.line + offset,
+      ).filter((lineNumber) => pythonExecutableLine(lines[lineNumber - 1] ?? "")),
     });
   }
   return output;
@@ -820,14 +883,24 @@ function takePython(
       remaining.push(unit);
       continue;
     }
-    const length = unit.endLine - unit.startLine + 1;
+    const length = unit.executableLineNumbers.length;
     if (length <= needed) {
       selected.push({ ...unit, category: disposition });
       needed -= length;
       continue;
     }
-    selected.push({ ...unit, endLine: unit.startLine + needed - 1, category: disposition });
-    remaining.push({ ...unit, startLine: unit.startLine + needed });
+    const splitLine = unit.executableLineNumbers[needed - 1]!;
+    selected.push({
+      ...unit,
+      endLine: splitLine,
+      category: disposition,
+      executableLineNumbers: unit.executableLineNumbers.slice(0, needed),
+    });
+    remaining.push({
+      ...unit,
+      startLine: splitLine + 1,
+      executableLineNumbers: unit.executableLineNumbers.filter((lineNumber) => lineNumber > splitLine),
+    });
     needed = 0;
   }
   if (needed) throw new Error(`Python ${disposition} inventory short by ${needed} lines`);
@@ -904,6 +977,30 @@ function gateProfile(candidateHead: string): Json {
       "packages/integrations/claude-mcp/src",
       "apps/code-worker/src/main.ts",
     ],
+    candidate_scope_paths: [
+      "apps/code-worker/src/main.ts",
+      "packages/runtime/claude-runtime/src/permission",
+      "packages/runtime/claude-runtime/src/skills",
+      "packages/runtime/claude-runtime/src/plugins",
+      "packages/runtime/claude-runtime/src/commands",
+      "packages/runtime/claude-runtime/src/e02",
+      "packages/runtime/claude-runtime/src/capabilities.ts",
+      "packages/runtime/claude-runtime/src/capability-host.ts",
+      "packages/runtime/claude-runtime/src/stdio.ts",
+      "packages/integrations/claude-mcp/src",
+      "packages/runtime/claude-runtime/test/e02",
+      "packages/integrations/claude-mcp/test/e02",
+      "scripts/remediation/m1_r01_e02_g0.ts",
+      "scripts/remediation/verify_m1_r01_e02.ts",
+      "scripts/remediation/run_m1_r01_e02_mutations.ts",
+      "scripts/remediation/cleanroom_m1_r01_e02.ts",
+      "scripts/remediation/probe_m1_r01_e02.ts",
+      "docs/reviews/evidence/M1-R01-v3/execution-02",
+      "docs/reviews/M1-R01-v2-execution-02-independent-review.md",
+      "docs/reviews/M1-R01-v3-execution-02-implementation-self-review.md",
+      "package.json",
+      "bun.lock",
+    ],
     adapter_roots: [
       "packages/runtime/zyra_runtime/e02_ports.py",
       "packages/integrations/zyra_integrations/e02_ports.py",
@@ -954,15 +1051,23 @@ function gateProfile(candidateHead: string): Json {
       node_types: "22.15.29",
     },
     commands: {
-      install: "npx --yes bun@1.2.15 install --frozen-lockfile",
-      typecheck: "npx --yes bun@1.2.15 run typecheck:e02",
-      build: "npx --yes bun@1.2.15 run build",
-      behavior_test: "npx --yes bun@1.2.15 test packages/runtime/claude-runtime/test/e02 packages/integrations/claude-mcp/test/e02",
-      built_entry: "npx --yes bun@1.2.15 run runtime:built:health",
-      candidate_gate: "npx --yes bun@1.2.15 run e02:candidate:gate",
-      mutation: "npx --yes bun@1.2.15 run e02:mutation",
-      cleanroom: "npx --yes bun@1.2.15 run e02:cleanroom",
+      install: ["npx", "--yes", "bun@1.2.15", "install", "--frozen-lockfile"],
+      typecheck: ["npx", "--yes", "bun@1.2.15", "run", "typecheck:e02"],
+      build: ["npx", "--yes", "bun@1.2.15", "run", "build"],
+      behavior_test: ["npx", "--yes", "bun@1.2.15", "test", "packages/runtime/claude-runtime/test/e02", "packages/integrations/claude-mcp/test/e02"],
+      built_entry: ["npx", "--yes", "bun@1.2.15", "run", "runtime:built:health"],
+      candidate_gate: ["npx", "--yes", "bun@1.2.15", "run", "e02:candidate:gate"],
+      mutation: ["npx", "--yes", "bun@1.2.15", "run", "e02:mutation"],
+      cleanroom: ["npx", "--yes", "bun@1.2.15", "run", "e02:cleanroom"],
     },
+    source_validator_command: ["npx", "--yes", "bun@1.2.15", "run", "e02:candidate:gate"],
+    effective_loc_clone_command: ["npx", "--yes", "bun@1.2.15", "run", "e02:candidate:gate"],
+    runtime_origin_probe_command: ["npx", "--yes", "bun@1.2.15", "scripts/remediation/probe_m1_r01_e02.ts", "runtime-origin"],
+    write_path_probe_command: ["npx", "--yes", "bun@1.2.15", "scripts/remediation/probe_m1_r01_e02.ts", "write-path"],
+    same_session_resume_command: ["npx", "--yes", "bun@1.2.15", "scripts/remediation/probe_m1_r01_e02.ts", "resume"],
+    lost_ack_command: ["npx", "--yes", "bun@1.2.15", "scripts/remediation/probe_m1_r01_e02.ts", "lost-ack"],
+    disable_command: ["npx", "--yes", "bun@1.2.15", "scripts/remediation/probe_m1_r01_e02.ts", "disable"],
+    clean_dependency_path_command: ["npx", "--yes", "bun@1.2.15", "run", "e02:cleanroom"],
     forbidden_runtime_dependencies: [
       "../claude-code-best",
       "../opencode",
@@ -973,13 +1078,31 @@ function gateProfile(candidateHead: string): Json {
       "source-pool/",
       "runtime-sources/",
     ],
+    forbidden_runtime_paths: [
+      "../claude-code-best",
+      "../opencode",
+      "../OpenClaw",
+      "../Hermes-Agent",
+      "vendor/",
+      "vendor-runtimes/",
+      "source-pool/",
+      "runtime-sources/"
+    ],
+    checker_sources: {
+      "scripts/remediation/m1_r01_e02_g0.ts": sha256(readFileSync(join(repoRoot, "scripts/remediation/m1_r01_e02_g0.ts"))),
+      "scripts/remediation/verify_m1_r01_e02.ts": sha256(readFileSync(join(repoRoot, "scripts/remediation/verify_m1_r01_e02.ts"))),
+      "scripts/remediation/run_m1_r01_e02_mutations.ts": sha256(readFileSync(join(repoRoot, "scripts/remediation/run_m1_r01_e02_mutations.ts"))),
+      "scripts/remediation/cleanroom_m1_r01_e02.ts": sha256(readFileSync(join(repoRoot, "scripts/remediation/cleanroom_m1_r01_e02.ts"))),
+      "scripts/remediation/probe_m1_r01_e02.ts": sha256(readFileSync(join(repoRoot, "scripts/remediation/probe_m1_r01_e02.ts"))),
+    },
     candidate_status_before_independent_review: "implementation_complete_review_pending",
   };
 }
 
 function main(): void {
-  if (process.argv[2] !== "freeze") {
-    throw new Error("usage: bun scripts/remediation/m1_r01_e02_g0.ts freeze");
+  const mode = process.argv[2];
+  if (mode !== "freeze" && mode !== "finalize") {
+    throw new Error("usage: bun scripts/remediation/m1_r01_e02_g0.ts <freeze|finalize>");
   }
   const candidateHead = gitText(repoRoot, ["rev-parse", "HEAD"]);
   gitText(repoRoot, ["merge-base", "--is-ancestor", VERIFIED_BASELINE, candidateHead]);
@@ -989,7 +1112,7 @@ function main(): void {
     ...claudeSkillPaths,
   ]).size;
   if (claudeFileCount !== 93) throw new Error(`expected 93 Claude files, got ${claudeFileCount}`);
-  const manifests = sourceRows();
+  const manifests = sourceRows(mode === "finalize");
   const python = pythonRows();
   const mutations = mutationRows();
   const profile = gateProfile(candidateHead);
@@ -1017,6 +1140,9 @@ function main(): void {
     verified_zyra_tree: gitText(repoRoot, ["rev-parse", `${VERIFIED_BASELINE}^{tree}`]),
     g0_candidate_head: candidateHead,
     g0_candidate_tree: gitText(repoRoot, ["rev-parse", `${candidateHead}^{tree}`]),
+    captured_at_utc: new Date().toISOString(),
+    verified_head_tree: gitText(repoRoot, ["rev-parse", `${VERIFIED_BASELINE}^{tree}`]),
+    clean_worktree: dirtyPaths.length === 0,
     dirty_paths: dirtyPaths,
     source_hash_semantics: "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
     source_snapshots: {
@@ -1040,6 +1166,18 @@ function main(): void {
     toolchain: {
       bun: "1.2.15",
       typescript: "5.8.3",
+    },
+    manifest_generator_command: ["bun", "scripts/remediation/m1_r01_e02_g0.ts", mode],
+    manifest_generator_version: "zyra.e02-g0/v2",
+    schema_validator_command: ["bun", "scripts/remediation/verify_m1_r01_e02.ts", "--candidate", candidateHead],
+    schema_validator_version: "zyra.e02-verification/v4",
+    lockfile_sha256: sha256(readFileSync(join(repoRoot, "bun.lock"))),
+    host_platform: `${process.platform}-${process.arch}`,
+    capture_exit_codes: {
+      verified_head: 0,
+      candidate_head: 0,
+      source_snapshots: 0,
+      worktree_status: 0,
     },
   };
   writeJson(receiptPath, receipt);

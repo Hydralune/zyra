@@ -62,6 +62,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   ): Promise<ToolExecutionResponse[]> {
     const enriched = [];
     for (const request of requests) {
+      const revision = sessionRevision(this.input);
       const tool = this.input.tools.find((item) => item.name === request.toolName);
       const identity = inferToolIdentity(
         request.toolName,
@@ -73,7 +74,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         runId: permissionRuntime.runId,
         taskId: permissionRuntime.taskId,
         sessionId: permissionRuntime.sessionId,
-        sessionRevision: 0,
+        sessionRevision: revision,
         workerRequestId: permissionRuntime.workerRequestId,
         toolCallId: request.toolCallId,
         toolName: request.toolName,
@@ -105,7 +106,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         executionOwner: local ? this.capabilities.owner(request.toolName) : "python-tool-executor",
         permissionOnly: local,
         e02PermitId: authorization.permitId,
-        e02SessionRevision: 0,
+        e02SessionRevision: revision,
         metadata: {
           ...request.metadata,
           canonical_permission_owner: "typescript",

@@ -1,0 +1,22 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E02",
+  "prerequisite_execution_id": "E01",
+  "verification_contract_version": "zyra.e01-prerequisite/v1",
+  "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
+  "implementation_candidate": "80d8feef121cebe7cc5f127851f0d606b49ac6cc",
+  "cleanroom_target": "80d8feef121cebe7cc5f127851f0d606b49ac6cc",
+  "candidate_evidence_commit": "f07fd239dd768f399a36329314da82e90ddce6a4",
+  "candidate_status": "independent_review_passed",
+  "verified_complete": true,
+  "independent_review_target": "80d8feef121cebe7cc5f127851f0d606b49ac6cc",
+  "independent_review_commit": "f07fd239dd768f399a36329314da82e90ddce6a4",
+  "independent_review_verdict": "PASS",
+  "strict_gate_path": "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/strict-gate.json",
+  "strict_gate_sha256": "981766a7e7172ec9765107fb353b982458acdd5476f14a55fc2ff14af32dc449",
+  "independent_review_receipt_path": "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/reviewer-evidence.json",
+  "independent_review_receipt_sha256": "1598b7e194387422f925a0b6eeeedb372b1ee1e8c5bf50ab588cb3a877746f05",
+  "independent_review_report_path": "docs/reviews/M1-R01-v14-execution-01-independent-review.md",
+  "independent_review_report_sha256": "af9d42afc0124b55ebb4171d0dcb977869bca17953f5eb44cd77c5b2572dfc6d",
+  "scope_note": "E02 records its immutable E01 prerequisite without rewriting protected E01 evidence."
+}

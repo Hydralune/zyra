@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -34,11 +34,14 @@ import {
 
 type LineIterator = AsyncIterator<string>;
 
-const CANDIDATE_METADATA_PATH =
+const LEGACY_CANDIDATE_METADATA_PATH =
   "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/candidate-metadata.json";
+const E02_PREREQUISITE_PATH =
+  "docs/reviews/evidence/M1-R01-v3/execution-02/e01-verified-prerequisite.json";
 const STRICT_GATE_PATH =
   "docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/strict-gate.json";
-const VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v7";
+const LEGACY_VERIFICATION_CONTRACT_VERSION = "zyra.e01-verification/v7";
+const E02_PREREQUISITE_CONTRACT_VERSION = "zyra.e01-prerequisite/v1";
 
 function verificationObject(root: string, path: string): Record<string, unknown> | null {
   try {
@@ -72,14 +75,25 @@ function commit(value: unknown): string | null {
 }
 
 export function runtimeVerificationProjection(root = process.cwd()): JsonObject {
-  const discoveredMetadata = verificationObject(root, CANDIDATE_METADATA_PATH);
+  const useE02Prerequisite = existsSync(resolve(root, E02_PREREQUISITE_PATH));
+  const metadataSource = useE02Prerequisite
+    ? E02_PREREQUISITE_PATH
+    : LEGACY_CANDIDATE_METADATA_PATH;
+  const expectedContractVersion = useE02Prerequisite
+    ? E02_PREREQUISITE_CONTRACT_VERSION
+    : LEGACY_VERIFICATION_CONTRACT_VERSION;
+  const discoveredMetadata = verificationObject(root, metadataSource);
   const metadata =
-    discoveredMetadata?.verification_contract_version === VERIFICATION_CONTRACT_VERSION
+    discoveredMetadata?.verification_contract_version === expectedContractVersion
       ? discoveredMetadata
       : null;
-  const strictGate = verificationObject(root, STRICT_GATE_PATH);
+  const strictGatePath = typeof metadata?.strict_gate_path === "string"
+    ? metadata.strict_gate_path
+    : STRICT_GATE_PATH;
+  const strictGate = verificationObject(root, strictGatePath);
   const runtimeCandidate = commit(process.env.E01_IMPLEMENTATION_CANDIDATE);
   const implementationCandidate = runtimeCandidate ?? commit(metadata?.implementation_candidate);
+  const verifiedHead = commit(metadata?.verified_zyra_head ?? metadata?.verified_baseline);
   const evidenceCommit = commit(metadata?.candidate_evidence_commit);
   const reviewTarget = commit(metadata?.independent_review_target);
   const reviewCommit = commit(metadata?.independent_review_commit);
@@ -99,10 +113,11 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
     Number.isSafeInteger(effectiveLineCount) &&
     effectiveLineCount >= 25_416;
   const evidenceIntegrity =
-    evidenceDigest(root, STRICT_GATE_PATH, metadata?.strict_gate_sha256) &&
+    evidenceDigest(root, strictGatePath, metadata?.strict_gate_sha256) &&
     evidenceDigest(root, metadata?.independent_review_receipt_path, metadata?.independent_review_receipt_sha256) &&
     evidenceDigest(root, metadata?.independent_review_report_path, metadata?.independent_review_report_sha256);
   const complete =
+    (!useE02Prerequisite || verifiedHead !== null) &&
     implementationCandidate !== null &&
     cleanroomTarget === implementationCandidate &&
     evidenceCommit !== null &&
@@ -127,9 +142,10 @@ export function runtimeVerificationProjection(root = process.cwd()): JsonObject 
     evidenceCommit,
     reviewTarget,
     reviewCommit,
-    metadataSource: CANDIDATE_METADATA_PATH,
-    verificationContractVersion: VERIFICATION_CONTRACT_VERSION,
-    lineCountSource: STRICT_GATE_PATH,
+    verifiedHead,
+    metadataSource,
+    verificationContractVersion: expectedContractVersion,
+    lineCountSource: strictGatePath,
     lineCountComputedAtRuntime: false,
     evidenceIntegrity,
   };

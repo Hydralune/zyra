@@ -41,7 +41,15 @@ export class CodeWorkerApplication {
       this.writeJson({ ok: false, error: "unsupported_code_worker_command", command });
       return 2;
     }
-    this.writeJson(runtimeContract(surface));
+    const contract = runtimeContract(surface);
+    this.writeJson(contract);
+    if (surface === "health") {
+      const productized = contract.productizedRuntime;
+      if (!productized || typeof productized !== "object" || Array.isArray(productized)
+        || productized.complete !== true || productized.evidenceIntegrity !== true) {
+        return 1;
+      }
+    }
     return 0;
   }
 

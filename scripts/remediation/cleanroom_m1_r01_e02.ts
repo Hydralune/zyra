@@ -81,6 +81,42 @@ async function requireSuccess(command: string[], cwd: string, evidence: CommandE
   if (result.exit_code !== 0) throw new Error(`cleanroom command failed: ${command.join(" ")}\n${result.output_tail}`);
 }
 
+async function requireBuiltHealth(command: string[], cwd: string, evidence: CommandEvidence[]): Promise<void> {
+  const result = await run(command, cwd);
+  evidence.push(result);
+  process.stdout.write(`${command.join(" ")}: exit=${result.exit_code} duration_ms=${result.duration_ms}\n`);
+  if (result.exit_code !== 0) {
+    throw new Error(`built health command failed: ${command.join(" ")}\n${result.output_tail}`);
+  }
+  const projections = result.output_tail
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("{") && line.endsWith("}"))
+    .flatMap((line) => {
+      try {
+        const value = JSON.parse(line) as Record<string, unknown>;
+        return value.productizedRuntime ? [value] : [];
+      } catch {
+        return [];
+      }
+    });
+  if (projections.length < 2) {
+    throw new Error(`built health did not return both Bun and Node projections\n${result.output_tail}`);
+  }
+  for (const projection of projections) {
+    const productized = projection.productizedRuntime as Record<string, unknown>;
+    if (
+      projection.ok !== true
+      || projection.defaultCapabilityEntrypoint !== "E02CapabilityCoordinator.execute"
+      || projection.stateJournalOwner !== "E02CapabilityCoordinator"
+      || productized.complete !== true
+      || productized.evidenceIntegrity !== true
+    ) {
+      throw new Error(`built health projection is incomplete: ${JSON.stringify(projection)}`);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   assertSafeTemporaryPath(temporaryRoot);
   assertSafeTemporaryPath(archivePath);
@@ -101,7 +137,7 @@ async function main(): Promise<void> {
     await requireSuccess([npx, "--yes", "bun@1.2.15", "install", "--frozen-lockfile"], temporaryRoot, evidence);
     await requireSuccess([npx, "--yes", "bun@1.2.15", "run", "typecheck:e02"], temporaryRoot, evidence);
     await requireSuccess([npx, "--yes", "bun@1.2.15", "run", "build"], temporaryRoot, evidence);
-    await requireSuccess([npx, "--yes", "bun@1.2.15", "run", "runtime:built:health"], temporaryRoot, evidence);
+    await requireBuiltHealth([npx, "--yes", "bun@1.2.15", "run", "runtime:built:health"], temporaryRoot, evidence);
     await requireSuccess([
       npx,
       "--yes",
