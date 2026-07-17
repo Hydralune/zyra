@@ -1,0 +1,14 @@
+{
+  "reviewer_nonce": "93624cb48ad0758a9ff5f355",
+  "journal_id": "mcp-request-journal-9da2c41e95f58b7501d347fc20be0b254c6e808e",
+  "transition_id": "mcp-request-transition-588be2a17ac64b0599a502522cbb8396ff119caa",
+  "effect_receipt_id": "mcp-effect-receipt-2f525b1c607337b295096530be68bdf8f0c53556",
+  "replay_status": "committed",
+  "effect_count_after_restore": 1,
+  "repeated_effect_count": 0,
+  "schema_version": "3.0",
+  "execution_id": "E02",
+  "probe_id": "e02.probe.lost-ack",
+  "generated_at_utc": "2026-07-17T09:12:42.397Z",
+  "ok": true
+}

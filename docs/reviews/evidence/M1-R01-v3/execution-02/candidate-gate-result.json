@@ -3,29 +3,37 @@
   "verification_contract_version": "zyra.e02-verification/v3",
   "execution_id": "E02",
   "verifier": "scripts/remediation/verify_m1_r01_e02.ts",
-  "generated_at_utc": "2026-07-17T07:34:10.704Z",
+  "generated_at_utc": "2026-07-17T09:14:44.995Z",
   "ok": true,
   "checks": {
     "baseline": {
       "verified_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
-      "candidate": "8db12e16edaa72b810eacefe3ede3f1ead59d321",
-      "dirty_paths": [],
+      "candidate": "77e33da8dd8a2f4015d000544537eb87365fc627",
+      "dirty_paths": [
+        "ocs/reviews/evidence/M1-R01-v3/execution-02/cleanroom-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/disable-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/lost-ack-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/runtime-origin-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/same-session-resume-result.json",
+        "docs/reviews/evidence/M1-R01-v3/execution-02/write-path-result.json"
+      ],
       "frozen_manifest_hashes": "verified"
     },
     "source_custody": {
-      "accepted_rows": 1480,
-      "physical_selected_lines": 20049,
-      "credited_executable_lines": 20047,
+      "accepted_rows": 1481,
+      "physical_selected_lines": 23394,
+      "credited_executable_lines": 20049,
       "claude_primary_rows": 1342,
       "claude_primary_files": 93,
-      "claude_primary_physical_lines": 18448,
-      "claude_primary_credited_lines": 18447,
-      "target_rows": 1480,
+      "claude_primary_physical_lines": 21692,
+      "claude_primary_credited_lines": 18448,
+      "target_rows": 1481,
       "unique_target_symbols": 70,
       "maximum_mappings_per_symbol": 23
     },
     "python_cutover": {
-      "delete_paths": 50,
+      "delete_paths": 61,
       "delete_executable_lines": 31070,
       "retain_executable_lines": 23260,
       "blocked_executable_lines": 6922,
@@ -36,13 +44,13 @@
         "packages/skills/e02_ports.py": 0,
         "packages/workers/zyra_workers/typescript_claude_runtime.py": 1436
       },
-      "adapter_ratio": 0.046985,
+      "adapter_ratio": 0.051982,
       "fallback_findings": []
     },
     "effective_lines": {
-      "final_non_test_typescript": 44908,
-      "gross_changed_executable_typescript": 43153,
-      "production_clone_deduction": 1358,
+      "final_non_test_typescript": 44938,
+      "gross_changed_executable_typescript": 43184,
+      "production_clone_deduction": 4703,
       "production_clone_clusters": [
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -54,9 +62,30 @@
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:710:oauthError",
           "deductedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:264:vaultError",
-          "similarity": 0.8421,
+          "similarity": 0.9333,
           "lengthRatio": 0.9239,
           "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:292:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:307:findTool",
+          "deductedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:311:findResource",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:307:findTool",
+          "deductedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:315:findPrompt",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -66,11 +95,95 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8448,
+          "deductedLines": 17
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:285:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:572:normalizeTimeouts",
+          "deductedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:585:normalizeRateLimit",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8808,
+          "deductedLines": 10
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:694:configError",
           "deductedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:382:policyError",
-          "similarity": 0.9231,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:186:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:92:Constructor",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9429,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:264:updateCatalogRevision",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:274:updateAuthRevision",
+          "similarity": 0.8571,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:284:onTransition",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:450:eventPayload",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:671:transitionPayload",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:64:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:137:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9429,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:31:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:34:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9184,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:200:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:71:module-surface",
+          "similarity": 0.9091,
+          "lengthRatio": 1,
+          "deductedLines": 19
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:336:onMessage",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:341:onEvent",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:704:failureToInput",
@@ -80,6 +193,13 @@
           "deductedLines": 20
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/sse-parser.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8049,
+          "deductedLines": 10
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:694:configError",
           "deductedUnit": "packages/integrations/claude-mcp/src/connection/sse-parser.ts:250:sseError",
           "similarity": 1,
@@ -87,18 +207,25 @@
           "deductedLines": 10
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:336:onMessage",
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
           "deductedUnit": "packages/integrations/claude-mcp/src/connection/stdio-transport.ts:340:onMessage",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 4
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:341:onEvent",
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
           "deductedUnit": "packages/integrations/claude-mcp/src/connection/stdio-transport.ts:345:onEvent",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/stdio-transport.ts:4:module-surface",
+          "similarity": 0.875,
+          "lengthRatio": 0.9255,
+          "deductedLines": 29
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:668:emitEvent",
@@ -106,6 +233,13 @@
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 29
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:797:httpAbort",
+          "deductedUnit": "packages/integrations/claude-mcp/src/connection/stdio-transport.ts:763:abortError",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:803:httpError",
@@ -136,11 +270,88 @@
           "deductedLines": 14
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:68:module-surface",
-          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:76:module-surface",
-          "similarity": 1,
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:1027:parseChangedCapability",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:1032:parseResourceCapability",
+          "similarity": 0.8462,
+          "lengthRatio": 0.8,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:152:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:164:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8868,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:235:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:326:module-surface",
+          "similarity": 0.8,
           "lengthRatio": 1,
           "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:34:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:362:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:431:request",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:440:notification",
+          "similarity": 0.8571,
+          "lengthRatio": 0.85,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:484:parseToolsPage",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:494:parseResourcesPage",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:484:parseToolsPage",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:504:parseResourceTemplatesPage",
+          "similarity": 0.9231,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:484:parseToolsPage",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:514:parsePromptsPage",
+          "similarity": 0.8462,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:564:parseSamplingRequest",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:581:parseElicitationRequest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:61:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:68:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8519,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:61:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:76:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8519,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:121:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -152,16 +363,86 @@
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:465:catalogError",
           "deductedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:180:instructionError",
-          "similarity": 0.875,
+          "similarity": 0.9231,
           "lengthRatio": 0.8019,
           "deductedLines": 11
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/projection/prompt-projection.ts:129:promptProjectionError",
-          "deductedUnit": "packages/integrations/claude-mcp/src/projection/tool-projection.ts:133:projectionError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:84:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:41:module-surface",
           "similarity": 1,
-          "lengthRatio": 1,
+          "lengthRatio": 0.9245,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:49:Constructor",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8132,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/prompt-projection.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8636,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:694:configError",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/prompt-projection.ts:129:promptProjectionError",
+          "similarity": 0.8889,
+          "lengthRatio": 0.8387,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/resource-projection.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9744,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:62:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/resource-projection.ts:24:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9012,
+          "deductedLines": 17
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/resource-projection.ts:132:projectTemplate",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/resource-projection.ts:89:projectResource",
+          "similarity": 0.9167,
+          "lengthRatio": 0.9658,
+          "deductedLines": 42
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/tool-projection.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8636,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:694:configError",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/tool-projection.ts:133:projectionError",
+          "similarity": 0.8889,
+          "lengthRatio": 0.8387,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/sse-parser.ts:12:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/projection/tool-projection.ts:29:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9394,
+          "deductedLines": 9
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -171,6 +452,34 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:55:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.871,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:74:Constructor",
+          "similarity": 0.8125,
+          "lengthRatio": 0.961,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8837,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:148:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:212:timestamp",
           "similarity": 1,
@@ -178,11 +487,11 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:361:auditError",
-          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:228:cancellationError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:24:module-surface",
           "similarity": 1,
-          "lengthRatio": 0.975,
-          "deductedLines": 11
+          "lengthRatio": 1,
+          "deductedLines": 7
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -199,6 +508,27 @@
           "deductedLines": 18
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8085,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:153:list",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:100:list",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:157:snapshot",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:104:snapshot",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:216:timestamp",
           "similarity": 1,
@@ -206,11 +536,25 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:361:auditError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:228:cancellationError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:233:completionError",
-          "similarity": 0.9231,
-          "lengthRatio": 0.8875,
+          "similarity": 0.9167,
+          "lengthRatio": 0.9103,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:36:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:95:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -220,6 +564,34 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:1:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8261,
+          "deductedLines": 14
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:227:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:240:onChange",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:140:snapshot",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:245:snapshot",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:273:timestamp",
           "similarity": 1,
@@ -227,18 +599,39 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:361:auditError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:228:cancellationError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:351:elicitationError",
           "similarity": 1,
-          "lengthRatio": 0.975,
+          "lengthRatio": 1,
           "deductedLines": 11
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:1:module-surface",
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:61:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:55:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:80:Constructor",
+          "similarity": 0.8,
+          "lengthRatio": 0.9541,
+          "deductedLines": 13
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:1:module-surface",
-          "similarity": 0.8182,
-          "lengthRatio": 0.9592,
+          "similarity": 0.8333,
+          "lengthRatio": 0.8448,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:133:onRecord",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -248,18 +641,95 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/projection/prompt-projection.ts:129:promptProjectionError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:694:configError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:186:loggingError",
-          "similarity": 1,
-          "lengthRatio": 1,
+          "similarity": 0.8889,
+          "lengthRatio": 0.8387,
           "deductedLines": 11
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/pagination-runtime.ts:1:module-surface",
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:117:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:44:module-surface",
+          "similarity": 0.9333,
+          "lengthRatio": 0.8113,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:55:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:57:Constructor",
+          "similarity": 1,
+          "lengthRatio": 0.875,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:31:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:9:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8824,
+          "deductedLines": 13
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/pagination-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9333,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:334:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/pagination-runtime.ts:5:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:694:configError",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/pagination-runtime.ts:95:paginationError",
+          "similarity": 1,
+          "lengthRatio": 0.8667,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:1:module-surface",
           "similarity": 1,
-          "lengthRatio": 0.9375,
+          "lengthRatio": 0.8421,
           "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:190:onProgress",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:195:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:153:list",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:200:list",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:324:snapshot",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:204:snapshot",
+          "similarity": 1,
+          "lengthRatio": 0.9155,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:167:restore",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:215:restore",
+          "similarity": 0.8529,
+          "lengthRatio": 0.8839,
+          "deductedLines": 21
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -269,11 +739,39 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:361:auditError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:219:key",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:244:key",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:228:cancellationError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:253:progressError",
           "similarity": 1,
-          "lengthRatio": 0.975,
+          "lengthRatio": 1,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:36:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:117:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:45:module-surface",
+          "similarity": 0.9333,
+          "lengthRatio": 0.9053,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/progress-runtime.ts:55:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:1:module-surface",
@@ -290,10 +788,10 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:710:oauthError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:465:catalogError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/rate-limit-runtime.ts:226:rateError",
-          "similarity": 0.8333,
-          "lengthRatio": 0.9783,
+          "similarity": 1,
+          "lengthRatio": 0.8491,
           "deductedLines": 11
         },
         {
@@ -304,6 +802,34 @@
           "deductedLines": 7
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:127:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts:16:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:22:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9184,
+          "deductedLines": 13
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:336:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:341:findByTransition",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:346:findByIdempotencyKey",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:441:timestamp",
           "similarity": 1,
@@ -311,11 +837,25 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:450:eventPayload",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:458:recordPayload",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:465:catalogError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:463:journalError",
-          "similarity": 0.9375,
+          "similarity": 1,
           "lengthRatio": 0.8679,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/retry-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9767,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -325,11 +865,39 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/projection/prompt-projection.ts:129:promptProjectionError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:694:configError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/retry-runtime.ts:185:retryError",
+          "similarity": 0.8889,
+          "lengthRatio": 0.8387,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:91:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/retry-runtime.ts:46:Constructor",
           "similarity": 1,
           "lengthRatio": 1,
-          "deductedLines": 11
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:102:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/retry-runtime.ts:6:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9487,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:303:list",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/root-runtime.ts:144:records",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:324:snapshot",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/root-runtime.ts:148:snapshot",
+          "similarity": 1,
+          "lengthRatio": 0.9155,
+          "deductedLines": 10
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -339,11 +907,32 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:905:coordinatorError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:710:oauthError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/root-runtime.ts:207:rootError",
-          "similarity": 0.8,
-          "lengthRatio": 0.8269,
+          "similarity": 0.8667,
+          "lengthRatio": 0.9348,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/root-runtime.ts:33:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8077,
+          "deductedLines": 13
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts:149:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -353,18 +942,39 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:361:auditError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:228:cancellationError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts:297:samplingError",
-          "similarity": 0.9286,
-          "lengthRatio": 0.975,
+          "similarity": 1,
+          "lengthRatio": 1,
           "deductedLines": 11
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/pagination-runtime.ts:1:module-surface",
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:142:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts:80:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8333,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:1:module-surface",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/schema-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9333,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/sse-parser.ts:12:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/schema-runtime.ts:24:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9091,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:153:list",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/server-request-runtime.ts:158:history",
           "similarity": 1,
           "lengthRatio": 1,
-          "deductedLines": 3
+          "deductedLines": 6
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -374,11 +984,39 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:19:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/server-request-runtime.ts:38:module-surface",
+          "similarity": 0.875,
+          "lengthRatio": 0.92,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:1:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9206,
+          "deductedLines": 19
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:74:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:103:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8356,
+          "deductedLines": 15
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:6:module-surface",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:21:module-surface",
           "similarity": 1,
           "lengthRatio": 0.84,
           "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:574:server",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:303:list",
@@ -395,11 +1033,60 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:465:catalogError",
-          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:861:sessionError",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:61:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:81:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8046,
+          "deductedLines": 21
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:1:module-surface",
           "similarity": 1,
-          "lengthRatio": 0.9636,
-          "deductedLines": 25
+          "lengthRatio": 0.8444,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:278:onUpdate",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:283:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:585:listLeases",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:288:list",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9695,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/retry-runtime.ts:141:history",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:297:history",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:157:snapshot",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:301:snapshot",
+          "similarity": 1,
+          "lengthRatio": 0.871,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:206:require",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:337:require",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -409,11 +1096,53 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:223:validate",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:350:validateBinding",
+          "similarity": 1,
+          "lengthRatio": 0.9135,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:465:catalogError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:373:subscriptionError",
-          "similarity": 0.9412,
+          "similarity": 1,
           "lengthRatio": 0.934,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:44:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:117:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:53:module-surface",
+          "similarity": 0.875,
+          "lengthRatio": 0.8269,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:64:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:1:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:1:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8235,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:157:snapshot",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:241:snapshot",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -423,11 +1152,60 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:28:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/http-transport.ts:793:isRedirect",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:281:terminal",
+          "similarity": 0.8,
+          "lengthRatio": 0.8438,
+          "deductedLines": 3
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:465:catalogError",
           "deductedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:296:taskError",
-          "similarity": 0.9375,
+          "similarity": 1,
           "lengthRatio": 0.8679,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:44:module-surface",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:36:module-surface",
+          "similarity": 0.8182,
+          "lengthRatio": 0.8,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:55:Constructor",
+          "deductedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:46:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/completion-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.95,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:31:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/contracts.ts:28:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8491,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:83:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/contracts.ts:51:module-surface",
+          "similarity": 0.8182,
+          "lengthRatio": 0.8609,
+          "deductedLines": 23
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:870:optionalString",
@@ -444,10 +1222,31 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:34:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:116:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9024,
+          "deductedLines": 10
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:56:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:127:module-surface",
           "similarity": 1,
           "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:15:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9841,
+          "deductedLines": 42
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:303:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:698:listSourceFiles",
+          "similarity": 1,
+          "lengthRatio": 0.9787,
           "deductedLines": 5
         },
         {
@@ -458,6 +1257,27 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/descriptor-runtime.ts:4:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8636,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:194:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:208:timestamp",
           "similarity": 1,
@@ -465,10 +1285,52 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/server-request-runtime.ts:54:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:28:module-surface",
+          "similarity": 0.8889,
+          "lengthRatio": 0.9296,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:319:validateValue",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:324:validateOptionValue",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/descriptor-runtime.ts:206:parseScalar",
           "deductedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:347:parseLooseValue",
-          "similarity": 0.875,
+          "similarity": 0.8148,
           "lengthRatio": 0.875,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/help-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/history-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8158,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/history-runtime.ts:113:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:324:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/history-runtime.ts:127:snapshot",
+          "similarity": 1,
+          "lengthRatio": 0.8873,
           "deductedLines": 10
         },
         {
@@ -479,16 +1341,37 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:127:Constructor",
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/history-runtime.ts:26:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.871,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
           "deductedUnit": "packages/runtime/claude-runtime/src/commands/history-runtime.ts:46:Constructor",
-          "similarity": 0.8125,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/local-command-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9211,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/local-command-runtime.ts:132:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:199:remember",
           "deductedUnit": "packages/runtime/claude-runtime/src/commands/local-command-runtime.ts:137:remember",
-          "similarity": 0.8824,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 8
         },
@@ -500,11 +1383,67 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:91:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/local-command-runtime.ts:43:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9474,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts:154:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:155:snapshot",
+          "similarity": 0.85,
+          "lengthRatio": 0.9816,
+          "deductedLines": 12
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:199:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:912:compareRoots",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:212:comparePriority",
+          "similarity": 1,
+          "lengthRatio": 0.9722,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:27:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1071:integer",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts:1115:nonNegativeInteger",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts:15:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8116,
+          "deductedLines": 19
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts:376:pluginsProjection",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts:386:commandsProjection",
+          "similarity": 1,
+          "lengthRatio": 0.9429,
+          "deductedLines": 10
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/core/canonical.ts:321:monotonicNow",
@@ -516,14 +1455,21 @@
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/core/canonical.ts:91:mergeJson",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/canonical.ts:195:mergeJson",
-          "similarity": 0.8889,
+          "similarity": 0.9286,
           "lengthRatio": 0.9704,
           "deductedLines": 23
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/canonical.ts:55:canonicalString",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/canonical.ts:26:canonicalString",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/core/canonical.ts:67:sha256Bytes",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/canonical.ts:34:digestBytes",
-          "similarity": 0.8,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 3
         },
@@ -535,6 +1481,13 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/canonical.ts:48:canonicalObject",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/canonical.ts:51:jsonObject",
+          "similarity": 1,
+          "lengthRatio": 0.9787,
+          "deductedLines": 6
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:18:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:12:module-surface",
           "similarity": 1,
@@ -542,9 +1495,30 @@
           "deductedLines": 13
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:248:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:34:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9535,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:556:bundle",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:153:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:587:receipts",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 6
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:594:pendingDelivery",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:601:openBundles",
-          "similarity": 0.9167,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 6
         },
@@ -556,6 +1530,13 @@
           "deductedLines": 9
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:171:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:18:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:3:module-surface",
           "similarity": 1,
@@ -563,9 +1544,23 @@
           "deductedLines": 12
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:401:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:73:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 1,
+          "deductedLines": 16
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9474,
+          "deductedLines": 11
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1033:errorObject",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:1011:errorObject",
-          "similarity": 0.9524,
+          "similarity": 0.96,
           "lengthRatio": 0.9907,
           "deductedLines": 12
         },
@@ -584,43 +1579,148 @@
           "deductedLines": 9
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:140:module-surface",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:23:module-surface",
-          "similarity": 0.9,
-          "lengthRatio": 0.9153,
-          "deductedLines": 14
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:28:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:38:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8857,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:525:record",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:59:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:62:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 1,
+          "deductedLines": 13
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:946:assertRuntimeBinding",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:909:assertRuntimeBinding",
-          "similarity": 0.8462,
+          "similarity": 0.8333,
           "lengthRatio": 0.9865,
           "deductedLines": 11
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:965:descriptorDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:102:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:189:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2034:dispatchSkillCommand",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2083:dispatchPluginCommand",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 16
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:745:validateSnapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:2945:validateSnapshot",
+          "similarity": 0.8,
+          "lengthRatio": 1,
+          "deductedLines": 38
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3063:timestamp",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3069:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts:1115:nonNegativeInteger",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3927:nonNegativeInteger",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3377:commandRoots",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3429:pluginRoots",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3389:parseCommandRootValues",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3441:parsePluginRootValues",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 18
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3409:commandRoot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3460:pluginRoot",
+          "similarity": 0.9231,
+          "lengthRatio": 0.8919,
+          "deductedLines": 18
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3852:skillSourceKind",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3875:commandSourceKind",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3852:skillSourceKind",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3886:pluginSourceKind",
+          "similarity": 1,
+          "lengthRatio": 0.9111,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1071:integer",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3950:nonNegativeInteger",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 3
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1091:errorCode",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4049:errorCode",
-          "similarity": 0.8,
-          "lengthRatio": 0.9701,
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3968:controlRisk",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3989:checkpointPhase",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3977:controlPhase",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4043:executionPhase",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4055:integrationAuditDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:891:errorCode",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4072:errorCode",
+          "similarity": 1,
+          "lengthRatio": 1,
           "deductedLines": 7
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:651:owns",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:655:owner",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1051:checkpointError",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:4100:coordinatorError",
+          "similarity": 1,
+          "lengthRatio": 0.9804,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:315:has",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:657:owns",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 3
@@ -640,18 +1740,81 @@
           "deductedLines": 7
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1091:errorCode",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:1009:errorCode",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:119:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:81:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8361,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/events.ts:1:module-surface",
           "similarity": 0.8,
-          "lengthRatio": 0.9701,
+          "lengthRatio": 0.8636,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9474,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:891:errorCode",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:1009:errorCode",
+          "similarity": 1,
+          "lengthRatio": 1,
           "deductedLines": 7
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1051:checkpointError",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:1017:ledgerError",
-          "similarity": 0.8182,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:64:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:123:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9211,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:22:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:13:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9394,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/subscription-runtime.ts:9:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:47:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8557,
+          "deductedLines": 22
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:595:getPermit",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:600:getExecution",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:31:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:93:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8491,
+          "deductedLines": 12
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -661,11 +1824,25 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:987:recordDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:1:module-surface",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:117:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:113:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.931,
+          "deductedLines": 7
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:6:module-surface",
@@ -675,18 +1852,81 @@
           "deductedLines": 9
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:116:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:121:module-surface",
+          "similarity": 0.875,
+          "lengthRatio": 0.8276,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:116:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:161:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:28:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:31:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8857,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:515:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:341:findByTransition",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:520:byIdempotencyKey",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:996:requireBundleClone",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:549:entityState",
+          "similarity": 1,
+          "lengthRatio": 0.9545,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:297:require",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:668:requireRecord",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9,
+          "deductedLines": 5
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1051:checkpointError",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:796:hostPortError",
-          "similarity": 0.9091,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 7
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:1:module-surface",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:1:module-surface",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:416:isE02CustodySnapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:804:isE02HostPortSnapshot",
           "similarity": 1,
           "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9474,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:99:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:127:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 14
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:18:module-surface",
@@ -703,16 +1943,72 @@
           "deductedLines": 10
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:152:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:167:module-surface",
+          "similarity": 0.8889,
+          "lengthRatio": 1,
+          "deductedLines": 8
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:116:Constructor",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:176:Constructor",
-          "similarity": 0.8125,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 9
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3931:nullableNonNegativeInteger",
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:246:record",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:340:restore",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:721:restore",
+          "similarity": 0.8182,
+          "lengthRatio": 0.9296,
+          "deductedLines": 43
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:946:assertRuntimeBinding",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:765:assertRuntimeBinding",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9865,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:777:requireRecord",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:789:requireSubscription",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:841:projectionCursorDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:846:projectionSubscriptionDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3921:optionalString",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:860:stringValue",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3954:nullableNonNegativeInteger",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:864:safeInteger",
-          "similarity": 0.875,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 3
         },
@@ -724,14 +2020,42 @@
           "deductedLines": 7
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:1:module-surface",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1:module-surface",
           "similarity": 1,
-          "lengthRatio": 1,
+          "lengthRatio": 0.9474,
           "deductedLines": 11
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:860:stringValue",
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1075:incidentDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1080:stepDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1085:planDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1090:claimDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3921:optionalString",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1095:stringValue",
           "similarity": 1,
           "lengthRatio": 1,
@@ -740,7 +2064,7 @@
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1033:errorObject",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:1099:errorObject",
-          "similarity": 0.9524,
+          "similarity": 0.96,
           "lengthRatio": 0.9907,
           "deductedLines": 12
         },
@@ -752,11 +2076,88 @@
           "deductedLines": 7
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:765:assertRuntimeBinding",
-          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:965:assertRuntimeBinding",
-          "similarity": 0.8571,
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:64:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:117:module-surface",
+          "similarity": 0.8,
           "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:116:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:151:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:525:incident",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:668:restore",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:911:restore",
+          "similarity": 0.875,
+          "lengthRatio": 0.9592,
+          "deductedLines": 53
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:946:assertRuntimeBinding",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:965:assertRuntimeBinding",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9865,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/revisioned-registry.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9048,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9474,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:116:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:100:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:578:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:351:snapshot",
+          "similarity": 0.9375,
+          "lengthRatio": 0.9213,
+          "deductedLines": 13
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:297:require",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:461:requireLease",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:340:restore",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:467:restore",
+          "similarity": 0.9091,
+          "lengthRatio": 0.8987,
+          "deductedLines": 63
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:445:serverDigest",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:568:routeLeaseDigest",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1051:checkpointError",
@@ -766,16 +2167,37 @@
           "deductedLines": 7
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:116:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:78:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8776,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/revisioned-registry.ts:17:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/transition-journal.ts:30:Constructor",
+          "similarity": 1,
+          "lengthRatio": 0.9298,
+          "deductedLines": 7
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/transition-journal.ts:366:reject",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/transition-journal.ts:386:cancel",
-          "similarity": 0.8462,
+          "similarity": 1,
           "lengthRatio": 0.9669,
           "deductedLines": 19
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:549:entityState",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:996:requireBundleClone",
           "deductedUnit": "packages/runtime/claude-runtime/src/e02/transition-journal.ts:419:entityState",
           "similarity": 1,
+          "lengthRatio": 0.9545,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:303:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/e02/transition-journal.ts:423:pendingTransitions",
+          "similarity": 0.8571,
           "lengthRatio": 1,
           "deductedLines": 3
         },
@@ -787,11 +2209,53 @@
           "deductedLines": 4
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts:1:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8621,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:140:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts:175:snapshot",
+          "similarity": 0.9286,
+          "lengthRatio": 0.913,
+          "deductedLines": 10
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts:270:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts:50:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8158,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/history-runtime.ts:118:query",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts:125:query",
+          "similarity": 1,
+          "lengthRatio": 0.8728,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:324:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts:135:snapshot",
+          "similarity": 1,
+          "lengthRatio": 0.8873,
+          "deductedLines": 10
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -808,11 +2272,60 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts:27:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.871,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/audit-runtime.ts:66:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts:38:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts:46:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/host-port-runtime.ts:52:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/audit-runtime.ts:7:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8519,
+          "deductedLines": 19
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:283:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:132:module-surface",
           "similarity": 1,
           "lengthRatio": 0.9286,
           "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:115:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:144:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.95,
+          "deductedLines": 17
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:283:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:184:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8667,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:162:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:197:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.96,
+          "deductedLines": 22
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:283:module-surface",
@@ -822,6 +2335,69 @@
           "deductedLines": 12
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:115:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:276:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 16
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:28:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts:62:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8857,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:224:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/control-plane-runtime.ts:558:pendingRecovery",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:229:pending",
+          "similarity": 0.9,
+          "lengthRatio": 1,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:315:has",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:214:unregisterHook",
+          "similarity": 1,
+          "lengthRatio": 0.9091,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:119:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:42:module-surface",
+          "similarity": 0.875,
+          "lengthRatio": 0.9683,
+          "deductedLines": 16
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:609:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:422:snapshot",
+          "similarity": 1,
+          "lengthRatio": 0.8321,
+          "deductedLines": 21
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:745:validateSnapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:493:validateSnapshotBinding",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 32
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:767:requireOpen",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:526:requireOpen",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 8
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:535:timestamp",
           "similarity": 1,
@@ -829,9 +2405,16 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/session-runtime.ts:769:validateIdentity",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:542:validateRuntime",
+          "similarity": 0.9091,
+          "lengthRatio": 0.859,
+          "deductedLines": 20
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1103:commandCoordinatorError",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/coordinator.ts:563:permissionCoordinatorError",
-          "similarity": 0.9231,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 13
         },
@@ -843,11 +2426,18 @@
           "deductedLines": 12
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:278:assertRevision",
-          "deductedUnit": "packages/runtime/claude-runtime/src/permission/grant-runtime.ts:220:assertRevision",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/grant-runtime.ts:1:module-surface",
           "similarity": 1,
-          "lengthRatio": 1,
-          "deductedLines": 5
+          "lengthRatio": 0.8,
+          "deductedLines": 14
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/help-runtime.ts:21:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/grant-runtime.ts:36:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8276,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:31:Constructor",
@@ -857,6 +2447,13 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/transition-journal.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9623,
+          "deductedLines": 16
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:31:Constructor",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts:63:Constructor",
           "similarity": 1,
@@ -864,8 +2461,43 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/local-command-runtime.ts:53:unregister",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts:85:unregister",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/model.ts:3:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.878,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/permission-journal.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8793,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/policy.ts:1:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9744,
+          "deductedLines": 9
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:283:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/risk-runtime.ts:24:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8667,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:283:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/risk-runtime.ts:37:module-surface",
           "similarity": 1,
           "lengthRatio": 0.8667,
           "deductedLines": 12
@@ -878,11 +2510,60 @@
           "deductedLines": 14
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/rule-index.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9615,
+          "deductedLines": 14
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:912:compareRoots",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/rule-index.ts:220:compareMatches",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9722,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/rule-index.ts:34:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9184,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/transition-journal.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/rule-parser.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9057,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/canonical.ts:185:boundedInteger",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/rule-parser.ts:308:parseInteger",
+          "similarity": 0.8667,
+          "lengthRatio": 0.9733,
+          "deductedLines": 6
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts:310:text",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/rule-parser.ts:326:stringOrEmpty",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:184:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:324:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:193:snapshot",
+          "similarity": 1,
+          "lengthRatio": 0.9221,
+          "deductedLines": 10
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -892,6 +2573,13 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:291:compareSource",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:295:compareDocument",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8367,
+          "deductedLines": 3
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:875:objectValue",
           "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:333:objectValue",
           "similarity": 1,
@@ -899,11 +2587,53 @@
           "deductedLines": 3
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:27:Constructor",
-          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:95:Constructor",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/root-runtime.ts:189:contains",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:337:contains",
+          "similarity": 0.8333,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:4:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8636,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:65:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/logging-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:74:module-surface",
           "similarity": 0.8,
+          "lengthRatio": 0.9184,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:248:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:9:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9111,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:95:Constructor",
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/cache-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8684,
+          "deductedLines": 3
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -913,11 +2643,60 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:84:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/cache-runtime.ts:13:module-surface",
+          "similarity": 0.8889,
+          "lengthRatio": 0.8033,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/cache-runtime.ts:21:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/cache-runtime.ts:5:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:303:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/cache-runtime.ts:90:list",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:157:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/cache-runtime.ts:94:snapshot",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:578:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:169:snapshot",
+          "similarity": 0.8235,
+          "lengthRatio": 0.8659,
+          "deductedLines": 11
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:211:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:536:compareCandidates",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:258:compareClaim",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8596,
+          "deductedLines": 3
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:346:settingsError",
@@ -927,30 +2706,100 @@
           "deductedLines": 3
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:27:Constructor",
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:5:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:34:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9535,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:120:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:46:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:66:Constructor",
-          "similarity": 0.8571,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:40:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/contracts.ts:170:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.863,
+          "deductedLines": 14
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:62:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/contracts.ts:185:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:19:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/contracts.ts:4:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9583,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/core/protocol.ts:235:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/contracts.ts:45:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.871,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/contracts.ts:75:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/contracts.ts:97:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9104,
+          "deductedLines": 14
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.92,
+          "deductedLines": 18
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:86:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:100:module-surface",
-          "similarity": 0.875,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 10
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:21:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:111:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8154,
+          "deductedLines": 14
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:704:rememberFailure",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1145:rememberFailure",
-          "similarity": 0.8,
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 21
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:745:validateSnapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1200:validateSnapshot",
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 21
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:767:requireOpen",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1222:requireOpen",
-          "similarity": 0.8333,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 8
         },
@@ -960,6 +2809,34 @@
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:783:scanCommandRoot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1238:discoverRoot",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 94
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:48:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:126:module-surface",
+          "similarity": 0.8889,
+          "lengthRatio": 0.8701,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:912:compareRoots",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1399:compareRoots",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:536:compareCandidates",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1407:compareCandidate",
+          "similarity": 1,
+          "lengthRatio": 0.8246,
+          "deductedLines": 8
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:920:assertContained",
@@ -976,11 +2853,25 @@
           "deductedLines": 31
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1026:commandExecution",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1506:pluginExecution",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 16
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:56:module-surface",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:152:module-surface",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/coordinator.ts:3958:requiredControlString",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1523:requiredString",
+          "similarity": 0.8,
+          "lengthRatio": 0.9057,
+          "deductedLines": 10
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:870:optionalString",
@@ -997,6 +2888,13 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1091:errorCode",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1545:errorCode",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 11
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1103:commandCoordinatorError",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:1557:pluginCoordinatorError",
           "similarity": 1,
@@ -1004,11 +2902,53 @@
           "deductedLines": 13
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:20:module-surface",
+          "similarity": 0.875,
+          "lengthRatio": 0.8732,
+          "deductedLines": 53
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:245:owns",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:395:owns",
           "similarity": 1,
           "lengthRatio": 0.9355,
           "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/connection/contracts.ts:248:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:74:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 1,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:71:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/coordinator.ts:86:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9245,
+          "deductedLines": 13
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/dependency-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8158,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:268:trim",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/dependency-runtime.ts:187:trim",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts:37:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/dependency-runtime.ts:19:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9184,
+          "deductedLines": 11
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -1025,11 +2965,46 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/dependency-runtime.ts:45:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8182,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/dependency-runtime.ts:61:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/hook-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.878,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts:277:ownerKey",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/hook-runtime.ts:211:registrationKey",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:220:registryError",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/hook-runtime.ts:215:hookError",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/server-request-runtime.ts:63:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/hook-runtime.ts:47:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/index.ts:1:module-surface",
@@ -1067,6 +3042,27 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/manifest-runtime.ts:4:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9423,
+          "deductedLines": 18
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/marketplace-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts:204:restore",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/marketplace-runtime.ts:150:restore",
+          "similarity": 0.8182,
+          "lengthRatio": 0.8217,
+          "deductedLines": 10
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/marketplace-runtime.ts:161:timestamp",
           "similarity": 1,
@@ -1081,11 +3077,74 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:102:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/marketplace-runtime.ts:23:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8305,
+          "deductedLines": 11
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/marketplace-runtime.ts:48:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8182,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/plugin-runtime.ts:215:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:303:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/plugin-runtime.ts:220:list",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/plugins/dependency-runtime.ts:166:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/plugin-runtime.ts:224:snapshot",
+          "similarity": 0.9231,
+          "lengthRatio": 0.8476,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/plugin-runtime.ts:3:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.931,
+          "deductedLines": 12
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/plugins/plugin-runtime.ts:323:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/approval-runtime.ts:79:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/plugin-runtime.ts:37:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 13
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:153:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/supply-chain-runtime.ts:168:list",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:157:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/supply-chain-runtime.ts:172:snapshot",
+          "similarity": 0.875,
+          "lengthRatio": 0.8571,
+          "deductedLines": 10
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -1116,6 +3175,62 @@
           "deductedLines": 3
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:76:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/supply-chain-runtime.ts:65:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8611,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:84:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/supply-chain-runtime.ts:74:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9245,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/custody-runtime.ts:116:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/plugins/supply-chain-runtime.ts:82:Constructor",
+          "similarity": 0.8,
+          "lengthRatio": 0.8372,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9737,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:145:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:153:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:150:list",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:157:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:154:snapshot",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/plugins/supply-chain-runtime.ts:245:trim",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:209:trim",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:217:timestamp",
           "similarity": 1,
@@ -1123,11 +3238,109 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts:33:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:48:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/token-vault-port.ts:84:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:56:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9592,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/context-runtime.ts:63:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:19:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/contracts-v2.ts:11:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8333,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/contracts.ts:75:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/contracts-v2.ts:157:module-surface",
+          "similarity": 0.8889,
+          "lengthRatio": 0.9104,
+          "deductedLines": 14
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/contracts.ts:89:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/contracts-v2.ts:199:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8788,
+          "deductedLines": 9
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:32:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/contracts-v2.ts:220:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8987,
+          "deductedLines": 18
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/local-command-runtime.ts:21:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/contracts-v2.ts:239:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.913,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/projection-runtime.ts:87:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/contracts-v2.ts:255:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.863,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:401:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/contracts-v2.ts:31:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9692,
+          "deductedLines": 16
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/contracts.ts:89:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:24:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 8
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:469:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:33:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8205,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/recovery-runtime.ts:859:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:350:snapshot",
+          "similarity": 0.8125,
+          "lengthRatio": 0.8642,
+          "deductedLines": 24
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:569:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:823:spec",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:576:toolSpec",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 11
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/api-port-runtime.ts:1119:positiveInteger",
@@ -1144,11 +3357,32 @@
           "deductedLines": 3
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1091:errorCode",
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:891:errorCode",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:615:errorCode",
-          "similarity": 0.8,
-          "lengthRatio": 0.9701,
+          "similarity": 1,
+          "lengthRatio": 1,
           "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:44:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:70:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.8841,
+          "deductedLines": 14
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/pagination-runtime.ts:22:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/frontmatter-runtime.ts:30:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.88,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/descriptor-runtime.ts:218:firstParagraph",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/frontmatter-runtime.ts:313:firstParagraph",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/descriptor-runtime.ts:238:stringValue",
@@ -1181,9 +3415,16 @@
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/descriptor-runtime.ts:233:objectValue",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/frontmatter-runtime.ts:381:objectValue",
-          "similarity": 0.8571,
+          "similarity": 1,
           "lengthRatio": 0.9767,
           "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/permission/continuation-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/frontmatter-runtime.ts:4:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.9808,
+          "deductedLines": 19
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/plugins/manifest-runtime.ts:267:integerValue",
@@ -1200,11 +3441,60 @@
           "deductedLines": 7
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-journal.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9211,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-journal.ts:184:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/request-journal.ts:341:findByTransition",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-journal.ts:189:findInvocation",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-journal.ts:278:timestamp",
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:104:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-journal.ts:35:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.9487,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-runtime.ts:1:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9206,
+          "deductedLines": 20
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-runtime.ts:217:getResult",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/dispatch-runtime.ts:199:remember",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-runtime.ts:321:remember",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 8
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -1216,9 +3506,16 @@
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:220:registryError",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/invocation-runtime.ts:430:invocationError",
-          "similarity": 0.9,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/registry-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.973,
+          "deductedLines": 13
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -1226,6 +3523,13 @@
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:912:compareRoots",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/registry-runtime.ts:279:compareDescriptor",
+          "similarity": 0.8571,
+          "lengthRatio": 0.9474,
+          "deductedLines": 3
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:216:normalizeLookup",
@@ -1242,11 +3546,39 @@
           "deductedLines": 6
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:27:Constructor",
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/registry-runtime.ts:15:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/registry-runtime.ts:33:module-surface",
+          "similarity": 0.8667,
+          "lengthRatio": 0.8682,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:127:Constructor",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/registry-runtime.ts:46:Constructor",
-          "similarity": 0.8,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/reload-runtime.ts:1:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.9831,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/local-command-runtime.ts:53:unregister",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/reload-runtime.ts:113:discard",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:379:get",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/reload-runtime.ts:117:get",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -1263,6 +3595,48 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/runtime/claude-runtime/src/skills/invocation-runtime.ts:425:estimateTokens",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/resource-runtime.ts:117:estimateTokens",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/skills/coordinator.ts:60:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:16:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8537,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:303:list",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:228:listFailures",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/plugins/dependency-runtime.ts:166:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:232:snapshot",
+          "similarity": 0.9231,
+          "lengthRatio": 0.8641,
+          "deductedLines": 12
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/execution-ledger.ts:668:restore",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:245:restore",
+          "similarity": 0.875,
+          "lengthRatio": 0.8167,
+          "deductedLines": 31
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:4:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 1,
+          "deductedLines": 11
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:410:timestamp",
           "similarity": 1,
@@ -1270,16 +3644,30 @@
           "deductedLines": 5
         },
         {
-          "retainedUnit": "packages/runtime/claude-runtime/src/commands/coordinator.ts:1091:errorCode",
-          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:436:errorCode",
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/route-runtime.ts:536:compareCandidates",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:417:compareRoots",
+          "similarity": 1,
+          "lengthRatio": 0.807,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/config-store.ts:120:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:42:module-surface",
           "similarity": 0.8,
-          "lengthRatio": 0.9701,
+          "lengthRatio": 0.907,
+          "deductedLines": 10
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/coordinator.ts:891:errorCode",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:436:errorCode",
+          "similarity": 1,
+          "lengthRatio": 1,
           "deductedLines": 7
         },
         {
           "retainedUnit": "packages/runtime/claude-runtime/src/e02/checkpoint-bundle-runtime.ts:1051:checkpointError",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/root-runtime.ts:444:rootError",
-          "similarity": 0.8182,
+          "similarity": 1,
           "lengthRatio": 0.98,
           "deductedLines": 3
         },
@@ -1291,6 +3679,20 @@
           "deductedLines": 8
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/search-runtime.ts:1:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8684,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts:154:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/search-runtime.ts:195:snapshot",
+          "similarity": 0.9444,
+          "lengthRatio": 0.8375,
+          "deductedLines": 12
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/search-runtime.ts:268:timestamp",
           "similarity": 1,
@@ -1298,11 +3700,60 @@
           "deductedLines": 5
         },
         {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts:15:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/search-runtime.ts:32:module-surface",
+          "similarity": 0.875,
+          "lengthRatio": 1,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:91:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/search-runtime.ts:5:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8676,
+          "deductedLines": 15
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:142:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/search-runtime.ts:61:module-surface",
+          "similarity": 0.8333,
+          "lengthRatio": 0.8148,
+          "deductedLines": 10
+        },
+        {
           "retainedUnit": "packages/integrations/claude-mcp/src/runtime/cancellation-runtime.ts:41:Constructor",
           "deductedUnit": "packages/runtime/claude-runtime/src/skills/search-runtime.ts:81:Constructor",
-          "similarity": 0.8,
+          "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/config/policy.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/source-runtime.ts:4:module-surface",
+          "similarity": 0.8,
+          "lengthRatio": 0.8158,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/e02/contracts.ts:28:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/source-runtime.ts:8:module-surface",
+          "similarity": 1,
+          "lengthRatio": 0.871,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts:319:onEvent",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/watcher-runtime.ts:166:onBatch",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/plugins/marketplace-runtime.ts:139:snapshot",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/watcher-runtime.ts:175:snapshot",
+          "similarity": 0.9286,
+          "lengthRatio": 1,
+          "deductedLines": 13
         },
         {
           "retainedUnit": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts:594:timestamp",
@@ -1310,16 +3761,59 @@
           "similarity": 1,
           "lengthRatio": 1,
           "deductedLines": 5
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/plugins/capability-runtime.ts:1:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/watcher-runtime.ts:5:module-surface",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 3
+        },
+        {
+          "retainedUnit": "packages/integrations/claude-mcp/src/runtime/completion-runtime.ts:55:Constructor",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/watcher-runtime.ts:60:Constructor",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 7
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/src/commands/completion-runtime.ts:17:module-surface",
+          "deductedUnit": "packages/runtime/claude-runtime/src/skills/watcher-runtime.ts:9:module-surface",
+          "similarity": 0.8571,
+          "lengthRatio": 0.8644,
+          "deductedLines": 12
         }
       ],
-      "effective_changed_typescript": 41795,
-      "explicit_behavior_cases": 123,
-      "unique_behavior_titles": 123,
-      "explicit_failure_cases": 86,
-      "gross_explicit_behavior_test_lines": 7043,
-      "test_clone_deduction": 0,
-      "test_clone_clusters": [],
-      "effective_behavior_test_lines": 7043,
+      "effective_changed_typescript": 38481,
+      "explicit_behavior_cases": 128,
+      "unique_behavior_titles": 128,
+      "explicit_failure_cases": 87,
+      "gross_explicit_behavior_test_lines": 7338,
+      "test_clone_deduction": 14,
+      "test_clone_clusters": [
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:290:e02.mutation.mcp-5",
+          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:297:e02.mutation.mcp-6",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 6
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:468:e02.mutation.mcp-16",
+          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:478:e02.mutation.mcp-18",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        },
+        {
+          "retainedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:444:e02.mutation.mcp-13",
+          "deductedUnit": "packages/runtime/claude-runtime/test/e02/mutation-contract.test.ts:519:e02.mutation.mcp-20",
+          "similarity": 1,
+          "lengthRatio": 1,
+          "deductedLines": 4
+        }
+      ],
+      "effective_behavior_test_lines": 7324,
       "excluded_generated_matrix_files": [
         "packages/integrations/claude-mcp/test/e02/mcp-catalog-matrix.test.ts",
         "packages/runtime/claude-runtime/test/e02/checkpoint-matrix.test.ts",

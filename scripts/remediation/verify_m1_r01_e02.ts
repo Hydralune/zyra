@@ -543,7 +543,8 @@ const excludedRoots = (profile.excluded_production_prefixes as unknown[]).map(St
 const behaviorRoots = (profile.behavior_test_roots as unknown[]).map(String);
 const adapterRoots = (profile.adapter_roots as unknown[]).map(String);
 const baseline = String(profile.implementation_diff_baseline);
-const dirty = gitText(repoRoot, ["status", "--porcelain=v1", "--untracked-files=all"])
+const dirty = gitText(repoRoot, ["status", "--porcelain=v1", "--untracked-files=all"], false)
+  .trimEnd()
   .split(/\r?\n/)
   .filter(Boolean);
 

@@ -1,0 +1,14 @@
+{
+  "disabled_component": "E02CapabilityCoordinator.open",
+  "environment_gate": "ZYRA_DISABLE_E02_TYPESCRIPT_RUNTIME=1",
+  "default_owner_failed": true,
+  "python_fallback_observed": false,
+  "exit_code": 1,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "d35a544af0e26056e2f2c6502131f0afc8c7a1dbdde8a170f3ac5f081b550f58",
+  "schema_version": "3.0",
+  "execution_id": "E02",
+  "probe_id": "e02.probe.disable",
+  "generated_at_utc": "2026-07-17T09:12:42.560Z",
+  "ok": true
+}

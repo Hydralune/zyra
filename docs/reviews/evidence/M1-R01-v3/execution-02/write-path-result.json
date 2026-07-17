@@ -1,0 +1,13 @@
+{
+  "state_store": "E02CapabilityCoordinator.journal + CapabilityExecutionLedger",
+  "transition_id": "e02-transition-25ef7da48bf2964025e9c808580117b1811b061226f740c1",
+  "capability_execution_id": "e02-capability-execution-9eb5277ae9c06fd3dd53f5be2918f47e030ce3d9d4b6ff3a",
+  "commit_revision_after": 1,
+  "snapshot_hash": "d2a963ccd99fe0d8514494197e90db674dfd406e8e3dcacb25e060131a5f5995",
+  "canonical_owner": "typescript-e02-control",
+  "schema_version": "3.0",
+  "execution_id": "E02",
+  "probe_id": "e02.probe.write-path",
+  "generated_at_utc": "2026-07-17T09:12:41.512Z",
+  "ok": true
+}

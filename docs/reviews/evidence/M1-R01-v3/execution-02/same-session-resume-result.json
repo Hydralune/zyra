@@ -1,0 +1,70 @@
+{
+  "session_id": "e02-probe-session",
+  "session_revision": 11,
+  "process_restart_count": 2,
+  "process_ids": [
+    41464,
+    46092,
+    48996
+  ],
+  "force_killed_processes": [
+    true,
+    true,
+    true
+  ],
+  "runtime_epochs": [
+    1,
+    2,
+    3
+  ],
+  "journal_sequences": [
+    2,
+    3,
+    4
+  ],
+  "event_sequences": [
+    5,
+    8,
+    11
+  ],
+  "stable_execution_id": "e02-capability-execution-29e116b346501ea30bde12880585b46bd208d04eed5e2469",
+  "stable_replayed": [
+    false,
+    true,
+    true
+  ],
+  "repeated_effect_count": 0,
+  "worker_receipts": [
+    {
+      "exit_code": 143,
+      "process_id": 41464,
+      "snapshot_sha256": "bc4d676ac6bbe9817a7868b72fe84abe0fcd9a701fc75c8923f6585745e0af83",
+      "snapshot_hash": "958e2cf5fb51cc19da71f5d968c291117142bdfd50707566a783bc9ffaa07354",
+      "stdout_sha256": "68dcdf669979a617bcf937f67def6bc04a11be664b123a00ae4c3ccb9975f4ad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "exit_code": 143,
+      "process_id": 46092,
+      "snapshot_sha256": "51e9c48ff357cb54bfa6f3db1b82a35b55f6a8f5af32037e3b56f65810afba65",
+      "snapshot_hash": "b708fbcdd4d6a8950fd3cc24dfb0e533c475c10c0084a5a50875ea7d7ee48543",
+      "stdout_sha256": "1eaa8f1aa4e0ecfa33bebeb3740519a3829aeabb42dff58f75f1c7a02a825d43",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "exit_code": 143,
+      "process_id": 48996,
+      "snapshot_sha256": "d615fe488299744bba1d0d9e6fbbee9fa71435256493daab1dba83b1e07ffe48",
+      "snapshot_hash": "920d2b96b6fd3061b57d239934c3ed9a946e6bce69d5bcf1a0d6f8eb28584faa",
+      "stdout_sha256": "32a32005f6e947ecc4a9fd9bd4245dcecd441a32c26dd35487f5b36b8074c965",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "isolation_root": "system temporary directory outside repository",
+  "cleaned_after_run": true,
+  "schema_version": "3.0",
+  "execution_id": "E02",
+  "probe_id": "e02.probe.same-session-resume",
+  "generated_at_utc": "2026-07-17T09:12:42.380Z",
+  "ok": true
+}

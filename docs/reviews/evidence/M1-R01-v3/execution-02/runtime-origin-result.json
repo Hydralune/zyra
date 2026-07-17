@@ -1,0 +1,14 @@
+{
+  "default_entry": "CodeWorkerApplication.runTaskRuntime -> PermissionedCapabilityHost.executeBatch -> E02CapabilityCoordinator.execute",
+  "canonical_owner": "typescript-e02-control",
+  "transition_id": "e02-transition-25ef7da48bf2964025e9c808580117b1811b061226f740c1",
+  "capability_execution_id": "e02-capability-execution-9eb5277ae9c06fd3dd53f5be2918f47e030ce3d9d4b6ff3a",
+  "runtime_epoch": 1,
+  "journal_sequence": 1,
+  "python_decision_fallback": false,
+  "schema_version": "3.0",
+  "execution_id": "E02",
+  "probe_id": "e02.probe.runtime-origin",
+  "generated_at_utc": "2026-07-17T09:12:41.509Z",
+  "ok": true
+}
