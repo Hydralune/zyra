@@ -2195,6 +2195,573 @@ function assertMailboxSubscription(value: MailboxTopicSubscription): void {
       `mailbox subscription ${value.subscriptionId} is invalid`,
     );
 }
+export interface MailboxQuarantineEntry {
+  deadLetterId: string;
+  messageId: string;
+  recipientTaskId: string;
+  consumerId: string;
+  queue: string;
+  originalDeliveryDigest: string;
+  reasonCode: string;
+  attempt: number;
+  state: "quarantined" | "approved" | "redriving" | "recovered" | "discarded";
+  quarantinedAt: string;
+  updatedAt: string;
+  terminalAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxRedriveAttempt {
+  attemptId: string;
+  deadLetterId: string;
+  targetConsumerId: string;
+  targetQueue: string;
+  idempotencyKey: string;
+  state: "prepared" | "offered" | "acknowledged" | "failed" | "cancelled";
+  preparedAt: string;
+  offeredAt: string;
+  settledAt: string;
+  receiptDigest: string;
+  errorCode: string;
+  previousDigest: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxQuarantinePolicy {
+  policyId: string;
+  queue: string;
+  maximumAttempts: number;
+  retryableReasonCodes: string[];
+  maximumQuarantineEntries: number;
+  redriveRequiresApproval: boolean;
+  enabled: boolean;
+  createdAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxRedriveSnapshot {
+  policies: MailboxQuarantinePolicy[];
+  deadLetters: MailboxQuarantineEntry[];
+  attempts: MailboxRedriveAttempt[];
+  activeDeadLetterByMessageConsumer: [string, string][];
+  attemptByIdempotencyKey: [string, string][];
+}
+
+function assertMailboxQuarantinePolicy(value: MailboxQuarantinePolicy): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.policyId ||
+    !value.queue ||
+    value.maximumAttempts < 1 ||
+    value.maximumQuarantineEntries < 1 ||
+    new Set(value.retryableReasonCodes).size !==
+      value.retryableReasonCodes.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "mailbox_quarantine_policy_corrupt",
+      `mailbox quarantine policy ${value.policyId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMailboxQuarantineEntry(value: MailboxQuarantineEntry): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.deadLetterId ||
+    !value.messageId ||
+    !value.recipientTaskId ||
+    !value.consumerId ||
+    !value.queue ||
+    !value.originalDeliveryDigest ||
+    !value.reasonCode ||
+    value.attempt < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "mailbox_dead_letter_corrupt",
+      `mailbox dead letter ${value.deadLetterId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMailboxRedriveAttempt(value: MailboxRedriveAttempt): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.attemptId ||
+    !value.deadLetterId ||
+    !value.targetConsumerId ||
+    !value.targetQueue ||
+    !value.idempotencyKey ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "mailbox_redrive_attempt_corrupt",
+      `mailbox redrive attempt ${value.attemptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class MailboxRedriveRuntime {
+  private policies = new Map<string, MailboxQuarantinePolicy>();
+  private policyByQueue = new Map<string, string>();
+  private deadLetters = new Map<string, MailboxQuarantineEntry>();
+  private attempts = new Map<string, MailboxRedriveAttempt[]>();
+  private activeDeadLetterByMessageConsumer = new Map<string, string>();
+  private attemptByIdempotencyKey = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerPolicy(input: {
+    policyId?: string;
+    queue: string;
+    maximumAttempts: number;
+    retryableReasonCodes: readonly string[];
+    maximumQuarantineEntries: number;
+    redriveRequiresApproval: boolean;
+  }): MailboxQuarantinePolicy {
+    if (this.policyByQueue.has(input.queue))
+      throw new E03RuntimeError(
+        "mailbox_quarantine_policy_queue_duplicate",
+        `queue ${input.queue} already has a quarantine policy`,
+      );
+    const policyId = input.policyId ?? createId("mailbox-quarantine-policy");
+    const payload = {
+      policyId,
+      queue: input.queue,
+      maximumAttempts: input.maximumAttempts,
+      retryableReasonCodes: [...new Set(input.retryableReasonCodes)].sort(),
+      maximumQuarantineEntries: input.maximumQuarantineEntries,
+      redriveRequiresApproval: input.redriveRequiresApproval,
+      enabled: true,
+      createdAt: this.clock.now(),
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertMailboxQuarantinePolicy(policy);
+    this.policies.set(policyId, policy);
+    this.policyByQueue.set(input.queue, policyId);
+    return structuredClone(policy);
+  }
+
+  quarantine(input: {
+    deadLetterId?: string;
+    messageId: string;
+    recipientTaskId: string;
+    consumerId: string;
+    queue: string;
+    originalDeliveryDigest: string;
+    reasonCode: string;
+    attempt: number;
+  }): MailboxQuarantineEntry {
+    const policy = this.requirePolicyForQueue(input.queue);
+    if (!policy.enabled)
+      throw new E03RuntimeError(
+        "mailbox_quarantine_policy_disabled",
+        `queue ${input.queue} quarantine is disabled`,
+      );
+    const key = this.deadLetterKey(input.messageId, input.consumerId);
+    const existingId = this.activeDeadLetterByMessageConsumer.get(key);
+    if (existingId) return structuredClone(this.requireDeadLetter(existingId));
+    const queueEntries = [...this.deadLetters.values()].filter(
+      (value) =>
+        value.queue === input.queue &&
+        !["recovered", "discarded"].includes(value.state),
+    );
+    if (queueEntries.length >= policy.maximumQuarantineEntries)
+      throw new E03RuntimeError(
+        "mailbox_quarantine_capacity",
+        `queue ${input.queue} quarantine is full`,
+      );
+    if (input.attempt < policy.maximumAttempts)
+      throw new E03RuntimeError(
+        "mailbox_quarantine_attempts_remaining",
+        `message ${input.messageId} still has delivery attempts`,
+      );
+    const deadLetterId = input.deadLetterId ?? createId("mailbox-dead-letter");
+    const now = this.clock.now();
+    const payload = {
+      deadLetterId,
+      messageId: input.messageId,
+      recipientTaskId: input.recipientTaskId,
+      consumerId: input.consumerId,
+      queue: input.queue,
+      originalDeliveryDigest: input.originalDeliveryDigest,
+      reasonCode: input.reasonCode,
+      attempt: input.attempt,
+      state: "quarantined" as const,
+      quarantinedAt: now,
+      updatedAt: now,
+      terminalAt: "",
+      revision: 1,
+    };
+    const deadLetter = { ...payload, digest: digest(payload) };
+    assertMailboxQuarantineEntry(deadLetter);
+    this.deadLetters.set(deadLetterId, deadLetter);
+    this.attempts.set(deadLetterId, []);
+    this.activeDeadLetterByMessageConsumer.set(key, deadLetterId);
+    return structuredClone(deadLetter);
+  }
+
+  approve(
+    deadLetterId: string,
+    expectedRevision: number,
+  ): MailboxQuarantineEntry {
+    const deadLetter = this.requireDeadLetter(deadLetterId);
+    this.assertDeadLetterRevision(deadLetter, expectedRevision);
+    if (deadLetter.state !== "quarantined")
+      throw new E03RuntimeError(
+        "mailbox_dead_letter_approve_state",
+        `mailbox dead letter ${deadLetterId} is ${deadLetter.state}`,
+      );
+    return this.transitionDeadLetter(deadLetter, { state: "approved" });
+  }
+
+  prepare(input: {
+    attemptId?: string;
+    deadLetterId: string;
+    expectedRevision: number;
+    targetConsumerId: string;
+    targetQueue: string;
+    idempotencyKey: string;
+  }): MailboxRedriveAttempt {
+    const duplicateId = this.attemptByIdempotencyKey.get(input.idempotencyKey);
+    if (duplicateId) return structuredClone(this.requireAttempt(duplicateId));
+    const deadLetter = this.requireDeadLetter(input.deadLetterId);
+    this.assertDeadLetterRevision(deadLetter, input.expectedRevision);
+    const policy = this.requirePolicyForQueue(deadLetter.queue);
+    const permitted = policy.redriveRequiresApproval
+      ? deadLetter.state === "approved"
+      : ["quarantined", "approved"].includes(deadLetter.state);
+    if (!permitted)
+      throw new E03RuntimeError(
+        "mailbox_redrive_prepare_state",
+        `mailbox dead letter ${deadLetter.deadLetterId} is ${deadLetter.state}`,
+      );
+    if (!policy.retryableReasonCodes.includes(deadLetter.reasonCode))
+      throw new E03RuntimeError(
+        "mailbox_redrive_reason_denied",
+        `mailbox dead letter reason ${deadLetter.reasonCode} is not retryable`,
+      );
+    const entries = this.attemptEntries(deadLetter.deadLetterId);
+    if (entries.some((value) => ["prepared", "offered"].includes(value.state)))
+      throw new E03RuntimeError(
+        "mailbox_redrive_attempt_active",
+        `mailbox dead letter ${deadLetter.deadLetterId} already redrives`,
+      );
+    const attemptId = input.attemptId ?? createId("mailbox-redrive-attempt");
+    const payload = {
+      attemptId,
+      deadLetterId: deadLetter.deadLetterId,
+      targetConsumerId: input.targetConsumerId,
+      targetQueue: input.targetQueue,
+      idempotencyKey: input.idempotencyKey,
+      state: "prepared" as const,
+      preparedAt: this.clock.now(),
+      offeredAt: "",
+      settledAt: "",
+      receiptDigest: "",
+      errorCode: "",
+      previousDigest: entries.at(-1)?.digest ?? "",
+      revision: 1,
+    };
+    const attempt = { ...payload, digest: digest(payload) };
+    assertMailboxRedriveAttempt(attempt);
+    entries.push(attempt);
+    this.attempts.set(deadLetter.deadLetterId, entries);
+    this.attemptByIdempotencyKey.set(input.idempotencyKey, attemptId);
+    this.transitionDeadLetter(deadLetter, { state: "redriving" });
+    return structuredClone(attempt);
+  }
+
+  offer(
+    attemptId: string,
+    expectedRevision: number,
+    receiptDigest: string,
+  ): MailboxRedriveAttempt {
+    const attempt = this.requireAttempt(attemptId);
+    this.assertAttemptRevision(attempt, expectedRevision);
+    if (attempt.state !== "prepared" || !receiptDigest)
+      throw new E03RuntimeError(
+        "mailbox_redrive_offer_state",
+        `mailbox redrive attempt ${attemptId} cannot be offered`,
+      );
+    return this.transitionAttempt(attempt, {
+      state: "offered",
+      offeredAt: this.clock.now(),
+      receiptDigest,
+    });
+  }
+
+  settle(
+    attemptId: string,
+    expectedRevision: number,
+    input: { accepted: boolean; receiptDigest: string; errorCode?: string },
+  ): MailboxRedriveAttempt {
+    const attempt = this.requireAttempt(attemptId);
+    this.assertAttemptRevision(attempt, expectedRevision);
+    if (
+      attempt.state !== "offered" ||
+      attempt.receiptDigest !== input.receiptDigest
+    )
+      throw new E03RuntimeError(
+        "mailbox_redrive_settle_receipt",
+        `mailbox redrive attempt ${attemptId} receipt is invalid`,
+      );
+    const deadLetter = this.requireDeadLetter(attempt.deadLetterId);
+    const next = this.transitionAttempt(attempt, {
+      state: input.accepted ? "acknowledged" : "failed",
+      settledAt: this.clock.now(),
+      errorCode: input.errorCode ?? "",
+    });
+    if (input.accepted) {
+      this.transitionDeadLetter(deadLetter, {
+        state: "recovered",
+        terminalAt: this.clock.now(),
+      });
+      this.activeDeadLetterByMessageConsumer.delete(
+        this.deadLetterKey(deadLetter.messageId, deadLetter.consumerId),
+      );
+    } else this.transitionDeadLetter(deadLetter, { state: "approved" });
+    return next;
+  }
+
+  discard(
+    deadLetterId: string,
+    expectedRevision: number,
+    reason: string,
+  ): MailboxQuarantineEntry {
+    const deadLetter = this.requireDeadLetter(deadLetterId);
+    this.assertDeadLetterRevision(deadLetter, expectedRevision);
+    if (["redriving", "recovered", "discarded"].includes(deadLetter.state))
+      throw new E03RuntimeError(
+        "mailbox_dead_letter_discard_state",
+        `mailbox dead letter ${deadLetterId} cannot be discarded`,
+      );
+    const next = this.transitionDeadLetter(deadLetter, {
+      state: "discarded",
+      terminalAt: this.clock.now(),
+      reasonCode: reason || deadLetter.reasonCode,
+    });
+    this.activeDeadLetterByMessageConsumer.delete(
+      this.deadLetterKey(deadLetter.messageId, deadLetter.consumerId),
+    );
+    return next;
+  }
+
+  snapshot(): MailboxRedriveSnapshot {
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      deadLetters: [...this.deadLetters.values()].map((value) =>
+        structuredClone(value),
+      ),
+      attempts: [...this.attempts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeDeadLetterByMessageConsumer: [
+        ...this.activeDeadLetterByMessageConsumer.entries(),
+      ],
+      attemptByIdempotencyKey: [...this.attemptByIdempotencyKey.entries()],
+    };
+  }
+
+  restore(snapshot: MailboxRedriveSnapshot): void {
+    const policies = new Map<string, MailboxQuarantinePolicy>();
+    const policyByQueue = new Map<string, string>();
+    for (const value of snapshot.policies) {
+      assertMailboxQuarantinePolicy(value);
+      if (policies.has(value.policyId) || policyByQueue.has(value.queue))
+        throw new E03RuntimeError(
+          "mailbox_quarantine_restore_duplicate",
+          `policy ${value.policyId} duplicates`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+      policyByQueue.set(value.queue, value.policyId);
+    }
+    const deadLetters = new Map<string, MailboxQuarantineEntry>();
+    const attempts = new Map<string, MailboxRedriveAttempt[]>();
+    for (const value of snapshot.deadLetters) {
+      assertMailboxQuarantineEntry(value);
+      if (
+        !policyByQueue.has(value.queue) ||
+        deadLetters.has(value.deadLetterId)
+      )
+        throw new E03RuntimeError(
+          "mailbox_dead_letter_restore",
+          `dead letter ${value.deadLetterId} invalid`,
+        );
+      deadLetters.set(value.deadLetterId, structuredClone(value));
+      attempts.set(value.deadLetterId, []);
+    }
+    for (const value of snapshot.attempts) {
+      assertMailboxRedriveAttempt(value);
+      const entries = attempts.get(value.deadLetterId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "mailbox_redrive_restore_chain",
+          `attempt ${value.attemptId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const activeDeadLetterByMessageConsumer = new Map(
+      snapshot.activeDeadLetterByMessageConsumer,
+    );
+    const attemptByIdempotencyKey = new Map(snapshot.attemptByIdempotencyKey);
+    if (
+      activeDeadLetterByMessageConsumer.size !==
+        snapshot.activeDeadLetterByMessageConsumer.length ||
+      attemptByIdempotencyKey.size !== snapshot.attemptByIdempotencyKey.length
+    )
+      throw new E03RuntimeError(
+        "mailbox_redrive_restore_index_duplicate",
+        "redrive indexes duplicate",
+      );
+    for (const [key, deadLetterId] of activeDeadLetterByMessageConsumer) {
+      const value = deadLetters.get(deadLetterId);
+      if (
+        !value ||
+        key !== this.deadLetterKey(value.messageId, value.consumerId) ||
+        ["recovered", "discarded"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "mailbox_dead_letter_restore_index",
+          `dead letter index ${key} invalid`,
+        );
+    }
+    for (const [key, attemptId] of attemptByIdempotencyKey) {
+      const value = [...attempts.values()]
+        .flat()
+        .find((entry) => entry.attemptId === attemptId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "mailbox_redrive_restore_idempotency",
+          `redrive index ${key} invalid`,
+        );
+    }
+    this.policies = policies;
+    this.policyByQueue = policyByQueue;
+    this.deadLetters = deadLetters;
+    this.attempts = attempts;
+    this.activeDeadLetterByMessageConsumer = activeDeadLetterByMessageConsumer;
+    this.attemptByIdempotencyKey = attemptByIdempotencyKey;
+  }
+
+  private deadLetterKey(messageId: string, consumerId: string): string {
+    return `${messageId}\u0000${consumerId}`;
+  }
+
+  private requirePolicyForQueue(queue: string): MailboxQuarantinePolicy {
+    const id = this.policyByQueue.get(queue);
+    const value = id ? this.policies.get(id) : null;
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_quarantine_policy_missing",
+        `queue ${queue} has no policy`,
+      );
+    assertMailboxQuarantinePolicy(value);
+    return value;
+  }
+
+  private requireDeadLetter(id: string): MailboxQuarantineEntry {
+    const value = this.deadLetters.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_dead_letter_missing",
+        `dead letter ${id} missing`,
+      );
+    assertMailboxQuarantineEntry(value);
+    return value;
+  }
+
+  private requireAttempt(id: string): MailboxRedriveAttempt {
+    const value = [...this.attempts.values()]
+      .flat()
+      .find((entry) => entry.attemptId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_redrive_attempt_missing",
+        `redrive attempt ${id} missing`,
+      );
+    assertMailboxRedriveAttempt(value);
+    return value;
+  }
+
+  private attemptEntries(deadLetterId: string): MailboxRedriveAttempt[] {
+    return this.attempts.get(deadLetterId) ?? [];
+  }
+
+  private assertDeadLetterRevision(
+    value: MailboxQuarantineEntry,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_dead_letter_stale_revision",
+        `dead letter ${value.deadLetterId} stale`,
+      );
+  }
+
+  private assertAttemptRevision(
+    value: MailboxRedriveAttempt,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_redrive_attempt_stale_revision",
+        `attempt ${value.attemptId} stale`,
+      );
+  }
+
+  private transitionDeadLetter(
+    value: MailboxQuarantineEntry,
+    patch: Partial<
+      Omit<MailboxQuarantineEntry, "deadLetterId" | "revision" | "digest">
+    >,
+  ): MailboxQuarantineEntry {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      deadLetterId: value.deadLetterId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxQuarantineEntry(next);
+    this.deadLetters.set(next.deadLetterId, next);
+    return structuredClone(next);
+  }
+
+  private transitionAttempt(
+    value: MailboxRedriveAttempt,
+    patch: Partial<
+      Omit<MailboxRedriveAttempt, "attemptId" | "revision" | "digest">
+    >,
+  ): MailboxRedriveAttempt {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      attemptId: value.attemptId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxRedriveAttempt(next);
+    const entries = this.attemptEntries(value.deadLetterId);
+    const index = entries.findIndex(
+      (entry) => entry.attemptId === value.attemptId,
+    );
+    entries[index] = next;
+    this.attempts.set(value.deadLetterId, entries);
+    return structuredClone(next);
+  }
+}
+
 export class MailboxTopicRuntime {
   private topics = new Map<string, MailboxTopic>();
   private events = new Map<string, MailboxTopicEvent[]>();

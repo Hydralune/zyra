@@ -3219,6 +3219,633 @@ function assertDeliveryCustodyReceipt(value: DeliveryCustodyReceipt): void {
       `delivery custody receipt ${value.receiptId} is invalid`,
     );
 }
+export interface DeliveryAcknowledgementWindow {
+  windowId: string;
+  taskId: string;
+  deliveryId: string;
+  senderId: string;
+  recipientId: string;
+  sequence: number;
+  idempotencyKey: string;
+  state:
+    | "open"
+    | "received"
+    | "accepted"
+    | "rejected"
+    | "expired"
+    | "cancelled";
+  deadlineAt: string;
+  openedAt: string;
+  updatedAt: string;
+  terminalAt: string;
+  payloadDigest: string;
+  acknowledgementDigest: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DeliveryAcknowledgementReceipt {
+  receiptId: string;
+  windowId: string;
+  deliveryId: string;
+  recipientId: string;
+  sequence: number;
+  outcome: "received" | "accepted" | "rejected";
+  payloadDigest: string;
+  recipientRevision: number;
+  receivedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface DeliveryRetransmission {
+  retransmissionId: string;
+  windowId: string;
+  originalDeliveryId: string;
+  attempt: number;
+  idempotencyKey: string;
+  state: "scheduled" | "sent" | "acknowledged" | "failed" | "cancelled";
+  scheduledAt: string;
+  sentAt: string;
+  settledAt: string;
+  transportReceiptDigest: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DeliveryAcknowledgementSnapshot {
+  windows: DeliveryAcknowledgementWindow[];
+  receipts: DeliveryAcknowledgementReceipt[];
+  retransmissions: DeliveryRetransmission[];
+  windowByIdempotencyKey: [string, string][];
+  activeWindowByDelivery: [string, string][];
+  retransmissionByIdempotencyKey: [string, string][];
+}
+
+function assertDeliveryAcknowledgementWindow(
+  value: DeliveryAcknowledgementWindow,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.windowId ||
+    !value.taskId ||
+    !value.deliveryId ||
+    !value.senderId ||
+    !value.recipientId ||
+    value.sequence < 0 ||
+    !value.idempotencyKey ||
+    !value.payloadDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "delivery_acknowledgement_window_corrupt",
+      `delivery acknowledgement window ${value.windowId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertDeliveryAcknowledgementReceipt(
+  value: DeliveryAcknowledgementReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.windowId ||
+    !value.deliveryId ||
+    !value.recipientId ||
+    value.sequence < 0 ||
+    !value.payloadDigest ||
+    value.recipientRevision < 0 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "delivery_acknowledgement_receipt_corrupt",
+      `delivery acknowledgement receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertDeliveryRetransmission(value: DeliveryRetransmission): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.retransmissionId ||
+    !value.windowId ||
+    !value.originalDeliveryId ||
+    value.attempt < 1 ||
+    !value.idempotencyKey ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "delivery_retransmission_corrupt",
+      `delivery retransmission ${value.retransmissionId || "<empty>"} is corrupt`,
+    );
+}
+
+export class DeliveryAcknowledgementRuntime {
+  private windows = new Map<string, DeliveryAcknowledgementWindow>();
+  private receipts = new Map<string, DeliveryAcknowledgementReceipt[]>();
+  private retransmissions = new Map<string, DeliveryRetransmission[]>();
+  private windowByIdempotencyKey = new Map<string, string>();
+  private activeWindowByDelivery = new Map<string, string>();
+  private retransmissionByIdempotencyKey = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  open(input: {
+    windowId?: string;
+    taskId: string;
+    deliveryId: string;
+    senderId: string;
+    recipientId: string;
+    sequence: number;
+    idempotencyKey: string;
+    deadlineAt: string;
+    payloadDigest: string;
+  }): DeliveryAcknowledgementWindow {
+    const duplicateId = this.windowByIdempotencyKey.get(input.idempotencyKey);
+    if (duplicateId) return structuredClone(this.requireWindow(duplicateId));
+    if (this.activeWindowByDelivery.has(input.deliveryId))
+      throw new E03RuntimeError(
+        "delivery_acknowledgement_window_active",
+        `delivery ${input.deliveryId} already awaits acknowledgement`,
+      );
+    if (input.senderId === input.recipientId)
+      throw new E03RuntimeError(
+        "delivery_acknowledgement_same_party",
+        "delivery acknowledgement sender and recipient must differ",
+      );
+    const now = this.clock.now();
+    if (Date.parse(input.deadlineAt) <= Date.parse(now))
+      throw new E03RuntimeError(
+        "delivery_acknowledgement_deadline",
+        "delivery acknowledgement deadline must be in the future",
+      );
+    const windowId = input.windowId ?? createId("delivery-ack-window");
+    const payload = {
+      windowId,
+      taskId: input.taskId,
+      deliveryId: input.deliveryId,
+      senderId: input.senderId,
+      recipientId: input.recipientId,
+      sequence: input.sequence,
+      idempotencyKey: input.idempotencyKey,
+      state: "open" as const,
+      deadlineAt: input.deadlineAt,
+      openedAt: now,
+      updatedAt: now,
+      terminalAt: "",
+      payloadDigest: input.payloadDigest,
+      acknowledgementDigest: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const window = { ...payload, digest: digest(payload) };
+    assertDeliveryAcknowledgementWindow(window);
+    this.windows.set(windowId, window);
+    this.receipts.set(windowId, []);
+    this.retransmissions.set(windowId, []);
+    this.windowByIdempotencyKey.set(input.idempotencyKey, windowId);
+    this.activeWindowByDelivery.set(input.deliveryId, windowId);
+    return structuredClone(window);
+  }
+
+  receive(input: {
+    receiptId?: string;
+    windowId: string;
+    expectedRevision: number;
+    recipientId: string;
+    sequence: number;
+    payloadDigest: string;
+    recipientRevision: number;
+  }): DeliveryAcknowledgementReceipt {
+    const window = this.requireWindow(input.windowId);
+    this.assertWindowRevision(window, input.expectedRevision);
+    if (!["open", "received"].includes(window.state))
+      throw new E03RuntimeError(
+        "delivery_acknowledgement_receive_state",
+        `delivery acknowledgement window ${window.windowId} is ${window.state}`,
+      );
+    if (
+      input.recipientId !== window.recipientId ||
+      input.sequence !== window.sequence ||
+      input.payloadDigest !== window.payloadDigest
+    )
+      throw new E03RuntimeError(
+        "delivery_acknowledgement_binding",
+        `delivery acknowledgement window ${window.windowId} binding is invalid`,
+      );
+    const entries = this.receiptEntries(window.windowId);
+    const duplicate = entries.find(
+      (value) =>
+        value.outcome === "received" &&
+        value.recipientRevision === input.recipientRevision,
+    );
+    if (duplicate) return structuredClone(duplicate);
+    const payload = {
+      receiptId: input.receiptId ?? createId("delivery-ack-receipt"),
+      windowId: window.windowId,
+      deliveryId: window.deliveryId,
+      recipientId: input.recipientId,
+      sequence: input.sequence,
+      outcome: "received" as const,
+      payloadDigest: input.payloadDigest,
+      recipientRevision: input.recipientRevision,
+      receivedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertDeliveryAcknowledgementReceipt(receipt);
+    entries.push(receipt);
+    this.receipts.set(window.windowId, entries);
+    this.transitionWindow(window, {
+      state: "received",
+      acknowledgementDigest: receipt.digest,
+    });
+    return structuredClone(receipt);
+  }
+
+  decide(input: {
+    receiptId?: string;
+    windowId: string;
+    expectedRevision: number;
+    accepted: boolean;
+    recipientRevision: number;
+    errorCode?: string;
+  }): DeliveryAcknowledgementReceipt {
+    const window = this.requireWindow(input.windowId);
+    this.assertWindowRevision(window, input.expectedRevision);
+    if (window.state !== "received")
+      throw new E03RuntimeError(
+        "delivery_acknowledgement_decide_state",
+        `delivery acknowledgement window ${window.windowId} is ${window.state}`,
+      );
+    const entries = this.receiptEntries(window.windowId);
+    const received = entries.at(-1);
+    if (!received || received.outcome !== "received")
+      throw new E03RuntimeError(
+        "delivery_acknowledgement_receive_receipt_missing",
+        `delivery acknowledgement window ${window.windowId} lacks receive receipt`,
+      );
+    const payload = {
+      receiptId: input.receiptId ?? createId("delivery-ack-decision"),
+      windowId: window.windowId,
+      deliveryId: window.deliveryId,
+      recipientId: window.recipientId,
+      sequence: window.sequence,
+      outcome: input.accepted ? ("accepted" as const) : ("rejected" as const),
+      payloadDigest: window.payloadDigest,
+      recipientRevision: input.recipientRevision,
+      receivedAt: this.clock.now(),
+      previousDigest: received.digest,
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertDeliveryAcknowledgementReceipt(receipt);
+    entries.push(receipt);
+    this.receipts.set(window.windowId, entries);
+    this.transitionWindow(window, {
+      state: input.accepted ? "accepted" : "rejected",
+      acknowledgementDigest: receipt.digest,
+      terminalAt: receipt.receivedAt,
+      errorCode: input.errorCode ?? "",
+    });
+    this.activeWindowByDelivery.delete(window.deliveryId);
+    for (const retransmission of this.retransmissionEntries(window.windowId))
+      if (["scheduled", "sent"].includes(retransmission.state))
+        this.transitionRetransmission(retransmission, {
+          state: input.accepted ? "acknowledged" : "cancelled",
+          settledAt: receipt.receivedAt,
+        });
+    return structuredClone(receipt);
+  }
+
+  scheduleRetransmission(input: {
+    retransmissionId?: string;
+    windowId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+  }): DeliveryRetransmission {
+    const duplicateId = this.retransmissionByIdempotencyKey.get(
+      input.idempotencyKey,
+    );
+    if (duplicateId)
+      return structuredClone(this.requireRetransmission(duplicateId));
+    const window = this.requireWindow(input.windowId);
+    this.assertWindowRevision(window, input.expectedRevision);
+    if (!["open", "received"].includes(window.state))
+      throw new E03RuntimeError(
+        "delivery_retransmission_window_state",
+        `delivery acknowledgement window ${window.windowId} is ${window.state}`,
+      );
+    const entries = this.retransmissionEntries(window.windowId);
+    if (entries.some((value) => ["scheduled", "sent"].includes(value.state)))
+      throw new E03RuntimeError(
+        "delivery_retransmission_active",
+        `delivery ${window.deliveryId} already retransmits`,
+      );
+    const retransmissionId =
+      input.retransmissionId ?? createId("delivery-retransmission");
+    const payload = {
+      retransmissionId,
+      windowId: window.windowId,
+      originalDeliveryId: window.deliveryId,
+      attempt: entries.length + 1,
+      idempotencyKey: input.idempotencyKey,
+      state: "scheduled" as const,
+      scheduledAt: this.clock.now(),
+      sentAt: "",
+      settledAt: "",
+      transportReceiptDigest: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const retransmission = { ...payload, digest: digest(payload) };
+    assertDeliveryRetransmission(retransmission);
+    entries.push(retransmission);
+    this.retransmissions.set(window.windowId, entries);
+    this.retransmissionByIdempotencyKey.set(
+      input.idempotencyKey,
+      retransmissionId,
+    );
+    return structuredClone(retransmission);
+  }
+
+  markSent(
+    retransmissionId: string,
+    expectedRevision: number,
+    transportReceiptDigest: string,
+  ): DeliveryRetransmission {
+    const value = this.requireRetransmission(retransmissionId);
+    this.assertRetransmissionRevision(value, expectedRevision);
+    if (value.state !== "scheduled" || !transportReceiptDigest)
+      throw new E03RuntimeError(
+        "delivery_retransmission_send_state",
+        `delivery retransmission ${retransmissionId} cannot be sent`,
+      );
+    return this.transitionRetransmission(value, {
+      state: "sent",
+      sentAt: this.clock.now(),
+      transportReceiptDigest,
+    });
+  }
+
+  failRetransmission(
+    retransmissionId: string,
+    expectedRevision: number,
+    errorCode: string,
+  ): DeliveryRetransmission {
+    const value = this.requireRetransmission(retransmissionId);
+    this.assertRetransmissionRevision(value, expectedRevision);
+    if (!["scheduled", "sent"].includes(value.state))
+      throw new E03RuntimeError(
+        "delivery_retransmission_fail_state",
+        `delivery retransmission ${retransmissionId} is ${value.state}`,
+      );
+    return this.transitionRetransmission(value, {
+      state: "failed",
+      settledAt: this.clock.now(),
+      errorCode,
+    });
+  }
+
+  expire(at = this.clock.now()): DeliveryAcknowledgementWindow[] {
+    const expired: DeliveryAcknowledgementWindow[] = [];
+    for (const window of [...this.windows.values()]) {
+      if (
+        !["open", "received"].includes(window.state) ||
+        Date.parse(window.deadlineAt) > Date.parse(at)
+      )
+        continue;
+      const next = this.transitionWindow(window, {
+        state: "expired",
+        terminalAt: at,
+        errorCode: "acknowledgement_deadline",
+      });
+      this.activeWindowByDelivery.delete(window.deliveryId);
+      expired.push(next);
+    }
+    return expired;
+  }
+
+  snapshot(): DeliveryAcknowledgementSnapshot {
+    return {
+      windows: [...this.windows.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      retransmissions: [...this.retransmissions.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      windowByIdempotencyKey: [...this.windowByIdempotencyKey.entries()],
+      activeWindowByDelivery: [...this.activeWindowByDelivery.entries()],
+      retransmissionByIdempotencyKey: [
+        ...this.retransmissionByIdempotencyKey.entries(),
+      ],
+    };
+  }
+
+  restore(snapshot: DeliveryAcknowledgementSnapshot): void {
+    const windows = new Map<string, DeliveryAcknowledgementWindow>();
+    const receipts = new Map<string, DeliveryAcknowledgementReceipt[]>();
+    const retransmissions = new Map<string, DeliveryRetransmission[]>();
+    for (const value of snapshot.windows) {
+      assertDeliveryAcknowledgementWindow(value);
+      if (windows.has(value.windowId))
+        throw new E03RuntimeError(
+          "delivery_ack_restore_duplicate",
+          `window ${value.windowId} duplicate`,
+        );
+      windows.set(value.windowId, structuredClone(value));
+      receipts.set(value.windowId, []);
+      retransmissions.set(value.windowId, []);
+    }
+    for (const value of snapshot.receipts) {
+      assertDeliveryAcknowledgementReceipt(value);
+      const entries = receipts.get(value.windowId);
+      const window = windows.get(value.windowId);
+      if (
+        !entries ||
+        !window ||
+        window.deliveryId !== value.deliveryId ||
+        value.previousDigest !== (entries.at(-1)?.digest ?? "")
+      )
+        throw new E03RuntimeError(
+          "delivery_ack_receipt_restore_chain",
+          `receipt ${value.receiptId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.retransmissions) {
+      assertDeliveryRetransmission(value);
+      const entries = retransmissions.get(value.windowId);
+      const window = windows.get(value.windowId);
+      if (
+        !entries ||
+        !window ||
+        window.deliveryId !== value.originalDeliveryId ||
+        value.attempt !== entries.length + 1
+      )
+        throw new E03RuntimeError(
+          "delivery_retransmission_restore_order",
+          `retransmission ${value.retransmissionId} invalid`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const windowByIdempotencyKey = new Map(snapshot.windowByIdempotencyKey);
+    const activeWindowByDelivery = new Map(snapshot.activeWindowByDelivery);
+    const retransmissionByIdempotencyKey = new Map(
+      snapshot.retransmissionByIdempotencyKey,
+    );
+    if (
+      windowByIdempotencyKey.size !== snapshot.windowByIdempotencyKey.length ||
+      activeWindowByDelivery.size !== snapshot.activeWindowByDelivery.length ||
+      retransmissionByIdempotencyKey.size !==
+        snapshot.retransmissionByIdempotencyKey.length
+    )
+      throw new E03RuntimeError(
+        "delivery_ack_restore_index_duplicate",
+        "delivery acknowledgement indexes duplicate",
+      );
+    for (const [key, windowId] of windowByIdempotencyKey) {
+      const value = windows.get(windowId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "delivery_ack_restore_idempotency",
+          `window index ${key} invalid`,
+        );
+    }
+    for (const [deliveryId, windowId] of activeWindowByDelivery) {
+      const value = windows.get(windowId);
+      if (
+        !value ||
+        value.deliveryId !== deliveryId ||
+        !["open", "received"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "delivery_ack_restore_active",
+          `delivery index ${deliveryId} invalid`,
+        );
+    }
+    for (const [key, retransmissionId] of retransmissionByIdempotencyKey) {
+      const value = [...retransmissions.values()]
+        .flat()
+        .find((entry) => entry.retransmissionId === retransmissionId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "delivery_retransmission_restore_idempotency",
+          `retransmission index ${key} invalid`,
+        );
+    }
+    this.windows = windows;
+    this.receipts = receipts;
+    this.retransmissions = retransmissions;
+    this.windowByIdempotencyKey = windowByIdempotencyKey;
+    this.activeWindowByDelivery = activeWindowByDelivery;
+    this.retransmissionByIdempotencyKey = retransmissionByIdempotencyKey;
+  }
+
+  private receiptEntries(windowId: string): DeliveryAcknowledgementReceipt[] {
+    return this.receipts.get(windowId) ?? [];
+  }
+
+  private retransmissionEntries(windowId: string): DeliveryRetransmission[] {
+    return this.retransmissions.get(windowId) ?? [];
+  }
+
+  private requireWindow(id: string): DeliveryAcknowledgementWindow {
+    const value = this.windows.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "delivery_ack_window_missing",
+        `window ${id} missing`,
+      );
+    assertDeliveryAcknowledgementWindow(value);
+    return value;
+  }
+
+  private requireRetransmission(id: string): DeliveryRetransmission {
+    const value = [...this.retransmissions.values()]
+      .flat()
+      .find((entry) => entry.retransmissionId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "delivery_retransmission_missing",
+        `retransmission ${id} missing`,
+      );
+    assertDeliveryRetransmission(value);
+    return value;
+  }
+
+  private assertWindowRevision(
+    value: DeliveryAcknowledgementWindow,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "delivery_ack_window_stale_revision",
+        `window ${value.windowId} stale`,
+      );
+  }
+
+  private assertRetransmissionRevision(
+    value: DeliveryRetransmission,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "delivery_retransmission_stale_revision",
+        `retransmission ${value.retransmissionId} stale`,
+      );
+  }
+
+  private transitionWindow(
+    value: DeliveryAcknowledgementWindow,
+    patch: Partial<
+      Omit<DeliveryAcknowledgementWindow, "windowId" | "revision" | "digest">
+    >,
+  ): DeliveryAcknowledgementWindow {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      windowId: value.windowId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDeliveryAcknowledgementWindow(next);
+    this.windows.set(next.windowId, next);
+    return structuredClone(next);
+  }
+
+  private transitionRetransmission(
+    value: DeliveryRetransmission,
+    patch: Partial<
+      Omit<DeliveryRetransmission, "retransmissionId" | "revision" | "digest">
+    >,
+  ): DeliveryRetransmission {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      retransmissionId: value.retransmissionId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDeliveryRetransmission(next);
+    const entries = this.retransmissionEntries(value.windowId);
+    const index = entries.findIndex(
+      (entry) => entry.retransmissionId === value.retransmissionId,
+    );
+    entries[index] = next;
+    this.retransmissions.set(value.windowId, entries);
+    return structuredClone(next);
+  }
+}
+
 export class DeliveryCustodyTransferRuntime {
   private transfers = new Map<string, DeliveryCustodyTransfer>();
   private receipts = new Map<string, DeliveryCustodyReceipt[]>();
