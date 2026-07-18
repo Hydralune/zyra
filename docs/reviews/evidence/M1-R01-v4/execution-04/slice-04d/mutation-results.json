@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-D",
+  "implementation_commit": "4ef6d8c5b68054b3883bc20764165fecfbd0a440",
+  "results": [
+    {
+      "mutation_id": "e04-mutation-domain-06",
+      "target": "packages/runtime/claude-runtime/src/skills/runtime.ts",
+      "target_symbol": "TypeScriptSkillRuntime",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-skill-disable",
+      "killer_result": "killed",
+      "observed_disconnect": "E02CapabilityCoordinator.open -> SkillCoordinator.open -> TypeScriptSkillRuntime.assertSourceRuntimeEnabled",
+      "restore_result": "pass",
+      "restored_sha256": "3048960b8513503f3a2f439d8c6cbe59aac4987d647516f8e23d71448e321660"
+    }
+  ],
+  "residual_backups": 0,
+  "verdict": "1_of_1_killed_and_restored"
+}

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-D",
+  "implementation_commit": "4ef6d8c5b68054b3883bc20764165fecfbd0a440",
+  "implementation_tree": "2dc510f0656fb59a6b65348e9df3255464d43486",
+  "g0_tooling_commit": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "source_ranges_closed": [
+    "e04-source-012",
+    "e04-source-013",
+    "e04-source-014"
+  ],
+  "semantic_domains_closed": [
+    "skill_plugin_command"
+  ],
+  "checks": [
+    {
+      "command": ".\\node_modules\\.bin\\tsc.exe -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json",
+      "result": "pass"
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe test packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+      "result": "pass",
+      "tests": 5,
+      "failures": 0
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe test packages/runtime/claude-runtime/test/e02",
+      "result": "pass",
+      "tests": 801,
+      "failures": 0
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe scripts/remediation/run_m1_r01_e04_mutations.py --id/--restore e04-mutation-domain-06",
+      "result": "pass",
+      "compile_after_apply": "pass",
+      "killer_test": "e04-skill-disable",
+      "killer_result": "killed",
+      "restore_result": "pass"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_g0.py",
+      "result": "pass",
+      "source_ranges": 18,
+      "target_records": 18,
+      "python_owner_symbols": 1619,
+      "mutation_points": 13,
+      "duration_seconds": 98.0
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "behavior_evidence": {
+    "default_capability_api_discovers_disk_skill": true,
+    "frontmatter_and_root_validation_precede_registry_commit": true,
+    "forked_skill_uses_agent_execution_context_run_child": true,
+    "forked_skill_failure_is_journaled_without_inline_fallback": true,
+    "skill_reload_advances_registry_revision": true,
+    "plugin_command_dispatch_changes_live_capability_state": true,
+    "plugin_hooks_stage_before_one_atomic_swap": true,
+    "failed_plugin_reload_preserves_prior_live_hooks": true,
+    "plugin_hook_restore_rebinds_committed_revision": true,
+    "source_disable_fails_closed": true,
+    "python_logical_fallback": false
+  },
+  "scope_verdict": "slice_pass_parent_in_progress"
+}
