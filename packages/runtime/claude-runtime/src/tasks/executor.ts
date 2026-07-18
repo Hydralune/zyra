@@ -38,16 +38,21 @@ export interface TaskDispatchInput {
 
 export class TaskExecutor {
   private readonly active = new Map<string, Promise<E03TaskState>>();
-  private readonly deadlines = new TaskDeadlineRuntime();
+  private readonly deadlines: TaskDeadlineRuntime;
   private readonly leases = new TaskLeaseRuntime();
-  private readonly deliveries = new TeamDelivery();
-  private readonly outbox = new DeliveryOutboxRuntime();
+  private readonly deliveries: TeamDelivery;
+  private readonly outbox: DeliveryOutboxRuntime;
 
   constructor(
     private readonly registry: DurableTaskRegistry,
     private readonly stateMachine: TaskStateMachine,
     private readonly host: TaskExecutionHost,
-  ) {}
+    clock: E03Clock = new SystemE03Clock(),
+  ) {
+    this.deadlines = new TaskDeadlineRuntime(clock);
+    this.deliveries = new TeamDelivery(clock);
+    this.outbox = new DeliveryOutboxRuntime(clock);
+  }
 
   async dispatch(input: TaskDispatchInput): Promise<E03TaskState> {
     this.deadlines.assertDispatchable(input.task);

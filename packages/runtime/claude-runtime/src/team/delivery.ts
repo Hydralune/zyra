@@ -60,7 +60,10 @@ export class TeamDelivery {
         "final_delivery_phase",
         `task in ${task.status} cannot publish final output`,
       );
-    if (task.deliveries.some((delivery) => delivery.kind === "final")) {
+    const priorFinals = task.deliveries.filter(
+      (delivery) => delivery.kind === "final" || delivery.kind === "error",
+    );
+    if (priorFinals.length >= task.identity.attempt) {
       const prior = task.deliveries.find(
         (delivery) => delivery.idempotencyKey === input.idempotencyKey,
       );
@@ -1258,6 +1261,7 @@ export class DeliveryReconciliationRuntime {
     const findings: DeliveryReconciliationFinding[] = [];
     let expected = 1;
     let finalSeen = false;
+    let priorFinalAt = "";
     for (const delivery of task.deliveries) {
       assertDelivery(delivery);
       if (delivery.sequence !== expected)
@@ -1270,17 +1274,29 @@ export class DeliveryReconciliationRuntime {
           ),
         );
       expected = delivery.sequence + 1;
-      if (finalSeen)
-        findings.push(
-          deliveryFinding(
-            "delivery_after_final",
-            task,
-            delivery,
-            "delivery follows final/error",
-          ),
+      if (finalSeen) {
+        const resumed = task.transitions.some(
+          (transition) =>
+            transition.eventType === "persist_agent_task_resume" &&
+            transition.committedAt !== null &&
+            transition.committedAt > priorFinalAt &&
+            transition.committedAt <= delivery.createdAt,
         );
-      if (delivery.kind === "final" || delivery.kind === "error")
+        if (resumed) finalSeen = false;
+        else
+          findings.push(
+            deliveryFinding(
+              "delivery_after_final",
+              task,
+              delivery,
+              "delivery follows final/error without a resume boundary",
+            ),
+          );
+      }
+      if (delivery.kind === "final" || delivery.kind === "error") {
         finalSeen = true;
+        priorFinalAt = delivery.createdAt;
+      }
       const matchingEvidence = evidence.filter(
         (value) => value.deliveryId === delivery.deliveryId,
       );

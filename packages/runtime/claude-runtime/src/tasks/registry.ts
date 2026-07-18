@@ -99,10 +99,32 @@ export class DurableTaskRegistry {
           "non_monotonic_revision",
           "proposed task revision must increment exactly once",
         );
-      if (proposal.proposed.identity.leaseId !== existing.identity.leaseId)
+      const leaseRotated =
+        proposal.proposed.identity.leaseId !== existing.identity.leaseId;
+      const validResumeLeaseRotation =
+        leaseRotated &&
+        proposal.effectOperation === "persist_agent_task_resume" &&
+        (existing.status === "waiting" || existing.status === "failed") &&
+        proposal.proposed.status === "queued" &&
+        proposal.proposed.identity.runId === existing.identity.runId &&
+        proposal.proposed.identity.sessionId === existing.identity.sessionId &&
+        proposal.proposed.identity.taskId === existing.identity.taskId &&
+        proposal.proposed.identity.parentTaskId ===
+          existing.identity.parentTaskId &&
+        proposal.proposed.identity.parentSessionId ===
+          existing.identity.parentSessionId &&
+        proposal.proposed.identity.attempt === existing.identity.attempt + 1 &&
+        proposal.proposed.identity.attemptId ===
+          `${existing.identity.taskId}:attempt:${existing.identity.attempt + 1}` &&
+        proposal.proposed.identity.lineage.length ===
+          existing.identity.lineage.length &&
+        proposal.proposed.identity.lineage.every(
+          (entry, index) => entry === existing.identity.lineage[index],
+        );
+      if (leaseRotated && !validResumeLeaseRotation)
         throw new E03RuntimeError(
           "stale_lease",
-          "proposed mutation changed the active task lease",
+          "proposed mutation changed the active task lease outside a valid resume attempt",
         );
     } else if (
       proposal.expectedRevision !== 0 ||
@@ -134,7 +156,7 @@ export class DurableTaskRegistry {
             phase: "prepare" as const,
             fromRevision: existing?.revision ?? 0,
             toRevision: proposal.proposed.revision,
-            fromStatus: "created" as const,
+            fromStatus: existing?.status ?? ("created" as const),
             toStatus: proposal.proposed.status,
             eventType: existing
               ? (proposal.effectOperation ?? "agent_task_mutated")
@@ -2217,6 +2239,7 @@ export class TaskInvariantRuntime {
     const findings: InvariantFinding[] = [];
     let revision = 0;
     let status: E03TaskState["status"] = "created";
+    let activeLeaseId = task.transitions[0]?.leaseId ?? task.identity.leaseId;
     const ids = new Set<string>();
     const idempotency = new Map<string, string>();
     for (const [index, transition] of task.transitions.entries()) {
@@ -2255,18 +2278,32 @@ export class TaskInvariantRuntime {
           ),
         );
       }
-      if (
-        transition.taskId !== task.identity.taskId ||
-        transition.leaseId !== task.identity.leaseId
-      ) {
+      if (transition.taskId !== task.identity.taskId) {
         findings.push(
           this.finding(
             "transition_custody_mismatch",
             task.identity.taskId,
             path,
-            "transition uses another task or lease",
+            "transition uses another task",
           ),
         );
+      }
+      if (transition.leaseId !== activeLeaseId) {
+        const validResumeBoundary =
+          transition.eventType === "persist_agent_task_resume" &&
+          (transition.fromStatus === "waiting" ||
+            transition.fromStatus === "failed") &&
+          transition.toStatus === "queued";
+        if (validResumeBoundary) activeLeaseId = transition.leaseId;
+        else
+          findings.push(
+            this.finding(
+              "transition_custody_mismatch",
+              task.identity.taskId,
+              path,
+              "transition changes lease outside a resume boundary",
+            ),
+          );
       }
       if (transition.writerId !== "typescript.E03AgentControlCoordinator") {
         findings.push(
@@ -2353,6 +2390,16 @@ export class TaskInvariantRuntime {
           task.identity.taskId,
           "transitions",
           `transition status ${status} differs from task status ${task.status}`,
+        ),
+      );
+    }
+    if (task.transitions.length && activeLeaseId !== task.identity.leaseId) {
+      findings.push(
+        this.finding(
+          "transition_custody_mismatch",
+          task.identity.taskId,
+          "transitions",
+          "transition lease head differs from task lease",
         ),
       );
     }
@@ -2463,6 +2510,7 @@ export class TaskInvariantRuntime {
     const findings: InvariantFinding[] = [];
     let sequence = 0;
     let finalSeen = false;
+    let priorFinalAt = "";
     const ids = new Set<string>();
     const idempotency = new Map<string, string>();
     for (const [index, delivery] of task.deliveries.entries()) {
@@ -2499,17 +2547,29 @@ export class TaskInvariantRuntime {
           ),
         );
       idempotency.set(delivery.idempotencyKey, delivery.digest);
-      if (finalSeen)
-        findings.push(
-          this.finding(
-            "delivery_after_final",
-            task.identity.taskId,
-            path,
-            "delivery was appended after a final/error record",
-          ),
+      if (finalSeen) {
+        const resumed = task.transitions.some(
+          (transition) =>
+            transition.eventType === "persist_agent_task_resume" &&
+            transition.committedAt !== null &&
+            transition.committedAt > priorFinalAt &&
+            transition.committedAt <= delivery.createdAt,
         );
-      if (delivery.kind === "final" || delivery.kind === "error")
+        if (resumed) finalSeen = false;
+        else
+          findings.push(
+            this.finding(
+              "delivery_after_final",
+              task.identity.taskId,
+              path,
+              "delivery was appended after a final/error record without a resume boundary",
+            ),
+          );
+      }
+      if (delivery.kind === "final" || delivery.kind === "error") {
         finalSeen = true;
+        priorFinalAt = delivery.createdAt;
+      }
       if (delivery.taskId !== task.identity.taskId)
         findings.push(
           this.finding(
@@ -2585,13 +2645,19 @@ export class TaskInvariantRuntime {
           "effect receipt refers to a missing task",
         ),
       );
-    else if (task.identity.leaseId !== receipt.leaseId)
+    else if (
+      !task.transitions.some(
+        (transition) =>
+          transition.effectId === receipt.effectId &&
+          transition.leaseId === receipt.leaseId,
+      )
+    )
       findings.push(
         this.finding(
           "effect_lease_mismatch",
           receipt.taskId,
           `effects.${effectId}`,
-          "effect receipt uses a stale lease",
+          "effect receipt has no matching transition lease",
         ),
       );
     if (!receipt.accepted && !receipt.error.trim())

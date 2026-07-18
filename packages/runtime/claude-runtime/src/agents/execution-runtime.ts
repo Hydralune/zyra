@@ -32,14 +32,16 @@ export interface AgentCreateRequest {
 
 export class AgentExecutionRuntime {
   private readonly identity = new TaskIdentityRuntime();
-  private readonly machine = new TaskStateMachine();
+  private readonly machine: TaskStateMachine;
   private readonly executor: TaskExecutor;
 
   constructor(
     private readonly registry: DurableTaskRegistry,
     host: TaskExecutionHost,
+    clock: E03Clock = new SystemE03Clock(),
   ) {
-    this.executor = new TaskExecutor(registry, this.machine, host);
+    this.machine = new TaskStateMachine(clock);
+    this.executor = new TaskExecutor(registry, this.machine, host, clock);
   }
 
   async create(request: AgentCreateRequest): Promise<E03TaskState> {
