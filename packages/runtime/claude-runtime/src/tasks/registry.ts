@@ -3786,6 +3786,771 @@ export class TaskRegistryReplicationRuntime {
   }
 }
 
+export interface TaskChangeEvent {
+  eventId: string;
+  partition: number;
+  offset: number;
+  taskId: string;
+  leaseId: string;
+  taskRevision: number;
+  kind: "created" | "transition" | "effect" | "ack" | "snapshot" | "tombstone";
+  payloadDigest: string;
+  writerId: string;
+  committedAt: string;
+  previousPartitionDigest: string;
+  digest: string;
+}
+
+export interface TaskChangeConsumer {
+  consumerId: string;
+  groupId: string;
+  ownerId: string;
+  partitions: number[];
+  leaseExpiresAt: string;
+  generation: number;
+  state: "joining" | "active" | "revoking" | "left" | "expired";
+  lastHeartbeatAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskChangeCheckpoint {
+  checkpointId: string;
+  groupId: string;
+  consumerId: string;
+  partition: number;
+  committedOffset: number;
+  eventDigest: string;
+  generation: number;
+  committedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskChangeDelivery {
+  deliveryId: string;
+  consumerId: string;
+  eventId: string;
+  partition: number;
+  offset: number;
+  state: "offered" | "acknowledged" | "rejected" | "expired";
+  attempt: number;
+  offeredAt: string;
+  deadlineAt: string;
+  settledAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskChangeFeedSnapshot {
+  partitionCount: number;
+  events: TaskChangeEvent[];
+  consumers: TaskChangeConsumer[];
+  checkpoints: TaskChangeCheckpoint[];
+  deliveries: TaskChangeDelivery[];
+  activeConsumerByOwner: [string, string][];
+  activeDeliveryByConsumerEvent: [string, string][];
+  groupGeneration: [string, number][];
+}
+
+function assertTaskChangeEvent(
+  value: TaskChangeEvent,
+  partitionCount: number,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.eventId ||
+    value.partition < 0 ||
+    value.partition >= partitionCount ||
+    value.offset < 0 ||
+    !value.taskId ||
+    !value.leaseId ||
+    value.taskRevision < 1 ||
+    !value.payloadDigest ||
+    !value.writerId ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_change_event_corrupt",
+      `task change event ${value.eventId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskChangeConsumer(
+  value: TaskChangeConsumer,
+  partitionCount: number,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.consumerId ||
+    !value.groupId ||
+    !value.ownerId ||
+    value.generation < 1 ||
+    value.revision < 1 ||
+    new Set(value.partitions).size !== value.partitions.length ||
+    value.partitions.some(
+      (partition) => partition < 0 || partition >= partitionCount,
+    ) ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_change_consumer_corrupt",
+      `task change consumer ${value.consumerId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskChangeCheckpoint(
+  value: TaskChangeCheckpoint,
+  partitionCount: number,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.checkpointId ||
+    !value.groupId ||
+    !value.consumerId ||
+    value.partition < 0 ||
+    value.partition >= partitionCount ||
+    value.committedOffset < -1 ||
+    value.generation < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_change_checkpoint_corrupt",
+      `task change checkpoint ${value.checkpointId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskChangeDelivery(
+  value: TaskChangeDelivery,
+  partitionCount: number,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.deliveryId ||
+    !value.consumerId ||
+    !value.eventId ||
+    value.partition < 0 ||
+    value.partition >= partitionCount ||
+    value.offset < 0 ||
+    value.attempt < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_change_delivery_corrupt",
+      `task change delivery ${value.deliveryId || "<empty>"} is corrupt`,
+    );
+}
+
+export class DurableTaskChangeFeed {
+  private readonly partitionCount: number;
+  private events = new Map<number, TaskChangeEvent[]>();
+  private consumers = new Map<string, TaskChangeConsumer>();
+  private checkpoints = new Map<string, TaskChangeCheckpoint>();
+  private deliveries = new Map<string, TaskChangeDelivery>();
+  private activeConsumerByOwner = new Map<string, string>();
+  private activeDeliveryByConsumerEvent = new Map<string, string>();
+  private groupGeneration = new Map<string, number>();
+
+  constructor(
+    partitionCount: number,
+    private readonly clock: E03Clock = new SystemE03Clock(),
+  ) {
+    if (!Number.isSafeInteger(partitionCount) || partitionCount < 1)
+      throw new E03RuntimeError(
+        "task_change_partition_count",
+        "task change feed partition count must be positive",
+      );
+    this.partitionCount = partitionCount;
+    for (let partition = 0; partition < partitionCount; partition += 1)
+      this.events.set(partition, []);
+  }
+
+  append(input: {
+    eventId?: string;
+    taskId: string;
+    leaseId: string;
+    taskRevision: number;
+    kind: TaskChangeEvent["kind"];
+    payloadDigest: string;
+    writerId: string;
+  }): TaskChangeEvent {
+    if (input.taskRevision < 1 || !Number.isSafeInteger(input.taskRevision))
+      throw new E03RuntimeError(
+        "task_change_revision",
+        "task change revision must be positive",
+      );
+    const partition = this.partitionFor(input.taskId);
+    const entries = this.eventEntries(partition);
+    const latestForTask = [...entries]
+      .reverse()
+      .find((value) => value.taskId === input.taskId);
+    if (latestForTask && input.taskRevision <= latestForTask.taskRevision)
+      throw new E03RuntimeError(
+        "task_change_stale_revision",
+        `task change for ${input.taskId} is stale`,
+      );
+    const eventId = input.eventId ?? createId("task-change-event");
+    if (
+      [...this.events.values()]
+        .flat()
+        .some((value) => value.eventId === eventId)
+    )
+      throw new E03RuntimeError(
+        "task_change_event_duplicate",
+        `task change event ${eventId} already exists`,
+      );
+    const payload = {
+      eventId,
+      partition,
+      offset: entries.length,
+      taskId: input.taskId,
+      leaseId: input.leaseId,
+      taskRevision: input.taskRevision,
+      kind: input.kind,
+      payloadDigest: input.payloadDigest,
+      writerId: input.writerId,
+      committedAt: this.clock.now(),
+      previousPartitionDigest: entries.at(-1)?.digest ?? "",
+    };
+    const event = { ...payload, digest: digest(payload) };
+    assertTaskChangeEvent(event, this.partitionCount);
+    entries.push(event);
+    this.events.set(partition, entries);
+    return structuredClone(event);
+  }
+
+  join(input: {
+    consumerId?: string;
+    groupId: string;
+    ownerId: string;
+    leaseMs: number;
+  }): TaskChangeConsumer {
+    const ownerKey = `${input.groupId}\u0000${input.ownerId}`;
+    const existingId = this.activeConsumerByOwner.get(ownerKey);
+    if (existingId) return structuredClone(this.requireConsumer(existingId));
+    if (!Number.isSafeInteger(input.leaseMs) || input.leaseMs < 1)
+      throw new E03RuntimeError(
+        "task_change_consumer_lease",
+        "task change consumer lease must be positive",
+      );
+    const consumerId = input.consumerId ?? createId("task-change-consumer");
+    if (this.consumers.has(consumerId))
+      throw new E03RuntimeError(
+        "task_change_consumer_duplicate",
+        `task change consumer ${consumerId} already exists`,
+      );
+    const generation = (this.groupGeneration.get(input.groupId) ?? 0) + 1;
+    const now = this.clock.now();
+    const payload = {
+      consumerId,
+      groupId: input.groupId,
+      ownerId: input.ownerId,
+      partitions: [] as number[],
+      leaseExpiresAt: new Date(Date.parse(now) + input.leaseMs).toISOString(),
+      generation,
+      state: "joining" as const,
+      lastHeartbeatAt: now,
+      revision: 1,
+    };
+    const consumer = { ...payload, digest: digest(payload) };
+    assertTaskChangeConsumer(consumer, this.partitionCount);
+    this.consumers.set(consumerId, consumer);
+    this.activeConsumerByOwner.set(ownerKey, consumerId);
+    this.groupGeneration.set(input.groupId, generation);
+    this.rebalance(input.groupId);
+    return structuredClone(this.requireConsumer(consumerId));
+  }
+
+  heartbeat(
+    consumerId: string,
+    expectedRevision: number,
+    leaseMs: number,
+  ): TaskChangeConsumer {
+    const consumer = this.requireConsumer(consumerId);
+    this.assertConsumerRevision(consumer, expectedRevision);
+    if (consumer.state !== "active")
+      throw new E03RuntimeError(
+        "task_change_consumer_heartbeat_state",
+        `task change consumer ${consumerId} is ${consumer.state}`,
+      );
+    const now = this.clock.now();
+    if (Date.parse(consumer.leaseExpiresAt) <= Date.parse(now))
+      throw new E03RuntimeError(
+        "task_change_consumer_lease_expired",
+        `task change consumer ${consumerId} lease expired`,
+      );
+    return this.transitionConsumer(consumer, {
+      lastHeartbeatAt: now,
+      leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(),
+    });
+  }
+
+  offer(
+    consumerId: string,
+    partition: number,
+    deadlineMs: number,
+  ): TaskChangeDelivery | null {
+    const consumer = this.requireConsumer(consumerId);
+    if (consumer.state !== "active" || !consumer.partitions.includes(partition))
+      throw new E03RuntimeError(
+        "task_change_consumer_partition_ownership",
+        `task change consumer ${consumerId} does not own partition ${partition}`,
+      );
+    const checkpoint = this.checkpointFor(consumer.groupId, partition);
+    const nextOffset = (checkpoint?.committedOffset ?? -1) + 1;
+    const event = this.eventEntries(partition)[nextOffset];
+    if (!event) return null;
+    const key = this.deliveryKey(consumerId, event.eventId);
+    const activeId = this.activeDeliveryByConsumerEvent.get(key);
+    if (activeId) return structuredClone(this.requireDelivery(activeId));
+    const previousAttempts = [...this.deliveries.values()].filter(
+      (value) =>
+        value.consumerId === consumerId && value.eventId === event.eventId,
+    ).length;
+    const now = this.clock.now();
+    const payload = {
+      deliveryId: createId("task-change-delivery"),
+      consumerId,
+      eventId: event.eventId,
+      partition,
+      offset: event.offset,
+      state: "offered" as const,
+      attempt: previousAttempts + 1,
+      offeredAt: now,
+      deadlineAt: new Date(Date.parse(now) + deadlineMs).toISOString(),
+      settledAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const delivery = { ...payload, digest: digest(payload) };
+    assertTaskChangeDelivery(delivery, this.partitionCount);
+    this.deliveries.set(delivery.deliveryId, delivery);
+    this.activeDeliveryByConsumerEvent.set(key, delivery.deliveryId);
+    return structuredClone(delivery);
+  }
+
+  acknowledge(
+    deliveryId: string,
+    expectedRevision: number,
+    eventDigest: string,
+  ): TaskChangeCheckpoint {
+    const delivery = this.requireDelivery(deliveryId);
+    this.assertDeliveryRevision(delivery, expectedRevision);
+    if (delivery.state !== "offered")
+      throw new E03RuntimeError(
+        "task_change_delivery_ack_state",
+        `task change delivery ${deliveryId} is ${delivery.state}`,
+      );
+    const consumer = this.requireConsumer(delivery.consumerId);
+    const event = this.eventEntries(delivery.partition)[delivery.offset];
+    if (
+      !event ||
+      event.eventId !== delivery.eventId ||
+      event.digest !== eventDigest
+    )
+      throw new E03RuntimeError(
+        "task_change_delivery_event_mismatch",
+        `task change delivery ${deliveryId} event mismatch`,
+      );
+    const prior = this.checkpointFor(consumer.groupId, delivery.partition);
+    if (delivery.offset !== (prior?.committedOffset ?? -1) + 1)
+      throw new E03RuntimeError(
+        "task_change_checkpoint_gap",
+        `task change checkpoint for partition ${delivery.partition} has a gap`,
+      );
+    const now = this.clock.now();
+    const payload = {
+      checkpointId: prior?.checkpointId ?? createId("task-change-checkpoint"),
+      groupId: consumer.groupId,
+      consumerId: consumer.consumerId,
+      partition: delivery.partition,
+      committedOffset: delivery.offset,
+      eventDigest,
+      generation: consumer.generation,
+      committedAt: now,
+      revision: (prior?.revision ?? 0) + 1,
+    };
+    const checkpoint = { ...payload, digest: digest(payload) };
+    assertTaskChangeCheckpoint(checkpoint, this.partitionCount);
+    this.checkpoints.set(
+      this.checkpointKey(consumer.groupId, delivery.partition),
+      checkpoint,
+    );
+    this.transitionDelivery(delivery, {
+      state: "acknowledged",
+      settledAt: now,
+    });
+    this.activeDeliveryByConsumerEvent.delete(
+      this.deliveryKey(consumer.consumerId, event.eventId),
+    );
+    return structuredClone(checkpoint);
+  }
+
+  reject(
+    deliveryId: string,
+    expectedRevision: number,
+    errorCode: string,
+  ): TaskChangeDelivery {
+    const delivery = this.requireDelivery(deliveryId);
+    this.assertDeliveryRevision(delivery, expectedRevision);
+    if (delivery.state !== "offered")
+      throw new E03RuntimeError(
+        "task_change_delivery_reject_state",
+        `task change delivery ${deliveryId} is ${delivery.state}`,
+      );
+    const next = this.transitionDelivery(delivery, {
+      state: "rejected",
+      settledAt: this.clock.now(),
+      errorCode,
+    });
+    this.activeDeliveryByConsumerEvent.delete(
+      this.deliveryKey(delivery.consumerId, delivery.eventId),
+    );
+    return next;
+  }
+
+  expire(at = this.clock.now()): {
+    consumers: TaskChangeConsumer[];
+    deliveries: TaskChangeDelivery[];
+  } {
+    const consumers: TaskChangeConsumer[] = [];
+    const deliveries: TaskChangeDelivery[] = [];
+    const affectedGroups = new Set<string>();
+    for (const consumer of [...this.consumers.values()]) {
+      if (
+        consumer.state === "active" &&
+        Date.parse(consumer.leaseExpiresAt) <= Date.parse(at)
+      ) {
+        const next = this.transitionConsumer(consumer, {
+          state: "expired",
+          partitions: [],
+        });
+        this.activeConsumerByOwner.delete(
+          `${consumer.groupId}\u0000${consumer.ownerId}`,
+        );
+        affectedGroups.add(consumer.groupId);
+        consumers.push(next);
+      }
+    }
+    for (const delivery of [...this.deliveries.values()]) {
+      if (
+        delivery.state === "offered" &&
+        Date.parse(delivery.deadlineAt) <= Date.parse(at)
+      ) {
+        const next = this.transitionDelivery(delivery, {
+          state: "expired",
+          settledAt: at,
+          errorCode: "delivery_deadline",
+        });
+        this.activeDeliveryByConsumerEvent.delete(
+          this.deliveryKey(delivery.consumerId, delivery.eventId),
+        );
+        deliveries.push(next);
+      }
+    }
+    for (const groupId of affectedGroups) this.rebalance(groupId);
+    return { consumers, deliveries };
+  }
+
+  leave(consumerId: string, expectedRevision: number): TaskChangeConsumer {
+    const consumer = this.requireConsumer(consumerId);
+    this.assertConsumerRevision(consumer, expectedRevision);
+    if (!["joining", "active", "revoking"].includes(consumer.state))
+      throw new E03RuntimeError(
+        "task_change_consumer_leave_state",
+        `task change consumer ${consumerId} is ${consumer.state}`,
+      );
+    const next = this.transitionConsumer(consumer, {
+      state: "left",
+      partitions: [],
+    });
+    this.activeConsumerByOwner.delete(
+      `${consumer.groupId}\u0000${consumer.ownerId}`,
+    );
+    this.rebalance(consumer.groupId);
+    return next;
+  }
+
+  snapshot(): TaskChangeFeedSnapshot {
+    return {
+      partitionCount: this.partitionCount,
+      events: [...this.events.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      consumers: [...this.consumers.values()].map((value) =>
+        structuredClone(value),
+      ),
+      checkpoints: [...this.checkpoints.values()].map((value) =>
+        structuredClone(value),
+      ),
+      deliveries: [...this.deliveries.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeConsumerByOwner: [...this.activeConsumerByOwner.entries()],
+      activeDeliveryByConsumerEvent: [
+        ...this.activeDeliveryByConsumerEvent.entries(),
+      ],
+      groupGeneration: [...this.groupGeneration.entries()],
+    };
+  }
+
+  restore(snapshot: TaskChangeFeedSnapshot): void {
+    if (snapshot.partitionCount !== this.partitionCount)
+      throw new E03RuntimeError(
+        "task_change_restore_partition_count",
+        "task change feed partition count changed",
+      );
+    const events = new Map<number, TaskChangeEvent[]>();
+    for (let partition = 0; partition < this.partitionCount; partition += 1)
+      events.set(partition, []);
+    for (const value of [...snapshot.events].sort(
+      (a, b) => a.partition - b.partition || a.offset - b.offset,
+    )) {
+      assertTaskChangeEvent(value, this.partitionCount);
+      const entries = events.get(value.partition)!;
+      if (
+        value.offset !== entries.length ||
+        value.previousPartitionDigest !== (entries.at(-1)?.digest ?? "")
+      )
+        throw new E03RuntimeError(
+          "task_change_restore_event_chain",
+          `task change event ${value.eventId} breaks partition chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const consumers = new Map<string, TaskChangeConsumer>();
+    for (const value of snapshot.consumers) {
+      assertTaskChangeConsumer(value, this.partitionCount);
+      if (consumers.has(value.consumerId))
+        throw new E03RuntimeError(
+          "task_change_restore_consumer_duplicate",
+          `duplicate task change consumer ${value.consumerId}`,
+        );
+      consumers.set(value.consumerId, structuredClone(value));
+    }
+    const checkpoints = new Map<string, TaskChangeCheckpoint>();
+    for (const value of snapshot.checkpoints) {
+      assertTaskChangeCheckpoint(value, this.partitionCount);
+      const key = this.checkpointKey(value.groupId, value.partition);
+      const event = events.get(value.partition)?.[value.committedOffset];
+      if (
+        checkpoints.has(key) ||
+        !consumers.has(value.consumerId) ||
+        (value.committedOffset >= 0 &&
+          (!event || event.digest !== value.eventDigest))
+      )
+        throw new E03RuntimeError(
+          "task_change_restore_checkpoint",
+          `task change checkpoint ${value.checkpointId} is invalid`,
+        );
+      checkpoints.set(key, structuredClone(value));
+    }
+    const deliveries = new Map<string, TaskChangeDelivery>();
+    for (const value of snapshot.deliveries) {
+      assertTaskChangeDelivery(value, this.partitionCount);
+      const event = events.get(value.partition)?.[value.offset];
+      if (
+        !event ||
+        event.eventId !== value.eventId ||
+        !consumers.has(value.consumerId)
+      )
+        throw new E03RuntimeError(
+          "task_change_restore_delivery",
+          `task change delivery ${value.deliveryId} is invalid`,
+        );
+      deliveries.set(value.deliveryId, structuredClone(value));
+    }
+    const activeConsumerByOwner = new Map(snapshot.activeConsumerByOwner);
+    const activeDeliveryByConsumerEvent = new Map(
+      snapshot.activeDeliveryByConsumerEvent,
+    );
+    const groupGeneration = new Map(snapshot.groupGeneration);
+    if (
+      activeConsumerByOwner.size !== snapshot.activeConsumerByOwner.length ||
+      activeDeliveryByConsumerEvent.size !==
+        snapshot.activeDeliveryByConsumerEvent.length
+    )
+      throw new E03RuntimeError(
+        "task_change_restore_index_duplicate",
+        "task change feed indexes contain duplicates",
+      );
+    for (const [key, consumerId] of activeConsumerByOwner) {
+      const consumer = consumers.get(consumerId);
+      if (
+        !consumer ||
+        key !== `${consumer.groupId}\u0000${consumer.ownerId}` ||
+        !["joining", "active"].includes(consumer.state)
+      )
+        throw new E03RuntimeError(
+          "task_change_restore_consumer_index",
+          `task change consumer index ${key} is invalid`,
+        );
+    }
+    for (const [key, deliveryId] of activeDeliveryByConsumerEvent) {
+      const delivery = deliveries.get(deliveryId);
+      if (
+        !delivery ||
+        key !== this.deliveryKey(delivery.consumerId, delivery.eventId) ||
+        delivery.state !== "offered"
+      )
+        throw new E03RuntimeError(
+          "task_change_restore_delivery_index",
+          `task change delivery index ${key} is invalid`,
+        );
+    }
+    this.events = events;
+    this.consumers = consumers;
+    this.checkpoints = checkpoints;
+    this.deliveries = deliveries;
+    this.activeConsumerByOwner = activeConsumerByOwner;
+    this.activeDeliveryByConsumerEvent = activeDeliveryByConsumerEvent;
+    this.groupGeneration = groupGeneration;
+  }
+
+  private rebalance(groupId: string): void {
+    const active = [...this.consumers.values()]
+      .filter(
+        (value) =>
+          value.groupId === groupId &&
+          ["joining", "active"].includes(value.state),
+      )
+      .sort((a, b) => a.consumerId.localeCompare(b.consumerId));
+    if (!active.length) return;
+    const generation = (this.groupGeneration.get(groupId) ?? 0) + 1;
+    this.groupGeneration.set(groupId, generation);
+    for (const [index, consumer] of active.entries()) {
+      const partitions = Array.from(
+        { length: this.partitionCount },
+        (_, value) => value,
+      ).filter((partition) => partition % active.length === index);
+      this.transitionConsumer(consumer, {
+        state: "active",
+        partitions,
+        generation,
+      });
+    }
+  }
+
+  private partitionFor(taskId: string): number {
+    return (
+      Number.parseInt(
+        digest({ taskId, domain: "task-change-feed" }).slice(0, 8),
+        16,
+      ) % this.partitionCount
+    );
+  }
+
+  private eventEntries(partition: number): TaskChangeEvent[] {
+    const entries = this.events.get(partition);
+    if (!entries)
+      throw new E03RuntimeError(
+        "task_change_partition_missing",
+        `task change partition ${partition} does not exist`,
+      );
+    return entries;
+  }
+
+  private checkpointKey(groupId: string, partition: number): string {
+    return `${groupId}\u0000${partition}`;
+  }
+
+  private checkpointFor(
+    groupId: string,
+    partition: number,
+  ): TaskChangeCheckpoint | null {
+    return this.checkpoints.get(this.checkpointKey(groupId, partition)) ?? null;
+  }
+
+  private deliveryKey(consumerId: string, eventId: string): string {
+    return `${consumerId}\u0000${eventId}`;
+  }
+
+  private requireConsumer(id: string): TaskChangeConsumer {
+    const value = this.consumers.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_change_consumer_missing",
+        `task change consumer ${id} does not exist`,
+      );
+    assertTaskChangeConsumer(value, this.partitionCount);
+    return value;
+  }
+
+  private requireDelivery(id: string): TaskChangeDelivery {
+    const value = this.deliveries.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_change_delivery_missing",
+        `task change delivery ${id} does not exist`,
+      );
+    assertTaskChangeDelivery(value, this.partitionCount);
+    return value;
+  }
+
+  private assertConsumerRevision(
+    value: TaskChangeConsumer,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_change_consumer_stale_revision",
+        `task change consumer ${value.consumerId} revision is stale`,
+      );
+  }
+
+  private assertDeliveryRevision(
+    value: TaskChangeDelivery,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_change_delivery_stale_revision",
+        `task change delivery ${value.deliveryId} revision is stale`,
+      );
+  }
+
+  private transitionConsumer(
+    value: TaskChangeConsumer,
+    patch: Partial<
+      Omit<TaskChangeConsumer, "consumerId" | "revision" | "digest">
+    >,
+  ): TaskChangeConsumer {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      consumerId: value.consumerId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskChangeConsumer(next, this.partitionCount);
+    this.consumers.set(next.consumerId, next);
+    return structuredClone(next);
+  }
+
+  private transitionDelivery(
+    value: TaskChangeDelivery,
+    patch: Partial<
+      Omit<TaskChangeDelivery, "deliveryId" | "revision" | "digest">
+    >,
+  ): TaskChangeDelivery {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      deliveryId: value.deliveryId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskChangeDelivery(next, this.partitionCount);
+    this.deliveries.set(next.deliveryId, next);
+    return structuredClone(next);
+  }
+}
+
 export function assertNoLateRevival(
   before: E03TaskState,
   after: E03TaskState,

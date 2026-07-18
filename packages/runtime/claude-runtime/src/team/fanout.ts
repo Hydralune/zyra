@@ -2408,6 +2408,704 @@ function assertConsensusVote(value: FanoutConsensusVote): void {
       `fanout consensus vote ${value.voteId} is invalid`,
     );
 }
+export interface TeamMembershipEpoch {
+  epochId: string;
+  teamId: string;
+  generation: number;
+  coordinatorId: string;
+  quorum: number;
+  state: "forming" | "active" | "draining" | "closed";
+  memberIds: string[];
+  createdAt: string;
+  activatedAt: string;
+  closedAt: string;
+  previousEpochDigest: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TeamMemberLease {
+  leaseId: string;
+  epochId: string;
+  teamId: string;
+  memberId: string;
+  agentId: string;
+  capabilities: string[];
+  maximumConcurrency: number;
+  activeAssignments: number;
+  leaseExpiresAt: string;
+  lastHeartbeatAt: string;
+  state: "joining" | "active" | "draining" | "revoked" | "expired";
+  revision: number;
+  digest: string;
+}
+
+export interface TeamMemberAssignment {
+  assignmentId: string;
+  epochId: string;
+  leaseId: string;
+  taskId: string;
+  fanoutPlanId: string;
+  capability: string;
+  state: "reserved" | "accepted" | "completed" | "failed" | "released";
+  reservationToken: string;
+  resultDigest: string;
+  errorCode: string;
+  reservedAt: string;
+  settledAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TeamMembershipSnapshot {
+  epochs: TeamMembershipEpoch[];
+  leases: TeamMemberLease[];
+  assignments: TeamMemberAssignment[];
+  activeEpochByTeam: [string, string][];
+  leaseByEpochMember: [string, string][];
+  assignmentByTask: [string, string][];
+}
+
+function assertTeamMembershipEpoch(value: TeamMembershipEpoch): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.epochId ||
+    !value.teamId ||
+    value.generation < 1 ||
+    !value.coordinatorId ||
+    value.quorum < 1 ||
+    value.quorum > value.memberIds.length ||
+    new Set(value.memberIds).size !== value.memberIds.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "team_membership_epoch_corrupt",
+      `team membership epoch ${value.epochId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTeamMemberLease(value: TeamMemberLease): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.leaseId ||
+    !value.epochId ||
+    !value.teamId ||
+    !value.memberId ||
+    !value.agentId ||
+    value.maximumConcurrency < 1 ||
+    value.activeAssignments < 0 ||
+    value.activeAssignments > value.maximumConcurrency ||
+    new Set(value.capabilities).size !== value.capabilities.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "team_member_lease_corrupt",
+      `team member lease ${value.leaseId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTeamMemberAssignment(value: TeamMemberAssignment): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.assignmentId ||
+    !value.epochId ||
+    !value.leaseId ||
+    !value.taskId ||
+    !value.fanoutPlanId ||
+    !value.capability ||
+    !value.reservationToken ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "team_member_assignment_corrupt",
+      `team member assignment ${value.assignmentId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TeamMembershipRuntime {
+  private epochs = new Map<string, TeamMembershipEpoch>();
+  private leases = new Map<string, TeamMemberLease>();
+  private assignments = new Map<string, TeamMemberAssignment>();
+  private activeEpochByTeam = new Map<string, string>();
+  private leaseByEpochMember = new Map<string, string>();
+  private assignmentByTask = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  form(input: {
+    epochId?: string;
+    teamId: string;
+    coordinatorId: string;
+    quorum: number;
+    memberIds: readonly string[];
+  }): TeamMembershipEpoch {
+    if (this.activeEpochByTeam.has(input.teamId))
+      throw new E03RuntimeError(
+        "team_membership_epoch_active",
+        `team ${input.teamId} already has an active epoch`,
+      );
+    const memberIds = [...new Set(input.memberIds)].sort();
+    if (!memberIds.includes(input.coordinatorId))
+      throw new E03RuntimeError(
+        "team_membership_coordinator_missing",
+        "team membership coordinator must be a member",
+      );
+    if (input.quorum < 1 || input.quorum > memberIds.length)
+      throw new E03RuntimeError(
+        "team_membership_quorum",
+        "team membership quorum is invalid",
+      );
+    const previous = [...this.epochs.values()]
+      .filter((value) => value.teamId === input.teamId)
+      .sort((a, b) => b.generation - a.generation)[0];
+    const epochId = input.epochId ?? createId("team-membership-epoch");
+    const payload = {
+      epochId,
+      teamId: input.teamId,
+      generation: (previous?.generation ?? 0) + 1,
+      coordinatorId: input.coordinatorId,
+      quorum: input.quorum,
+      state: "forming" as const,
+      memberIds,
+      createdAt: this.clock.now(),
+      activatedAt: "",
+      closedAt: "",
+      previousEpochDigest: previous?.digest ?? "",
+      revision: 1,
+    };
+    const epoch = { ...payload, digest: digest(payload) };
+    assertTeamMembershipEpoch(epoch);
+    this.epochs.set(epochId, epoch);
+    this.activeEpochByTeam.set(input.teamId, epochId);
+    return structuredClone(epoch);
+  }
+
+  join(input: {
+    leaseId?: string;
+    epochId: string;
+    memberId: string;
+    agentId: string;
+    capabilities: readonly string[];
+    maximumConcurrency: number;
+    leaseMs: number;
+  }): TeamMemberLease {
+    const epoch = this.requireEpoch(input.epochId);
+    if (epoch.state !== "forming")
+      throw new E03RuntimeError(
+        "team_member_join_epoch_state",
+        `team membership epoch ${epoch.epochId} is ${epoch.state}`,
+      );
+    if (!epoch.memberIds.includes(input.memberId))
+      throw new E03RuntimeError(
+        "team_member_join_not_declared",
+        `team member ${input.memberId} is not declared`,
+      );
+    const key = this.memberKey(epoch.epochId, input.memberId);
+    const existingId = this.leaseByEpochMember.get(key);
+    if (existingId) return structuredClone(this.requireLease(existingId));
+    const capabilities = [...new Set(input.capabilities)].sort();
+    if (
+      !capabilities.length ||
+      input.maximumConcurrency < 1 ||
+      input.leaseMs < 1
+    )
+      throw new E03RuntimeError(
+        "team_member_join_capacity",
+        "team member join capacity is invalid",
+      );
+    const now = this.clock.now();
+    const leaseId = input.leaseId ?? createId("team-member-lease");
+    const payload = {
+      leaseId,
+      epochId: epoch.epochId,
+      teamId: epoch.teamId,
+      memberId: input.memberId,
+      agentId: input.agentId,
+      capabilities,
+      maximumConcurrency: input.maximumConcurrency,
+      activeAssignments: 0,
+      leaseExpiresAt: new Date(Date.parse(now) + input.leaseMs).toISOString(),
+      lastHeartbeatAt: now,
+      state: "joining" as const,
+      revision: 1,
+    };
+    const lease = { ...payload, digest: digest(payload) };
+    assertTeamMemberLease(lease);
+    this.leases.set(leaseId, lease);
+    this.leaseByEpochMember.set(key, leaseId);
+    return structuredClone(lease);
+  }
+
+  activate(epochId: string, expectedRevision: number): TeamMembershipEpoch {
+    const epoch = this.requireEpoch(epochId);
+    this.assertEpochRevision(epoch, expectedRevision);
+    if (epoch.state !== "forming")
+      throw new E03RuntimeError(
+        "team_membership_activate_state",
+        `team membership epoch ${epochId} is ${epoch.state}`,
+      );
+    const leases = [...this.leases.values()].filter(
+      (value) => value.epochId === epochId && value.state === "joining",
+    );
+    if (leases.length < epoch.quorum)
+      throw new E03RuntimeError(
+        "team_membership_activate_quorum",
+        `team membership epoch ${epochId} lacks quorum`,
+      );
+    for (const lease of leases)
+      this.transitionLease(lease, { state: "active" });
+    return this.transitionEpoch(epoch, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+  }
+
+  heartbeat(
+    leaseId: string,
+    expectedRevision: number,
+    leaseMs: number,
+  ): TeamMemberLease {
+    const lease = this.requireLease(leaseId);
+    this.assertLeaseRevision(lease, expectedRevision);
+    if (lease.state !== "active")
+      throw new E03RuntimeError(
+        "team_member_heartbeat_state",
+        `team member lease ${leaseId} is ${lease.state}`,
+      );
+    const now = this.clock.now();
+    if (Date.parse(lease.leaseExpiresAt) <= Date.parse(now))
+      throw new E03RuntimeError(
+        "team_member_heartbeat_expired",
+        `team member lease ${leaseId} expired`,
+      );
+    return this.transitionLease(lease, {
+      lastHeartbeatAt: now,
+      leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(),
+    });
+  }
+
+  reserve(input: {
+    assignmentId?: string;
+    epochId: string;
+    taskId: string;
+    fanoutPlanId: string;
+    capability: string;
+  }): TeamMemberAssignment {
+    const duplicateId = this.assignmentByTask.get(input.taskId);
+    if (duplicateId)
+      return structuredClone(this.requireAssignment(duplicateId));
+    const epoch = this.requireEpoch(input.epochId);
+    if (epoch.state !== "active")
+      throw new E03RuntimeError(
+        "team_assignment_epoch_state",
+        `team membership epoch ${epoch.epochId} is ${epoch.state}`,
+      );
+    const lease = [...this.leases.values()]
+      .filter(
+        (value) =>
+          value.epochId === epoch.epochId &&
+          value.state === "active" &&
+          value.capabilities.includes(input.capability) &&
+          value.activeAssignments < value.maximumConcurrency,
+      )
+      .sort(
+        (a, b) =>
+          a.activeAssignments / a.maximumConcurrency -
+            b.activeAssignments / b.maximumConcurrency ||
+          a.memberId.localeCompare(b.memberId),
+      )[0];
+    if (!lease)
+      throw new E03RuntimeError(
+        "team_assignment_capacity_unavailable",
+        `team ${epoch.teamId} has no ${input.capability} capacity`,
+      );
+    const assignmentId =
+      input.assignmentId ?? createId("team-member-assignment");
+    const payload = {
+      assignmentId,
+      epochId: epoch.epochId,
+      leaseId: lease.leaseId,
+      taskId: input.taskId,
+      fanoutPlanId: input.fanoutPlanId,
+      capability: input.capability,
+      state: "reserved" as const,
+      reservationToken: digest({
+        assignmentId,
+        leaseId: lease.leaseId,
+        taskId: input.taskId,
+        leaseRevision: lease.revision,
+      }),
+      resultDigest: "",
+      errorCode: "",
+      reservedAt: this.clock.now(),
+      settledAt: "",
+      revision: 1,
+    };
+    const assignment = { ...payload, digest: digest(payload) };
+    assertTeamMemberAssignment(assignment);
+    this.assignments.set(assignmentId, assignment);
+    this.assignmentByTask.set(input.taskId, assignmentId);
+    this.transitionLease(lease, {
+      activeAssignments: lease.activeAssignments + 1,
+    });
+    return structuredClone(assignment);
+  }
+
+  accept(
+    assignmentId: string,
+    expectedRevision: number,
+    reservationToken: string,
+  ): TeamMemberAssignment {
+    const assignment = this.requireAssignment(assignmentId);
+    this.assertAssignmentRevision(assignment, expectedRevision);
+    if (
+      assignment.state !== "reserved" ||
+      assignment.reservationToken !== reservationToken
+    )
+      throw new E03RuntimeError(
+        "team_assignment_accept_token",
+        `team assignment ${assignmentId} reservation is invalid`,
+      );
+    const lease = this.requireLease(assignment.leaseId);
+    if (lease.state !== "active")
+      throw new E03RuntimeError(
+        "team_assignment_lease_inactive",
+        `team assignment ${assignmentId} lease is ${lease.state}`,
+      );
+    return this.transitionAssignment(assignment, { state: "accepted" });
+  }
+
+  settle(
+    assignmentId: string,
+    expectedRevision: number,
+    input: { accepted: boolean; resultDigest?: string; errorCode?: string },
+  ): TeamMemberAssignment {
+    const assignment = this.requireAssignment(assignmentId);
+    this.assertAssignmentRevision(assignment, expectedRevision);
+    if (assignment.state !== "accepted")
+      throw new E03RuntimeError(
+        "team_assignment_settle_state",
+        `team assignment ${assignmentId} is ${assignment.state}`,
+      );
+    if (input.accepted && !input.resultDigest)
+      throw new E03RuntimeError(
+        "team_assignment_result_missing",
+        `team assignment ${assignmentId} result is missing`,
+      );
+    const lease = this.requireLease(assignment.leaseId);
+    if (lease.activeAssignments < 1)
+      throw new E03RuntimeError(
+        "team_assignment_capacity_underflow",
+        `team member lease ${lease.leaseId} has no assignment`,
+      );
+    const next = this.transitionAssignment(assignment, {
+      state: input.accepted ? "completed" : "failed",
+      resultDigest: input.resultDigest ?? "",
+      errorCode: input.errorCode ?? "",
+      settledAt: this.clock.now(),
+    });
+    this.transitionLease(lease, {
+      activeAssignments: lease.activeAssignments - 1,
+    });
+    return next;
+  }
+
+  expire(at = this.clock.now()): TeamMemberLease[] {
+    const expired: TeamMemberLease[] = [];
+    for (const lease of [...this.leases.values()]) {
+      if (
+        lease.state !== "active" ||
+        Date.parse(lease.leaseExpiresAt) > Date.parse(at)
+      )
+        continue;
+      const next = this.transitionLease(lease, { state: "expired" });
+      expired.push(next);
+      for (const assignment of [...this.assignments.values()])
+        if (
+          assignment.leaseId === lease.leaseId &&
+          ["reserved", "accepted"].includes(assignment.state)
+        )
+          this.transitionAssignment(assignment, {
+            state: "failed",
+            errorCode: "member_lease_expired",
+            settledAt: at,
+          });
+    }
+    return expired;
+  }
+
+  drain(epochId: string, expectedRevision: number): TeamMembershipEpoch {
+    const epoch = this.requireEpoch(epochId);
+    this.assertEpochRevision(epoch, expectedRevision);
+    if (epoch.state !== "active")
+      throw new E03RuntimeError(
+        "team_membership_drain_state",
+        `team membership epoch ${epochId} is ${epoch.state}`,
+      );
+    for (const lease of [...this.leases.values()])
+      if (lease.epochId === epochId && lease.state === "active")
+        this.transitionLease(lease, { state: "draining" });
+    return this.transitionEpoch(epoch, { state: "draining" });
+  }
+
+  close(epochId: string, expectedRevision: number): TeamMembershipEpoch {
+    const epoch = this.requireEpoch(epochId);
+    this.assertEpochRevision(epoch, expectedRevision);
+    if (epoch.state !== "draining")
+      throw new E03RuntimeError(
+        "team_membership_close_state",
+        `team membership epoch ${epochId} is ${epoch.state}`,
+      );
+    const active = [...this.assignments.values()].filter(
+      (value) =>
+        value.epochId === epochId &&
+        ["reserved", "accepted"].includes(value.state),
+    );
+    if (active.length)
+      throw new E03RuntimeError(
+        "team_membership_close_assignments",
+        `team membership epoch ${epochId} has active assignments`,
+      );
+    const next = this.transitionEpoch(epoch, {
+      state: "closed",
+      closedAt: this.clock.now(),
+    });
+    this.activeEpochByTeam.delete(epoch.teamId);
+    return next;
+  }
+
+  snapshot(): TeamMembershipSnapshot {
+    return {
+      epochs: [...this.epochs.values()].map((value) => structuredClone(value)),
+      leases: [...this.leases.values()].map((value) => structuredClone(value)),
+      assignments: [...this.assignments.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeEpochByTeam: [...this.activeEpochByTeam.entries()],
+      leaseByEpochMember: [...this.leaseByEpochMember.entries()],
+      assignmentByTask: [...this.assignmentByTask.entries()],
+    };
+  }
+
+  restore(snapshot: TeamMembershipSnapshot): void {
+    const epochs = new Map<string, TeamMembershipEpoch>();
+    const leases = new Map<string, TeamMemberLease>();
+    const assignments = new Map<string, TeamMemberAssignment>();
+    for (const value of snapshot.epochs) {
+      assertTeamMembershipEpoch(value);
+      if (epochs.has(value.epochId))
+        throw new E03RuntimeError(
+          "team_membership_restore_duplicate",
+          `duplicate epoch ${value.epochId}`,
+        );
+      epochs.set(value.epochId, structuredClone(value));
+    }
+    for (const value of snapshot.leases) {
+      assertTeamMemberLease(value);
+      const epoch = epochs.get(value.epochId);
+      if (
+        !epoch ||
+        epoch.teamId !== value.teamId ||
+        !epoch.memberIds.includes(value.memberId)
+      )
+        throw new E03RuntimeError(
+          "team_member_restore_epoch",
+          `lease ${value.leaseId} has invalid epoch`,
+        );
+      leases.set(value.leaseId, structuredClone(value));
+    }
+    for (const value of snapshot.assignments) {
+      assertTeamMemberAssignment(value);
+      const lease = leases.get(value.leaseId);
+      if (!lease || lease.epochId !== value.epochId)
+        throw new E03RuntimeError(
+          "team_assignment_restore_lease",
+          `assignment ${value.assignmentId} has invalid lease`,
+        );
+      assignments.set(value.assignmentId, structuredClone(value));
+    }
+    const activeEpochByTeam = new Map(snapshot.activeEpochByTeam);
+    const leaseByEpochMember = new Map(snapshot.leaseByEpochMember);
+    const assignmentByTask = new Map(snapshot.assignmentByTask);
+    if (
+      activeEpochByTeam.size !== snapshot.activeEpochByTeam.length ||
+      leaseByEpochMember.size !== snapshot.leaseByEpochMember.length ||
+      assignmentByTask.size !== snapshot.assignmentByTask.length
+    )
+      throw new E03RuntimeError(
+        "team_membership_restore_index_duplicate",
+        "team membership indexes duplicate",
+      );
+    for (const [teamId, epochId] of activeEpochByTeam) {
+      const epoch = epochs.get(epochId);
+      if (!epoch || epoch.teamId !== teamId || epoch.state === "closed")
+        throw new E03RuntimeError(
+          "team_membership_restore_active",
+          `team epoch index ${teamId} invalid`,
+        );
+    }
+    for (const [key, leaseId] of leaseByEpochMember) {
+      const lease = leases.get(leaseId);
+      if (!lease || key !== this.memberKey(lease.epochId, lease.memberId))
+        throw new E03RuntimeError(
+          "team_membership_restore_lease_index",
+          `team lease index ${key} invalid`,
+        );
+    }
+    for (const [taskId, assignmentId] of assignmentByTask) {
+      const assignment = assignments.get(assignmentId);
+      if (!assignment || assignment.taskId !== taskId)
+        throw new E03RuntimeError(
+          "team_membership_restore_assignment_index",
+          `team task index ${taskId} invalid`,
+        );
+    }
+    for (const lease of leases.values()) {
+      const active = [...assignments.values()].filter(
+        (value) =>
+          value.leaseId === lease.leaseId &&
+          ["reserved", "accepted"].includes(value.state),
+      ).length;
+      if (active !== lease.activeAssignments)
+        throw new E03RuntimeError(
+          "team_member_restore_capacity",
+          `lease ${lease.leaseId} capacity invalid`,
+        );
+    }
+    this.epochs = epochs;
+    this.leases = leases;
+    this.assignments = assignments;
+    this.activeEpochByTeam = activeEpochByTeam;
+    this.leaseByEpochMember = leaseByEpochMember;
+    this.assignmentByTask = assignmentByTask;
+  }
+
+  private memberKey(epochId: string, memberId: string): string {
+    return `${epochId}\u0000${memberId}`;
+  }
+
+  private requireEpoch(id: string): TeamMembershipEpoch {
+    const value = this.epochs.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "team_membership_epoch_missing",
+        `epoch ${id} does not exist`,
+      );
+    assertTeamMembershipEpoch(value);
+    return value;
+  }
+
+  private requireLease(id: string): TeamMemberLease {
+    const value = this.leases.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "team_member_lease_missing",
+        `lease ${id} does not exist`,
+      );
+    assertTeamMemberLease(value);
+    return value;
+  }
+
+  private requireAssignment(id: string): TeamMemberAssignment {
+    const value = this.assignments.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "team_member_assignment_missing",
+        `assignment ${id} does not exist`,
+      );
+    assertTeamMemberAssignment(value);
+    return value;
+  }
+
+  private assertEpochRevision(
+    value: TeamMembershipEpoch,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "team_membership_epoch_stale_revision",
+        `epoch ${value.epochId} is stale`,
+      );
+  }
+
+  private assertLeaseRevision(value: TeamMemberLease, expected: number): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "team_member_lease_stale_revision",
+        `lease ${value.leaseId} is stale`,
+      );
+  }
+
+  private assertAssignmentRevision(
+    value: TeamMemberAssignment,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "team_assignment_stale_revision",
+        `assignment ${value.assignmentId} is stale`,
+      );
+  }
+
+  private transitionEpoch(
+    value: TeamMembershipEpoch,
+    patch: Partial<
+      Omit<TeamMembershipEpoch, "epochId" | "revision" | "digest">
+    >,
+  ): TeamMembershipEpoch {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      epochId: value.epochId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTeamMembershipEpoch(next);
+    this.epochs.set(next.epochId, next);
+    return structuredClone(next);
+  }
+
+  private transitionLease(
+    value: TeamMemberLease,
+    patch: Partial<Omit<TeamMemberLease, "leaseId" | "revision" | "digest">>,
+  ): TeamMemberLease {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      leaseId: value.leaseId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTeamMemberLease(next);
+    this.leases.set(next.leaseId, next);
+    return structuredClone(next);
+  }
+
+  private transitionAssignment(
+    value: TeamMemberAssignment,
+    patch: Partial<
+      Omit<TeamMemberAssignment, "assignmentId" | "revision" | "digest">
+    >,
+  ): TeamMemberAssignment {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      assignmentId: value.assignmentId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTeamMemberAssignment(next);
+    this.assignments.set(next.assignmentId, next);
+    return structuredClone(next);
+  }
+}
+
 export class FanoutConsensusRuntime {
   private rounds = new Map<string, FanoutConsensusRound>();
   private votes = new Map<string, FanoutConsensusVote[]>();
