@@ -1,35 +1,37 @@
 {
   "schema_version": "3.0",
   "execution_id": "E03",
-  "candidate_status": "implementation_complete_review_pending",
-  "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
+  "candidate_status": "independent_review_pass",
+  "verified_predecessor": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "implementation_baseline_commit": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "g0_candidate_commit": "50b248e24d22cd209a58ec0bd017a11339ab76ff",
-  "implementation_candidate_commit": "3b52a598194e4ac7c9fcdf506e18fc30ae0353e1",
-  "default_entry": {
-    "path": "apps/code-worker/src/main.ts",
-    "symbol": "main",
-    "runtime_symbol": "CodeWorkerApplication.runTaskRuntime",
-    "e03_symbol": "E03AgentControlCoordinator.execute"
+  "implementation_candidate_commit": "62c514d14b720060479ae5f673c45a9b273bae52",
+  "review_evidence_commit": null,
+  "default_entries": [
+    "CodeWorkerApplication.runTaskRuntime",
+    "CodeWorkerApplication.runAgentControlPort"
+  ],
+  "canonical_runtime_origin": "typescript.E03AgentControlCoordinator",
+  "python_logical_owner": false,
+  "python_fallback": false,
+  "g0": {
+    "accepted_ranges": 391,
+    "accepted_source_executable_sloc": 6928,
+    "rejected_ranges": 4,
+    "unique_target_symbols": 60,
+    "clean_worktree": true
   },
-  "runtime_origin": "typescript.E03AgentControlCoordinator",
-  "evidence": {
-    "gate": "candidate-gate-result.json",
+  "verification": {
+    "candidate_gate": "candidate-gate-result.json",
+    "behavior_matrix": "behavior-matrix.json",
     "mutation": "mutation-results.json",
     "cleanroom": "cleanroom-result.json",
-    "live_probes": "probe-result.json",
-    "g0_root": "g0"
+    "implementation_probes": "probe-result.json",
+    "reviewer_owned_probe": "reviewer-probe-result.json",
+    "five_hop_sample": "five-hop-sample.json",
+    "crash_matrix": "crash-matrix.json",
+    "line_buckets": "line-buckets.json",
+    "python_owner": "python-owner-result.json",
+    "dependency_audit": "dependency-audit.json"
   },
-  "behavior_tests": {
-    "result": "340/340 passed",
-    "files": 9,
-    "effective_sloc": 7318,
-    "failure_cases": 188,
-    "execution_note": "All nine node:test files were run individually because Bun 1.2.15 directory discovery executed only the first file in this environment."
-  },
-  "known_non_candidate_observations": [
-    "The historical Python test tests/unit/test_subagent_commands_integration.py no longer collects because it imports the deleted logical-owner export AgentContextMode; it is outside the E03 TypeScript behavior contract and is disclosed for independent review.",
-    "The frozen cleanroom behavior directory command executed Bun's first discovered E03 test file; the complete 340-case suite was therefore run separately file by file on the same implementation candidate.",
-    "After a successful frozen verifier run, two output-capture reruns hit outer command timeouts at 120 and 300 seconds; the successful gate metrics and zero findings are preserved in candidate-gate-result.json."
-  ]
+  "verdict": "PASS"
 }

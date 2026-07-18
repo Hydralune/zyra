@@ -1,0 +1,27 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E03",
+  "candidate": "62c514d14b720060479ae5f673c45a9b273bae52",
+  "reviewer_owned": true,
+  "nonce_source": "node:crypto.randomBytes(32).toString('hex')",
+  "nonce": "de4d55527bd1376d9e466264e74a42055fb37eca931ae43675f0b6f8b1499f05",
+  "built_node_entry": "dist/code-worker-node/main.js --e03-control",
+  "assertions": {
+    "runtime_origin": "typescript.E03AgentControlCoordinator",
+    "python_logical_owner": false,
+    "write_revision": 2,
+    "exact_restore_checksum": true,
+    "stale_writer_fenced": true,
+    "crash_receipt_id": "receipt-638e2c0a7f8242e7b333f1bf65fdcc0b",
+    "crash_receipt_replayed": true,
+    "crash_completed_at_stable": true,
+    "crash_dispatch_count": 1,
+    "lost_ack_request_id": "review-lost-ack-create-de4d55527bd1376d9e466264e74a42055fb37eca931ae43675f0b6f8b1499f05",
+    "lost_ack_replayed": true,
+    "lost_ack_dispatch_count": 1,
+    "lost_ack_checksum_stable": true,
+    "disable_error": "typescript_agent_control_disabled",
+    "python_fallback_attempted": false
+  },
+  "passed": true
+}

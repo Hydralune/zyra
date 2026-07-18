@@ -1,0 +1,24 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E03",
+  "candidate": "62c514d14b720060479ae5f673c45a9b273bae52",
+  "runner": "bun scripts/remediation/run_m1_r01_e03_behavior.ts",
+  "discovered_files": 8,
+  "executed_files": 8,
+  "passed": 346,
+  "failed": 0,
+  "failure_crash_recovery_cases": 192,
+  "files": [
+    {"path": "agent-definition-context-memory.behavior.test.ts", "passed": 36},
+    {"path": "control-protocol-schema.behavior.test.ts", "passed": 70},
+    {"path": "control-routing-lease.behavior.test.ts", "passed": 40},
+    {"path": "fanout-delivery-outbox.behavior.test.ts", "passed": 60},
+    {"path": "isolation-resource-cleanup.behavior.test.ts", "passed": 31},
+    {"path": "mutation-killers.test.ts", "passed": 40},
+    {"path": "task-durability.behavior.test.ts", "passed": 35},
+    {"path": "team-mailbox-retention.behavior.test.ts", "passed": 34}
+  ],
+  "typescript_typecheck": "passed",
+  "targeted_python_port_tests": "3 passed",
+  "passed_all": true
+}

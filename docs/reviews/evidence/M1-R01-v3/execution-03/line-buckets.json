@@ -1,0 +1,24 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E03",
+  "candidate": "62c514d14b720060479ae5f673c45a9b273bae52",
+  "buckets": {
+    "production_typescript_final": 74677,
+    "production_typescript_changed": 74518,
+    "behavior_test_typescript": 7655,
+    "python_logical_owner_deleted": 10309,
+    "accepted_upstream_source_evidence_no_production_credit": 6928,
+    "generated": 0,
+    "data_as_code": 0,
+    "docs": 0,
+    "vendor_like_or_source_pool": 0,
+    "adapter_only_production_credit": 0,
+    "mock_or_fixture_only": 0
+  },
+  "production_files": 41,
+  "changed_production_files": 39,
+  "production_duplicate_pairs": [],
+  "test_duplicate_pairs": [],
+  "cumulative_target_file_union_sloc": 100302,
+  "passed": true
+}

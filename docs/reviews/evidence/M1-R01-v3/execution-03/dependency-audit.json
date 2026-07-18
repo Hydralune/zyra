@@ -1,0 +1,12 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E03",
+  "candidate": "62c514d14b720060479ae5f673c45a9b273bae52",
+  "audited_roots": ["package.json", "bun.lock", "apps/code-worker/src/main.ts", "packages/runtime/claude-runtime/src/{agents,tasks,team,isolation,control,e03}"],
+  "forbidden_patterns": ["../claude-code-best", "../opencode", "../OpenClaw", "vendor-runtimes/", "source-pool/", "runtime-sources/", "file:*agent-zoo", "link:*agent-zoo"],
+  "matches": [],
+  "cleanroom_removed": ["vendor", "vendor-runtimes"],
+  "cleanroom_forbidden_exists": [],
+  "cleanroom_passed": true,
+  "passed": true
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E03",
+  "candidate": "62c514d14b720060479ae5f673c45a9b273bae52",
+  "canonical_writer": "typescript.E03AgentControlCoordinator",
+  "commit_protocol": ["prepare", "effect", "receipt", "commit", "ack"],
+  "domains": ["agents", "tasks", "team", "isolation", "control"],
+  "python_logical_writers": [],
+  "physical_ports": ["FileE03PhysicalPort", "HostE03PhysicalPort"],
+  "physical_port_can_advance_logical_state": false,
+  "stale_revision_fenced": true,
+  "passed": true
+}

@@ -8,6 +8,8 @@
 
 This cumulative record does not close M1-R01. It preserves the different acceptance provenance of E01 and E02 and hands the combined candidate to an independent reviewer.
 
+> 2026-07-18 repair addendum: independent review rejected the submitted E03 candidate, repaired the discovered blockers, and re-ran the complete gate on `62c514d14b720060479ae5f673c45a9b273bae52`. The repaired E03 facts are 10,309 deleted Python logical-owner SLOC, 74,677 final / 74,518 changed TypeScript production SLOC, 7,655 test SLOC, 346/346 behavior cases, 40/40 mutations and cleanroom PASS. Closure authority is now `M1-R01-v3-execution-03-independent-review.md`; the provisional candidate statements below are retained as implementation-history facts.
+
 ## 1. Cumulative custody result
 
 | Execution | Canonical domain | Final disposition |

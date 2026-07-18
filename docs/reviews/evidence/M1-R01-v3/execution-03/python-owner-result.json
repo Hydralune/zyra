@@ -1,0 +1,13 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E03",
+  "candidate": "62c514d14b720060479ae5f673c45a9b273bae52",
+  "frozen_deleted_executable_sloc": 10309,
+  "deleted_logical_owner_files": 27,
+  "retained_python_files": 5,
+  "retained_logical_owner_token_hits": 0,
+  "declaration_aware_logical_owner_census": [],
+  "retained_responsibility": ["typed CAS receipt", "physical workspace effect", "event/artifact projection"],
+  "targeted_python_port_tests": {"passed": 3, "failed": 0},
+  "passed": true
+}

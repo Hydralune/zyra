@@ -10,6 +10,8 @@
 
 This is an implementation-window self-review, not an independent PASS. It does not advance `verified_zyra_head`, close M1-R01, or authorize M1-S05C-01.
 
+> 2026-07-18 repair addendum: the independent audit rejected the submitted `da3b372...` evidence candidate and reopened E03. The repaired implementation candidate is `62c514d14b720060479ae5f673c45a9b273bae52`. Its final facts supersede the provisional counts below: 391 accepted ranges / 6,928 source SLOC, 60 target symbols, 10,309 Python logical-owner deletion SLOC across 27 files, 74,677 final and 74,518 changed TypeScript production SLOC, 7,655 test SLOC, 346 behavior cases, 192 failure cases, 40/40 mutations, cleanroom PASS and six implementation probes. The authoritative disposition is the independent review `M1-R01-v3-execution-03-independent-review.md`; the original implementation-window facts remain below as historical evidence and are not rewritten.
+
 ## 1. Scope and source-role custody
 
 The frozen schema-v3 G0 corpus contains 391 accepted ranges and 6,928 executable source lines. The primary source is `claude-code-best` with 180 rows across 20 files. `OpenClaw` contributes 198 supplementary rows across 16 files and `opencode` contributes 13 supplementary rows across 2 files. All rows use bounded `adapted` migration into Zyra-owned modules; no source repository is a runtime dependency.
