@@ -8,7 +8,7 @@
   "mutation_runner": "scripts/remediation/run_m1_r01_e03_mutations.ts",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "candidate_head_at_g0": "18c529174449a672b1216a786906e6fff4f536be",
+  "candidate_head_at_g0": "a2ab7956bd8cb68dfee46b8b9f5776ce25eb760d",
   "source_snapshots": {
     "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
     "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
@@ -219,7 +219,7 @@
     "scripts/remediation/verify_m1_r01_e03.ts": "24eed2bedee4110d63a44ec83ae4d23fcdd1e918bc582f72e74f48096bb87c52",
     "scripts/remediation/run_m1_r01_e03_mutations.ts": "9eac4fd330a8251aaa78a25cbf6797d2e101f99b7fb55ddb4a46c320ee5c60e7",
     "scripts/remediation/probe_m1_r01_e03.ts": "c8104f676a34e31e4c9836923a45eed371643e3cad6fcf0ab9285905b8e16be4",
-    "scripts/remediation/cleanroom_m1_r01_e03.ts": "db2b02a36091b1923d5f8e461a81cec8161c9ffecab3cfde1fd54056271b010d"
+    "scripts/remediation/cleanroom_m1_r01_e03.ts": "728f64de871866300787238664a448723d489d41fdad0fc67d3fb3dba2e236a0"
   },
   "candidate_status_before_independent_review": "implementation_complete_review_pending"
 }
