@@ -169,17 +169,11 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         ...tasks.map((task) => task.definition.budget.maxConcurrency),
       ),
       run: async (task) => {
+        const resumeInput = this.backgroundSupervisor.resumeInput(task);
         const settled = await coordinator.execution.run(
           task.identity.taskId,
           context.parentInput,
-          {
-            prompt: task.prompt,
-            restored_state: {
-              agent_task_id: task.identity.taskId,
-              agent_lease_id: task.identity.leaseId,
-              expected_revision: task.revision,
-            },
-          },
+          resumeInput,
           `background-run:${task.identity.taskId}:${task.identity.attempt}`,
           `background-run:${task.identity.taskId}:${task.identity.leaseId}`,
         );
@@ -331,6 +325,9 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         };
         const request = {
           ...requestValues,
+          idempotency_key:
+            requests[index]!.idempotency_key ??
+            `${asString(common.idempotency_key, "agent-fanout")}:${index}`,
           background: requests[index]!.background ?? common.background ?? true,
         } as JsonObject;
         try {

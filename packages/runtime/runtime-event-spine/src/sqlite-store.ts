@@ -913,7 +913,7 @@ export class RuntimeEventSqliteStore {
 
   private draftDigest(draft: RuntimeEventDraft): string {
     const { expectedSequence: _expectedSequence, ...identity } = draft;
-    return digestJson(identity);
+    return digestJson(JSON.parse(JSON.stringify(identity)) as JsonValue);
   }
 
   private upsertAggregate(

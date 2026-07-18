@@ -420,10 +420,10 @@ export class AgentControlHandler {
     });
   }
 
-  private ack(
+  private async ack(
     envelope: E03ControlEnvelope,
     task: E03TaskState,
-  ): E03ControlResponse {
+  ): Promise<E03ControlResponse> {
     const acknowledged = response({
       ok: true,
       request_id: envelope.request_id,
@@ -435,7 +435,10 @@ export class AgentControlHandler {
       error: task.error,
       dispatch_count: 1,
     });
-    return this.registry.acknowledge(envelope.idempotency_key, acknowledged);
+    return this.registry.acknowledgeDurably(
+      envelope.idempotency_key,
+      acknowledged,
+    );
   }
 }
 

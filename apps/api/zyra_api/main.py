@@ -1051,7 +1051,53 @@ def graph_execution_context() -> GraphExecutionContext:
         workspace_root=tool_workspace_path(),
         artifact_root=artifact_root_path(),
         permission_store_path=permission_store_path(),
+        workspace_runtime_resolver=_graph_workspace_runtime_binding,
     )
+
+
+def _graph_workspace_runtime_binding(
+    state: Any,
+    node: Any,
+    worker_name: str,
+) -> tuple[Path, dict[str, Any]]:
+    """Bind graph workers to the task's canonical managed workspace.
+
+    The graph layer owns worker selection, while the workspace package owns
+    leases, mutation fencing, and path custody.  Resolve the private capability
+    at execution time so a resumed task reacquires the current owner epoch
+    instead of falling back to the process-wide development workspace.
+    """
+
+    manager = get_workspace_manager()
+    access = manager.acquire_for_worker(
+        task_id=state.task_id,
+        session_id="",
+        worker_id=worker_name,
+    )
+    workspace_root = manager.internal_task_root(access)
+    services: dict[str, Any] = {
+        "workspace_edit_port": WorkspaceEditPort(
+            manager,
+            access,
+            worker_id=worker_name,
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=node.node_id,
+            artifact_store=LocalArtifactStore(artifact_root_path()),
+        ),
+        "workspace_gateway_required": True,
+    }
+    if worker_name == "CodeWorkerRuntime":
+        services.update(
+            {
+                "workspace_isolation_runtime": WorkspaceIsolationRuntime(
+                    manager,
+                    artifact_store=LocalArtifactStore(artifact_root_path()),
+                ),
+                "typescript_agent_state_path": str(subagent_state_path()),
+            }
+        )
+    return workspace_root, services
 
 
 def get_permission_store() -> JsonPermissionStore:

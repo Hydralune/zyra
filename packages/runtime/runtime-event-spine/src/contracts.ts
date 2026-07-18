@@ -751,7 +751,7 @@ export function buildCommittedEnvelope(
     producerSequence: draft.producerSequence ?? sequence,
     idempotencyKey: draft.idempotencyKey,
     correlationId: draft.correlationId,
-    causationId: draft.causationId,
+    ...(draft.causationId ? { causationId: draft.causationId } : {}),
     createdAt: draft.createdAt ?? utcNow(),
     committedAt,
     durability: draft.durability ?? EventDurability.DURABLE,
@@ -759,13 +759,13 @@ export function buildCommittedEnvelope(
     identity: draft.identity,
     sender: draft.sender,
     intent: draft.intent,
-    target: draft.target,
+    ...(draft.target ? { target: draft.target } : {}),
     topKRecipients: draft.topKRecipients ?? [],
     summary: draft.summary ?? "",
     stateDelta: draft.stateDelta ?? parseStateDelta(undefined),
     evidenceRefs: draft.evidenceRefs ?? [],
     artifactRefs: draft.artifactRefs ?? [],
-    uncertainty: draft.uncertainty,
+    ...(draft.uncertainty ? { uncertainty: draft.uncertainty } : {}),
     provenance: draft.provenance,
     inline: draft.inline ?? {},
     sourceBytes: draft.sourceBytes ?? inlineBytes,
@@ -773,7 +773,14 @@ export function buildCommittedEnvelope(
     envelopeBytes,
     metadata: draft.metadata ?? {},
   };
-  return { ...event, contentDigest: digestJson(event) };
+  const serializableEvent = JSON.parse(JSON.stringify(event)) as Omit<
+    RuntimeEventEnvelope,
+    "contentDigest"
+  >;
+  return {
+    ...serializableEvent,
+    contentDigest: digestJson(serializableEvent),
+  };
 }
 
 export function messageFromEvent(event: RuntimeEventEnvelope, messageId = newId("msg")): AgentMessageEnvelope {

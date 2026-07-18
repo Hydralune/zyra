@@ -235,7 +235,11 @@ class TypeScriptRuntimeEventPort:
         except BaseException:
             self._terminate_process(process)
             raise
-        if not isinstance(response, Mapping) or response.get("ok") is not True:
+        if (
+            not isinstance(response, Mapping)
+            or response.get("pong") is not True
+            or response.get("protocol") != "zyra.runtime-event-spine-rpc/v1"
+        ):
             self._terminate_process(process)
             raise RuntimeEventProcessError(
                 "TypeScript runtime event spine failed its startup handshake",
@@ -449,4 +453,3 @@ def require_string_compat(value: Any, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise RuntimeEventContractError(f"{field_name} must be a non-empty string")
     return value
-

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
 
 from zyra_core import (
@@ -39,6 +39,9 @@ class GraphExecutionContext:
     workspace_root: Path
     artifact_root: Path
     permission_store_path: Path | None = None
+    workspace_runtime_resolver: (
+        Callable[[TaskState, PlanNode, str], tuple[Path, Mapping[str, Any]]] | None
+    ) = None
 
     @classmethod
     def from_paths(
@@ -48,12 +51,16 @@ class GraphExecutionContext:
         workspace_root: str | Path,
         artifact_root: str | Path,
         permission_store_path: str | Path | None = None,
+        workspace_runtime_resolver: (
+            Callable[[TaskState, PlanNode, str], tuple[Path, Mapping[str, Any]]] | None
+        ) = None,
     ) -> "GraphExecutionContext":
         return cls(
             project_root=Path(project_root).resolve(),
             workspace_root=Path(workspace_root).resolve(),
             artifact_root=Path(artifact_root).resolve(),
             permission_store_path=None if permission_store_path is None else Path(permission_store_path).resolve(),
+            workspace_runtime_resolver=workspace_runtime_resolver,
         )
 
 
@@ -405,6 +412,12 @@ def _run_selected_worker(
     )
     browser_url = str(hints.get("browser_url") or _extract_first_url(state.user_goal) or "")
     if preferred_worker == "BrowserWorker" or browser_url:
+        workspace_root, runtime_services = _resolve_worker_runtime(
+            state,
+            node,
+            execution_context,
+            "BrowserWorker",
+        )
         constraints = _browser_constraints(state, hints, browser_url)
         request = WorkerRequest(
             run_id=state.run_id,
@@ -417,12 +430,20 @@ def _run_selected_worker(
         return (
             BrowserWorkerRuntime(
                 project_root=execution_context.project_root,
-                workspace_root=execution_context.workspace_root,
+                workspace_root=workspace_root,
                 artifact_root=execution_context.artifact_root,
+                workspace_edit_port=runtime_services.get("workspace_edit_port"),
+                workspace_gateway_required=bool(runtime_services.get("workspace_gateway_required", False)),
             ).run(request),
             "BrowserWorker",
         )
 
+    workspace_root, runtime_services = _resolve_worker_runtime(
+        state,
+        node,
+        execution_context,
+        "CodeWorkerRuntime",
+    )
     request = WorkerRequest(
         run_id=state.run_id,
         task_id=state.task_id,
@@ -434,16 +455,30 @@ def _run_selected_worker(
     return (
         CodeWorkerRuntime(
             project_root=execution_context.project_root,
-            workspace_root=execution_context.workspace_root,
+            workspace_root=workspace_root,
             artifact_root=execution_context.artifact_root,
             permission_store=(
                 JsonPermissionStore(execution_context.permission_store_path)
                 if execution_context.permission_store_path is not None
                 else None
             ),
+            runtime_services=runtime_services,
         ).run(request),
         "CodeWorkerRuntime",
     )
+
+
+def _resolve_worker_runtime(
+    state: TaskState,
+    node: PlanNode,
+    execution_context: GraphExecutionContext,
+    worker_name: str,
+) -> tuple[Path, dict[str, Any]]:
+    resolver = execution_context.workspace_runtime_resolver
+    if resolver is None:
+        return execution_context.workspace_root, {}
+    workspace_root, services = resolver(state, node, worker_name)
+    return Path(workspace_root).resolve(), dict(services)
 
 
 def _resource_decision_event_from_route(route_event: EventRecord) -> EventRecord | None:
@@ -602,7 +637,7 @@ def _runtime_hints(state: TaskState) -> dict[str, Any]:
 
 def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]:
     if isinstance(hints.get("tool_plan"), list):
-        return {"tool_plan": hints["tool_plan"]}
+        return {"tool_plan": hints["tool_plan"], "permission_mode": "acceptEdits"}
     relative_path = f"runs/{state.task_id}/execution-summary.md"
     content = "\n".join(
         [
@@ -622,6 +657,7 @@ def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]
         ]
     )
     return {
+        "permission_mode": "acceptEdits",
         "tool_plan": [
             {"tool_name": "file_write", "arguments": {"path": relative_path, "content": content}},
             {"tool_name": "file_read", "arguments": {"path": relative_path}},

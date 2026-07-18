@@ -157,9 +157,17 @@ export class AgentExecutionRuntime {
         `task in ${task.status} cannot resume`,
       );
     const identity = this.identity.nextAttempt(task.identity);
+    const isolation = task.isolation
+      ? rebindIsolationLease(task.isolation, identity.leaseId)
+      : null;
+    const isolationReceipt = task.isolationReceipt
+      ? rebindIsolationLease(task.isolationReceipt, identity.leaseId)
+      : null;
     const resumable = sealTask({
       ...task,
       identity,
+      isolation,
+      isolationReceipt,
       status: "queued",
       revision: task.revision + 1,
       sequence: task.sequence + 1,
@@ -240,6 +248,15 @@ export class AgentExecutionRuntime {
   }
 }
 
+function rebindIsolationLease<T extends { leaseId: string; digest: string }>(
+  value: T,
+  leaseId: string,
+): T {
+  const { digest: _digest, ...prior } = value;
+  const payload = { ...prior, leaseId };
+  return { ...payload, digest: digest(payload) } as T;
+}
+
 export type BackgroundClaimPhase =
   | "available"
   | "claimed"
@@ -272,6 +289,11 @@ export interface BackgroundDrainResult {
   failed: string[];
   skipped: string[];
   claims: BackgroundClaim[];
+}
+
+export interface BackgroundResumeInput extends JsonObject {
+  prompt: string;
+  restored_state: JsonObject;
 }
 
 export class AgentBackgroundSupervisor {
@@ -417,6 +439,35 @@ export class AgentBackgroundSupervisor {
     });
     this.claims.set(taskId, next);
     return structuredClone(next);
+  }
+
+  resumeInput(task: E03TaskState): BackgroundResumeInput {
+    if (task.executionMode !== "background" || isTerminal(task.status))
+      throw new E03RuntimeError(
+        "background_not_resumable",
+        `task ${task.identity.taskId} is not a resumable background task`,
+      );
+    const claim = this.require(task.identity.taskId);
+    if (
+      claim.taskLeaseId !== task.identity.leaseId ||
+      claim.taskRevision !== task.revision ||
+      claim.attempt !== task.identity.attempt
+    )
+      throw new E03RuntimeError(
+        "stale_background_resume",
+        "background resume does not match the durable task lease/revision",
+      );
+    return {
+      prompt: task.prompt,
+      restored_state: {
+        agent_task_id: task.identity.taskId,
+        agent_lease_id: task.identity.leaseId,
+        expected_revision: task.revision,
+        agent_attempt: task.identity.attempt,
+        context_snapshot_id: task.context.snapshotId,
+        context_checksum: task.context.checksum,
+      },
+    };
   }
 
   settle(task: E03TaskState, workerId: string): BackgroundClaim {

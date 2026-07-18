@@ -9,6 +9,13 @@ from typing import Any, Mapping, Sequence
 from zyra_core import ArtifactKind, EventRecord, EventType, to_jsonable
 from zyra_runtime.executor import ToolExecutionContext
 from zyra_runtime.permissions import JsonPermissionStore
+from zyra_runtime.permission.custody import (
+    PermissionSessionCustodyBinding,
+    PermissionSessionCustodyError,
+    PermissionSessionCustodyReceipt,
+    PermissionSessionCustodyStore,
+)
+from zyra_runtime.permission.store import PermissionStateStore
 from zyra_runtime.typescript_runtime_host import ClaudeQueryEngineConfig
 from zyra_runtime.workers import WorkerRequest, WorkerResult
 
@@ -82,6 +89,7 @@ class CodeWorkerRuntime:
         skill_fork_port: Any | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
+        self.workspace_root = Path(workspace_root).resolve()
         self.sidecar_client = sidecar_client or CodeWorkerSidecarClient(self.project_root)
         self.query_engine_factory = query_engine_factory
         self.permission_bypass_available = bool(permission_bypass_available)
@@ -89,6 +97,13 @@ class CodeWorkerRuntime:
         self.permission_accept_edits_available = bool(permission_accept_edits_available)
         self.permission_extension_registry = permission_extension_registry
         self.skill_fork_port = skill_fork_port
+        supplied_services = dict(runtime_services or {})
+        self.managed_workspace_custody = bool(
+            supplied_services.get(
+                "sandbox_gateway_required",
+                supplied_services.get("workspace_gateway_required", False),
+            )
+        )
         services = install_gateway_runtime_services(
             runtime_services,
             workspace_root=workspace_root,
@@ -128,8 +143,43 @@ class CodeWorkerRuntime:
             )
 
         session_id = self._session_id(request)
+        custody: PermissionSessionCustodyReceipt | None = None
+        if self.managed_workspace_custody:
+            presented_token = str(
+                constraints.get("session_custody_token")
+                or constraints.get("permission_session_custody_token")
+                or ""
+            )
+            try:
+                custody = PermissionSessionCustodyStore(
+                    PermissionStateStore(self.permission_state_path)
+                ).claim(
+                    PermissionSessionCustodyBinding(
+                        session_id=session_id,
+                        run_id=request.run_id,
+                        task_id=request.task_id,
+                        workspace_root=str(self.workspace_root),
+                    ),
+                    presented_token=presented_token,
+                )
+            except PermissionSessionCustodyError as error:
+                return self._failure(
+                    request,
+                    error=error.code,
+                    summary=f"CodeWorkerRuntime rejected permission-session custody: {error}",
+                    session_id=session_id,
+                )
+            constraints = {
+                key: value
+                for key, value in constraints.items()
+                if "custody_token" not in str(key).casefold()
+            }
+            constraints["permission_transport_queue_enabled"] = True
         turns = self._query_turns(constraints)
         restored_state = self._restored_state(session_id, constraints)
+        logical_worker_request_id = str(
+            restored_state.get("worker_request_id") or request.request_id
+        )
         request_messages: Sequence[Any] = tuple(request.messages)
         request_metadata = {
             **request.metadata,
@@ -162,7 +212,7 @@ class CodeWorkerRuntime:
                         "session_id": session_id,
                         "run_id": request.run_id,
                         "task_id": request.task_id,
-                        "worker_request_id": request.request_id,
+                        "worker_request_id": logical_worker_request_id,
                     },
                     context_snapshot=_mapping(constraints.get("context_snapshot")),
                     preprocessed_messages=request_messages,
@@ -251,7 +301,7 @@ class CodeWorkerRuntime:
                 run_id=request.run_id,
                 task_id=request.task_id,
                 node_id=request.node_id,
-                worker_request_id=request.request_id,
+                worker_request_id=logical_worker_request_id,
                 turns=turns,
                 request_messages=request_messages,
                 request_metadata=request_metadata,
@@ -270,7 +320,7 @@ class CodeWorkerRuntime:
                 "schema_version": 1,
                 "canonical_owner": "typescript",
                 "session_id": session_id,
-                "worker_request_id": request.request_id,
+                "worker_request_id": logical_worker_request_id,
                 "session_snapshot": to_jsonable(loop_result.session_snapshot),
                 "metadata": to_jsonable(loop_result.metadata),
             },
@@ -299,6 +349,7 @@ class CodeWorkerRuntime:
             "context_compactions": str(loop_result.context_compaction_count),
             "runtime_state_checkpoint_path": str(checkpoint_path),
             **_string_metadata(loop_result.metadata),
+            **(custody.metadata() if custody is not None else {}),
         }
         error = None
         if not loop_result.ok:
@@ -324,7 +375,13 @@ class CodeWorkerRuntime:
         return CodeWorkerRun(
             worker_result=worker_result,
             event_records=[*loop_result.event_records, result_event],
+            session_custody_token=custody.token if custody is not None else "",
             session_id=metadata["query_session_id"],
+            session_custody_id=custody.custody_id if custody is not None else "",
+            session_custody_fingerprint=(
+                custody.custody_fingerprint if custody is not None else ""
+            ),
+            session_custody_created=custody.created if custody is not None else False,
         )
 
     def _failure(

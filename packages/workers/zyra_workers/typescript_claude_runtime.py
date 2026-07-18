@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -23,6 +24,17 @@ from zyra_runtime.e02_ports import (
     TypeScriptPermissionReceiptError,
     TypeScriptPermissionReceiptPort,
 )
+from zyra_runtime.permission.models import (
+    PermissionEffect,
+    PermissionMode,
+    PermissionRequestPhase,
+    PermissionRequestRecord,
+    PermissionScope,
+    PermissionScopeKind,
+    ToolIdentity,
+)
+from zyra_runtime.permission.request_queue import PermissionRequestQueue
+from zyra_runtime.permission.store import PermissionStateStore
 from zyra_runtime.tools import ToolCall, ToolResult
 
 from .code_worker_bridge import code_worker_entrypoint
@@ -234,6 +246,22 @@ class TypeScriptClaudeQueryEngine:
         durable_revision = int(durable_checkpoint.get("revision") or 0)
         if durable_checkpoint and durable_revision >= provided_revision:
             restored_runtime_state.update(durable_checkpoint)
+        if constraints.get("permission_transport_queue_enabled") is True:
+            approval_responses = self._host_permission_responses(session_id)
+            if approval_responses:
+                e02_snapshot = self._find_e02_snapshot(restored_runtime_state)
+                if not e02_snapshot:
+                    raise TypeScriptRuntimeError(
+                        "permission_transport_checkpoint_missing",
+                        "A resolved approval has no matching durable TypeScript E02 checkpoint.",
+                    )
+                restored_runtime_state = {
+                    "e02": e02_snapshot,
+                    "tool_effect_receipts": to_jsonable(
+                        restored_runtime_state.get("tool_effect_receipts") or {}
+                    ),
+                    "permission_transport_resume": True,
+                }
         self._latest_runtime_checkpoint = dict(
             restored_runtime_state.get("typescript_runtime_snapshot") or restored_runtime_state
         )
@@ -377,7 +405,7 @@ class TypeScriptClaudeQueryEngine:
                 "messages": to_jsonable(list(request_messages)),
                 "turns": to_jsonable(list(turns)),
                 "tools": [to_jsonable(spec) for spec in self.context.registry.list()],
-                "config": self._typescript_config(),
+                "config": self._typescript_config(session_id=session_id),
                 "session_seed": to_jsonable(self.config.session_seed or {}),
                 "context_snapshot": to_jsonable(self.config.context_snapshot or {}),
                 "restored_state": to_jsonable(restored_runtime_state),
@@ -976,6 +1004,15 @@ class TypeScriptClaudeQueryEngine:
             if isinstance(raw_receipts, Mapping)
             else {}
         )
+        if str(result.get("stoppedReason") or "") == "permission_suspended":
+            # ASK is a durable suspension point, not the terminal outcome of
+            # the logical worker request.  Its E02 continuation is already in
+            # the checkpoint and must remain resumable after external approval.
+            receipts.pop(worker_request_id, None)
+            checkpoint["terminal_result_receipts"] = receipts
+            self._latest_runtime_checkpoint = checkpoint
+            self._persist_incremental_checkpoint(session_id, checkpoint)
+            return
         existing = receipts.get(worker_request_id)
         if existing and (
             str(existing.get("terminal_id") or "") != terminal_id
@@ -1028,10 +1065,14 @@ class TypeScriptClaudeQueryEngine:
         environment["ZYRA_TYPESCRIPT_RUNTIME_PROTOCOL"] = RUNTIME_PROTOCOL_VERSION
         return environment
 
-    def _typescript_config(self) -> dict[str, Any]:
+    def _typescript_config(self, *, session_id: str) -> dict[str, Any]:
         runtime_constraints = dict(self.config.runtime_constraints)
         runtime_constraints.setdefault("workspaceRoot", str(self.context.workspace_root))
         runtime_constraints.setdefault("projectRoot", str(self.project_root))
+        if runtime_constraints.get("permission_transport_queue_enabled") is True:
+            runtime_constraints["hostApprovalResponses"] = self._host_permission_responses(
+                session_id
+            )
         raw_policy = runtime_constraints.pop(
             "e02PermissionPolicy",
             runtime_constraints.pop("permissionPolicy", {}),
@@ -1080,7 +1121,6 @@ class TypeScriptClaudeQueryEngine:
         tool_effect_receipts: dict[str, dict[str, Any]],
         receipt_lock: threading.RLock,
     ) -> dict[str, Any]:
-        del worker_request_id
         tool_name = str(payload.get("tool_name") or "")
         tool_call_id = str(payload.get("tool_call_id") or "")
         arguments = dict(payload.get("arguments") or {})
@@ -1124,6 +1164,19 @@ class TypeScriptClaudeQueryEngine:
         operation = str(binding.get("operation") or "execute")
         effect = str(decision.get("effect") or "deny")
         if effect != "allow":
+            if effect == "ask":
+                self._project_permission_request(
+                    decision=decision,
+                    binding=binding,
+                    run_id=run_id,
+                    task_id=task_id,
+                    worker_request_id=worker_request_id,
+                    session_id=session_id,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                    namespace=namespace,
+                    server_id=server_id,
+                )
             return to_jsonable(
                 ToolResult(
                     tool_call_id=tool_call_id,
@@ -1242,6 +1295,204 @@ class TypeScriptClaudeQueryEngine:
             self._persist_incremental_checkpoint(session_id, checkpoint)
         self._host_artifacts.extend(result.artifacts)
         return encoded_result
+
+    def _permission_queue(self, session_id: str) -> PermissionRequestQueue:
+        if self.config.permission_state_path is None:
+            raise TypeScriptRuntimeError(
+                "permission_transport_state_missing",
+                "The external approval transport requires PermissionStateStore custody.",
+            )
+        return PermissionRequestQueue(
+            PermissionStateStore(Path(self.config.permission_state_path).resolve()),
+            session_id,
+        )
+
+    @staticmethod
+    def _find_e02_snapshot(value: Mapping[str, Any]) -> dict[str, Any]:
+        pending: list[Mapping[str, Any]] = [value]
+        visited: set[int] = set()
+        while pending:
+            candidate = pending.pop(0)
+            identity = id(candidate)
+            if identity in visited:
+                continue
+            visited.add(identity)
+            if candidate.get("version") == "zyra.e02-runtime/v1":
+                return dict(candidate)
+            for child in candidate.values():
+                if isinstance(child, Mapping):
+                    pending.append(child)
+        return {}
+
+    def _host_permission_responses(self, session_id: str) -> list[dict[str, Any]]:
+        responses: list[dict[str, Any]] = []
+        for record in self._permission_queue(session_id).list(
+            phases=(PermissionRequestPhase.RESOLVED,),
+        ):
+            if record.metadata.get("typescript_transport_projection") is not True:
+                continue
+            effect = record.resolution_effect
+            response_id = str(
+                record.metadata.get("resolution_idempotency_key") or ""
+            )
+            if effect not in {PermissionEffect.ALLOW, PermissionEffect.DENY} or not response_id:
+                raise TypeScriptRuntimeError(
+                    "permission_transport_resolution_invalid",
+                    f"Resolved approval {record.request_id} lacks an exact transport identity.",
+                )
+            binding = dict(record.metadata.get("typescript_request_binding") or {})
+            responses.append(
+                {
+                    "responseId": response_id,
+                    "requestId": record.request_id,
+                    "runId": record.run_id,
+                    "sessionId": record.session_id,
+                    "sessionRevision": int(binding.get("session_revision") or 0),
+                    "workerRequestId": record.worker_request_id,
+                    "toolCallId": record.tool_use_id,
+                    "effect": effect.value,
+                    "responder": record.resolved_by,
+                    "respondedAt": record.resolved_at,
+                    "metadata": {
+                        "transport": record.resolution_channel,
+                        "python_role": "approval-transport-only",
+                        "canonical_policy_owner": "typescript",
+                        "permission_request_fingerprint": record.request_fingerprint,
+                    },
+                }
+            )
+        return responses
+
+    def _project_permission_request(
+        self,
+        *,
+        decision: Mapping[str, Any],
+        binding: Mapping[str, Any],
+        run_id: str,
+        task_id: str,
+        worker_request_id: str,
+        session_id: str,
+        tool_call_id: str,
+        tool_name: str,
+        namespace: str,
+        server_id: str,
+    ) -> None:
+        if self.config.runtime_constraints.get("permission_transport_queue_enabled") is not True:
+            return
+        request_id = str(
+            decision.get(
+                "continuationRequestId",
+                decision.get("continuation_request_id", ""),
+            )
+            or ""
+        )
+        arguments_digest = str(
+            decision.get(
+                "finalArgumentsDigest",
+                decision.get("final_arguments_digest", ""),
+            )
+            or ""
+        )
+        request_fingerprint = str(
+            decision.get(
+                "requestFingerprint",
+                decision.get("request_fingerprint", ""),
+            )
+            or ""
+        )
+        if not request_id or not arguments_digest or not request_fingerprint:
+            raise TypeScriptRuntimeError(
+                "permission_transport_request_invalid",
+                "TypeScript ASK decision lacks its continuation identity or digests.",
+            )
+        queue = self._permission_queue(session_id)
+        existing = queue.get(request_id)
+        if existing is not None:
+            exact_identity = (
+                existing.run_id == run_id
+                and existing.task_id == task_id
+                and existing.worker_request_id == worker_request_id
+                and existing.tool_use_id == tool_call_id
+                and existing.arguments_digest == arguments_digest
+                and existing.request_fingerprint == request_fingerprint
+            )
+            if not exact_identity:
+                raise TypeScriptRuntimeError(
+                    "permission_transport_identity_conflict",
+                    f"Approval request {request_id} is already bound to another tool call.",
+                )
+            return
+        expires_at = (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=max(1.0, self.config.permission_approval_ttl_seconds))
+        ).isoformat()
+        raw_mode = str(decision.get("mode") or self.config.permission_mode or "default")
+        if raw_mode == "acceptEdits":
+            mode = PermissionMode.ACCEPT_EDITS
+        elif raw_mode == "dontAsk":
+            mode = PermissionMode.DONT_ASK
+        else:
+            mode = PermissionMode(raw_mode)
+        record = PermissionRequestRecord(
+            request_id=request_id,
+            session_id=session_id,
+            task_id=task_id,
+            run_id=run_id,
+            worker_request_id=worker_request_id,
+            tool_use_id=tool_call_id,
+            tool_identity=ToolIdentity(
+                namespace=namespace,
+                name=tool_name,
+                server_id=server_id,
+                version=str(binding.get("version") or ""),
+                schema_digest=str(binding.get("schema_digest") or ""),
+            ),
+            arguments_digest=arguments_digest,
+            request_fingerprint=request_fingerprint,
+            scope=PermissionScope(
+                kind=PermissionScopeKind.ACTION,
+                session_id=session_id,
+                task_id=task_id,
+                run_id=run_id,
+                workspace_root=str(self.context.workspace_root),
+                tool_namespace=namespace,
+                tool_name=tool_name,
+                server_id=server_id,
+                argument_digest=arguments_digest,
+                request_fingerprint=request_fingerprint,
+            ),
+            expires_at=expires_at,
+            reason_code=str(
+                decision.get("reasonCode", decision.get("reason_code", "typescript_ask"))
+                or "typescript_ask"
+            ),
+            reason=str(decision.get("reason") or "TypeScript permission approval required"),
+            rule_snapshot_id=str(
+                decision.get("policyDigest", decision.get("policy_digest", "")) or ""
+            ),
+            mode=mode,
+            metadata={
+                "typescript_transport_projection": True,
+                "canonical_policy_owner": "typescript",
+                "python_role": "approval-transport-only",
+                "typescript_decision_id": str(
+                    decision.get("decisionId", decision.get("decision_id", "")) or ""
+                ),
+                "typescript_request_binding": to_jsonable(dict(binding)),
+                "typescript_policy_revision": int(
+                    decision.get("policyRevision", decision.get("policy_revision", 0)) or 0
+                ),
+                "typescript_mode_revision": int(
+                    decision.get("modeRevision", decision.get("mode_revision", 0)) or 0
+                ),
+            },
+        )
+        created = queue.create(record)
+        queue.mark_delivered(
+            request_id,
+            expected_request_revision=created.revision,
+            channel="typescript-stdio",
+        )
 
     def _settle_typescript_capability(
         self,
@@ -1529,6 +1780,7 @@ class TypeScriptClaudeQueryEngine:
                 "runtime_protocol": RUNTIME_PROTOCOL_VERSION,
                 "python_query_engine_fallback": "false",
                 "typescript_runtime_error": error.code,
+                "typescript_runtime_error_message": str(error),
                 "query_session_id": session_id,
             },
         )

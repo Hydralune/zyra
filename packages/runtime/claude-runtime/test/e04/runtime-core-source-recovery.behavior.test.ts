@@ -167,7 +167,7 @@ function queueCall(
   else runtime.queueWithDelegatedPermission(callId, `permission:${callId}`);
 }
 
-test("E04-B preserves consecutive read-write-read tool order", () => {
+test("e04-tool-batch", () => {
   const runtime = new ToolExecutionRuntime();
   registerTool(runtime, "read_source", true);
   registerTool(runtime, "write_source", false);
@@ -190,7 +190,7 @@ test("E04-B preserves consecutive read-write-read tool order", () => {
   expect(batches.map((batch) => batch.maximumConcurrency)).toEqual([1, 1, 1]);
 });
 
-test("E04-B query source runtime owns ask and observation continuation", () => {
+test("e04-query-reason-observe", () => {
   const runtime = new QueryLifecycleRuntime({
     identity: {
       queryId: "e04-query",
@@ -251,7 +251,69 @@ test("E04-B query source runtime owns ask and observation continuation", () => {
   expect(runtime.snapshot().transitions.at(-1)?.cause).toBe("query_recursive_call");
 });
 
-test("E04-B tool-result budget persists and reapplies one physical effect", async () => {
+test("e04-query-model-failure", () => {
+  const runtime = new QueryLifecycleRuntime({
+    identity: {
+      queryId: "e04-query-failure",
+      sessionId: "e04-session",
+      runId: "e04-run",
+      taskId: "e04-task",
+      workerRequestId: "e04-worker",
+      parentQueryId: null,
+      branchId: "main",
+    },
+  });
+  runtime.ask({
+    prompt: "fail during sampling",
+    inputId: "e04-failure-input",
+    idempotencyKey: "e04-failure-input-key",
+    correlationId: "e04-failure-correlation",
+  });
+  const turn = runtime.startTurn({
+    turnId: "e04-failure-turn",
+    model: "e04-failing-model",
+    messageDigest: "before-failure",
+    inputIds: [],
+  });
+  const failed = runtime.failTurn(turn.turnId, "provider unavailable", true);
+
+  expect(failed.status).toBe("failed");
+  expect(runtime.shouldStop().reason).toBe("model_error");
+  expect(runtime.snapshot().status).toBe("failed");
+  expect(runtime.snapshot().transitions.some((item) => item.cause === "query_failed")).toBeTrue();
+});
+
+test("e04-query-resume", () => {
+  const identity = {
+    queryId: "e04-query-resume",
+    sessionId: "e04-resume-session",
+    runId: "e04-run",
+    taskId: "e04-task",
+    workerRequestId: "e04-worker",
+    parentQueryId: null,
+    branchId: "main",
+  };
+  const runtime = new QueryLifecycleRuntime({ identity });
+  runtime.ask({
+    prompt: "pause and restore",
+    inputId: "e04-resume-input",
+    idempotencyKey: "e04-resume-input-key",
+    correlationId: "e04-resume-correlation",
+  });
+  runtime.pause("e04-pause-control");
+  const restored = new QueryLifecycleRuntime({ identity });
+  restored.restore(runtime.snapshot());
+  restored.resume("e04-resume-control", "e04-resume-correlation-id");
+  const once = restored.snapshot();
+  restored.resume("e04-resume-control-duplicate", "e04-resume-correlation-id");
+
+  expect(once.status).not.toBe("paused");
+  expect(restored.snapshot().resumeCorrelationIds).toContain("e04-resume-correlation-id");
+  expect(restored.snapshot().transitions.some((item) => item.cause === "query_resumed")).toBeTrue();
+  expect(restored.snapshot().revision).toBe(once.revision);
+});
+
+test("e04-tool-resume", async () => {
   let externalizeCount = 0;
   const host = {
     async externalize(request: ArtifactRequest) {
@@ -290,7 +352,7 @@ test("E04-B tool-result budget persists and reapplies one physical effect", asyn
   expect(reapplied.result).toEqual(first.result);
 });
 
-test("E04-B tool-result in-flight fence rejects a conflicting payload", async () => {
+test("e04-tool-failure", async () => {
   let releaseEffect!: () => void;
   const effectBlocked = new Promise<void>((resolve) => {
     releaseEffect = () => resolve();
@@ -334,7 +396,7 @@ test("E04-B tool-result in-flight fence rejects a conflicting payload", async ()
   await first;
 });
 
-test("E04-B auto compact records failures and opens its circuit breaker", async () => {
+test("e04-compact-failure", async () => {
   const runtime = new ContextCompactionRuntime();
   let summaryAttempts = 0;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -366,7 +428,7 @@ test("E04-B auto compact records failures and opens its circuit breaker", async 
   );
 });
 
-test("E04-B resume processing preserves fork and non-fork identity rules", async () => {
+test("e04-compact-restore", async () => {
   const runtime = new CompactRestoreRuntime({ workspaceRoot: process.cwd() });
   const input = {
     sessionId: "source-session",
@@ -409,7 +471,7 @@ test("E04-B resume processing preserves fork and non-fork identity rules", async
   })).toEqual(forked);
 });
 
-test("E04-B compact source disable prevents direct compact and resume effects", async () => {
+test("e04-compact-disable", async () => {
   process.env.ZYRA_DISABLE_E04_COMPACT_SOURCE_RUNTIME = "1";
   const custody = new CompactionSourceCustodyRuntime();
   const plan = custody.autoCompactIfNeeded({
@@ -527,7 +589,7 @@ test("e04-tool-disable", async () => {
   expect(host.batches[0]?.steps).toHaveLength(1);
 });
 
-test("e04-compact-disable", async () => {
+test("e04-compact-boundary e04-compact-disable", async () => {
   const host = new E04RuntimeHost();
   const result = await new ClaudeRuntimeCore().run(runtimeInput({
     config: { runtimeConstraints: { force_compact_restore: true } },

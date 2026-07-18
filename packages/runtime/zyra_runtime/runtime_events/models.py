@@ -167,14 +167,14 @@ class ArtifactReference:
         data = require_mapping(value, "artifact reference")
         return cls(
             artifact_id=require_string(data.get("artifactId", data.get("artifact_id")), "artifactId"),
-            sha256=require_string(data.get("sha256"), "sha256"),
+            sha256=require_string(data.get("sha256", data.get("digest")), "sha256"),
             media_type=require_string(data.get("mediaType", data.get("media_type")), "mediaType"),
             byte_length=require_integer(
-                data.get("byteLength", data.get("byte_length")),
+                data.get("byteLength", data.get("byte_length", data.get("sizeBytes"))),
                 "byteLength",
                 minimum=0,
             ),
-            role=require_string(data.get("role"), "role"),
+            role=require_string(data.get("role", data.get("title", "artifact")), "role"),
             uri=optional_string(data.get("uri"), "uri"),
         )
 
@@ -214,6 +214,7 @@ class RuntimeEventEnvelope:
     content_digest: str
     envelope_bytes: int
     schema_version: int = 1
+    canonical: Mapping[str, JsonValue] | None = None
 
     @classmethod
     def from_json(cls, value: Any) -> "RuntimeEventEnvelope":
@@ -222,32 +223,56 @@ class RuntimeEventEnvelope:
             ArtifactReference.from_json(item)
             for item in require_sequence(data.get("artifactRefs", []), "artifactRefs")
         )
-        payload = require_mapping(data.get("payload", {}), "payload")
+        payload = require_mapping(data.get("payload", data.get("inline", {})), "payload")
+        identity = require_mapping(data.get("identity", {}), "identity")
+        sender = require_mapping(data.get("sender", {}), "sender")
+        provenance = require_mapping(data.get("provenance", {}), "provenance")
+        aggregate_id = require_string(data.get("aggregateId"), "aggregateId")
+        aggregate_sequence = require_integer(data.get("aggregateSequence"), "aggregateSequence", minimum=0)
+        is_canonical_spine = data.get("schema") == "zyra.runtime-event/v1"
         return cls(
             event_id=require_string(data.get("eventId"), "eventId"),
             event_type=require_string(data.get("eventType"), "eventType"),
-            aggregate_type=require_string(data.get("aggregateType"), "aggregateType"),
-            aggregate_id=require_string(data.get("aggregateId"), "aggregateId"),
-            aggregate_sequence=require_integer(data.get("aggregateSequence"), "aggregateSequence", minimum=0),
-            global_sequence=require_integer(data.get("globalSequence"), "globalSequence", minimum=1),
-            occurred_at=require_string(data.get("occurredAt"), "occurredAt"),
+            aggregate_type=require_string(
+                data.get("aggregateType", aggregate_id.partition(":")[0] or "runtime"),
+                "aggregateType",
+            ),
+            aggregate_id=aggregate_id,
+            aggregate_sequence=aggregate_sequence,
+            global_sequence=require_integer(
+                data.get("globalSequence", aggregate_sequence + 1),
+                "globalSequence",
+                minimum=1,
+            ),
+            occurred_at=require_string(data.get("occurredAt", data.get("createdAt")), "occurredAt"),
             committed_at=require_string(data.get("committedAt"), "committedAt"),
-            producer=require_string(data.get("producer"), "producer"),
-            subject=require_string(data.get("subject"), "subject"),
+            producer=require_string(data.get("producer", sender.get("id", "runtime")), "producer"),
+            subject=require_string(data.get("subject", identity.get("taskId", aggregate_id)), "subject"),
             correlation_id=require_string(data.get("correlationId"), "correlationId"),
             causation_id=optional_string(data.get("causationId"), "causationId"),
             idempotency_key=require_string(data.get("idempotencyKey"), "idempotencyKey"),
-            trust=require_string(data.get("trust"), "trust"),
+            trust=require_string(data.get("trust", provenance.get("trust", "internal")), "trust"),
             intent=require_string(data.get("intent"), "intent"),
             payload={key: coerce_json(item) for key, item in payload.items()},
             summary=require_string(data.get("summary", ""), "summary", allow_empty=True),
             artifact_refs=refs,
             content_digest=require_string(data.get("contentDigest"), "contentDigest"),
             envelope_bytes=require_integer(data.get("envelopeBytes"), "envelopeBytes", minimum=0),
-            schema_version=require_integer(data.get("schemaVersion", 1), "schemaVersion", minimum=1),
+            schema_version=require_integer(
+                data.get("schemaVersion", data.get("eventVersion", 1)),
+                "schemaVersion",
+                minimum=1,
+            ),
+            canonical=(
+                {key: coerce_json(item) for key, item in data.items()}
+                if is_canonical_spine
+                else None
+            ),
         )
 
     def to_jsonable(self) -> dict[str, JsonValue]:
+        if self.canonical is not None:
+            return dict(self.canonical)
         result: dict[str, JsonValue] = {
             "eventId": self.event_id,
             "eventType": self.event_type,
@@ -290,12 +315,21 @@ class AppendReceipt:
             event=RuntimeEventEnvelope.from_json(raw_event),
             duplicate=require_bool(data.get("duplicate", False), "duplicate"),
             routed_deliveries=require_integer(
-                data.get("routedDeliveries", data.get("deliveryCount", 0)),
+                data.get(
+                    "routedDeliveries",
+                    data.get(
+                        "deliveryCount",
+                        len(require_sequence(data.get("deliveryIds", []), "deliveryIds")),
+                    ),
+                ),
                 "routedDeliveries",
                 minimum=0,
             ),
             projection_cursor=require_integer(
-                data.get("projectionCursor", 0),
+                data.get(
+                    "projectionCursor",
+                    RuntimeEventEnvelope.from_json(raw_event).aggregate_sequence + 1,
+                ),
                 "projectionCursor",
                 minimum=0,
             ),
@@ -676,4 +710,3 @@ def redact_sensitive_fields(value: Any) -> JsonValue:
     if isinstance(value, (list, tuple)):
         return [redact_sensitive_fields(item) for item in value]
     return coerce_json(value)
-

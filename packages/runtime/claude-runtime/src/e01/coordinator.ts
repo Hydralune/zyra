@@ -1010,7 +1010,7 @@ export class E01RuntimeCoordinator {
       if (restoredCall) {
         if (
           restoredCall.toolName !== step.tool_name
-          || JSON.stringify(restoredCall.arguments) !== JSON.stringify(asRuntimeObject(step.arguments))
+          || digest(restoredCall.arguments) !== digest(asRuntimeObject(step.arguments))
         ) {
           throw new Error(`restored tool call identity mismatch: ${callId}`);
         }
@@ -1345,12 +1345,24 @@ export class E01RuntimeCoordinator {
   ): void {
     const queryTurn = this.query.snapshot().turns.find((turn) => turn.turnId === turnId);
     if (queryTurn && queryTurn.status !== "completed") {
-      this.query.completeTurn(turnId, {
-        messageDigest: digest({ turn_id: turnId, ok, error }),
-        inputTokens: 0,
-        outputTokens: 0,
-        stopReason: ok ? "tool_use" : (error || "tool_error"),
-      });
+      if (ok) {
+        this.query.completeTurn(turnId, {
+          messageDigest: digest({ turn_id: turnId, ok, error }),
+          inputTokens: 0,
+          outputTokens: 0,
+          stopReason: "tool_use",
+        });
+      } else {
+        const failure = error || "tool_error";
+        for (const call of this.tools.snapshot().calls) {
+          if (call.turnId !== turnId || ["succeeded", "failed", "cancelled", "quarantined"].includes(call.state)) {
+            continue;
+          }
+          this.tools.cancel(call.callId, failure);
+          this.custody.cancelTool(call.callId, failure);
+        }
+        this.query.failTurn(turnId, failure, false);
+      }
     }
     const content = ok
       ? `Turn ${turnIndex} completed.`

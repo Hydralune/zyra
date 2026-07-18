@@ -42,6 +42,7 @@ export class DurableTaskRegistry {
   private readonly pending = new Map<string, E03PreparedMutation>();
   private readonly committed = new Map<string, E03CommittedMutation>();
   private readonly acknowledgements = new Map<string, E03ControlResponse>();
+  private persistenceQueue: Promise<void> = Promise.resolve();
   private restored = false;
   private readonly invariants = new TaskInvariantRuntime();
   readonly journal = new DurableTaskJournal();
@@ -266,6 +267,15 @@ export class DurableTaskRegistry {
     idempotencyKey: string,
     receipt: E03EffectReceipt | null,
   ): Promise<E03CommittedMutation> {
+    return this.serializePersistence(() =>
+      this.commitSerialized(idempotencyKey, receipt),
+    );
+  }
+
+  private async commitSerialized(
+    idempotencyKey: string,
+    receipt: E03EffectReceipt | null,
+  ): Promise<E03CommittedMutation> {
     const replay = this.committed.get(idempotencyKey);
     if (replay) {
       if ((replay.receipt?.digest ?? null) !== (receipt?.digest ?? null))
@@ -363,6 +373,39 @@ export class DurableTaskRegistry {
     return structuredClone(committed);
   }
 
+  async acknowledgeDurably(
+    idempotencyKey: string,
+    response: E03ControlResponse,
+  ): Promise<E03ControlResponse> {
+    return this.serializePersistence(async () => {
+      const acknowledged = this.acknowledge(idempotencyKey, response);
+      if (acknowledged.replayed) return acknowledged;
+      const expectedRevision = this.snapshotValue.revision;
+      const persistedSnapshot = sealSnapshot({
+        ...this.snapshotValue,
+        revision: expectedRevision + 1,
+        updatedAt: this.clock.now(),
+        checksum: "",
+      });
+      this.invariants.assertSnapshot(persistedSnapshot);
+      const persisted = await this.port.compareAndSwap(
+        expectedRevision,
+        persistedSnapshot,
+      );
+      if (!persisted.accepted)
+        throw new E03RuntimeError(
+          persisted.error === "stale_revision"
+            ? "stale_registry_revision"
+            : "registry_ack_persist_rejected",
+          persisted.error || "durable acknowledgement CAS rejected",
+          { expected: expectedRevision, actual: persisted.revision },
+        );
+      this.snapshotValue = persistedSnapshot;
+      this.index.rebuild(persistedSnapshot);
+      return acknowledged;
+    });
+  }
+
   acknowledge(
     idempotencyKey: string,
     response: E03ControlResponse,
@@ -381,8 +424,8 @@ export class DurableTaskRegistry {
     const acknowledged = {
       ...response,
       phase: "ack" as const,
-      revision: committed.state.revision,
-      state: taskProjection(committed.state),
+      revision: Math.max(response.revision, committed.state.revision),
+      state: response.state ?? taskProjection(committed.state),
       replayed: false,
     };
     this.snapshotValue = sealSnapshot({
@@ -396,6 +439,20 @@ export class DurableTaskRegistry {
     });
     this.acknowledgements.set(idempotencyKey, acknowledged);
     return structuredClone(acknowledged);
+  }
+
+  private async serializePersistence<T>(operation: () => Promise<T>): Promise<T> {
+    const prior = this.persistenceQueue;
+    let release!: () => void;
+    this.persistenceQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await prior;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
   }
 
   async restore(

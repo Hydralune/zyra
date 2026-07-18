@@ -249,10 +249,6 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
       state: taskProjection(task),
       dispatch_count: 1,
     });
-    const acknowledged = this.registry.acknowledge(
-      envelope.idempotency_key,
-      initial,
-    );
     if (parentInput && envelope.body.start_immediately === true) {
       const completed = await this.execution.run(
         task.identity.taskId,
@@ -261,14 +257,14 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
         envelope.request_id,
         `${envelope.idempotency_key}:run`,
       );
-      return {
-        ...acknowledged,
+      return this.registry.acknowledgeDurably(envelope.idempotency_key, {
+        ...initial,
         revision: completed.revision,
         state: taskProjection(completed),
         result: completed.result,
-      };
+      });
     }
-    return acknowledged;
+    return this.registry.acknowledgeDurably(envelope.idempotency_key, initial);
   }
 
   private async fanoutCommand(
@@ -346,7 +342,7 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
   ): Promise<E03ControlResponse> {
     const task = this.registry.require(text(envelope.body.task_id, "task_id"));
     const state = await this.prepareIsolationForTask(task, envelope);
-    return this.registry.acknowledge(
+    return this.registry.acknowledgeDurably(
       envelope.idempotency_key,
       response({
         ok: true,
@@ -532,7 +528,7 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
       envelope.idempotency_key,
       receipt,
     );
-    return this.registry.acknowledge(
+    return this.registry.acknowledgeDurably(
       envelope.idempotency_key,
       response({
         ok: true,

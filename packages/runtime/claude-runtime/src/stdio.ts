@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { createInterface } from "node:readline";
+import type { Readable } from "node:stream";
 
 import {
   asObject,
@@ -19,6 +20,7 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "./contracts.ts";
+import type { PermissionApprovalResponse } from "./e02/index.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
 import { PermissionedCapabilityHost } from "./capability-host.ts";
@@ -208,6 +210,7 @@ class JsonlRuntimeHost implements RuntimeHost {
     runId: string,
     lines: LineIterator,
     consumedInputSequence: number,
+    private readonly writeLine: (line: string) => void,
   ) {
     this.runId = runId;
     this.lines = lines;
@@ -361,7 +364,7 @@ class JsonlRuntimeHost implements RuntimeHost {
       payload,
       correlationId,
     );
-    process.stdout.write(JSON.stringify(frame) + "\n");
+    this.writeLine(JSON.stringify(frame) + "\n");
   }
 
   private async read(kind: RuntimeFrameKind, correlationId: string): Promise<RuntimeFrame> {
@@ -392,8 +395,18 @@ class JsonlRuntimeHost implements RuntimeHost {
 }
 
 export async function runStdioRuntime(): Promise<void> {
+  await runStdioRuntimeWithStreams(
+    process.stdin,
+    (line) => process.stdout.write(line),
+  );
+}
+
+export async function runStdioRuntimeWithStreams(
+  input: Readable,
+  writeLine: (line: string) => void,
+): Promise<void> {
   const reader = createInterface({
-    input: process.stdin,
+    input,
     crlfDelay: Infinity,
     terminal: false,
   });
@@ -406,7 +419,12 @@ export async function runStdioRuntime(): Promise<void> {
   if (start.kind !== "run.start") {
     throw new RuntimeProtocolError("missing_run_start", "first runtime frame must be run.start");
   }
-  const host = new JsonlRuntimeHost(start.run_id, lines, start.sequence);
+  const host = new JsonlRuntimeHost(
+    start.run_id,
+    lines,
+    start.sequence,
+    writeLine,
+  );
   let capabilities: TypeScriptCapabilityRuntime | null = null;
   let terminalResultSent = false;
   host.send("run.accepted", {
@@ -423,8 +441,31 @@ export async function runStdioRuntime(): Promise<void> {
         checkpointEventSequence: snapshot.events.sequence,
         e02: snapshot as unknown as JsonObject,
       }),
+      approvalTransport: async (envelope) => ({
+        transport: "python-permission-state-queue",
+        transportRequestId: envelope.requestId,
+        accepted: true,
+        metadata: {
+          canonical_policy_owner: "typescript",
+          physical_transport_owner: "python",
+          exact_binding_required: true,
+        },
+      }),
     });
     const activeCapabilities = capabilities;
+    const runtimeConstraints = asObject(input.config.runtimeConstraints);
+    const approvalResponses = Array.isArray(runtimeConstraints.hostApprovalResponses)
+      ? runtimeConstraints.hostApprovalResponses
+      : [];
+    for (const value of approvalResponses) {
+      const response = asObject(value) as PermissionApprovalResponse;
+      activeCapabilities.resumePermission(response);
+      await host.checkpointState({
+        checkpointPhase: "host_approval_resumed",
+        checkpointEventSequence: activeCapabilities.snapshot().events.sequence,
+        e02: activeCapabilities.snapshot() as unknown as JsonObject,
+      });
+    }
     const runtimeInput: RuntimeRunInput = {
       ...input,
       tools: activeCapabilities.mergeToolSpecs(input.tools),

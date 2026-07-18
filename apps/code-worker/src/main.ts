@@ -7,6 +7,7 @@ import { E02CapabilityCoordinator } from "../../../packages/runtime/claude-runti
 import { runE02ApiPort } from "../../../packages/runtime/claude-runtime/src/e02/api-port-runtime.ts";
 import { runStructuredControlStdio } from "../../../packages/runtime/claude-runtime/src/control/stdio.ts";
 import { E03AgentControlCoordinator } from "../../../packages/runtime/claude-runtime/src/e03/coordinator.ts";
+import { runCurrentEntryStdioProbe } from "../../../packages/runtime/claude-runtime/src/stdio-probe.ts";
 
 export const DEFAULT_CAPABILITY_ENTRYPOINT =
   E02CapabilityCoordinator.prototype.execute;
@@ -45,6 +46,11 @@ export class CodeWorkerApplication {
 
   async run(args: readonly string[]): Promise<number> {
     const command = args[0] ?? "--health";
+    if (command === "--stdio-probe") {
+      const result = await runCurrentEntryStdioProbe();
+      this.writeJson(result);
+      return result.ok === true ? 0 : 1;
+    }
     if (command === "--stdio") return this.runTaskRuntime();
     if (command === "--e02-api") return this.runCapabilityApiPort();
     if (command === "--e03-control") return this.runAgentControlPort();

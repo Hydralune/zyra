@@ -11,7 +11,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+from typing import Any
 
 
 ZYRA_ROOT = Path(__file__).resolve().parents[2]
@@ -26,7 +31,87 @@ MANIFEST = (
 BACKUP_ROOT = ZYRA_ROOT / ".tmp" / "e04-mutations"
 
 
-OPERATORS: dict[str, dict[str, str]] = {
+OPERATORS: dict[str, dict[str, Any]] = {
+    "e04-mutation-terminal-order": {
+        "target": "packages/runtime/claude-runtime/src/stdio.ts",
+        "edits": (
+            {
+                "needle": (
+                    "    capabilities = null;\n"
+                    "    await activeCapabilities.close();\n"
+                    "    terminalResultSent = true;"
+                ),
+                "replacement": (
+                    "    capabilities = null;\n"
+                    "    terminalResultSent = true;"
+                ),
+            },
+            {
+                "needle": "    } as unknown as JsonObject);",
+                "replacement": (
+                    "    } as unknown as JsonObject);\n"
+                    "    await activeCapabilities.close(); // E04 mutation: checkpoint after terminal close"
+                ),
+            },
+        ),
+    },
+    "e04-mutation-checkpoint-ack-loss": {
+        "target": "packages/runtime/claude-runtime/src/stdio.ts",
+        "needle": (
+            "    const frame = await this.read(\"runtime.checkpoint.result\", correlationId);\n"
+            "    if (frame.payload.accepted !== true) {"
+        ),
+        "replacement": (
+            "    const frame = await this.read(\"runtime.checkpoint.result\", correlationId);\n"
+            "    if (frame.payload.accepted === true) { // E04 mutation: discard a valid checkpoint ACK"
+        ),
+    },
+    "e04-mutation-checkpoint-ack-duplicate": {
+        "target": "packages/runtime/claude-runtime/src/stdio.ts",
+        "needle": (
+            "    this.send(\"run.result\", {\n"
+            "      result,\n"
+            "      terminal_id: terminalId,\n"
+            "      terminal_revision: 1,\n"
+            "      requires_ack: true,\n"
+            "    }, terminalId);\n"
+            "    const acknowledgement = await this.read(\"run.result.ack\", terminalId);"
+        ),
+        "replacement": (
+            "    this.send(\"run.result\", {\n"
+            "      result,\n"
+            "      terminal_id: terminalId,\n"
+            "      terminal_revision: 1,\n"
+            "      requires_ack: true,\n"
+            "    }, terminalId);\n"
+            "    this.send(\"run.result\", { // E04 mutation: duplicate terminal delivery before ACK\n"
+            "      result,\n"
+            "      terminal_id: terminalId,\n"
+            "      terminal_revision: 1,\n"
+            "      requires_ack: true,\n"
+            "    }, terminalId);\n"
+            "    const acknowledgement = await this.read(\"run.result.ack\", terminalId);"
+        ),
+    },
+    "e04-mutation-python-fallback": {
+        "target": "packages/workers/zyra_workers/typescript_claude_runtime.py",
+        "needle": (
+            "        return ClaudeQueryEngineResult(\n"
+            "            ok=False,"
+        ),
+        "replacement": (
+            "        return ClaudeQueryEngineResult(\n"
+            "            ok=True,  # E04 mutation: pretend Python completed after TypeScript failure"
+        ),
+    },
+    "e04-mutation-root-dependency": {
+        "target": "packages/workers/zyra_workers/typescript_claude_runtime.py",
+        "needle": "        self.entrypoint = code_worker_entrypoint(self.project_root)",
+        "replacement": (
+            "        self.entrypoint = (self.project_root / \"../claude-code-best/src/entry.ts\").resolve()"
+            "  # E04 mutation: root-source runtime dependency"
+        ),
+    },
     "e04-mutation-domain-01": {
         "target": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
         "needle": (
@@ -124,6 +209,75 @@ OPERATORS: dict[str, dict[str, str]] = {
 }
 
 
+KILLERS: dict[str, tuple[str, ...]] = {
+    "e04-mutation-terminal-order": (
+        "bun",
+        "apps/code-worker/src/main.ts",
+        "--stdio-probe",
+    ),
+    "e04-mutation-checkpoint-ack-loss": (
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_e01_typescript_runtime_cutover.py::test_lost_terminal_ack_resumes_without_tool_reexecution",
+    ),
+    "e04-mutation-checkpoint-ack-duplicate": (
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_e01_typescript_runtime_cutover.py::test_duplicate_terminal_delivery_is_acknowledged_idempotently",
+    ),
+    "e04-mutation-python-fallback": (
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_e01_typescript_runtime_cutover.py::test_environment_disconnect_fails_without_python_fallback",
+    ),
+    "e04-mutation-root-dependency": (
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_e04_candidate_closure.py::test_e04_root_dependency",
+    ),
+    "e04-mutation-domain-01": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-query-disable",
+    ),
+    "e04-mutation-domain-02": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-compact-disable",
+    ),
+    "e04-mutation-domain-03": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-tool-disable",
+    ),
+    "e04-mutation-domain-04": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-permission-disable",
+    ),
+    "e04-mutation-domain-05": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-mcp-disable",
+    ),
+    "e04-mutation-domain-06": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-skill-disable",
+    ),
+    "e04-mutation-domain-07": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-agent-disable",
+    ),
+    "e04-mutation-domain-08": (
+        "bun", "test", "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "--test-name-pattern", "e04-isolation-disable",
+    ),
+}
+
+
 def sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -167,13 +321,18 @@ def apply_operator(record_id: str) -> dict[str, object]:
             "target": operator["target"],
             "mutated_sha256": state["mutated_sha256"],
         }
-    if current_text.count(operator["needle"]) != 1:
-        raise SystemExit(f"mutation anchor is not unique in {operator['target']}: {record_id}")
-    mutated_text = current_text.replace(
-        operator["needle"],
-        operator["replacement"],
-        1,
+    edits = operator.get("edits") or (
+        {"needle": operator["needle"], "replacement": operator["replacement"]},
     )
+    mutated_text = current_text
+    for edit in edits:
+        needle = str(edit["needle"])
+        replacement = str(edit["replacement"])
+        if mutated_text.count(needle) != 1:
+            raise SystemExit(
+                f"mutation anchor is not unique in {operator['target']}: {record_id}"
+            )
+        mutated_text = mutated_text.replace(needle, replacement, 1)
     mutated = mutated_text.encode("utf-8")
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
     state = {
@@ -226,10 +385,180 @@ def restore_operator(record_id: str) -> dict[str, object]:
     }
 
 
+def _bun_executable() -> str:
+    configured = os.environ.get("ZYRA_BUN_EXECUTABLE", "").strip()
+    local = ZYRA_ROOT / "node_modules" / "bun" / "bin" / (
+        "bun.exe" if os.name == "nt" else "bun"
+    )
+    selected = configured or shutil.which("bun") or (str(local) if local.is_file() else "")
+    if not selected:
+        raise SystemExit("Bun 1.2.15 is required for E04 mutation orchestration")
+    return selected
+
+
+def _materialize_command(parts: tuple[str, ...]) -> list[str]:
+    command = list(parts)
+    if command[0] == "python":
+        command[0] = sys.executable
+        if command[1:3] == ["-m", "pytest"]:
+            command[3:3] = [
+                "-p",
+                "no:cacheprovider",
+                "--basetemp",
+                str(
+                    BACKUP_ROOT
+                    / (
+                        "pytest-"
+                        + hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:12]
+                    )
+                ),
+            ]
+    elif command[0] == "bun":
+        command[0] = _bun_executable()
+    return command
+
+
+def _run(command: list[str], *, timeout: int = 300) -> dict[str, Any]:
+    completed = subprocess.run(
+        command,
+        cwd=ZYRA_ROOT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        check=False,
+    )
+    output = completed.stdout or ""
+    return {
+        "command": command,
+        "returncode": completed.returncode,
+        "output_tail": output[-4000:],
+    }
+
+
+def _compile_mutation(record_id: str) -> dict[str, Any]:
+    target = OPERATORS[record_id]["target"]
+    if target.endswith(".py"):
+        return _run([sys.executable, "-m", "py_compile", target])
+    return _run([_bun_executable(), "run", "typecheck:e02"])
+
+
+def _git_value(*args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=ZYRA_ROOT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    return completed.stdout.strip()
+
+
+def run_all_mutations() -> dict[str, Any]:
+    corpus = records()
+    record_by_id = {str(row["record_id"]): row for row in corpus}
+    expected = set(record_by_id)
+    if expected != set(OPERATORS) or expected != set(KILLERS):
+        raise SystemExit(
+            "E04 mutation corpus/operator/killer mismatch: "
+            + json.dumps(
+                {
+                    "missing_operators": sorted(expected - set(OPERATORS)),
+                    "extra_operators": sorted(set(OPERATORS) - expected),
+                    "missing_killers": sorted(expected - set(KILLERS)),
+                    "extra_killers": sorted(set(KILLERS) - expected),
+                },
+                sort_keys=True,
+            )
+        )
+    results: list[dict[str, Any]] = []
+    failures: list[str] = []
+    for record in corpus:
+        record_id = str(record["record_id"])
+        target = resolve_target(OPERATORS[record_id]["target"])
+        original_sha256 = sha256(target.read_bytes())
+        applied: dict[str, object] | None = None
+        compile_result: dict[str, Any] | None = None
+        killer_result: dict[str, Any] | None = None
+        restored: dict[str, object] | None = None
+        baseline_result: dict[str, Any] | None = None
+        failure = ""
+        try:
+            applied = apply_operator(record_id)
+            compile_result = _compile_mutation(record_id)
+            if compile_result["returncode"] != 0:
+                failure = "mutation_did_not_compile"
+            else:
+                killer_result = _run(_materialize_command(KILLERS[record_id]))
+                if killer_result["returncode"] == 0:
+                    failure = "exact_killer_survived"
+        except Exception as error:  # restoration still has priority
+            failure = f"orchestration_error:{type(error).__name__}:{error}"
+        finally:
+            try:
+                restored = restore_operator(record_id)
+            except Exception as error:
+                failure = f"restore_error:{type(error).__name__}:{error}"
+        restored_sha256 = sha256(target.read_bytes())
+        if restored_sha256 != original_sha256:
+            failure = "restored_hash_mismatch"
+        if not failure:
+            baseline_result = _run(_materialize_command(KILLERS[record_id]))
+            if baseline_result["returncode"] != 0:
+                failure = "restored_exact_killer_failed"
+        if failure:
+            failures.append(f"{record_id}:{failure}")
+        results.append(
+            {
+                "record_id": record_id,
+                "family": record.get("family"),
+                "target": OPERATORS[record_id]["target"],
+                "exact_killer_test": record.get("exact_killer_test"),
+                "original_sha256": original_sha256,
+                "applied": applied,
+                "compile": compile_result,
+                "killer": killer_result,
+                "killer_result": "killed" if killer_result and killer_result["returncode"] != 0 else "survived",
+                "restore": restored,
+                "restored_sha256": restored_sha256,
+                "restored_killer": baseline_result,
+                "ok": not failure,
+                "failure": failure,
+            }
+        )
+    residual_backups = list(BACKUP_ROOT.glob("*.json")) if BACKUP_ROOT.exists() else []
+    if residual_backups:
+        failures.append("residual_mutation_backups")
+    return {
+        "schema_version": "4.0",
+        "execution_id": "E04",
+        "candidate": _git_value("rev-parse", "HEAD"),
+        "tree": _git_value("rev-parse", "HEAD^{tree}"),
+        "g0_manifest": str(MANIFEST.relative_to(ZYRA_ROOT.parent)).replace("\\", "/"),
+        "toolchain": {
+            "python": sys.version.split()[0],
+            "bun": _run([_bun_executable(), "--version"])["output_tail"].strip(),
+        },
+        "command": [sys.executable, "scripts/remediation/run_m1_r01_e04_mutations.py", "--all"],
+        "ok": not failures,
+        "killed": sum(1 for item in results if item["killer_result"] == "killed"),
+        "total": len(results),
+        "residual_backups": len(residual_backups),
+        "failures": failures,
+        "results": results,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--all", action="store_true")
+    parser.add_argument("--output")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--id")
     group.add_argument("--restore")
@@ -243,13 +572,14 @@ def main() -> int:
         }, ensure_ascii=False, sort_keys=True, indent=2))
         return 0
     if args.all:
-        pending = sorted(known - set(OPERATORS))
-        if pending:
-            raise SystemExit(
-                "E04 --all is unavailable until later slices implement: "
-                + ", ".join(pending)
-            )
-        raise SystemExit("E04 --all orchestration requires the final E04-F candidate gate")
+        report = run_all_mutations()
+        encoded = json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        if args.output:
+            output = resolve_target(args.output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(encoded, encoding="utf-8")
+        print(encoded, end="")
+        return 0 if report["ok"] else 1
     requested = args.id or args.restore
     if not requested:
         parser.error("one of --list, --all, --id or --restore is required")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import mimetypes
 import time
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -658,7 +659,11 @@ class GatewayToolExecutionRouter:
             session_id=identity.session_id,
             logical_path=logical_path,
             content=content,
-            content_type=str(call.arguments.get("content_type") or "text/plain"),
+            content_type=str(
+                call.arguments.get("content_type")
+                or mimetypes.guess_type(logical_path)[0]
+                or "text/plain"
+            ),
             provenance=provenance,
             operation=operation,
             expected_digest=str(call.arguments.get("expected_digest") or ""),
@@ -792,7 +797,7 @@ class GatewayToolExecutionRouter:
         arguments.update(
             {
                 "content": updated,
-                "content_type": "text/plain",
+                "content_type": mimetypes.guess_type(logical_path)[0] or "text/plain",
                 "expected_previous_digest": gateway_content_digest(before),
             }
         )

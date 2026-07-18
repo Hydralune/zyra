@@ -84,7 +84,18 @@ export class RuntimeEventSpine {
   appendLegacy(value: LegacyEventRecord | unknown, options: RuntimeAppendOptions = {}): AppendReceipt {
     this.assertOpen();
     const normalized = normalizeLegacyEvent(value);
-    const prepared = this.payloadPolicy.externalize(normalized.draft, normalized.sourcePayload);
+    let draft = JSON.parse(JSON.stringify(normalized.draft)) as RuntimeEventDraft;
+    if (eventDefinition(draft.eventType).requiresCausation && !draft.causationId) {
+      const cause = this.store.query({ aggregateId: draft.aggregateId, descending: true, limit: 1 }).items[0];
+      if (cause) {
+        draft = {
+          ...draft,
+          causationId: cause.eventId,
+          metadata: { ...(draft.metadata ?? {}), legacy_causation_inferred: true },
+        };
+      }
+    }
+    const prepared = this.payloadPolicy.externalize(draft, normalized.sourcePayload);
     return this.commitPrepared(prepared, options, normalized);
   }
 
@@ -262,7 +273,9 @@ export class RuntimeEventSpine {
             eventId: String(legacy.record.event_id),
             runId: String(legacy.record.run_id),
             taskId: String(legacy.record.task_id),
-            nodeId: legacy.record.node_id ?? undefined,
+            ...(legacy.record.node_id
+              ? { nodeId: String(legacy.record.node_id) }
+              : {}),
             eventType: String(legacy.record.event_type),
             createdAt: String(legacy.record.created_at),
             payload: legacy.sourcePayload,

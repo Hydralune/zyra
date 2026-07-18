@@ -420,7 +420,10 @@ class GatewayPolicyRuntime:
         findings = [
             GatewayPolicyFinding(
                 code=item.code,
-                severity=item.severity,
+                severity={
+                    "deny": "critical",
+                    "quarantine": "warning",
+                }.get(item.severity, "info"),
                 reason=item.reason,
                 hard_deny=not decision.allowed and not decision.quarantine,
                 requires_approval=decision.quarantine,

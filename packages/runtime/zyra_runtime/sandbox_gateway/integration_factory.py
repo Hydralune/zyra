@@ -375,8 +375,11 @@ def install_gateway_runtime_services(
         services.get("sandbox_gateway_required", services.get("workspace_gateway_required", False))
     )
     services["sandbox_gateway_required"] = required
-    if port is None and required:
-        services["sandbox_gateway_install_error"] = "workspace_gateway_unavailable"
+    if port is None:
+        if required:
+            services["sandbox_gateway_install_error"] = "workspace_gateway_unavailable"
+        else:
+            services["sandbox_gateway_installed"] = False
         return services
     bundle = _DEFAULT_REGISTRY.get_or_create(
         workspace_root=workspace_root,

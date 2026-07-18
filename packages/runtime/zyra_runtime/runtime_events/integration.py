@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import atexit
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -320,6 +320,9 @@ class LegacyEventNormalizer:
     def normalize_many(self, values: Iterable[Any]) -> tuple[NormalizedLegacyEvent, ...]:
         return tuple(self.normalize(value) for value in values)
 
+    def as_mapping(self, value: Any) -> Mapping[str, Any]:
+        return self._to_mapping(value)
+
     def _to_mapping(self, value: Any) -> Mapping[str, Any]:
         if isinstance(value, Mapping):
             return value
@@ -329,6 +332,8 @@ class LegacyEventNormalizer:
         if hasattr(value, "model_dump"):
             converted = value.model_dump(mode="json")
             return require_mapping(converted, "legacy event")
+        if is_dataclass(value) and not isinstance(value, type):
+            return {field.name: getattr(value, field.name) for field in fields(value)}
         if hasattr(value, "__dict__"):
             return {key: item for key, item in vars(value).items() if not key.startswith("_")}
         raise RuntimeEventContractError(f"unsupported legacy event value: {type(value).__name__}")
@@ -378,22 +383,32 @@ class RuntimeEventSpineBridge:
         )
 
     def append_draft(self, draft: Mapping[str, Any]) -> AppendReceipt:
-        result = self.port.call("append", {"draft": coerce_json(draft)})
+        result = self.port.call(
+            "append_legacy",
+            {"event": coerce_json(draft), "options": {}},
+        )
         return AppendReceipt.from_json(result)
 
     def append_legacy_event(self, event: Any) -> AppendReceipt:
-        normalized = self.normalizer.normalize(event)
-        return self.append_draft(normalized.draft)
+        return self.append_draft(self.normalizer.as_mapping(event))
 
     def append_legacy_events(self, events: Iterable[Any]) -> AppendBatchResult:
-        normalized = self.normalizer.normalize_many(events)
-        if not normalized:
+        materialized = tuple(events)
+        if not materialized:
             return AppendBatchResult.from_receipts(())
-        result = self.port.call(
-            "appendBatch",
-            {"drafts": [dict(item.draft) for item in normalized]},
-        )
-        return AppendBatchResult.from_json(result)
+        receipts: list[AppendReceipt] = []
+        for index, event in enumerate(materialized):
+            mapping = self.normalizer.as_mapping(event)
+            try:
+                receipts.append(self.append_draft(mapping))
+            except RuntimeEventProcessError as error:
+                event_type = mapping.get("event_type", mapping.get("eventType", "unknown"))
+                raise RuntimeEventProcessError(
+                    f"legacy event {index} ({event_type}) failed: {error}",
+                    code=error.code,
+                    details={**error.details, "legacyEventIndex": index, "legacyEventType": str(event_type)},
+                ) from error
+        return AppendBatchResult.from_receipts(receipts)
 
     def query(self, query: RuntimeEventQuery | None = None) -> RuntimeEventPage:
         effective = query or RuntimeEventQuery()
@@ -522,4 +537,3 @@ def reset_runtime_event_spines() -> None:
 
 
 atexit.register(reset_runtime_event_spines)
-

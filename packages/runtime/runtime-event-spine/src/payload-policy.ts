@@ -98,7 +98,10 @@ export class LocalContentAddressedArtifactStore implements ArtifactContentStore 
       const temporary = join(directory, `.${hash}.${process.pid}.${Date.now()}.tmp`);
       try {
         writeFileSync(temporary, request.content, { flag: "wx" });
-        const descriptor = openSync(temporary, "r");
+        // Windows rejects fsync on a read-only descriptor with EPERM.  The
+        // temporary artifact is ours, so open it read/write for the durable
+        // flush before the atomic rename.
+        const descriptor = openSync(temporary, "r+");
         try {
           fsyncSync(descriptor);
         } finally {
@@ -113,7 +116,14 @@ export class LocalContentAddressedArtifactStore implements ArtifactContentStore 
     const relativePath = relative(this.root, target).replaceAll("\\", "/");
     return {
       schema: ARTIFACT_REF_SCHEMA_VERSION,
-      artifactId: stableId("artifact", digest, request.runId, request.taskId),
+      artifactId: stableId(
+        "artifact",
+        digest,
+        request.runId,
+        request.taskId,
+        request.producerNodeId ?? "",
+        request.title,
+      ),
       digest,
       mediaType: request.mediaType,
       sizeBytes: request.content.byteLength,
@@ -254,13 +264,29 @@ export class LowEntropyPayloadPolicy {
       findings: [],
       offloadedBytes: 0,
     };
-    const selectedInline = this.walk(source, context, 0, "inline");
-    const normalizedInline = isPlainObject(selectedInline) ? (selectedInline as Record<string, JsonValue>) : { value: selectedInline };
-    let inlineBytes = byteLength(normalizedInline);
-    let inline = normalizedInline;
+    // Spill an over-budget root object as one immutable artifact before the
+    // recursive selector can manufacture dozens of leaf artifacts.  The
+    // canonical draft.inline fields are merged back below, so routing and
+    // projection retain their required low-entropy facts.
+    const selectedInline = sourceBytes > this.inlineLimitBytes && isPlainObject(source)
+      ? this.pointerPlaceholder(
+          this.writeArtifact(context, "source-payload", source, "application/json", ".json", "root_budget_spill"),
+          "large_root_payload",
+        )
+      : this.walk(source, context, 0, "inline");
+    const normalizedInline = isPlainObject(selectedInline)
+      ? (selectedInline as Record<string, JsonValue>)
+      : { value: selectedInline };
+    const requiredInline = draft.inline ?? {};
+    let inline: Record<string, JsonValue> = {
+      ...normalizedInline,
+      ...requiredInline,
+    };
+    let inlineBytes = byteLength(inline);
     if (inlineBytes > this.inlineLimitBytes) {
       const spill = this.writeArtifact(context, "inline-payload", normalizedInline, "application/json", ".json", "inline_budget_spill");
       inline = {
+        ...requiredInline,
         spilled: true,
         artifact_id: spill.artifactId,
         digest: spill.digest,
@@ -507,7 +533,8 @@ export class LowEntropyPayloadPolicy {
       contentDigest: "sha256:" + "f".repeat(64),
       metadata: draft.metadata ?? {},
     };
-    return Buffer.byteLength(canonicalJson(estimate), "utf8");
+    const serializableEstimate = JSON.parse(JSON.stringify(estimate)) as JsonValue;
+    return Buffer.byteLength(canonicalJson(serializableEstimate), "utf8");
   }
 }
 

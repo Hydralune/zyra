@@ -8,6 +8,8 @@ import type {
   AgentExecutionContext,
 } from "./agents/index.ts";
 import {
+  cloneJson,
+  digest,
   E02CapabilityCoordinator,
   type E02AuthorizationInput,
   type E02AuthorizationResult,
@@ -15,6 +17,9 @@ import {
   type E02CoordinatorPorts,
   type E02ExecutionContext,
   type E02ExecutionReceipt,
+  type PermissionApprovalResponse,
+  type PermissionContinuationRecord,
+  type PermissionDecisionRecord,
 } from "./e02/index.ts";
 import type { McpCoordinatorExecution } from "../../../integrations/claude-mcp/src/index.ts";
 import type { SkillCoordinatorExecution } from "./skills/index.ts";
@@ -30,6 +35,7 @@ export type CapabilityExecutionResult =
 
 export class TypeScriptCapabilityRuntime {
   readonly e02: E02CapabilityCoordinator;
+  private readonly resumedAuthorizations = new Map<string, E02AuthorizationResult>();
 
   private constructor(e02: E02CapabilityCoordinator) {
     this.e02 = e02;
@@ -61,7 +67,26 @@ export class TypeScriptCapabilityRuntime {
   }
 
   authorize(input: E02AuthorizationInput): Promise<E02AuthorizationResult> {
+    const resumed = this.resumedAuthorizations.get(input.toolCallId);
+    if (resumed) {
+      assertResumedAuthorizationBinding(input, resumed);
+      this.resumedAuthorizations.delete(input.toolCallId);
+      return Promise.resolve(cloneJson(resumed));
+    }
     return this.e02.authorize(input);
+  }
+
+  resumePermission(response: PermissionApprovalResponse): E02AuthorizationResult {
+    let authorization: E02AuthorizationResult;
+    try {
+      authorization = this.e02.resumePermission(response);
+    } catch (error) {
+      const replay = restoredApprovalReplay(this.e02.snapshot(), response);
+      if (!replay) throw error;
+      authorization = replay;
+    }
+    this.resumedAuthorizations.set(response.toolCallId, cloneJson(authorization));
+    return cloneJson(authorization);
   }
 
   async execute(
@@ -109,4 +134,91 @@ export class TypeScriptCapabilityRuntime {
   async close(): Promise<void> {
     await this.e02.close();
   }
+}
+
+function assertResumedAuthorizationBinding(
+  input: E02AuthorizationInput,
+  authorization: E02AuthorizationResult,
+): void {
+  const decision = authorization.enforcement.decision;
+  const binding = decision.requestBinding;
+  const mismatch = (
+    String(binding.run_id ?? "") !== input.runId
+    || String(binding.task_id ?? "") !== input.taskId
+    || String(binding.session_id ?? "") !== input.sessionId
+    || Number(binding.session_revision ?? 0) !== Number(input.sessionRevision ?? 0)
+    || String(binding.worker_request_id ?? "") !== String(input.workerRequestId ?? input.toolCallId)
+    || String(binding.tool_call_id ?? "") !== input.toolCallId
+    || String(binding.tool_name ?? "") !== input.toolName
+    || String(binding.namespace ?? "builtin") !== String(input.namespace ?? "builtin")
+    || String(binding.server_id ?? "") !== String(input.serverId ?? "")
+    || decision.originalArgumentsDigest !== digest(input.arguments)
+  );
+  if (mismatch) {
+    throw new Error(
+      `resumed permission approval ${decision.continuationRequestId ?? decision.decisionId} does not match the physical tool request`,
+    );
+  }
+}
+
+function restoredApprovalReplay(
+  snapshot: E02CapabilityCoordinatorSnapshot,
+  response: PermissionApprovalResponse,
+): E02AuthorizationResult | null {
+  const envelope = snapshot.permission.approvals.envelopes.find(
+    (item) => item.requestId === response.requestId,
+  );
+  const evaluator = snapshot.permission.evaluator;
+  const continuations = Array.isArray(evaluator.continuations)
+    ? evaluator.continuations as PermissionContinuationRecord[]
+    : [];
+  const decisions = Array.isArray(evaluator.decisions)
+    ? evaluator.decisions as PermissionDecisionRecord[]
+    : [];
+  const continuation = continuations.find(
+    (item) => item.requestId === response.requestId,
+  );
+  if (
+    !envelope
+    || envelope.status !== "responded"
+    || envelope.metadata.response_id !== response.responseId
+    || envelope.metadata.response_effect !== response.effect
+    || envelope.metadata.response_accepted !== true
+    || !continuation
+    || continuation.responseId !== response.responseId
+    || continuation.toolCallId !== response.toolCallId
+    || continuation.status !== (response.effect === "allow" ? "approved" : "denied")
+  ) {
+    return null;
+  }
+  const decision = decisions.find(
+    (item) => item.continuationRequestId === response.requestId && item.effect === response.effect,
+  );
+  if (!decision) return null;
+  const permit = snapshot.executionLedger.permits.find(
+    (item) => item.decisionId === decision.decisionId && item.status === "issued",
+  ) ?? null;
+  if (response.effect === "allow" && !permit) return null;
+  const enforcement = {
+    decision: cloneJson(decision),
+    allowed: decision.effect === "allow",
+    blocked: decision.effect !== "allow",
+    pendingApproval: false,
+    replanRequired: decision.replanRequired,
+    recoveryInput: cloneJson(decision.recoveryInput),
+    finalArguments: cloneJson(decision.finalArguments),
+    approvalEnvelopeId: envelope.envelopeId,
+    stateDigest: digest({
+      decision_id: decision.decisionId,
+      response_id: response.responseId,
+      replay: "restart_safe_exact_approval",
+    }),
+  };
+  return {
+    enforcement,
+    permit,
+    permitId: permit?.permitId ?? null,
+    finalArguments: cloneJson(decision.finalArguments),
+    stateDigest: digest({ enforcement: enforcement.stateDigest, permit: permit?.bindingDigest ?? null }),
+  };
 }

@@ -17,6 +17,11 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "../src/index.ts";
+import {
+  digest,
+  effectRequestDigest,
+  type E03EffectRequest,
+} from "../src/e03/contracts.ts";
 
 class AgentHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -24,6 +29,9 @@ class AgentHost implements RuntimeHost {
   readonly revisions = new Map<string, number>();
   readonly statuses = new Map<string, string>();
   readonly records = new Map<string, JsonObject>();
+  private readonly effectReceipts = new Map<string, JsonObject>();
+  private e03Snapshot: JsonObject | null = null;
+  private e03Revision = 0;
 
   async emitEvent(event: RuntimeEvent): Promise<void> {
     this.events.push(event);
@@ -48,6 +56,116 @@ class AgentHost implements RuntimeHost {
   }
 
   async mutateAgent(request: AgentMutationRequest): Promise<AgentMutationReceipt> {
+    if (request.action === "e03.restore") {
+      if (!this.e03Snapshot) {
+        return {
+          accepted: false,
+          task_id: request.task_id,
+          status: "",
+          revision: this.e03Revision,
+          error: "e03 snapshot not found",
+          error_code: "e03_snapshot_not_found",
+        };
+      }
+      return {
+        accepted: true,
+        task_id: request.task_id,
+        status: "restored",
+        revision: this.e03Revision,
+        error: "",
+        snapshot: structuredClone(this.e03Snapshot),
+      };
+    }
+    if (request.action === "e03.cas") {
+      const expected = Number(request.expected_registry_revision);
+      if (expected !== this.e03Revision) {
+        const candidate = request.registry_snapshot as JsonObject;
+        if (this.e03Snapshot?.checksum === candidate.checksum) {
+          return {
+            accepted: true,
+            task_id: request.task_id,
+            status: "committed",
+            revision: this.e03Revision,
+            replayed: true,
+            error: "",
+          };
+        }
+        return {
+          accepted: false,
+          task_id: request.task_id,
+          status: "conflict",
+          revision: this.e03Revision,
+          error: "revision conflict",
+        };
+      }
+      this.e03Snapshot = structuredClone(request.registry_snapshot as JsonObject);
+      this.e03Revision = Number(this.e03Snapshot.revision ?? expected + 1);
+      return {
+        accepted: true,
+        task_id: request.task_id,
+        status: "committed",
+        revision: this.e03Revision,
+        replayed: false,
+        error: "",
+      };
+    }
+    if (request.action === "e03.effect") {
+      const effect = request.effect_request as unknown as E03EffectRequest;
+      const prior = this.effectReceipts.get(effect.idempotencyKey);
+      if (prior) {
+        const replayPayload = {
+          ...prior,
+          effectId: effect.effectId,
+          requestId: effect.requestId,
+          taskId: effect.taskId,
+          leaseId: effect.leaseId,
+          expectedRevision: effect.expectedRevision,
+          replayed: true,
+          digest: "",
+        };
+        const { digest: _priorDigest, ...unsignedReplay } = replayPayload;
+        const replay = { ...unsignedReplay, digest: digest(unsignedReplay) };
+        this.effectReceipts.set(effect.idempotencyKey, replay);
+        return {
+          accepted: true,
+          task_id: request.task_id,
+          status: "effect_committed",
+          revision: this.e03Revision,
+          error: "",
+          effect_receipt: replay,
+        };
+      }
+      const payload = {
+        receiptId: `receipt-${digest(effect.effectId).slice(0, 32)}`,
+        effectId: effect.effectId,
+        idempotencyKey: effect.idempotencyKey,
+        requestDigest: effectRequestDigest(effect),
+        requestId: effect.requestId,
+        taskId: effect.taskId,
+        leaseId: effect.leaseId,
+        expectedRevision: effect.expectedRevision,
+        accepted: true,
+        replayed: false,
+        result: {
+          operation: effect.operation,
+          effect_kind: effect.effectKind,
+          physical_port: "agents-test-host",
+        },
+        artifacts: [],
+        error: "",
+        completedAt: new Date().toISOString(),
+      };
+      const receipt = { ...payload, digest: digest(payload) };
+      this.effectReceipts.set(effect.idempotencyKey, receipt);
+      return {
+        accepted: true,
+        task_id: request.task_id,
+        status: "effect_committed",
+        revision: this.e03Revision,
+        error: "",
+        effect_receipt: receipt,
+      };
+    }
     this.mutations.push(request);
     if (request.action === "list") {
       return {
@@ -154,6 +272,11 @@ class AgentHost implements RuntimeHost {
   isAborted(): boolean {
     return false;
   }
+
+  e03Task(taskId: string): JsonObject | null {
+    const tasks = (this.e03Snapshot?.tasks as JsonObject | undefined) ?? {};
+    return (tasks[taskId] as JsonObject | undefined) ?? null;
+  }
 }
 
 function input(): RuntimeRunInput {
@@ -214,32 +337,17 @@ test("TypeScript AgentTool runs a child QueryEngine and commits one durable life
       new PermissionedCapabilityHost(delegate, child, capabilities),
     ),
   });
-  assert.equal(result.output.ok, true, JSON.stringify(result.output));
   assert.equal(result.output.status, "completed");
-  assert.deepEqual(
-    delegate.mutations.map((item) => item.action),
-    ["load", "list", "create", "dispatch", "running", "complete"],
-  );
+  assert.equal((result.output.result as JsonObject).ok, true, JSON.stringify(result.output));
+  assert.equal(delegate.e03Task("child-1")?.status, "completed");
+  assert.equal(delegate.mutations.length, 0);
   assert.equal((capabilities.snapshot().agents as Record<string, unknown>).python_agent_fallback, false);
   await capabilities.close();
 });
 
 test("AgentTool rejects inherited depth overflow", async () => {
   const selected = input();
-  selected.config.runtimeConstraints = {
-    workspaceRoot: process.cwd(),
-    agentDepth: 3,
-    agentBudget: {
-      maxTurns: 1,
-      maxToolCalls: 1,
-      maxInputTokens: 1,
-      maxOutputTokens: 1,
-      maxResultChars: 1,
-      maxWallTimeMs: 1,
-      maxChildren: 1,
-      maxDepth: 3,
-    },
-  };
+  selected.metadata = { e03_depth: 4 };
   const capabilities = await TypeScriptCapabilityRuntime.open(selected);
   const runtimeInput = { ...selected, tools: capabilities.mergeToolSpecs(selected.tools) };
   const delegate = new AgentHost();
@@ -272,17 +380,16 @@ test("background AgentTool is drained without a Python child loop", async () => 
   const accepted = await capabilities.execute("Agent", {
     prompt: "background read",
     task_id: "background-1",
+    agent_type: "explore",
     background: true,
-    turns: [[{ tool_name: "read", arguments: { path: "README.md" } }]],
   }, context);
-  assert.equal(accepted.output.ok, true);
-  assert.equal(delegate.mutations.at(-1)?.action, "dispatch");
+  assert.equal(accepted.output.status, "created");
   await capabilities.drainBackground(context);
-  assert.equal(
-    delegate.mutations.at(-1)?.action,
-    "complete",
-    JSON.stringify(delegate.mutations.at(-1)),
-  );
+  const completed = await capabilities.execute("agent_result", {
+    task_id: "background-1",
+  }, context);
+  assert.equal(completed.output.status, "completed");
+  assert.equal(delegate.e03Task("background-1")?.status, "completed");
   await capabilities.close();
 });
 
@@ -292,12 +399,12 @@ test("a new TypeScript runtime hydrates and cancels an exact durable background 
   const first = await TypeScriptCapabilityRuntime.open(selected);
   const firstInput = { ...selected, tools: first.mergeToolSpecs(selected.tools) };
   const firstHost = new PermissionedCapabilityHost(delegate, firstInput, first);
-  await first.execute("Agent", {
+  const created = await first.execute("Agent", {
     prompt: "durable background read",
     task_id: "durable-background-1",
     idempotency_key: "durable-background-key",
+    agent_type: "explore",
     background: true,
-    turns: [[{ tool_name: "read", arguments: { path: "README.md" } }]],
   }, {
     parentInput: firstInput,
     host: firstHost,
@@ -310,14 +417,14 @@ test("a new TypeScript runtime hydrates and cancels an exact durable background 
   const secondHost = new PermissionedCapabilityHost(delegate, secondInput, second);
   const cancelled = await second.execute("agent_cancel", {
     task_id: "durable-background-1",
-    expected_revision: delegate.revisions.get("durable-background-1") ?? 0,
+    expected_revision: created.output.revision,
   }, {
     parentInput: secondInput,
     host: secondHost,
     runChild: async () => { throw new Error("cancel must not run a child"); },
   });
   assert.equal(cancelled.output.status, "cancelled");
-  assert.deepEqual(delegate.mutations.slice(-2).map((item) => item.action), ["load", "cancel"]);
+  assert.equal(delegate.e03Task("durable-background-1")?.status, "cancelled");
   await second.close();
 });
 
@@ -332,8 +439,8 @@ test("TypeScript fanout preserves request order and owns fanin", async () => {
     idempotency_key: "fanout-key",
     budget: { max_children: 2 },
     requests: [
-      { prompt: "first", task_id: "fanout-first", turns: [] },
-      { prompt: "second", task_id: "fanout-second", turns: [] },
+      { prompt: "first", task_id: "fanout-first", turns: [], background: false },
+      { prompt: "second", task_id: "fanout-second", turns: [], background: false },
     ],
   }, {
     parentInput: runtimeInput,
@@ -343,10 +450,10 @@ test("TypeScript fanout preserves request order and owns fanin", async () => {
       new PermissionedCapabilityHost(delegate, child, capabilities),
     ),
   });
-  const values = result.output.results as Array<{ index: number }>;
-  assert.deepEqual(values.map((item) => item.index), [0, 1]);
-  assert.equal(result.output.stable_order, true);
-  assert.equal(result.output.fanin_owner, "typescript-agent-runtime");
+  const values = result.output.tasks as Array<{ task_id: string }>;
+  assert.deepEqual(values.map((item) => item.task_id), ["fanout-first", "fanout-second"]);
+  assert.equal(result.output.count, 2);
+  assert.equal(result.output.maximum_concurrency, 2);
   await capabilities.close();
 });
 
@@ -383,7 +490,7 @@ test("cross-process Agent replay returns the durable result without a second dis
   assert.equal(replayed.output.status, "completed");
   assert.deepEqual(
     delegate.mutations.slice(mutationCount).map((item) => item.action),
-    ["load"],
+    [],
   );
   await second.close();
 });
@@ -410,7 +517,7 @@ test("cross-process Agent resume uses exact revision and correlation", async () 
   const secondInput = { ...selected, tools: second.mergeToolSpecs(selected.tools) };
   const resumed = await second.execute("agent_resume", {
     task_id: "resume-child",
-    expected_revision: delegate.revisions.get("resume-child") ?? 0,
+    expected_revision: failed.output.revision,
     resume_correlation_id: "resume-correlation-1",
     restored_state: {},
     turns: [],
@@ -423,9 +530,6 @@ test("cross-process Agent resume uses exact revision and correlation", async () 
     ),
   });
   assert.equal(resumed.output.status, "completed");
-  assert.deepEqual(
-    delegate.mutations.slice(-5).map((item) => item.action),
-    ["load", "resume", "dispatch", "running", "complete"],
-  );
+  assert.equal(delegate.e03Task("resume-child")?.status, "completed");
   await second.close();
 });
