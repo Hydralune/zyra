@@ -2995,6 +2995,598 @@ function assertSchemaMigration(value: ControlSchemaMigration): void {
       `control schema migration ${value.migrationId} is invalid`,
     );
 }
+export interface ControlErrorContract {
+  contractId: string;
+  errorCode: string;
+  commandPatterns: string[];
+  classification:
+    | "validation"
+    | "authorization"
+    | "conflict"
+    | "capacity"
+    | "dependency"
+    | "internal";
+  retryable: boolean;
+  maximumRetries: number;
+  retryAfterMs: number;
+  remediationActions: string[];
+  safeToExpose: boolean;
+  version: number;
+  state: "draft" | "active" | "deprecated" | "retired";
+  createdAt: string;
+  activatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlErrorOccurrence {
+  occurrenceId: string;
+  contractId: string;
+  requestId: string;
+  sessionId: string;
+  command: string;
+  errorCode: string;
+  attempt: number;
+  detailsDigest: string;
+  state: "recorded" | "remediating" | "recovered" | "terminal";
+  selectedAction: string;
+  recordedAt: string;
+  updatedAt: string;
+  terminalAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlRemediationReceipt {
+  receiptId: string;
+  occurrenceId: string;
+  action: string;
+  executorId: string;
+  idempotencyKey: string;
+  accepted: boolean;
+  effectDigest: string;
+  responseDigest: string;
+  errorCode: string;
+  executedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface ControlErrorCatalogSnapshot {
+  contracts: ControlErrorContract[];
+  occurrences: ControlErrorOccurrence[];
+  receipts: ControlRemediationReceipt[];
+  activeContractByErrorVersion: [string, string][];
+  occurrenceByRequestAttempt: [string, string][];
+  receiptByIdempotencyKey: [string, string][];
+}
+
+function assertControlErrorContract(value: ControlErrorContract): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.contractId ||
+    !value.errorCode ||
+    !value.commandPatterns.length ||
+    new Set(value.commandPatterns).size !== value.commandPatterns.length ||
+    value.maximumRetries < 0 ||
+    value.retryAfterMs < 0 ||
+    value.version < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_error_contract_corrupt",
+      `control error contract ${value.contractId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlErrorOccurrence(value: ControlErrorOccurrence): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.occurrenceId ||
+    !value.contractId ||
+    !value.requestId ||
+    !value.sessionId ||
+    !value.command ||
+    !value.errorCode ||
+    value.attempt < 1 ||
+    !value.detailsDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_error_occurrence_corrupt",
+      `control error occurrence ${value.occurrenceId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlRemediationReceipt(
+  value: ControlRemediationReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.occurrenceId ||
+    !value.action ||
+    !value.executorId ||
+    !value.idempotencyKey ||
+    !value.effectDigest ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_remediation_receipt_corrupt",
+      `control remediation receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class ControlErrorCatalogRuntime {
+  private contracts = new Map<string, ControlErrorContract>();
+  private occurrences = new Map<string, ControlErrorOccurrence>();
+  private receipts = new Map<string, ControlRemediationReceipt[]>();
+  private activeContractByErrorVersion = new Map<string, string>();
+  private occurrenceByRequestAttempt = new Map<string, string>();
+  private receiptByIdempotencyKey = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  register(input: {
+    contractId?: string;
+    errorCode: string;
+    commandPatterns: readonly string[];
+    classification: ControlErrorContract["classification"];
+    retryable: boolean;
+    maximumRetries: number;
+    retryAfterMs: number;
+    remediationActions: readonly string[];
+    safeToExpose: boolean;
+    version: number;
+  }): ControlErrorContract {
+    const index = this.contractKey(input.errorCode, input.version);
+    if (this.activeContractByErrorVersion.has(index))
+      throw new E03RuntimeError(
+        "control_error_contract_version_duplicate",
+        `control error ${input.errorCode} version ${input.version} exists`,
+      );
+    if (
+      !input.retryable &&
+      (input.maximumRetries > 0 || input.retryAfterMs > 0)
+    )
+      throw new E03RuntimeError(
+        "control_error_contract_retry_conflict",
+        "non-retryable control error cannot declare retry policy",
+      );
+    const contractId = input.contractId ?? createId("control-error-contract");
+    const payload = {
+      contractId,
+      errorCode: input.errorCode,
+      commandPatterns: [...new Set(input.commandPatterns)].sort(),
+      classification: input.classification,
+      retryable: input.retryable,
+      maximumRetries: input.maximumRetries,
+      retryAfterMs: input.retryAfterMs,
+      remediationActions: [...new Set(input.remediationActions)].sort(),
+      safeToExpose: input.safeToExpose,
+      version: input.version,
+      state: "draft" as const,
+      createdAt: this.clock.now(),
+      activatedAt: "",
+      revision: 1,
+    };
+    const contract = { ...payload, digest: digest(payload) };
+    assertControlErrorContract(contract);
+    this.contracts.set(contractId, contract);
+    return structuredClone(contract);
+  }
+
+  activate(contractId: string, expectedRevision: number): ControlErrorContract {
+    const contract = this.requireContract(contractId);
+    this.assertContractRevision(contract, expectedRevision);
+    if (contract.state !== "draft")
+      throw new E03RuntimeError(
+        "control_error_contract_activate_state",
+        `control error contract ${contractId} is ${contract.state}`,
+      );
+    const key = this.contractKey(contract.errorCode, contract.version);
+    if (this.activeContractByErrorVersion.has(key))
+      throw new E03RuntimeError(
+        "control_error_contract_active_duplicate",
+        `control error contract ${key} already active`,
+      );
+    const next = this.transitionContract(contract, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activeContractByErrorVersion.set(key, contractId);
+    return next;
+  }
+
+  resolve(errorCode: string, command: string): ControlErrorContract | null {
+    const candidates = [...this.contracts.values()]
+      .filter(
+        (value) =>
+          value.errorCode === errorCode &&
+          value.state === "active" &&
+          value.commandPatterns.some((pattern) =>
+            this.matches(pattern, command),
+          ),
+      )
+      .sort((a, b) => b.version - a.version);
+    return candidates[0] ? structuredClone(candidates[0]) : null;
+  }
+
+  record(input: {
+    occurrenceId?: string;
+    requestId: string;
+    sessionId: string;
+    command: string;
+    errorCode: string;
+    attempt: number;
+    detailsDigest: string;
+  }): ControlErrorOccurrence {
+    const index = this.occurrenceKey(input.requestId, input.attempt);
+    const duplicateId = this.occurrenceByRequestAttempt.get(index);
+    if (duplicateId)
+      return structuredClone(this.requireOccurrence(duplicateId));
+    const contract = this.resolve(input.errorCode, input.command);
+    if (!contract)
+      throw new E03RuntimeError(
+        "control_error_contract_missing",
+        `control error ${input.errorCode} has no contract`,
+      );
+    const occurrenceId =
+      input.occurrenceId ?? createId("control-error-occurrence");
+    const now = this.clock.now();
+    const payload = {
+      occurrenceId,
+      contractId: contract.contractId,
+      requestId: input.requestId,
+      sessionId: input.sessionId,
+      command: input.command,
+      errorCode: input.errorCode,
+      attempt: input.attempt,
+      detailsDigest: input.detailsDigest,
+      state: "recorded" as const,
+      selectedAction: "",
+      recordedAt: now,
+      updatedAt: now,
+      terminalAt: "",
+      revision: 1,
+    };
+    const occurrence = { ...payload, digest: digest(payload) };
+    assertControlErrorOccurrence(occurrence);
+    this.occurrences.set(occurrenceId, occurrence);
+    this.receipts.set(occurrenceId, []);
+    this.occurrenceByRequestAttempt.set(index, occurrenceId);
+    return structuredClone(occurrence);
+  }
+
+  chooseRemediation(
+    occurrenceId: string,
+    expectedRevision: number,
+    action: string,
+  ): ControlErrorOccurrence {
+    const occurrence = this.requireOccurrence(occurrenceId);
+    this.assertOccurrenceRevision(occurrence, expectedRevision);
+    if (occurrence.state !== "recorded")
+      throw new E03RuntimeError(
+        "control_error_remediation_state",
+        `control error occurrence ${occurrenceId} is ${occurrence.state}`,
+      );
+    const contract = this.requireContract(occurrence.contractId);
+    if (!contract.remediationActions.includes(action))
+      throw new E03RuntimeError(
+        "control_error_remediation_action_denied",
+        `control error remediation ${action} is denied`,
+      );
+    if (occurrence.attempt > contract.maximumRetries && action === "retry")
+      throw new E03RuntimeError(
+        "control_error_retry_exhausted",
+        `control error occurrence ${occurrenceId} exhausted retries`,
+      );
+    return this.transitionOccurrence(occurrence, {
+      state: "remediating",
+      selectedAction: action,
+    });
+  }
+
+  recordReceipt(input: {
+    receiptId?: string;
+    occurrenceId: string;
+    expectedRevision: number;
+    action: string;
+    executorId: string;
+    idempotencyKey: string;
+    accepted: boolean;
+    effectDigest: string;
+    responseDigest: string;
+    errorCode?: string;
+  }): ControlRemediationReceipt {
+    const duplicateId = this.receiptByIdempotencyKey.get(input.idempotencyKey);
+    if (duplicateId) return structuredClone(this.requireReceipt(duplicateId));
+    const occurrence = this.requireOccurrence(input.occurrenceId);
+    this.assertOccurrenceRevision(occurrence, input.expectedRevision);
+    if (
+      occurrence.state !== "remediating" ||
+      occurrence.selectedAction !== input.action
+    )
+      throw new E03RuntimeError(
+        "control_remediation_receipt_state",
+        `control error occurrence ${occurrence.occurrenceId} remediation mismatch`,
+      );
+    const entries = this.receiptEntries(occurrence.occurrenceId);
+    const payload = {
+      receiptId: input.receiptId ?? createId("control-remediation-receipt"),
+      occurrenceId: occurrence.occurrenceId,
+      action: input.action,
+      executorId: input.executorId,
+      idempotencyKey: input.idempotencyKey,
+      accepted: input.accepted,
+      effectDigest: input.effectDigest,
+      responseDigest: input.responseDigest,
+      errorCode: input.errorCode ?? "",
+      executedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertControlRemediationReceipt(receipt);
+    entries.push(receipt);
+    this.receipts.set(occurrence.occurrenceId, entries);
+    this.receiptByIdempotencyKey.set(input.idempotencyKey, receipt.receiptId);
+    this.transitionOccurrence(occurrence, {
+      state: input.accepted ? "recovered" : "terminal",
+      terminalAt: this.clock.now(),
+    });
+    return structuredClone(receipt);
+  }
+
+  deprecate(
+    contractId: string,
+    expectedRevision: number,
+  ): ControlErrorContract {
+    const contract = this.requireContract(contractId);
+    this.assertContractRevision(contract, expectedRevision);
+    if (contract.state !== "active")
+      throw new E03RuntimeError(
+        "control_error_contract_deprecate_state",
+        `control error contract ${contractId} is ${contract.state}`,
+      );
+    const next = this.transitionContract(contract, { state: "deprecated" });
+    this.activeContractByErrorVersion.delete(
+      this.contractKey(contract.errorCode, contract.version),
+    );
+    return next;
+  }
+
+  snapshot(): ControlErrorCatalogSnapshot {
+    return {
+      contracts: [...this.contracts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      occurrences: [...this.occurrences.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeContractByErrorVersion: [
+        ...this.activeContractByErrorVersion.entries(),
+      ],
+      occurrenceByRequestAttempt: [
+        ...this.occurrenceByRequestAttempt.entries(),
+      ],
+      receiptByIdempotencyKey: [...this.receiptByIdempotencyKey.entries()],
+    };
+  }
+
+  restore(snapshot: ControlErrorCatalogSnapshot): void {
+    const contracts = new Map<string, ControlErrorContract>();
+    const occurrences = new Map<string, ControlErrorOccurrence>();
+    const receipts = new Map<string, ControlRemediationReceipt[]>();
+    for (const value of snapshot.contracts) {
+      assertControlErrorContract(value);
+      if (contracts.has(value.contractId))
+        throw new E03RuntimeError(
+          "control_error_restore_contract_duplicate",
+          `contract ${value.contractId} duplicate`,
+        );
+      contracts.set(value.contractId, structuredClone(value));
+    }
+    for (const value of snapshot.occurrences) {
+      assertControlErrorOccurrence(value);
+      if (
+        !contracts.has(value.contractId) ||
+        occurrences.has(value.occurrenceId)
+      )
+        throw new E03RuntimeError(
+          "control_error_restore_occurrence",
+          `occurrence ${value.occurrenceId} invalid`,
+        );
+      occurrences.set(value.occurrenceId, structuredClone(value));
+      receipts.set(value.occurrenceId, []);
+    }
+    for (const value of snapshot.receipts) {
+      assertControlRemediationReceipt(value);
+      const entries = receipts.get(value.occurrenceId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "control_error_restore_receipt_chain",
+          `receipt ${value.receiptId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const activeContractByErrorVersion = new Map(
+      snapshot.activeContractByErrorVersion,
+    );
+    const occurrenceByRequestAttempt = new Map(
+      snapshot.occurrenceByRequestAttempt,
+    );
+    const receiptByIdempotencyKey = new Map(snapshot.receiptByIdempotencyKey);
+    if (
+      activeContractByErrorVersion.size !==
+        snapshot.activeContractByErrorVersion.length ||
+      occurrenceByRequestAttempt.size !==
+        snapshot.occurrenceByRequestAttempt.length ||
+      receiptByIdempotencyKey.size !== snapshot.receiptByIdempotencyKey.length
+    )
+      throw new E03RuntimeError(
+        "control_error_restore_index_duplicate",
+        "control error indexes duplicate",
+      );
+    for (const [key, contractId] of activeContractByErrorVersion) {
+      const value = contracts.get(contractId);
+      if (
+        !value ||
+        key !== this.contractKey(value.errorCode, value.version) ||
+        value.state !== "active"
+      )
+        throw new E03RuntimeError(
+          "control_error_restore_contract_index",
+          `contract index ${key} invalid`,
+        );
+    }
+    for (const [key, occurrenceId] of occurrenceByRequestAttempt) {
+      const value = occurrences.get(occurrenceId);
+      if (!value || key !== this.occurrenceKey(value.requestId, value.attempt))
+        throw new E03RuntimeError(
+          "control_error_restore_occurrence_index",
+          `occurrence index ${key} invalid`,
+        );
+    }
+    for (const [key, receiptId] of receiptByIdempotencyKey) {
+      const value = [...receipts.values()]
+        .flat()
+        .find((entry) => entry.receiptId === receiptId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "control_error_restore_receipt_index",
+          `receipt index ${key} invalid`,
+        );
+    }
+    this.contracts = contracts;
+    this.occurrences = occurrences;
+    this.receipts = receipts;
+    this.activeContractByErrorVersion = activeContractByErrorVersion;
+    this.occurrenceByRequestAttempt = occurrenceByRequestAttempt;
+    this.receiptByIdempotencyKey = receiptByIdempotencyKey;
+  }
+
+  private matches(pattern: string, command: string): boolean {
+    return (
+      pattern === "*" ||
+      pattern === command ||
+      (pattern.endsWith(".*") && command.startsWith(pattern.slice(0, -1)))
+    );
+  }
+
+  private contractKey(errorCode: string, version: number): string {
+    return `${errorCode}\u0000${version}`;
+  }
+
+  private occurrenceKey(requestId: string, attempt: number): string {
+    return `${requestId}\u0000${attempt}`;
+  }
+
+  private receiptEntries(occurrenceId: string): ControlRemediationReceipt[] {
+    return this.receipts.get(occurrenceId) ?? [];
+  }
+
+  private requireContract(id: string): ControlErrorContract {
+    const value = this.contracts.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_error_contract_missing",
+        `contract ${id} missing`,
+      );
+    assertControlErrorContract(value);
+    return value;
+  }
+
+  private requireOccurrence(id: string): ControlErrorOccurrence {
+    const value = this.occurrences.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_error_occurrence_missing",
+        `occurrence ${id} missing`,
+      );
+    assertControlErrorOccurrence(value);
+    return value;
+  }
+
+  private requireReceipt(id: string): ControlRemediationReceipt {
+    const value = [...this.receipts.values()]
+      .flat()
+      .find((entry) => entry.receiptId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_remediation_receipt_missing",
+        `receipt ${id} missing`,
+      );
+    assertControlRemediationReceipt(value);
+    return value;
+  }
+
+  private assertContractRevision(
+    value: ControlErrorContract,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_error_contract_stale_revision",
+        `contract ${value.contractId} stale`,
+      );
+  }
+
+  private assertOccurrenceRevision(
+    value: ControlErrorOccurrence,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_error_occurrence_stale_revision",
+        `occurrence ${value.occurrenceId} stale`,
+      );
+  }
+
+  private transitionContract(
+    value: ControlErrorContract,
+    patch: Partial<
+      Omit<ControlErrorContract, "contractId" | "revision" | "digest">
+    >,
+  ): ControlErrorContract {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      contractId: value.contractId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlErrorContract(next);
+    this.contracts.set(next.contractId, next);
+    return structuredClone(next);
+  }
+
+  private transitionOccurrence(
+    value: ControlErrorOccurrence,
+    patch: Partial<
+      Omit<ControlErrorOccurrence, "occurrenceId" | "revision" | "digest">
+    >,
+  ): ControlErrorOccurrence {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      occurrenceId: value.occurrenceId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlErrorOccurrence(next);
+    this.occurrences.set(next.occurrenceId, next);
+    return structuredClone(next);
+  }
+}
+
 export class ControlSchemaEvolutionRuntime {
   private versions = new Map<string, ControlSchemaVersion>();
   private migrations = new Map<string, ControlSchemaMigration>();

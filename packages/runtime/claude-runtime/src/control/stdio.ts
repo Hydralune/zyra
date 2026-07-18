@@ -2264,6 +2264,617 @@ function assertFrameAssembly(value: ControlFrameAssembly): void {
       `control frame assembly ${value.assemblyId} is invalid`,
     );
 }
+export interface ControlTransportSession {
+  transportSessionId: string;
+  connectionId: string;
+  peerId: string;
+  protocolVersion: string;
+  negotiatedCapabilities: string[];
+  state:
+    | "negotiating"
+    | "established"
+    | "rekeying"
+    | "draining"
+    | "closed"
+    | "failed";
+  activeKeyId: string;
+  sendSequence: number;
+  receiveSequence: number;
+  maximumFrameBytes: number;
+  heartbeatIntervalMs: number;
+  establishedAt: string;
+  lastActivityAt: string;
+  closedAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransportKey {
+  keyId: string;
+  transportSessionId: string;
+  generation: number;
+  publicKeyDigest: string;
+  proofDigest: string;
+  state: "proposed" | "verified" | "active" | "retired" | "revoked";
+  proposedAt: string;
+  verifiedAt: string;
+  activatedAt: string;
+  retiredAt: string;
+  expiresAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransportHandshake {
+  handshakeId: string;
+  transportSessionId: string;
+  direction: "offer" | "answer" | "confirmation";
+  protocolVersions: string[];
+  capabilities: string[];
+  nonce: string;
+  keyId: string;
+  transcriptDigest: string;
+  previousDigest: string;
+  accepted: boolean;
+  errorCode: string;
+  createdAt: string;
+  digest: string;
+}
+
+export interface ControlTransportSessionSnapshot {
+  sessions: ControlTransportSession[];
+  keys: ControlTransportKey[];
+  handshakes: ControlTransportHandshake[];
+  activeSessionByConnection: [string, string][];
+  keyBySessionGeneration: [string, string][];
+}
+
+function assertControlTransportSession(value: ControlTransportSession): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.transportSessionId ||
+    !value.connectionId ||
+    !value.peerId ||
+    value.sendSequence < 0 ||
+    value.receiveSequence < 0 ||
+    value.maximumFrameBytes < 1 ||
+    value.heartbeatIntervalMs < 1 ||
+    new Set(value.negotiatedCapabilities).size !==
+      value.negotiatedCapabilities.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transport_session_corrupt",
+      `control transport session ${value.transportSessionId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlTransportKey(value: ControlTransportKey): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.keyId ||
+    !value.transportSessionId ||
+    value.generation < 1 ||
+    !value.publicKeyDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transport_key_corrupt",
+      `control transport key ${value.keyId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlTransportHandshake(
+  value: ControlTransportHandshake,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.handshakeId ||
+    !value.transportSessionId ||
+    !value.nonce ||
+    new Set(value.protocolVersions).size !== value.protocolVersions.length ||
+    new Set(value.capabilities).size !== value.capabilities.length ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transport_handshake_corrupt",
+      `control transport handshake ${value.handshakeId || "<empty>"} is corrupt`,
+    );
+}
+
+export class ControlTransportSessionRuntime {
+  private sessions = new Map<string, ControlTransportSession>();
+  private keys = new Map<string, ControlTransportKey[]>();
+  private handshakes = new Map<string, ControlTransportHandshake[]>();
+  private activeSessionByConnection = new Map<string, string>();
+  private keyBySessionGeneration = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  open(input: {
+    transportSessionId?: string;
+    connectionId: string;
+    peerId: string;
+    maximumFrameBytes: number;
+    heartbeatIntervalMs: number;
+  }): ControlTransportSession {
+    const activeId = this.activeSessionByConnection.get(input.connectionId);
+    if (activeId) return structuredClone(this.requireSession(activeId));
+    if (input.maximumFrameBytes < 1 || input.heartbeatIntervalMs < 1)
+      throw new E03RuntimeError(
+        "control_transport_session_limits",
+        "control transport session limits must be positive",
+      );
+    const transportSessionId =
+      input.transportSessionId ?? createId("control-transport-session");
+    const now = this.clock.now();
+    const payload = {
+      transportSessionId,
+      connectionId: input.connectionId,
+      peerId: input.peerId,
+      protocolVersion: "",
+      negotiatedCapabilities: [] as string[],
+      state: "negotiating" as const,
+      activeKeyId: "",
+      sendSequence: 0,
+      receiveSequence: 0,
+      maximumFrameBytes: input.maximumFrameBytes,
+      heartbeatIntervalMs: input.heartbeatIntervalMs,
+      establishedAt: "",
+      lastActivityAt: now,
+      closedAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const session = { ...payload, digest: digest(payload) };
+    assertControlTransportSession(session);
+    this.sessions.set(transportSessionId, session);
+    this.keys.set(transportSessionId, []);
+    this.handshakes.set(transportSessionId, []);
+    this.activeSessionByConnection.set(input.connectionId, transportSessionId);
+    return structuredClone(session);
+  }
+
+  proposeKey(input: {
+    keyId?: string;
+    transportSessionId: string;
+    publicKeyDigest: string;
+    proofDigest: string;
+    expiresAt: string;
+  }): ControlTransportKey {
+    const session = this.requireSession(input.transportSessionId);
+    if (!["negotiating", "established", "rekeying"].includes(session.state))
+      throw new E03RuntimeError(
+        "control_transport_key_session_state",
+        `control transport session ${session.transportSessionId} is ${session.state}`,
+      );
+    const entries = this.keyEntries(session.transportSessionId);
+    const generation = entries.length + 1;
+    const keyId = input.keyId ?? createId("control-transport-key");
+    const payload = {
+      keyId,
+      transportSessionId: session.transportSessionId,
+      generation,
+      publicKeyDigest: input.publicKeyDigest,
+      proofDigest: input.proofDigest,
+      state: "proposed" as const,
+      proposedAt: this.clock.now(),
+      verifiedAt: "",
+      activatedAt: "",
+      retiredAt: "",
+      expiresAt: input.expiresAt,
+      revision: 1,
+    };
+    const key = { ...payload, digest: digest(payload) };
+    assertControlTransportKey(key);
+    entries.push(key);
+    this.keys.set(session.transportSessionId, entries);
+    this.keyBySessionGeneration.set(
+      this.keyGenerationKey(session.transportSessionId, generation),
+      keyId,
+    );
+    if (session.state === "established")
+      this.transitionSession(session, { state: "rekeying" });
+    return structuredClone(key);
+  }
+
+  verifyKey(
+    keyId: string,
+    expectedRevision: number,
+    proofDigest: string,
+  ): ControlTransportKey {
+    const key = this.requireKey(keyId);
+    this.assertKeyRevision(key, expectedRevision);
+    if (key.state !== "proposed" || key.proofDigest !== proofDigest)
+      throw new E03RuntimeError(
+        "control_transport_key_proof",
+        `control transport key ${keyId} proof is invalid`,
+      );
+    return this.transitionKey(key, {
+      state: "verified",
+      verifiedAt: this.clock.now(),
+    });
+  }
+
+  recordHandshake(input: {
+    handshakeId?: string;
+    transportSessionId: string;
+    direction: ControlTransportHandshake["direction"];
+    protocolVersions: readonly string[];
+    capabilities: readonly string[];
+    nonce: string;
+    keyId: string;
+    accepted: boolean;
+    errorCode?: string;
+  }): ControlTransportHandshake {
+    const session = this.requireSession(input.transportSessionId);
+    const entries = this.handshakeEntries(session.transportSessionId);
+    const previousDigest = entries.at(-1)?.digest ?? "";
+    const payload = {
+      handshakeId: input.handshakeId ?? createId("control-transport-handshake"),
+      transportSessionId: session.transportSessionId,
+      direction: input.direction,
+      protocolVersions: [...new Set(input.protocolVersions)].sort(),
+      capabilities: [...new Set(input.capabilities)].sort(),
+      nonce: input.nonce,
+      keyId: input.keyId,
+      transcriptDigest: digest({
+        previousDigest,
+        direction: input.direction,
+        protocolVersions: [...new Set(input.protocolVersions)].sort(),
+        capabilities: [...new Set(input.capabilities)].sort(),
+        nonce: input.nonce,
+        keyId: input.keyId,
+      }),
+      previousDigest,
+      accepted: input.accepted,
+      errorCode: input.errorCode ?? "",
+      createdAt: this.clock.now(),
+    };
+    const handshake = { ...payload, digest: digest(payload) };
+    assertControlTransportHandshake(handshake);
+    entries.push(handshake);
+    this.handshakes.set(session.transportSessionId, entries);
+    if (!input.accepted)
+      this.transitionSession(session, {
+        state: "failed",
+        errorCode: input.errorCode ?? "handshake_rejected",
+      });
+    return structuredClone(handshake);
+  }
+
+  establish(input: {
+    transportSessionId: string;
+    expectedRevision: number;
+    protocolVersion: string;
+    capabilities: readonly string[];
+    keyId: string;
+  }): ControlTransportSession {
+    const session = this.requireSession(input.transportSessionId);
+    this.assertSessionRevision(session, input.expectedRevision);
+    if (!["negotiating", "rekeying"].includes(session.state))
+      throw new E03RuntimeError(
+        "control_transport_establish_state",
+        `control transport session ${session.transportSessionId} is ${session.state}`,
+      );
+    const key = this.requireKey(input.keyId);
+    if (
+      key.transportSessionId !== session.transportSessionId ||
+      key.state !== "verified"
+    )
+      throw new E03RuntimeError(
+        "control_transport_establish_key",
+        `control transport key ${key.keyId} is not verified for session`,
+      );
+    const handshakes = this.handshakeEntries(session.transportSessionId);
+    if (
+      !handshakes.some(
+        (value) => value.direction === "confirmation" && value.accepted,
+      )
+    )
+      throw new E03RuntimeError(
+        "control_transport_confirmation_missing",
+        `control transport session ${session.transportSessionId} lacks confirmation`,
+      );
+    if (session.activeKeyId) {
+      const prior = this.requireKey(session.activeKeyId);
+      this.transitionKey(prior, {
+        state: "retired",
+        retiredAt: this.clock.now(),
+      });
+    }
+    this.transitionKey(key, { state: "active", activatedAt: this.clock.now() });
+    return this.transitionSession(session, {
+      state: "established",
+      protocolVersion: input.protocolVersion,
+      negotiatedCapabilities: [...new Set(input.capabilities)].sort(),
+      activeKeyId: key.keyId,
+      establishedAt: session.establishedAt || this.clock.now(),
+      errorCode: "",
+    });
+  }
+
+  send(
+    transportSessionId: string,
+    expectedRevision: number,
+    byteLength: number,
+  ): ControlTransportSession {
+    const session = this.requireSession(transportSessionId);
+    this.assertSessionRevision(session, expectedRevision);
+    this.assertEstablishedAndSized(session, byteLength);
+    return this.transitionSession(session, {
+      sendSequence: session.sendSequence + 1,
+      lastActivityAt: this.clock.now(),
+    });
+  }
+
+  receive(
+    transportSessionId: string,
+    expectedRevision: number,
+    sequence: number,
+    byteLength: number,
+  ): ControlTransportSession {
+    const session = this.requireSession(transportSessionId);
+    this.assertSessionRevision(session, expectedRevision);
+    this.assertEstablishedAndSized(session, byteLength);
+    if (sequence !== session.receiveSequence + 1)
+      throw new E03RuntimeError(
+        "control_transport_receive_sequence",
+        `control transport session expected sequence ${session.receiveSequence + 1}`,
+      );
+    return this.transitionSession(session, {
+      receiveSequence: sequence,
+      lastActivityAt: this.clock.now(),
+    });
+  }
+
+  close(
+    transportSessionId: string,
+    expectedRevision: number,
+    errorCode = "",
+  ): ControlTransportSession {
+    const session = this.requireSession(transportSessionId);
+    this.assertSessionRevision(session, expectedRevision);
+    if (["closed", "failed"].includes(session.state))
+      throw new E03RuntimeError(
+        "control_transport_close_terminal",
+        `control transport session ${transportSessionId} is terminal`,
+      );
+    const next = this.transitionSession(session, {
+      state: errorCode ? "failed" : "closed",
+      closedAt: this.clock.now(),
+      errorCode,
+    });
+    this.activeSessionByConnection.delete(session.connectionId);
+    return next;
+  }
+
+  snapshot(): ControlTransportSessionSnapshot {
+    return {
+      sessions: [...this.sessions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      keys: [...this.keys.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      handshakes: [...this.handshakes.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeSessionByConnection: [...this.activeSessionByConnection.entries()],
+      keyBySessionGeneration: [...this.keyBySessionGeneration.entries()],
+    };
+  }
+
+  restore(snapshot: ControlTransportSessionSnapshot): void {
+    const sessions = new Map<string, ControlTransportSession>();
+    const keys = new Map<string, ControlTransportKey[]>();
+    const handshakes = new Map<string, ControlTransportHandshake[]>();
+    for (const value of snapshot.sessions) {
+      assertControlTransportSession(value);
+      if (sessions.has(value.transportSessionId))
+        throw new E03RuntimeError(
+          "control_transport_restore_duplicate",
+          `session ${value.transportSessionId} duplicate`,
+        );
+      sessions.set(value.transportSessionId, structuredClone(value));
+      keys.set(value.transportSessionId, []);
+      handshakes.set(value.transportSessionId, []);
+    }
+    for (const value of snapshot.keys) {
+      assertControlTransportKey(value);
+      const entries = keys.get(value.transportSessionId);
+      if (!entries || value.generation !== entries.length + 1)
+        throw new E03RuntimeError(
+          "control_transport_key_restore_order",
+          `key ${value.keyId} generation invalid`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.handshakes) {
+      assertControlTransportHandshake(value);
+      const entries = handshakes.get(value.transportSessionId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "control_transport_handshake_restore_chain",
+          `handshake ${value.handshakeId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const activeSessionByConnection = new Map(
+      snapshot.activeSessionByConnection,
+    );
+    const keyBySessionGeneration = new Map(snapshot.keyBySessionGeneration);
+    if (
+      activeSessionByConnection.size !==
+        snapshot.activeSessionByConnection.length ||
+      keyBySessionGeneration.size !== snapshot.keyBySessionGeneration.length
+    )
+      throw new E03RuntimeError(
+        "control_transport_restore_index_duplicate",
+        "transport indexes duplicate",
+      );
+    for (const [connectionId, sessionId] of activeSessionByConnection) {
+      const value = sessions.get(sessionId);
+      if (
+        !value ||
+        value.connectionId !== connectionId ||
+        ["closed", "failed"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "control_transport_restore_active",
+          `connection ${connectionId} index invalid`,
+        );
+    }
+    for (const [index, keyId] of keyBySessionGeneration) {
+      const value = [...keys.values()]
+        .flat()
+        .find((entry) => entry.keyId === keyId);
+      if (
+        !value ||
+        index !==
+          this.keyGenerationKey(value.transportSessionId, value.generation)
+      )
+        throw new E03RuntimeError(
+          "control_transport_restore_key_index",
+          `key index ${index} invalid`,
+        );
+    }
+    this.sessions = sessions;
+    this.keys = keys;
+    this.handshakes = handshakes;
+    this.activeSessionByConnection = activeSessionByConnection;
+    this.keyBySessionGeneration = keyBySessionGeneration;
+  }
+
+  private keyGenerationKey(sessionId: string, generation: number): string {
+    return `${sessionId}\u0000${generation}`;
+  }
+
+  private keyEntries(sessionId: string): ControlTransportKey[] {
+    return this.keys.get(sessionId) ?? [];
+  }
+
+  private handshakeEntries(sessionId: string): ControlTransportHandshake[] {
+    return this.handshakes.get(sessionId) ?? [];
+  }
+
+  private requireSession(id: string): ControlTransportSession {
+    const value = this.sessions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transport_session_missing",
+        `session ${id} missing`,
+      );
+    assertControlTransportSession(value);
+    return value;
+  }
+
+  private requireKey(id: string): ControlTransportKey {
+    const value = [...this.keys.values()]
+      .flat()
+      .find((entry) => entry.keyId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transport_key_missing",
+        `key ${id} missing`,
+      );
+    assertControlTransportKey(value);
+    return value;
+  }
+
+  private assertSessionRevision(
+    value: ControlTransportSession,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_transport_session_stale_revision",
+        `session ${value.transportSessionId} stale`,
+      );
+  }
+
+  private assertKeyRevision(
+    value: ControlTransportKey,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_transport_key_stale_revision",
+        `key ${value.keyId} stale`,
+      );
+  }
+
+  private assertEstablishedAndSized(
+    value: ControlTransportSession,
+    byteLength: number,
+  ): void {
+    if (value.state !== "established")
+      throw new E03RuntimeError(
+        "control_transport_session_not_established",
+        `session ${value.transportSessionId} not established`,
+      );
+    if (byteLength < 0 || byteLength > value.maximumFrameBytes)
+      throw new E03RuntimeError(
+        "control_transport_frame_size",
+        `frame length ${byteLength} invalid`,
+      );
+    const key = this.requireKey(value.activeKeyId);
+    if (
+      key.state !== "active" ||
+      Date.parse(key.expiresAt) <= Date.parse(this.clock.now())
+    )
+      throw new E03RuntimeError(
+        "control_transport_active_key_invalid",
+        `session ${value.transportSessionId} key invalid`,
+      );
+  }
+
+  private transitionSession(
+    value: ControlTransportSession,
+    patch: Partial<
+      Omit<
+        ControlTransportSession,
+        "transportSessionId" | "revision" | "digest"
+      >
+    >,
+  ): ControlTransportSession {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      transportSessionId: value.transportSessionId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlTransportSession(next);
+    this.sessions.set(next.transportSessionId, next);
+    return structuredClone(next);
+  }
+
+  private transitionKey(
+    value: ControlTransportKey,
+    patch: Partial<Omit<ControlTransportKey, "keyId" | "revision" | "digest">>,
+  ): ControlTransportKey {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      keyId: value.keyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlTransportKey(next);
+    const entries = this.keyEntries(value.transportSessionId);
+    const index = entries.findIndex((entry) => entry.keyId === value.keyId);
+    entries[index] = next;
+    this.keys.set(value.transportSessionId, entries);
+    return structuredClone(next);
+  }
+}
+
 export class ControlFrameAssemblyRuntime {
   private assemblies = new Map<string, ControlFrameAssembly>();
   private frames = new Map<string, ControlFrame>();
