@@ -1667,6 +1667,487 @@ function assertWatchBatch(value: DefinitionWatchBatch): void {
       `claimed definition watch batch ${value.batchId} lacks claimant`,
     );
 }
+export type TrustedDefinitionSourceKind =
+  | "builtin"
+  | "user"
+  | "project"
+  | "plugin"
+  | "remote";
+
+export interface DefinitionTrustAnchor {
+  anchorId: string;
+  issuer: string;
+  publicKeyDigest: string;
+  allowedSourceKinds: TrustedDefinitionSourceKind[];
+  allowedNamespaces: string[];
+  state: "pending" | "active" | "suspended" | "revoked";
+  notBefore: string;
+  notAfter: string;
+  createdAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DefinitionSignatureEnvelope {
+  envelopeId: string;
+  definitionName: string;
+  sourceId: string;
+  sourceKind: TrustedDefinitionSourceKind;
+  namespace: string;
+  contentDigest: string;
+  anchorId: string;
+  signatureDigest: string;
+  state: "submitted" | "verified" | "rejected" | "expired" | "revoked";
+  submittedAt: string;
+  verifiedAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DefinitionTrustDecision {
+  decisionId: string;
+  envelopeId: string;
+  anchorId: string;
+  verifierId: string;
+  accepted: boolean;
+  observedContentDigest: string;
+  observedSignatureDigest: string;
+  reasonCode: string;
+  decidedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface DefinitionTrustSnapshot {
+  anchors: DefinitionTrustAnchor[];
+  envelopes: DefinitionSignatureEnvelope[];
+  decisions: DefinitionTrustDecision[];
+  activeAnchorByIssuer: [string, string][];
+  envelopeBySourceDigest: [string, string][];
+}
+
+function assertDefinitionTrustAnchor(value: DefinitionTrustAnchor): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.anchorId ||
+    !value.issuer ||
+    !value.publicKeyDigest ||
+    !value.allowedSourceKinds.length ||
+    !value.allowedNamespaces.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_trust_anchor_corrupt",
+      `definition trust anchor ${value.anchorId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertDefinitionSignatureEnvelope(
+  value: DefinitionSignatureEnvelope,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.envelopeId ||
+    !value.definitionName ||
+    !value.sourceId ||
+    !value.namespace ||
+    !value.contentDigest ||
+    !value.anchorId ||
+    !value.signatureDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_signature_envelope_corrupt",
+      `definition signature envelope ${value.envelopeId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertDefinitionTrustDecision(value: DefinitionTrustDecision): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.decisionId ||
+    !value.envelopeId ||
+    !value.anchorId ||
+    !value.verifierId ||
+    !value.observedContentDigest ||
+    !value.observedSignatureDigest ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_trust_decision_corrupt",
+      `definition trust decision ${value.decisionId || "<empty>"} is corrupt`,
+    );
+}
+
+export class AgentDefinitionTrustRuntime {
+  private anchors = new Map<string, DefinitionTrustAnchor>();
+  private envelopes = new Map<string, DefinitionSignatureEnvelope>();
+  private decisions = new Map<string, DefinitionTrustDecision[]>();
+  private activeAnchorByIssuer = new Map<string, string>();
+  private envelopeBySourceDigest = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerAnchor(input: {
+    anchorId?: string;
+    issuer: string;
+    publicKeyDigest: string;
+    allowedSourceKinds: readonly TrustedDefinitionSourceKind[];
+    allowedNamespaces: readonly string[];
+    notBefore: string;
+    notAfter: string;
+  }): DefinitionTrustAnchor {
+    if (this.activeAnchorByIssuer.has(input.issuer))
+      throw new E03RuntimeError(
+        "definition_trust_anchor_issuer_active",
+        `definition trust issuer ${input.issuer} already has an anchor`,
+      );
+    if (Date.parse(input.notAfter) <= Date.parse(input.notBefore))
+      throw new E03RuntimeError(
+        "definition_trust_anchor_validity",
+        "definition trust anchor validity window is invalid",
+      );
+    const anchorId = input.anchorId ?? createId("definition-trust-anchor");
+    const payload = {
+      anchorId,
+      issuer: input.issuer,
+      publicKeyDigest: input.publicKeyDigest,
+      allowedSourceKinds: [...new Set(input.allowedSourceKinds)].sort(),
+      allowedNamespaces: [...new Set(input.allowedNamespaces)].sort(),
+      state: "pending" as const,
+      notBefore: input.notBefore,
+      notAfter: input.notAfter,
+      createdAt: this.clock.now(),
+      revision: 1,
+    };
+    const anchor = { ...payload, digest: digest(payload) };
+    assertDefinitionTrustAnchor(anchor);
+    this.anchors.set(anchorId, anchor);
+    return structuredClone(anchor);
+  }
+
+  activateAnchor(
+    anchorId: string,
+    expectedRevision: number,
+  ): DefinitionTrustAnchor {
+    const anchor = this.requireAnchor(anchorId);
+    this.assertAnchorRevision(anchor, expectedRevision);
+    if (anchor.state !== "pending")
+      throw new E03RuntimeError(
+        "definition_trust_anchor_activate_state",
+        `definition trust anchor ${anchorId} is ${anchor.state}`,
+      );
+    const now = this.clock.now();
+    if (
+      Date.parse(anchor.notBefore) > Date.parse(now) ||
+      Date.parse(anchor.notAfter) <= Date.parse(now)
+    )
+      throw new E03RuntimeError(
+        "definition_trust_anchor_outside_validity",
+        `definition trust anchor ${anchorId} is outside validity`,
+      );
+    const next = this.transitionAnchor(anchor, { state: "active" });
+    this.activeAnchorByIssuer.set(anchor.issuer, anchorId);
+    return next;
+  }
+
+  submit(input: {
+    envelopeId?: string;
+    definitionName: string;
+    sourceId: string;
+    sourceKind: TrustedDefinitionSourceKind;
+    namespace: string;
+    contentDigest: string;
+    anchorId: string;
+    signatureDigest: string;
+  }): DefinitionSignatureEnvelope {
+    const anchor = this.requireAnchor(input.anchorId);
+    if (
+      anchor.state !== "active" ||
+      !anchor.allowedSourceKinds.includes(input.sourceKind) ||
+      !anchor.allowedNamespaces.some(
+        (value) => value === "*" || value === input.namespace,
+      )
+    )
+      throw new E03RuntimeError(
+        "definition_signature_source_denied",
+        `definition source ${input.sourceId} is not trusted`,
+      );
+    const index = this.sourceDigestKey(input.sourceId, input.contentDigest);
+    const duplicateId = this.envelopeBySourceDigest.get(index);
+    if (duplicateId) return structuredClone(this.requireEnvelope(duplicateId));
+    const envelopeId =
+      input.envelopeId ?? createId("definition-signature-envelope");
+    const payload = {
+      envelopeId,
+      definitionName: input.definitionName,
+      sourceId: input.sourceId,
+      sourceKind: input.sourceKind,
+      namespace: input.namespace,
+      contentDigest: input.contentDigest,
+      anchorId: input.anchorId,
+      signatureDigest: input.signatureDigest,
+      state: "submitted" as const,
+      submittedAt: this.clock.now(),
+      verifiedAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const envelope = { ...payload, digest: digest(payload) };
+    assertDefinitionSignatureEnvelope(envelope);
+    this.envelopes.set(envelopeId, envelope);
+    this.decisions.set(envelopeId, []);
+    this.envelopeBySourceDigest.set(index, envelopeId);
+    return structuredClone(envelope);
+  }
+
+  verify(input: {
+    envelopeId: string;
+    expectedRevision: number;
+    verifierId: string;
+    observedContentDigest: string;
+    observedSignatureDigest: string;
+  }): DefinitionTrustDecision {
+    const envelope = this.requireEnvelope(input.envelopeId);
+    this.assertEnvelopeRevision(envelope, input.expectedRevision);
+    if (envelope.state !== "submitted")
+      throw new E03RuntimeError(
+        "definition_signature_verify_state",
+        `definition signature envelope ${envelope.envelopeId} is ${envelope.state}`,
+      );
+    const anchor = this.requireAnchor(envelope.anchorId);
+    const accepted =
+      anchor.state === "active" &&
+      Date.parse(anchor.notAfter) > Date.parse(this.clock.now()) &&
+      input.observedContentDigest === envelope.contentDigest &&
+      input.observedSignatureDigest === envelope.signatureDigest;
+    const entries = this.decisionEntries(envelope.envelopeId);
+    const payload = {
+      decisionId: createId("definition-trust-decision"),
+      envelopeId: envelope.envelopeId,
+      anchorId: anchor.anchorId,
+      verifierId: input.verifierId,
+      accepted,
+      observedContentDigest: input.observedContentDigest,
+      observedSignatureDigest: input.observedSignatureDigest,
+      reasonCode: accepted ? "signature_verified" : "signature_mismatch",
+      decidedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const decision = { ...payload, digest: digest(payload) };
+    assertDefinitionTrustDecision(decision);
+    entries.push(decision);
+    this.decisions.set(envelope.envelopeId, entries);
+    this.transitionEnvelope(envelope, {
+      state: accepted ? "verified" : "rejected",
+      verifiedAt: decision.decidedAt,
+      errorCode: accepted ? "" : decision.reasonCode,
+    });
+    return structuredClone(decision);
+  }
+
+  revokeAnchor(
+    anchorId: string,
+    expectedRevision: number,
+  ): {
+    anchor: DefinitionTrustAnchor;
+    envelopes: DefinitionSignatureEnvelope[];
+  } {
+    const anchor = this.requireAnchor(anchorId);
+    this.assertAnchorRevision(anchor, expectedRevision);
+    if (!["active", "suspended"].includes(anchor.state))
+      throw new E03RuntimeError(
+        "definition_trust_anchor_revoke_state",
+        `definition trust anchor ${anchorId} is ${anchor.state}`,
+      );
+    const next = this.transitionAnchor(anchor, { state: "revoked" });
+    this.activeAnchorByIssuer.delete(anchor.issuer);
+    const envelopes: DefinitionSignatureEnvelope[] = [];
+    for (const envelope of [...this.envelopes.values()])
+      if (envelope.anchorId === anchorId && envelope.state === "verified")
+        envelopes.push(
+          this.transitionEnvelope(envelope, {
+            state: "revoked",
+            errorCode: "trust_anchor_revoked",
+          }),
+        );
+    return { anchor: next, envelopes };
+  }
+
+  snapshot(): DefinitionTrustSnapshot {
+    return {
+      anchors: [...this.anchors.values()].map((value) =>
+        structuredClone(value),
+      ),
+      envelopes: [...this.envelopes.values()].map((value) =>
+        structuredClone(value),
+      ),
+      decisions: [...this.decisions.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeAnchorByIssuer: [...this.activeAnchorByIssuer.entries()],
+      envelopeBySourceDigest: [...this.envelopeBySourceDigest.entries()],
+    };
+  }
+
+  restore(snapshot: DefinitionTrustSnapshot): void {
+    const anchors = new Map<string, DefinitionTrustAnchor>();
+    const envelopes = new Map<string, DefinitionSignatureEnvelope>();
+    const decisions = new Map<string, DefinitionTrustDecision[]>();
+    for (const value of snapshot.anchors) {
+      assertDefinitionTrustAnchor(value);
+      anchors.set(value.anchorId, structuredClone(value));
+    }
+    for (const value of snapshot.envelopes) {
+      assertDefinitionSignatureEnvelope(value);
+      if (!anchors.has(value.anchorId) || envelopes.has(value.envelopeId))
+        throw new E03RuntimeError(
+          "definition_trust_restore_envelope",
+          `envelope ${value.envelopeId} invalid`,
+        );
+      envelopes.set(value.envelopeId, structuredClone(value));
+      decisions.set(value.envelopeId, []);
+    }
+    for (const value of snapshot.decisions) {
+      assertDefinitionTrustDecision(value);
+      const entries = decisions.get(value.envelopeId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "definition_trust_restore_decision_chain",
+          `decision ${value.decisionId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const activeAnchorByIssuer = new Map(snapshot.activeAnchorByIssuer);
+    const envelopeBySourceDigest = new Map(snapshot.envelopeBySourceDigest);
+    if (
+      activeAnchorByIssuer.size !== snapshot.activeAnchorByIssuer.length ||
+      envelopeBySourceDigest.size !== snapshot.envelopeBySourceDigest.length
+    )
+      throw new E03RuntimeError(
+        "definition_trust_restore_index_duplicate",
+        "definition trust indexes duplicate",
+      );
+    for (const [issuer, anchorId] of activeAnchorByIssuer) {
+      const value = anchors.get(anchorId);
+      if (!value || value.issuer !== issuer || value.state !== "active")
+        throw new E03RuntimeError(
+          "definition_trust_restore_anchor_index",
+          `anchor index ${issuer} invalid`,
+        );
+    }
+    for (const [index, envelopeId] of envelopeBySourceDigest) {
+      const value = envelopes.get(envelopeId);
+      if (
+        !value ||
+        index !== this.sourceDigestKey(value.sourceId, value.contentDigest)
+      )
+        throw new E03RuntimeError(
+          "definition_trust_restore_envelope_index",
+          `envelope index ${index} invalid`,
+        );
+    }
+    this.anchors = anchors;
+    this.envelopes = envelopes;
+    this.decisions = decisions;
+    this.activeAnchorByIssuer = activeAnchorByIssuer;
+    this.envelopeBySourceDigest = envelopeBySourceDigest;
+  }
+
+  private sourceDigestKey(sourceId: string, contentDigest: string): string {
+    return `${sourceId}\u0000${contentDigest}`;
+  }
+
+  private decisionEntries(envelopeId: string): DefinitionTrustDecision[] {
+    return this.decisions.get(envelopeId) ?? [];
+  }
+
+  private requireAnchor(id: string): DefinitionTrustAnchor {
+    const value = this.anchors.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_trust_anchor_missing",
+        `anchor ${id} missing`,
+      );
+    assertDefinitionTrustAnchor(value);
+    return value;
+  }
+
+  private requireEnvelope(id: string): DefinitionSignatureEnvelope {
+    const value = this.envelopes.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_signature_envelope_missing",
+        `envelope ${id} missing`,
+      );
+    assertDefinitionSignatureEnvelope(value);
+    return value;
+  }
+
+  private assertAnchorRevision(
+    value: DefinitionTrustAnchor,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_trust_anchor_stale_revision",
+        `anchor ${value.anchorId} stale`,
+      );
+  }
+
+  private assertEnvelopeRevision(
+    value: DefinitionSignatureEnvelope,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_signature_envelope_stale_revision",
+        `envelope ${value.envelopeId} stale`,
+      );
+  }
+
+  private transitionAnchor(
+    value: DefinitionTrustAnchor,
+    patch: Partial<
+      Omit<DefinitionTrustAnchor, "anchorId" | "revision" | "digest">
+    >,
+  ): DefinitionTrustAnchor {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      anchorId: value.anchorId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDefinitionTrustAnchor(next);
+    this.anchors.set(next.anchorId, next);
+    return structuredClone(next);
+  }
+
+  private transitionEnvelope(
+    value: DefinitionSignatureEnvelope,
+    patch: Partial<
+      Omit<DefinitionSignatureEnvelope, "envelopeId" | "revision" | "digest">
+    >,
+  ): DefinitionSignatureEnvelope {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      envelopeId: value.envelopeId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDefinitionSignatureEnvelope(next);
+    this.envelopes.set(next.envelopeId, next);
+    return structuredClone(next);
+  }
+}
+
 export class DefinitionWatchRuntime {
   private watches = new Map<string, DefinitionWatchTarget>();
   private changes = new Map<string, DefinitionWatchChange[]>();
