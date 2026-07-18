@@ -54,6 +54,7 @@ import {
 } from "../plugins/index.ts";
 import {
   SkillCoordinator,
+  TypeScriptSkillRuntime,
   type SkillCoordinatorSnapshot,
   type SkillExecutor,
   type SkillParentContext,
@@ -1970,7 +1971,11 @@ export class E02CapabilityCoordinator {
         parent_task_id: parent.taskId,
       },
     };
-    const result = await context.runChild(childInput);
+    const result = await TypeScriptSkillRuntime.executeForkedSkill(
+      childInput,
+      context.runChild,
+      executorContext.signal,
+    );
     return {
       output: {
         ok: result.ok,
@@ -1988,6 +1993,9 @@ export class E02CapabilityCoordinator {
         child_turn_count: result.turnCount,
         child_tool_call_count: result.toolCallCount,
         canonical_skill_owner: "typescript",
+        execution_mode: plan.execution.mode,
+        source_custody: "claude-code-best:executeForkedSkill",
+        forked_subagent_owner: "AgentExecutionContext.runChild",
       },
     };
   }
@@ -2298,6 +2306,9 @@ export class E02CapabilityCoordinator {
       hook_count: manifest.hooks.length,
       permission_bridge_id: "e02-plugin-permission-bridge",
       fail_closed_hooks: manifest.hooks.filter((hook) => hook.failClosed).map((hook) => hook.hookId),
+      source_custody: "claude-code-best:loadPluginHooks",
+      atomic_swap_owner: "PluginHookRuntime.replace",
+      atomic_swap_phase: "global_commit",
     };
   }
 

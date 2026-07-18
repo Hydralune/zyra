@@ -32,6 +32,30 @@ export class SkillReloadRuntime {
     this.now = options.now ?? (() => new Date());
   }
 
+  static commitAtomicReplacement<T>(input: {
+    currentRevision: number;
+    expectedRevision: number;
+    staged: readonly T[];
+    replace: (staged: readonly T[], expectedRevision: number) => number;
+  }): number {
+    if (!Number.isSafeInteger(input.currentRevision) || input.currentRevision < 0) {
+      throw new Error("atomic reload current revision is invalid");
+    }
+    if (input.expectedRevision !== input.currentRevision) {
+      throw new Error(
+        `atomic reload revision ${input.expectedRevision} does not match ${input.currentRevision}`,
+      );
+    }
+    const staged = [...input.staged];
+    const revision = input.replace(staged, input.expectedRevision);
+    if (revision !== input.currentRevision + 1) {
+      throw new Error(
+        `atomic reload replacement returned revision ${revision}; expected ${input.currentRevision + 1}`,
+      );
+    }
+    return revision;
+  }
+
   async scan(roots: SkillSourceRoot[]): Promise<SkillReloadScan> {
     const startedAt = this.timestamp();
     const discovery = await this.sources.discover(roots);

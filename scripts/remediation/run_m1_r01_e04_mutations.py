@@ -82,6 +82,17 @@ OPERATORS: dict[str, dict[str, str]] = {
             "  if (process.env.ZYRA_E04_MUTATION_DOMAIN_05 !== \"disabled\") { // E04 mutation: disconnect MCP source owner"
         ),
     },
+    "e04-mutation-domain-06": {
+        "target": "packages/runtime/claude-runtime/src/skills/runtime.ts",
+        "needle": (
+            "  static assertSourceRuntimeEnabled(): void {\n"
+            "    if (process.env.ZYRA_DISABLE_E04_SKILL_SOURCE_RUNTIME === \"1\") {"
+        ),
+        "replacement": (
+            "  static assertSourceRuntimeEnabled(): void {\n"
+            "    if (process.env.ZYRA_E04_MUTATION_DOMAIN_06 !== \"disabled\") { // E04 mutation: disconnect skill/plugin/command source owner"
+        ),
+    },
 }
 
 

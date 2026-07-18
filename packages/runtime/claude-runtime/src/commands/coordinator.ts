@@ -25,6 +25,7 @@ import {
   monotonicNow,
 } from "../e02/index.ts";
 import type { PluginManifest } from "../plugins/contracts.ts";
+import { TypeScriptSkillRuntime } from "../skills/runtime.ts";
 import {
   CommandCompletionRuntime,
   type CommandCompletionRequest,
@@ -231,6 +232,7 @@ export class CommandCoordinator {
   }
 
   async open(): Promise<void> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.opened) {
       return;
     }
@@ -320,6 +322,7 @@ export class CommandCoordinator {
     identityValue: Partial<CommandCoordinatorIdentity> = {},
     signal?: AbortSignal,
   ): Promise<CommandCoordinatorExecution> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     this.requireOpen();
     if (toolName === "list_commands") {
       const documents = this.help.index({
@@ -430,6 +433,7 @@ export class CommandCoordinator {
     manifest: PluginManifest,
     metadata: JsonObject = {},
   ): Promise<CommandReloadReceipt> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     const descriptors: CommandDescriptor[] = [];
     for (const command of manifest.commands) {
       const descriptor = await this.descriptor.parse({
@@ -465,6 +469,7 @@ export class CommandCoordinator {
     pluginId: string,
     metadata: JsonObject = {},
   ): Promise<CommandReloadReceipt> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     this.pluginDescriptors.delete(pluginId);
     return this.commitRegistry({
       ...metadata,
@@ -536,6 +541,7 @@ export class CommandCoordinator {
   }
 
   private async reload(metadata: JsonObject): Promise<CommandReloadReceipt> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.reloadPromise) {
       return this.reloadPromise;
     }
@@ -1034,6 +1040,7 @@ function commandExecution(
     metadata: {
       canonical_runtime_owner: "typescript",
       capability_owner: "typescript-command",
+      source_custody: "claude-code-best:loadSkillsFromSkillsDir+plugin-command-dispatch",
       python_command_fallback: "false",
       ...metadata,
     },

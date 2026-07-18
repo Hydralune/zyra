@@ -11,6 +11,7 @@ import { SkillInvocationRuntime, type SkillExecutor } from "./invocation-runtime
 import { SkillRegistryRuntime } from "./registry-runtime.ts";
 import { SkillReloadRuntime } from "./reload-runtime.ts";
 import { SkillResourceRuntime } from "./resource-runtime.ts";
+import { TypeScriptSkillRuntime } from "./runtime.ts";
 import {
   SkillRootRuntime,
   type SkillRootFailure,
@@ -189,6 +190,7 @@ export class SkillCoordinator {
   }
 
   async open(): Promise<void> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.opened) return;
     if (!this.restoredBeforeBootstrap || this.registry.revision === 0) await this.reloadNow({ source: "bootstrap" });
     else await this.refreshSearch();
@@ -218,6 +220,7 @@ export class SkillCoordinator {
     parentToolScope: SkillToolScope = defaultParentScope,
     signal?: AbortSignal,
   ): Promise<SkillCoordinatorExecution> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (!this.opened) throw new Error("skill coordinator is not open");
     if (toolName === "list_skills") {
       const skills = this.registry.list({ availableOnly: true }).map((skill) => ({
@@ -316,6 +319,7 @@ export class SkillCoordinator {
   }
 
   async replacePluginRoots(input: SkillPluginRootUpdate): Promise<SkillRootRevision> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     return this.mutateRoots(
       () => this.rootRuntime.replacePlugin(input, this.rootRuntime.revision),
       {
@@ -328,6 +332,7 @@ export class SkillCoordinator {
   }
 
   async removePluginRoots(pluginId: string, pluginRevision: number): Promise<SkillRootRevision> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     return this.mutateRoots(
       () => this.rootRuntime.removePlugin(pluginId, this.rootRuntime.revision, {
         plugin_revision: pluginRevision,
@@ -341,6 +346,7 @@ export class SkillCoordinator {
   }
 
   async replaceRoots(roots: SkillSourceRoot[], metadataValue: JsonObject = {}): Promise<SkillRootRevision> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     return this.mutateRoots(
       () => this.rootRuntime.replaceAll(roots, this.rootRuntime.revision, metadataValue),
       { source: "root_replace", ...metadataValue },
@@ -385,6 +391,7 @@ export class SkillCoordinator {
       reload_failure_count: this.reloadFailures.size,
       pending_invocations: this.journal.pending().length,
       watcher_active: this.watcher.snapshot().active,
+      source_custody: "claude-code-best:loadSkillsFromSkillsDir+executeForkedSkill",
       python_skill_fallback: false,
       snapshot_digest: this.snapshot().digest,
     };
@@ -396,8 +403,9 @@ export class SkillCoordinator {
   }
 
   private async reloadNow(metadataValue: JsonObject): Promise<void> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.reloadPromise) return this.reloadPromise;
-    this.reloadPromise = (async () => {
+    this.reloadPromise = TypeScriptSkillRuntime.loadSkillsFromSkillsDir(async () => {
       const registryRevisionBefore = this.registry.revision;
       const source = typeof metadataValue.source === "string" ? metadataValue.source : "unknown";
       const scan = await this.reload.scan(this.rootRuntime.list({ enabledOnly: true, existingOnly: true }));
@@ -415,7 +423,11 @@ export class SkillCoordinator {
         removed: revision.removed,
         errorCount: scan.errors.length,
         committedAt,
-        metadata: canonicalize(metadataValue) as JsonObject,
+        metadata: canonicalize({
+          ...metadataValue,
+          source_custody: "claude-code-best:loadSkillsFromSkillsDir",
+          source_owner: "TypeScriptSkillRuntime",
+        }) as JsonObject,
       };
       const receipt: SkillReloadReceipt = {
         receiptId: deterministicId("skill-reload-receipt", receiptBase, 40),
@@ -428,7 +440,7 @@ export class SkillCoordinator {
         if (!oldest) break;
         this.reloadHistory.delete(oldest.receiptId);
       }
-    })();
+    });
     try {
       await this.reloadPromise;
     } catch (error) {
@@ -590,7 +602,13 @@ function result(summary: string, output: JsonObject): SkillCoordinatorExecution 
 }
 
 function metadata(values: Record<string, string>): Record<string, string> {
-  return { canonical_runtime_owner: "typescript", capability_owner: "typescript-skill", python_skill_fallback: "false", ...values };
+  return {
+    canonical_runtime_owner: "typescript",
+    capability_owner: "typescript-skill",
+    source_custody: "claude-code-best:loadSkillsFromSkillsDir+executeForkedSkill",
+    python_skill_fallback: "false",
+    ...values,
+  };
 }
 
 function requiredString(value: JsonObject, key: string): string {

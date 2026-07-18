@@ -2,7 +2,14 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 
-import { asObject, asString, type JsonObject, type ToolSpecContract } from "../contracts.ts";
+import {
+  asObject,
+  asString,
+  type JsonObject,
+  type RuntimeRunInput,
+  type RuntimeRunResult,
+  type ToolSpecContract,
+} from "../contracts.ts";
 import type { CommandDescriptor, SkillDescriptor, SkillExecutionResult } from "./contracts.ts";
 import { parseMarkdownDocument } from "./frontmatter.ts";
 
@@ -23,6 +30,41 @@ const SKILL_TOOLS = new Set([
 ]);
 
 export class TypeScriptSkillRuntime {
+  static assertSourceRuntimeEnabled(): void {
+    if (process.env.ZYRA_DISABLE_E04_SKILL_SOURCE_RUNTIME === "1") {
+      throw Object.assign(
+        new Error(
+          "The migrated TypeScript skill/plugin/command source runtime is disabled; no legacy or Python fallback is permitted",
+        ),
+        {
+          name: "SkillSourceRuntimeDisabledError",
+          code: "e04_skill_source_runtime_disabled",
+        },
+      );
+    }
+  }
+
+  static loadSkillsFromSkillsDir<T>(
+    discoverValidateAndRegister: () => Promise<T>,
+  ): Promise<T> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
+    return discoverValidateAndRegister();
+  }
+
+  static executeForkedSkill(
+    childInput: RuntimeRunInput,
+    runChild: (input: RuntimeRunInput) => Promise<RuntimeRunResult>,
+    signal?: AbortSignal,
+  ): Promise<RuntimeRunResult> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error
+        ? signal.reason
+        : new Error("forked skill execution was aborted");
+    }
+    return runChild(childInput);
+  }
+
   private readonly roots: RuntimeRoot[];
   private readonly skills = new Map<string, SkillDescriptor>();
   private readonly commands = new Map<string, CommandDescriptor>();
@@ -33,6 +75,7 @@ export class TypeScriptSkillRuntime {
   }
 
   async open(): Promise<void> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.opened) {
       return;
     }
@@ -132,6 +175,7 @@ export class TypeScriptSkillRuntime {
   }
 
   async execute(toolName: string, argumentsValue: JsonObject): Promise<SkillExecutionResult> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (toolName === "list_skills") {
       return this.listSkills();
     }

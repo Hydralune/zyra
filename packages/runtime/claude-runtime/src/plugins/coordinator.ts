@@ -70,6 +70,8 @@ import {
   type PluginSupplyChainReceipt,
   type PluginSupplyChainSnapshot,
 } from "./supply-chain-runtime.ts";
+import { SkillReloadRuntime } from "../skills/reload-runtime.ts";
+import { TypeScriptSkillRuntime } from "../skills/runtime.ts";
 
 export interface PluginSourceRoot {
   rootId: string;
@@ -261,7 +263,7 @@ const defaultSupplyPolicy = (
   forbiddenContentPatterns: [
     "-----BEGIN PRIVATE KEY-----",
     "-----BEGIN RSA PRIVATE KEY-----",
-    "child_process.execSync(",
+    "child_process\\.execSync\\(",
   ],
   metadata: {
     owner: "typescript-plugin-coordinator",
@@ -360,6 +362,7 @@ export class PluginCoordinator {
     this.hooks = new PluginHookRuntime({
       executor: options.hookExecutor,
       now: this.now,
+      initialRevision: snapshot?.hookRevision ?? 0,
     });
     const internalIntegration = this.integrationBoundary();
     this.runtime = new PluginRuntime({
@@ -376,6 +379,7 @@ export class PluginCoordinator {
   }
 
   async open(): Promise<void> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.opened) {
       return;
     }
@@ -454,6 +458,7 @@ export class PluginCoordinator {
     argumentsValue: JsonObject,
     signal?: AbortSignal,
   ): Promise<PluginCoordinatorExecution> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     this.requireOpen();
     if (toolName === "list_plugins") {
       const plugins = this.runtime.list().map(projectPluginRecord);
@@ -577,11 +582,13 @@ export class PluginCoordinator {
     results: PluginHookResult[];
     failedClosed: boolean;
   }> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     this.requireOpen();
     return this.hooks.beforeTool(context, signal);
   }
 
   async reload(metadata: JsonObject = {}): Promise<PluginReloadReceipt> {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.reloadPromise) {
       return this.reloadPromise;
     }
@@ -650,6 +657,8 @@ export class PluginCoordinator {
       discovered_candidates: this.candidates.size,
       hook_revision: this.hookRevision,
       hook_count: this.hookRegistrations.size,
+      hook_source_custody: "claude-code-best:loadPluginHooks",
+      hook_swap_owner: "typescript.PluginHookRuntime.replace",
       watch_active: this.watchers.size > 0,
       pending_reload: this.pendingReload,
       discovery_failure_count: this.failures.size,
@@ -940,21 +949,12 @@ export class PluginCoordinator {
       },
       addHooks: async (manifest) => {
         const external = await this.externalIntegration.addHooks(manifest);
-        for (const hook of manifest.hooks) {
-          const key = `${manifest.pluginId}:${hook.hookId}`;
-          this.hookRegistrations.set(key, {
-            pluginId: manifest.pluginId,
-            pluginRevision: this.pluginRevisions.get(manifest.pluginId) ?? this.runtime?.get(manifest.pluginId)?.revision ?? 0,
-            manifestDigest: manifest.manifestDigest,
-            manifest: cloneJson(manifest),
-            hook: cloneJson(hook),
-          });
-        }
-        this.refreshHooks();
         return {
           ...external,
-          hook_revision: this.hookRevision,
+          hook_revision_before_commit: this.hookRevision,
           hook_count: manifest.hooks.length,
+          hook_swap: "staged_until_global_commit",
+          source_custody: "claude-code-best:loadPluginHooks",
         };
       },
       addAgents: async (manifest) => {
@@ -964,31 +964,48 @@ export class PluginCoordinator {
         return this.externalIntegration.addMcpServers(manifest);
       },
       remove: async (pluginId, revision) => {
-        for (const key of [...this.hookRegistrations.keys()]) {
-          if (key.startsWith(`${pluginId}:`)) {
-            this.hookRegistrations.delete(key);
-          }
-        }
-        this.refreshHooks();
         await this.externalIntegration.remove(pluginId, revision);
       },
     };
   }
 
-  private refreshHooks(): void {
-    const registrations = [...this.hookRegistrations.values()]
+  private replaceActiveHooks(records: PluginRuntimeRecord[]): void {
+    const registrations = records
+      .filter((record) => record.status === "active")
+      .flatMap((record) => record.manifest.hooks.map((hook) => ({
+        pluginId: record.pluginId,
+        pluginRevision: record.revision,
+        manifestDigest: record.manifest.manifestDigest,
+        manifest: cloneJson(record.manifest),
+        hook: cloneJson(hook),
+      })))
       .sort((left, right) => left.pluginId.localeCompare(right.pluginId) || left.hook.priority - right.hook.priority || left.hook.hookId.localeCompare(right.hook.hookId));
-    this.hookRevision = this.hooks.replace(
-      registrations,
-      this.hookRevision,
-    );
+    const nextRevision = SkillReloadRuntime.commitAtomicReplacement({
+      currentRevision: this.hookRevision,
+      expectedRevision: this.hookRevision,
+      staged: registrations,
+      replace: (staged, expectedRevision) => this.hooks.replace(
+        [...staged],
+        expectedRevision,
+      ),
+    });
+    this.hookRegistrations.clear();
+    for (const registration of registrations) {
+      this.hookRegistrations.set(
+        `${registration.pluginId}:${registration.hook.hookId}`,
+        cloneJson(registration),
+      );
+    }
+    this.hookRevision = nextRevision;
   }
 
   private async commitGlobalState(metadata: JsonObject): Promise<{
     dependencyRevision: number;
     capabilityRevision: number;
+    hookRevision: number;
   }> {
-    const manifests = this.runtime.list()
+    const records = this.runtime.list();
+    const manifests = records
       .filter((record) => record.status === "active")
       .map((record) => record.manifest);
     const dependencyHead = this.dependencies.head();
@@ -1015,14 +1032,17 @@ export class PluginCoordinator {
       this.capabilities.snapshot().revision,
       metadata,
     );
+    this.replaceActiveHooks(records);
     return {
       dependencyRevision,
       capabilityRevision: capability.revisionAfter,
+      hookRevision: this.hookRevision,
     };
   }
 
   private async rebindRestoredCapabilities(): Promise<void> {
-    for (const record of this.runtime.list()) {
+    const records = this.runtime.list();
+    for (const record of records) {
       if (record.status !== "active") {
         continue;
       }
@@ -1031,18 +1051,9 @@ export class PluginCoordinator {
       await this.externalIntegration.addAgents(record.manifest);
       await this.externalIntegration.addMcpServers(record.manifest);
       await this.externalIntegration.addHooks(record.manifest);
-      for (const hook of record.manifest.hooks) {
-        this.hookRegistrations.set(`${record.pluginId}:${hook.hookId}`, {
-          pluginId: record.pluginId,
-          pluginRevision: record.revision,
-          manifestDigest: record.manifest.manifestDigest,
-          manifest: cloneJson(record.manifest),
-          hook: cloneJson(hook),
-        });
-      }
       this.pluginRevisions.set(record.pluginId, record.revision);
     }
-    this.refreshHooks();
+    this.replaceActiveHooks(records);
   }
 
   private async startWatchers(): Promise<void> {
@@ -1172,7 +1183,7 @@ export class PluginCoordinator {
 
   private restoreLocal(snapshot: PluginCoordinatorSnapshot): void {
     this.discoveryRevision = snapshot.discoveryRevision;
-    this.hookRevision = 0;
+    this.hookRevision = snapshot.hookRevision;
     this.watchSequence = snapshot.watchSequence;
     this.pendingReload = false;
     for (const candidate of snapshot.candidates) {
@@ -1514,6 +1525,7 @@ function pluginExecution(
     metadata: {
       canonical_runtime_owner: "typescript",
       capability_owner: "typescript-plugin",
+      source_custody: "claude-code-best:loadPluginHooks",
       python_plugin_fallback: "false",
       ...metadata,
     },

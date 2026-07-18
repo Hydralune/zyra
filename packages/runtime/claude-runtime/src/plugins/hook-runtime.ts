@@ -44,10 +44,20 @@ export class PluginHookRuntime {
   private revision = 0;
   private lastTimestamp: string | null = null;
 
-  constructor(options: { executor: PluginHookExecutor; now?: () => Date; maximumResults?: number }) {
+  constructor(options: {
+    executor: PluginHookExecutor;
+    now?: () => Date;
+    maximumResults?: number;
+    initialRevision?: number;
+  }) {
     this.executor = options.executor;
     this.now = options.now ?? (() => new Date());
     this.maximumResults = options.maximumResults ?? 20_000;
+    const initialRevision = options.initialRevision ?? 0;
+    if (!Number.isSafeInteger(initialRevision) || initialRevision < 0) {
+      throw hookError("hook_revision_invalid", "plugin hook initial revision must be a non-negative safe integer");
+    }
+    this.revision = initialRevision;
   }
 
   replace(registrationsValue: PluginHookRegistration[], expectedRevision = this.revision): number {
