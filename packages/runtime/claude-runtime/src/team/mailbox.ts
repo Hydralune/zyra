@@ -3870,3 +3870,829 @@ export class MailboxRetentionRuntime {
     return structuredClone(next);
   }
 }
+
+export interface MailboxConsumerGroup {
+  groupId: string;
+  topicId: string;
+  partitionCount: number;
+  generation: number;
+  state: "stable" | "preparing" | "assigning" | "failed";
+  memberIds: string[];
+  activePlanId: string;
+  assignmentDigest: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxGroupMember {
+  memberId: string;
+  groupId: string;
+  ownerId: string;
+  capacity: number;
+  generation: number;
+  assignedPartitions: number[];
+  pendingRevocations: number[];
+  state: "joining" | "active" | "revoking" | "left" | "expired";
+  leaseExpiresAt: string;
+  lastHeartbeatAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxRebalancePlan {
+  planId: string;
+  groupId: string;
+  generation: number;
+  state: "planned" | "revoking" | "ready" | "committed" | "aborted";
+  priorAssignmentDigest: string;
+  assignments: Array<{ memberId: string; partitions: number[] }>;
+  revocations: Array<{ memberId: string; partitions: number[] }>;
+  acknowledgedMemberIds: string[];
+  planDigest: string;
+  abortReason: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxRebalanceAck {
+  ackId: string;
+  planId: string;
+  memberId: string;
+  generation: number;
+  revokedPartitions: number[];
+  lastProcessedOffsets: Array<[number, number]>;
+  accepted: boolean;
+  errorCode: string;
+  previousAckDigest: string;
+  acknowledgedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxConsumerGroupSnapshot {
+  groups: MailboxConsumerGroup[];
+  members: MailboxGroupMember[];
+  plans: MailboxRebalancePlan[];
+  acknowledgements: MailboxRebalanceAck[];
+  activeMemberIdByOwner: Array<[string, string]>;
+  latestAckIdByPlanMember: Array<[string, string]>;
+  digest: string;
+}
+
+function assertMailboxConsumerGroup(value: MailboxConsumerGroup): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.groupId ||
+    !value.topicId ||
+    value.partitionCount < 1 ||
+    value.generation < 1 ||
+    new Set(value.memberIds).size !== value.memberIds.length ||
+    !value.assignmentDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "mailbox_consumer_group_corrupt",
+      `mailbox consumer group ${value.groupId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMailboxGroupMember(value: MailboxGroupMember): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.memberId ||
+    !value.groupId ||
+    !value.ownerId ||
+    value.capacity < 1 ||
+    value.generation < 1 ||
+    new Set(value.assignedPartitions).size !==
+      value.assignedPartitions.length ||
+    new Set(value.pendingRevocations).size !==
+      value.pendingRevocations.length ||
+    value.pendingRevocations.some(
+      (partition) => !value.assignedPartitions.includes(partition),
+    ) ||
+    Number.isNaN(Date.parse(value.leaseExpiresAt)) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "mailbox_group_member_corrupt",
+      `mailbox group member ${value.memberId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMailboxRebalancePlan(value: MailboxRebalancePlan): void {
+  const { digest: expected, ...payload } = value;
+  const assignmentMembers = value.assignments.map((item) => item.memberId);
+  if (
+    !value.planId ||
+    !value.groupId ||
+    value.generation < 1 ||
+    !value.priorAssignmentDigest ||
+    new Set(assignmentMembers).size !== assignmentMembers.length ||
+    value.assignments.some(
+      (item) => new Set(item.partitions).size !== item.partitions.length,
+    ) ||
+    new Set(value.acknowledgedMemberIds).size !==
+      value.acknowledgedMemberIds.length ||
+    !value.planDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "mailbox_rebalance_plan_corrupt",
+      `mailbox rebalance plan ${value.planId || "<empty>"} is corrupt`,
+    );
+  if (value.state === "aborted" && !value.abortReason)
+    throw new E03RuntimeError(
+      "mailbox_rebalance_abort_reason_missing",
+      "aborted mailbox rebalance requires reason",
+    );
+}
+
+function assertMailboxRebalanceAck(value: MailboxRebalanceAck): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.ackId ||
+    !value.planId ||
+    !value.memberId ||
+    value.generation < 1 ||
+    new Set(value.revokedPartitions).size !== value.revokedPartitions.length ||
+    new Set(value.lastProcessedOffsets.map(([partition]) => partition)).size !==
+      value.lastProcessedOffsets.length ||
+    value.lastProcessedOffsets.some(([, offset]) => offset < 0) ||
+    (!value.accepted && !value.errorCode) ||
+    !value.previousAckDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "mailbox_rebalance_ack_corrupt",
+      `mailbox rebalance ack ${value.ackId || "<empty>"} is corrupt`,
+    );
+}
+
+export class MailboxConsumerGroupRuntime {
+  private groups = new Map<string, MailboxConsumerGroup>();
+  private members = new Map<string, MailboxGroupMember>();
+  private plans = new Map<string, MailboxRebalancePlan>();
+  private acknowledgements = new Map<string, MailboxRebalanceAck>();
+  private activeMemberIdByOwner = new Map<string, string>();
+  private latestAckIdByPlanMember = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  createGroup(input: {
+    groupId?: string;
+    topicId: string;
+    partitionCount: number;
+  }): MailboxConsumerGroup {
+    const groupId = input.groupId ?? createId("mailbox-consumer-group");
+    const prior = this.groups.get(groupId);
+    if (prior) {
+      if (
+        prior.topicId !== input.topicId ||
+        prior.partitionCount !== input.partitionCount
+      )
+        throw new E03RuntimeError(
+          "mailbox_consumer_group_id_conflict",
+          `mailbox consumer group ${groupId} conflicts`,
+        );
+      return structuredClone(prior);
+    }
+    const now = this.clock.now();
+    const payload = {
+      groupId,
+      topicId: input.topicId,
+      partitionCount: input.partitionCount,
+      generation: 1,
+      state: "stable" as const,
+      memberIds: [] as string[],
+      activePlanId: "",
+      assignmentDigest: digest([]),
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const group = { ...payload, digest: digest(payload) };
+    assertMailboxConsumerGroup(group);
+    this.groups.set(group.groupId, group);
+    return structuredClone(group);
+  }
+
+  join(input: {
+    groupId: string;
+    expectedRevision: number;
+    ownerId: string;
+    capacity: number;
+    leaseMs: number;
+    now?: string;
+  }): { group: MailboxConsumerGroup; member: MailboxGroupMember } {
+    const group = this.requireGroup(input.groupId);
+    this.assertGroupRevision(group, input.expectedRevision);
+    if (group.state !== "stable")
+      throw new E03RuntimeError(
+        "mailbox_consumer_group_join_during_rebalance",
+        "mailbox consumer cannot join during rebalance",
+      );
+    const ownerKey = this.ownerKey(group.groupId, input.ownerId);
+    const activeId = this.activeMemberIdByOwner.get(ownerKey);
+    const active = activeId ? this.members.get(activeId) : undefined;
+    if (active && active.state !== "left" && active.state !== "expired")
+      return { group: structuredClone(group), member: structuredClone(active) };
+    if (
+      !input.ownerId ||
+      input.capacity < 1 ||
+      !Number.isInteger(input.capacity) ||
+      input.leaseMs < 1
+    )
+      throw new E03RuntimeError(
+        "mailbox_group_member_input_invalid",
+        "mailbox group member input is invalid",
+      );
+    const now = input.now ?? this.clock.now();
+    const payload = {
+      memberId: createId("mailbox-group-member"),
+      groupId: group.groupId,
+      ownerId: input.ownerId,
+      capacity: input.capacity,
+      generation: group.generation,
+      assignedPartitions: [] as number[],
+      pendingRevocations: [] as number[],
+      state: "joining" as const,
+      leaseExpiresAt: new Date(Date.parse(now) + input.leaseMs).toISOString(),
+      lastHeartbeatAt: now,
+      revision: 1,
+    };
+    const member = { ...payload, digest: digest(payload) };
+    assertMailboxGroupMember(member);
+    this.members.set(member.memberId, member);
+    this.activeMemberIdByOwner.set(ownerKey, member.memberId);
+    const nextGroup = this.transitionGroup(group, {
+      memberIds: [...group.memberIds, member.memberId].sort(),
+      updatedAt: now,
+    });
+    return { group: nextGroup, member: structuredClone(member) };
+  }
+
+  heartbeat(input: {
+    memberId: string;
+    expectedRevision: number;
+    generation: number;
+    leaseMs: number;
+    now?: string;
+  }): MailboxGroupMember {
+    const member = this.requireMember(input.memberId);
+    this.assertMemberRevision(member, input.expectedRevision);
+    if (
+      member.generation !== input.generation ||
+      member.state === "left" ||
+      member.state === "expired"
+    )
+      throw new E03RuntimeError(
+        "mailbox_group_member_heartbeat_stale",
+        "mailbox group member heartbeat is stale",
+      );
+    const now = input.now ?? this.clock.now();
+    return this.transitionMember(member, {
+      lastHeartbeatAt: now,
+      leaseExpiresAt: new Date(Date.parse(now) + input.leaseMs).toISOString(),
+    });
+  }
+
+  planRebalance(input: { groupId: string; expectedRevision: number }): {
+    group: MailboxConsumerGroup;
+    plan: MailboxRebalancePlan;
+  } {
+    const group = this.requireGroup(input.groupId);
+    this.assertGroupRevision(group, input.expectedRevision);
+    if (group.state !== "stable")
+      throw new E03RuntimeError(
+        "mailbox_rebalance_group_not_stable",
+        "mailbox consumer group is already rebalancing",
+      );
+    const members = group.memberIds
+      .map((id) => this.requireMember(id))
+      .filter((member) => member.state !== "left" && member.state !== "expired")
+      .sort((left, right) => left.memberId.localeCompare(right.memberId));
+    if (!members.length)
+      throw new E03RuntimeError(
+        "mailbox_rebalance_members_missing",
+        "mailbox rebalance requires active members",
+      );
+    const assignments = members.map((member) => ({
+      memberId: member.memberId,
+      partitions: [] as number[],
+    }));
+    for (let partition = 0; partition < group.partitionCount; partition += 1) {
+      const eligible = assignments
+        .filter((assignment) => {
+          const member = members.find(
+            (value) => value.memberId === assignment.memberId,
+          )!;
+          return assignment.partitions.length < member.capacity;
+        })
+        .sort(
+          (left, right) =>
+            left.partitions.length - right.partitions.length ||
+            left.memberId.localeCompare(right.memberId),
+        );
+      const selected = eligible[0];
+      if (!selected)
+        throw new E03RuntimeError(
+          "mailbox_rebalance_capacity_insufficient",
+          "mailbox consumer capacity cannot cover partitions",
+        );
+      selected.partitions.push(partition);
+    }
+    const revocations = members
+      .map((member) => ({
+        memberId: member.memberId,
+        partitions: member.assignedPartitions.filter(
+          (partition) =>
+            !assignments
+              .find((assignment) => assignment.memberId === member.memberId)!
+              .partitions.includes(partition),
+        ),
+      }))
+      .filter((item) => item.partitions.length > 0);
+    const generation = group.generation + 1;
+    const planProjection = {
+      groupId: group.groupId,
+      generation,
+      assignments,
+      revocations,
+    };
+    const now = this.clock.now();
+    const payload = {
+      planId: createId("mailbox-rebalance-plan"),
+      groupId: group.groupId,
+      generation,
+      state: revocations.length ? ("revoking" as const) : ("ready" as const),
+      priorAssignmentDigest: group.assignmentDigest,
+      assignments,
+      revocations,
+      acknowledgedMemberIds: [] as string[],
+      planDigest: digest(planProjection),
+      abortReason: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const plan = { ...payload, digest: digest(payload) };
+    assertMailboxRebalancePlan(plan);
+    this.plans.set(plan.planId, plan);
+    for (const revocation of revocations) {
+      const member = this.requireMember(revocation.memberId);
+      this.transitionMember(member, {
+        state: "revoking",
+        pendingRevocations: revocation.partitions,
+      });
+    }
+    const nextGroup = this.transitionGroup(group, {
+      state: revocations.length ? "preparing" : "assigning",
+      activePlanId: plan.planId,
+      updatedAt: now,
+    });
+    return { group: nextGroup, plan: structuredClone(plan) };
+  }
+
+  acknowledgeRevocation(input: {
+    planId: string;
+    expectedRevision: number;
+    memberId: string;
+    generation: number;
+    revokedPartitions: number[];
+    lastProcessedOffsets: Array<[number, number]>;
+    accepted: boolean;
+    errorCode?: string;
+  }): { plan: MailboxRebalancePlan; acknowledgement: MailboxRebalanceAck } {
+    const plan = this.requirePlan(input.planId);
+    this.assertPlanRevision(plan, input.expectedRevision);
+    if (plan.state !== "revoking" || plan.generation !== input.generation)
+      throw new E03RuntimeError(
+        "mailbox_rebalance_ack_generation_stale",
+        "mailbox rebalance acknowledgement is stale",
+      );
+    const revocation = plan.revocations.find(
+      (item) => item.memberId === input.memberId,
+    );
+    if (
+      !revocation ||
+      digest([...revocation.partitions].sort()) !==
+        digest([...input.revokedPartitions].sort())
+    )
+      throw new E03RuntimeError(
+        "mailbox_rebalance_ack_partition_mismatch",
+        "mailbox rebalance acknowledgement partitions differ",
+      );
+    const key = `${plan.planId}:${input.memberId}`;
+    const priorId = this.latestAckIdByPlanMember.get(key);
+    const prior = priorId ? this.acknowledgements.get(priorId) : undefined;
+    if (prior?.accepted)
+      return {
+        plan: structuredClone(plan),
+        acknowledgement: structuredClone(prior),
+      };
+    const payload = {
+      ackId: createId("mailbox-rebalance-ack"),
+      planId: plan.planId,
+      memberId: input.memberId,
+      generation: plan.generation,
+      revokedPartitions: [...input.revokedPartitions].sort(),
+      lastProcessedOffsets: [...input.lastProcessedOffsets].sort(
+        (a, b) => a[0] - b[0],
+      ),
+      accepted: input.accepted,
+      errorCode: input.errorCode ?? "",
+      previousAckDigest: prior?.digest ?? digest("mailbox-rebalance-ack-root"),
+      acknowledgedAt: this.clock.now(),
+      revision: (prior?.revision ?? 0) + 1,
+    };
+    const acknowledgement = { ...payload, digest: digest(payload) };
+    assertMailboxRebalanceAck(acknowledgement);
+    this.acknowledgements.set(acknowledgement.ackId, acknowledgement);
+    this.latestAckIdByPlanMember.set(key, acknowledgement.ackId);
+    if (!input.accepted) {
+      const failed = this.transitionPlan(plan, {
+        state: "aborted",
+        abortReason: input.errorCode ?? "revocation-rejected",
+        updatedAt: this.clock.now(),
+      });
+      return {
+        plan: failed,
+        acknowledgement: structuredClone(acknowledgement),
+      };
+    }
+    const acknowledged = new Set(plan.acknowledgedMemberIds);
+    acknowledged.add(input.memberId);
+    const ready = plan.revocations.every((item) =>
+      acknowledged.has(item.memberId),
+    );
+    const next = this.transitionPlan(plan, {
+      state: ready ? "ready" : "revoking",
+      acknowledgedMemberIds: [...acknowledged].sort(),
+      updatedAt: this.clock.now(),
+    });
+    return { plan: next, acknowledgement: structuredClone(acknowledgement) };
+  }
+
+  commitRebalance(input: {
+    groupId: string;
+    expectedGroupRevision: number;
+    planId: string;
+    expectedPlanRevision: number;
+  }): {
+    group: MailboxConsumerGroup;
+    plan: MailboxRebalancePlan;
+    members: MailboxGroupMember[];
+  } {
+    const group = this.requireGroup(input.groupId);
+    const plan = this.requirePlan(input.planId);
+    this.assertGroupRevision(group, input.expectedGroupRevision);
+    this.assertPlanRevision(plan, input.expectedPlanRevision);
+    if (
+      group.activePlanId !== plan.planId ||
+      plan.groupId !== group.groupId ||
+      plan.state !== "ready" ||
+      plan.priorAssignmentDigest !== group.assignmentDigest
+    )
+      throw new E03RuntimeError(
+        "mailbox_rebalance_commit_binding_mismatch",
+        "mailbox rebalance plan no longer matches group",
+      );
+    const updated: MailboxGroupMember[] = [];
+    for (const assignment of plan.assignments) {
+      const member = this.requireMember(assignment.memberId);
+      updated.push(
+        this.transitionMember(member, {
+          generation: plan.generation,
+          assignedPartitions: [...assignment.partitions].sort((a, b) => a - b),
+          pendingRevocations: [],
+          state: "active",
+        }),
+      );
+    }
+    const assignmentDigest = digest(
+      plan.assignments.map((item) => ({
+        memberId: item.memberId,
+        partitions: [...item.partitions].sort((a, b) => a - b),
+      })),
+    );
+    const nextPlan = this.transitionPlan(plan, {
+      state: "committed",
+      updatedAt: this.clock.now(),
+    });
+    const nextGroup = this.transitionGroup(group, {
+      generation: plan.generation,
+      state: "stable",
+      activePlanId: "",
+      assignmentDigest,
+      updatedAt: this.clock.now(),
+    });
+    return { group: nextGroup, plan: nextPlan, members: updated };
+  }
+
+  abortRebalance(input: {
+    groupId: string;
+    expectedGroupRevision: number;
+    planId: string;
+    expectedPlanRevision: number;
+    reason: string;
+  }): { group: MailboxConsumerGroup; plan: MailboxRebalancePlan } {
+    const group = this.requireGroup(input.groupId);
+    const plan = this.requirePlan(input.planId);
+    this.assertGroupRevision(group, input.expectedGroupRevision);
+    this.assertPlanRevision(plan, input.expectedPlanRevision);
+    if (plan.state === "committed")
+      throw new E03RuntimeError(
+        "mailbox_rebalance_abort_committed",
+        "committed mailbox rebalance cannot abort",
+      );
+    if (!input.reason)
+      throw new E03RuntimeError(
+        "mailbox_rebalance_abort_reason_required",
+        "mailbox rebalance abort requires reason",
+      );
+    for (const memberId of group.memberIds) {
+      const member = this.requireMember(memberId);
+      if (member.state === "revoking")
+        this.transitionMember(member, {
+          state: "active",
+          pendingRevocations: [],
+        });
+    }
+    const nextPlan = this.transitionPlan(plan, {
+      state: "aborted",
+      abortReason: input.reason,
+      updatedAt: this.clock.now(),
+    });
+    const nextGroup = this.transitionGroup(group, {
+      state: "stable",
+      activePlanId: "",
+      updatedAt: this.clock.now(),
+    });
+    return { group: nextGroup, plan: nextPlan };
+  }
+
+  expireMembers(now = this.clock.now()): MailboxGroupMember[] {
+    const expired: MailboxGroupMember[] = [];
+    for (const member of this.members.values()) {
+      if (
+        (member.state !== "active" && member.state !== "joining") ||
+        Date.parse(member.leaseExpiresAt) > Date.parse(now)
+      )
+        continue;
+      const next = this.transitionMember(member, {
+        state: "expired",
+        pendingRevocations: [],
+      });
+      this.activeMemberIdByOwner.delete(
+        this.ownerKey(member.groupId, member.ownerId),
+      );
+      expired.push(next);
+    }
+    return expired;
+  }
+
+  leave(input: {
+    memberId: string;
+    expectedRevision: number;
+    generation: number;
+  }): MailboxGroupMember {
+    const member = this.requireMember(input.memberId);
+    this.assertMemberRevision(member, input.expectedRevision);
+    if (member.generation !== input.generation)
+      throw new E03RuntimeError(
+        "mailbox_group_member_leave_generation_stale",
+        "mailbox group member leave generation is stale",
+      );
+    if (member.state === "left") return structuredClone(member);
+    const next = this.transitionMember(member, {
+      state: "left",
+      pendingRevocations: [],
+      assignedPartitions: [],
+    });
+    this.activeMemberIdByOwner.delete(
+      this.ownerKey(member.groupId, member.ownerId),
+    );
+    return next;
+  }
+
+  snapshot(): MailboxConsumerGroupSnapshot {
+    const payload = {
+      groups: [...this.groups.values()].map((value) => structuredClone(value)),
+      members: [...this.members.values()].map((value) =>
+        structuredClone(value),
+      ),
+      plans: [...this.plans.values()].map((value) => structuredClone(value)),
+      acknowledgements: [...this.acknowledgements.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeMemberIdByOwner: [...this.activeMemberIdByOwner.entries()],
+      latestAckIdByPlanMember: [...this.latestAckIdByPlanMember.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: MailboxConsumerGroupSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "mailbox_consumer_group_snapshot_corrupt",
+        "mailbox consumer group snapshot digest mismatch",
+      );
+    const groups = new Map<string, MailboxConsumerGroup>();
+    const members = new Map<string, MailboxGroupMember>();
+    const plans = new Map<string, MailboxRebalancePlan>();
+    const acknowledgements = new Map<string, MailboxRebalanceAck>();
+    for (const value of payload.groups) {
+      assertMailboxConsumerGroup(value);
+      if (groups.has(value.groupId))
+        throw new E03RuntimeError(
+          "mailbox_consumer_group_snapshot_duplicate",
+          `duplicate mailbox consumer group ${value.groupId}`,
+        );
+      groups.set(value.groupId, structuredClone(value));
+    }
+    for (const value of payload.members) {
+      assertMailboxGroupMember(value);
+      if (!groups.has(value.groupId))
+        throw new E03RuntimeError(
+          "mailbox_consumer_group_snapshot_member_orphaned",
+          `mailbox group member ${value.memberId} is orphaned`,
+        );
+      members.set(value.memberId, structuredClone(value));
+    }
+    for (const value of payload.plans) {
+      assertMailboxRebalancePlan(value);
+      if (!groups.has(value.groupId))
+        throw new E03RuntimeError(
+          "mailbox_consumer_group_snapshot_plan_orphaned",
+          `mailbox rebalance plan ${value.planId} is orphaned`,
+        );
+      plans.set(value.planId, structuredClone(value));
+    }
+    for (const value of payload.acknowledgements) {
+      assertMailboxRebalanceAck(value);
+      if (!plans.has(value.planId) || !members.has(value.memberId))
+        throw new E03RuntimeError(
+          "mailbox_consumer_group_snapshot_ack_orphaned",
+          `mailbox rebalance ack ${value.ackId} is orphaned`,
+        );
+      acknowledgements.set(value.ackId, structuredClone(value));
+    }
+    const memberIndex = new Map(payload.activeMemberIdByOwner);
+    for (const memberId of memberIndex.values())
+      if (!members.has(memberId))
+        throw new E03RuntimeError(
+          "mailbox_consumer_group_snapshot_member_index_corrupt",
+          `mailbox active member index references ${memberId}`,
+        );
+    const ackIndex = new Map(payload.latestAckIdByPlanMember);
+    for (const ackId of ackIndex.values())
+      if (!acknowledgements.has(ackId))
+        throw new E03RuntimeError(
+          "mailbox_consumer_group_snapshot_ack_index_corrupt",
+          `mailbox rebalance ack index references ${ackId}`,
+        );
+    this.groups = groups;
+    this.members = members;
+    this.plans = plans;
+    this.acknowledgements = acknowledgements;
+    this.activeMemberIdByOwner = memberIndex;
+    this.latestAckIdByPlanMember = ackIndex;
+  }
+
+  private ownerKey(groupId: string, ownerId: string): string {
+    return `${groupId}:${ownerId}`;
+  }
+
+  private requireGroup(id: string): MailboxConsumerGroup {
+    const value = this.groups.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_consumer_group_missing",
+        `mailbox consumer group ${id} does not exist`,
+      );
+    assertMailboxConsumerGroup(value);
+    return value;
+  }
+
+  private requireMember(id: string): MailboxGroupMember {
+    const value = this.members.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_group_member_missing",
+        `mailbox group member ${id} does not exist`,
+      );
+    assertMailboxGroupMember(value);
+    return value;
+  }
+
+  private requirePlan(id: string): MailboxRebalancePlan {
+    const value = this.plans.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_rebalance_plan_missing",
+        `mailbox rebalance plan ${id} does not exist`,
+      );
+    assertMailboxRebalancePlan(value);
+    return value;
+  }
+
+  private assertGroupRevision(
+    value: MailboxConsumerGroup,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_consumer_group_stale_revision",
+        `mailbox consumer group ${value.groupId} revision is stale`,
+      );
+  }
+
+  private assertMemberRevision(
+    value: MailboxGroupMember,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_group_member_stale_revision",
+        `mailbox group member ${value.memberId} revision is stale`,
+      );
+  }
+
+  private assertPlanRevision(
+    value: MailboxRebalancePlan,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_rebalance_plan_stale_revision",
+        `mailbox rebalance plan ${value.planId} revision is stale`,
+      );
+  }
+
+  private transitionGroup(
+    value: MailboxConsumerGroup,
+    patch: Partial<
+      Omit<MailboxConsumerGroup, "groupId" | "revision" | "digest">
+    >,
+  ): MailboxConsumerGroup {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      groupId: value.groupId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxConsumerGroup(next);
+    this.groups.set(next.groupId, next);
+    return structuredClone(next);
+  }
+
+  private transitionMember(
+    value: MailboxGroupMember,
+    patch: Partial<
+      Omit<MailboxGroupMember, "memberId" | "revision" | "digest">
+    >,
+  ): MailboxGroupMember {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      memberId: value.memberId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxGroupMember(next);
+    this.members.set(next.memberId, next);
+    return structuredClone(next);
+  }
+
+  private transitionPlan(
+    value: MailboxRebalancePlan,
+    patch: Partial<
+      Omit<MailboxRebalancePlan, "planId" | "revision" | "digest">
+    >,
+  ): MailboxRebalancePlan {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      planId: value.planId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxRebalancePlan(next);
+    this.plans.set(next.planId, next);
+    return structuredClone(next);
+  }
+}

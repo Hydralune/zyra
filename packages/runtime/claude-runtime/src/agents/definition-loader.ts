@@ -2581,3 +2581,485 @@ export class DefinitionWatchRuntime {
     return structuredClone(next);
   }
 }
+
+export interface DefinitionVisibilityRelease {
+  releaseId: string;
+  definitionId: string;
+  definitionName: string;
+  definitionDigest: string;
+  sourceDigest: string;
+  generation: number;
+  consumerIds: string[];
+  requiredAcknowledgements: number;
+  acknowledgedConsumerIds: string[];
+  rejectedConsumerIds: string[];
+  state:
+    | "staged"
+    | "publishing"
+    | "visible"
+    | "invalidating"
+    | "invalidated"
+    | "failed";
+  visibilityFence: string;
+  invalidationReason: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DefinitionVisibilityAck {
+  ackId: string;
+  releaseId: string;
+  consumerId: string;
+  generation: number;
+  action: "load" | "invalidate";
+  accepted: boolean;
+  observedDefinitionDigest: string;
+  cacheDigest: string;
+  errorCode: string;
+  previousConsumerDigest: string;
+  acknowledgedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DefinitionVisibilitySnapshot {
+  releases: DefinitionVisibilityRelease[];
+  acknowledgements: DefinitionVisibilityAck[];
+  activeReleaseIdByDefinition: Array<[string, string]>;
+  latestAckIdByReleaseConsumerAction: Array<[string, string]>;
+  digest: string;
+}
+
+function assertDefinitionVisibilityRelease(
+  value: DefinitionVisibilityRelease,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.releaseId ||
+    !value.definitionId ||
+    !value.definitionName ||
+    !value.definitionDigest ||
+    !value.sourceDigest ||
+    value.generation < 1 ||
+    !value.consumerIds.length ||
+    new Set(value.consumerIds).size !== value.consumerIds.length ||
+    value.requiredAcknowledgements < 1 ||
+    value.requiredAcknowledgements > value.consumerIds.length ||
+    value.acknowledgedConsumerIds.some((id) =>
+      value.rejectedConsumerIds.includes(id),
+    ) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_visibility_release_corrupt",
+      `definition visibility release ${value.releaseId || "<empty>"} is corrupt`,
+    );
+  if (value.state === "visible" && !value.visibilityFence)
+    throw new E03RuntimeError(
+      "definition_visibility_fence_missing",
+      "visible definition release requires fence",
+    );
+  if (
+    ["invalidating", "invalidated"].includes(value.state) &&
+    !value.invalidationReason
+  )
+    throw new E03RuntimeError(
+      "definition_visibility_invalidation_reason_missing",
+      "definition invalidation requires reason",
+    );
+}
+
+function assertDefinitionVisibilityAck(value: DefinitionVisibilityAck): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.ackId ||
+    !value.releaseId ||
+    !value.consumerId ||
+    value.generation < 1 ||
+    !value.observedDefinitionDigest ||
+    !value.cacheDigest ||
+    (!value.accepted && !value.errorCode) ||
+    !value.previousConsumerDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_visibility_ack_corrupt",
+      `definition visibility ack ${value.ackId || "<empty>"} is corrupt`,
+    );
+}
+
+export class DefinitionVisibilityRuntime {
+  private releases = new Map<string, DefinitionVisibilityRelease>();
+  private acknowledgements = new Map<string, DefinitionVisibilityAck>();
+  private activeReleaseIdByDefinition = new Map<string, string>();
+  private latestAckIdByReleaseConsumerAction = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  stage(input: {
+    definition: E03AgentDefinition;
+    sourceDigest: string;
+    consumerIds: string[];
+    requiredAcknowledgements: number;
+  }): DefinitionVisibilityRelease {
+    const definitionId = `${input.definition.name}@${input.definition.version}`;
+    const activeId = this.activeReleaseIdByDefinition.get(definitionId);
+    const active = activeId ? this.releases.get(activeId) : undefined;
+    if (active && !["invalidated", "failed"].includes(active.state)) {
+      if (active.definitionDigest !== input.definition.digest)
+        throw new E03RuntimeError(
+          "definition_visibility_active_release_conflict",
+          `definition ${definitionId} already has active release`,
+        );
+      return structuredClone(active);
+    }
+    const consumers = [...new Set(input.consumerIds)].sort();
+    const now = this.clock.now();
+    const payload = {
+      releaseId: createId("definition-visibility-release"),
+      definitionId,
+      definitionName: input.definition.name,
+      definitionDigest: input.definition.digest,
+      sourceDigest: input.sourceDigest,
+      generation: (active?.generation ?? 0) + 1,
+      consumerIds: consumers,
+      requiredAcknowledgements: input.requiredAcknowledgements,
+      acknowledgedConsumerIds: [] as string[],
+      rejectedConsumerIds: [] as string[],
+      state: "staged" as const,
+      visibilityFence: "",
+      invalidationReason: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const release = { ...payload, digest: digest(payload) };
+    assertDefinitionVisibilityRelease(release);
+    this.releases.set(release.releaseId, release);
+    this.activeReleaseIdByDefinition.set(
+      release.definitionId,
+      release.releaseId,
+    );
+    return structuredClone(release);
+  }
+
+  publish(input: {
+    releaseId: string;
+    expectedRevision: number;
+  }): DefinitionVisibilityRelease {
+    const release = this.requireRelease(input.releaseId);
+    this.assertReleaseRevision(release, input.expectedRevision);
+    if (release.state !== "staged")
+      throw new E03RuntimeError(
+        "definition_visibility_publish_invalid_state",
+        `cannot publish definition release from ${release.state}`,
+      );
+    return this.transitionRelease(release, {
+      state: "publishing",
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  acknowledge(input: {
+    releaseId: string;
+    expectedRevision: number;
+    generation: number;
+    consumerId: string;
+    action: "load" | "invalidate";
+    accepted: boolean;
+    observedDefinitionDigest: string;
+    cacheDigest: string;
+    errorCode?: string;
+  }): {
+    release: DefinitionVisibilityRelease;
+    acknowledgement: DefinitionVisibilityAck;
+  } {
+    const release = this.requireRelease(input.releaseId);
+    this.assertReleaseRevision(release, input.expectedRevision);
+    const expectedState =
+      input.action === "load" ? "publishing" : "invalidating";
+    if (
+      release.state !== expectedState ||
+      release.generation !== input.generation
+    )
+      throw new E03RuntimeError(
+        "definition_visibility_ack_state_stale",
+        "definition visibility acknowledgement state or generation is stale",
+      );
+    if (!release.consumerIds.includes(input.consumerId))
+      throw new E03RuntimeError(
+        "definition_visibility_consumer_unknown",
+        `definition visibility consumer ${input.consumerId} is unknown`,
+      );
+    if (input.observedDefinitionDigest !== release.definitionDigest)
+      throw new E03RuntimeError(
+        "definition_visibility_digest_mismatch",
+        "definition visibility consumer observed another definition digest",
+      );
+    const key = this.ackKey(release.releaseId, input.consumerId, input.action);
+    const priorId = this.latestAckIdByReleaseConsumerAction.get(key);
+    const prior = priorId ? this.acknowledgements.get(priorId) : undefined;
+    if (prior?.accepted) {
+      if (prior.cacheDigest !== input.cacheDigest)
+        throw new E03RuntimeError(
+          "definition_visibility_ack_conflict",
+          `definition visibility consumer ${input.consumerId} changed cache digest`,
+        );
+      return {
+        release: structuredClone(release),
+        acknowledgement: structuredClone(prior),
+      };
+    }
+    const payload = {
+      ackId: createId("definition-visibility-ack"),
+      releaseId: release.releaseId,
+      consumerId: input.consumerId,
+      generation: release.generation,
+      action: input.action,
+      accepted: input.accepted,
+      observedDefinitionDigest: input.observedDefinitionDigest,
+      cacheDigest: input.cacheDigest,
+      errorCode: input.errorCode ?? "",
+      previousConsumerDigest:
+        prior?.digest ?? digest("definition-visibility-ack-root"),
+      acknowledgedAt: this.clock.now(),
+      revision: (prior?.revision ?? 0) + 1,
+    };
+    const acknowledgement = { ...payload, digest: digest(payload) };
+    assertDefinitionVisibilityAck(acknowledgement);
+    this.acknowledgements.set(acknowledgement.ackId, acknowledgement);
+    this.latestAckIdByReleaseConsumerAction.set(key, acknowledgement.ackId);
+    const accepted = new Set(release.acknowledgedConsumerIds);
+    const rejected = new Set(release.rejectedConsumerIds);
+    if (input.accepted) {
+      accepted.add(input.consumerId);
+      rejected.delete(input.consumerId);
+    } else {
+      rejected.add(input.consumerId);
+      accepted.delete(input.consumerId);
+    }
+    const next = this.transitionRelease(release, {
+      acknowledgedConsumerIds: [...accepted].sort(),
+      rejectedConsumerIds: [...rejected].sort(),
+      state:
+        !input.accepted && input.action === "load" ? "failed" : release.state,
+      updatedAt: this.clock.now(),
+    });
+    return { release: next, acknowledgement: structuredClone(acknowledgement) };
+  }
+
+  makeVisible(input: {
+    releaseId: string;
+    expectedRevision: number;
+    visibilityFence: string;
+  }): DefinitionVisibilityRelease {
+    const release = this.requireRelease(input.releaseId);
+    this.assertReleaseRevision(release, input.expectedRevision);
+    if (release.state === "visible") {
+      if (release.visibilityFence !== input.visibilityFence)
+        throw new E03RuntimeError(
+          "definition_visibility_fence_conflict",
+          "definition release is visible under another fence",
+        );
+      return structuredClone(release);
+    }
+    if (release.state !== "publishing")
+      throw new E03RuntimeError(
+        "definition_visibility_activate_invalid_state",
+        "definition release is not publishing",
+      );
+    if (
+      release.acknowledgedConsumerIds.length < release.requiredAcknowledgements
+    )
+      throw new E03RuntimeError(
+        "definition_visibility_quorum_missing",
+        "definition release acknowledgement quorum is missing",
+      );
+    if (!input.visibilityFence)
+      throw new E03RuntimeError(
+        "definition_visibility_fence_required",
+        "definition visibility fence is required",
+      );
+    return this.transitionRelease(release, {
+      state: "visible",
+      visibilityFence: input.visibilityFence,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  invalidate(input: {
+    releaseId: string;
+    expectedRevision: number;
+    reason: string;
+  }): DefinitionVisibilityRelease {
+    const release = this.requireRelease(input.releaseId);
+    this.assertReleaseRevision(release, input.expectedRevision);
+    if (release.state !== "visible" && release.state !== "failed")
+      throw new E03RuntimeError(
+        "definition_visibility_invalidate_invalid_state",
+        `cannot invalidate definition release from ${release.state}`,
+      );
+    if (!input.reason)
+      throw new E03RuntimeError(
+        "definition_visibility_invalidation_reason_required",
+        "definition invalidation requires reason",
+      );
+    return this.transitionRelease(release, {
+      state: "invalidating",
+      acknowledgedConsumerIds: [],
+      rejectedConsumerIds: [],
+      invalidationReason: input.reason,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  completeInvalidation(input: {
+    releaseId: string;
+    expectedRevision: number;
+  }): DefinitionVisibilityRelease {
+    const release = this.requireRelease(input.releaseId);
+    this.assertReleaseRevision(release, input.expectedRevision);
+    if (release.state !== "invalidating")
+      throw new E03RuntimeError(
+        "definition_visibility_invalidation_invalid_state",
+        "definition release is not invalidating",
+      );
+    if (
+      release.acknowledgedConsumerIds.length < release.requiredAcknowledgements
+    )
+      throw new E03RuntimeError(
+        "definition_visibility_invalidation_quorum_missing",
+        "definition invalidation acknowledgement quorum is missing",
+      );
+    const next = this.transitionRelease(release, {
+      state: "invalidated",
+      updatedAt: this.clock.now(),
+    });
+    this.activeReleaseIdByDefinition.delete(release.definitionId);
+    return next;
+  }
+
+  snapshot(): DefinitionVisibilitySnapshot {
+    const payload = {
+      releases: [...this.releases.values()].map((value) =>
+        structuredClone(value),
+      ),
+      acknowledgements: [...this.acknowledgements.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeReleaseIdByDefinition: [
+        ...this.activeReleaseIdByDefinition.entries(),
+      ],
+      latestAckIdByReleaseConsumerAction: [
+        ...this.latestAckIdByReleaseConsumerAction.entries(),
+      ],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: DefinitionVisibilitySnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "definition_visibility_snapshot_corrupt",
+        "definition visibility snapshot digest mismatch",
+      );
+    const releases = new Map<string, DefinitionVisibilityRelease>();
+    const acknowledgements = new Map<string, DefinitionVisibilityAck>();
+    for (const value of payload.releases) {
+      assertDefinitionVisibilityRelease(value);
+      if (releases.has(value.releaseId))
+        throw new E03RuntimeError(
+          "definition_visibility_snapshot_release_duplicate",
+          `duplicate definition visibility release ${value.releaseId}`,
+        );
+      releases.set(value.releaseId, structuredClone(value));
+    }
+    for (const value of payload.acknowledgements) {
+      assertDefinitionVisibilityAck(value);
+      if (!releases.has(value.releaseId))
+        throw new E03RuntimeError(
+          "definition_visibility_snapshot_ack_orphaned",
+          `definition visibility ack ${value.ackId} is orphaned`,
+        );
+      acknowledgements.set(value.ackId, structuredClone(value));
+    }
+    const activeIndex = new Map(payload.activeReleaseIdByDefinition);
+    for (const [definitionId, releaseId] of activeIndex) {
+      const value = releases.get(releaseId);
+      if (
+        !value ||
+        value.definitionId !== definitionId ||
+        ["invalidated"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "definition_visibility_snapshot_active_index_corrupt",
+          `definition visibility active release ${releaseId} is invalid`,
+        );
+    }
+    const ackIndex = new Map(payload.latestAckIdByReleaseConsumerAction);
+    for (const ackId of ackIndex.values())
+      if (!acknowledgements.has(ackId))
+        throw new E03RuntimeError(
+          "definition_visibility_snapshot_ack_index_corrupt",
+          `definition visibility ack index references ${ackId}`,
+        );
+    this.releases = releases;
+    this.acknowledgements = acknowledgements;
+    this.activeReleaseIdByDefinition = activeIndex;
+    this.latestAckIdByReleaseConsumerAction = ackIndex;
+  }
+
+  private ackKey(
+    releaseId: string,
+    consumerId: string,
+    action: string,
+  ): string {
+    return `${releaseId}:${consumerId}:${action}`;
+  }
+
+  private requireRelease(id: string): DefinitionVisibilityRelease {
+    const value = this.releases.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_visibility_release_missing",
+        `definition visibility release ${id} does not exist`,
+      );
+    assertDefinitionVisibilityRelease(value);
+    return value;
+  }
+
+  private assertReleaseRevision(
+    value: DefinitionVisibilityRelease,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_visibility_release_stale_revision",
+        `definition visibility release ${value.releaseId} revision is stale`,
+      );
+  }
+
+  private transitionRelease(
+    value: DefinitionVisibilityRelease,
+    patch: Partial<
+      Omit<DefinitionVisibilityRelease, "releaseId" | "revision" | "digest">
+    >,
+  ): DefinitionVisibilityRelease {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      releaseId: value.releaseId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDefinitionVisibilityRelease(next);
+    this.releases.set(next.releaseId, next);
+    return structuredClone(next);
+  }
+}

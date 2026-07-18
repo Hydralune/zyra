@@ -4364,3 +4364,642 @@ export class IsolationWorkspaceMountRuntime {
     return structuredClone(next);
   }
 }
+
+export type IsolationResourceReservationState =
+  | "reserved"
+  | "active"
+  | "settling"
+  | "settled"
+  | "expired"
+  | "revoked";
+
+export interface IsolationResourceBudget {
+  cpuMillis: number;
+  memoryByteMillis: number;
+  filesystemWriteBytes: number;
+  networkEgressBytes: number;
+  processCount: number;
+}
+
+export interface IsolationResourceReservation {
+  reservationId: string;
+  requestId: string;
+  taskId: string;
+  leaseId: string;
+  runtimeId: string;
+  state: IsolationResourceReservationState;
+  budget: IsolationResourceBudget;
+  consumed: IsolationResourceBudget;
+  usageSampleIds: string[];
+  settlementId: string;
+  reservationFence: string;
+  reservedAt: string;
+  activatedAt: string;
+  expiresAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationResourceUsageSample {
+  sampleId: string;
+  reservationId: string;
+  sequence: number;
+  cumulative: IsolationResourceBudget;
+  observerId: string;
+  evidenceDigest: string;
+  previousSampleDigest: string;
+  observedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationResourceSettlement {
+  settlementId: string;
+  reservationId: string;
+  requestId: string;
+  taskId: string;
+  leaseId: string;
+  outcome: "completed" | "failed" | "expired" | "revoked";
+  finalUsage: IsolationResourceBudget;
+  exceededDimensions: Array<keyof IsolationResourceBudget>;
+  terminalEffectDigest: string;
+  usageChainDigest: string;
+  settledAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationResourceReservationSnapshot {
+  reservations: IsolationResourceReservation[];
+  samples: IsolationResourceUsageSample[];
+  settlements: IsolationResourceSettlement[];
+  activeReservationIdByTask: Array<[string, string]>;
+  reservationIdByFence: Array<[string, string]>;
+  digest: string;
+}
+
+const ISOLATION_RESOURCE_DIMENSIONS: Array<keyof IsolationResourceBudget> = [
+  "cpuMillis",
+  "memoryByteMillis",
+  "filesystemWriteBytes",
+  "networkEgressBytes",
+  "processCount",
+];
+
+function assertIsolationResourceBudget(
+  value: IsolationResourceBudget,
+  code: string,
+): void {
+  for (const dimension of ISOLATION_RESOURCE_DIMENSIONS)
+    if (!Number.isSafeInteger(value[dimension]) || value[dimension] < 0)
+      throw new E03RuntimeError(
+        code,
+        `isolation resource ${dimension} must be a non-negative integer`,
+      );
+}
+
+function assertIsolationResourceReservation(
+  value: IsolationResourceReservation,
+): void {
+  const { digest: expected, ...payload } = value;
+  assertIsolationResourceBudget(
+    value.budget,
+    "isolation_resource_budget_invalid",
+  );
+  assertIsolationResourceBudget(
+    value.consumed,
+    "isolation_resource_usage_invalid",
+  );
+  if (
+    !value.reservationId ||
+    !value.requestId ||
+    !value.taskId ||
+    !value.leaseId ||
+    !value.runtimeId ||
+    !value.reservationFence ||
+    new Set(value.usageSampleIds).size !== value.usageSampleIds.length ||
+    Number.isNaN(Date.parse(value.expiresAt)) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_resource_reservation_corrupt",
+      `isolation resource reservation ${value.reservationId || "<empty>"} is corrupt`,
+    );
+  if (value.state === "settled" && !value.settlementId)
+    throw new E03RuntimeError(
+      "isolation_resource_settlement_missing",
+      "settled isolation reservation lacks settlement",
+    );
+}
+
+function assertIsolationResourceUsageSample(
+  value: IsolationResourceUsageSample,
+): void {
+  const { digest: expected, ...payload } = value;
+  assertIsolationResourceBudget(
+    value.cumulative,
+    "isolation_resource_sample_usage_invalid",
+  );
+  if (
+    !value.sampleId ||
+    !value.reservationId ||
+    value.sequence < 1 ||
+    !value.observerId ||
+    !value.evidenceDigest ||
+    !value.previousSampleDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_resource_usage_sample_corrupt",
+      `isolation resource sample ${value.sampleId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertIsolationResourceSettlement(
+  value: IsolationResourceSettlement,
+): void {
+  const { digest: expected, ...payload } = value;
+  assertIsolationResourceBudget(
+    value.finalUsage,
+    "isolation_resource_final_usage_invalid",
+  );
+  if (
+    !value.settlementId ||
+    !value.reservationId ||
+    !value.requestId ||
+    !value.taskId ||
+    !value.leaseId ||
+    new Set(value.exceededDimensions).size !==
+      value.exceededDimensions.length ||
+    !value.terminalEffectDigest ||
+    !value.usageChainDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_resource_settlement_corrupt",
+      `isolation resource settlement ${value.settlementId || "<empty>"} is corrupt`,
+    );
+}
+
+export class IsolationResourceReservationRuntime {
+  private reservations = new Map<string, IsolationResourceReservation>();
+  private samples = new Map<string, IsolationResourceUsageSample[]>();
+  private settlements = new Map<string, IsolationResourceSettlement>();
+  private activeReservationIdByTask = new Map<string, string>();
+  private reservationIdByFence = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  reserve(input: {
+    requestId: string;
+    taskId: string;
+    leaseId: string;
+    runtimeId: string;
+    budget: IsolationResourceBudget;
+    reservationFence: string;
+    leaseMs: number;
+    now?: string;
+  }): IsolationResourceReservation {
+    assertIsolationResourceBudget(
+      input.budget,
+      "isolation_resource_budget_invalid",
+    );
+    if (
+      !input.requestId ||
+      !input.taskId ||
+      !input.leaseId ||
+      !input.runtimeId ||
+      !input.reservationFence ||
+      !Number.isSafeInteger(input.leaseMs) ||
+      input.leaseMs < 1
+    )
+      throw new E03RuntimeError(
+        "isolation_resource_reservation_input_invalid",
+        "isolation resource reservation input is invalid",
+      );
+    const fenceOwner = this.reservationIdByFence.get(input.reservationFence);
+    if (fenceOwner) {
+      const prior = this.requireReservation(fenceOwner);
+      if (
+        prior.taskId !== input.taskId ||
+        prior.leaseId !== input.leaseId ||
+        prior.runtimeId !== input.runtimeId
+      )
+        throw new E03RuntimeError(
+          "isolation_resource_reservation_fence_conflict",
+          "isolation resource fence is bound to another reservation",
+        );
+      return structuredClone(prior);
+    }
+    const activeId = this.activeReservationIdByTask.get(input.taskId);
+    const active = activeId ? this.reservations.get(activeId) : undefined;
+    if (active && !["settled", "expired", "revoked"].includes(active.state))
+      throw new E03RuntimeError(
+        "isolation_resource_reservation_active_conflict",
+        `task ${input.taskId} already has active isolation resources`,
+      );
+    const now = input.now ?? this.clock.now();
+    const zero: IsolationResourceBudget = {
+      cpuMillis: 0,
+      memoryByteMillis: 0,
+      filesystemWriteBytes: 0,
+      networkEgressBytes: 0,
+      processCount: 0,
+    };
+    const payload = {
+      reservationId: createId("isolation-resource-reservation"),
+      requestId: input.requestId,
+      taskId: input.taskId,
+      leaseId: input.leaseId,
+      runtimeId: input.runtimeId,
+      state: "reserved" as const,
+      budget: structuredClone(input.budget),
+      consumed: zero,
+      usageSampleIds: [] as string[],
+      settlementId: "",
+      reservationFence: input.reservationFence,
+      reservedAt: now,
+      activatedAt: "",
+      expiresAt: new Date(Date.parse(now) + input.leaseMs).toISOString(),
+      updatedAt: now,
+      revision: 1,
+    };
+    const reservation = { ...payload, digest: digest(payload) };
+    assertIsolationResourceReservation(reservation);
+    this.reservations.set(reservation.reservationId, reservation);
+    this.samples.set(reservation.reservationId, []);
+    this.activeReservationIdByTask.set(
+      reservation.taskId,
+      reservation.reservationId,
+    );
+    this.reservationIdByFence.set(
+      reservation.reservationFence,
+      reservation.reservationId,
+    );
+    return structuredClone(reservation);
+  }
+
+  activate(input: {
+    reservationId: string;
+    expectedRevision: number;
+    leaseId: string;
+    runtimeId: string;
+    now?: string;
+  }): IsolationResourceReservation {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state === "active") return structuredClone(reservation);
+    if (reservation.state !== "reserved")
+      throw new E03RuntimeError(
+        "isolation_resource_activation_invalid_state",
+        `cannot activate isolation resources from ${reservation.state}`,
+      );
+    if (
+      reservation.leaseId !== input.leaseId ||
+      reservation.runtimeId !== input.runtimeId
+    )
+      throw new E03RuntimeError(
+        "isolation_resource_activation_binding_mismatch",
+        "isolation resource activation lease or runtime changed",
+      );
+    const now = input.now ?? this.clock.now();
+    if (Date.parse(reservation.expiresAt) <= Date.parse(now))
+      throw new E03RuntimeError(
+        "isolation_resource_reservation_expired",
+        "isolation resource reservation expired before activation",
+      );
+    return this.transitionReservation(reservation, {
+      state: "active",
+      activatedAt: now,
+      updatedAt: now,
+    });
+  }
+
+  recordUsage(input: {
+    reservationId: string;
+    expectedRevision: number;
+    leaseId: string;
+    observerId: string;
+    cumulative: IsolationResourceBudget;
+    evidenceDigest: string;
+    now?: string;
+  }): {
+    reservation: IsolationResourceReservation;
+    sample: IsolationResourceUsageSample;
+  } {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state !== "active")
+      throw new E03RuntimeError(
+        "isolation_resource_usage_invalid_state",
+        "isolation resource usage requires active reservation",
+      );
+    if (reservation.leaseId !== input.leaseId)
+      throw new E03RuntimeError(
+        "isolation_resource_usage_lease_stale",
+        "isolation resource usage lease is stale",
+      );
+    assertIsolationResourceBudget(
+      input.cumulative,
+      "isolation_resource_usage_invalid",
+    );
+    for (const dimension of ISOLATION_RESOURCE_DIMENSIONS)
+      if (input.cumulative[dimension] < reservation.consumed[dimension])
+        throw new E03RuntimeError(
+          "isolation_resource_usage_non_monotonic",
+          `isolation resource ${dimension} usage decreased`,
+        );
+    const list = this.samples.get(reservation.reservationId) ?? [];
+    const payload = {
+      sampleId: createId("isolation-resource-usage"),
+      reservationId: reservation.reservationId,
+      sequence: list.length + 1,
+      cumulative: structuredClone(input.cumulative),
+      observerId: input.observerId,
+      evidenceDigest: input.evidenceDigest,
+      previousSampleDigest:
+        list.at(-1)?.digest ?? digest("isolation-resource-usage-root"),
+      observedAt: input.now ?? this.clock.now(),
+      revision: 1,
+    };
+    const sample = { ...payload, digest: digest(payload) };
+    assertIsolationResourceUsageSample(sample);
+    this.samples.set(reservation.reservationId, [...list, sample]);
+    const next = this.transitionReservation(reservation, {
+      consumed: structuredClone(input.cumulative),
+      usageSampleIds: [...reservation.usageSampleIds, sample.sampleId],
+      updatedAt: sample.observedAt,
+    });
+    return { reservation: next, sample: structuredClone(sample) };
+  }
+
+  beginSettlement(input: {
+    reservationId: string;
+    expectedRevision: number;
+    leaseId: string;
+  }): IsolationResourceReservation {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state !== "active")
+      throw new E03RuntimeError(
+        "isolation_resource_settlement_begin_invalid_state",
+        "only active isolation reservation may settle",
+      );
+    if (reservation.leaseId !== input.leaseId)
+      throw new E03RuntimeError(
+        "isolation_resource_settlement_lease_stale",
+        "isolation resource settlement lease is stale",
+      );
+    return this.transitionReservation(reservation, {
+      state: "settling",
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  settle(input: {
+    reservationId: string;
+    expectedRevision: number;
+    leaseId: string;
+    outcome: IsolationResourceSettlement["outcome"];
+    terminalEffectDigest: string;
+  }): {
+    reservation: IsolationResourceReservation;
+    settlement: IsolationResourceSettlement;
+  } {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state === "settled") {
+      const prior = this.settlements.get(reservation.settlementId);
+      if (!prior)
+        throw new E03RuntimeError(
+          "isolation_resource_settlement_receipt_missing",
+          "settled isolation reservation lacks receipt",
+        );
+      return {
+        reservation: structuredClone(reservation),
+        settlement: structuredClone(prior),
+      };
+    }
+    if (reservation.state !== "settling")
+      throw new E03RuntimeError(
+        "isolation_resource_settlement_invalid_state",
+        "isolation reservation must begin settlement first",
+      );
+    if (reservation.leaseId !== input.leaseId || !input.terminalEffectDigest)
+      throw new E03RuntimeError(
+        "isolation_resource_settlement_binding_invalid",
+        "isolation settlement lease or terminal effect is invalid",
+      );
+    const list = this.samples.get(reservation.reservationId) ?? [];
+    const exceededDimensions = ISOLATION_RESOURCE_DIMENSIONS.filter(
+      (dimension) =>
+        reservation.consumed[dimension] > reservation.budget[dimension],
+    );
+    const payload = {
+      settlementId: createId("isolation-resource-settlement"),
+      reservationId: reservation.reservationId,
+      requestId: reservation.requestId,
+      taskId: reservation.taskId,
+      leaseId: reservation.leaseId,
+      outcome: input.outcome,
+      finalUsage: structuredClone(reservation.consumed),
+      exceededDimensions,
+      terminalEffectDigest: input.terminalEffectDigest,
+      usageChainDigest: digest(list.map((value) => value.digest)),
+      settledAt: this.clock.now(),
+      revision: 1,
+    };
+    const settlement = { ...payload, digest: digest(payload) };
+    assertIsolationResourceSettlement(settlement);
+    this.settlements.set(settlement.settlementId, settlement);
+    const next = this.transitionReservation(reservation, {
+      state: "settled",
+      settlementId: settlement.settlementId,
+      updatedAt: settlement.settledAt,
+    });
+    this.activeReservationIdByTask.delete(reservation.taskId);
+    return { reservation: next, settlement: structuredClone(settlement) };
+  }
+
+  expire(now = this.clock.now()): IsolationResourceReservation[] {
+    const expired: IsolationResourceReservation[] = [];
+    for (const reservation of this.reservations.values()) {
+      if (
+        (reservation.state !== "reserved" && reservation.state !== "active") ||
+        Date.parse(reservation.expiresAt) > Date.parse(now)
+      )
+        continue;
+      const next = this.transitionReservation(reservation, {
+        state: "expired",
+        updatedAt: now,
+      });
+      this.activeReservationIdByTask.delete(reservation.taskId);
+      expired.push(next);
+    }
+    return expired;
+  }
+
+  revoke(input: {
+    reservationId: string;
+    expectedRevision: number;
+    leaseId: string;
+  }): IsolationResourceReservation {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state === "settled")
+      throw new E03RuntimeError(
+        "isolation_resource_revoke_settled",
+        "settled isolation resources cannot be revoked",
+      );
+    if (reservation.leaseId !== input.leaseId)
+      throw new E03RuntimeError(
+        "isolation_resource_revoke_lease_stale",
+        "isolation resource revoke lease is stale",
+      );
+    const next = this.transitionReservation(reservation, {
+      state: "revoked",
+      updatedAt: this.clock.now(),
+    });
+    this.activeReservationIdByTask.delete(reservation.taskId);
+    return next;
+  }
+
+  snapshot(): IsolationResourceReservationSnapshot {
+    const payload = {
+      reservations: [...this.reservations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      samples: [...this.samples.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      settlements: [...this.settlements.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeReservationIdByTask: [...this.activeReservationIdByTask.entries()],
+      reservationIdByFence: [...this.reservationIdByFence.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: IsolationResourceReservationSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "isolation_resource_snapshot_corrupt",
+        "isolation resource reservation snapshot digest mismatch",
+      );
+    const reservations = new Map<string, IsolationResourceReservation>();
+    const samples = new Map<string, IsolationResourceUsageSample[]>();
+    const settlements = new Map<string, IsolationResourceSettlement>();
+    for (const value of payload.reservations) {
+      assertIsolationResourceReservation(value);
+      if (reservations.has(value.reservationId))
+        throw new E03RuntimeError(
+          "isolation_resource_snapshot_reservation_duplicate",
+          `duplicate isolation resource reservation ${value.reservationId}`,
+        );
+      reservations.set(value.reservationId, structuredClone(value));
+      samples.set(value.reservationId, []);
+    }
+    for (const value of payload.samples) {
+      assertIsolationResourceUsageSample(value);
+      const list = samples.get(value.reservationId);
+      if (!list)
+        throw new E03RuntimeError(
+          "isolation_resource_snapshot_sample_orphaned",
+          `isolation resource sample ${value.sampleId} is orphaned`,
+        );
+      if (
+        value.sequence !== list.length + 1 ||
+        (list.length > 0 && value.previousSampleDigest !== list.at(-1)!.digest)
+      )
+        throw new E03RuntimeError(
+          "isolation_resource_snapshot_sample_chain_corrupt",
+          `isolation resource sample ${value.sampleId} breaks chain`,
+        );
+      list.push(structuredClone(value));
+    }
+    for (const value of payload.settlements) {
+      assertIsolationResourceSettlement(value);
+      if (!reservations.has(value.reservationId))
+        throw new E03RuntimeError(
+          "isolation_resource_snapshot_settlement_orphaned",
+          `isolation resource settlement ${value.settlementId} is orphaned`,
+        );
+      settlements.set(value.settlementId, structuredClone(value));
+    }
+    const activeIndex = new Map(payload.activeReservationIdByTask);
+    for (const [taskId, reservationId] of activeIndex) {
+      const value = reservations.get(reservationId);
+      if (
+        !value ||
+        value.taskId !== taskId ||
+        ["settled", "expired", "revoked"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "isolation_resource_snapshot_active_index_corrupt",
+          `isolation resource active reservation ${reservationId} is invalid`,
+        );
+    }
+    const fenceIndex = new Map(payload.reservationIdByFence);
+    for (const reservationId of fenceIndex.values())
+      if (!reservations.has(reservationId))
+        throw new E03RuntimeError(
+          "isolation_resource_snapshot_fence_index_corrupt",
+          `isolation resource fence index references ${reservationId}`,
+        );
+    this.reservations = reservations;
+    this.samples = samples;
+    this.settlements = settlements;
+    this.activeReservationIdByTask = activeIndex;
+    this.reservationIdByFence = fenceIndex;
+  }
+
+  private requireReservation(id: string): IsolationResourceReservation {
+    const value = this.reservations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "isolation_resource_reservation_missing",
+        `isolation resource reservation ${id} does not exist`,
+      );
+    assertIsolationResourceReservation(value);
+    return value;
+  }
+
+  private assertReservationRevision(
+    value: IsolationResourceReservation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "isolation_resource_reservation_stale_revision",
+        `isolation resource reservation ${value.reservationId} revision is stale`,
+      );
+  }
+
+  private transitionReservation(
+    value: IsolationResourceReservation,
+    patch: Partial<
+      Omit<
+        IsolationResourceReservation,
+        "reservationId" | "revision" | "digest"
+      >
+    >,
+  ): IsolationResourceReservation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      reservationId: value.reservationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIsolationResourceReservation(next);
+    this.reservations.set(next.reservationId, next);
+    return structuredClone(next);
+  }
+}

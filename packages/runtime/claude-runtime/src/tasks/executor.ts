@@ -3821,3 +3821,620 @@ export class TaskOutputVerificationRuntime {
     return structuredClone(next);
   }
 }
+
+export type ExecutionCustodySettlementState =
+  | "prepared"
+  | "observing"
+  | "reconciled"
+  | "committed"
+  | "aborted";
+
+export interface ExecutionCustodySettlement {
+  settlementId: string;
+  taskId: string;
+  taskLeaseId: string;
+  claimId: string;
+  executionAttemptId: string;
+  workerId: string;
+  state: ExecutionCustodySettlementState;
+  requiredObservationKinds: ExecutionCustodyObservationKind[];
+  acceptedObservationIds: string[];
+  rejectedObservationIds: string[];
+  expectedTaskRevision: number;
+  claimDigest: string;
+  attemptDigest: string;
+  outcomeDigest: string;
+  commitFence: string;
+  abortReason: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export type ExecutionCustodyObservationKind =
+  | "worker-exit"
+  | "output"
+  | "usage"
+  | "artifact"
+  | "side-effect";
+
+export interface ExecutionCustodyObservation {
+  observationId: string;
+  settlementId: string;
+  kind: ExecutionCustodyObservationKind;
+  observerId: string;
+  accepted: boolean;
+  sequence: number;
+  evidenceDigest: string;
+  errorCode: string;
+  previousObservationDigest: string;
+  observedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ExecutionCustodyCommitReceipt {
+  receiptId: string;
+  settlementId: string;
+  taskId: string;
+  taskLeaseId: string;
+  executionAttemptId: string;
+  commitFence: string;
+  expectedTaskRevision: number;
+  nextTaskRevision: number;
+  outcomeDigest: string;
+  observationChainDigest: string;
+  committedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ExecutionCustodySettlementSnapshot {
+  settlements: ExecutionCustodySettlement[];
+  observations: ExecutionCustodyObservation[];
+  receipts: ExecutionCustodyCommitReceipt[];
+  receiptIdByCommitFence: Array<[string, string]>;
+  digest: string;
+}
+
+function assertExecutionCustodySettlement(
+  value: ExecutionCustodySettlement,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.settlementId ||
+    !value.taskId ||
+    !value.taskLeaseId ||
+    !value.claimId ||
+    !value.executionAttemptId ||
+    !value.workerId ||
+    !value.requiredObservationKinds.length ||
+    new Set(value.requiredObservationKinds).size !==
+      value.requiredObservationKinds.length ||
+    value.acceptedObservationIds.some((id) =>
+      value.rejectedObservationIds.includes(id),
+    ) ||
+    value.expectedTaskRevision < 1 ||
+    !value.claimDigest ||
+    !value.attemptDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "execution_custody_settlement_corrupt",
+      `execution custody settlement ${value.settlementId || "<empty>"} is corrupt`,
+    );
+  if (
+    value.state === "committed" &&
+    (!value.commitFence || !value.outcomeDigest)
+  )
+    throw new E03RuntimeError(
+      "execution_custody_commit_fields_missing",
+      "committed execution custody settlement lacks fence or outcome",
+    );
+  if (value.state === "aborted" && !value.abortReason)
+    throw new E03RuntimeError(
+      "execution_custody_abort_reason_missing",
+      "aborted execution custody settlement requires reason",
+    );
+}
+
+function assertExecutionCustodyObservation(
+  value: ExecutionCustodyObservation,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.observationId ||
+    !value.settlementId ||
+    !value.observerId ||
+    value.sequence < 1 ||
+    !value.evidenceDigest ||
+    !value.previousObservationDigest ||
+    (!value.accepted && !value.errorCode) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "execution_custody_observation_corrupt",
+      `execution custody observation ${value.observationId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertExecutionCustodyCommitReceipt(
+  value: ExecutionCustodyCommitReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.settlementId ||
+    !value.taskId ||
+    !value.taskLeaseId ||
+    !value.executionAttemptId ||
+    !value.commitFence ||
+    value.expectedTaskRevision < 1 ||
+    value.nextTaskRevision !== value.expectedTaskRevision + 1 ||
+    !value.outcomeDigest ||
+    !value.observationChainDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "execution_custody_commit_receipt_corrupt",
+      `execution custody receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TaskExecutionCustodySettlementRuntime {
+  private settlements = new Map<string, ExecutionCustodySettlement>();
+  private observations = new Map<string, ExecutionCustodyObservation[]>();
+  private receipts = new Map<string, ExecutionCustodyCommitReceipt>();
+  private receiptIdByCommitFence = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  prepare(input: {
+    settlementId?: string;
+    task: E03TaskState;
+    claim: TaskExecutionClaim;
+    attempt: TaskExecutionAttempt;
+    requiredObservationKinds?: ExecutionCustodyObservationKind[];
+  }): ExecutionCustodySettlement {
+    assertExecutionClaim(input.claim);
+    assertTaskExecutionAttempt(input.attempt);
+    if (
+      input.task.identity.taskId !== input.claim.taskId ||
+      input.task.identity.taskId !== input.attempt.taskId ||
+      input.task.identity.leaseId !== input.claim.taskLeaseId ||
+      input.task.identity.leaseId !== input.attempt.leaseId ||
+      input.claim.workerId !== input.attempt.workerId
+    )
+      throw new E03RuntimeError(
+        "execution_custody_prepare_binding_mismatch",
+        "task, claim, and execution attempt custody do not match",
+      );
+    if (!input.attempt.workerId)
+      throw new E03RuntimeError(
+        "execution_custody_prepare_worker_missing",
+        "execution custody settlement requires assigned worker",
+      );
+    if (input.claim.phase !== "completed" && input.claim.phase !== "failed")
+      throw new E03RuntimeError(
+        "execution_custody_prepare_claim_not_terminal",
+        "execution custody settlement requires terminal claim",
+      );
+    if (!terminalExecutionAttempt(input.attempt.state))
+      throw new E03RuntimeError(
+        "execution_custody_prepare_attempt_not_terminal",
+        "execution custody settlement requires terminal attempt",
+      );
+    const settlementId =
+      input.settlementId ?? createId("execution-custody-settlement");
+    const prior = this.settlements.get(settlementId);
+    if (prior) {
+      if (
+        prior.claimDigest !== input.claim.digest ||
+        prior.attemptDigest !== input.attempt.digest
+      )
+        throw new E03RuntimeError(
+          "execution_custody_prepare_id_conflict",
+          `execution custody settlement ${settlementId} conflicts`,
+        );
+      return structuredClone(prior);
+    }
+    const requiredObservationKinds = [
+      ...new Set(
+        input.requiredObservationKinds ?? ["worker-exit", "output", "usage"],
+      ),
+    ].sort() as ExecutionCustodyObservationKind[];
+    const now = this.clock.now();
+    const payload = {
+      settlementId,
+      taskId: input.task.identity.taskId,
+      taskLeaseId: input.task.identity.leaseId,
+      claimId: input.claim.claimId,
+      executionAttemptId: input.attempt.executionAttemptId,
+      workerId: input.attempt.workerId,
+      state: "prepared" as const,
+      requiredObservationKinds,
+      acceptedObservationIds: [] as string[],
+      rejectedObservationIds: [] as string[],
+      expectedTaskRevision: input.task.revision,
+      claimDigest: input.claim.digest,
+      attemptDigest: input.attempt.digest,
+      outcomeDigest: "",
+      commitFence: "",
+      abortReason: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const settlement = { ...payload, digest: digest(payload) };
+    assertExecutionCustodySettlement(settlement);
+    this.settlements.set(settlement.settlementId, settlement);
+    this.observations.set(settlement.settlementId, []);
+    return structuredClone(settlement);
+  }
+
+  begin(input: {
+    settlementId: string;
+    expectedRevision: number;
+  }): ExecutionCustodySettlement {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state !== "prepared")
+      throw new E03RuntimeError(
+        "execution_custody_begin_invalid_state",
+        `cannot begin execution settlement from ${settlement.state}`,
+      );
+    return this.transitionSettlement(settlement, {
+      state: "observing",
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  observe(input: {
+    settlementId: string;
+    expectedRevision: number;
+    kind: ExecutionCustodyObservationKind;
+    observerId: string;
+    accepted: boolean;
+    evidenceDigest: string;
+    errorCode?: string;
+  }): {
+    settlement: ExecutionCustodySettlement;
+    observation: ExecutionCustodyObservation;
+  } {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state !== "observing")
+      throw new E03RuntimeError(
+        "execution_custody_observe_invalid_state",
+        "execution custody settlement is not observing",
+      );
+    if (!settlement.requiredObservationKinds.includes(input.kind))
+      throw new E03RuntimeError(
+        "execution_custody_observation_kind_unplanned",
+        `execution custody observation ${input.kind} was not planned`,
+      );
+    const list = this.observations.get(settlement.settlementId) ?? [];
+    const priorForKind = [...list]
+      .reverse()
+      .find((value) => value.kind === input.kind);
+    if (priorForKind?.accepted) {
+      if (
+        priorForKind.evidenceDigest !== input.evidenceDigest ||
+        priorForKind.observerId !== input.observerId
+      )
+        throw new E03RuntimeError(
+          "execution_custody_observation_conflict",
+          `execution custody observation ${input.kind} already accepted`,
+        );
+      return {
+        settlement: structuredClone(settlement),
+        observation: structuredClone(priorForKind),
+      };
+    }
+    const payload = {
+      observationId: createId("execution-custody-observation"),
+      settlementId: settlement.settlementId,
+      kind: input.kind,
+      observerId: input.observerId,
+      accepted: input.accepted,
+      sequence: list.length + 1,
+      evidenceDigest: input.evidenceDigest,
+      errorCode: input.errorCode ?? "",
+      previousObservationDigest:
+        list.at(-1)?.digest ?? digest("execution-custody-observation-root"),
+      observedAt: this.clock.now(),
+      revision: 1,
+    };
+    const observation = { ...payload, digest: digest(payload) };
+    assertExecutionCustodyObservation(observation);
+    this.observations.set(settlement.settlementId, [...list, observation]);
+    const accepted = new Set(settlement.acceptedObservationIds);
+    const rejected = new Set(settlement.rejectedObservationIds);
+    for (const prior of list.filter((value) => value.kind === input.kind)) {
+      accepted.delete(prior.observationId);
+      rejected.delete(prior.observationId);
+    }
+    if (observation.accepted) accepted.add(observation.observationId);
+    else rejected.add(observation.observationId);
+    const next = this.transitionSettlement(settlement, {
+      acceptedObservationIds: [...accepted],
+      rejectedObservationIds: [...rejected],
+      updatedAt: this.clock.now(),
+    });
+    return { settlement: next, observation: structuredClone(observation) };
+  }
+
+  reconcile(input: {
+    settlementId: string;
+    expectedRevision: number;
+    outcomeDigest: string;
+  }): ExecutionCustodySettlement {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state !== "observing")
+      throw new E03RuntimeError(
+        "execution_custody_reconcile_invalid_state",
+        "execution custody settlement must be observing",
+      );
+    if (!input.outcomeDigest)
+      throw new E03RuntimeError(
+        "execution_custody_outcome_digest_missing",
+        "execution custody settlement requires outcome digest",
+      );
+    const list = this.observations.get(settlement.settlementId) ?? [];
+    const acceptedKinds = new Set(
+      list.filter((value) => value.accepted).map((value) => value.kind),
+    );
+    const missing = settlement.requiredObservationKinds.filter(
+      (kind) => !acceptedKinds.has(kind),
+    );
+    if (missing.length)
+      throw new E03RuntimeError(
+        "execution_custody_observation_incomplete",
+        `execution custody settlement is missing ${missing.join(",")}`,
+      );
+    const latestByKind = new Map<
+      ExecutionCustodyObservationKind,
+      ExecutionCustodyObservation
+    >();
+    for (const observation of list)
+      if (observation.accepted) latestByKind.set(observation.kind, observation);
+    const acceptedObservationIds = [...latestByKind.values()]
+      .sort((left, right) => left.kind.localeCompare(right.kind))
+      .map((value) => value.observationId);
+    return this.transitionSettlement(settlement, {
+      state: "reconciled",
+      acceptedObservationIds,
+      outcomeDigest: input.outcomeDigest,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  commit(input: {
+    settlementId: string;
+    expectedRevision: number;
+    task: E03TaskState;
+    commitFence: string;
+  }): {
+    settlement: ExecutionCustodySettlement;
+    receipt: ExecutionCustodyCommitReceipt;
+  } {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state === "committed") {
+      if (settlement.commitFence !== input.commitFence)
+        throw new E03RuntimeError(
+          "execution_custody_commit_fence_conflict",
+          "execution custody settlement was committed by another fence",
+        );
+      const receiptId = this.receiptIdByCommitFence.get(input.commitFence);
+      const receipt = receiptId ? this.receipts.get(receiptId) : undefined;
+      if (!receipt)
+        throw new E03RuntimeError(
+          "execution_custody_commit_receipt_missing",
+          "committed execution custody settlement lacks receipt",
+        );
+      return {
+        settlement: structuredClone(settlement),
+        receipt: structuredClone(receipt),
+      };
+    }
+    if (settlement.state !== "reconciled")
+      throw new E03RuntimeError(
+        "execution_custody_commit_invalid_state",
+        "execution custody settlement must be reconciled before commit",
+      );
+    if (
+      input.task.identity.taskId !== settlement.taskId ||
+      input.task.identity.leaseId !== settlement.taskLeaseId ||
+      input.task.revision !== settlement.expectedTaskRevision
+    )
+      throw new E03RuntimeError(
+        "execution_custody_commit_task_stale",
+        "execution custody settlement task revision or lease changed",
+      );
+    if (!input.commitFence)
+      throw new E03RuntimeError(
+        "execution_custody_commit_fence_required",
+        "execution custody settlement requires commit fence",
+      );
+    const priorReceiptId = this.receiptIdByCommitFence.get(input.commitFence);
+    if (priorReceiptId)
+      throw new E03RuntimeError(
+        "execution_custody_commit_fence_reused",
+        "execution custody commit fence is already bound",
+      );
+    const list = this.observations.get(settlement.settlementId) ?? [];
+    const receiptPayload = {
+      receiptId: createId("execution-custody-commit-receipt"),
+      settlementId: settlement.settlementId,
+      taskId: settlement.taskId,
+      taskLeaseId: settlement.taskLeaseId,
+      executionAttemptId: settlement.executionAttemptId,
+      commitFence: input.commitFence,
+      expectedTaskRevision: settlement.expectedTaskRevision,
+      nextTaskRevision: settlement.expectedTaskRevision + 1,
+      outcomeDigest: settlement.outcomeDigest,
+      observationChainDigest: digest(list.map((value) => value.digest)),
+      committedAt: this.clock.now(),
+      revision: 1,
+    };
+    const receipt = { ...receiptPayload, digest: digest(receiptPayload) };
+    assertExecutionCustodyCommitReceipt(receipt);
+    this.receipts.set(receipt.receiptId, receipt);
+    this.receiptIdByCommitFence.set(receipt.commitFence, receipt.receiptId);
+    const next = this.transitionSettlement(settlement, {
+      state: "committed",
+      commitFence: input.commitFence,
+      updatedAt: this.clock.now(),
+    });
+    return { settlement: next, receipt: structuredClone(receipt) };
+  }
+
+  abort(input: {
+    settlementId: string;
+    expectedRevision: number;
+    reason: string;
+  }): ExecutionCustodySettlement {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state === "committed")
+      throw new E03RuntimeError(
+        "execution_custody_abort_committed",
+        "committed execution custody settlement cannot abort",
+      );
+    if (!input.reason)
+      throw new E03RuntimeError(
+        "execution_custody_abort_reason_required",
+        "execution custody abort requires reason",
+      );
+    if (settlement.state === "aborted") return structuredClone(settlement);
+    return this.transitionSettlement(settlement, {
+      state: "aborted",
+      abortReason: input.reason,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  snapshot(): ExecutionCustodySettlementSnapshot {
+    const payload = {
+      settlements: [...this.settlements.values()].map((value) =>
+        structuredClone(value),
+      ),
+      observations: [...this.observations.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      receipts: [...this.receipts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receiptIdByCommitFence: [...this.receiptIdByCommitFence.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: ExecutionCustodySettlementSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "execution_custody_snapshot_corrupt",
+        "execution custody settlement snapshot digest mismatch",
+      );
+    const settlements = new Map<string, ExecutionCustodySettlement>();
+    const observations = new Map<string, ExecutionCustodyObservation[]>();
+    const receipts = new Map<string, ExecutionCustodyCommitReceipt>();
+    for (const value of payload.settlements) {
+      assertExecutionCustodySettlement(value);
+      if (settlements.has(value.settlementId))
+        throw new E03RuntimeError(
+          "execution_custody_snapshot_settlement_duplicate",
+          `duplicate execution custody settlement ${value.settlementId}`,
+        );
+      settlements.set(value.settlementId, structuredClone(value));
+      observations.set(value.settlementId, []);
+    }
+    for (const value of payload.observations) {
+      assertExecutionCustodyObservation(value);
+      const list = observations.get(value.settlementId);
+      if (!list)
+        throw new E03RuntimeError(
+          "execution_custody_snapshot_observation_orphaned",
+          `execution custody observation ${value.observationId} is orphaned`,
+        );
+      if (
+        value.sequence !== list.length + 1 ||
+        (list.length > 0 &&
+          value.previousObservationDigest !== list.at(-1)!.digest)
+      )
+        throw new E03RuntimeError(
+          "execution_custody_snapshot_observation_chain_corrupt",
+          `execution custody observation ${value.observationId} breaks chain`,
+        );
+      list.push(structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertExecutionCustodyCommitReceipt(value);
+      if (!settlements.has(value.settlementId))
+        throw new E03RuntimeError(
+          "execution_custody_snapshot_receipt_orphaned",
+          `execution custody receipt ${value.receiptId} is orphaned`,
+        );
+      receipts.set(value.receiptId, structuredClone(value));
+    }
+    const receiptIndex = new Map(payload.receiptIdByCommitFence);
+    for (const receiptId of receiptIndex.values())
+      if (!receipts.has(receiptId))
+        throw new E03RuntimeError(
+          "execution_custody_snapshot_receipt_index_corrupt",
+          `execution custody receipt index references ${receiptId}`,
+        );
+    this.settlements = settlements;
+    this.observations = observations;
+    this.receipts = receipts;
+    this.receiptIdByCommitFence = receiptIndex;
+  }
+
+  private requireSettlement(id: string): ExecutionCustodySettlement {
+    const value = this.settlements.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "execution_custody_settlement_missing",
+        `execution custody settlement ${id} does not exist`,
+      );
+    assertExecutionCustodySettlement(value);
+    return value;
+  }
+
+  private assertSettlementRevision(
+    value: ExecutionCustodySettlement,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "execution_custody_settlement_stale_revision",
+        `execution custody settlement ${value.settlementId} revision is stale`,
+      );
+  }
+
+  private transitionSettlement(
+    value: ExecutionCustodySettlement,
+    patch: Partial<
+      Omit<ExecutionCustodySettlement, "settlementId" | "revision" | "digest">
+    >,
+  ): ExecutionCustodySettlement {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      settlementId: value.settlementId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertExecutionCustodySettlement(next);
+    this.settlements.set(next.settlementId, next);
+    return structuredClone(next);
+  }
+}

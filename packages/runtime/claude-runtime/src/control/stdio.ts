@@ -3074,3 +3074,658 @@ export class ControlFrameAssemblyRuntime {
     return structuredClone(next);
   }
 }
+
+export interface ControlTransportCheckpoint {
+  checkpointId: string;
+  connectionId: string;
+  streamId: string;
+  generation: number;
+  lastReceivedSequence: number;
+  lastAcknowledgedSequence: number;
+  receiveHeadDigest: string;
+  acknowledgedHeadDigest: string;
+  pendingFrameIds: string[];
+  state: "active" | "sealed" | "superseded";
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransportFrameReceipt {
+  receiptId: string;
+  checkpointId: string;
+  frameId: string;
+  sequence: number;
+  frameDigest: string;
+  outcome: "received" | "acknowledged" | "rejected";
+  errorCode: string;
+  previousReceiptDigest: string;
+  receivedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransportReplayPlan {
+  planId: string;
+  checkpointId: string;
+  generation: number;
+  fromSequence: number;
+  toSequence: number;
+  frameIds: string[];
+  frameDigests: string[];
+  state: "planned" | "claimed" | "completed" | "failed";
+  claimerId: string;
+  resultDigest: string;
+  errorCode: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransportCheckpointSnapshot {
+  checkpoints: ControlTransportCheckpoint[];
+  frames: ControlFrame[];
+  receipts: ControlTransportFrameReceipt[];
+  replayPlans: ControlTransportReplayPlan[];
+  activeCheckpointIdByStream: Array<[string, string]>;
+  receiptIdByFrameOutcome: Array<[string, string]>;
+  digest: string;
+}
+
+function assertControlTransportCheckpoint(
+  value: ControlTransportCheckpoint,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.checkpointId ||
+    !value.connectionId ||
+    !value.streamId ||
+    value.generation < 1 ||
+    value.lastReceivedSequence < 0 ||
+    value.lastAcknowledgedSequence < 0 ||
+    value.lastAcknowledgedSequence > value.lastReceivedSequence ||
+    !value.receiveHeadDigest ||
+    !value.acknowledgedHeadDigest ||
+    new Set(value.pendingFrameIds).size !== value.pendingFrameIds.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transport_checkpoint_corrupt",
+      `control transport checkpoint ${value.checkpointId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlTransportFrameReceipt(
+  value: ControlTransportFrameReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.checkpointId ||
+    !value.frameId ||
+    value.sequence < 1 ||
+    !value.frameDigest ||
+    !value.previousReceiptDigest ||
+    (value.outcome === "rejected" && !value.errorCode) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transport_frame_receipt_corrupt",
+      `control transport receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlTransportReplayPlan(
+  value: ControlTransportReplayPlan,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.planId ||
+    !value.checkpointId ||
+    value.generation < 1 ||
+    value.fromSequence < 1 ||
+    value.toSequence < value.fromSequence ||
+    value.frameIds.length !== value.frameDigests.length ||
+    new Set(value.frameIds).size !== value.frameIds.length ||
+    value.revision < 1 ||
+    (value.state === "completed" && !value.resultDigest) ||
+    (value.state === "failed" && !value.errorCode) ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transport_replay_plan_corrupt",
+      `control transport replay plan ${value.planId || "<empty>"} is corrupt`,
+    );
+}
+
+export class ControlTransportCheckpointRuntime {
+  private checkpoints = new Map<string, ControlTransportCheckpoint>();
+  private frames = new Map<string, ControlFrame>();
+  private receipts = new Map<string, ControlTransportFrameReceipt[]>();
+  private replayPlans = new Map<string, ControlTransportReplayPlan>();
+  private activeCheckpointIdByStream = new Map<string, string>();
+  private receiptIdByFrameOutcome = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  open(input: {
+    connectionId: string;
+    streamId: string;
+    generation: number;
+  }): ControlTransportCheckpoint {
+    const streamKey = this.streamKey(input.connectionId, input.streamId);
+    const activeId = this.activeCheckpointIdByStream.get(streamKey);
+    const active = activeId ? this.checkpoints.get(activeId) : undefined;
+    if (active) {
+      if (active.generation === input.generation)
+        return structuredClone(active);
+      if (active.generation > input.generation)
+        throw new E03RuntimeError(
+          "control_transport_checkpoint_generation_stale",
+          "control transport checkpoint generation is stale",
+        );
+      this.transitionCheckpoint(active, {
+        state: "superseded",
+        updatedAt: this.clock.now(),
+      });
+    }
+    if (!input.connectionId || !input.streamId || input.generation < 1)
+      throw new E03RuntimeError(
+        "control_transport_checkpoint_input_invalid",
+        "control transport checkpoint input is invalid",
+      );
+    const now = this.clock.now();
+    const root = digest(`control-transport:${streamKey}:${input.generation}`);
+    const payload = {
+      checkpointId: createId("control-transport-checkpoint"),
+      connectionId: input.connectionId,
+      streamId: input.streamId,
+      generation: input.generation,
+      lastReceivedSequence: 0,
+      lastAcknowledgedSequence: 0,
+      receiveHeadDigest: root,
+      acknowledgedHeadDigest: root,
+      pendingFrameIds: [] as string[],
+      state: "active" as const,
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const checkpoint = { ...payload, digest: digest(payload) };
+    assertControlTransportCheckpoint(checkpoint);
+    this.checkpoints.set(checkpoint.checkpointId, checkpoint);
+    this.receipts.set(checkpoint.checkpointId, []);
+    this.activeCheckpointIdByStream.set(streamKey, checkpoint.checkpointId);
+    return structuredClone(checkpoint);
+  }
+
+  receive(input: {
+    checkpointId: string;
+    expectedRevision: number;
+    generation: number;
+    frame: ControlFrame;
+  }): {
+    checkpoint: ControlTransportCheckpoint;
+    receipt: ControlTransportFrameReceipt;
+  } {
+    const checkpoint = this.requireCheckpoint(input.checkpointId);
+    this.assertCheckpointRevision(checkpoint, input.expectedRevision);
+    assertControlFrame(input.frame);
+    if (
+      checkpoint.state !== "active" ||
+      checkpoint.generation !== input.generation
+    )
+      throw new E03RuntimeError(
+        "control_transport_receive_checkpoint_inactive",
+        "control transport checkpoint is inactive or stale",
+      );
+    if (
+      input.frame.connectionId !== checkpoint.connectionId ||
+      input.frame.streamId !== checkpoint.streamId
+    )
+      throw new E03RuntimeError(
+        "control_transport_receive_stream_mismatch",
+        "control frame does not belong to checkpoint stream",
+      );
+    const existing = this.frames.get(input.frame.frameId);
+    if (existing) {
+      if (existing.digest !== input.frame.digest)
+        throw new E03RuntimeError(
+          "control_transport_receive_frame_conflict",
+          `control frame ${input.frame.frameId} conflicts`,
+        );
+      const receipt = this.findReceipt(
+        checkpoint.checkpointId,
+        input.frame.frameId,
+        "received",
+      );
+      if (!receipt)
+        throw new E03RuntimeError(
+          "control_transport_receive_receipt_missing",
+          "received control frame lacks receipt",
+        );
+      return { checkpoint: structuredClone(checkpoint), receipt };
+    }
+    if (
+      input.frame.sequence !== checkpoint.lastReceivedSequence + 1 ||
+      input.frame.previousDigest !== checkpoint.receiveHeadDigest
+    )
+      throw new E03RuntimeError(
+        "control_transport_receive_sequence_gap",
+        "control frame sequence or digest chain has a gap",
+      );
+    this.frames.set(input.frame.frameId, structuredClone(input.frame));
+    const receipt = this.recordReceipt(checkpoint, input.frame, "received", "");
+    const next = this.transitionCheckpoint(checkpoint, {
+      lastReceivedSequence: input.frame.sequence,
+      receiveHeadDigest: input.frame.digest,
+      pendingFrameIds: [...checkpoint.pendingFrameIds, input.frame.frameId],
+      updatedAt: this.clock.now(),
+    });
+    return { checkpoint: next, receipt };
+  }
+
+  acknowledge(input: {
+    checkpointId: string;
+    expectedRevision: number;
+    frameId: string;
+    sequence: number;
+    frameDigest: string;
+  }): {
+    checkpoint: ControlTransportCheckpoint;
+    receipt: ControlTransportFrameReceipt;
+  } {
+    const checkpoint = this.requireCheckpoint(input.checkpointId);
+    this.assertCheckpointRevision(checkpoint, input.expectedRevision);
+    const frame = this.frames.get(input.frameId);
+    if (
+      !frame ||
+      frame.sequence !== input.sequence ||
+      frame.digest !== input.frameDigest
+    )
+      throw new E03RuntimeError(
+        "control_transport_ack_frame_mismatch",
+        "control transport acknowledgement frame does not match",
+      );
+    if (!checkpoint.pendingFrameIds.includes(frame.frameId)) {
+      const receipt = this.findReceipt(
+        checkpoint.checkpointId,
+        frame.frameId,
+        "acknowledged",
+      );
+      if (!receipt)
+        throw new E03RuntimeError(
+          "control_transport_ack_receipt_missing",
+          "acknowledged control frame lacks receipt",
+        );
+      return { checkpoint: structuredClone(checkpoint), receipt };
+    }
+    if (frame.sequence !== checkpoint.lastAcknowledgedSequence + 1)
+      throw new E03RuntimeError(
+        "control_transport_ack_sequence_gap",
+        "control transport acknowledgements must be contiguous",
+      );
+    const receipt = this.recordReceipt(checkpoint, frame, "acknowledged", "");
+    const next = this.transitionCheckpoint(checkpoint, {
+      lastAcknowledgedSequence: frame.sequence,
+      acknowledgedHeadDigest: frame.digest,
+      pendingFrameIds: checkpoint.pendingFrameIds.filter(
+        (id) => id !== frame.frameId,
+      ),
+      updatedAt: this.clock.now(),
+    });
+    return { checkpoint: next, receipt };
+  }
+
+  planReplay(input: {
+    checkpointId: string;
+    expectedRevision: number;
+    generation: number;
+  }): ControlTransportReplayPlan {
+    const checkpoint = this.requireCheckpoint(input.checkpointId);
+    this.assertCheckpointRevision(checkpoint, input.expectedRevision);
+    if (
+      checkpoint.state !== "active" ||
+      checkpoint.generation !== input.generation
+    )
+      throw new E03RuntimeError(
+        "control_transport_replay_checkpoint_stale",
+        "control transport replay checkpoint is stale",
+      );
+    const frames = checkpoint.pendingFrameIds
+      .map((id) => this.frames.get(id))
+      .filter((value): value is ControlFrame => Boolean(value))
+      .sort((left, right) => left.sequence - right.sequence);
+    if (!frames.length)
+      throw new E03RuntimeError(
+        "control_transport_replay_empty",
+        "control transport checkpoint has no pending frames",
+      );
+    const payload = {
+      planId: createId("control-transport-replay"),
+      checkpointId: checkpoint.checkpointId,
+      generation: checkpoint.generation,
+      fromSequence: frames[0]!.sequence,
+      toSequence: frames.at(-1)!.sequence,
+      frameIds: frames.map((value) => value.frameId),
+      frameDigests: frames.map((value) => value.digest),
+      state: "planned" as const,
+      claimerId: "",
+      resultDigest: "",
+      errorCode: "",
+      createdAt: this.clock.now(),
+      updatedAt: this.clock.now(),
+      revision: 1,
+    };
+    const plan = { ...payload, digest: digest(payload) };
+    assertControlTransportReplayPlan(plan);
+    this.replayPlans.set(plan.planId, plan);
+    return structuredClone(plan);
+  }
+
+  claimReplay(input: {
+    planId: string;
+    expectedRevision: number;
+    claimerId: string;
+  }): ControlTransportReplayPlan {
+    const plan = this.requireReplayPlan(input.planId);
+    this.assertReplayPlanRevision(plan, input.expectedRevision);
+    if (plan.state !== "planned" && plan.state !== "failed")
+      throw new E03RuntimeError(
+        "control_transport_replay_claim_invalid_state",
+        `cannot claim control transport replay from ${plan.state}`,
+      );
+    if (!input.claimerId)
+      throw new E03RuntimeError(
+        "control_transport_replay_claimer_required",
+        "control transport replay claimer is required",
+      );
+    return this.transitionReplayPlan(plan, {
+      state: "claimed",
+      claimerId: input.claimerId,
+      errorCode: "",
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  settleReplay(input: {
+    planId: string;
+    expectedRevision: number;
+    claimerId: string;
+    accepted: boolean;
+    resultDigest?: string;
+    errorCode?: string;
+  }): ControlTransportReplayPlan {
+    const plan = this.requireReplayPlan(input.planId);
+    this.assertReplayPlanRevision(plan, input.expectedRevision);
+    if (plan.state !== "claimed" || plan.claimerId !== input.claimerId)
+      throw new E03RuntimeError(
+        "control_transport_replay_settle_not_claimed",
+        "control transport replay is not claimed by executor",
+      );
+    return this.transitionReplayPlan(plan, {
+      state: input.accepted ? "completed" : "failed",
+      resultDigest: input.resultDigest ?? "",
+      errorCode: input.errorCode ?? "",
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  seal(input: {
+    checkpointId: string;
+    expectedRevision: number;
+  }): ControlTransportCheckpoint {
+    const checkpoint = this.requireCheckpoint(input.checkpointId);
+    this.assertCheckpointRevision(checkpoint, input.expectedRevision);
+    if (checkpoint.pendingFrameIds.length)
+      throw new E03RuntimeError(
+        "control_transport_checkpoint_pending_frames",
+        "control transport checkpoint cannot seal with pending frames",
+      );
+    const next = this.transitionCheckpoint(checkpoint, {
+      state: "sealed",
+      updatedAt: this.clock.now(),
+    });
+    this.activeCheckpointIdByStream.delete(
+      this.streamKey(checkpoint.connectionId, checkpoint.streamId),
+    );
+    return next;
+  }
+
+  snapshot(): ControlTransportCheckpointSnapshot {
+    const payload = {
+      checkpoints: [...this.checkpoints.values()].map((value) =>
+        structuredClone(value),
+      ),
+      frames: [...this.frames.values()].map((value) => structuredClone(value)),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      replayPlans: [...this.replayPlans.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeCheckpointIdByStream: [
+        ...this.activeCheckpointIdByStream.entries(),
+      ],
+      receiptIdByFrameOutcome: [...this.receiptIdByFrameOutcome.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: ControlTransportCheckpointSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "control_transport_checkpoint_snapshot_corrupt",
+        "control transport checkpoint snapshot digest mismatch",
+      );
+    const checkpoints = new Map<string, ControlTransportCheckpoint>();
+    const frames = new Map<string, ControlFrame>();
+    const receipts = new Map<string, ControlTransportFrameReceipt[]>();
+    const replayPlans = new Map<string, ControlTransportReplayPlan>();
+    for (const value of payload.checkpoints) {
+      assertControlTransportCheckpoint(value);
+      if (checkpoints.has(value.checkpointId))
+        throw new E03RuntimeError(
+          "control_transport_checkpoint_snapshot_duplicate",
+          `duplicate control transport checkpoint ${value.checkpointId}`,
+        );
+      checkpoints.set(value.checkpointId, structuredClone(value));
+      receipts.set(value.checkpointId, []);
+    }
+    for (const value of payload.frames) {
+      assertControlFrame(value);
+      frames.set(value.frameId, structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertControlTransportFrameReceipt(value);
+      const list = receipts.get(value.checkpointId);
+      if (!list)
+        throw new E03RuntimeError(
+          "control_transport_checkpoint_snapshot_receipt_orphaned",
+          `control transport receipt ${value.receiptId} is orphaned`,
+        );
+      if (
+        list.length > 0 &&
+        value.previousReceiptDigest !== list.at(-1)!.digest
+      )
+        throw new E03RuntimeError(
+          "control_transport_checkpoint_snapshot_receipt_chain_corrupt",
+          `control transport receipt ${value.receiptId} breaks chain`,
+        );
+      list.push(structuredClone(value));
+    }
+    for (const value of payload.replayPlans) {
+      assertControlTransportReplayPlan(value);
+      if (!checkpoints.has(value.checkpointId))
+        throw new E03RuntimeError(
+          "control_transport_checkpoint_snapshot_replay_orphaned",
+          `control transport replay ${value.planId} is orphaned`,
+        );
+      replayPlans.set(value.planId, structuredClone(value));
+    }
+    const activeIndex = new Map(payload.activeCheckpointIdByStream);
+    for (const [streamKey, checkpointId] of activeIndex) {
+      const value = checkpoints.get(checkpointId);
+      if (
+        !value ||
+        this.streamKey(value.connectionId, value.streamId) !== streamKey ||
+        value.state !== "active"
+      )
+        throw new E03RuntimeError(
+          "control_transport_checkpoint_snapshot_active_index_corrupt",
+          `control transport active checkpoint ${checkpointId} is invalid`,
+        );
+    }
+    const receiptIndex = new Map(payload.receiptIdByFrameOutcome);
+    const allReceiptIds = new Set(
+      [...receipts.values()].flat().map((value) => value.receiptId),
+    );
+    for (const receiptId of receiptIndex.values())
+      if (!allReceiptIds.has(receiptId))
+        throw new E03RuntimeError(
+          "control_transport_checkpoint_snapshot_receipt_index_corrupt",
+          `control transport receipt index references ${receiptId}`,
+        );
+    this.checkpoints = checkpoints;
+    this.frames = frames;
+    this.receipts = receipts;
+    this.replayPlans = replayPlans;
+    this.activeCheckpointIdByStream = activeIndex;
+    this.receiptIdByFrameOutcome = receiptIndex;
+  }
+
+  private recordReceipt(
+    checkpoint: ControlTransportCheckpoint,
+    frame: ControlFrame,
+    outcome: ControlTransportFrameReceipt["outcome"],
+    errorCode: string,
+  ): ControlTransportFrameReceipt {
+    const list = this.receipts.get(checkpoint.checkpointId) ?? [];
+    const payload = {
+      receiptId: createId("control-transport-frame-receipt"),
+      checkpointId: checkpoint.checkpointId,
+      frameId: frame.frameId,
+      sequence: frame.sequence,
+      frameDigest: frame.digest,
+      outcome,
+      errorCode,
+      previousReceiptDigest:
+        list.at(-1)?.digest ?? digest("control-transport-frame-receipt-root"),
+      receivedAt: this.clock.now(),
+      revision: list.length + 1,
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertControlTransportFrameReceipt(receipt);
+    this.receipts.set(checkpoint.checkpointId, [...list, receipt]);
+    this.receiptIdByFrameOutcome.set(
+      `${checkpoint.checkpointId}:${frame.frameId}:${outcome}`,
+      receipt.receiptId,
+    );
+    return structuredClone(receipt);
+  }
+
+  private findReceipt(
+    checkpointId: string,
+    frameId: string,
+    outcome: ControlTransportFrameReceipt["outcome"],
+  ): ControlTransportFrameReceipt | undefined {
+    const receiptId = this.receiptIdByFrameOutcome.get(
+      `${checkpointId}:${frameId}:${outcome}`,
+    );
+    const receipt = (this.receipts.get(checkpointId) ?? []).find(
+      (value) => value.receiptId === receiptId,
+    );
+    return receipt ? structuredClone(receipt) : undefined;
+  }
+
+  private streamKey(connectionId: string, streamId: string): string {
+    return `${connectionId}:${streamId}`;
+  }
+
+  private requireCheckpoint(id: string): ControlTransportCheckpoint {
+    const value = this.checkpoints.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transport_checkpoint_missing",
+        `control transport checkpoint ${id} does not exist`,
+      );
+    assertControlTransportCheckpoint(value);
+    return value;
+  }
+
+  private requireReplayPlan(id: string): ControlTransportReplayPlan {
+    const value = this.replayPlans.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transport_replay_plan_missing",
+        `control transport replay plan ${id} does not exist`,
+      );
+    assertControlTransportReplayPlan(value);
+    return value;
+  }
+
+  private assertCheckpointRevision(
+    value: ControlTransportCheckpoint,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_transport_checkpoint_stale_revision",
+        `control transport checkpoint ${value.checkpointId} revision is stale`,
+      );
+  }
+
+  private assertReplayPlanRevision(
+    value: ControlTransportReplayPlan,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_transport_replay_plan_stale_revision",
+        `control transport replay plan ${value.planId} revision is stale`,
+      );
+  }
+
+  private transitionCheckpoint(
+    value: ControlTransportCheckpoint,
+    patch: Partial<
+      Omit<ControlTransportCheckpoint, "checkpointId" | "revision" | "digest">
+    >,
+  ): ControlTransportCheckpoint {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      checkpointId: value.checkpointId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlTransportCheckpoint(next);
+    this.checkpoints.set(next.checkpointId, next);
+    return structuredClone(next);
+  }
+
+  private transitionReplayPlan(
+    value: ControlTransportReplayPlan,
+    patch: Partial<
+      Omit<ControlTransportReplayPlan, "planId" | "revision" | "digest">
+    >,
+  ): ControlTransportReplayPlan {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      planId: value.planId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlTransportReplayPlan(next);
+    this.replayPlans.set(next.planId, next);
+    return structuredClone(next);
+  }
+}

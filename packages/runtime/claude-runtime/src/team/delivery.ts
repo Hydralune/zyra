@@ -4207,3 +4207,669 @@ export class DeliveryCustodyTransferRuntime {
     return structuredClone(next);
   }
 }
+
+export type DeliveryTransferRecoveryState =
+  | "detected"
+  | "replaying"
+  | "verified"
+  | "resolved"
+  | "quarantined";
+
+export interface DeliveryTransferRecovery {
+  recoveryId: string;
+  transferId: string;
+  deliveryId: string;
+  fromTaskId: string;
+  toTaskId: string;
+  state: DeliveryTransferRecoveryState;
+  observedTransferState: DeliveryCustodyTransfer["state"];
+  expectedDeliveryDigest: string;
+  sourceReceiptHead: string;
+  replayStepIds: string[];
+  acceptedStepIds: string[];
+  failedStepIds: string[];
+  resolutionDigest: string;
+  quarantineReason: string;
+  generation: number;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DeliveryTransferReplayStep {
+  stepId: string;
+  recoveryId: string;
+  kind:
+    | "validate-source"
+    | "reissue-acceptance"
+    | "reissue-commit"
+    | "verify-target";
+  state: "pending" | "claimed" | "accepted" | "failed";
+  executorId: string;
+  idempotencyKey: string;
+  attempt: number;
+  expectedInputDigest: string;
+  effectDigest: string;
+  errorCode: string;
+  claimedAt: string;
+  settledAt: string;
+  previousStepDigest: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DeliveryTransferRecoveryReceipt {
+  receiptId: string;
+  recoveryId: string;
+  transferId: string;
+  deliveryId: string;
+  generation: number;
+  outcome: "resolved" | "quarantined";
+  transferDigest: string;
+  stepChainDigest: string;
+  resolutionDigest: string;
+  completedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DeliveryTransferRecoverySnapshot {
+  recoveries: DeliveryTransferRecovery[];
+  steps: DeliveryTransferReplayStep[];
+  receipts: DeliveryTransferRecoveryReceipt[];
+  activeRecoveryIdByTransfer: Array<[string, string]>;
+  stepIdByIdempotencyKey: Array<[string, string]>;
+  digest: string;
+}
+
+function assertDeliveryTransferRecovery(value: DeliveryTransferRecovery): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.recoveryId ||
+    !value.transferId ||
+    !value.deliveryId ||
+    !value.fromTaskId ||
+    !value.toTaskId ||
+    value.fromTaskId === value.toTaskId ||
+    !value.expectedDeliveryDigest ||
+    !value.sourceReceiptHead ||
+    new Set(value.replayStepIds).size !== value.replayStepIds.length ||
+    value.acceptedStepIds.some((id) => value.failedStepIds.includes(id)) ||
+    value.generation < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "delivery_transfer_recovery_corrupt",
+      `delivery transfer recovery ${value.recoveryId || "<empty>"} is corrupt`,
+    );
+  if (value.state === "resolved" && !value.resolutionDigest)
+    throw new E03RuntimeError(
+      "delivery_transfer_recovery_resolution_missing",
+      "resolved delivery transfer recovery lacks digest",
+    );
+  if (value.state === "quarantined" && !value.quarantineReason)
+    throw new E03RuntimeError(
+      "delivery_transfer_recovery_quarantine_reason_missing",
+      "quarantined delivery transfer recovery lacks reason",
+    );
+}
+
+function assertDeliveryTransferReplayStep(
+  value: DeliveryTransferReplayStep,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.stepId ||
+    !value.recoveryId ||
+    !value.idempotencyKey ||
+    value.attempt < 1 ||
+    !value.expectedInputDigest ||
+    !value.previousStepDigest ||
+    value.revision < 1 ||
+    (value.state === "accepted" && !value.effectDigest) ||
+    (value.state === "failed" && !value.errorCode) ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "delivery_transfer_replay_step_corrupt",
+      `delivery transfer replay step ${value.stepId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertDeliveryTransferRecoveryReceipt(
+  value: DeliveryTransferRecoveryReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.recoveryId ||
+    !value.transferId ||
+    !value.deliveryId ||
+    value.generation < 1 ||
+    !value.transferDigest ||
+    !value.stepChainDigest ||
+    !value.resolutionDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "delivery_transfer_recovery_receipt_corrupt",
+      `delivery transfer recovery receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class DeliveryTransferRecoveryRuntime {
+  private recoveries = new Map<string, DeliveryTransferRecovery>();
+  private steps = new Map<string, DeliveryTransferReplayStep>();
+  private receipts = new Map<string, DeliveryTransferRecoveryReceipt>();
+  private activeRecoveryIdByTransfer = new Map<string, string>();
+  private stepIdByIdempotencyKey = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  detect(input: {
+    transfer: DeliveryCustodyTransfer;
+    receipts: DeliveryCustodyReceipt[];
+    recoveryId?: string;
+  }): DeliveryTransferRecovery {
+    assertDeliveryCustodyTransfer(input.transfer);
+    input.receipts.forEach(assertDeliveryCustodyReceipt);
+    if (input.transfer.state === "committed")
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_not_required",
+        "committed delivery custody transfer does not require recovery",
+      );
+    const activeId = this.activeRecoveryIdByTransfer.get(
+      input.transfer.transferId,
+    );
+    const active = activeId ? this.recoveries.get(activeId) : undefined;
+    if (
+      active &&
+      active.state !== "resolved" &&
+      active.state !== "quarantined"
+    ) {
+      if (active.expectedDeliveryDigest !== input.transfer.deliveryDigest)
+        throw new E03RuntimeError(
+          "delivery_transfer_recovery_active_conflict",
+          "delivery transfer recovery already tracks another payload",
+        );
+      return structuredClone(active);
+    }
+    const ordered = input.receipts
+      .slice()
+      .sort((left, right) => left.sequence - right.sequence);
+    ordered.forEach((receipt, index) => {
+      if (
+        receipt.transferId !== input.transfer.transferId ||
+        receipt.deliveryId !== input.transfer.deliveryId ||
+        receipt.sequence !== index + 1 ||
+        (index > 0 && receipt.previousDigest !== ordered[index - 1]!.digest)
+      )
+        throw new E03RuntimeError(
+          "delivery_transfer_recovery_receipt_chain_corrupt",
+          "delivery custody receipt chain cannot seed recovery",
+        );
+    });
+    const recoveryId =
+      input.recoveryId ?? createId("delivery-transfer-recovery");
+    const now = this.clock.now();
+    const payload = {
+      recoveryId,
+      transferId: input.transfer.transferId,
+      deliveryId: input.transfer.deliveryId,
+      fromTaskId: input.transfer.fromTaskId,
+      toTaskId: input.transfer.toTaskId,
+      state: "detected" as const,
+      observedTransferState: input.transfer.state,
+      expectedDeliveryDigest: input.transfer.deliveryDigest,
+      sourceReceiptHead:
+        ordered.at(-1)?.digest ?? digest("delivery-transfer-receipt-root"),
+      replayStepIds: [] as string[],
+      acceptedStepIds: [] as string[],
+      failedStepIds: [] as string[],
+      resolutionDigest: "",
+      quarantineReason: "",
+      generation: (active?.generation ?? 0) + 1,
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const recovery = { ...payload, digest: digest(payload) };
+    assertDeliveryTransferRecovery(recovery);
+    this.recoveries.set(recovery.recoveryId, recovery);
+    this.activeRecoveryIdByTransfer.set(
+      recovery.transferId,
+      recovery.recoveryId,
+    );
+    return structuredClone(recovery);
+  }
+
+  plan(input: {
+    recoveryId: string;
+    expectedRevision: number;
+    kinds: DeliveryTransferReplayStep["kind"][];
+  }): {
+    recovery: DeliveryTransferRecovery;
+    steps: DeliveryTransferReplayStep[];
+  } {
+    const recovery = this.requireRecovery(input.recoveryId);
+    this.assertRecoveryRevision(recovery, input.expectedRevision);
+    if (recovery.state !== "detected")
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_plan_invalid_state",
+        `cannot plan delivery recovery from ${recovery.state}`,
+      );
+    const kinds = [...new Set(input.kinds)];
+    if (
+      !kinds.length ||
+      kinds[0] !== "validate-source" ||
+      kinds.at(-1) !== "verify-target"
+    )
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_plan_invalid",
+        "delivery recovery plan must validate source and verify target",
+      );
+    const planned: DeliveryTransferReplayStep[] = [];
+    let previousStepDigest = recovery.sourceReceiptHead;
+    kinds.forEach((kind, index) => {
+      const payload = {
+        stepId: createId("delivery-transfer-replay-step"),
+        recoveryId: recovery.recoveryId,
+        kind,
+        state: "pending" as const,
+        executorId: "",
+        idempotencyKey: `${recovery.recoveryId}:${recovery.generation}:${index + 1}:${kind}`,
+        attempt: 1,
+        expectedInputDigest:
+          index === 0 ? recovery.expectedDeliveryDigest : previousStepDigest,
+        effectDigest: "",
+        errorCode: "",
+        claimedAt: "",
+        settledAt: "",
+        previousStepDigest,
+        revision: 1,
+      };
+      const step = { ...payload, digest: digest(payload) };
+      assertDeliveryTransferReplayStep(step);
+      this.steps.set(step.stepId, step);
+      this.stepIdByIdempotencyKey.set(step.idempotencyKey, step.stepId);
+      planned.push(step);
+      previousStepDigest = step.digest;
+    });
+    const next = this.transitionRecovery(recovery, {
+      state: "replaying",
+      replayStepIds: planned.map((value) => value.stepId),
+      updatedAt: this.clock.now(),
+    });
+    return {
+      recovery: next,
+      steps: planned.map((value) => structuredClone(value)),
+    };
+  }
+
+  claim(input: {
+    stepId: string;
+    expectedRevision: number;
+    executorId: string;
+    idempotencyKey: string;
+  }): DeliveryTransferReplayStep {
+    const step = this.requireStep(input.stepId);
+    this.assertStepRevision(step, input.expectedRevision);
+    if (step.idempotencyKey !== input.idempotencyKey || !input.executorId)
+      throw new E03RuntimeError(
+        "delivery_transfer_replay_claim_invalid",
+        "delivery transfer replay claim identity is invalid",
+      );
+    if (step.state === "claimed" && step.executorId === input.executorId)
+      return structuredClone(step);
+    if (step.state !== "pending" && step.state !== "failed")
+      throw new E03RuntimeError(
+        "delivery_transfer_replay_claim_invalid_state",
+        `cannot claim delivery replay step from ${step.state}`,
+      );
+    return this.transitionStep(step, {
+      state: "claimed",
+      executorId: input.executorId,
+      attempt: step.state === "failed" ? step.attempt + 1 : step.attempt,
+      claimedAt: this.clock.now(),
+      settledAt: "",
+      errorCode: "",
+    });
+  }
+
+  settle(input: {
+    stepId: string;
+    expectedRevision: number;
+    executorId: string;
+    accepted: boolean;
+    effectDigest?: string;
+    errorCode?: string;
+  }): { recovery: DeliveryTransferRecovery; step: DeliveryTransferReplayStep } {
+    const step = this.requireStep(input.stepId);
+    this.assertStepRevision(step, input.expectedRevision);
+    if (step.state !== "claimed" || step.executorId !== input.executorId)
+      throw new E03RuntimeError(
+        "delivery_transfer_replay_settle_not_claimed",
+        "delivery transfer replay step is not claimed by executor",
+      );
+    const nextStep = this.transitionStep(step, {
+      state: input.accepted ? "accepted" : "failed",
+      effectDigest: input.effectDigest ?? "",
+      errorCode: input.errorCode ?? "",
+      settledAt: this.clock.now(),
+    });
+    const recovery = this.requireRecovery(step.recoveryId);
+    const accepted = new Set(recovery.acceptedStepIds);
+    const failed = new Set(recovery.failedStepIds);
+    if (input.accepted) {
+      accepted.add(step.stepId);
+      failed.delete(step.stepId);
+    } else {
+      failed.add(step.stepId);
+      accepted.delete(step.stepId);
+    }
+    const nextRecovery = this.transitionRecovery(recovery, {
+      acceptedStepIds: [...accepted],
+      failedStepIds: [...failed],
+      updatedAt: this.clock.now(),
+    });
+    return { recovery: nextRecovery, step: nextStep };
+  }
+
+  verify(input: {
+    recoveryId: string;
+    expectedRevision: number;
+  }): DeliveryTransferRecovery {
+    const recovery = this.requireRecovery(input.recoveryId);
+    this.assertRecoveryRevision(recovery, input.expectedRevision);
+    if (recovery.state !== "replaying")
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_verify_invalid_state",
+        "delivery transfer recovery is not replaying",
+      );
+    const steps = recovery.replayStepIds.map((id) => this.requireStep(id));
+    if (steps.some((step) => step.state !== "accepted"))
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_steps_incomplete",
+        "delivery transfer recovery replay steps are incomplete",
+      );
+    return this.transitionRecovery(recovery, {
+      state: "verified",
+      resolutionDigest: digest(
+        steps.map((step) => ({
+          kind: step.kind,
+          effectDigest: step.effectDigest,
+        })),
+      ),
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  resolve(input: {
+    recoveryId: string;
+    expectedRevision: number;
+    transfer: DeliveryCustodyTransfer;
+  }): {
+    recovery: DeliveryTransferRecovery;
+    receipt: DeliveryTransferRecoveryReceipt;
+  } {
+    const recovery = this.requireRecovery(input.recoveryId);
+    this.assertRecoveryRevision(recovery, input.expectedRevision);
+    assertDeliveryCustodyTransfer(input.transfer);
+    if (recovery.state !== "verified")
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_not_verified",
+        "delivery transfer recovery must be verified before resolve",
+      );
+    if (
+      input.transfer.transferId !== recovery.transferId ||
+      input.transfer.deliveryId !== recovery.deliveryId ||
+      input.transfer.deliveryDigest !== recovery.expectedDeliveryDigest ||
+      input.transfer.state !== "committed"
+    )
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_resolution_mismatch",
+        "delivery transfer recovery final transfer does not match",
+      );
+    const steps = recovery.replayStepIds.map((id) => this.requireStep(id));
+    const receiptPayload = {
+      receiptId: createId("delivery-transfer-recovery-receipt"),
+      recoveryId: recovery.recoveryId,
+      transferId: recovery.transferId,
+      deliveryId: recovery.deliveryId,
+      generation: recovery.generation,
+      outcome: "resolved" as const,
+      transferDigest: input.transfer.digest,
+      stepChainDigest: digest(steps.map((value) => value.digest)),
+      resolutionDigest: recovery.resolutionDigest,
+      completedAt: this.clock.now(),
+      revision: 1,
+    };
+    const receipt = { ...receiptPayload, digest: digest(receiptPayload) };
+    assertDeliveryTransferRecoveryReceipt(receipt);
+    this.receipts.set(receipt.receiptId, receipt);
+    const next = this.transitionRecovery(recovery, {
+      state: "resolved",
+      updatedAt: this.clock.now(),
+    });
+    this.activeRecoveryIdByTransfer.delete(recovery.transferId);
+    return { recovery: next, receipt: structuredClone(receipt) };
+  }
+
+  quarantine(input: {
+    recoveryId: string;
+    expectedRevision: number;
+    reason: string;
+    transferDigest: string;
+  }): {
+    recovery: DeliveryTransferRecovery;
+    receipt: DeliveryTransferRecoveryReceipt;
+  } {
+    const recovery = this.requireRecovery(input.recoveryId);
+    this.assertRecoveryRevision(recovery, input.expectedRevision);
+    if (recovery.state === "resolved")
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_quarantine_resolved",
+        "resolved delivery transfer recovery cannot quarantine",
+      );
+    if (!input.reason || !input.transferDigest)
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_quarantine_invalid",
+        "delivery transfer quarantine requires reason and transfer digest",
+      );
+    const steps = recovery.replayStepIds.map((id) => this.requireStep(id));
+    const resolutionDigest = digest({
+      reason: input.reason,
+      transferDigest: input.transferDigest,
+    });
+    const receiptPayload = {
+      receiptId: createId("delivery-transfer-recovery-receipt"),
+      recoveryId: recovery.recoveryId,
+      transferId: recovery.transferId,
+      deliveryId: recovery.deliveryId,
+      generation: recovery.generation,
+      outcome: "quarantined" as const,
+      transferDigest: input.transferDigest,
+      stepChainDigest: digest(steps.map((value) => value.digest)),
+      resolutionDigest,
+      completedAt: this.clock.now(),
+      revision: 1,
+    };
+    const receipt = { ...receiptPayload, digest: digest(receiptPayload) };
+    assertDeliveryTransferRecoveryReceipt(receipt);
+    this.receipts.set(receipt.receiptId, receipt);
+    const next = this.transitionRecovery(recovery, {
+      state: "quarantined",
+      resolutionDigest,
+      quarantineReason: input.reason,
+      updatedAt: this.clock.now(),
+    });
+    this.activeRecoveryIdByTransfer.delete(recovery.transferId);
+    return { recovery: next, receipt: structuredClone(receipt) };
+  }
+
+  snapshot(): DeliveryTransferRecoverySnapshot {
+    const payload = {
+      recoveries: [...this.recoveries.values()].map((value) =>
+        structuredClone(value),
+      ),
+      steps: [...this.steps.values()].map((value) => structuredClone(value)),
+      receipts: [...this.receipts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeRecoveryIdByTransfer: [
+        ...this.activeRecoveryIdByTransfer.entries(),
+      ],
+      stepIdByIdempotencyKey: [...this.stepIdByIdempotencyKey.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: DeliveryTransferRecoverySnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_snapshot_corrupt",
+        "delivery transfer recovery snapshot digest mismatch",
+      );
+    const recoveries = new Map<string, DeliveryTransferRecovery>();
+    const steps = new Map<string, DeliveryTransferReplayStep>();
+    const receipts = new Map<string, DeliveryTransferRecoveryReceipt>();
+    for (const value of payload.recoveries) {
+      assertDeliveryTransferRecovery(value);
+      if (recoveries.has(value.recoveryId))
+        throw new E03RuntimeError(
+          "delivery_transfer_recovery_snapshot_duplicate",
+          `duplicate delivery transfer recovery ${value.recoveryId}`,
+        );
+      recoveries.set(value.recoveryId, structuredClone(value));
+    }
+    for (const value of payload.steps) {
+      assertDeliveryTransferReplayStep(value);
+      if (!recoveries.has(value.recoveryId))
+        throw new E03RuntimeError(
+          "delivery_transfer_recovery_snapshot_step_orphaned",
+          `delivery transfer recovery step ${value.stepId} is orphaned`,
+        );
+      steps.set(value.stepId, structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertDeliveryTransferRecoveryReceipt(value);
+      if (!recoveries.has(value.recoveryId))
+        throw new E03RuntimeError(
+          "delivery_transfer_recovery_snapshot_receipt_orphaned",
+          `delivery transfer recovery receipt ${value.receiptId} is orphaned`,
+        );
+      receipts.set(value.receiptId, structuredClone(value));
+    }
+    const activeIndex = new Map(payload.activeRecoveryIdByTransfer);
+    for (const [transferId, recoveryId] of activeIndex) {
+      const value = recoveries.get(recoveryId);
+      if (
+        !value ||
+        value.transferId !== transferId ||
+        ["resolved", "quarantined"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "delivery_transfer_recovery_snapshot_active_index_corrupt",
+          `delivery transfer recovery active index ${recoveryId} is invalid`,
+        );
+    }
+    const stepIndex = new Map(payload.stepIdByIdempotencyKey);
+    for (const stepId of stepIndex.values())
+      if (!steps.has(stepId))
+        throw new E03RuntimeError(
+          "delivery_transfer_recovery_snapshot_step_index_corrupt",
+          `delivery transfer recovery step index references ${stepId}`,
+        );
+    this.recoveries = recoveries;
+    this.steps = steps;
+    this.receipts = receipts;
+    this.activeRecoveryIdByTransfer = activeIndex;
+    this.stepIdByIdempotencyKey = stepIndex;
+  }
+
+  private requireRecovery(id: string): DeliveryTransferRecovery {
+    const value = this.recoveries.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_missing",
+        `delivery transfer recovery ${id} does not exist`,
+      );
+    assertDeliveryTransferRecovery(value);
+    return value;
+  }
+
+  private requireStep(id: string): DeliveryTransferReplayStep {
+    const value = this.steps.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "delivery_transfer_replay_step_missing",
+        `delivery transfer replay step ${id} does not exist`,
+      );
+    assertDeliveryTransferReplayStep(value);
+    return value;
+  }
+
+  private assertRecoveryRevision(
+    value: DeliveryTransferRecovery,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "delivery_transfer_recovery_stale_revision",
+        `delivery transfer recovery ${value.recoveryId} revision is stale`,
+      );
+  }
+
+  private assertStepRevision(
+    value: DeliveryTransferReplayStep,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "delivery_transfer_replay_step_stale_revision",
+        `delivery transfer replay step ${value.stepId} revision is stale`,
+      );
+  }
+
+  private transitionRecovery(
+    value: DeliveryTransferRecovery,
+    patch: Partial<
+      Omit<DeliveryTransferRecovery, "recoveryId" | "revision" | "digest">
+    >,
+  ): DeliveryTransferRecovery {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      recoveryId: value.recoveryId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDeliveryTransferRecovery(next);
+    this.recoveries.set(next.recoveryId, next);
+    return structuredClone(next);
+  }
+
+  private transitionStep(
+    value: DeliveryTransferReplayStep,
+    patch: Partial<
+      Omit<DeliveryTransferReplayStep, "stepId" | "revision" | "digest">
+    >,
+  ): DeliveryTransferReplayStep {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      stepId: value.stepId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDeliveryTransferReplayStep(next);
+    this.steps.set(next.stepId, next);
+    return structuredClone(next);
+  }
+}

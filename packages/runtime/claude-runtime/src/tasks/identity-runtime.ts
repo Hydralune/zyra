@@ -2870,3 +2870,594 @@ export class TaskIdentityEpochRuntime {
     return structuredClone(next);
   }
 }
+
+export type TaskIdentityHandoffState =
+  | "proposed"
+  | "challenged"
+  | "accepted"
+  | "committed"
+  | "aborted";
+
+export interface TaskIdentityHandoff {
+  handoffId: string;
+  taskId: string;
+  leaseId: string;
+  attemptId: string;
+  sourceOwnerId: string;
+  targetOwnerId: string;
+  state: TaskIdentityHandoffState;
+  sourceCredentialDigest: string;
+  targetCredentialDigest: string;
+  challengeDigest: string;
+  sourceAckId: string;
+  targetAckId: string;
+  generation: number;
+  commitFence: string;
+  abortReason: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskIdentityHandoffAck {
+  ackId: string;
+  handoffId: string;
+  ownerId: string;
+  role: "source" | "target";
+  generation: number;
+  challengeDigest: string;
+  credentialDigest: string;
+  accepted: boolean;
+  errorCode: string;
+  previousAckDigest: string;
+  acknowledgedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskIdentityHandoffReceipt {
+  receiptId: string;
+  handoffId: string;
+  taskId: string;
+  leaseId: string;
+  attemptId: string;
+  sourceOwnerId: string;
+  targetOwnerId: string;
+  generation: number;
+  commitFence: string;
+  sourceAckDigest: string;
+  targetAckDigest: string;
+  committedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskIdentityHandoffSnapshot {
+  handoffs: TaskIdentityHandoff[];
+  acknowledgements: TaskIdentityHandoffAck[];
+  receipts: TaskIdentityHandoffReceipt[];
+  activeHandoffIdByTask: Array<[string, string]>;
+  receiptIdByCommitFence: Array<[string, string]>;
+  digest: string;
+}
+
+function assertTaskIdentityHandoff(value: TaskIdentityHandoff): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.handoffId ||
+    !value.taskId ||
+    !value.leaseId ||
+    !value.attemptId ||
+    !value.sourceOwnerId ||
+    !value.targetOwnerId ||
+    value.sourceOwnerId === value.targetOwnerId ||
+    !value.sourceCredentialDigest ||
+    value.generation < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_identity_handoff_corrupt",
+      `task identity handoff ${value.handoffId || "<empty>"} is corrupt`,
+    );
+  if (
+    ["challenged", "accepted", "committed"].includes(value.state) &&
+    !value.challengeDigest
+  )
+    throw new E03RuntimeError(
+      "task_identity_handoff_challenge_missing",
+      "challenged task identity handoff lacks challenge digest",
+    );
+  if (value.state === "committed" && !value.commitFence)
+    throw new E03RuntimeError(
+      "task_identity_handoff_commit_fence_missing",
+      "committed task identity handoff lacks fence",
+    );
+}
+
+function assertTaskIdentityHandoffAck(value: TaskIdentityHandoffAck): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.ackId ||
+    !value.handoffId ||
+    !value.ownerId ||
+    value.generation < 1 ||
+    !value.challengeDigest ||
+    !value.credentialDigest ||
+    (!value.accepted && !value.errorCode) ||
+    !value.previousAckDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_identity_handoff_ack_corrupt",
+      `task identity handoff ack ${value.ackId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskIdentityHandoffReceipt(
+  value: TaskIdentityHandoffReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.handoffId ||
+    !value.taskId ||
+    !value.leaseId ||
+    !value.attemptId ||
+    !value.sourceOwnerId ||
+    !value.targetOwnerId ||
+    value.generation < 1 ||
+    !value.commitFence ||
+    !value.sourceAckDigest ||
+    !value.targetAckDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_identity_handoff_receipt_corrupt",
+      `task identity handoff receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TaskIdentityHandoffRuntime {
+  private handoffs = new Map<string, TaskIdentityHandoff>();
+  private acknowledgements = new Map<string, TaskIdentityHandoffAck[]>();
+  private receipts = new Map<string, TaskIdentityHandoffReceipt>();
+  private activeHandoffIdByTask = new Map<string, string>();
+  private receiptIdByCommitFence = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  propose(input: {
+    handoffId?: string;
+    identity: E03Identity;
+    sourceOwnerId: string;
+    targetOwnerId: string;
+    sourceCredentialDigest: string;
+  }): TaskIdentityHandoff {
+    if (
+      !input.identity.taskId ||
+      !input.identity.leaseId ||
+      !input.identity.attemptId ||
+      !input.sourceOwnerId ||
+      !input.targetOwnerId ||
+      !input.sourceCredentialDigest
+    )
+      throw new E03RuntimeError(
+        "task_identity_handoff_proposal_invalid",
+        "task identity handoff proposal is incomplete",
+      );
+    const activeId = this.activeHandoffIdByTask.get(input.identity.taskId);
+    const active = activeId ? this.handoffs.get(activeId) : undefined;
+    if (active && active.state !== "committed" && active.state !== "aborted") {
+      if (
+        active.sourceOwnerId !== input.sourceOwnerId ||
+        active.targetOwnerId !== input.targetOwnerId ||
+        active.leaseId !== input.identity.leaseId
+      )
+        throw new E03RuntimeError(
+          "task_identity_handoff_active_conflict",
+          `task ${input.identity.taskId} already has active handoff`,
+        );
+      return structuredClone(active);
+    }
+    const handoffId = input.handoffId ?? createId("task-identity-handoff");
+    if (this.handoffs.has(handoffId))
+      throw new E03RuntimeError(
+        "task_identity_handoff_id_duplicate",
+        `task identity handoff ${handoffId} already exists`,
+      );
+    const now = this.clock.now();
+    const payload = {
+      handoffId,
+      taskId: input.identity.taskId,
+      leaseId: input.identity.leaseId,
+      attemptId: input.identity.attemptId,
+      sourceOwnerId: input.sourceOwnerId,
+      targetOwnerId: input.targetOwnerId,
+      state: "proposed" as const,
+      sourceCredentialDigest: input.sourceCredentialDigest,
+      targetCredentialDigest: "",
+      challengeDigest: "",
+      sourceAckId: "",
+      targetAckId: "",
+      generation: (active?.generation ?? 0) + 1,
+      commitFence: "",
+      abortReason: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const handoff = { ...payload, digest: digest(payload) };
+    assertTaskIdentityHandoff(handoff);
+    this.handoffs.set(handoff.handoffId, handoff);
+    this.acknowledgements.set(handoff.handoffId, []);
+    this.activeHandoffIdByTask.set(handoff.taskId, handoff.handoffId);
+    return structuredClone(handoff);
+  }
+
+  challenge(input: {
+    handoffId: string;
+    expectedRevision: number;
+    challengeDigest: string;
+  }): TaskIdentityHandoff {
+    const handoff = this.requireHandoff(input.handoffId);
+    this.assertHandoffRevision(handoff, input.expectedRevision);
+    if (handoff.state !== "proposed")
+      throw new E03RuntimeError(
+        "task_identity_handoff_challenge_invalid_state",
+        `cannot challenge task identity handoff from ${handoff.state}`,
+      );
+    if (!input.challengeDigest)
+      throw new E03RuntimeError(
+        "task_identity_handoff_challenge_invalid",
+        "task identity handoff challenge digest is required",
+      );
+    return this.transitionHandoff(handoff, {
+      state: "challenged",
+      challengeDigest: input.challengeDigest,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  acknowledge(input: {
+    handoffId: string;
+    expectedRevision: number;
+    generation: number;
+    ownerId: string;
+    role: "source" | "target";
+    challengeDigest: string;
+    credentialDigest: string;
+    accepted: boolean;
+    errorCode?: string;
+  }): {
+    handoff: TaskIdentityHandoff;
+    acknowledgement: TaskIdentityHandoffAck;
+  } {
+    const handoff = this.requireHandoff(input.handoffId);
+    this.assertHandoffRevision(handoff, input.expectedRevision);
+    if (handoff.state !== "challenged" && handoff.state !== "accepted")
+      throw new E03RuntimeError(
+        "task_identity_handoff_ack_invalid_state",
+        `cannot acknowledge task identity handoff from ${handoff.state}`,
+      );
+    if (
+      handoff.generation !== input.generation ||
+      handoff.challengeDigest !== input.challengeDigest
+    )
+      throw new E03RuntimeError(
+        "task_identity_handoff_ack_challenge_stale",
+        "task identity handoff challenge or generation is stale",
+      );
+    const expectedOwner =
+      input.role === "source" ? handoff.sourceOwnerId : handoff.targetOwnerId;
+    if (input.ownerId !== expectedOwner)
+      throw new E03RuntimeError(
+        "task_identity_handoff_ack_owner_mismatch",
+        "task identity handoff acknowledgement owner is invalid",
+      );
+    if (
+      input.role === "source" &&
+      input.credentialDigest !== handoff.sourceCredentialDigest
+    )
+      throw new E03RuntimeError(
+        "task_identity_handoff_source_credential_mismatch",
+        "task identity source credential changed",
+      );
+    const list = this.acknowledgements.get(handoff.handoffId) ?? [];
+    const prior = [...list]
+      .reverse()
+      .find((value) => value.role === input.role);
+    if (prior?.accepted) {
+      if (
+        prior.ownerId !== input.ownerId ||
+        prior.credentialDigest !== input.credentialDigest
+      )
+        throw new E03RuntimeError(
+          "task_identity_handoff_ack_conflict",
+          `task identity handoff ${input.role} already acknowledged`,
+        );
+      return {
+        handoff: structuredClone(handoff),
+        acknowledgement: structuredClone(prior),
+      };
+    }
+    const payload = {
+      ackId: createId("task-identity-handoff-ack"),
+      handoffId: handoff.handoffId,
+      ownerId: input.ownerId,
+      role: input.role,
+      generation: input.generation,
+      challengeDigest: input.challengeDigest,
+      credentialDigest: input.credentialDigest,
+      accepted: input.accepted,
+      errorCode: input.errorCode ?? "",
+      previousAckDigest:
+        list.at(-1)?.digest ?? digest("task-identity-handoff-ack-root"),
+      acknowledgedAt: this.clock.now(),
+      revision: list.length + 1,
+    };
+    const acknowledgement = { ...payload, digest: digest(payload) };
+    assertTaskIdentityHandoffAck(acknowledgement);
+    this.acknowledgements.set(handoff.handoffId, [...list, acknowledgement]);
+    const sourceAck =
+      input.role === "source" && input.accepted
+        ? acknowledgement
+        : [...list]
+            .reverse()
+            .find((value) => value.role === "source" && value.accepted);
+    const targetAck =
+      input.role === "target" && input.accepted
+        ? acknowledgement
+        : [...list]
+            .reverse()
+            .find((value) => value.role === "target" && value.accepted);
+    const next = this.transitionHandoff(handoff, {
+      state: sourceAck && targetAck ? "accepted" : handoff.state,
+      sourceAckId: sourceAck?.ackId ?? handoff.sourceAckId,
+      targetAckId: targetAck?.ackId ?? handoff.targetAckId,
+      targetCredentialDigest:
+        targetAck?.credentialDigest ?? handoff.targetCredentialDigest,
+      updatedAt: this.clock.now(),
+    });
+    return { handoff: next, acknowledgement: structuredClone(acknowledgement) };
+  }
+
+  commit(input: {
+    handoffId: string;
+    expectedRevision: number;
+    generation: number;
+    commitFence: string;
+  }): { handoff: TaskIdentityHandoff; receipt: TaskIdentityHandoffReceipt } {
+    const handoff = this.requireHandoff(input.handoffId);
+    this.assertHandoffRevision(handoff, input.expectedRevision);
+    if (handoff.state === "committed") {
+      if (handoff.commitFence !== input.commitFence)
+        throw new E03RuntimeError(
+          "task_identity_handoff_commit_conflict",
+          "task identity handoff was committed by another fence",
+        );
+      const receiptId = this.receiptIdByCommitFence.get(input.commitFence);
+      const receipt = receiptId ? this.receipts.get(receiptId) : undefined;
+      if (!receipt)
+        throw new E03RuntimeError(
+          "task_identity_handoff_receipt_missing",
+          "committed task identity handoff lacks receipt",
+        );
+      return {
+        handoff: structuredClone(handoff),
+        receipt: structuredClone(receipt),
+      };
+    }
+    if (handoff.state !== "accepted")
+      throw new E03RuntimeError(
+        "task_identity_handoff_not_accepted",
+        "task identity handoff requires both acknowledgements",
+      );
+    if (handoff.generation !== input.generation || !input.commitFence)
+      throw new E03RuntimeError(
+        "task_identity_handoff_commit_fence_invalid",
+        "task identity handoff generation or commit fence is invalid",
+      );
+    if (this.receiptIdByCommitFence.has(input.commitFence))
+      throw new E03RuntimeError(
+        "task_identity_handoff_commit_fence_reused",
+        "task identity handoff commit fence is already used",
+      );
+    const list = this.acknowledgements.get(handoff.handoffId) ?? [];
+    const sourceAck = list.find((value) => value.ackId === handoff.sourceAckId);
+    const targetAck = list.find((value) => value.ackId === handoff.targetAckId);
+    if (!sourceAck?.accepted || !targetAck?.accepted)
+      throw new E03RuntimeError(
+        "task_identity_handoff_acknowledgement_missing",
+        "task identity handoff accepted acknowledgement is missing",
+      );
+    const payload = {
+      receiptId: createId("task-identity-handoff-receipt"),
+      handoffId: handoff.handoffId,
+      taskId: handoff.taskId,
+      leaseId: handoff.leaseId,
+      attemptId: handoff.attemptId,
+      sourceOwnerId: handoff.sourceOwnerId,
+      targetOwnerId: handoff.targetOwnerId,
+      generation: handoff.generation,
+      commitFence: input.commitFence,
+      sourceAckDigest: sourceAck.digest,
+      targetAckDigest: targetAck.digest,
+      committedAt: this.clock.now(),
+      revision: 1,
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertTaskIdentityHandoffReceipt(receipt);
+    this.receipts.set(receipt.receiptId, receipt);
+    this.receiptIdByCommitFence.set(receipt.commitFence, receipt.receiptId);
+    const next = this.transitionHandoff(handoff, {
+      state: "committed",
+      commitFence: input.commitFence,
+      updatedAt: this.clock.now(),
+    });
+    this.activeHandoffIdByTask.delete(handoff.taskId);
+    return { handoff: next, receipt: structuredClone(receipt) };
+  }
+
+  abort(input: {
+    handoffId: string;
+    expectedRevision: number;
+    reason: string;
+  }): TaskIdentityHandoff {
+    const handoff = this.requireHandoff(input.handoffId);
+    this.assertHandoffRevision(handoff, input.expectedRevision);
+    if (handoff.state === "committed")
+      throw new E03RuntimeError(
+        "task_identity_handoff_abort_committed",
+        "committed task identity handoff cannot abort",
+      );
+    if (!input.reason)
+      throw new E03RuntimeError(
+        "task_identity_handoff_abort_reason_required",
+        "task identity handoff abort requires reason",
+      );
+    if (handoff.state === "aborted") return structuredClone(handoff);
+    const next = this.transitionHandoff(handoff, {
+      state: "aborted",
+      abortReason: input.reason,
+      updatedAt: this.clock.now(),
+    });
+    this.activeHandoffIdByTask.delete(handoff.taskId);
+    return next;
+  }
+
+  snapshot(): TaskIdentityHandoffSnapshot {
+    const payload = {
+      handoffs: [...this.handoffs.values()].map((value) =>
+        structuredClone(value),
+      ),
+      acknowledgements: [...this.acknowledgements.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      receipts: [...this.receipts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeHandoffIdByTask: [...this.activeHandoffIdByTask.entries()],
+      receiptIdByCommitFence: [...this.receiptIdByCommitFence.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: TaskIdentityHandoffSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "task_identity_handoff_snapshot_corrupt",
+        "task identity handoff snapshot digest mismatch",
+      );
+    const handoffs = new Map<string, TaskIdentityHandoff>();
+    const acknowledgements = new Map<string, TaskIdentityHandoffAck[]>();
+    const receipts = new Map<string, TaskIdentityHandoffReceipt>();
+    for (const value of payload.handoffs) {
+      assertTaskIdentityHandoff(value);
+      if (handoffs.has(value.handoffId))
+        throw new E03RuntimeError(
+          "task_identity_handoff_snapshot_duplicate",
+          `duplicate task identity handoff ${value.handoffId}`,
+        );
+      handoffs.set(value.handoffId, structuredClone(value));
+      acknowledgements.set(value.handoffId, []);
+    }
+    for (const value of payload.acknowledgements) {
+      assertTaskIdentityHandoffAck(value);
+      const list = acknowledgements.get(value.handoffId);
+      if (!list)
+        throw new E03RuntimeError(
+          "task_identity_handoff_snapshot_ack_orphaned",
+          `task identity handoff ack ${value.ackId} is orphaned`,
+        );
+      if (
+        value.revision !== list.length + 1 ||
+        (list.length > 0 && value.previousAckDigest !== list.at(-1)!.digest)
+      )
+        throw new E03RuntimeError(
+          "task_identity_handoff_snapshot_ack_chain_corrupt",
+          `task identity handoff ack ${value.ackId} breaks chain`,
+        );
+      list.push(structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertTaskIdentityHandoffReceipt(value);
+      if (!handoffs.has(value.handoffId))
+        throw new E03RuntimeError(
+          "task_identity_handoff_snapshot_receipt_orphaned",
+          `task identity handoff receipt ${value.receiptId} is orphaned`,
+        );
+      receipts.set(value.receiptId, structuredClone(value));
+    }
+    const activeIndex = new Map(payload.activeHandoffIdByTask);
+    for (const [taskId, handoffId] of activeIndex) {
+      const value = handoffs.get(handoffId);
+      if (
+        !value ||
+        value.taskId !== taskId ||
+        ["committed", "aborted"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "task_identity_handoff_snapshot_active_index_corrupt",
+          `task identity active handoff ${handoffId} is invalid`,
+        );
+    }
+    const receiptIndex = new Map(payload.receiptIdByCommitFence);
+    for (const receiptId of receiptIndex.values())
+      if (!receipts.has(receiptId))
+        throw new E03RuntimeError(
+          "task_identity_handoff_snapshot_receipt_index_corrupt",
+          `task identity handoff receipt index references ${receiptId}`,
+        );
+    this.handoffs = handoffs;
+    this.acknowledgements = acknowledgements;
+    this.receipts = receipts;
+    this.activeHandoffIdByTask = activeIndex;
+    this.receiptIdByCommitFence = receiptIndex;
+  }
+
+  private requireHandoff(id: string): TaskIdentityHandoff {
+    const value = this.handoffs.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_identity_handoff_missing",
+        `task identity handoff ${id} does not exist`,
+      );
+    assertTaskIdentityHandoff(value);
+    return value;
+  }
+
+  private assertHandoffRevision(
+    value: TaskIdentityHandoff,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_identity_handoff_stale_revision",
+        `task identity handoff ${value.handoffId} revision is stale`,
+      );
+  }
+
+  private transitionHandoff(
+    value: TaskIdentityHandoff,
+    patch: Partial<
+      Omit<TaskIdentityHandoff, "handoffId" | "revision" | "digest">
+    >,
+  ): TaskIdentityHandoff {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      handoffId: value.handoffId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskIdentityHandoff(next);
+    this.handoffs.set(next.handoffId, next);
+    return structuredClone(next);
+  }
+}

@@ -3266,3 +3266,637 @@ export class TaskTransitionReservationRuntime {
     return structuredClone(next);
   }
 }
+
+export type TransitionReconciliationState =
+  | "collecting"
+  | "quorum"
+  | "decided"
+  | "applied"
+  | "rejected";
+
+export interface TransitionReconciliation {
+  reconciliationId: string;
+  taskId: string;
+  leaseId: string;
+  expectedFromRevision: number;
+  expectedFromPhase: AgentTaskPhase;
+  participantIds: string[];
+  requiredVotes: number;
+  state: TransitionReconciliationState;
+  winningTransitionDigest: string;
+  winningToRevision: number;
+  winningToPhase: AgentTaskPhase | "";
+  supportingObservationIds: string[];
+  dissentingObservationIds: string[];
+  decisionDigest: string;
+  applyFence: string;
+  rejectionReason: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TransitionReplicaObservation {
+  observationId: string;
+  reconciliationId: string;
+  participantId: string;
+  transitionId: string;
+  transitionDigest: string;
+  fromRevision: number;
+  toRevision: number;
+  fromPhase: AgentTaskPhase;
+  toPhase: AgentTaskPhase;
+  replicaSequence: number;
+  observedAt: string;
+  previousParticipantDigest: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TransitionReconciliationReceipt {
+  receiptId: string;
+  reconciliationId: string;
+  taskId: string;
+  leaseId: string;
+  transitionDigest: string;
+  fromRevision: number;
+  toRevision: number;
+  applyFence: string;
+  resultingTaskChecksum: string;
+  observationSetDigest: string;
+  appliedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TransitionReconciliationSnapshot {
+  reconciliations: TransitionReconciliation[];
+  observations: TransitionReplicaObservation[];
+  receipts: TransitionReconciliationReceipt[];
+  observationIdByParticipant: Array<[string, string]>;
+  receiptIdByApplyFence: Array<[string, string]>;
+  digest: string;
+}
+
+function assertTransitionReconciliation(value: TransitionReconciliation): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.reconciliationId ||
+    !value.taskId ||
+    !value.leaseId ||
+    value.expectedFromRevision < 1 ||
+    !value.participantIds.length ||
+    new Set(value.participantIds).size !== value.participantIds.length ||
+    value.requiredVotes < 1 ||
+    value.requiredVotes > value.participantIds.length ||
+    value.supportingObservationIds.some((id) =>
+      value.dissentingObservationIds.includes(id),
+    ) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "transition_reconciliation_corrupt",
+      `transition reconciliation ${value.reconciliationId || "<empty>"} is corrupt`,
+    );
+  if (
+    ["decided", "applied"].includes(value.state) &&
+    (!value.winningTransitionDigest ||
+      !value.winningToPhase ||
+      !value.decisionDigest)
+  )
+    throw new E03RuntimeError(
+      "transition_reconciliation_decision_missing",
+      "decided transition reconciliation lacks winner",
+    );
+  if (value.state === "applied" && !value.applyFence)
+    throw new E03RuntimeError(
+      "transition_reconciliation_apply_fence_missing",
+      "applied transition reconciliation requires fence",
+    );
+}
+
+function assertTransitionReplicaObservation(
+  value: TransitionReplicaObservation,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.observationId ||
+    !value.reconciliationId ||
+    !value.participantId ||
+    !value.transitionId ||
+    !value.transitionDigest ||
+    value.fromRevision < 1 ||
+    value.toRevision !== value.fromRevision + 1 ||
+    value.replicaSequence < 1 ||
+    !value.previousParticipantDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "transition_replica_observation_corrupt",
+      `transition observation ${value.observationId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTransitionReconciliationReceipt(
+  value: TransitionReconciliationReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.reconciliationId ||
+    !value.taskId ||
+    !value.leaseId ||
+    !value.transitionDigest ||
+    value.fromRevision < 1 ||
+    value.toRevision !== value.fromRevision + 1 ||
+    !value.applyFence ||
+    !value.resultingTaskChecksum ||
+    !value.observationSetDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "transition_reconciliation_receipt_corrupt",
+      `transition reconciliation receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TaskTransitionReconciliationRuntime {
+  private reconciliations = new Map<string, TransitionReconciliation>();
+  private observations = new Map<string, TransitionReplicaObservation>();
+  private receipts = new Map<string, TransitionReconciliationReceipt>();
+  private observationIdByParticipant = new Map<string, string>();
+  private receiptIdByApplyFence = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  open(input: {
+    reconciliationId?: string;
+    task: E03TaskState;
+    participantIds: string[];
+    requiredVotes: number;
+  }): TransitionReconciliation {
+    const reconciliationId =
+      input.reconciliationId ?? createId("transition-reconciliation");
+    const prior = this.reconciliations.get(reconciliationId);
+    if (prior) {
+      if (
+        prior.taskId !== input.task.identity.taskId ||
+        prior.leaseId !== input.task.identity.leaseId ||
+        prior.expectedFromRevision !== input.task.revision
+      )
+        throw new E03RuntimeError(
+          "transition_reconciliation_id_conflict",
+          `transition reconciliation ${reconciliationId} conflicts`,
+        );
+      return structuredClone(prior);
+    }
+    const participantIds = [...new Set(input.participantIds)].sort();
+    const now = this.clock.now();
+    const payload = {
+      reconciliationId,
+      taskId: input.task.identity.taskId,
+      leaseId: input.task.identity.leaseId,
+      expectedFromRevision: input.task.revision,
+      expectedFromPhase: input.task.status,
+      participantIds,
+      requiredVotes: input.requiredVotes,
+      state: "collecting" as const,
+      winningTransitionDigest: "",
+      winningToRevision: 0,
+      winningToPhase: "" as const,
+      supportingObservationIds: [] as string[],
+      dissentingObservationIds: [] as string[],
+      decisionDigest: "",
+      applyFence: "",
+      rejectionReason: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const reconciliation = { ...payload, digest: digest(payload) };
+    assertTransitionReconciliation(reconciliation);
+    this.reconciliations.set(reconciliation.reconciliationId, reconciliation);
+    return structuredClone(reconciliation);
+  }
+
+  observe(input: {
+    reconciliationId: string;
+    expectedRevision: number;
+    participantId: string;
+    transition: E03Transition;
+    fromPhase: AgentTaskPhase;
+    toPhase: AgentTaskPhase;
+    replicaSequence: number;
+  }): {
+    reconciliation: TransitionReconciliation;
+    observation: TransitionReplicaObservation;
+  } {
+    const reconciliation = this.requireReconciliation(input.reconciliationId);
+    this.assertReconciliationRevision(reconciliation, input.expectedRevision);
+    if (
+      reconciliation.state !== "collecting" &&
+      reconciliation.state !== "quorum"
+    )
+      throw new E03RuntimeError(
+        "transition_reconciliation_observe_invalid_state",
+        `cannot observe transition while ${reconciliation.state}`,
+      );
+    if (!reconciliation.participantIds.includes(input.participantId))
+      throw new E03RuntimeError(
+        "transition_reconciliation_participant_unknown",
+        `transition participant ${input.participantId} is unknown`,
+      );
+    if (
+      input.transition.taskId !== reconciliation.taskId ||
+      input.transition.leaseId !== reconciliation.leaseId ||
+      input.transition.fromRevision !== reconciliation.expectedFromRevision ||
+      input.transition.toRevision !== input.transition.fromRevision + 1 ||
+      input.fromPhase !== reconciliation.expectedFromPhase
+    )
+      throw new E03RuntimeError(
+        "transition_reconciliation_observation_binding_mismatch",
+        "transition observation does not match reconciliation base",
+      );
+    if (
+      !(ALLOWED[input.fromPhase] as readonly AgentTaskPhase[]).includes(
+        input.toPhase,
+      )
+    )
+      throw new E03RuntimeError(
+        "transition_reconciliation_observation_transition_invalid",
+        `transition ${input.fromPhase} -> ${input.toPhase} is not allowed`,
+      );
+    const key = this.participantKey(
+      reconciliation.reconciliationId,
+      input.participantId,
+    );
+    const priorId = this.observationIdByParticipant.get(key);
+    const prior = priorId ? this.observations.get(priorId) : undefined;
+    if (prior && prior.replicaSequence >= input.replicaSequence) {
+      if (prior.transitionDigest !== input.transition.digest)
+        throw new E03RuntimeError(
+          "transition_reconciliation_participant_equivocation",
+          `transition participant ${input.participantId} equivocated`,
+        );
+      return {
+        reconciliation: structuredClone(reconciliation),
+        observation: structuredClone(prior),
+      };
+    }
+    const payload = {
+      observationId: createId("transition-replica-observation"),
+      reconciliationId: reconciliation.reconciliationId,
+      participantId: input.participantId,
+      transitionId: input.transition.transitionId,
+      transitionDigest: input.transition.digest,
+      fromRevision: input.transition.fromRevision,
+      toRevision: input.transition.toRevision,
+      fromPhase: input.fromPhase,
+      toPhase: input.toPhase,
+      replicaSequence: input.replicaSequence,
+      observedAt: this.clock.now(),
+      previousParticipantDigest:
+        prior?.digest ?? digest("transition-replica-observation-root"),
+      revision: (prior?.revision ?? 0) + 1,
+    };
+    const observation = { ...payload, digest: digest(payload) };
+    assertTransitionReplicaObservation(observation);
+    this.observations.set(observation.observationId, observation);
+    this.observationIdByParticipant.set(key, observation.observationId);
+    const current = this.currentObservations(reconciliation.reconciliationId);
+    const groups = this.groupObservations(current);
+    const hasQuorum = [...groups.values()].some(
+      (group) => group.length >= reconciliation.requiredVotes,
+    );
+    const next = this.transitionReconciliation(reconciliation, {
+      state: hasQuorum ? "quorum" : "collecting",
+      updatedAt: this.clock.now(),
+    });
+    return { reconciliation: next, observation: structuredClone(observation) };
+  }
+
+  decide(input: {
+    reconciliationId: string;
+    expectedRevision: number;
+  }): TransitionReconciliation {
+    const reconciliation = this.requireReconciliation(input.reconciliationId);
+    this.assertReconciliationRevision(reconciliation, input.expectedRevision);
+    if (reconciliation.state !== "quorum")
+      throw new E03RuntimeError(
+        "transition_reconciliation_quorum_missing",
+        "transition reconciliation has no quorum",
+      );
+    const current = this.currentObservations(reconciliation.reconciliationId);
+    const groups = [...this.groupObservations(current).entries()]
+      .map(([transitionDigest, observations]) => ({
+        transitionDigest,
+        observations,
+      }))
+      .sort(
+        (left, right) =>
+          right.observations.length - left.observations.length ||
+          left.transitionDigest.localeCompare(right.transitionDigest),
+      );
+    const winner = groups[0];
+    if (!winner || winner.observations.length < reconciliation.requiredVotes)
+      throw new E03RuntimeError(
+        "transition_reconciliation_quorum_lost",
+        "transition reconciliation quorum changed before decision",
+      );
+    const representative = winner.observations
+      .slice()
+      .sort((left, right) =>
+        left.participantId.localeCompare(right.participantId),
+      )[0]!;
+    const supporting = winner.observations
+      .map((value) => value.observationId)
+      .sort();
+    const dissenting = current
+      .filter((value) => value.transitionDigest !== winner.transitionDigest)
+      .map((value) => value.observationId)
+      .sort();
+    const decisionDigest = digest({
+      reconciliationId: reconciliation.reconciliationId,
+      transitionDigest: winner.transitionDigest,
+      supporting,
+      dissenting,
+    });
+    return this.transitionReconciliation(reconciliation, {
+      state: "decided",
+      winningTransitionDigest: winner.transitionDigest,
+      winningToRevision: representative.toRevision,
+      winningToPhase: representative.toPhase,
+      supportingObservationIds: supporting,
+      dissentingObservationIds: dissenting,
+      decisionDigest,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  apply(input: {
+    reconciliationId: string;
+    expectedRevision: number;
+    task: E03TaskState;
+    transition: E03Transition;
+    applyFence: string;
+    resultingTask: E03TaskState;
+  }): {
+    reconciliation: TransitionReconciliation;
+    receipt: TransitionReconciliationReceipt;
+  } {
+    const reconciliation = this.requireReconciliation(input.reconciliationId);
+    this.assertReconciliationRevision(reconciliation, input.expectedRevision);
+    if (reconciliation.state === "applied") {
+      if (reconciliation.applyFence !== input.applyFence)
+        throw new E03RuntimeError(
+          "transition_reconciliation_apply_fence_conflict",
+          "transition reconciliation was applied by another fence",
+        );
+      const receiptId = this.receiptIdByApplyFence.get(input.applyFence);
+      const receipt = receiptId ? this.receipts.get(receiptId) : undefined;
+      if (!receipt)
+        throw new E03RuntimeError(
+          "transition_reconciliation_apply_receipt_missing",
+          "applied transition reconciliation lacks receipt",
+        );
+      return {
+        reconciliation: structuredClone(reconciliation),
+        receipt: structuredClone(receipt),
+      };
+    }
+    if (reconciliation.state !== "decided")
+      throw new E03RuntimeError(
+        "transition_reconciliation_apply_invalid_state",
+        "transition reconciliation must be decided before apply",
+      );
+    if (
+      input.task.identity.taskId !== reconciliation.taskId ||
+      input.task.identity.leaseId !== reconciliation.leaseId ||
+      input.task.revision !== reconciliation.expectedFromRevision ||
+      input.task.status !== reconciliation.expectedFromPhase ||
+      input.transition.digest !== reconciliation.winningTransitionDigest ||
+      input.resultingTask.identity.taskId !== reconciliation.taskId ||
+      input.resultingTask.identity.leaseId !== reconciliation.leaseId ||
+      input.resultingTask.revision !== reconciliation.winningToRevision ||
+      input.resultingTask.status !== reconciliation.winningToPhase
+    )
+      throw new E03RuntimeError(
+        "transition_reconciliation_apply_binding_mismatch",
+        "transition reconciliation apply state does not match decision",
+      );
+    if (!input.applyFence)
+      throw new E03RuntimeError(
+        "transition_reconciliation_apply_fence_required",
+        "transition reconciliation apply fence is required",
+      );
+    const priorReceiptId = this.receiptIdByApplyFence.get(input.applyFence);
+    if (priorReceiptId)
+      throw new E03RuntimeError(
+        "transition_reconciliation_apply_fence_reused",
+        "transition reconciliation apply fence is already used",
+      );
+    const observations = this.currentObservations(
+      reconciliation.reconciliationId,
+    );
+    const payload = {
+      receiptId: createId("transition-reconciliation-receipt"),
+      reconciliationId: reconciliation.reconciliationId,
+      taskId: reconciliation.taskId,
+      leaseId: reconciliation.leaseId,
+      transitionDigest: input.transition.digest,
+      fromRevision: input.transition.fromRevision,
+      toRevision: input.transition.toRevision,
+      applyFence: input.applyFence,
+      resultingTaskChecksum: input.resultingTask.checksum,
+      observationSetDigest: digest(
+        observations.map((value) => value.digest).sort(),
+      ),
+      appliedAt: this.clock.now(),
+      revision: 1,
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertTransitionReconciliationReceipt(receipt);
+    this.receipts.set(receipt.receiptId, receipt);
+    this.receiptIdByApplyFence.set(receipt.applyFence, receipt.receiptId);
+    const next = this.transitionReconciliation(reconciliation, {
+      state: "applied",
+      applyFence: input.applyFence,
+      updatedAt: this.clock.now(),
+    });
+    return { reconciliation: next, receipt: structuredClone(receipt) };
+  }
+
+  reject(input: {
+    reconciliationId: string;
+    expectedRevision: number;
+    reason: string;
+  }): TransitionReconciliation {
+    const reconciliation = this.requireReconciliation(input.reconciliationId);
+    this.assertReconciliationRevision(reconciliation, input.expectedRevision);
+    if (reconciliation.state === "applied")
+      throw new E03RuntimeError(
+        "transition_reconciliation_reject_applied",
+        "applied transition reconciliation cannot be rejected",
+      );
+    if (!input.reason)
+      throw new E03RuntimeError(
+        "transition_reconciliation_rejection_reason_required",
+        "transition reconciliation rejection requires reason",
+      );
+    return this.transitionReconciliation(reconciliation, {
+      state: "rejected",
+      rejectionReason: input.reason,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  snapshot(): TransitionReconciliationSnapshot {
+    const payload = {
+      reconciliations: [...this.reconciliations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      observations: [...this.observations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      observationIdByParticipant: [
+        ...this.observationIdByParticipant.entries(),
+      ],
+      receiptIdByApplyFence: [...this.receiptIdByApplyFence.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: TransitionReconciliationSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "transition_reconciliation_snapshot_corrupt",
+        "transition reconciliation snapshot digest mismatch",
+      );
+    const reconciliations = new Map<string, TransitionReconciliation>();
+    const observations = new Map<string, TransitionReplicaObservation>();
+    const receipts = new Map<string, TransitionReconciliationReceipt>();
+    for (const value of payload.reconciliations) {
+      assertTransitionReconciliation(value);
+      if (reconciliations.has(value.reconciliationId))
+        throw new E03RuntimeError(
+          "transition_reconciliation_snapshot_duplicate",
+          `duplicate transition reconciliation ${value.reconciliationId}`,
+        );
+      reconciliations.set(value.reconciliationId, structuredClone(value));
+    }
+    for (const value of payload.observations) {
+      assertTransitionReplicaObservation(value);
+      if (!reconciliations.has(value.reconciliationId))
+        throw new E03RuntimeError(
+          "transition_reconciliation_snapshot_observation_orphaned",
+          `transition observation ${value.observationId} is orphaned`,
+        );
+      observations.set(value.observationId, structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertTransitionReconciliationReceipt(value);
+      if (!reconciliations.has(value.reconciliationId))
+        throw new E03RuntimeError(
+          "transition_reconciliation_snapshot_receipt_orphaned",
+          `transition receipt ${value.receiptId} is orphaned`,
+        );
+      receipts.set(value.receiptId, structuredClone(value));
+    }
+    const observationIndex = new Map(payload.observationIdByParticipant);
+    for (const observationId of observationIndex.values())
+      if (!observations.has(observationId))
+        throw new E03RuntimeError(
+          "transition_reconciliation_snapshot_observation_index_corrupt",
+          `transition observation index references ${observationId}`,
+        );
+    const receiptIndex = new Map(payload.receiptIdByApplyFence);
+    for (const receiptId of receiptIndex.values())
+      if (!receipts.has(receiptId))
+        throw new E03RuntimeError(
+          "transition_reconciliation_snapshot_receipt_index_corrupt",
+          `transition receipt index references ${receiptId}`,
+        );
+    this.reconciliations = reconciliations;
+    this.observations = observations;
+    this.receipts = receipts;
+    this.observationIdByParticipant = observationIndex;
+    this.receiptIdByApplyFence = receiptIndex;
+  }
+
+  private currentObservations(
+    reconciliationId: string,
+  ): TransitionReplicaObservation[] {
+    return [...this.observationIdByParticipant.entries()]
+      .filter(([key]) => key.startsWith(`${reconciliationId}:`))
+      .map(([, observationId]) => this.observations.get(observationId))
+      .filter((value): value is TransitionReplicaObservation => Boolean(value));
+  }
+
+  private groupObservations(
+    observations: TransitionReplicaObservation[],
+  ): Map<string, TransitionReplicaObservation[]> {
+    const groups = new Map<string, TransitionReplicaObservation[]>();
+    for (const observation of observations) {
+      const list = groups.get(observation.transitionDigest) ?? [];
+      list.push(observation);
+      groups.set(observation.transitionDigest, list);
+    }
+    return groups;
+  }
+
+  private participantKey(
+    reconciliationId: string,
+    participantId: string,
+  ): string {
+    return `${reconciliationId}:${participantId}`;
+  }
+
+  private requireReconciliation(id: string): TransitionReconciliation {
+    const value = this.reconciliations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "transition_reconciliation_missing",
+        `transition reconciliation ${id} does not exist`,
+      );
+    assertTransitionReconciliation(value);
+    return value;
+  }
+
+  private assertReconciliationRevision(
+    value: TransitionReconciliation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "transition_reconciliation_stale_revision",
+        `transition reconciliation ${value.reconciliationId} revision is stale`,
+      );
+  }
+
+  private transitionReconciliation(
+    value: TransitionReconciliation,
+    patch: Partial<
+      Omit<TransitionReconciliation, "reconciliationId" | "revision" | "digest">
+    >,
+  ): TransitionReconciliation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      reconciliationId: value.reconciliationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTransitionReconciliation(next);
+    this.reconciliations.set(next.reconciliationId, next);
+    return structuredClone(next);
+  }
+}
