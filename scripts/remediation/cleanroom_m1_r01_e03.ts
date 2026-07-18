@@ -24,6 +24,7 @@ function run(cwd: string, name: string, command: string[]): Result {
 
 function main(): void {
   const candidate = process.argv.includes("--candidate") ? process.argv[process.argv.indexOf("--candidate") + 1]! : git(repoRoot, ["rev-parse", "HEAD"]);
+  process.env.E03_IMPLEMENTATION_CANDIDATE = candidate;
   const cleanRoot = join(repoRoot, ".tmp", `e03-cleanroom-${candidate.slice(0, 12)}`);
   if (cleanRoot === repoRoot || !cleanRoot.startsWith(join(repoRoot, ".tmp"))) throw new Error(`unsafe cleanroom root ${cleanRoot}`);
   rmSync(cleanRoot, { recursive: true, force: true }); mkdirSync(dirname(cleanRoot), { recursive: true });
