@@ -1,0 +1,46 @@
+{
+  "schema_version": "3.0",
+  "verification_contract_version": "zyra.e03-verification/v1",
+  "execution_id": "E03",
+  "verifier": "scripts/remediation/verify_m1_r01_e03.ts",
+  "baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
+  "candidate": "3b52a598194e4ac7c9fcdf506e18fc30ae0353e1",
+  "result": "PASS",
+  "successful_run_exit_code": 0,
+  "source": {
+    "accepted_ranges": 391,
+    "accepted_source_sloc": 6928,
+    "unique_target_symbols": 62
+  },
+  "python": {
+    "frozen_delete_sloc": 6268,
+    "deleted_files": 17,
+    "retained_logical_hits": 0
+  },
+  "lines": {
+    "final_sloc": 74642,
+    "changed_sloc": 74483,
+    "files": 41,
+    "changed_files": 39,
+    "duplicate_pairs": []
+  },
+  "tests": {
+    "effective_sloc": 7318,
+    "cases": 340,
+    "failure_cases": 188,
+    "files": 9,
+    "duplicate_pairs": []
+  },
+  "mutations": {
+    "points": 40
+  },
+  "cumulative": {
+    "source_sloc": 37564,
+    "final_target_file_union_sloc": 100323,
+    "test_sloc": 32050,
+    "python_delete_sloc": 66582,
+    "e03_delete_sloc": 6268
+  },
+  "findings": [],
+  "evidence_note": "This file records the complete successful frozen-verifier result observed before the evidence commit. Two later attempts to reproduce stdout for archival were terminated only by 120-second and 300-second outer command timeouts and did not replace the successful result."
+}

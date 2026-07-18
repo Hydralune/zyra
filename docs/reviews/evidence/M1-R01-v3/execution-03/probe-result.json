@@ -1,0 +1,53 @@
+{
+  "schema_version": "3.0",
+  "execution_id": "E03",
+  "mode": "all",
+  "candidate": "3b52a598194e4ac7c9fcdf506e18fc30ae0353e1",
+  "command": "bun scripts/remediation/probe_m1_r01_e03.ts all",
+  "exit_code": 0,
+  "results": [
+    {
+      "probe": "runtime-origin",
+      "passed": true,
+      "runtime_origin": "typescript.E03AgentControlCoordinator",
+      "python_logical_owner": false,
+      "python_fallback_attempted": false,
+      "dispatch_count": 1,
+      "commit_protocol": ["prepare", "effect", "receipt", "commit", "ack"]
+    },
+    {
+      "probe": "write-path",
+      "passed": true,
+      "create_revision": 1,
+      "steer_revision": 2,
+      "steer_message_persisted": true,
+      "runtime_origin": "typescript.E03AgentControlCoordinator"
+    },
+    {
+      "probe": "resume",
+      "passed": true,
+      "restored": true,
+      "dispatch_count_after_restore": 0,
+      "stable_task_identity": true,
+      "runtime_origin": "typescript.E03AgentControlCoordinator"
+    },
+    {
+      "probe": "lost-ack",
+      "passed": true,
+      "initial_effect_dispatch_count": 1,
+      "replayed": true,
+      "restored": true,
+      "replay_dispatch_count": 1,
+      "duplicate_effect_observed": false,
+      "stale_writer_rejected": true,
+      "stale_writer_error": "stale_revision"
+    },
+    {
+      "probe": "disable",
+      "passed": true,
+      "dispatch_count": 0,
+      "error": "typescript_agent_control_disabled",
+      "python_fallback_attempted": false
+    }
+  ]
+}
