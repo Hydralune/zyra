@@ -1,0 +1,133 @@
+{
+  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65",
+  "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "cases": [
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "resume"
+      ],
+      "duration_seconds": 2.896,
+      "exit_code": 0,
+      "mode": "resume",
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "resume",
+        "ok": true,
+        "results": [
+          {
+            "canonical_owner": "typescript",
+            "first_revision": 0,
+            "mode": "resume",
+            "passed": true,
+            "runtime_relaunches": 0,
+            "same_checkpoint": true,
+            "second_revision": 0,
+            "terminal_result_recovered": true
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"resume\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"canonical_owner\": \"typescript\",\n      \"first_revision\": 0,\n      \"mode\": \"resume\",\n      \"passed\": true,\n      \"runtime_relaunches\": 0,\n      \"same_checkpoint\": true,\n      \"second_revision\": 0,\n      \"terminal_result_recovered\": true\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "lost-ack"
+      ],
+      "duration_seconds": 3.617,
+      "exit_code": 0,
+      "mode": "lost-ack",
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "lost-ack",
+        "ok": true,
+        "results": [
+          {
+            "first_failed_closed": true,
+            "mode": "lost-ack",
+            "passed": true,
+            "physical_tool_executions": 1,
+            "runtime_relaunches": 0,
+            "terminal_receipts": 1
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"lost-ack\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"first_failed_closed\": true,\n      \"mode\": \"lost-ack\",\n      \"passed\": true,\n      \"physical_tool_executions\": 1,\n      \"runtime_relaunches\": 0,\n      \"terminal_receipts\": 1\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "duplicate-ack"
+      ],
+      "duration_seconds": 2.61,
+      "exit_code": 0,
+      "mode": "duplicate-ack",
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "duplicate-ack",
+        "ok": true,
+        "results": [
+          {
+            "ack_attempts": 2,
+            "mode": "duplicate-ack",
+            "passed": true,
+            "terminal_receipts": 1
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"duplicate-ack\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"ack_attempts\": 2,\n      \"mode\": \"duplicate-ack\",\n      \"passed\": true,\n      \"terminal_receipts\": 1\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "disable"
+      ],
+      "duration_seconds": 1.296,
+      "exit_code": 0,
+      "mode": "disable",
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "disable",
+        "ok": true,
+        "results": [
+          {
+            "canonical_owner": "typescript",
+            "error": "typescript_runtime_disabled",
+            "mode": "disable",
+            "passed": true,
+            "python_fallback": false
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"disable\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"canonical_owner\": \"typescript\",\n      \"error\": \"typescript_runtime_disabled\",\n      \"mode\": \"disable\",\n      \"passed\": true,\n      \"python_fallback\": false\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    }
+  ],
+  "execution_id": "E04",
+  "g0_tooling_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "generated_at": "2026-07-18T18:44:50.034104+00:00",
+  "passed": true,
+  "record_type": "terminal_protocol_crash_matrix",
+  "schema_version": "4.0",
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "python": "Python 3.13.9"
+  },
+  "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
+}

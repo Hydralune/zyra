@@ -1,0 +1,140 @@
+{
+  "baseline_commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249",
+  "buckets": {
+    "adapter-only": {
+      "added": 489,
+      "deleted": 27,
+      "files": [
+        "packages/runtime/zyra_runtime/runtime_events/typescript_port.py",
+        "packages/workers/zyra_workers/typescript_claude_runtime.py"
+      ]
+    },
+    "data": {
+      "added": 3,
+      "deleted": 0,
+      "files": [
+        "package.json"
+      ]
+    },
+    "docs": {
+      "added": 923,
+      "deleted": 0,
+      "files": [
+        "docs/reviews/M1-R01-v4-execution-04-slice-04a-self-review.md",
+        "docs/reviews/M1-R01-v4-execution-04-slice-04b-self-review.md",
+        "docs/reviews/M1-R01-v4-execution-04-slice-04c-self-review.md",
+        "docs/reviews/M1-R01-v4-execution-04-slice-04d-self-review.md",
+        "docs/reviews/M1-R01-v4-execution-04-slice-04e-self-review.md",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04a/verification.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04b/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04b/target-provenance-report.jsonl",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04b/verification.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04c/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04c/target-provenance-report.jsonl",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04c/verification.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04d/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04d/target-provenance-report.jsonl",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04d/verification.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04e/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04e/target-provenance-report.jsonl",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04e/verification.json"
+      ]
+    },
+    "production": {
+      "added": 5111,
+      "deleted": 411,
+      "files": [
+        "apps/api/zyra_api/main.py",
+        "apps/code-worker/src/main.ts",
+        "packages/integrations/claude-mcp/src/connection/connection-runtime.ts",
+        "packages/integrations/claude-mcp/src/runtime/client-runtime.ts",
+        "packages/orchestration/zyra_orchestration/task_graph.py",
+        "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+        "packages/runtime/claude-runtime/src/agents/execution-runtime.ts",
+        "packages/runtime/claude-runtime/src/agents/run-agent.ts",
+        "packages/runtime/claude-runtime/src/budget.ts",
+        "packages/runtime/claude-runtime/src/capabilities.ts",
+        "packages/runtime/claude-runtime/src/commands/coordinator.ts",
+        "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts",
+        "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+        "packages/runtime/claude-runtime/src/compact/restore-runtime.ts",
+        "packages/runtime/claude-runtime/src/control/runtime.ts",
+        "packages/runtime/claude-runtime/src/control/session-handler.ts",
+        "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+        "packages/runtime/claude-runtime/src/e02/coordinator.ts",
+        "packages/runtime/claude-runtime/src/e03/contracts.ts",
+        "packages/runtime/claude-runtime/src/e03/coordinator.ts",
+        "packages/runtime/claude-runtime/src/isolation/request-runtime.ts",
+        "packages/runtime/claude-runtime/src/permission/evaluator.ts",
+        "packages/runtime/claude-runtime/src/permission/hook-runtime.ts",
+        "packages/runtime/claude-runtime/src/plugins/coordinator.ts",
+        "packages/runtime/claude-runtime/src/plugins/hook-runtime.ts",
+        "packages/runtime/claude-runtime/src/protocol.ts",
+        "packages/runtime/claude-runtime/src/query-engine.ts",
+        "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
+        "packages/runtime/claude-runtime/src/skills/coordinator.ts",
+        "packages/runtime/claude-runtime/src/skills/reload-runtime.ts",
+        "packages/runtime/claude-runtime/src/skills/runtime.ts",
+        "packages/runtime/claude-runtime/src/stdio-probe.ts",
+        "packages/runtime/claude-runtime/src/stdio.ts",
+        "packages/runtime/claude-runtime/src/tasks/executor.ts",
+        "packages/runtime/claude-runtime/src/tasks/registry.ts",
+        "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+        "packages/runtime/claude-runtime/src/tools/result-runtime.ts",
+        "packages/runtime/runtime-event-spine/src/contracts.ts",
+        "packages/runtime/runtime-event-spine/src/payload-policy.ts",
+        "packages/runtime/runtime-event-spine/src/router.ts",
+        "packages/runtime/runtime-event-spine/src/runtime.ts",
+        "packages/runtime/runtime-event-spine/src/sqlite-store.ts",
+        "packages/runtime/zyra_runtime/runtime_events/integration.py",
+        "packages/runtime/zyra_runtime/runtime_events/models.py",
+        "packages/runtime/zyra_runtime/sandbox_gateway/integration_factory.py",
+        "packages/runtime/zyra_runtime/sandbox_gateway/integration_policy.py",
+        "packages/runtime/zyra_runtime/sandbox_gateway/integration_tools.py",
+        "packages/workers/zyra_workers/code_worker_runtime.py",
+        "packages/workers/zyra_workers/subagents/typescript_port.py",
+        "scripts/remediation/cleanroom_m1_r01_e04.py",
+        "scripts/remediation/m1_r01_e04_g0.py",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "scripts/remediation/run_m1_r01_e04_mutations.py",
+        "scripts/remediation/verify_m1_r01_e04_candidate.py",
+        "scripts/remediation/verify_m1_r01_e04_g0.py"
+      ]
+    },
+    "test": {
+      "added": 2804,
+      "deleted": 111,
+      "files": [
+        "packages/runtime/claude-runtime/test/agents.test.ts",
+        "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e01/source-custody-default-path.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e02/default-capability-host.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e03/isolation-resource-cleanup.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+        "packages/runtime/claude-runtime/test/protocol.test.ts",
+        "tests/integration/test_e01_typescript_runtime_cutover.py",
+        "tests/integration/test_e04_candidate_closure.py",
+        "tests/unit/test_typescript_agent_durable_port.py"
+      ]
+    }
+  },
+  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65",
+  "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "execution_id": "E04",
+  "g0_tooling_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "generated_at": "2026-07-18T18:41:49.051402+00:00",
+  "note": "E04 has no independent line minimum; buckets prevent generated/data/vendor-like/adapter-only inflation.",
+  "record_type": "line_buckets",
+  "schema_version": "4.0",
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "python": "Python 3.13.9"
+  },
+  "total_added": 9330,
+  "total_deleted": 549,
+  "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
+}

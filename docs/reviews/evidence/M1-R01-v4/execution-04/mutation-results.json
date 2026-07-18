@@ -1,0 +1,768 @@
+{
+  "candidate": "a2c8b8e894f558974018d33416e010b95c7e6f65",
+  "command": [
+    "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+    "scripts/remediation/run_m1_r01_e04_mutations.py",
+    "--all"
+  ],
+  "execution_id": "E04",
+  "failures": [],
+  "g0_manifest": "docs/remediations/M1-R01-claude-source-custody/manifests/execution-04-mutation-manifest.jsonl",
+  "killed": 13,
+  "ok": true,
+  "residual_backups": 0,
+  "results": [
+    {
+      "applied": {
+        "mutated_sha256": "f7d6ccb21a2e02aa4a39dad72b62ee0dd99cac21d211dfb86666dbe5d4d88582",
+        "original_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+        "record_id": "e04-mutation-terminal-order",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/stdio.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-terminal-order",
+      "failure": "",
+      "family": "terminal_protocol",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "apps/code-worker/src/main.ts",
+          "--stdio-probe"
+        ],
+        "output_tail": "227 |       requestsAfterTerminal === 0 &&\n228 |       metadata.canonical_permission_owner === \"typescript\" &&\n229 |       metadata.canonical_agent_owner === \"typescript\" &&\n230 |       metadata.python_policy_fallback === \"false\";\n231 |     if (!ok)\n232 |       throw new Error(\n                  ^\nerror: stdio probe invariant failed: entry=G:\\agent-zoo\\zyra\\apps\\code-worker\\src\\main.ts result=1 closed=1 closing_checkpoint=false post_terminal=0\n      at runCurrentEntryStdioProbe (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\stdio-probe.ts:232:13)\n\nBun v1.2.15 (Windows x64)\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+      "record_id": "e04-mutation-terminal-order",
+      "restore": {
+        "record_id": "e04-mutation-terminal-order",
+        "restored_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/stdio.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "apps/code-worker/src/main.ts",
+          "--stdio-probe"
+        ],
+        "output_tail": "{\"ok\":true,\"entry\":\"G:\\\\agent-zoo\\\\zyra\\\\apps\\\\code-worker\\\\src\\\\main.ts\",\"executable\":\"G:\\\\agent-zoo\\\\zyra\\\\node_modules\\\\bun\\\\bin\\\\bun.exe\",\"runtime_frames\":35,\"checkpoint_requests\":16,\"closing_checkpoint_before_terminal\":true,\"terminal_results\":1,\"terminal_closed\":1,\"requests_after_terminal_result\":0,\"canonical_owner\":\"typescript\",\"terminal_protocol\":\"close-result-ack-closed\",\"python_fallback\":false}\n",
+        "returncode": 0
+      },
+      "restored_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+      "target": "packages/runtime/claude-runtime/src/stdio.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "f3e0ab8f234e1961f890f45662cd361a284ddc9fe1d46b3ef74df064e45c024a",
+        "original_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+        "record_id": "e04-mutation-checkpoint-ack-loss",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/stdio.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-terminal-lost-ack",
+      "failure": "",
+      "family": "terminal_protocol",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-dc5c5adee2fa",
+          "-q",
+          "tests/integration/test_e01_typescript_runtime_cutover.py::test_lost_terminal_ack_resumes_without_tool_reexecution"
+        ],
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n___________ test_lost_terminal_ack_resumes_without_tool_reexecution ___________\n\ntmp_path = WindowsPath('G:/agent-zoo/zyra/.tmp/e04-mutations/pytest-dc5c5adee2fa/test_lost_terminal_ack_resumes0')\n\n    def test_lost_terminal_ack_resumes_without_tool_reexecution(tmp_path: Path) -> None:\n        workspace = tmp_path / \"workspace\"\n        workspace.mkdir(parents=True)\n        (workspace / \"terminal.txt\").write_text(\"terminal receipt\", encoding=\"utf-8\")\n        runtime = CodeWorkerRuntime(\n            project_root=REPO_ROOT,\n            workspace_root=workspace,\n            artifact_root=tmp_path / \"artifacts\",\n        )\n        original_execute = ToolExecutor.execute\n        original_write_frame = TypeScriptClaudeQueryEngine._write_frame\n        executions = 0\n        dropped = False\n    \n        def counting_execute(self: ToolExecutor, call: object, **kwargs: object) -> object:\n            nonlocal executions\n            executions += 1\n            return original_execute(self, call, **kwargs)\n    \n        def drop_first_terminal_ack(*args: object, **kwargs: object) -> object:\n            nonlocal dropped\n            if kwargs.get(\"kind\") == \"run.result.ack\" and not dropped:\n                dropped = True\n                raise OSError(\"simulated lost terminal acknowledgement\")\n            return original_write_frame(*args, **kwargs)\n    \n        request = _request(\n            \"e04-lost-terminal-ack\",\n            session_id=\"e04-lost-terminal-ack-session\",\n            query_turns=[\n                [{\"tool_name\": \"file_read\", \"arguments\": {\"path\": \"terminal.txt\"}}]\n            ],\n        )\n        with (\n            mock.patch.object(ToolExecutor, \"execute\", counting_execute),\n            mock.patch.object(\n                TypeScriptClaudeQueryEngine,\n                \"_write_frame\",\n                autospec=True,\n                side_effect=drop_first_terminal_ack,\n            ),\n        ):\n            first = runtime.run(request)\n    \n        with (\n            mock.patch.object(ToolExecutor, \"execute\", counting_execute),\n            mock.patch(\n                \"zyra_workers.typescript_claude_runtime.subprocess.Popen\",\n                wraps=subprocess.Popen,\n            ) as runtime_launch,\n        ):\n            resumed = runtime.run(request)\n    \n        assert first.worker_result.ok is False\n>       assert dropped is True\nE       assert False is True\n\ntests\\integration\\test_e01_typescript_runtime_cutover.py:387: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/integration/test_e01_typescript_runtime_cutover.py::test_lost_terminal_ack_resumes_without_tool_reexecution\n1 failed in 2.12s\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+      "record_id": "e04-mutation-checkpoint-ack-loss",
+      "restore": {
+        "record_id": "e04-mutation-checkpoint-ack-loss",
+        "restored_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/stdio.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-dc5c5adee2fa",
+          "-q",
+          "tests/integration/test_e01_typescript_runtime_cutover.py::test_lost_terminal_ack_resumes_without_tool_reexecution"
+        ],
+        "output_tail": ".                                                                        [100%]\n1 passed in 3.66s\n",
+        "returncode": 0
+      },
+      "restored_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+      "target": "packages/runtime/claude-runtime/src/stdio.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "a7cd585d6d51c6cc318db6522f012d1f719a816f6ea553e936c31833624eff6f",
+        "original_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+        "record_id": "e04-mutation-checkpoint-ack-duplicate",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/stdio.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-terminal-duplicate-ack",
+      "failure": "",
+      "family": "terminal_protocol",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-bea338396522",
+          "-q",
+          "tests/integration/test_e01_typescript_runtime_cutover.py::test_duplicate_terminal_delivery_is_acknowledged_idempotently"
+        ],
+        "output_tail": "================================== FAILURES ===================================\n________ test_duplicate_terminal_delivery_is_acknowledged_idempotently ________\n\ntmp_path = WindowsPath('G:/agent-zoo/zyra/.tmp/e04-mutations/pytest-bea338396522/test_duplicate_terminal_delive0')\n\n    def test_duplicate_terminal_delivery_is_acknowledged_idempotently(tmp_path: Path) -> None:\n        runtime = _runtime(tmp_path)\n        original_read_frame = TypeScriptClaudeQueryEngine._read_frame\n        original_write_frame = TypeScriptClaudeQueryEngine._write_frame\n        duplicate: dict[str, object] | None = None\n        duplicated = False\n        injected_sequence_offset = 0\n        terminal_ack_attempts = 0\n    \n        def duplicate_terminal_result(\n            *args: object, **kwargs: object\n        ) -> dict[str, object]:\n            nonlocal duplicate, duplicated, injected_sequence_offset\n            if duplicate is not None:\n                frame = dict(duplicate)\n                frame[\"sequence\"] = kwargs[\"expected_sequence\"]\n                duplicate = None\n                injected_sequence_offset += 1\n                return frame\n            adjusted_kwargs = dict(kwargs)\n            adjusted_kwargs[\"expected_sequence\"] = (\n                int(kwargs[\"expected_sequence\"]) - injected_sequence_offset\n            )\n            frame = original_read_frame(*args, **adjusted_kwargs)\n            if frame.get(\"kind\") == \"run.result\" and not duplicated:\n                duplicate = dict(frame)\n                duplicated = True\n            return frame\n    \n        def count_terminal_ack(*args: object, **kwargs: object) -> object:\n            nonlocal terminal_ack_attempts\n            if kwargs.get(\"kind\") == \"run.result.ack\":\n                terminal_ack_attempts += 1\n                if terminal_ack_attempts == 2:\n                    # The real runtime consumes one ACK and emits run.closed. The\n                    # second delivery is injected at the host boundary, so its\n                    # idempotent ACK has no additional peer request to settle.\n                    return None\n            return original_write_frame(*args, **kwargs)\n    \n        with (\n            mock.patch.object(\n                TypeScriptClaudeQueryEngine,\n                \"_read_frame\",\n                autospec=True,\n                side_effect=duplicate_terminal_result,\n            ),\n            mock.patch.object(\n                TypeScriptClaudeQueryEngine,\n                \"_write_frame\",\n                autospec=True,\n                side_effect=count_terminal_ack,\n            ),\n        ):\n            run = runtime.run(\n                _request(\n                    \"e04-duplicate-terminal-delivery\",\n                    session_id=\"e04-duplicate-terminal-delivery-session\",\n                )\n            )\n    \n>       assert run.worker_result.ok is True\nE       AssertionError: assert False is True\nE        +  where False = WorkerResult(request_id='workerreq_d87c1125636e', ok=False, summary='CodeWorkerRuntime stopped in the canonical TypeSc...typescript_runtime_process_failed', 'typescript_runtime_error_message': 'TypeScript runtime process is not writable.'}).ok\nE        +    where WorkerResult(request_id='workerreq_d87c1125636e', ok=False, summary='CodeWorkerRuntime stopped in the canonical TypeSc...typescript_runtime_process_failed', 'typescript_runtime_error_message': 'TypeScript runtime process is not writable.'}) = CodeWorkerRun(worker_result=WorkerResult(request_id='workerreq_d87c1125636e', ok=False, summary='CodeWorkerRuntime sto...icate-terminal-delivery-session', session_custody_id='', session_custody_fingerprint='', session_custody_created=False).worker_result\n\ntests\\integration\\test_e01_typescript_runtime_cutover.py:460: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/integration/test_e01_typescript_runtime_cutover.py::test_duplicate_terminal_delivery_is_acknowledged_idempotently\n1 failed in 2.50s\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+      "record_id": "e04-mutation-checkpoint-ack-duplicate",
+      "restore": {
+        "record_id": "e04-mutation-checkpoint-ack-duplicate",
+        "restored_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/stdio.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-bea338396522",
+          "-q",
+          "tests/integration/test_e01_typescript_runtime_cutover.py::test_duplicate_terminal_delivery_is_acknowledged_idempotently"
+        ],
+        "output_tail": ".                                                                        [100%]\n1 passed in 2.45s\n",
+        "returncode": 0
+      },
+      "restored_sha256": "3721ed8759afdfba0b2ae32f58eed359e808d2301cbf6274be0bcbe2ef0dd6a2",
+      "target": "packages/runtime/claude-runtime/src/stdio.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "ee806115a018d43f0765df8ad7db69cf5e3dd0e7529103fd826b629a5bab44c5",
+        "original_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+        "record_id": "e04-mutation-python-fallback",
+        "status": "applied",
+        "target": "packages/workers/zyra_workers/typescript_claude_runtime.py"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "py_compile",
+          "packages/workers/zyra_workers/typescript_claude_runtime.py"
+        ],
+        "output_tail": "",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-typescript-disable",
+      "failure": "",
+      "family": "python_fallback",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-77206e4ea783",
+          "-q",
+          "tests/integration/test_e01_typescript_runtime_cutover.py::test_environment_disconnect_fails_without_python_fallback"
+        ],
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n__________ test_environment_disconnect_fails_without_python_fallback __________\n\ntmp_path = WindowsPath('G:/agent-zoo/zyra/.tmp/e04-mutations/pytest-77206e4ea783/test_environment_disconnect_fa0')\n\n    def test_environment_disconnect_fails_without_python_fallback(tmp_path: Path) -> None:\n        with mock.patch.dict(os.environ, {\"ZYRA_DISABLE_TYPESCRIPT_RUNTIME\": \"1\"}):\n            run = _runtime(tmp_path).run(_request(\"e01-environment-disabled\"))\n    \n>       assert run.worker_result.ok is False\nE       AssertionError: assert True is False\nE        +  where True = WorkerResult(request_id='workerreq_5e03ac25e68a', ok=True, summary='CodeWorkerRuntime completed through the canonical ...pescript_runtime_disabled', 'typescript_runtime_error_message': 'The canonical TypeScript query runtime is disabled.'}).ok\nE        +    where WorkerResult(request_id='workerreq_5e03ac25e68a', ok=True, summary='CodeWorkerRuntime completed through the canonical ...pescript_runtime_disabled', 'typescript_runtime_error_message': 'The canonical TypeScript query runtime is disabled.'}) = CodeWorkerRun(worker_result=WorkerResult(request_id='workerreq_5e03ac25e68a', ok=True, summary='CodeWorkerRuntime comp...1-environment-disabled:e01-task', session_custody_id='', session_custody_fingerprint='', session_custody_created=False).worker_result\n\ntests\\integration\\test_e01_typescript_runtime_cutover.py:101: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/integration/test_e01_typescript_runtime_cutover.py::test_environment_disconnect_fails_without_python_fallback\n1 failed in 1.32s\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+      "record_id": "e04-mutation-python-fallback",
+      "restore": {
+        "record_id": "e04-mutation-python-fallback",
+        "restored_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+        "status": "restored",
+        "target": "packages/workers/zyra_workers/typescript_claude_runtime.py"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-77206e4ea783",
+          "-q",
+          "tests/integration/test_e01_typescript_runtime_cutover.py::test_environment_disconnect_fails_without_python_fallback"
+        ],
+        "output_tail": ".                                                                        [100%]\n1 passed in 1.20s\n",
+        "returncode": 0
+      },
+      "restored_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+      "target": "packages/workers/zyra_workers/typescript_claude_runtime.py"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "d0bbde09b80cc6e395c5b0d4de1964d2f1e4df2a5d0f37ef54484c7d33671e19",
+        "original_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+        "record_id": "e04-mutation-root-dependency",
+        "status": "applied",
+        "target": "packages/workers/zyra_workers/typescript_claude_runtime.py"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "py_compile",
+          "packages/workers/zyra_workers/typescript_claude_runtime.py"
+        ],
+        "output_tail": "",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-root-dependency",
+      "failure": "",
+      "family": "dependency",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-1cb16e085af8",
+          "-q",
+          "tests/integration/test_e04_candidate_closure.py::test_e04_root_dependency"
+        ],
+        "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n__________________________ test_e04_root_dependency ___________________________\n\n    def test_e04_root_dependency() -> None:\n        inspected = [\n            REPO_ROOT / \"package.json\",\n            REPO_ROOT / \"bun.lock\",\n            REPO_ROOT / \"apps\" / \"code-worker\" / \"src\" / \"main.ts\",\n            REPO_ROOT\n            / \"packages\"\n            / \"workers\"\n            / \"zyra_workers\"\n            / \"typescript_claude_runtime.py\",\n        ]\n        forbidden = (\n            \"../claude-code-best\",\n            \"../opencode\",\n            \"../OpenClaw\",\n            \"../openclaw\",\n            \"file:../\",\n            \"npm link\",\n        )\n        hits = [\n            f\"{path.relative_to(REPO_ROOT)}:{pattern}\"\n            for path in inspected\n            for pattern in forbidden\n            if pattern in path.read_text(encoding=\"utf-8\")\n        ]\n>       assert hits == []\nE       AssertionError: assert ['packages\\\\w...de-code-best'] == []\nE         \nE         Left contains one more item: 'packages\\\\workers\\\\zyra_workers\\\\typescript_claude_runtime.py:../claude-code-best'\nE         Use -v to get more diff\n\ntests\\integration\\test_e04_candidate_closure.py:41: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/integration/test_e04_candidate_closure.py::test_e04_root_dependency\n1 failed in 0.32s\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+      "record_id": "e04-mutation-root-dependency",
+      "restore": {
+        "record_id": "e04-mutation-root-dependency",
+        "restored_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+        "status": "restored",
+        "target": "packages/workers/zyra_workers/typescript_claude_runtime.py"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "G:\\agent-zoo\\zyra\\.tmp\\e04-mutations\\pytest-1cb16e085af8",
+          "-q",
+          "tests/integration/test_e04_candidate_closure.py::test_e04_root_dependency"
+        ],
+        "output_tail": ".                                                                        [100%]\n1 passed in 0.23s\n",
+        "returncode": 0
+      },
+      "restored_sha256": "55cbebea9ac21ca8fb8c3f3281b0be2474ac460dd030886143e0afb88f6c7a15",
+      "target": "packages/workers/zyra_workers/typescript_claude_runtime.py"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "4862450619ef45e733cb3de18ec8efe5bb543e4ff567c3d546dbd6af52ff2b48",
+        "original_sha256": "27b7015731326ad39929d16ec0fcf11f7e3425510bea5e014480d58144a106ae",
+        "record_id": "e04-mutation-domain-01",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-query-disable",
+      "failure": "",
+      "family": "source_recovery",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-query-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\runtime-core-source-recovery.behavior.test.ts:\n(skip) e04-tool-batch\n(skip) e04-query-reason-observe\n(skip) e04-query-model-failure\n(skip) e04-query-resume\n(skip) e04-tool-resume\n(skip) e04-tool-failure\n(skip) e04-compact-failure\n(skip) e04-compact-restore\n(skip) e04-compact-disable\n(skip) E04-B source-runtime disable switches fail the default semantic owners\n(skip) E04-B exact disconnect switches kill ClaudeRuntimeCore default paths\n327 |   }\n328 | \n329 |   /** Adapted from QueryEngine.ask: product/UI inputs are cropped at admission. */\n330 |   ask(input: QueryAskInput): QueryAdmission {\n331 |     if (process.env.ZYRA_E04_MUTATION_DOMAIN_01 !== \"disabled\") { // E04 mutation: disconnect query source owner\n332 |       throw new Error(\"e04_query_source_runtime_disabled\");\n                  ^\nerror: e04_query_source_runtime_disabled\n      at ask (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\query\\lifecycle-runtime.ts:332:13)\n      at beginCanonicalTurn (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:932:16)\n      at run (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\query-engine.ts:389:13)\n(fail) e04-query-disable [47.00ms]\n(skip) e04-tool-disable\n(skip) e04-compact-boundary e04-compact-disable\n\n 0 pass\n 13 skip\n 1 fail\nRan 14 tests across 1 files. [171.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "27b7015731326ad39929d16ec0fcf11f7e3425510bea5e014480d58144a106ae",
+      "record_id": "e04-mutation-domain-01",
+      "restore": {
+        "record_id": "e04-mutation-domain-01",
+        "restored_sha256": "27b7015731326ad39929d16ec0fcf11f7e3425510bea5e014480d58144a106ae",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-query-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\runtime-core-source-recovery.behavior.test.ts:\n(skip) e04-tool-batch\n(skip) e04-query-reason-observe\n(skip) e04-query-model-failure\n(skip) e04-query-resume\n(skip) e04-tool-resume\n(skip) e04-tool-failure\n(skip) e04-compact-failure\n(skip) e04-compact-restore\n(skip) e04-compact-disable\n(skip) E04-B source-runtime disable switches fail the default semantic owners\n(skip) E04-B exact disconnect switches kill ClaudeRuntimeCore default paths\n(pass) e04-query-disable [78.00ms]\n(skip) e04-tool-disable\n(skip) e04-compact-boundary e04-compact-disable\n\n 1 pass\n 13 skip\n 0 fail\n 3 expect() calls\nRan 14 tests across 1 files. [185.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "27b7015731326ad39929d16ec0fcf11f7e3425510bea5e014480d58144a106ae",
+      "target": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "a9675da5af51f8f5cea56fbe64345356f95286f8233d29c39602c128a60638d8",
+        "original_sha256": "7d5ea2b3980a80212e3fee43a349b8344b585de07491ec2ac9469b996c57b459",
+        "record_id": "e04-mutation-domain-02",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-compact-disable",
+      "failure": "",
+      "family": "source_recovery",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-compact-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\runtime-core-source-recovery.behavior.test.ts:\n(skip) e04-tool-batch\n(skip) e04-query-reason-observe\n(skip) e04-query-model-failure\n(skip) e04-query-resume\n(skip) e04-tool-resume\n(skip) e04-tool-failure\n(skip) e04-compact-failure\n(skip) e04-compact-restore\n(pass) e04-compact-disable [16.00ms]\n(skip) E04-B source-runtime disable switches fail the default semantic owners\n(skip) E04-B exact disconnect switches kill ClaudeRuntimeCore default paths\n(skip) e04-query-disable\n(skip) e04-tool-disable\n114 |   private readonly lastSummaryStream = new Map<string, SummaryStreamState>();\n115 |   private readonly consecutiveAutoCompactionFailures = new Map<string, number>();\n116 | \n117 |   assertSourceRuntimeEnabled(): void {\n118 |     if (process.env.ZYRA_E04_MUTATION_DOMAIN_02 !== \"disabled\") { // E04 mutation: disconnect compact source owner\n119 |       throw new Error(\"e04_compact_source_runtime_disabled\");\n                  ^\nerror: e04_compact_source_runtime_disabled\n      at assertSourceRuntimeEnabled (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\compact\\compaction-custody-runtime.ts:119:13)\n      at applyCompactionCustody (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\compact\\compaction-custody-runtime.ts:404:10)\n      at applySourceCustody (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\compact\\context-runtime.ts:304:24)\n      at compactConversation (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\compact\\context-runtime.ts:602:26)\n      at compactConversation (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\compact\\context-runtime.ts:598:5)\n      at run (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\query-engine.ts:771:33)\n(fail) e04-compact-boundary e04-compact-disable [47.00ms]\n\n 1 pass\n 12 skip\n 1 fail\n 3 expect() calls\nRan 14 tests across 1 files. [168.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "7d5ea2b3980a80212e3fee43a349b8344b585de07491ec2ac9469b996c57b459",
+      "record_id": "e04-mutation-domain-02",
+      "restore": {
+        "record_id": "e04-mutation-domain-02",
+        "restored_sha256": "7d5ea2b3980a80212e3fee43a349b8344b585de07491ec2ac9469b996c57b459",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-compact-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\runtime-core-source-recovery.behavior.test.ts:\n(skip) e04-tool-batch\n(skip) e04-query-reason-observe\n(skip) e04-query-model-failure\n(skip) e04-query-resume\n(skip) e04-tool-resume\n(skip) e04-tool-failure\n(skip) e04-compact-failure\n(skip) e04-compact-restore\n(pass) e04-compact-disable [16.00ms]\n(skip) E04-B source-runtime disable switches fail the default semantic owners\n(skip) E04-B exact disconnect switches kill ClaudeRuntimeCore default paths\n(skip) e04-query-disable\n(skip) e04-tool-disable\n(pass) e04-compact-boundary e04-compact-disable [78.00ms]\n\n 2 pass\n 12 skip\n 0 fail\n 6 expect() calls\nRan 14 tests across 1 files. [210.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "7d5ea2b3980a80212e3fee43a349b8344b585de07491ec2ac9469b996c57b459",
+      "target": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "26b738fbf83179dbfaaa6e5d29b0bd6d46a857469b8ffc4311cbb571c8b1350f",
+        "original_sha256": "d67d181e2c543fda469c19bf181785dc6be200d8446512d15aa76afd2658800a",
+        "record_id": "e04-mutation-domain-03",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-tool-disable",
+      "failure": "",
+      "family": "source_recovery",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-tool-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\runtime-core-source-recovery.behavior.test.ts:\n(skip) e04-tool-batch\n(skip) e04-query-reason-observe\n(skip) e04-query-model-failure\n(skip) e04-query-resume\n(skip) e04-tool-resume\n(skip) e04-tool-failure\n(skip) e04-compact-failure\n(skip) e04-compact-restore\n(skip) e04-compact-disable\n(skip) E04-B source-runtime disable switches fail the default semantic owners\n(skip) E04-B exact disconnect switches kill ClaudeRuntimeCore default paths\n(skip) e04-query-disable\n396 |    * runTools/partitionToolCalls. Zyra keeps leases, permissions and effects in\n397 |    * this runtime, but retains the upstream consecutive-batch ordering.\n398 |    */\n399 |   runTools(turnId: string, callIds: readonly string[], maximumConcurrency = 10): ToolBatch[] {\n400 |     if (process.env.ZYRA_E04_MUTATION_DOMAIN_03 !== \"disabled\") { // E04 mutation: disconnect tool source owner\n401 |       throw new Error(\"e04_tool_source_runtime_disabled\");\n                  ^\nerror: e04_tool_source_runtime_disabled\n      at runTools (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\tools\\execution-runtime.ts:401:13)\n      at planToolBatches (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e01\\coordinator.ts:1091:50)\n      at run (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\query-engine.ts:415:27)\n(fail) e04-tool-disable [47.00ms]\n(skip) e04-compact-boundary e04-compact-disable\n\n 0 pass\n 13 skip\n 1 fail\nRan 14 tests across 1 files. [149.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "d67d181e2c543fda469c19bf181785dc6be200d8446512d15aa76afd2658800a",
+      "record_id": "e04-mutation-domain-03",
+      "restore": {
+        "record_id": "e04-mutation-domain-03",
+        "restored_sha256": "d67d181e2c543fda469c19bf181785dc6be200d8446512d15aa76afd2658800a",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-tool-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\runtime-core-source-recovery.behavior.test.ts:\n(skip) e04-tool-batch\n(skip) e04-query-reason-observe\n(skip) e04-query-model-failure\n(skip) e04-query-resume\n(skip) e04-tool-resume\n(skip) e04-tool-failure\n(skip) e04-compact-failure\n(skip) e04-compact-restore\n(skip) e04-compact-disable\n(skip) E04-B source-runtime disable switches fail the default semantic owners\n(skip) E04-B exact disconnect switches kill ClaudeRuntimeCore default paths\n(skip) e04-query-disable\n(pass) e04-tool-disable [78.00ms]\n(skip) e04-compact-boundary e04-compact-disable\n\n 1 pass\n 13 skip\n 0 fail\n 3 expect() calls\nRan 14 tests across 1 files. [183.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "d67d181e2c543fda469c19bf181785dc6be200d8446512d15aa76afd2658800a",
+      "target": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "91148b459c49807f3c52e1cc0181961432ddd875fb8b1560766ee48d2268dddd",
+        "original_sha256": "3dd935b47950f36436c05ef0b3c945049a54d85c2a808c55b6e0a7339fcdbdf6",
+        "record_id": "e04-mutation-domain-04",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-permission-disable",
+      "failure": "",
+      "family": "permission",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-permission-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\permission-mcp-source-recovery.behavior.test.ts:\n(skip) e04-permission-allow-ask-deny\n(skip) e04-permission-hook-failure\n(skip) e04-permission-continuation\n58 | \n59 | export function assertPermissionSourceRuntimeEnabled(): void {\n60 |   if (process.env.ZYRA_E04_MUTATION_DOMAIN_04 !== \"disabled\") { // E04 mutation: disconnect permission source owner\n61 |     throw new Error(\n62 |       \"The migrated TypeScript permission source runtime is disabled; no local policy fallback is permitted\",\n63 |     );\n         ^\nerror: The migrated TypeScript permission source runtime is disabled; no local policy fallback is permitted\n      at assertPermissionSourceRuntimeEnabled (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\permission\\hook-runtime.ts:63:5)\n      at runBeforeToolSync (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\permission\\hook-runtime.ts:203:5)\n      at evaluate (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\permission\\evaluator.ts:119:35)\n      at <anonymous> (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\test\\e04\\permission-mcp-source-recovery.behavior.test.ts:223:20)\n(fail) e04-permission-disable\n(skip) e04-mcp-lifecycle\n(skip) e04-mcp-connect-failure\n(skip) e04-mcp-resume\n(skip) MCP client reconnects a cleared live client before catalog access\n(skip) e04-mcp-disable\n\n 0 pass\n 8 skip\n 1 fail\nRan 9 tests across 1 files. [134.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "3dd935b47950f36436c05ef0b3c945049a54d85c2a808c55b6e0a7339fcdbdf6",
+      "record_id": "e04-mutation-domain-04",
+      "restore": {
+        "record_id": "e04-mutation-domain-04",
+        "restored_sha256": "3dd935b47950f36436c05ef0b3c945049a54d85c2a808c55b6e0a7339fcdbdf6",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-permission-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\permission-mcp-source-recovery.behavior.test.ts:\n(skip) e04-permission-allow-ask-deny\n(skip) e04-permission-hook-failure\n(skip) e04-permission-continuation\n(pass) e04-permission-disable\n(skip) e04-mcp-lifecycle\n(skip) e04-mcp-connect-failure\n(skip) e04-mcp-resume\n(skip) MCP client reconnects a cleared live client before catalog access\n(skip) e04-mcp-disable\n\n 1 pass\n 8 skip\n 0 fail\n 2 expect() calls\nRan 9 tests across 1 files. [140.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "3dd935b47950f36436c05ef0b3c945049a54d85c2a808c55b6e0a7339fcdbdf6",
+      "target": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "ce22e03650172a24d240b90cb7bf88d278eefb8e867e028ae21a90c2820849ca",
+        "original_sha256": "6c0616df8ea403832370c8a2c20678bf278c80db67bcb30ae0bc0fe1118d19ce",
+        "record_id": "e04-mutation-domain-05",
+        "status": "applied",
+        "target": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-mcp-disable",
+      "failure": "",
+      "family": "mcp",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-mcp-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\permission-mcp-source-recovery.behavior.test.ts:\n(skip) e04-permission-allow-ask-deny\n(skip) e04-permission-hook-failure\n(skip) e04-permission-continuation\n(skip) e04-permission-disable\n(skip) e04-mcp-lifecycle\n(skip) e04-mcp-connect-failure\n(skip) e04-mcp-resume\n(skip) MCP client reconnects a cleared live client before catalog access\n66 | \n67 | export class McpRuntimeError extends Error {\n68 |   readonly failure: McpFailureRecord;\n69 | \n70 |   constructor(input: McpFailureInput, options?: ErrorOptions) {\n71 |     super(input.message, options);\n         ^\nMcpRuntimeError: The migrated TypeScript MCP source runtime is disabled; no logical client fallback is permitted\n failure: {\n  category: \"transport\",\n  cause_chain: [],\n  code: \"mcp_source_runtime_disabled\",\n  details: [Object ...],\n  disposition: \"terminal\",\n  failure_id: \"mcp-connection-501a014f199500284adace60\",\n  json_rpc_code: null,\n  message: \"The migrated TypeScript MCP source runtime is disabled; no logical client fallback is permitted\",\n  occurred_at: \"2026-07-18T18:39:03.677Z\",\n  operation: \"\",\n  request_id: \"\",\n  retry_after_ms: null,\n  retryable: false,\n  server_id: \"\",\n  session_id: \"\",\n  status_code: null,\n  version: \"zyra.mcp-failure/v1\",\n},\n\n      at new McpRuntimeError (G:\\agent-zoo\\zyra\\packages\\integrations\\claude-mcp\\src\\core\\failure.ts:71:5)\n      at connectionError (G:\\agent-zoo\\zyra\\packages\\integrations\\claude-mcp\\src\\connection\\connection-runtime.ts:720:10)\n      at assertMcpSourceRuntimeEnabled (G:\\agent-zoo\\zyra\\packages\\integrations\\claude-mcp\\src\\connection\\connection-runtime.ts:83:11)\n      at connect (G:\\agent-zoo\\zyra\\packages\\integrations\\claude-mcp\\src\\connection\\connection-runtime.ts:135:5)\n      at connect (G:\\agent-zoo\\zyra\\packages\\integrations\\claude-mcp\\src\\connection\\connection-runtime.ts:134:17)\n      at <anonymous> (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\test\\e04\\permission-mcp-source-recovery.behavior.test.ts:506:24)\n      at <anonymous> (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\test\\e04\\permission-mcp-source-recovery.behavior.test.ts:504:25)\n(fail) e04-mcp-disable [16.00ms]\n\n 0 pass\n 8 skip\n 1 fail\nRan 9 tests across 1 files. [123.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "6c0616df8ea403832370c8a2c20678bf278c80db67bcb30ae0bc0fe1118d19ce",
+      "record_id": "e04-mutation-domain-05",
+      "restore": {
+        "record_id": "e04-mutation-domain-05",
+        "restored_sha256": "6c0616df8ea403832370c8a2c20678bf278c80db67bcb30ae0bc0fe1118d19ce",
+        "status": "restored",
+        "target": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/permission-mcp-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-mcp-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\permission-mcp-source-recovery.behavior.test.ts:\n(skip) e04-permission-allow-ask-deny\n(skip) e04-permission-hook-failure\n(skip) e04-permission-continuation\n(skip) e04-permission-disable\n(skip) e04-mcp-lifecycle\n(skip) e04-mcp-connect-failure\n(skip) e04-mcp-resume\n(skip) MCP client reconnects a cleared live client before catalog access\n(pass) e04-mcp-disable\n\n 1 pass\n 8 skip\n 0 fail\n 2 expect() calls\nRan 9 tests across 1 files. [125.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "6c0616df8ea403832370c8a2c20678bf278c80db67bcb30ae0bc0fe1118d19ce",
+      "target": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "330458bdd9b588de6ac5d3322ac1bd5ce64ee644793e095c6ad352e374163b14",
+        "original_sha256": "3048960b8513503f3a2f439d8c6cbe59aac4987d647516f8e23d71448e321660",
+        "record_id": "e04-mutation-domain-06",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/skills/runtime.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-skill-disable",
+      "failure": "",
+      "family": "skill_plugin_command",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-skill-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\skill-plugin-command-source-recovery.behavior.test.ts:\n(skip) e04-skill-plugin-command\n(skip) e04-skill-fork-failure\n(skip) e04-skill-hook-failure\n(skip) e04-skill-reload\n31 | \n32 | export class TypeScriptSkillRuntime {\n33 |   static assertSourceRuntimeEnabled(): void {\n34 |     if (process.env.ZYRA_E04_MUTATION_DOMAIN_06 !== \"disabled\") { // E04 mutation: disconnect skill/plugin/command source owner\n35 |       throw Object.assign(\n36 |         new Error(\n             ^\nSkillSourceRuntimeDisabledError: The migrated TypeScript skill/plugin/command source runtime is disabled; no legacy or Python fallback is permitted\n code: \"e04_skill_source_runtime_disabled\"\n\n      at assertSourceRuntimeEnabled (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\skills\\runtime.ts:36:9)\n      at open (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\skills\\coordinator.ts:193:28)\n      at open (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\skills\\coordinator.ts:192:31)\n      at openRuntime (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\src\\e02\\coordinator.ts:539:25)\n(fail) e04-skill-disable [16.00ms]\n\n 0 pass\n 4 skip\n 1 fail\nRan 5 tests across 1 files. [166.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "3048960b8513503f3a2f439d8c6cbe59aac4987d647516f8e23d71448e321660",
+      "record_id": "e04-mutation-domain-06",
+      "restore": {
+        "record_id": "e04-mutation-domain-06",
+        "restored_sha256": "3048960b8513503f3a2f439d8c6cbe59aac4987d647516f8e23d71448e321660",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/skills/runtime.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/skill-plugin-command-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-skill-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\skill-plugin-command-source-recovery.behavior.test.ts:\n(skip) e04-skill-plugin-command\n(skip) e04-skill-fork-failure\n(skip) e04-skill-hook-failure\n(skip) e04-skill-reload\n(pass) e04-skill-disable [219.00ms]\n\n 1 pass\n 4 skip\n 0 fail\nRan 5 tests across 1 files. [367.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "3048960b8513503f3a2f439d8c6cbe59aac4987d647516f8e23d71448e321660",
+      "target": "packages/runtime/claude-runtime/src/skills/runtime.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "a79d12a1f3821bacd29b980019828932822190f82ad68e951fb402c73b83a7b7",
+        "original_sha256": "a525892d57e2f94ac682ce8b44f9e0d6a7b6b859f9eda95963d645ad073ca493",
+        "record_id": "e04-mutation-domain-07",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/agents/run-agent.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-agent-disable",
+      "failure": "",
+      "family": "agent_control",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-agent-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\agent-control-source-recovery.behavior.test.ts:\n(skip) e04-agent-run-resume\n(skip) e04-agent-failure\n(skip) e04-agent-resume\n439 |       {},\n440 |       \"run:e04-agent-disable\",\n441 |       \"run:e04-agent-disable\",\n442 |     );\n443 |     assert.equal(failed.status, \"failed\");\n444 |     assert.match(failed.error, /source runtime is disabled|no legacy or Python/i);\n                 ^\nAssertionError: The input did not match the regular expression /source runtime is disabled|no legacy or Python/i. Input:\n\n'AgentTool run/resume source owner is disconnected'\n\n generatedMessage: true,\n     actual: \"AgentTool run/resume source owner is disconnected\",\n   expected: /source runtime is disabled|no legacy or Python/i,\n   operator: \"match\",\n       code: \"ERR_ASSERTION\"\n\n      at G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\test\\e04\\agent-control-source-recovery.behavior.test.ts:444:12\n(fail) e04-agent-disable [31.00ms]\n(skip) e04-isolation-control\n(skip) e04-isolation-failure\n(skip) e04-isolation-resume\n(skip) e04-isolation-disable\n\n 0 pass\n 7 skip\n 1 fail\nRan 8 tests across 1 files. [176.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "a525892d57e2f94ac682ce8b44f9e0d6a7b6b859f9eda95963d645ad073ca493",
+      "record_id": "e04-mutation-domain-07",
+      "restore": {
+        "record_id": "e04-mutation-domain-07",
+        "restored_sha256": "a525892d57e2f94ac682ce8b44f9e0d6a7b6b859f9eda95963d645ad073ca493",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/agents/run-agent.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-agent-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\agent-control-source-recovery.behavior.test.ts:\n(skip) e04-agent-run-resume\n(skip) e04-agent-failure\n(skip) e04-agent-resume\n(pass) e04-agent-disable [15.00ms]\n(skip) e04-isolation-control\n(skip) e04-isolation-failure\n(skip) e04-isolation-resume\n(skip) e04-isolation-disable\n\n 1 pass\n 7 skip\n 0 fail\nRan 8 tests across 1 files. [177.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "a525892d57e2f94ac682ce8b44f9e0d6a7b6b859f9eda95963d645ad073ca493",
+      "target": "packages/runtime/claude-runtime/src/agents/run-agent.ts"
+    },
+    {
+      "applied": {
+        "mutated_sha256": "88cc12335c74e6cfa1cca83bd8080bf9449e63f5e25f941f76b410b7c5f273a2",
+        "original_sha256": "1c5f12690da9e1485f6658425fe17202260235f461e47cf12fba730c2c0b969d",
+        "record_id": "e04-mutation-domain-08",
+        "status": "applied",
+        "target": "packages/runtime/claude-runtime/src/isolation/request-runtime.ts"
+      },
+      "compile": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "run",
+          "typecheck:e02"
+        ],
+        "output_tail": "$ tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json\n",
+        "returncode": 0
+      },
+      "exact_killer_test": "e04-isolation-disable",
+      "failure": "",
+      "family": "source_recovery",
+      "killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-isolation-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\agent-control-source-recovery.behavior.test.ts:\n(skip) e04-agent-run-resume\n(skip) e04-agent-failure\n(skip) e04-agent-resume\n(skip) e04-agent-disable\n(skip) e04-isolation-control\n(skip) e04-isolation-failure\n(skip) e04-isolation-resume\n552 |     scope: scope({ workspaceRoots: [process.cwd()] }),\n553 |   });\n554 |   const previous = process.env.ZYRA_DISABLE_E04_ISOLATION_SOURCE_RUNTIME;\n555 |   try {\n556 |     process.env.ZYRA_DISABLE_E04_ISOLATION_SOURCE_RUNTIME = \"1\";\n557 |     assert.throws(\n                 ^\nAssertionError: The input did not match the regular expression /source runtime is disabled|no legacy or Python/i. Input:\n\n'E03RuntimeError: worktree/isolation source owner is disconnected'\n\n      at expectedException (node:assert:226:55)\n      at expectsError (node:assert:287:20)\n      at throws (node:assert:479:15)\n      at <anonymous> (G:\\agent-zoo\\zyra\\packages\\runtime\\claude-runtime\\test\\e04\\agent-control-source-recovery.behavior.test.ts:557:12)\n(fail) e04-isolation-disable\n\n 0 pass\n 7 skip\n 1 fail\nRan 8 tests across 1 files. [171.00ms]\n",
+        "returncode": 1
+      },
+      "killer_result": "killed",
+      "ok": true,
+      "original_sha256": "1c5f12690da9e1485f6658425fe17202260235f461e47cf12fba730c2c0b969d",
+      "record_id": "e04-mutation-domain-08",
+      "restore": {
+        "record_id": "e04-mutation-domain-08",
+        "restored_sha256": "1c5f12690da9e1485f6658425fe17202260235f461e47cf12fba730c2c0b969d",
+        "status": "restored",
+        "target": "packages/runtime/claude-runtime/src/isolation/request-runtime.ts"
+      },
+      "restored_killer": {
+        "command": [
+          "G:\\agent-zoo\\zyra\\node_modules\\bun\\bin\\bun.exe",
+          "test",
+          "packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+          "--test-name-pattern",
+          "e04-isolation-disable"
+        ],
+        "output_tail": "bun test v1.2.15 (df017990)\n\npackages\\runtime\\claude-runtime\\test\\e04\\agent-control-source-recovery.behavior.test.ts:\n(skip) e04-agent-run-resume\n(skip) e04-agent-failure\n(skip) e04-agent-resume\n(skip) e04-agent-disable\n(skip) e04-isolation-control\n(skip) e04-isolation-failure\n(skip) e04-isolation-resume\n(pass) e04-isolation-disable [16.00ms]\n\n 1 pass\n 7 skip\n 0 fail\nRan 8 tests across 1 files. [165.00ms]\n",
+        "returncode": 0
+      },
+      "restored_sha256": "1c5f12690da9e1485f6658425fe17202260235f461e47cf12fba730c2c0b969d",
+      "target": "packages/runtime/claude-runtime/src/isolation/request-runtime.ts"
+    }
+  ],
+  "schema_version": "4.0",
+  "toolchain": {
+    "bun": "1.2.15",
+    "python": "3.13.9"
+  },
+  "total": 13,
+  "tree": "93460d639b3b539fd0253be70d488c7fffa41252"
+}

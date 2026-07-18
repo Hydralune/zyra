@@ -1,0 +1,17 @@
+{
+  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65",
+  "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "exceptions": [],
+  "execution_id": "E04",
+  "g0_tooling_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "generated_at": "2026-07-18T18:43:38.037996+00:00",
+  "passed": true,
+  "record_type": "reimplementation_exceptions",
+  "schema_version": "4.0",
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "python": "Python 3.13.9"
+  },
+  "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
+}

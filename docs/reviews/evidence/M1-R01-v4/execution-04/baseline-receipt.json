@@ -1,0 +1,195 @@
+{
+  "capture_timestamp": "2026-07-18T12:15:41.674564+00:00",
+  "clean_worktree": true,
+  "dirty_paths": [],
+  "entry_baseline": {
+    "built_bun_health": {
+      "combined_sha256": "fe684d9635bcae01b48b5103464eeff8ddac059cea4fbfd722e1eb70fc7614cb",
+      "command": [
+        "G:\\agent-zoo\\zyra\\node_modules\\.bin\\bun.exe",
+        "dist/code-worker/main.js",
+        "--health"
+      ],
+      "error_codes": [],
+      "exit_code": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_tail": "",
+      "stdout_sha256": "066a5127498e35199e4f08477456b327b0b37c049cd13facdf95d3682bec97f9",
+      "stdout_tail": "-prerequisite.json\",\"verificationContractVersion\":\"zyra.e01-prerequisite/v1\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"evidenceIntegrity\":true,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"e02CapabilityRuntime\":{\"schema\":\"zyra.e02-built-readiness/v1\",\"implementationReady\":true,\"reviewStatus\":\"implementation_complete_review_pending\",\"independentReviewPassed\":false,\"implementationCandidate\":null,\"canonicalOwner\":\"typescript\",\"canonicalEntrypoint\":\"E02CapabilityCoordinator.execute\",\"stateJournalOwner\":\"E02CapabilityCoordinator\",\"builtApiEntrypoint\":\"CodeWorkerApplication.runCapabilityApiPort\",\"sourceImportProbeAccepted\":false,\"liveBuiltProbeRequired\":true,\"pythonDecisionFallback\":false},\"e03AgentControlRuntime\":{\"schema\":\"zyra.e03-built-readiness/v1\",\"implementationReady\":true,\"reviewStatus\":\"implementation_complete_review_pending\",\"independentReviewPassed\":false,\"implementationCandidate\":null,\"canonicalOwner\":\"typescript\",\"canonicalEntrypoint\":\"E03AgentControlCoordinator.execute\",\"defaultTaskEntrypoint\":\"CodeWorkerApplication.runTaskRuntime\",\"builtControlEntrypoint\":\"CodeWorkerApplication.runAgentControlPort\",\"stateJournalOwner\":\"DurableTaskRegistry\",\"physicalPortOwners\":[\"HostE03PhysicalPort\",\"FileE03PhysicalPort\"],\"commitProtocol\":[\"prepare\",\"effect\",\"receipt\",\"commit\",\"ack\"],\"liveBuiltProbeRequired\":true,\"pythonLogicalOwner\":false,\"pythonLogicalFallback\":false},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}\n"
+    },
+    "built_node_health": {
+      "combined_sha256": "fe684d9635bcae01b48b5103464eeff8ddac059cea4fbfd722e1eb70fc7614cb",
+      "command": [
+        "node",
+        "dist/code-worker-node/main.js",
+        "--health"
+      ],
+      "error_codes": [],
+      "exit_code": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_tail": "",
+      "stdout_sha256": "066a5127498e35199e4f08477456b327b0b37c049cd13facdf95d3682bec97f9",
+      "stdout_tail": "-prerequisite.json\",\"verificationContractVersion\":\"zyra.e01-prerequisite/v1\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"evidenceIntegrity\":true,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"e02CapabilityRuntime\":{\"schema\":\"zyra.e02-built-readiness/v1\",\"implementationReady\":true,\"reviewStatus\":\"implementation_complete_review_pending\",\"independentReviewPassed\":false,\"implementationCandidate\":null,\"canonicalOwner\":\"typescript\",\"canonicalEntrypoint\":\"E02CapabilityCoordinator.execute\",\"stateJournalOwner\":\"E02CapabilityCoordinator\",\"builtApiEntrypoint\":\"CodeWorkerApplication.runCapabilityApiPort\",\"sourceImportProbeAccepted\":false,\"liveBuiltProbeRequired\":true,\"pythonDecisionFallback\":false},\"e03AgentControlRuntime\":{\"schema\":\"zyra.e03-built-readiness/v1\",\"implementationReady\":true,\"reviewStatus\":\"implementation_complete_review_pending\",\"independentReviewPassed\":false,\"implementationCandidate\":null,\"canonicalOwner\":\"typescript\",\"canonicalEntrypoint\":\"E03AgentControlCoordinator.execute\",\"defaultTaskEntrypoint\":\"CodeWorkerApplication.runTaskRuntime\",\"builtControlEntrypoint\":\"CodeWorkerApplication.runAgentControlPort\",\"stateJournalOwner\":\"DurableTaskRegistry\",\"physicalPortOwners\":[\"HostE03PhysicalPort\",\"FileE03PhysicalPort\"],\"commitProtocol\":[\"prepare\",\"effect\",\"receipt\",\"commit\",\"ack\"],\"liveBuiltProbeRequired\":true,\"pythonLogicalOwner\":false,\"pythonLogicalFallback\":false},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}\n"
+    },
+    "observation": "Health probes can pass while the real Python-to-TypeScript stdio terminal handshake fails; E04 gates real stdio runs separately.",
+    "source_health": {
+      "combined_sha256": "fe684d9635bcae01b48b5103464eeff8ddac059cea4fbfd722e1eb70fc7614cb",
+      "command": [
+        "G:\\agent-zoo\\zyra\\node_modules\\.bin\\bun.exe",
+        "apps/code-worker/src/main.ts",
+        "--health"
+      ],
+      "error_codes": [],
+      "exit_code": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_tail": "",
+      "stdout_sha256": "066a5127498e35199e4f08477456b327b0b37c049cd13facdf95d3682bec97f9",
+      "stdout_tail": "-prerequisite.json\",\"verificationContractVersion\":\"zyra.e01-prerequisite/v1\",\"lineCountSource\":\"docs/reviews/evidence/M1-R01-v14/execution-01-independent-review/strict-gate.json\",\"lineCountComputedAtRuntime\":false,\"evidenceIntegrity\":true,\"implementationReady\":true,\"canonicalOwner\":\"typescript\",\"referenceCrosswalk\":{\"ok\":true}},\"e02CapabilityRuntime\":{\"schema\":\"zyra.e02-built-readiness/v1\",\"implementationReady\":true,\"reviewStatus\":\"implementation_complete_review_pending\",\"independentReviewPassed\":false,\"implementationCandidate\":null,\"canonicalOwner\":\"typescript\",\"canonicalEntrypoint\":\"E02CapabilityCoordinator.execute\",\"stateJournalOwner\":\"E02CapabilityCoordinator\",\"builtApiEntrypoint\":\"CodeWorkerApplication.runCapabilityApiPort\",\"sourceImportProbeAccepted\":false,\"liveBuiltProbeRequired\":true,\"pythonDecisionFallback\":false},\"e03AgentControlRuntime\":{\"schema\":\"zyra.e03-built-readiness/v1\",\"implementationReady\":true,\"reviewStatus\":\"implementation_complete_review_pending\",\"independentReviewPassed\":false,\"implementationCandidate\":null,\"canonicalOwner\":\"typescript\",\"canonicalEntrypoint\":\"E03AgentControlCoordinator.execute\",\"defaultTaskEntrypoint\":\"CodeWorkerApplication.runTaskRuntime\",\"builtControlEntrypoint\":\"CodeWorkerApplication.runAgentControlPort\",\"stateJournalOwner\":\"DurableTaskRegistry\",\"physicalPortOwners\":[\"HostE03PhysicalPort\",\"FileE03PhysicalPort\"],\"commitProtocol\":[\"prepare\",\"effect\",\"receipt\",\"commit\",\"ack\"],\"liveBuiltProbeRequired\":true,\"pythonLogicalOwner\":false,\"pythonLogicalFallback\":false},\"vendor\":{\"complete\":false,\"requiredForMainPath\":false,\"vendorRoot\":\"\"}}\n"
+    }
+  },
+  "execution_id": "E04",
+  "frozen_default_path_failures": [
+    {
+      "combined_sha256": "3097e8d6cf72c61c7a5514d03cd4fabef947f157825d1e40393acf44ec5f88e5",
+      "command": [
+        "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/integration/test_e01_typescript_runtime_cutover.py::test_default_code_worker_reaches_typescript_owner",
+        "-vv",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp",
+        ".tmp/e04-g0-owner"
+      ],
+      "error_codes": [
+        "host_disconnected",
+        "runtime_budget_replay",
+        "runtime_budget_state_ok",
+        "runtime_id",
+        "runtime_protocol",
+        "runtime_state_checkpoint_path"
+      ],
+      "exit_code": 1,
+      "expected_error_code": "host_disconnected",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_tail": "",
+      "stdout_sha256": "badfedfc468aa9e2831f2380eb7012e4d5b469b19289bb3140f67c67b21ae4c8",
+      "stdout_tail": "essage);\\n         ^\\nRuntimeProtocolError: Python host disconnected before runtime.checkpoint.result\\n code: \"host_disconnected\"\\n\\n      at new RuntimeProtocolError (G:\\\\agent-zoo\\\\zyra\\\\packages\\\\runtime\\\\claude-runtime\\\\src\\\\protocol.ts:42:5)\\n      at read (G:\\\\agent-zoo\\\\zyra\\\\packages\\\\runtime\\\\claude-runtime\\\\src\\\\stdio.ts:342:13)\\n\\nBun v1.2.15 (Windows x64)'}, 'typescript_runtime': {'runtime_id': 'zyra-typescript-claude-runtime', 'protocol': 'zyra.claude-runtime.v1', 'canonical_owner': 'typescript', 'fallback_used': False}}}], 'error': 'typescript_runtime_process_failed', 'completed_at': '2026-07-18T12:15:35.809Z', 'metadata': {'canonical_runtime_owner': 'typescript', 'python_runtime_role': 'process-durability-side-effect-host', 'python_policy_fallback': 'false', 'runtime_protocol': 'zyra.claude-runtime.v1', 'query_session_id': 'query:e01-default:e01-task', 'query_turns': '0', 'tool_steps': '0', 'context_compactions': '0', 'runtime_state_checkpoint_path': 'G:\\\\agent-zoo\\\\zyra\\\\.tmp\\\\e04-g0-owner\\\\test_default_code_worker_reach0\\\\artifacts\\\\.e01-runtime-state\\\\a5dd073970414c4360bf0a87.json', 'loop': 'zyra_typescript_query_engine_runtime', 'typescript_runtime_id': 'zyra-typescript-claude-runtime', 'python_query_engine_fallback': 'false', 'typescript_runtime_error': 'typescript_runtime_process_failed'}}, 'canonical_runtime_owner': 'typescript'})], session_id='query:e01-default:e01-task', session_custody_id='', session_custody_fingerprint='', session_custody_created=False).worker_result\r\n============================== 1 failed in 2.80s ==============================\r\n",
+      "test_id": "default_code_worker_reaches_typescript_owner"
+    },
+    {
+      "combined_sha256": "7f6883a6cdad0de624850fe94c3cb85af7d90c0a19b7c5300c5f7cdba1e8e60a",
+      "command": [
+        "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/integration/test_code_worker_clean_productized_runtime.py::CodeWorkerCleanProductizedRuntimeTests::test_default_runtime_runs_without_source_workspace_or_sidecar",
+        "-vv",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp",
+        ".tmp/e04-g0-clean"
+      ],
+      "error_codes": [],
+      "exit_code": 1,
+      "expected_error_code": "worker_result_not_ok",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_tail": "",
+      "stdout_sha256": "656dcdbc6b23ad182f047c1df6f8a883babf51eb61fc3f8841482ea9d38b7341",
+      "stdout_tail": "r path.\")\r\n            workspace = Path(tmpdir) / \"workspace\"\r\n            (workspace / \"clean\").mkdir(parents=True)\r\n            (workspace / \"clean\" / \"result.txt\").write_text(\"clean ok\", encoding=\"utf-8\")\r\n            runtime = CodeWorkerRuntime(\r\n                project_root=ROOT,\r\n                workspace_root=workspace,\r\n                artifact_root=Path(tmpdir) / \"artifacts\",\r\n                sidecar_client=ExplodingSidecarClient(),\r\n            )\r\n            request = WorkerRequest(\r\n                run_id=state.run_id,\r\n                task_id=state.task_id,\r\n                node_id=state.root_node_id,\r\n                worker_name=\"CodeWorkerRuntime\",\r\n                constraints={\r\n                    \"tool_plan\": [\r\n                        {\"tool_name\": \"file_read\", \"arguments\": {\"path\": \"clean/result.txt\"}},\r\n                        {\"tool_name\": \"file_read\", \"arguments\": {\"path\": \"clean/result.txt\"}},\r\n                    ],\r\n                },\r\n            )\r\n    \r\n            run = runtime.run(request)\r\n    \r\n>           self.assertTrue(run.worker_result.ok)\r\nE           AssertionError: False is not true\r\n\r\ntests\\integration\\test_code_worker_clean_productized_runtime.py:69: AssertionError\r\n=========================== short test summary info ===========================\r\nFAILED tests/integration/test_code_worker_clean_productized_runtime.py::CodeWorkerCleanProductizedRuntimeTests::test_default_runtime_runs_without_source_workspace_or_sidecar - AssertionError: False is not true\r\n============================== 1 failed in 4.15s ==============================\r\n",
+      "test_id": "clean_productized_default_runtime"
+    }
+  ],
+  "generator": {
+    "command": [
+      "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+      "scripts/remediation/m1_r01_e04_g0.py",
+      "freeze"
+    ],
+    "version": "1.0.0"
+  },
+  "inventory": {
+    "mutation_points": 13,
+    "python_owner_symbols": 1619,
+    "reimplementation_exceptions": 0,
+    "semantic_domains": [
+      "query_loop",
+      "session_context_compact",
+      "tool_orchestration",
+      "permission",
+      "mcp",
+      "skill_plugin_command",
+      "agent_subagent",
+      "isolation_control"
+    ],
+    "source_recovery_ranges": 18,
+    "target_provenance_records": 18
+  },
+  "lockfile_path": "bun.lock",
+  "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",
+  "manifest_sha256": {
+    "execution-04-gate-profile.json": "a8a83f1f35673b4891c8036788430278f05cb3b9514c35b3d46fa425ad4de0a2",
+    "execution-04-mutation-manifest.jsonl": "c0fa2e79346a924f9dad9d8aa742ece4d12e7a72772e1ecae9d5d9ccaa45bae5",
+    "execution-04-python-owner-census.jsonl": "9e59e2116c94bdf9336773c3e56467c24553c287036bd0c799d8f4436bcd5a4e",
+    "execution-04-reimplementation-exceptions.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "execution-04-source-recovery-manifest.jsonl": "942de4ac1e05a9f9c16ccfc00932dcf4527a03059d6d52e9133cb7a847e46587",
+    "execution-04-target-provenance-map.jsonl": "384cbb615ae97bfc54f973fff3863728c6fb01ee986bce3e86e8cbcec2ec98af"
+  },
+  "platform": {
+    "machine": "AMD64",
+    "release": "11",
+    "system": "Windows"
+  },
+  "record_id": "e04-baseline-receipt",
+  "record_type": "baseline_receipt",
+  "schema_version": "4.0",
+  "source_snapshots": [
+    {
+      "clean_worktree": true,
+      "commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+      "repo": "claude-code-best",
+      "tree": "38ad533a122dd662c12dec5aada600eba480baae"
+    },
+    {
+      "clean_worktree": true,
+      "commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+      "repo": "opencode",
+      "tree": "9aabba801accd1b3fd0da7b80bee5ecc9ffaba85"
+    },
+    {
+      "clean_worktree": true,
+      "commit": "b63e06f68aa0f5fc3dc809c37615b8b1012b180b",
+      "repo": "OpenClaw",
+      "tree": "ff37a77d65d9d1e0a4767c09cabe5865e284e6c2"
+    }
+  ],
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "python": "Python 3.13.9",
+    "typescript": "Version 5.8.3"
+  },
+  "verified_zyra_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "verified_zyra_tree": "2d950d118329c4ad8c1f08ba13a6badcd01afaaa",
+  "verifier": {
+    "command": [
+      "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
+      "scripts/remediation/verify_m1_r01_e04_g0.py"
+    ],
+    "version": "1.0.0"
+  },
+  "workspace_boundary": {
+    "authority_docs_outside_zyra_git": true,
+    "runtime_forbidden_roots": [
+      "claude-code-best",
+      "opencode",
+      "openclaw",
+      "OpenClaw"
+    ],
+    "workspace_root": "G:/agent-zoo",
+    "zyra_root": "G:/agent-zoo/zyra"
+  },
+  "zyra_baseline_commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249",
+  "zyra_baseline_tree": "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00"
+}

@@ -1,0 +1,958 @@
+{
+  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65",
+  "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "execution_id": "E04",
+  "forbidden_dependency_count": 0,
+  "forbidden_hits": [],
+  "g0_tooling_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "generated_at": "2026-07-18T18:44:22.728134+00:00",
+  "ignored_non_dependency_mentions": [
+    {
+      "line": 357,
+      "path": "packages/integrations/zyra_integrations/extraction_rules.py",
+      "pattern": "vendor-runtimes",
+      "text": "target_is_source_pool = \"vendor-runtimes\" in audit.target_root.as_posix().split(\"/\")"
+    },
+    {
+      "line": 408,
+      "path": "packages/integrations/zyra_integrations/extraction_rules.py",
+      "pattern": "source-pool",
+      "text": "remediation=\"Route source-pool copies through ledger bindings and keep effective Zyra modules separate.\","
+    },
+    {
+      "line": 775,
+      "path": "packages/integrations/zyra_integrations/extraction_rules.py",
+      "pattern": "source-pool",
+      "text": "\"Vendor runtime source lines are source-pool scale and not strict effective line count.\","
+    },
+    {
+      "line": 78,
+      "path": "packages/integrations/zyra_integrations/ledger_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes/\","
+    },
+    {
+      "line": 234,
+      "path": "packages/integrations/zyra_integrations/ledger_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "remediation=\"Assign at least one project-relative target path under packages/apps/tests/scripts/vendor-runtimes/skills.\","
+    },
+    {
+      "line": 260,
+      "path": "packages/integrations/zyra_integrations/ledger_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "remediation=\"Move the target to packages/apps/tests/scripts/vendor-runtimes/skills or mark the record rejected.\","
+    },
+    {
+      "line": 219,
+      "path": "packages/integrations/zyra_integrations/ledger_boundary.py",
+      "pattern": "vendor-runtimes",
+      "text": "roots = list(scan_roots or [\"apps\", \"packages\", \"scripts\", \"tests\", \"vendor-runtimes\", \"skills\"])"
+    },
+    {
+      "line": 355,
+      "path": "packages/integrations/zyra_integrations/ledger_boundary.py",
+      "pattern": "vendor-runtimes",
+      "text": "selected_roots = list(roots or [\"vendor-runtimes\", \"packages\", \"apps\"])"
+    },
+    {
+      "line": 357,
+      "path": "packages/integrations/zyra_integrations/ledger_boundary.py",
+      "pattern": "vendor-runtimes",
+      "text": "if root not in {\"vendor-runtimes\", \"packages\", \"apps\"}:"
+    },
+    {
+      "line": 362,
+      "path": "packages/integrations/zyra_integrations/ledger_boundary.py",
+      "pattern": "vendor-runtimes",
+      "text": "if root == \"vendor-runtimes\":"
+    },
+    {
+      "line": 470,
+      "path": "packages/integrations/zyra_integrations/ledger_boundary.py",
+      "pattern": "vendor-runtimes",
+      "text": "remediation=\"Move required code into zyra or use a productized runtime under vendor-runtimes with ledger boundary evidence.\","
+    },
+    {
+      "line": 483,
+      "path": "packages/integrations/zyra_integrations/ledger_boundary.py",
+      "pattern": "-e ../",
+      "text": "if \"-e ../\" in normalized or \"editable = true\" in normalized and \"../\" in normalized:"
+    },
+    {
+      "line": 756,
+      "path": "packages/integrations/zyra_integrations/ledger_boundary.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"copy_roots\": [\"apps\", \"packages\", \"scripts\", \"tests\", \"vendor-runtimes\", \"skills\", \"pyproject.toml\", \"README.md\"],"
+    },
+    {
+      "line": 299,
+      "path": "packages/integrations/zyra_integrations/ledger_gate.py",
+      "pattern": "source-pool",
+      "text": "\"Downgrade source-pool/vendor entries or add concrete Zyra-owned runtime, \""
+    },
+    {
+      "line": 184,
+      "path": "packages/integrations/zyra_integrations/ledger_line_buckets.py",
+      "pattern": "runtime-sources",
+      "text": "patterns=[\"source_pool\", \"source-pool\", \"runtime-sources\", \"third_party/source\", \"upstream_mirror\"],"
+    },
+    {
+      "line": 184,
+      "path": "packages/integrations/zyra_integrations/ledger_line_buckets.py",
+      "pattern": "source-pool",
+      "text": "patterns=[\"source_pool\", \"source-pool\", \"runtime-sources\", \"third_party/source\", \"upstream_mirror\"],"
+    },
+    {
+      "line": 190,
+      "path": "packages/integrations/zyra_integrations/ledger_line_buckets.py",
+      "pattern": "vendor-runtimes",
+      "text": "roots=[\"vendor-runtimes\"],"
+    },
+    {
+      "line": 12,
+      "path": "packages/integrations/zyra_integrations/ledger_linecount.py",
+      "pattern": "vendor-runtimes",
+      "text": "COUNTED_PATHS = [\"apps\", \"packages\", \"tests\", \"scripts\", \"vendor-runtimes\", \"skills\"]"
+    },
+    {
+      "line": 56,
+      "path": "packages/integrations/zyra_integrations/ledger_matrix.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"M1-01B\": [\"packages/integrations\", \"scripts\", \"vendor-runtimes\"],"
+    },
+    {
+      "line": 57,
+      "path": "packages/integrations/zyra_integrations/ledger_matrix.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"M1-02A\": [\"packages/workers\", \"vendor-runtimes\", \"tests\"],"
+    },
+    {
+      "line": 65,
+      "path": "packages/integrations/zyra_integrations/ledger_matrix.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"M1-04A\": [\"packages/workers\", \"vendor-runtimes\", \"tests\"],"
+    },
+    {
+      "line": 70,
+      "path": "packages/integrations/zyra_integrations/ledger_matrix.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"M1-05B\": [\"packages/scheduler\", \"packages/runtime\", \"vendor-runtimes\", \"tests\"],"
+    },
+    {
+      "line": 90,
+      "path": "packages/integrations/zyra_integrations/ledger_matrix.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"M3-01B\": [\"vendor-runtimes\", \"packages\", \"tests\"],"
+    },
+    {
+      "line": 24,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "vendor-runtimes",
+      "text": "SOURCE_POOL_PREFIX = \"vendor-runtimes/claude-code-runtime/productized/claude-code-best/\""
+    },
+    {
+      "line": 54,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "if any(\"claude-code-runtime-productized\" in tag or \"source-pool\" in tag for tag in entry.tags):"
+    },
+    {
+      "line": 92,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "protocol=\"source-pool-evidence-v1\","
+    },
+    {
+      "line": 122,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "expected_signal=\"legacy productized source-pool inventory remains readable but does not count as deep internalization\","
+    },
+    {
+      "line": 135,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "license_hint=\"Upstream source-pool evidence only; runtime ownership is carried by Zyra modules.\","
+    },
+    {
+      "line": 139,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "if \"source-pool-evidence\" not in entry.tags:"
+    },
+    {
+      "line": 140,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "entry.tags.append(\"source-pool-evidence\")"
+    },
+    {
+      "line": 144,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "\"Legacy M1-02A productized upstream file is retained as source-pool evidence only; \""
+    },
+    {
+      "line": 150,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "\"M1-02A source-pool files remain evidence for source custody. The effective foundation is \""
+    },
+    {
+      "line": 361,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "expected_signal=\"foundation runtime reports active Zyra-owned boundaries and rejects source-pool main paths\","
+    },
+    {
+      "line": 424,
+      "path": "packages/integrations/zyra_integrations/ledger_migrations.py",
+      "pattern": "source-pool",
+      "text": "\"This entry carries connected main-path evidence for Zyra-owned modules only; productized/vendor source-pool rows are downgraded separately.\","
+    },
+    {
+      "line": 92,
+      "path": "packages/integrations/zyra_integrations/ledger_policy.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes\","
+    },
+    {
+      "line": 103,
+      "path": "packages/integrations/zyra_integrations/ledger_policy.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes\","
+    },
+    {
+      "line": 391,
+      "path": "packages/integrations/zyra_integrations/ledger_policy.py",
+      "pattern": "vendor-runtimes",
+      "text": "is_vendor_runtime = root == \"vendor-runtimes\""
+    },
+    {
+      "line": 393,
+      "path": "packages/integrations/zyra_integrations/ledger_policy.py",
+      "pattern": "vendor-runtimes",
+      "text": "is_runtime_like = root in {\"apps\", \"packages\", \"scripts\", \"vendor-runtimes\", \"skills\"} and is_source_like"
+    },
+    {
+      "line": 403,
+      "path": "packages/integrations/zyra_integrations/ledger_policy.py",
+      "pattern": "vendor-runtimes",
+      "text": "elif root == \"vendor-runtimes\":"
+    },
+    {
+      "line": 756,
+      "path": "packages/integrations/zyra_integrations/ledger_policy.py",
+      "pattern": "vendor-runtimes",
+      "text": "remediation=\"Use apps/, packages/, tests/, scripts/, vendor-runtimes/, skills/, third_party/, or tmp/.\","
+    },
+    {
+      "line": 205,
+      "path": "packages/integrations/zyra_integrations/ledger_policy_matrix.py",
+      "pattern": "source-pool",
+      "text": "rule_id=f\"connected-{status}-{strategy}-source-pool-rejected\","
+    },
+    {
+      "line": 212,
+      "path": "packages/integrations/zyra_integrations/ledger_policy_matrix.py",
+      "pattern": "source-pool",
+      "text": "\"Connected main-path status cannot be claimed by a source-pool, \""
+    },
+    {
+      "line": 245,
+      "path": "packages/integrations/zyra_integrations/ledger_policy_matrix.py",
+      "pattern": "source-pool",
+      "text": "rationale=\"Productized/internalized entries require Zyra-owned strategy, not source-pool runtime strategy.\","
+    },
+    {
+      "line": 469,
+      "path": "packages/integrations/zyra_integrations/ledger_policy_matrix.py",
+      "pattern": "source-pool",
+      "text": "return \"Downgrade main_path_status or convert the source-pool runtime into Zyra-owned adapter/direct-port code with behavior tests.\""
+    },
+    {
+      "line": 471,
+      "path": "packages/integrations/zyra_integrations/ledger_policy_matrix.py",
+      "pattern": "source-pool",
+      "text": "return \"Convert vendor/source-pool strategy into Zyra-owned adapter/direct port, or keep lifecycle below productized.\""
+    },
+    {
+      "line": 124,
+      "path": "packages/integrations/zyra_integrations/ledger_semantics.py",
+      "pattern": "vendor-runtimes",
+      "text": "disabled_signal=\"vendor-runtimes physical lines would satisfy effective line count\","
+    },
+    {
+      "line": 126,
+      "path": "packages/integrations/zyra_integrations/ledger_semantics.py",
+      "pattern": "source-pool",
+      "text": "description=\"Proves bucket gate prevents source-pool line count inflation.\","
+    },
+    {
+      "line": 251,
+      "path": "packages/integrations/zyra_integrations/ledger_semantics.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"12000\\t0\\tvendor-runtimes/claude-code-runtime/productized/src/QueryEngine.ts\\n\","
+    },
+    {
+      "line": 258,
+      "path": "packages/integrations/zyra_integrations/ledger_semantics.py",
+      "pattern": "vendor-runtimes",
+      "text": "counted_paths=[\"vendor-runtimes\"],"
+    },
+    {
+      "line": 176,
+      "path": "packages/integrations/zyra_integrations/ledger_unit_review.py",
+      "pattern": "source-pool",
+      "text": "title=\"Effective line-count buckets exclude vendor/source-pool/data/mock inflation\","
+    },
+    {
+      "line": 518,
+      "path": "packages/integrations/zyra_integrations/mcp/source_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "if lowered & {\"vendor\", \"vendor-runtimes\", \"source-pool\", \"runtime-sources\", \"third_party\"}:"
+    },
+    {
+      "line": 518,
+      "path": "packages/integrations/zyra_integrations/mcp/source_audit.py",
+      "pattern": "runtime-sources",
+      "text": "if lowered & {\"vendor\", \"vendor-runtimes\", \"source-pool\", \"runtime-sources\", \"third_party\"}:"
+    },
+    {
+      "line": 518,
+      "path": "packages/integrations/zyra_integrations/mcp/source_audit.py",
+      "pattern": "source-pool",
+      "text": "if lowered & {\"vendor\", \"vendor-runtimes\", \"source-pool\", \"runtime-sources\", \"third_party\"}:"
+    },
+    {
+      "line": 349,
+      "path": "packages/integrations/zyra_integrations/reference_crosswalk.py",
+      "pattern": "vendor-runtimes",
+      "text": "target = output_path or project / \"vendor-runtimes\" / \"claude-code-runtime\" / \"metadata\" / \"reference_crosswalk.json\""
+    },
+    {
+      "line": 486,
+      "path": "packages/integrations/zyra_integrations/reference_crosswalk.py",
+      "pattern": "vendor-runtimes",
+      "text": "return normalize_repo_path(f\"vendor-runtimes/claude-code-runtime/{target_mount}/{source_path}\")"
+    },
+    {
+      "line": 729,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "'  targetRuntime: \"vendor-runtimes/claude-code-runtime\",',"
+    },
+    {
+      "line": 845,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "source-pool",
+      "text": "\"M1-02A productized copy target is source-pool evidence only; connected foundation claims are carried by Zyra-owned runtime, worker, ledger migration, CLI, and behavior-test targets.\""
+    },
+    {
+      "line": 973,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "target_root = project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 994,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "target_root = project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 1008,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_command=\"node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs\","
+    },
+    {
+      "line": 1011,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_health_check=\"node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs\","
+    },
+    {
+      "line": 1063,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "target_root = project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 1077,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_command=\"node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --session-contract\","
+    },
+    {
+      "line": 1138,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "target_root = project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 1152,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_command=\"node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --tool-loop-contract\","
+    },
+    {
+      "line": 1203,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_root = project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 1242,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_root = project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 1397,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "- Productized source mount: `vendor-runtimes/claude-code-runtime/productized/claude-code-best`"
+    },
+    {
+      "line": 1413,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "- Health: `node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs`"
+    },
+    {
+      "line": 1414,
+      "path": "packages/integrations/zyra_integrations/source_extraction.py",
+      "pattern": "vendor-runtimes",
+      "text": "- Inventory: `node vendor-runtimes/claude-code-runtime/src/zyra-productized-smoke.mjs --inventory`"
+    },
+    {
+      "line": 65,
+      "path": "packages/runtime/sandbox-gateway-control/src/integration-audit.ts",
+      "pattern": "vendor-runtimes",
+      "text": "pattern: /(?:vendor-runtimes|runtime-sources|source-pool)/i,"
+    },
+    {
+      "line": 65,
+      "path": "packages/runtime/sandbox-gateway-control/src/integration-audit.ts",
+      "pattern": "runtime-sources",
+      "text": "pattern: /(?:vendor-runtimes|runtime-sources|source-pool)/i,"
+    },
+    {
+      "line": 65,
+      "path": "packages/runtime/sandbox-gateway-control/src/integration-audit.ts",
+      "pattern": "source-pool",
+      "text": "pattern: /(?:vendor-runtimes|runtime-sources|source-pool)/i,"
+    },
+    {
+      "line": 485,
+      "path": "packages/runtime/zyra_runtime/claude_api_inventory_contract_runtime.py",
+      "pattern": "source-pool",
+      "text": "message=\"Source graph is ready and contains no source-pool targets.\","
+    },
+    {
+      "line": 624,
+      "path": "packages/runtime/zyra_runtime/claude_api_inventory_contract_runtime.py",
+      "pattern": "source-pool",
+      "text": "return f\"Inventory payload field {contract.payload_key} exposes vendor/source-pool markers.\""
+    },
+    {
+      "line": 295,
+      "path": "packages/runtime/zyra_runtime/claude_clean_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes/claude-code-runtime/productized\","
+    },
+    {
+      "line": 315,
+      "path": "packages/runtime/zyra_runtime/claude_clean_runtime.py",
+      "pattern": "source-pool",
+      "text": "summary=\"runtime file has no forbidden parent/source-pool refs\" if not matches else \"runtime file contains forbidden parent/source-pool refs\","
+    },
+    {
+      "line": 332,
+      "path": "packages/runtime/zyra_runtime/claude_clean_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "if \"claude-code-best\" in lowered or \"vendor-runtimes\" in lowered:"
+    },
+    {
+      "line": 405,
+      "path": "packages/runtime/zyra_runtime/claude_disconnect_semantics_runtime.py",
+      "pattern": "source-pool",
+      "text": "semantic_claim=\"The default CodeWorker path depends on ZyraClaudeQueryEngine, not sidecar contracts or source-pool runtime.\","
+    },
+    {
+      "line": 21,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes/\","
+    },
+    {
+      "line": 22,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "source-pool",
+      "text": "\"source-pool/\","
+    },
+    {
+      "line": 23,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "runtime-sources",
+      "text": "\"runtime-sources/\","
+    },
+    {
+      "line": 383,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "vendor-runtimes",
+      "text": "self.source_pool_root = self.project_root / \"vendor-runtimes\" / \"claude-code-runtime\" / \"productized\" / PRIMARY_SOURCE_REPO"
+    },
+    {
+      "line": 498,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "source-pool",
+      "text": "message=f\"{item.spec.path} is source-pool-like but marked required for main path.\","
+    },
+    {
+      "line": 499,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "source-pool",
+      "text": "remediation=\"Move the behavior into packages/apps/scripts and mark source-pool target required_for_main_path=false.\","
+    },
+    {
+      "line": 645,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "vendor-runtimes",
+      "text": "remediation=\"Connect the foundation to zyra_workers instead of relying on vendor-runtimes.\","
+    },
+    {
+      "line": 658,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "source-pool",
+      "text": "message=f\"{len(bad_targets)} source-pool targets are still marked required for main path.\","
+    },
+    {
+      "line": 659,
+      "path": "packages/runtime/zyra_runtime/claude_productization_foundation.py",
+      "pattern": "source-pool",
+      "text": "remediation=\"Downgrade source-pool targets and register Zyra-owned targets for connected runtime claims.\","
+    },
+    {
+      "line": 329,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "excluded_markers=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\", \"fixture\", \"mock\"),"
+    },
+    {
+      "line": 329,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "runtime-sources",
+      "text": "excluded_markers=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\", \"fixture\", \"mock\"),"
+    },
+    {
+      "line": 329,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "source-pool",
+      "text": "excluded_markers=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\", \"fixture\", \"mock\"),"
+    },
+    {
+      "line": 354,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "source-pool",
+      "text": "label=\"Vendor/source-pool paths\","
+    },
+    {
+      "line": 355,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "allowed_roots=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\"),"
+    },
+    {
+      "line": 355,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "runtime-sources",
+      "text": "allowed_roots=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\"),"
+    },
+    {
+      "line": 355,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "source-pool",
+      "text": "allowed_roots=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\"),"
+    },
+    {
+      "line": 393,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "source-pool",
+      "text": "rationale=\"Project root must be a clean Zyra checkout, not a source-pool or vendor runtime.\","
+    },
+    {
+      "line": 405,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "path=\"vendor-runtimes/claude-code-runtime/pilot\","
+    },
+    {
+      "line": 409,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "source-pool",
+      "text": "rationale=\"M1-02A-01 pilot remains source-pool evidence and cannot support current completion.\","
+    },
+    {
+      "line": 421,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "source-pool",
+      "text": "rationale=\"Current slice targets must exist under apps/packages/skills/scripts and must not be source-pool paths.\","
+    },
+    {
+      "line": 650,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"/vendor-runtimes/\","
+    },
+    {
+      "line": 651,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "source-pool",
+      "text": "\"/source-pool/\","
+    },
+    {
+      "line": 652,
+      "path": "packages/runtime/zyra_runtime/claude_productization_review_runtime.py",
+      "pattern": "runtime-sources",
+      "text": "\"/runtime-sources/\","
+    },
+    {
+      "line": 657,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_context_ports.py",
+      "pattern": "source-pool",
+      "text": "message=f\"Project root {project_root} points at a source-pool/vendor-like path.\","
+    },
+    {
+      "line": 665,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_context_ports.py",
+      "pattern": "source-pool",
+      "text": "message=f\"Workspace root {workspace_root} points at a source-pool/vendor-like path.\","
+    },
+    {
+      "line": 673,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_context_ports.py",
+      "pattern": "source-pool",
+      "text": "message=f\"Artifact root {artifact_root} points at a source-pool/vendor-like path.\","
+    },
+    {
+      "line": 685,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_context_ports.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"/vendor-runtimes/\","
+    },
+    {
+      "line": 686,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_context_ports.py",
+      "pattern": "source-pool",
+      "text": "\"/source-pool/\","
+    },
+    {
+      "line": 687,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_context_ports.py",
+      "pattern": "runtime-sources",
+      "text": "\"/runtime-sources/\","
+    },
+    {
+      "line": 1510,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_contracts.py",
+      "pattern": "vendor-runtimes",
+      "text": "or normalized.startswith(\"vendor-runtimes/\")"
+    },
+    {
+      "line": 1511,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_contracts.py",
+      "pattern": "source-pool",
+      "text": "or normalized.startswith(\"source-pool/\")"
+    },
+    {
+      "line": 1512,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_contracts.py",
+      "pattern": "runtime-sources",
+      "text": "or normalized.startswith(\"runtime-sources/\")"
+    },
+    {
+      "line": 232,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_policy_matrix.py",
+      "pattern": "source-pool",
+      "text": "description=\"Current source graph targets must not point at vendor/source-pool paths.\","
+    },
+    {
+      "line": 426,
+      "path": "packages/runtime/zyra_runtime/claude_runtime_policy_matrix.py",
+      "pattern": "source-pool",
+      "text": "message=\"Crosswalk excludes source-pool and vendor-like targets.\","
+    },
+    {
+      "line": 51,
+      "path": "packages/runtime/zyra_runtime/claude_session_lineage_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "or normalized.startswith(\"vendor-runtimes/\")"
+    },
+    {
+      "line": 52,
+      "path": "packages/runtime/zyra_runtime/claude_session_lineage_runtime.py",
+      "pattern": "source-pool",
+      "text": "or normalized.startswith(\"source-pool/\")"
+    },
+    {
+      "line": 53,
+      "path": "packages/runtime/zyra_runtime/claude_session_lineage_runtime.py",
+      "pattern": "runtime-sources",
+      "text": "or normalized.startswith(\"runtime-sources/\")"
+    },
+    {
+      "line": 257,
+      "path": "packages/runtime/zyra_runtime/claude_session_lineage_runtime.py",
+      "pattern": "source-pool",
+      "text": "message=\"Target path is vendor-like or source-pool-like and cannot count as internalized runtime code.\","
+    },
+    {
+      "line": 558,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "excluded_patterns=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\", \"fixtures/\", \"tests/\"),"
+    },
+    {
+      "line": 558,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "runtime-sources",
+      "text": "excluded_patterns=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\", \"fixtures/\", \"tests/\"),"
+    },
+    {
+      "line": 558,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "source-pool",
+      "text": "excluded_patterns=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\", \"fixtures/\", \"tests/\"),"
+    },
+    {
+      "line": 592,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "allowed_roots=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\"),"
+    },
+    {
+      "line": 592,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "runtime-sources",
+      "text": "allowed_roots=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\"),"
+    },
+    {
+      "line": 592,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "source-pool",
+      "text": "allowed_roots=(\"vendor/\", \"vendor-runtimes/\", \"source-pool/\", \"runtime-sources/\"),"
+    },
+    {
+      "line": 594,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "source-pool",
+      "text": "rationale=\"Vendored or source-pool code is excluded by definition for M1-02A-02.\","
+    },
+    {
+      "line": 769,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_audit.py",
+      "pattern": "source-pool",
+      "text": "message=f\"Current slice target {target.path} is vendor/source-pool-like.\","
+    },
+    {
+      "line": 163,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_crosswalk.py",
+      "pattern": "vendor-runtimes",
+      "text": "return any(marker in normalized for marker in (\"/vendor/\", \"/vendor-runtimes/\", \"/source-pool/\", \"/runtime-sources/\"))"
+    },
+    {
+      "line": 163,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_crosswalk.py",
+      "pattern": "runtime-sources",
+      "text": "return any(marker in normalized for marker in (\"/vendor/\", \"/vendor-runtimes/\", \"/source-pool/\", \"/runtime-sources/\"))"
+    },
+    {
+      "line": 163,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_crosswalk.py",
+      "pattern": "source-pool",
+      "text": "return any(marker in normalized for marker in (\"/vendor/\", \"/vendor-runtimes/\", \"/source-pool/\", \"/runtime-sources/\"))"
+    },
+    {
+      "line": 580,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_crosswalk.py",
+      "pattern": "source-pool",
+      "text": "message=\"Source graph crosswalk contains vendor/source-pool target paths; these cannot prove internalization.\","
+    },
+    {
+      "line": 1849,
+      "path": "packages/runtime/zyra_runtime/claude_source_graph_crosswalk.py",
+      "pattern": "source-pool",
+      "text": "message=f\"Target path {target.path} is source-pool/vendor-like and cannot count as internalized code.\","
+    },
+    {
+      "line": 610,
+      "path": "packages/runtime/zyra_runtime/claude_state_custody_runtime.py",
+      "pattern": "source-pool",
+      "text": "return f\"State {requirement.state_key} points at vendor/source-pool-like targets.\""
+    },
+    {
+      "line": 648,
+      "path": "packages/runtime/zyra_runtime/claude_state_custody_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes/\","
+    },
+    {
+      "line": 649,
+      "path": "packages/runtime/zyra_runtime/claude_state_custody_runtime.py",
+      "pattern": "source-pool",
+      "text": "\"source-pool/\","
+    },
+    {
+      "line": 650,
+      "path": "packages/runtime/zyra_runtime/claude_state_custody_runtime.py",
+      "pattern": "runtime-sources",
+      "text": "\"runtime-sources/\","
+    },
+    {
+      "line": 298,
+      "path": "packages/runtime/zyra_runtime/claude_worker_execution_gate_runtime.py",
+      "pattern": "source-pool",
+      "text": "rationale=\"Workspace and artifact roots must not point at source-pool or vendor-like locations.\","
+    },
+    {
+      "line": 612,
+      "path": "packages/runtime/zyra_runtime/claude_worker_execution_gate_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"/vendor-runtimes/\","
+    },
+    {
+      "line": 613,
+      "path": "packages/runtime/zyra_runtime/claude_worker_execution_gate_runtime.py",
+      "pattern": "source-pool",
+      "text": "\"/source-pool/\","
+    },
+    {
+      "line": 614,
+      "path": "packages/runtime/zyra_runtime/claude_worker_execution_gate_runtime.py",
+      "pattern": "runtime-sources",
+      "text": "\"/runtime-sources/\","
+    },
+    {
+      "line": 140,
+      "path": "packages/runtime/zyra_runtime/codeworker_api_foundation_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "return any(part in normalized for part in (\"/vendor/\", \"vendor-runtimes\", \"source-pool\", \"runtime-sources\"))"
+    },
+    {
+      "line": 140,
+      "path": "packages/runtime/zyra_runtime/codeworker_api_foundation_audit.py",
+      "pattern": "runtime-sources",
+      "text": "return any(part in normalized for part in (\"/vendor/\", \"vendor-runtimes\", \"source-pool\", \"runtime-sources\"))"
+    },
+    {
+      "line": 140,
+      "path": "packages/runtime/zyra_runtime/codeworker_api_foundation_audit.py",
+      "pattern": "source-pool",
+      "text": "return any(part in normalized for part in (\"/vendor/\", \"vendor-runtimes\", \"source-pool\", \"runtime-sources\"))"
+    },
+    {
+      "line": 15,
+      "path": "packages/runtime/zyra_runtime/runtime_events/custody.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes\","
+    },
+    {
+      "line": 16,
+      "path": "packages/runtime/zyra_runtime/runtime_events/custody.py",
+      "pattern": "source-pool",
+      "text": "\"source-pool\","
+    },
+    {
+      "line": 17,
+      "path": "packages/runtime/zyra_runtime/runtime_events/custody.py",
+      "pattern": "runtime-sources",
+      "text": "\"runtime-sources\","
+    },
+    {
+      "line": 54,
+      "path": "packages/runtime/zyra_runtime/sandbox_gateway/integration_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": "_VENDOR_RUNTIME = re.compile(r\"(?:vendor-runtimes|runtime-sources|source-pool)\", re.IGNORECASE)"
+    },
+    {
+      "line": 54,
+      "path": "packages/runtime/zyra_runtime/sandbox_gateway/integration_audit.py",
+      "pattern": "runtime-sources",
+      "text": "_VENDOR_RUNTIME = re.compile(r\"(?:vendor-runtimes|runtime-sources|source-pool)\", re.IGNORECASE)"
+    },
+    {
+      "line": 54,
+      "path": "packages/runtime/zyra_runtime/sandbox_gateway/integration_audit.py",
+      "pattern": "source-pool",
+      "text": "_VENDOR_RUNTIME = re.compile(r\"(?:vendor-runtimes|runtime-sources|source-pool)\", re.IGNORECASE)"
+    },
+    {
+      "line": 169,
+      "path": "packages/runtime/zyra_runtime/sandbox_gateway/integration_audit.py",
+      "pattern": "source-pool",
+      "text": "\"runtime source depends on a vendor/source-pool boundary\","
+    },
+    {
+      "line": 266,
+      "path": "packages/runtime/zyra_runtime/sandbox_gateway/integration_audit.py",
+      "pattern": "source-pool",
+      "text": "\"production gateway imports a vendor/source-pool module\","
+    },
+    {
+      "line": 335,
+      "path": "packages/workers/zyra_workers/browser_context/integration_audit.py",
+      "pattern": "vendor-runtimes",
+      "text": ") + (\"vendor-runtimes\", \"source-pool\")"
+    },
+    {
+      "line": 335,
+      "path": "packages/workers/zyra_workers/browser_context/integration_audit.py",
+      "pattern": "source-pool",
+      "text": ") + (\"vendor-runtimes\", \"source-pool\")"
+    },
+    {
+      "line": 143,
+      "path": "packages/workers/zyra_workers/runtime_scaffold.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_root = self.project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 159,
+      "path": "packages/workers/zyra_workers/scaffold_bridge_runtime.py",
+      "pattern": "vendor-runtimes",
+      "text": "runtime_root = self.project_root / \"vendor-runtimes\" / \"claude-code-runtime\""
+    },
+    {
+      "line": 69,
+      "path": "packages/workspace/zyra_workspace/paths.py",
+      "pattern": "vendor-runtimes",
+      "text": "\"vendor-runtimes\","
+    },
+    {
+      "line": 70,
+      "path": "packages/workspace/zyra_workspace/paths.py",
+      "pattern": "source-pool",
+      "text": "\"source-pool\","
+    },
+    {
+      "line": 71,
+      "path": "packages/workspace/zyra_workspace/paths.py",
+      "pattern": "runtime-sources",
+      "text": "\"runtime-sources\","
+    }
+  ],
+  "passed": true,
+  "record_type": "dependency_audit",
+  "scanned_descriptor_count": 24,
+  "scanned_production_file_count": 671,
+  "schema_version": "4.0",
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "python": "Python 3.13.9"
+  },
+  "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
+}
