@@ -4,10 +4,10 @@
   "execution_id": "E03",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "verified_zyra_tree": "c69879e1c1715020caf3cc0b3ed7e7455ba85494",
-  "g0_candidate_head": "50b248e24d22cd209a58ec0bd017a11339ab76ff",
-  "g0_candidate_tree": "59f58aff5d5a7ac491978316471692a17152f42a",
+  "g0_candidate_head": "7aa028390b52274acd18b152808bd042faec3fa5",
+  "g0_candidate_tree": "cfbda5b5081773a76dc7515b3b68fc7da7261c78",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "captured_at_utc": "2026-07-18T06:53:06.158Z",
+  "captured_at_utc": "2026-07-18T08:19:28.771Z",
   "clean_worktree": true,
   "dirty_paths": [],
   "source_hash_semantics": "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
@@ -27,10 +27,10 @@
   },
   "manifest_sha256": {
     "execution-03-source-manifest.jsonl": "7c3f9ace651ba2d7c695c33b0ae155472f68df426158e55bf5cdff776b7bbdc1",
-    "execution-03-python-owner-baseline.jsonl": "72f6c5c56e49012bd30b19026989488837286710b532e2376ee311f8586ecd16",
-    "execution-03-target-custody-map.jsonl": "f5d65a9d4712f18032a51c8e08fb4fb3922d390d641d21e2cb7c7552e1c510bf",
+    "execution-03-python-owner-baseline.jsonl": "d94712bd65a172d2df111bfee0fdb95770ece401414753862bff77b6d6b597fb",
+    "execution-03-target-custody-map.jsonl": "92c7b99d83fcb92f1e5636dd3083edf384bd61c6454bd059e00a620603510867",
     "execution-03-mutation-manifest.jsonl": "a992d42d0e9b03c6b427215e6710f9d9f4911c82443da7ed4382d4f7c08a0b13",
-    "execution-03-gate-profile.json": "04cd8b637af4c4c4df66b7fae006cd53e1a5ed9af30c5fff9f4647bff6f24ed9"
+    "execution-03-gate-profile.json": "0f0ff658ecbabad773a4bcb56278121735b0d94fff65bf1daedcfce4a697ed30"
   },
   "toolchain": {
     "bun": "1.2.15",
@@ -46,7 +46,7 @@
     "bun",
     "scripts/remediation/verify_m1_r01_e03.ts",
     "--candidate",
-    "50b248e24d22cd209a58ec0bd017a11339ab76ff"
+    "7aa028390b52274acd18b152808bd042faec3fa5"
   ],
   "schema_validator_version": "zyra.e03-verification/v1",
   "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",

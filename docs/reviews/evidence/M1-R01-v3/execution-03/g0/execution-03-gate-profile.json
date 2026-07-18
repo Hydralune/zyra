@@ -8,7 +8,7 @@
   "mutation_runner": "scripts/remediation/run_m1_r01_e03_mutations.ts",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "candidate_head_at_g0": "50b248e24d22cd209a58ec0bd017a11339ab76ff",
+  "candidate_head_at_g0": "7aa028390b52274acd18b152808bd042faec3fa5",
   "source_snapshots": {
     "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
     "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
@@ -67,7 +67,7 @@
   "thresholds": {
     "accepted_source_executable_sloc": 6928,
     "accepted_source_ranges": 391,
-    "python_delete_executable_sloc": 6268,
+    "python_delete_executable_sloc": 10309,
     "final_non_test_typescript_sloc": 34000,
     "effective_changed_typescript_sloc": 31890,
     "effective_behavior_test_sloc": 7000,
@@ -83,7 +83,7 @@
     "cumulative_final_typescript_sloc": 100000,
     "cumulative_changed_typescript_sloc": 92672,
     "cumulative_test_sloc": 26000,
-    "cumulative_python_delete_executable_sloc": 64022
+    "cumulative_python_delete_executable_sloc": 68063
   },
   "default_entry": {
     "path": "apps/code-worker/src/main.ts",
@@ -215,11 +215,11 @@
     "runtime-sources/"
   ],
   "checker_sources": {
-    "scripts/remediation/m1_r01_e03_g0.ts": "f66c4bfa83bb7a498d145d33885fb8c20ac51dee7ce9eb6b9a88e4c982ffe222",
-    "scripts/remediation/verify_m1_r01_e03.ts": "a03c7630223abc0331e4caf119277345a53cc00956b305e00561bfe313a4d84e",
+    "scripts/remediation/m1_r01_e03_g0.ts": "c23426bae49a6c92541d1d5c71a49036bde33f1d99d079abb4c918b4e6a2eb6d",
+    "scripts/remediation/verify_m1_r01_e03.ts": "8911bccf3df092dc082625127f24791f16feccbd94c708a59a161be1247b2766",
     "scripts/remediation/run_m1_r01_e03_mutations.ts": "9eac4fd330a8251aaa78a25cbf6797d2e101f99b7fb55ddb4a46c320ee5c60e7",
-    "scripts/remediation/probe_m1_r01_e03.ts": "fa63921012fbfd15c7ed46086b1ef9801f9c587e7b0d24d26b9fdb016a80c360",
-    "scripts/remediation/cleanroom_m1_r01_e03.ts": "f50a0693b2f6f460627910c354b3e3c6fd62d70aa8601a5297b6b47f33ea9a62"
+    "scripts/remediation/probe_m1_r01_e03.ts": "c8104f676a34e31e4c9836923a45eed371643e3cad6fcf0ab9285905b8e16be4",
+    "scripts/remediation/cleanroom_m1_r01_e03.ts": "51e8f067ba6fe87160e81ee5367f7cbc12fafd44fd0f09790151950b676c1377"
   },
   "candidate_status_before_independent_review": "implementation_complete_review_pending"
 }

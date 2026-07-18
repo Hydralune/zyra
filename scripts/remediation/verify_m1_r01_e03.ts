@@ -26,6 +26,8 @@ const sourcePath = join(manifestRoot, "execution-03-source-manifest.jsonl");
 const targetPath = join(manifestRoot, "execution-03-target-custody-map.jsonl");
 const pythonPath = join(manifestRoot, "execution-03-python-owner-baseline.jsonl");
 const mutationPath = join(manifestRoot, "execution-03-mutation-manifest.jsonl");
+const blobCache = new Map<string, Buffer>();
+const candidateTextCache = new Map<string, string>();
 
 function sha256(value: Uint8Array | string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -37,6 +39,15 @@ function git(cwd: string, args: readonly string[]): string {
 
 function gitBytes(cwd: string, args: readonly string[]): Buffer {
   return execFileSync("git", [...args], { cwd, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] }) as Buffer;
+}
+
+function gitBlob(cwd: string, commit: string, path: string): Buffer {
+  const key = `${cwd}\0${commit}\0${path}`;
+  const cached = blobCache.get(key);
+  if (cached) return cached;
+  const raw = gitBytes(cwd, ["show", `${commit}:${path}`]);
+  blobCache.set(key, raw);
+  return raw;
 }
 
 function json(path: string): Json {
@@ -60,12 +71,17 @@ function pyExecutable(line: string): boolean {
 }
 
 function sourceTextAt(repo: string, commit: string, path: string): { raw: Buffer; lines: string[] } {
-  const raw = gitBytes(sourceRepos[repo]!, ["show", `${commit}:${path}`]);
+  const raw = gitBlob(sourceRepos[repo]!, commit, path);
   return { raw, lines: raw.toString("utf8").replaceAll("\r", "").split("\n") };
 }
 
 function candidateText(candidate: string, path: string): string {
-  return gitBytes(repoRoot, ["show", `${candidate}:${path}`]).toString("utf8");
+  const key = `${candidate}\0${path}`;
+  const cached = candidateTextCache.get(key);
+  if (cached !== undefined) return cached;
+  const text = gitBlob(repoRoot, candidate, path).toString("utf8");
+  candidateTextCache.set(key, text);
+  return text;
 }
 
 function walkSymbols(path: string, text: string): Set<string> {
@@ -192,7 +208,7 @@ function verifyPython(rows: Json[], baseline: string, candidate: string, profile
   let deletedFiles = 0;
   for (const row of rows) {
     assert(row.schema_version === "3.0" && row.execution_id === "E03" && row.record_type === "python_owner", findings, "python", `invalid Python row ${row.owner_id}`);
-    const raw = gitBytes(repoRoot, ["show", `${baseline}:${row.python_path}`]);
+    const raw = gitBlob(repoRoot, baseline, row.python_path);
     assert(sha256(raw) === row.python_sha256, findings, "python", `${row.owner_id} baseline hash mismatch`);
     if (row.disposition === "delete") {
       const lines = raw.toString("utf8").replaceAll("\r", "").split("\n");
@@ -305,13 +321,13 @@ function verifyCumulative(profile: Json, candidate: string, e03Tests: number, e0
     for (const row of sources) {
       const repo = sourceRepos[row.source_repo];
       if (!repo) continue;
-      const raw = gitBytes(repo, ["show", `${row.source_snapshot}:${row.source_path}`]).toString("utf8").replaceAll("\r", "").split("\n");
-      sourceSloc += raw.slice(row.start_line - 1, row.end_line).filter(tsExecutable).length;
+      const lines = sourceTextAt(row.source_repo, row.source_snapshot, row.source_path).lines;
+      sourceSloc += lines.slice(row.start_line - 1, row.end_line).filter(tsExecutable).length;
     }
     for (const row of jsonl(join(manifestRoot, `execution-${id}-target-custody-map.jsonl`))) targetPaths.add(row.target_path);
     for (const row of jsonl(join(manifestRoot, `execution-${id}-python-owner-baseline.jsonl`)).filter((item) => item.disposition === "delete")) {
       const baseline = row.verified_zyra_head;
-      const raw = gitBytes(repoRoot, ["show", `${baseline}:${row.python_path}`]).toString("utf8").replaceAll("\r", "").split("\n");
+      const raw = gitBlob(repoRoot, baseline, row.python_path).toString("utf8").replaceAll("\r", "").split("\n");
       pythonDeleteSloc += raw.slice(row.start_line - 1, row.end_line).filter(pyExecutable).length;
     }
   }
