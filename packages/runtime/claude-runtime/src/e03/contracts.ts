@@ -219,6 +219,8 @@ export interface E03EffectRequest {
 export interface E03EffectReceipt {
   receiptId: string;
   effectId: string;
+  idempotencyKey: string;
+  requestDigest: string;
   requestId: string;
   taskId: string;
   leaseId: string;
@@ -230,6 +232,18 @@ export interface E03EffectReceipt {
   error: string;
   completedAt: string;
   digest: string;
+}
+
+export function effectRequestDigest(request: E03EffectRequest): string {
+  return digest({
+    requestId: request.requestId,
+    taskId: request.taskId,
+    expectedRevision: request.expectedRevision,
+    effectKind: request.effectKind,
+    operation: request.operation,
+    payload: request.payload,
+    idempotencyKey: request.idempotencyKey,
+  });
 }
 
 export interface E03Transition {

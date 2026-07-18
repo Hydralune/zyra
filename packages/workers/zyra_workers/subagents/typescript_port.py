@@ -185,16 +185,50 @@ class TypeScriptAgentDurablePort:
         effects = dict(document.get("effects") or {})
         effect_id = str(request["effectId"])
         prior = effects.get(effect_id)
+        if not isinstance(prior, Mapping):
+            prior = next(
+                (
+                    value
+                    for value in effects.values()
+                    if isinstance(value, Mapping)
+                    and value.get("idempotencyKey") == request.get("idempotencyKey")
+                ),
+                None,
+            )
         if isinstance(prior, Mapping):
             self._assert_receipt_request(dict(prior), request)
             replay = copy.deepcopy(dict(prior))
-            replay["replayed"] = True
+            replay.update(
+                {
+                    "effectId": effect_id,
+                    "requestId": str(request["requestId"]),
+                    "taskId": str(request["taskId"]),
+                    "leaseId": str(request["leaseId"]),
+                    "expectedRevision": int(request["expectedRevision"]),
+                    "replayed": True,
+                }
+            )
             replay = self._seal(replay, "digest")
-            return self._effect_response(replay, int(document.get("revision") or 0))
+            effects = {
+                key: value
+                for key, value in effects.items()
+                if not isinstance(value, Mapping)
+                or value.get("idempotencyKey") != request.get("idempotencyKey")
+            }
+            effects[effect_id] = replay
+            next_document = {
+                **document,
+                "effects": effects,
+                "updated_at": self._now(),
+            }
+            self._write_document(next_document)
+            return self._effect_response(replay, int(next_document.get("revision") or 0))
         result = self._execute_physical_effect(request)
         unsigned = {
             "receiptId": f"receipt-{_digest(effect_id)[:32]}",
             "effectId": effect_id,
+            "idempotencyKey": str(request["idempotencyKey"]),
+            "requestDigest": self._effect_request_digest(request),
             "requestId": str(request["requestId"]),
             "taskId": str(request["taskId"]),
             "leaseId": str(request["leaseId"]),
@@ -378,9 +412,24 @@ class TypeScriptAgentDurablePort:
 
     @staticmethod
     def _assert_receipt_request(receipt: Mapping[str, Any], request: Mapping[str, Any]) -> None:
-        for receipt_key, request_key in (("effectId", "effectId"), ("requestId", "requestId"), ("taskId", "taskId"), ("leaseId", "leaseId"), ("expectedRevision", "expectedRevision")):
-            if receipt.get(receipt_key) != request.get(request_key):
-                raise ValueError("E03 effect receipt idempotency conflict")
+        if receipt.get("idempotencyKey") != request.get("idempotencyKey"):
+            raise ValueError("E03 effect receipt idempotency conflict")
+        if receipt.get("requestDigest") != TypeScriptAgentDurablePort._effect_request_digest(request):
+            raise ValueError("E03 effect receipt semantic content conflict")
+
+    @staticmethod
+    def _effect_request_digest(request: Mapping[str, Any]) -> str:
+        return _digest(
+            {
+                "requestId": request.get("requestId"),
+                "taskId": request.get("taskId"),
+                "expectedRevision": request.get("expectedRevision"),
+                "effectKind": request.get("effectKind"),
+                "operation": request.get("operation"),
+                "payload": request.get("payload"),
+                "idempotencyKey": request.get("idempotencyKey"),
+            }
+        )
 
     @staticmethod
     def _assert_authority(document: Mapping[str, Any], run_id: str, parent_task_id: str, parent_session_id: str) -> None:

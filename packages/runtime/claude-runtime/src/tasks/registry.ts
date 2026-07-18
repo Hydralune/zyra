@@ -378,36 +378,15 @@ export class DurableTaskRegistry {
         "cannot acknowledge an uncommitted mutation",
       );
     const acknowledgedAt = this.clock.now();
-    const transition = {
-      ...committed.transition,
-      phase: "ack" as const,
-      acknowledgedAt,
-      digest: "",
-    };
-    transition.digest = sealTransition(transition).digest;
-    const current = this.snapshotValue.tasks[committed.state.identity.taskId];
-    const acknowledgementBase =
-      current && current.revision > committed.state.revision
-        ? current
-        : committed.state;
-    const state = sealTask({
-      ...acknowledgementBase,
-      transitions: acknowledgementBase.transitions.map((item) =>
-        item.transitionId === transition.transitionId ? transition : item,
-      ),
-      updatedAt: acknowledgedAt,
-      checksum: "",
-    });
     const acknowledged = {
       ...response,
       phase: "ack" as const,
-      revision: state.revision,
-      state: taskProjection(state),
+      revision: committed.state.revision,
+      state: taskProjection(committed.state),
       replayed: false,
     };
     this.snapshotValue = sealSnapshot({
       ...this.snapshotValue,
-      tasks: { ...this.snapshotValue.tasks, [state.identity.taskId]: state },
       requests: {
         ...this.snapshotValue.requests,
         [idempotencyKey]: acknowledged,
@@ -416,7 +395,6 @@ export class DurableTaskRegistry {
       checksum: "",
     });
     this.acknowledgements.set(idempotencyKey, acknowledged);
-    this.committed.set(idempotencyKey, { ...committed, transition, state });
     return structuredClone(acknowledged);
   }
 

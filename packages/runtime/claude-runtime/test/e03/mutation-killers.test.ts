@@ -159,6 +159,7 @@ async function createAgent(
 ): Promise<E03TaskState> {
   const capabilityScope = scope();
   return runtime.create({
+    requestId: `request-create-${taskId}`,
     runId: "run-e03",
     sessionId: `session-${taskId}`,
     parentTaskId: "parent-task",
@@ -620,6 +621,11 @@ test("e03.mutation.task-ack", async () => {
   assert.equal(acknowledged.phase, "ack");
   assert.equal(acknowledged.ok, true);
   assert.equal(acknowledged.replayed, false);
+  assert.equal(acknowledged.state?.checksum, committed.state.checksum);
+  assert.equal(
+    durable.require(committed.state.identity.taskId).checksum,
+    committed.state.checksum,
+  );
   assert.equal(durable.snapshot().requests[key]?.phase, "ack");
 });
 

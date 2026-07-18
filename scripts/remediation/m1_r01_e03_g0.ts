@@ -169,13 +169,13 @@ const deletePython = [
   "agent_tool.py", "runtime.py", "lifecycle.py", "continuation.py", "control.py", "definitions.py", "context.py",
   "dispatch.py", "fanout.py", "delivery.py", "typed_yield.py", "session_assembly.py", "skill_fork.py", "tool_scope.py",
   "subagent_yield.py", "handoff.py", "recovery.py",
+  "budget.py", "events.py", "execution_receipts.py", "integration.py", "isolation.py", "parent_scope.py",
+  "resume_capsule.py", "source_audit.py", "task_store.py", "transcript.py",
 ].map((name) => `packages/workers/zyra_workers/subagents/${name}`);
 const retainPython = [
-  "packages/workers/zyra_workers/subagents/task_store.py", "packages/workers/zyra_workers/subagents/transcript.py",
-  "packages/workers/zyra_workers/subagents/execution_receipts.py", "packages/workers/zyra_workers/subagents/isolation.py",
-  "packages/workers/zyra_workers/subagents/typescript_port.py", "packages/workers/zyra_workers/subagents/budget.py",
-  "packages/workers/zyra_workers/subagents/parent_scope.py", "packages/workers/zyra_workers/subagents/resume_capsule.py",
-  "packages/workers/zyra_workers/subagents/models.py", "packages/workers/zyra_workers/subagents/errors.py",
+  "packages/workers/zyra_workers/subagents/__init__.py", "packages/workers/zyra_workers/subagents/digests.py",
+  "packages/workers/zyra_workers/subagents/typescript_port.py", "packages/workers/zyra_workers/subagents/models.py",
+  "packages/workers/zyra_workers/subagents/errors.py",
 ];
 
 function sha256(value: Uint8Array | string): string {
@@ -445,14 +445,14 @@ function gateProfile(candidateHead: string): Json {
     ],
     thresholds: {
       accepted_source_executable_sloc: 6_928, accepted_source_ranges: 391,
-      python_delete_executable_sloc: 6_268, final_non_test_typescript_sloc: 34_000,
+      python_delete_executable_sloc: 10_309, final_non_test_typescript_sloc: 34_000,
       effective_changed_typescript_sloc: 31_890, effective_behavior_test_sloc: 7_000,
       adapter_ratio_maximum: 0.10, remaining_python_logical_adapter_sloc_maximum: 1_500,
       behavior_cases_minimum: 100, failure_cases_minimum: 35, mutation_points_minimum: 35,
       core_mutation_kill_ratio_minimum: 1, other_mutation_kill_ratio_minimum: 0.9,
       source_to_target_unique_symbols_minimum: 50, source_to_target_max_mappings_per_symbol: 40,
       cumulative_final_typescript_sloc: 100_000, cumulative_changed_typescript_sloc: 92_672,
-      cumulative_test_sloc: 26_000, cumulative_python_delete_executable_sloc: 64_022,
+      cumulative_test_sloc: 26_000, cumulative_python_delete_executable_sloc: 68_063,
     },
     default_entry: { path: "apps/code-worker/src/main.ts", symbol: "main", runtime_symbol: "CodeWorkerApplication.runTaskRuntime", e03_symbol: "E03AgentControlCoordinator.execute" },
     required_toolchain: { bun: "1.2.15", typescript: "5.8.3", node_types: "22.15.29" },

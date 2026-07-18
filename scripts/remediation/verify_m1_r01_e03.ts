@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -217,7 +217,28 @@ function verifyPython(rows: Json[], baseline: string, candidate: string, profile
     } catch { findings.push({ gate: "python", detail: `retained Python port ${row.python_path} is missing` }); }
   }
   assert(retainedLogicalHits === 0, findings, "python", `${retainedLogicalHits} forbidden logical-owner symbols remain in retained Python ports`);
-  return { frozen_delete_sloc: frozenDelete, deleted_files: deletedFiles, retained_logical_hits: retainedLogicalHits };
+  const forbiddenOwners = [
+    "SubagentTaskStore", "ChildScopeDeriver", "ResumeCapsuleRuntime",
+    "SubagentBudgetReservationStore", "LogicalIsolationPolicy",
+    "LogicalWorkspaceIsolationPort", "SubagentIntegrationRuntime",
+    "AgentToolRuntime", "SubagentRuntime", "LogicalFanoutRuntime",
+  ];
+  const logicalOwnerHits: string[] = [];
+  if (finalized) {
+    for (const path of listFilesAt(candidate, ["packages/workers/zyra_workers/subagents"]).filter((value) => value.endsWith(".py"))) {
+      const text = candidateText(candidate, path);
+      for (const owner of forbiddenOwners)
+        if (new RegExp(`\\b(?:class\\s+)?${owner}\\b`).test(text))
+          logicalOwnerHits.push(`${path}:${owner}`);
+    }
+  }
+  assert(logicalOwnerHits.length === 0, findings, "python", `Python logical owner census found ${logicalOwnerHits.slice(0, 10).join(", ")}`);
+  return {
+    frozen_delete_sloc: frozenDelete,
+    deleted_files: deletedFiles,
+    retained_logical_hits: retainedLogicalHits,
+    logical_owner_census_hits: logicalOwnerHits,
+  };
 }
 
 function verifyLines(profile: Json, baseline: string, candidate: string, findings: Finding[]): Json {
@@ -316,6 +337,22 @@ function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function emit(report: Json): void {
+  const text = `${JSON.stringify(report, null, 2)}\n`;
+  const outputArgument = process.argv.indexOf("--output");
+  if (outputArgument >= 0) {
+    const requested = process.argv[outputArgument + 1];
+    if (!requested) throw new Error("--output requires a path");
+    const path = resolve(repoRoot, requested);
+    const relativePath = relative(repoRoot, path);
+    if (!relativePath || relativePath.startsWith(".."))
+      throw new Error(`unsafe output path ${path}`);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, text, "utf8");
+  }
+  process.stdout.write(text);
+}
+
 function main(): void {
   const argument = process.argv.indexOf("--candidate");
   const candidate = argument >= 0 ? process.argv[argument + 1] : git(repoRoot, ["rev-parse", "HEAD"]);
@@ -333,7 +370,7 @@ function main(): void {
       python: verifyPython(pythonRows, profile.implementation_diff_baseline, candidate, profile, findings, false),
       mutations: verifyMutations(mutations, profile, findings), findings,
     };
-    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    emit({ ...report, passed: findings.length === 0 });
     if (findings.length) process.exitCode = 1;
     return;
   }
@@ -348,7 +385,7 @@ function main(): void {
     cumulative: verifyCumulative(profile, candidate, testReport.effective_sloc, pythonReport.frozen_delete_sloc, findings),
     findings,
   };
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  emit({ ...report, passed: findings.length === 0 });
   if (findings.length) process.exitCode = 1;
 }
 

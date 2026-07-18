@@ -7,6 +7,7 @@ import {
   type E03ControlEnvelope,
 } from "../../src/e03/contracts.ts";
 import type { JsonObject } from "../../src/contracts.ts";
+import { runtimeContract } from "../../src/stdio.ts";
 import {
   ControlBodySchemaRegistry,
   ControlCommandCatalog,
@@ -28,6 +29,27 @@ function assertRuntimeCode(error: unknown, code: string): boolean {
   assert.ok(error.message.length > 0);
   return true;
 }
+
+test("e03 built health contract exposes canonical control readiness", () => {
+  const health = runtimeContract("health");
+  const readiness = health.e03AgentControlRuntime;
+  assert.ok(
+    readiness && typeof readiness === "object" && !Array.isArray(readiness),
+  );
+  const projection = readiness as JsonObject;
+  assert.equal(projection.implementationReady, true);
+  assert.equal(
+    projection.canonicalEntrypoint,
+    "E03AgentControlCoordinator.execute",
+  );
+  assert.equal(
+    projection.defaultTaskEntrypoint,
+    "CodeWorkerApplication.runTaskRuntime",
+  );
+  assert.equal(projection.stateJournalOwner, "DurableTaskRegistry");
+  assert.equal(projection.pythonLogicalOwner, false);
+  assert.equal(projection.pythonLogicalFallback, false);
+});
 
 function envelope(
   command: ControlCommand,

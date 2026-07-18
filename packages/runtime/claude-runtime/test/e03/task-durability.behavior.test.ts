@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AgentExecutionRuntime } from "../../src/agents/execution-runtime.ts";
+import type { JsonObject } from "../../src/contracts.ts";
 import {
   digest,
   E03RuntimeError,
   response,
   sealTask,
+  type E03EffectRequest,
 } from "../../src/e03/contracts.ts";
+import { FileE03PhysicalPort } from "../../src/e03/file-port.ts";
 import {
   TaskIdentityRuntime,
   TaskLeaseRuntime,
@@ -31,6 +37,69 @@ import {
 } from "./fixtures.ts";
 
 const WRITER = "typescript.E03AgentControlCoordinator";
+
+function physicalEffect(
+  effectId: string,
+  leaseId: string,
+  payload: JsonObject = { value: "stable" },
+): E03EffectRequest {
+  const unsigned = {
+    effectId,
+    requestId: "physical-request",
+    taskId: "physical-task",
+    leaseId,
+    expectedRevision: 0,
+    effectKind: "persist" as const,
+    operation: "persist_agent_task_create",
+    payload,
+    idempotencyKey: "physical-idempotency",
+    preparedAt: new Date().toISOString(),
+  };
+  return { ...unsigned, digest: digest(unsigned) };
+}
+
+test("e03.file port reconciles a pre-commit receipt across process identity changes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "zyra-e03-file-port-"));
+  try {
+    const firstPort = new FileE03PhysicalPort(root, "crash-window");
+    const first = await firstPort.effect(
+      physicalEffect("effect-before-crash", "lease-before-crash"),
+    );
+    const restored = await firstPort.restore("run", "session");
+    assert.ok(restored);
+    assert.equal(restored.revision, 0);
+    assert.deepEqual(restored.effects, {});
+
+    const restartedPort = new FileE03PhysicalPort(root, "crash-window");
+    const replay = await restartedPort.effect(
+      physicalEffect("effect-after-restart", "lease-after-restart"),
+    );
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.receiptId, first.receiptId);
+    assert.equal(replay.completedAt, first.completedAt);
+    assert.equal(replay.effectId, "effect-after-restart");
+    assert.equal(replay.requestDigest, first.requestDigest);
+
+    const document = JSON.parse(
+      await readFile(join(root, "crash-window.json"), "utf8"),
+    );
+    assert.equal(Object.keys(document.effects).length, 1);
+    assert.equal(Object.keys(document.snapshot.effects).length, 0);
+
+    await assert.rejects(
+      restartedPort.effect(
+        physicalEffect(
+          "effect-conflict",
+          "lease-conflict",
+          { value: "changed" },
+        ),
+      ),
+      (error) => assertCode(error, "effect_idempotency_conflict"),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 function assertCode(error: unknown, code: string): boolean {
   assert.ok(error instanceof E03RuntimeError);
@@ -119,6 +188,7 @@ async function createRuntimeTask(
 ) {
   const capabilityScope = scope();
   return runtime.create({
+    requestId: `request-create-${label}`,
     runId: "run-e03",
     sessionId: `session-${label}`,
     parentTaskId: "parent-task",

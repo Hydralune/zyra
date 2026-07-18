@@ -10,6 +10,7 @@ import { DurableTaskRegistry } from "../../src/tasks/registry.ts";
 import { TaskStateMachine } from "../../src/tasks/state-machine.ts";
 import {
   digest,
+  effectRequestDigest,
   emptySnapshot,
   sealSnapshot,
   type AgentTaskPhase,
@@ -68,6 +69,8 @@ export class TestPhysicalPort implements E03PhysicalPort {
     const payload = {
       receiptId: `receipt-${request.effectId}`,
       effectId: request.effectId,
+      idempotencyKey: request.idempotencyKey,
+      requestDigest: effectRequestDigest(request),
       requestId: request.requestId,
       taskId: request.taskId,
       leaseId: request.leaseId,

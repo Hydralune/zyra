@@ -5,6 +5,8 @@ import { mkdirSync } from "node:fs";
 import {
   assertSnapshotChecksum,
   digest,
+  effectRequestDigest,
+  emptySnapshot,
   E03RuntimeError,
   type E03EffectReceipt,
   type E03EffectRequest,
@@ -64,25 +66,42 @@ export class FileE03PhysicalPort implements E03PhysicalPort {
 
   async effect(request: E03EffectRequest): Promise<E03EffectReceipt> {
     return this.serial(async () => {
-      const file = await this.read();
+      let file = await this.read();
       const prior =
         file?.effects[request.effectId] ??
-        file?.snapshot.effects[request.effectId];
+        file?.snapshot.effects[request.effectId] ??
+        Object.values(file?.effects ?? {}).find(
+          (receipt) => receipt.idempotencyKey === request.idempotencyKey,
+        );
       if (prior) {
-        if (
-          prior.taskId !== request.taskId ||
-          prior.requestId !== request.requestId ||
-          prior.leaseId !== request.leaseId
-        )
+        if (prior.requestDigest !== effectRequestDigest(request))
           throw new E03RuntimeError(
             "effect_idempotency_conflict",
-            "effect id was reused with different custody",
+            "effect idempotency key was reused with different semantic content",
           );
-        return structuredClone({ ...prior, replayed: true });
+        const replayPayload = {
+          ...prior,
+          effectId: request.effectId,
+          requestId: request.requestId,
+          taskId: request.taskId,
+          leaseId: request.leaseId,
+          expectedRevision: request.expectedRevision,
+          replayed: true,
+          digest: "",
+        };
+        const { digest: _digest, ...unsignedReplay } = replayPayload;
+        const replay = { ...unsignedReplay, digest: digest(unsignedReplay) };
+        const effects = { ...file!.effects };
+        delete effects[prior.effectId];
+        effects[request.effectId] = replay;
+        await this.write({ ...file!, effects });
+        return structuredClone(replay);
       }
       const payload = {
         receiptId: `receipt-${digest(request.effectId).slice(0, 32)}`,
         effectId: request.effectId,
+        idempotencyKey: request.idempotencyKey,
+        requestDigest: effectRequestDigest(request),
         requestId: request.requestId,
         taskId: request.taskId,
         leaseId: request.leaseId,
@@ -100,16 +119,21 @@ export class FileE03PhysicalPort implements E03PhysicalPort {
         completedAt: new Date().toISOString(),
       };
       const receipt = { ...payload, digest: digest(payload) };
-      if (file) {
-        await this.write({
-          ...file,
-          effects: { ...file.effects, [request.effectId]: receipt },
-          snapshot: resealSnapshot({
-            ...file.snapshot,
-            effects: { ...file.snapshot.effects, [request.effectId]: receipt },
-          }),
-        });
-      }
+      file ??= sealFile({
+        version: "zyra.e03-file-port/v1",
+        revision: 0,
+        snapshot: emptySnapshot(),
+        effects: {},
+      });
+      await this.write({
+        ...file,
+        effects: { ...file.effects, [request.effectId]: receipt },
+      });
+      if (
+        process.env.ZYRA_E03_FAULT_HOLD_AFTER_EFFECT ===
+        request.idempotencyKey
+      )
+        await new Promise<never>(() => undefined);
       return receipt;
     });
   }
@@ -223,9 +247,4 @@ function sanitize(value: string): string {
       "E03 state namespace is empty",
     );
   return normalized.slice(0, 200);
-}
-
-function resealSnapshot(snapshot: E03RegistrySnapshot): E03RegistrySnapshot {
-  const { checksum: _checksum, ...payload } = snapshot;
-  return { ...payload, checksum: digest(payload) };
 }

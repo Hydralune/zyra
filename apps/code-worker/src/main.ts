@@ -63,6 +63,7 @@ export class CodeWorkerApplication {
     if (surface === "health") {
       const productized = contract.productizedRuntime;
       const e02 = contract.e02CapabilityRuntime;
+      const e03 = contract.e03AgentControlRuntime;
       if (
         !productized ||
         typeof productized !== "object" ||
@@ -75,7 +76,18 @@ export class CodeWorkerApplication {
         e02.implementationReady !== true ||
         e02.canonicalEntrypoint !== "E02CapabilityCoordinator.execute" ||
         e02.stateJournalOwner !== "E02CapabilityCoordinator" ||
-        e02.pythonDecisionFallback !== false
+        e02.pythonDecisionFallback !== false ||
+        !e03 ||
+        typeof e03 !== "object" ||
+        Array.isArray(e03) ||
+        e03.implementationReady !== true ||
+        e03.canonicalEntrypoint !== "E03AgentControlCoordinator.execute" ||
+        e03.defaultTaskEntrypoint !== "CodeWorkerApplication.runTaskRuntime" ||
+        e03.builtControlEntrypoint !==
+          "CodeWorkerApplication.runAgentControlPort" ||
+        e03.stateJournalOwner !== "DurableTaskRegistry" ||
+        e03.pythonLogicalOwner !== false ||
+        e03.pythonLogicalFallback !== false
       ) {
         return 1;
       }

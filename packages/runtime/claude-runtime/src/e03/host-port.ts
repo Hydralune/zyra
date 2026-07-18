@@ -4,6 +4,7 @@ import type {
   RuntimeHost,
 } from "../contracts.ts";
 import {
+  effectRequestDigest,
   E03RuntimeError,
   type E03EffectReceipt,
   type E03EffectRequest,
@@ -65,7 +66,16 @@ export class HostE03PhysicalPort implements E03PhysicalPort {
         "invalid_e03_effect_receipt",
         "Python physical port returned no typed effect receipt",
       );
-    return structuredClone(value) as unknown as E03EffectReceipt;
+    const typed = structuredClone(value) as unknown as E03EffectReceipt;
+    if (
+      typed.idempotencyKey !== request.idempotencyKey ||
+      typed.requestDigest !== effectRequestDigest(request)
+    )
+      throw new E03RuntimeError(
+        "invalid_e03_effect_receipt",
+        "Python physical port returned a receipt for different semantic content",
+      );
+    return typed;
   }
 
   async compareAndSwap(

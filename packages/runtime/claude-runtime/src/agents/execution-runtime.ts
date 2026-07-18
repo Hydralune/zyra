@@ -16,6 +16,7 @@ import { DurableTaskRegistry } from "../tasks/registry.ts";
 import { TaskStateMachine } from "../tasks/state-machine.ts";
 
 export interface AgentCreateRequest {
+  requestId: string;
   runId: string;
   sessionId: string;
   parentTaskId: string;
@@ -78,7 +79,7 @@ export class AgentExecutionRuntime {
       executionMode: request.executionMode,
     });
     const prepared = this.registry.prepare({
-      requestId: `create:${identity.taskId}`,
+      requestId: request.requestId,
       idempotencyKey: request.idempotencyKey,
       writerId: "typescript.E03AgentControlCoordinator",
       taskId: identity.taskId,

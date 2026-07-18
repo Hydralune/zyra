@@ -40,7 +40,8 @@
     "e02:mutation": "bun scripts/remediation/run_m1_r01_e02_mutations.ts",
     "e02:cleanroom": "bun scripts/remediation/cleanroom_m1_r01_e02.ts"
     ,"e03:gate": "bun scripts/remediation/verify_m1_r01_e03.ts"
-    ,"e03:candidate:gate": "bun scripts/remediation/verify_m1_r01_e03.ts"
+    ,"e03:candidate:gate": "bun scripts/remediation/verify_m1_r01_e03.ts --output docs/reviews/evidence/M1-R01-v3/execution-03/candidate-gate-result.json"
+    ,"e03:test": "bun scripts/remediation/run_m1_r01_e03_behavior.ts"
     ,"e03:mutation": "bun scripts/remediation/run_m1_r01_e03_mutations.ts"
     ,"e03:cleanroom": "bun scripts/remediation/cleanroom_m1_r01_e03.ts"
   },

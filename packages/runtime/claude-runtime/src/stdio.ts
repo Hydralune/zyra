@@ -172,6 +172,31 @@ export function e02CapabilityReadinessProjection(): JsonObject {
   };
 }
 
+export function e03AgentControlReadinessProjection(): JsonObject {
+  const candidate = commit(process.env.E03_IMPLEMENTATION_CANDIDATE);
+  const reviewStatus =
+    process.env.E03_REVIEW_STATUS === "independent_review_passed"
+      ? "independent_review_passed"
+      : "implementation_complete_review_pending";
+  return {
+    schema: "zyra.e03-built-readiness/v1",
+    implementationReady: true,
+    reviewStatus,
+    independentReviewPassed: reviewStatus === "independent_review_passed",
+    implementationCandidate: candidate,
+    canonicalOwner: "typescript",
+    canonicalEntrypoint: "E03AgentControlCoordinator.execute",
+    defaultTaskEntrypoint: "CodeWorkerApplication.runTaskRuntime",
+    builtControlEntrypoint: "CodeWorkerApplication.runAgentControlPort",
+    stateJournalOwner: "DurableTaskRegistry",
+    physicalPortOwners: ["HostE03PhysicalPort", "FileE03PhysicalPort"],
+    commitProtocol: ["prepare", "effect", "receipt", "commit", "ack"],
+    liveBuiltProbeRequired: true,
+    pythonLogicalOwner: false,
+    pythonLogicalFallback: false,
+  };
+}
+
 class JsonlRuntimeHost implements RuntimeHost {
   private readonly outputSequence = new FrameSequence();
   private readonly inputSequence = new FrameSequence();
@@ -427,6 +452,7 @@ export function runtimeContract(
 ): JsonObject {
   const verification = runtimeVerificationProjection();
   const e02Readiness = e02CapabilityReadinessProjection();
+  const e03Readiness = e03AgentControlReadinessProjection();
   const base = {
     ok: true,
     worker: "CodeWorkerRuntime",
@@ -441,6 +467,7 @@ export function runtimeContract(
     requiresVendorRuntime: false,
     requiresLegacyInspectionSidecar: false,
     defaultCapabilityEntrypoint: "E02CapabilityCoordinator.execute",
+    defaultAgentEntrypoint: "E03AgentControlCoordinator.execute",
     stateJournalOwner: "E02CapabilityCoordinator",
   };
   if (surface === "health") {
@@ -453,6 +480,7 @@ export function runtimeContract(
         referenceCrosswalk: { ok: true },
       },
       e02CapabilityRuntime: e02Readiness,
+      e03AgentControlRuntime: e03Readiness,
       vendor: {
         complete: false,
         requiredForMainPath: false,
@@ -481,6 +509,7 @@ export function runtimeContract(
         referenceCrosswalk: { ok: true },
       },
       e02CapabilityRuntime: e02Readiness,
+      e03AgentControlRuntime: e03Readiness,
       modules: [
         { name: "query-engine", path: "src/query-engine.ts" },
         { name: "query-session", path: "src/session.ts" },
@@ -503,6 +532,7 @@ export function runtimeContract(
       moduleEntrypoints: {
         queryEngine: "ClaudeRuntimeCore",
         capabilityRuntime: "E02CapabilityCoordinator.execute",
+        agentControlRuntime: "E03AgentControlCoordinator.execute",
       },
     };
   }

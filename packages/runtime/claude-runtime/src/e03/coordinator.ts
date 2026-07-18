@@ -219,6 +219,7 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
       scope,
     });
     let task = await this.execution.create({
+      requestId: envelope.request_id,
       runId: envelope.run_id,
       sessionId,
       parentTaskId: envelope.parent_task_id,

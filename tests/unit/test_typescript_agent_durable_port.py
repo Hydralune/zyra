@@ -4,266 +4,186 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from zyra_workers.subagents.typescript_port import TypeScriptAgentDurablePort
+from zyra_workers.subagents.typescript_port import (
+    TypeScriptAgentDurablePort,
+    _digest,
+)
 
 
 class TypeScriptAgentDurablePortTests(unittest.TestCase):
-    def test_revisioned_lifecycle_persists_without_python_query_loop(self) -> None:
+    def test_effect_receipt_reconciles_after_restart_without_redispatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             workspace = root / "workspace"
             workspace.mkdir()
-            events = []
-            port = TypeScriptAgentDurablePort(
-                root / "state",
+            state = root / "state"
+            first_port = TypeScriptAgentDurablePort(
+                state,
                 workspace_root=workspace,
-                event_sink=events.append,
             )
-            created = port.handle(
+            first = first_port.handle(
                 {
-                    "action": "create",
+                    "action": "e03.effect",
                     "task_id": "child-1",
-                    "idempotency_key": "spawn-1",
-                    "record": self._record(workspace),
+                    "effect_request": self._effect_request(
+                        effect_id="effect-before-crash",
+                        lease_id="lease-before-crash",
+                    ),
                 },
                 run_id="run-1",
                 parent_task_id="parent-1",
                 parent_session_id="session-1",
             )
-            self.assertTrue(created["accepted"], created["error"])
-            self.assertEqual(created["status"], "ready")
-            self.assertEqual(created["revision"], 2)
-            self.assertFalse(created["python_logical_fallback"])
+            self.assertTrue(first["accepted"], first["error"])
+            first_receipt = first["effect_receipt"]
+            self.assertFalse(first_receipt["replayed"])
 
-            dispatched = port.handle(
-                {
-                    "action": "dispatch",
-                    "task_id": "child-1",
-                    "expected_revision": 2,
-                    "execution_ref": "typescript-query-engine:child-1:1",
-                    "dispatch_request": {
-                        "definition_digest": "definition-1",
-                        "permission_ceiling_digest": "permission-1",
-                    },
-                },
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="session-1",
-            )
-            self.assertEqual(dispatched["status"], "dispatched")
-            running = port.handle(
-                {
-                    "action": "running",
-                    "task_id": "child-1",
-                    "expected_revision": 3,
-                },
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="session-1",
-            )
-            self.assertEqual(running["status"], "running")
-            completed = port.handle(
-                {
-                    "action": "complete",
-                    "task_id": "child-1",
-                    "expected_revision": 4,
-                    "result_digest": "result-1",
-                    "result": {
-                        "ok": True,
-                        "summary": "complete",
-                        "usage": {"turns": 1, "tool_calls": 1},
-                    },
-                },
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="session-1",
-            )
-            self.assertTrue(completed["accepted"], completed["error"])
-            self.assertEqual(completed["status"], "completed")
-            self.assertEqual(completed["revision"], 5)
-            self.assertEqual(len(events), 4)
-
-            restored = TypeScriptAgentDurablePort(
-                root / "state",
+            restarted = TypeScriptAgentDurablePort(
+                state,
                 workspace_root=workspace,
-            ).snapshot(parent_task_id="parent-1")
-            self.assertEqual(restored["terminal_task_ids"], ["child-1"])
+            )
+            replay = restarted.handle(
+                {
+                    "action": "e03.effect",
+                    "task_id": "child-1",
+                    "effect_request": self._effect_request(
+                        effect_id="effect-after-restart",
+                        lease_id="lease-after-restart",
+                    ),
+                },
+                run_id="run-1",
+                parent_task_id="parent-1",
+                parent_session_id="session-1",
+            )
+            self.assertTrue(replay["accepted"], replay["error"])
+            replay_receipt = replay["effect_receipt"]
+            self.assertTrue(replay_receipt["replayed"])
+            self.assertEqual(replay_receipt["receiptId"], first_receipt["receiptId"])
+            self.assertEqual(replay_receipt["completedAt"], first_receipt["completedAt"])
+            self.assertEqual(replay_receipt["effectId"], "effect-after-restart")
             self.assertEqual(
-                restored["tasks"][0]["metadata"]["result_commit_owner"],
-                "typescript-agent-runtime",
+                replay_receipt["requestDigest"],
+                first_receipt["requestDigest"],
             )
 
-    def test_stale_control_and_workspace_escape_fail_closed(self) -> None:
+            conflict = restarted.handle(
+                {
+                    "action": "e03.effect",
+                    "task_id": "child-1",
+                    "effect_request": self._effect_request(
+                        effect_id="effect-conflict",
+                        lease_id="lease-conflict",
+                        payload={"value": "changed"},
+                    ),
+                },
+                run_id="run-1",
+                parent_task_id="parent-1",
+                parent_session_id="session-1",
+            )
+            self.assertFalse(conflict["accepted"])
+            self.assertIn("semantic content conflict", conflict["error"])
+
+    def test_cas_persists_only_typescript_supplied_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             workspace = root / "workspace"
             workspace.mkdir()
             port = TypeScriptAgentDurablePort(root / "state", workspace_root=workspace)
-            record = self._record(workspace)
-            record["isolation_request"]["workspace_root"] = str(root.parent)
-            escaped = port.handle(
+            snapshot = self._empty_snapshot(revision=1)
+            committed = port.handle(
                 {
-                    "action": "create",
-                    "task_id": "child-1",
-                    "idempotency_key": "spawn-1",
-                    "record": record,
+                    "action": "e03.cas",
+                    "task_id": "parent-1",
+                    "expected_registry_revision": 0,
+                    "registry_snapshot": snapshot,
                 },
                 run_id="run-1",
                 parent_task_id="parent-1",
                 parent_session_id="session-1",
             )
-            self.assertFalse(escaped["accepted"])
-            self.assertIn("escapes", escaped["error"])
+            self.assertTrue(committed["accepted"], committed["error"])
+            self.assertEqual(committed["revision"], 1)
+            self.assertEqual(
+                committed["canonical_logical_owner"],
+                "typescript.E03AgentControlCoordinator",
+            )
+            self.assertFalse(committed["python_logical_fallback"])
 
-            created = port.handle(
-                {
-                    "action": "create",
-                    "task_id": "child-2",
-                    "idempotency_key": "spawn-2",
-                    "record": self._record(workspace, task_id="child-2"),
-                },
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="session-1",
-            )
-            self.assertTrue(created["accepted"], created["error"])
-            wrong_session = port.handle(
-                {"action": "load", "task_id": "child-2"},
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="another-session",
-            )
-            self.assertFalse(wrong_session["accepted"])
-            self.assertIn("session authority", wrong_session["error"])
             stale = port.handle(
                 {
-                    "action": "cancel",
-                    "task_id": "child-2",
-                    "expected_revision": 1,
+                    "action": "e03.cas",
+                    "task_id": "parent-1",
+                    "expected_registry_revision": 0,
+                    "registry_snapshot": self._empty_snapshot(revision=1),
                 },
                 run_id="run-1",
                 parent_task_id="parent-1",
                 parent_session_id="session-1",
             )
-            self.assertFalse(stale["accepted"])
-            self.assertIn("revision", stale["error"])
+            self.assertTrue(stale["accepted"])
+            self.assertTrue(stale["replayed"])
 
-            dispatched = port.handle(
-                {
-                    "action": "dispatch",
-                    "task_id": "child-2",
-                    "expected_revision": created["revision"],
-                    "execution_ref": "typescript-query-engine:child-2:1",
-                    "dispatch_request": {},
-                },
+            restored = port.handle(
+                {"action": "e03.restore", "task_id": "parent-1"},
                 run_id="run-1",
                 parent_task_id="parent-1",
                 parent_session_id="session-1",
             )
-            self.assertTrue(dispatched["accepted"], dispatched["error"])
-            running = port.handle(
-                {
-                    "action": "running",
-                    "task_id": "child-2",
-                    "expected_revision": dispatched["revision"],
-                },
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="session-1",
-            )
-            self.assertTrue(running["accepted"], running["error"])
-            competing_port = TypeScriptAgentDurablePort(root / "state", workspace_root=workspace)
-            cancelled = competing_port.handle(
-                {
-                    "action": "cancel",
-                    "task_id": "child-2",
-                    "expected_revision": running["revision"],
-                    "reason": "concurrent parent cancellation",
-                },
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="session-1",
-            )
-            self.assertTrue(cancelled["accepted"], cancelled["error"])
-            late = port.handle(
-                {
-                    "action": "complete",
-                    "task_id": "child-2",
-                    "expected_revision": running["revision"],
-                    "result_digest": "late-result",
-                    "result": {"ok": True, "usage": {}},
-                },
-                run_id="run-1",
-                parent_task_id="parent-1",
-                parent_session_id="session-1",
-            )
-            self.assertFalse(late["accepted"])
-            self.assertEqual(competing_port.get_task("child-2").status.value, "cancelled")
+            self.assertTrue(restored["accepted"], restored["error"])
+            self.assertEqual(restored["snapshot"], snapshot)
+
+    def test_python_port_rejects_legacy_logical_control_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            port = TypeScriptAgentDurablePort(root / "state", workspace_root=workspace)
+            for action in ("create", "dispatch", "running", "complete", "cancel"):
+                result = port.handle(
+                    {"action": action, "task_id": "child-1"},
+                    run_id="run-1",
+                    parent_task_id="parent-1",
+                    parent_session_id="session-1",
+                )
+                self.assertFalse(result["accepted"], action)
+                self.assertIn("unsupported E03 physical-port action", result["error"])
+                self.assertFalse(result["python_logical_fallback"])
 
     @staticmethod
-    def _record(workspace: Path, *, task_id: str = "child-1") -> dict:
-        return {
-            "run_id": "run-1",
-            "task_id": task_id,
-            "parent_task_id": "parent-1",
-            "parent_session_id": "session-1",
-            "agent_type": "general-purpose",
-            "definition_id": "definition-1",
-            "status": "created",
-            "context_snapshot": {
-                "snapshot_id": f"context-{task_id}",
-                "parent_session_id": "session-1",
-                "parent_task_id": "parent-1",
-                "parent_worker_request_id": "worker-1",
-                "mode": "isolated",
-                "ancestry": [],
-                "depth": 1,
-            },
-            "tool_scope": {
-                "parent_tools": ["file_read"],
-                "child_tools": ["file_read"],
-                "denied_tools": [],
-                "required_tools": [],
-                "dynamic_tool_identities": {},
-                "digest": "scope-1",
-            },
-            "permission": {
-                "parent_mode": "default",
-                "child_mode": "default",
-                "monotonic": True,
-                "digest": "permission-1",
-            },
-            "budget": {
-                "max_turns": 4,
-                "max_tool_calls": 8,
-                "max_input_tokens": 1000,
-                "max_output_tokens": 1000,
-                "max_result_chars": 10000,
-                "max_wall_time_ms": 10000,
-                "max_children": 2,
-                "max_depth": 2,
-            },
-            "isolation_request": {
-                "run_id": "run-1",
-                "task_id": task_id,
-                "parent_task_id": "parent-1",
-                "kind": "workspace",
-                "workspace_root": str(workspace),
-                "requested_cwd": "",
-                "writable_paths": [],
-                "read_only_paths": [],
-                "network_allowed": False,
-                "cleanup_required": True,
-                "request_id": f"isolation-{task_id}",
-            },
-            "execution_mode": "foreground",
-            "prompt_digest": "prompt-1",
-            "revision": 0,
-            "metadata": {
-                "canonical_logical_owner": "typescript",
-                "python_logical_fallback": False,
-            },
+    def _effect_request(
+        *,
+        effect_id: str,
+        lease_id: str,
+        payload: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        unsigned: dict[str, object] = {
+            "effectId": effect_id,
+            "requestId": "request-1",
+            "taskId": "child-1",
+            "leaseId": lease_id,
+            "expectedRevision": 0,
+            "effectKind": "persist",
+            "operation": "persist_agent_task_create",
+            "payload": payload or {"value": "stable"},
+            "idempotencyKey": "idempotency-1",
+            "preparedAt": "2026-07-18T00:00:00.000Z",
         }
+        return {**unsigned, "digest": _digest(unsigned)}
+
+    @staticmethod
+    def _empty_snapshot(*, revision: int) -> dict[str, object]:
+        unsigned: dict[str, object] = {
+            "schemaVersion": "3.0",
+            "revision": revision,
+            "tasks": {},
+            "requests": {},
+            "effects": {},
+            "definitions": {},
+            "writerLeases": {},
+            "createdAt": "2026-07-18T00:00:00.000Z",
+            "updatedAt": "2026-07-18T00:00:00.000Z",
+        }
+        return {**unsigned, "checksum": _digest(unsigned)}
 
 
 if __name__ == "__main__":

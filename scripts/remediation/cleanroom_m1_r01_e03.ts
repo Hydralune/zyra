@@ -43,7 +43,7 @@ function main(): void {
     results.push(run(cleanRoot, "install", [bun, "install", "--frozen-lockfile"]));
     if (results.at(-1)!.exit_code === 0) results.push(run(cleanRoot, "typecheck", [bun, "run", "typecheck:e03"]));
     if (results.at(-1)!.exit_code === 0) results.push(run(cleanRoot, "build", [bun, "run", "build"]));
-    if (results.at(-1)!.exit_code === 0) results.push(run(cleanRoot, "behavior", [bun, "test", "packages/runtime/claude-runtime/test/e03"]));
+    if (results.at(-1)!.exit_code === 0) results.push(run(cleanRoot, "behavior", [bun, "run", "e03:test"]));
     if (results.at(-1)!.exit_code === 0) results.push(run(cleanRoot, "built-health", [bun, "run", "runtime:built:health"]));
     if (results.at(-1)!.exit_code === 0) results.push(run(cleanRoot, "probes", [bun, "scripts/remediation/probe_m1_r01_e03.ts", "all"]));
     const forbiddenExists = ["vendor", "vendor-runtimes", "source-pool", "runtime-sources"].filter((path) => existsSync(join(cleanRoot, path)));
