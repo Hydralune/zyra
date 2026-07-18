@@ -5,7 +5,7 @@ from typing import Any
 
 
 @dataclass(slots=True)
-class SubagentRuntimeError(RuntimeError):
+class SubagentPortError(RuntimeError):
     """Base error carrying a stable machine-readable code.
 
     The runtime never relies on exception text for recovery classification.
@@ -30,20 +30,20 @@ class SubagentRuntimeError(RuntimeError):
         }
 
 
-class SubagentDisabled(SubagentRuntimeError):
-    def __init__(self, component: str = "SubagentRuntime") -> None:
+class SubagentDisabled(SubagentPortError):
+    def __init__(self, component: str = "subagent physical port") -> None:
         super().__init__(
             f"{component} is disabled",
             code="subagent_component_disabled",
             detail={"component": component},
         )
 
-class AgentDefinitionError(SubagentRuntimeError):
+class AgentDefinitionError(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="agent_definition_invalid", detail=detail)
 
 
-class AgentDefinitionNotFound(SubagentRuntimeError):
+class AgentDefinitionNotFound(SubagentPortError):
     def __init__(self, agent_type: str) -> None:
         super().__init__(
             f"agent definition was not found: {agent_type}",
@@ -52,7 +52,7 @@ class AgentDefinitionNotFound(SubagentRuntimeError):
         )
 
 
-class AgentDefinitionConflict(SubagentRuntimeError):
+class AgentDefinitionConflict(SubagentPortError):
     def __init__(self, agent_type: str, source: str) -> None:
         super().__init__(
             f"agent definition conflict for {agent_type}",
@@ -61,17 +61,17 @@ class AgentDefinitionConflict(SubagentRuntimeError):
         )
 
 
-class ToolScopeViolation(SubagentRuntimeError):
+class ToolScopeViolation(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="subagent_tool_scope_violation", detail=detail)
 
 
-class PermissionExpansionDenied(SubagentRuntimeError):
+class PermissionExpansionDenied(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="subagent_permission_expansion_denied", detail=detail)
 
 
-class SubagentBudgetExceeded(SubagentRuntimeError):
+class SubagentBudgetExceeded(SubagentPortError):
     def __init__(self, dimension: str, used: int | float, limit: int | float) -> None:
         super().__init__(
             f"subagent {dimension} budget exceeded ({used} > {limit})",
@@ -80,7 +80,7 @@ class SubagentBudgetExceeded(SubagentRuntimeError):
         )
 
 
-class SubagentDepthExceeded(SubagentRuntimeError):
+class SubagentDepthExceeded(SubagentPortError):
     def __init__(self, depth: int, maximum: int) -> None:
         super().__init__(
             f"subagent depth {depth} exceeds maximum {maximum}",
@@ -89,7 +89,7 @@ class SubagentDepthExceeded(SubagentRuntimeError):
         )
 
 
-class SubagentCycleDetected(SubagentRuntimeError):
+class SubagentCycleDetected(SubagentPortError):
     def __init__(self, ancestry: tuple[str, ...], agent_type: str) -> None:
         super().__init__(
             f"subagent cycle detected for {agent_type}",
@@ -98,7 +98,7 @@ class SubagentCycleDetected(SubagentRuntimeError):
         )
 
 
-class SubagentTaskNotFound(SubagentRuntimeError):
+class SubagentTaskNotFound(SubagentPortError):
     def __init__(self, task_id: str) -> None:
         super().__init__(
             f"subagent task was not found: {task_id}",
@@ -107,7 +107,7 @@ class SubagentTaskNotFound(SubagentRuntimeError):
         )
 
 
-class SubagentTransitionRejected(SubagentRuntimeError):
+class SubagentTransitionRejected(SubagentPortError):
     def __init__(self, task_id: str, current: str, requested: str) -> None:
         super().__init__(
             f"invalid subagent task transition {current} -> {requested}",
@@ -116,7 +116,7 @@ class SubagentTransitionRejected(SubagentRuntimeError):
         )
 
 
-class SubagentRevisionConflict(SubagentRuntimeError):
+class SubagentRevisionConflict(SubagentPortError):
     def __init__(self, task_id: str, expected: int, actual: int) -> None:
         super().__init__(
             f"subagent task revision conflict for {task_id}",
@@ -125,22 +125,22 @@ class SubagentRevisionConflict(SubagentRuntimeError):
         )
 
 
-class SubagentDispatchRejected(SubagentRuntimeError):
+class SubagentDispatchRejected(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="subagent_dispatch_rejected", detail=detail)
 
 
-class SubagentExecutionFailed(SubagentRuntimeError):
+class SubagentExecutionFailed(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="subagent_execution_failed", detail=detail)
 
 
-class IsolationRequestRejected(SubagentRuntimeError):
+class IsolationRequestRejected(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="subagent_isolation_rejected", detail=detail)
 
 
-class IsolationCleanupFailed(SubagentRuntimeError):
+class IsolationCleanupFailed(SubagentPortError):
     def __init__(self, isolation_id: str, message: str, **detail: Any) -> None:
         super().__init__(
             message,
@@ -149,17 +149,17 @@ class IsolationCleanupFailed(SubagentRuntimeError):
         )
 
 
-class TranscriptIntegrityError(SubagentRuntimeError):
+class TranscriptIntegrityError(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="subagent_transcript_integrity_error", detail=detail)
 
 
-class ContinuationRejected(SubagentRuntimeError):
+class ContinuationRejected(SubagentPortError):
     def __init__(self, message: str, **detail: Any) -> None:
         super().__init__(message, code="subagent_continuation_rejected", detail=detail)
 
 
-class ParentCancelled(SubagentRuntimeError):
+class ParentCancelled(SubagentPortError):
     def __init__(self, parent_task_id: str) -> None:
         super().__init__(
             "parent task was cancelled",
@@ -168,7 +168,7 @@ class ParentCancelled(SubagentRuntimeError):
         )
 
 
-class StructuredHandoffRequired(SubagentRuntimeError):
+class StructuredHandoffRequired(SubagentPortError):
     def __init__(self, task_id: str) -> None:
         super().__init__(
             "subagent completion requires a structured handoff",

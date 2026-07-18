@@ -502,7 +502,7 @@ class ParentScopeStore:
             raise ParentScopeDisabled("ParentScopeStore is disabled")
 
 
-class ParentScopeBuilder:
+class ParentScopeProjectionPort:
     """Build a scope only from server-side owner projections."""
 
     def __init__(self, store: ParentScopeStore, *, disabled: bool = False) -> None:
@@ -536,7 +536,7 @@ class ParentScopeBuilder:
         metadata: Mapping[str, Any] | None = None,
     ) -> ParentExecutionScopeSnapshot:
         if self.disabled:
-            raise ParentScopeDisabled("ParentScopeBuilder is disabled")
+            raise ParentScopeDisabled("parent scope projection port is disabled")
         tools = tuple(self._tool_descriptor(item) for item in tool_registry.list())
         rule_ids: list[str] = []
         deny_ids: list[str] = []
@@ -990,7 +990,7 @@ __all__ = [
     "ChildScopeDeriver",
     "ChildScopeRequest",
     "ParentExecutionScopeSnapshot",
-    "ParentScopeBuilder",
+    "ParentScopeProjectionPort",
     "ParentScopeConflict",
     "ParentScopeDisabled",
     "ParentScopeError",

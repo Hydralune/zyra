@@ -915,7 +915,7 @@ class SubagentSpawnRequest:
 
 
 @dataclass(frozen=True, slots=True)
-class SubagentRuntimeSnapshot:
+class SubagentPortSnapshot:
     tasks: tuple[dict[str, Any], ...]
     active_task_ids: tuple[str, ...]
     terminal_task_ids: tuple[str, ...]
