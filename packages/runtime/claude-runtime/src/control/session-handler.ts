@@ -2587,3 +2587,1089 @@ export class ControlSessionLeaseRuntime {
     return structuredClone(next);
   }
 }
+
+export type ControlTransactionState =
+  | "open"
+  | "prepared"
+  | "committing"
+  | "committed"
+  | "aborting"
+  | "aborted"
+  | "in_doubt";
+
+export interface ControlTransaction {
+  transactionId: string;
+  sessionId: string;
+  ownerId: string;
+  idempotencyKey: string;
+  expectedSessionRevision: number;
+  state: ControlTransactionState;
+  commandCount: number;
+  preparedCount: number;
+  committedCount: number;
+  abortedCount: number;
+  deadlineAt: string;
+  createdAt: string;
+  updatedAt: string;
+  commitDigest: string;
+  terminalReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransactionCommand {
+  commandId: string;
+  transactionId: string;
+  ordinal: number;
+  command: ControlCommand;
+  envelopeDigest: string;
+  expectedResourceRevision: number;
+  resourceKey: string;
+  state: "staged" | "prepared" | "applied" | "compensated" | "rejected";
+  prepareToken: string;
+  effectReceiptDigest: string;
+  responseDigest: string;
+  compensationDigest: string;
+  errorCode: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransactionLock {
+  lockId: string;
+  transactionId: string;
+  resourceKey: string;
+  fencingToken: number;
+  acquiredAt: string;
+  expiresAt: string;
+  releasedAt: string;
+  state: "held" | "released" | "expired";
+  revision: number;
+  digest: string;
+}
+
+export interface ControlTransactionDecision {
+  decisionId: string;
+  transactionId: string;
+  decision: "commit" | "abort" | "recover_commit" | "recover_abort";
+  commandDigest: string;
+  previousDigest: string;
+  decidedAt: string;
+  actorId: string;
+  reason: string;
+  digest: string;
+}
+
+export interface ControlTransactionSnapshot {
+  transactions: ControlTransaction[];
+  commands: ControlTransactionCommand[];
+  locks: ControlTransactionLock[];
+  decisions: ControlTransactionDecision[];
+  transactionByIdempotencyKey: [string, string][];
+  activeLockByResource: [string, string][];
+  nextFenceByResource: [string, number][];
+}
+
+function assertControlTransaction(value: ControlTransaction): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.transactionId ||
+    !value.sessionId ||
+    !value.ownerId ||
+    !value.idempotencyKey ||
+    value.expectedSessionRevision < 0 ||
+    value.commandCount < 0 ||
+    value.preparedCount < 0 ||
+    value.committedCount < 0 ||
+    value.abortedCount < 0 ||
+    value.preparedCount > value.commandCount ||
+    value.committedCount > value.commandCount ||
+    value.abortedCount > value.commandCount ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transaction_corrupt",
+      `control transaction ${value.transactionId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlTransactionCommand(
+  value: ControlTransactionCommand,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.commandId ||
+    !value.transactionId ||
+    !Number.isSafeInteger(value.ordinal) ||
+    value.ordinal < 0 ||
+    !value.command ||
+    !value.envelopeDigest ||
+    !value.resourceKey ||
+    value.expectedResourceRevision < 0 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transaction_command_corrupt",
+      `control transaction command ${value.commandId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlTransactionLock(value: ControlTransactionLock): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.lockId ||
+    !value.transactionId ||
+    !value.resourceKey ||
+    value.fencingToken < 1 ||
+    !Number.isSafeInteger(value.fencingToken) ||
+    !value.acquiredAt ||
+    !value.expiresAt ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transaction_lock_corrupt",
+      `control transaction lock ${value.lockId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertControlTransactionDecision(
+  value: ControlTransactionDecision,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.decisionId ||
+    !value.transactionId ||
+    !value.commandDigest ||
+    !value.decidedAt ||
+    !value.actorId ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_transaction_decision_corrupt",
+      `control transaction decision ${value.decisionId || "<empty>"} is corrupt`,
+    );
+}
+
+export class ControlTransactionRuntime {
+  private transactions = new Map<string, ControlTransaction>();
+  private commands = new Map<string, ControlTransactionCommand[]>();
+  private locks = new Map<string, ControlTransactionLock>();
+  private decisions = new Map<string, ControlTransactionDecision[]>();
+  private transactionByIdempotencyKey = new Map<string, string>();
+  private activeLockByResource = new Map<string, string>();
+  private nextFenceByResource = new Map<string, number>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  open(input: {
+    transactionId?: string;
+    sessionId: string;
+    ownerId: string;
+    idempotencyKey: string;
+    expectedSessionRevision: number;
+    deadlineAt: string;
+  }): ControlTransaction {
+    const duplicate = this.transactionByIdempotencyKey.get(
+      input.idempotencyKey,
+    );
+    if (duplicate) return structuredClone(this.requireTransaction(duplicate));
+    if (!input.sessionId || !input.ownerId || !input.idempotencyKey)
+      throw new E03RuntimeError(
+        "control_transaction_identity",
+        "control transaction requires session, owner, and idempotency key",
+      );
+    if (input.expectedSessionRevision < 0)
+      throw new E03RuntimeError(
+        "control_transaction_session_revision",
+        "control transaction session revision is invalid",
+      );
+    const now = this.clock.now();
+    if (Date.parse(input.deadlineAt) <= Date.parse(now))
+      throw new E03RuntimeError(
+        "control_transaction_deadline",
+        "control transaction deadline must be in the future",
+      );
+    const transactionId =
+      input.transactionId ?? createId("control-transaction");
+    if (this.transactions.has(transactionId))
+      throw new E03RuntimeError(
+        "control_transaction_duplicate",
+        `control transaction ${transactionId} already exists`,
+      );
+    const payload = {
+      transactionId,
+      sessionId: input.sessionId,
+      ownerId: input.ownerId,
+      idempotencyKey: input.idempotencyKey,
+      expectedSessionRevision: input.expectedSessionRevision,
+      state: "open" as const,
+      commandCount: 0,
+      preparedCount: 0,
+      committedCount: 0,
+      abortedCount: 0,
+      deadlineAt: input.deadlineAt,
+      createdAt: now,
+      updatedAt: now,
+      commitDigest: "",
+      terminalReason: "",
+      revision: 1,
+    };
+    const transaction = { ...payload, digest: digest(payload) };
+    assertControlTransaction(transaction);
+    this.transactions.set(transactionId, transaction);
+    this.commands.set(transactionId, []);
+    this.decisions.set(transactionId, []);
+    this.transactionByIdempotencyKey.set(input.idempotencyKey, transactionId);
+    return structuredClone(transaction);
+  }
+
+  stage(input: {
+    commandId?: string;
+    transactionId: string;
+    command: ControlCommand;
+    envelopeDigest: string;
+    resourceKey: string;
+    expectedResourceRevision: number;
+  }): ControlTransactionCommand {
+    const transaction = this.requireTransaction(input.transactionId);
+    if (transaction.state !== "open")
+      throw new E03RuntimeError(
+        "control_transaction_stage_state",
+        `control transaction ${transaction.transactionId} is ${transaction.state}`,
+      );
+    if (!input.envelopeDigest || !input.resourceKey)
+      throw new E03RuntimeError(
+        "control_transaction_stage_binding",
+        "control transaction command requires envelope and resource binding",
+      );
+    if (input.expectedResourceRevision < 0)
+      throw new E03RuntimeError(
+        "control_transaction_stage_revision",
+        "control transaction command resource revision is invalid",
+      );
+    const entries = this.entries(transaction.transactionId);
+    if (entries.some((value) => value.resourceKey === input.resourceKey))
+      throw new E03RuntimeError(
+        "control_transaction_resource_duplicate",
+        `control transaction already stages ${input.resourceKey}`,
+      );
+    if (entries.some((value) => value.envelopeDigest === input.envelopeDigest))
+      throw new E03RuntimeError(
+        "control_transaction_envelope_duplicate",
+        "control transaction already stages this envelope",
+      );
+    const commandId =
+      input.commandId ?? createId("control-transaction-command");
+    if (
+      [...this.commands.values()].some((values) =>
+        values.some((value) => value.commandId === commandId),
+      )
+    )
+      throw new E03RuntimeError(
+        "control_transaction_command_duplicate",
+        `control transaction command ${commandId} already exists`,
+      );
+    const now = this.clock.now();
+    const payload = {
+      commandId,
+      transactionId: transaction.transactionId,
+      ordinal: entries.length,
+      command: input.command,
+      envelopeDigest: input.envelopeDigest,
+      expectedResourceRevision: input.expectedResourceRevision,
+      resourceKey: input.resourceKey,
+      state: "staged" as const,
+      prepareToken: "",
+      effectReceiptDigest: "",
+      responseDigest: "",
+      compensationDigest: "",
+      errorCode: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const command = { ...payload, digest: digest(payload) };
+    assertControlTransactionCommand(command);
+    entries.push(command);
+    this.commands.set(transaction.transactionId, entries);
+    this.transitionTransaction(transaction, { commandCount: entries.length });
+    return structuredClone(command);
+  }
+
+  acquireLocks(
+    transactionId: string,
+    expectedRevision: number,
+    ttlMs: number,
+  ): ControlTransactionLock[] {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state !== "open")
+      throw new E03RuntimeError(
+        "control_transaction_lock_state",
+        `control transaction ${transactionId} is ${transaction.state}`,
+      );
+    if (!Number.isSafeInteger(ttlMs) || ttlMs < 1)
+      throw new E03RuntimeError(
+        "control_transaction_lock_ttl",
+        "control transaction lock TTL must be positive",
+      );
+    const entries = this.entries(transactionId);
+    if (!entries.length)
+      throw new E03RuntimeError(
+        "control_transaction_empty",
+        `control transaction ${transactionId} has no commands`,
+      );
+    const conflicts = entries
+      .map((value) => value.resourceKey)
+      .filter((resourceKey) => {
+        const lockId = this.activeLockByResource.get(resourceKey);
+        if (!lockId) return false;
+        const lock = this.requireLock(lockId);
+        return lock.state === "held" && lock.transactionId !== transactionId;
+      });
+    if (conflicts.length)
+      throw new E03RuntimeError(
+        "control_transaction_lock_conflict",
+        `control transaction conflicts on ${conflicts.sort().join(",")}`,
+      );
+    const now = this.clock.now();
+    const expiresAt = new Date(Date.parse(now) + ttlMs).toISOString();
+    const acquired: ControlTransactionLock[] = [];
+    for (const resourceKey of entries
+      .map((value) => value.resourceKey)
+      .sort()) {
+      const existingId = this.activeLockByResource.get(resourceKey);
+      if (existingId) {
+        const existing = this.requireLock(existingId);
+        if (existing.transactionId === transactionId) {
+          acquired.push(structuredClone(existing));
+          continue;
+        }
+      }
+      const fencingToken = (this.nextFenceByResource.get(resourceKey) ?? 0) + 1;
+      const lockId = createId("control-transaction-lock");
+      const payload = {
+        lockId,
+        transactionId,
+        resourceKey,
+        fencingToken,
+        acquiredAt: now,
+        expiresAt,
+        releasedAt: "",
+        state: "held" as const,
+        revision: 1,
+      };
+      const lock = { ...payload, digest: digest(payload) };
+      assertControlTransactionLock(lock);
+      this.locks.set(lockId, lock);
+      this.activeLockByResource.set(resourceKey, lockId);
+      this.nextFenceByResource.set(resourceKey, fencingToken);
+      acquired.push(structuredClone(lock));
+    }
+    return acquired;
+  }
+
+  prepareCommand(
+    commandId: string,
+    expectedRevision: number,
+    input: {
+      prepareToken: string;
+      observedResourceRevision: number;
+      fencingToken: number;
+    },
+  ): ControlTransactionCommand {
+    const command = this.requireCommand(commandId);
+    this.assertCommandRevision(command, expectedRevision);
+    const transaction = this.requireTransaction(command.transactionId);
+    if (transaction.state !== "open")
+      throw new E03RuntimeError(
+        "control_transaction_prepare_state",
+        `control transaction ${transaction.transactionId} is ${transaction.state}`,
+      );
+    if (command.state !== "staged")
+      throw new E03RuntimeError(
+        "control_transaction_command_prepare_state",
+        `control transaction command ${commandId} is ${command.state}`,
+      );
+    if (!input.prepareToken)
+      throw new E03RuntimeError(
+        "control_transaction_prepare_token",
+        "control transaction prepare token is required",
+      );
+    if (input.observedResourceRevision !== command.expectedResourceRevision)
+      throw new E03RuntimeError(
+        "control_transaction_resource_stale_revision",
+        `control transaction resource ${command.resourceKey} revision is stale`,
+      );
+    const lockId = this.activeLockByResource.get(command.resourceKey);
+    const lock = lockId ? this.requireLock(lockId) : null;
+    if (
+      !lock ||
+      lock.transactionId !== transaction.transactionId ||
+      lock.state !== "held" ||
+      lock.fencingToken !== input.fencingToken
+    )
+      throw new E03RuntimeError(
+        "control_transaction_fencing_token",
+        `control transaction resource ${command.resourceKey} is not fenced`,
+      );
+    const next = this.transitionCommand(command, {
+      state: "prepared",
+      prepareToken: input.prepareToken,
+    });
+    const current = this.requireTransaction(transaction.transactionId);
+    const preparedCount = this.entries(transaction.transactionId).filter(
+      (value) => value.state === "prepared",
+    ).length;
+    this.transitionTransaction(current, { preparedCount });
+    return next;
+  }
+
+  decideCommit(
+    transactionId: string,
+    expectedRevision: number,
+    actorId: string,
+  ): ControlTransactionDecision {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state !== "open")
+      throw new E03RuntimeError(
+        "control_transaction_commit_decision_state",
+        `control transaction ${transactionId} is ${transaction.state}`,
+      );
+    const entries = this.entries(transactionId);
+    if (!entries.length || entries.some((value) => value.state !== "prepared"))
+      throw new E03RuntimeError(
+        "control_transaction_not_fully_prepared",
+        `control transaction ${transactionId} is not fully prepared`,
+      );
+    if (Date.parse(transaction.deadlineAt) <= Date.parse(this.clock.now()))
+      throw new E03RuntimeError(
+        "control_transaction_commit_deadline",
+        `control transaction ${transactionId} exceeded its deadline`,
+      );
+    const commandDigest = digest(
+      entries.map((value) => ({
+        ordinal: value.ordinal,
+        commandId: value.commandId,
+        prepareToken: value.prepareToken,
+        digest: value.digest,
+      })),
+    );
+    const decision = this.appendDecision(
+      transaction,
+      "commit",
+      commandDigest,
+      actorId,
+      "all_commands_prepared",
+    );
+    this.transitionTransaction(transaction, {
+      state: "committing",
+      commitDigest: decision.digest,
+      preparedCount: entries.length,
+    });
+    return decision;
+  }
+
+  applyCommand(
+    commandId: string,
+    expectedRevision: number,
+    input: {
+      prepareToken: string;
+      effectReceiptDigest: string;
+      responseDigest: string;
+      fencingToken: number;
+    },
+  ): ControlTransactionCommand {
+    const command = this.requireCommand(commandId);
+    this.assertCommandRevision(command, expectedRevision);
+    const transaction = this.requireTransaction(command.transactionId);
+    if (transaction.state !== "committing")
+      throw new E03RuntimeError(
+        "control_transaction_apply_state",
+        `control transaction ${transaction.transactionId} is ${transaction.state}`,
+      );
+    if (
+      command.state !== "prepared" ||
+      command.prepareToken !== input.prepareToken
+    )
+      throw new E03RuntimeError(
+        "control_transaction_prepare_token_mismatch",
+        `control transaction command ${commandId} prepare token is invalid`,
+      );
+    if (!input.responseDigest)
+      throw new E03RuntimeError(
+        "control_transaction_response_receipt",
+        `control transaction command ${commandId} lacks response receipt`,
+      );
+    const lockId = this.activeLockByResource.get(command.resourceKey);
+    const lock = lockId ? this.requireLock(lockId) : null;
+    if (
+      !lock ||
+      lock.transactionId !== transaction.transactionId ||
+      lock.fencingToken !== input.fencingToken ||
+      lock.state !== "held"
+    )
+      throw new E03RuntimeError(
+        "control_transaction_apply_fence",
+        `control transaction command ${commandId} lost its fence`,
+      );
+    const next = this.transitionCommand(command, {
+      state: "applied",
+      effectReceiptDigest: input.effectReceiptDigest,
+      responseDigest: input.responseDigest,
+    });
+    const current = this.requireTransaction(transaction.transactionId);
+    const committedCount = this.entries(transaction.transactionId).filter(
+      (value) => value.state === "applied",
+    ).length;
+    this.transitionTransaction(current, { committedCount });
+    return next;
+  }
+
+  finalizeCommit(
+    transactionId: string,
+    expectedRevision: number,
+  ): ControlTransaction {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state !== "committing")
+      throw new E03RuntimeError(
+        "control_transaction_finalize_state",
+        `control transaction ${transactionId} is ${transaction.state}`,
+      );
+    const entries = this.entries(transactionId);
+    if (entries.some((value) => value.state !== "applied"))
+      throw new E03RuntimeError(
+        "control_transaction_finalize_incomplete",
+        `control transaction ${transactionId} has unapplied commands`,
+      );
+    const next = this.transitionTransaction(transaction, {
+      state: "committed",
+      committedCount: entries.length,
+      terminalReason: "commit_complete",
+    });
+    this.releaseLocks(transactionId);
+    return next;
+  }
+
+  decideAbort(
+    transactionId: string,
+    expectedRevision: number,
+    actorId: string,
+    reason: string,
+  ): ControlTransactionDecision {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (
+      !["open", "prepared", "committing", "in_doubt"].includes(
+        transaction.state,
+      )
+    )
+      throw new E03RuntimeError(
+        "control_transaction_abort_decision_state",
+        `control transaction ${transactionId} is ${transaction.state}`,
+      );
+    if (!reason)
+      throw new E03RuntimeError(
+        "control_transaction_abort_reason",
+        "control transaction abort requires a reason",
+      );
+    const entries = this.entries(transactionId);
+    const commandDigest = digest(
+      entries.map((value) => ({
+        commandId: value.commandId,
+        state: value.state,
+        digest: value.digest,
+      })),
+    );
+    const decision = this.appendDecision(
+      transaction,
+      "abort",
+      commandDigest,
+      actorId,
+      reason,
+    );
+    this.transitionTransaction(transaction, {
+      state: "aborting",
+      commitDigest: decision.digest,
+      terminalReason: reason,
+    });
+    return decision;
+  }
+
+  compensateCommand(
+    commandId: string,
+    expectedRevision: number,
+    compensationDigest: string,
+  ): ControlTransactionCommand {
+    const command = this.requireCommand(commandId);
+    this.assertCommandRevision(command, expectedRevision);
+    const transaction = this.requireTransaction(command.transactionId);
+    if (transaction.state !== "aborting")
+      throw new E03RuntimeError(
+        "control_transaction_compensate_state",
+        `control transaction ${transaction.transactionId} is ${transaction.state}`,
+      );
+    if (!["staged", "prepared", "applied", "rejected"].includes(command.state))
+      throw new E03RuntimeError(
+        "control_transaction_command_compensate_state",
+        `control transaction command ${commandId} is ${command.state}`,
+      );
+    if (command.state === "applied" && !compensationDigest)
+      throw new E03RuntimeError(
+        "control_transaction_compensation_receipt",
+        `applied control command ${commandId} needs compensation`,
+      );
+    const next = this.transitionCommand(command, {
+      state: "compensated",
+      compensationDigest,
+    });
+    const current = this.requireTransaction(transaction.transactionId);
+    const abortedCount = this.entries(transaction.transactionId).filter(
+      (value) => value.state === "compensated",
+    ).length;
+    this.transitionTransaction(current, { abortedCount });
+    return next;
+  }
+
+  finalizeAbort(
+    transactionId: string,
+    expectedRevision: number,
+  ): ControlTransaction {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state !== "aborting")
+      throw new E03RuntimeError(
+        "control_transaction_abort_finalize_state",
+        `control transaction ${transactionId} is ${transaction.state}`,
+      );
+    const entries = this.entries(transactionId);
+    if (entries.some((value) => value.state !== "compensated"))
+      throw new E03RuntimeError(
+        "control_transaction_abort_incomplete",
+        `control transaction ${transactionId} has uncompensated commands`,
+      );
+    const next = this.transitionTransaction(transaction, {
+      state: "aborted",
+      abortedCount: entries.length,
+    });
+    this.releaseLocks(transactionId);
+    return next;
+  }
+
+  markInDoubt(
+    transactionId: string,
+    expectedRevision: number,
+    reason: string,
+  ): ControlTransaction {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (!["committing", "aborting"].includes(transaction.state))
+      throw new E03RuntimeError(
+        "control_transaction_in_doubt_state",
+        `control transaction ${transactionId} cannot become in-doubt`,
+      );
+    return this.transitionTransaction(transaction, {
+      state: "in_doubt",
+      terminalReason: reason || "coordinator_lost",
+    });
+  }
+
+  recover(
+    transactionId: string,
+    expectedRevision: number,
+    actorId: string,
+  ): ControlTransactionDecision {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state !== "in_doubt")
+      throw new E03RuntimeError(
+        "control_transaction_recover_state",
+        `control transaction ${transactionId} is ${transaction.state}`,
+      );
+    const decisions = this.decisionEntries(transactionId);
+    const durableDecision = decisions.at(-1);
+    if (!durableDecision)
+      throw new E03RuntimeError(
+        "control_transaction_recover_decision_missing",
+        `control transaction ${transactionId} has no durable decision`,
+      );
+    const recoverCommit =
+      durableDecision.decision === "commit" ||
+      durableDecision.decision === "recover_commit";
+    const recovery = this.appendDecision(
+      transaction,
+      recoverCommit ? "recover_commit" : "recover_abort",
+      durableDecision.commandDigest,
+      actorId,
+      `replay:${durableDecision.decisionId}`,
+    );
+    this.transitionTransaction(transaction, {
+      state: recoverCommit ? "committing" : "aborting",
+      commitDigest: recovery.digest,
+    });
+    return recovery;
+  }
+
+  expireLocks(at = this.clock.now()): ControlTransactionLock[] {
+    const expired: ControlTransactionLock[] = [];
+    for (const lock of [...this.locks.values()]) {
+      if (lock.state !== "held" || Date.parse(lock.expiresAt) > Date.parse(at))
+        continue;
+      const next = this.transitionLock(lock, {
+        state: "expired",
+        releasedAt: at,
+      });
+      this.activeLockByResource.delete(lock.resourceKey);
+      expired.push(next);
+      const transaction = this.requireTransaction(lock.transactionId);
+      if (!["committed", "aborted"].includes(transaction.state))
+        this.transitionTransaction(transaction, {
+          state: "in_doubt",
+          terminalReason: `lock_expired:${lock.resourceKey}`,
+        });
+    }
+    return expired;
+  }
+
+  snapshot(): ControlTransactionSnapshot {
+    return {
+      transactions: [...this.transactions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      commands: [...this.commands.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      locks: [...this.locks.values()].map((value) => structuredClone(value)),
+      decisions: [...this.decisions.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      transactionByIdempotencyKey: [
+        ...this.transactionByIdempotencyKey.entries(),
+      ],
+      activeLockByResource: [...this.activeLockByResource.entries()],
+      nextFenceByResource: [...this.nextFenceByResource.entries()],
+    };
+  }
+
+  restore(snapshot: ControlTransactionSnapshot): void {
+    const transactions = new Map<string, ControlTransaction>();
+    const commands = new Map<string, ControlTransactionCommand[]>();
+    const locks = new Map<string, ControlTransactionLock>();
+    const decisions = new Map<string, ControlTransactionDecision[]>();
+    const transactionByIdempotencyKey = new Map<string, string>();
+    const activeLockByResource = new Map<string, string>();
+    const nextFenceByResource = new Map<string, number>();
+    for (const value of snapshot.transactions) {
+      assertControlTransaction(value);
+      if (transactions.has(value.transactionId))
+        throw new E03RuntimeError(
+          "control_transaction_restore_duplicate",
+          `duplicate control transaction ${value.transactionId}`,
+        );
+      transactions.set(value.transactionId, structuredClone(value));
+      commands.set(value.transactionId, []);
+      decisions.set(value.transactionId, []);
+    }
+    for (const value of [...snapshot.commands].sort(
+      (a, b) => a.ordinal - b.ordinal,
+    )) {
+      assertControlTransactionCommand(value);
+      if (!transactions.has(value.transactionId))
+        throw new E03RuntimeError(
+          "control_transaction_command_restore_parent",
+          `control transaction command ${value.commandId} has no transaction`,
+        );
+      const entries = commands.get(value.transactionId)!;
+      if (
+        entries.some((entry) => entry.commandId === value.commandId) ||
+        entries.some((entry) => entry.ordinal === value.ordinal) ||
+        value.ordinal !== entries.length
+      )
+        throw new E03RuntimeError(
+          "control_transaction_command_restore_order",
+          `control transaction command ${value.commandId} order is invalid`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.locks) {
+      assertControlTransactionLock(value);
+      if (!transactions.has(value.transactionId) || locks.has(value.lockId))
+        throw new E03RuntimeError(
+          "control_transaction_lock_restore",
+          `control transaction lock ${value.lockId} is invalid`,
+        );
+      locks.set(value.lockId, structuredClone(value));
+    }
+    for (const value of snapshot.decisions) {
+      assertControlTransactionDecision(value);
+      if (!transactions.has(value.transactionId))
+        throw new E03RuntimeError(
+          "control_transaction_decision_restore_parent",
+          `control transaction decision ${value.decisionId} has no transaction`,
+        );
+      const entries = decisions.get(value.transactionId)!;
+      const previousDigest = entries.at(-1)?.digest ?? "";
+      if (
+        value.previousDigest !== previousDigest ||
+        entries.some((entry) => entry.decisionId === value.decisionId)
+      )
+        throw new E03RuntimeError(
+          "control_transaction_decision_restore_chain",
+          `control transaction decision ${value.decisionId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const [key, transactionId] of snapshot.transactionByIdempotencyKey) {
+      const transaction = transactions.get(transactionId);
+      if (
+        !transaction ||
+        transaction.idempotencyKey !== key ||
+        transactionByIdempotencyKey.has(key)
+      )
+        throw new E03RuntimeError(
+          "control_transaction_restore_idempotency",
+          `control transaction idempotency index ${key} is invalid`,
+        );
+      transactionByIdempotencyKey.set(key, transactionId);
+    }
+    for (const [resourceKey, lockId] of snapshot.activeLockByResource) {
+      const lock = locks.get(lockId);
+      if (
+        !lock ||
+        lock.resourceKey !== resourceKey ||
+        lock.state !== "held" ||
+        activeLockByResource.has(resourceKey)
+      )
+        throw new E03RuntimeError(
+          "control_transaction_restore_active_lock",
+          `control transaction active lock ${resourceKey} is invalid`,
+        );
+      activeLockByResource.set(resourceKey, lockId);
+    }
+    for (const [resourceKey, fence] of snapshot.nextFenceByResource) {
+      const maximum = Math.max(
+        0,
+        ...[...locks.values()]
+          .filter((value) => value.resourceKey === resourceKey)
+          .map((value) => value.fencingToken),
+      );
+      if (!Number.isSafeInteger(fence) || fence < maximum)
+        throw new E03RuntimeError(
+          "control_transaction_restore_fence",
+          `control transaction fence ${resourceKey} is invalid`,
+        );
+      nextFenceByResource.set(resourceKey, fence);
+    }
+    for (const transaction of transactions.values()) {
+      const entries = commands.get(transaction.transactionId)!;
+      if (entries.length !== transaction.commandCount)
+        throw new E03RuntimeError(
+          "control_transaction_restore_command_count",
+          `control transaction ${transaction.transactionId} command count is invalid`,
+        );
+      const prepared = entries.filter((value) =>
+        ["prepared", "applied"].includes(value.state),
+      ).length;
+      const applied = entries.filter(
+        (value) => value.state === "applied",
+      ).length;
+      const compensated = entries.filter(
+        (value) => value.state === "compensated",
+      ).length;
+      if (
+        prepared < transaction.preparedCount ||
+        applied !== transaction.committedCount ||
+        compensated !== transaction.abortedCount
+      )
+        throw new E03RuntimeError(
+          "control_transaction_restore_counts",
+          `control transaction ${transaction.transactionId} counters are invalid`,
+        );
+    }
+    this.transactions = transactions;
+    this.commands = commands;
+    this.locks = locks;
+    this.decisions = decisions;
+    this.transactionByIdempotencyKey = transactionByIdempotencyKey;
+    this.activeLockByResource = activeLockByResource;
+    this.nextFenceByResource = nextFenceByResource;
+  }
+
+  private appendDecision(
+    transaction: ControlTransaction,
+    decision: ControlTransactionDecision["decision"],
+    commandDigest: string,
+    actorId: string,
+    reason: string,
+  ): ControlTransactionDecision {
+    const entries = this.decisionEntries(transaction.transactionId);
+    const payload = {
+      decisionId: createId("control-transaction-decision"),
+      transactionId: transaction.transactionId,
+      decision,
+      commandDigest,
+      previousDigest: entries.at(-1)?.digest ?? "",
+      decidedAt: this.clock.now(),
+      actorId,
+      reason,
+    };
+    const value = { ...payload, digest: digest(payload) };
+    assertControlTransactionDecision(value);
+    entries.push(value);
+    this.decisions.set(transaction.transactionId, entries);
+    return structuredClone(value);
+  }
+
+  private releaseLocks(transactionId: string): void {
+    for (const lock of [...this.locks.values()]) {
+      if (lock.transactionId !== transactionId || lock.state !== "held")
+        continue;
+      this.transitionLock(lock, {
+        state: "released",
+        releasedAt: this.clock.now(),
+      });
+      this.activeLockByResource.delete(lock.resourceKey);
+    }
+  }
+
+  private entries(transactionId: string): ControlTransactionCommand[] {
+    return this.commands.get(transactionId) ?? [];
+  }
+
+  private decisionEntries(transactionId: string): ControlTransactionDecision[] {
+    return this.decisions.get(transactionId) ?? [];
+  }
+
+  private requireTransaction(id: string): ControlTransaction {
+    const value = this.transactions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transaction_missing",
+        `control transaction ${id} does not exist`,
+      );
+    assertControlTransaction(value);
+    return value;
+  }
+
+  private requireCommand(id: string): ControlTransactionCommand {
+    const value = [...this.commands.values()]
+      .flat()
+      .find((entry) => entry.commandId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transaction_command_missing",
+        `control transaction command ${id} does not exist`,
+      );
+    assertControlTransactionCommand(value);
+    return value;
+  }
+
+  private requireLock(id: string): ControlTransactionLock {
+    const value = this.locks.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_transaction_lock_missing",
+        `control transaction lock ${id} does not exist`,
+      );
+    assertControlTransactionLock(value);
+    return value;
+  }
+
+  private assertTransactionRevision(
+    value: ControlTransaction,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_transaction_stale_revision",
+        `control transaction ${value.transactionId} revision is stale`,
+      );
+  }
+
+  private assertCommandRevision(
+    value: ControlTransactionCommand,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_transaction_command_stale_revision",
+        `control transaction command ${value.commandId} revision is stale`,
+      );
+  }
+
+  private transitionTransaction(
+    value: ControlTransaction,
+    patch: Partial<
+      Omit<ControlTransaction, "transactionId" | "revision" | "digest">
+    >,
+  ): ControlTransaction {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      transactionId: value.transactionId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlTransaction(next);
+    this.transactions.set(next.transactionId, next);
+    return structuredClone(next);
+  }
+
+  private transitionCommand(
+    value: ControlTransactionCommand,
+    patch: Partial<
+      Omit<ControlTransactionCommand, "commandId" | "revision" | "digest">
+    >,
+  ): ControlTransactionCommand {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      commandId: value.commandId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlTransactionCommand(next);
+    const entries = this.entries(value.transactionId);
+    const index = entries.findIndex(
+      (entry) => entry.commandId === value.commandId,
+    );
+    if (index < 0)
+      throw new E03RuntimeError(
+        "control_transaction_command_index_missing",
+        `control transaction command ${value.commandId} index is missing`,
+      );
+    entries[index] = next;
+    this.commands.set(value.transactionId, entries);
+    return structuredClone(next);
+  }
+
+  private transitionLock(
+    value: ControlTransactionLock,
+    patch: Partial<
+      Omit<ControlTransactionLock, "lockId" | "revision" | "digest">
+    >,
+  ): ControlTransactionLock {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      lockId: value.lockId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlTransactionLock(next);
+    this.locks.set(next.lockId, next);
+    return structuredClone(next);
+  }
+}

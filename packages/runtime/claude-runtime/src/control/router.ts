@@ -2122,3 +2122,891 @@ export class ControlRouteAffinityRuntime {
     return structuredClone(next);
   }
 }
+
+export type ControlRouteRolloutState =
+  | "draft"
+  | "probing"
+  | "canary"
+  | "promoted"
+  | "draining"
+  | "rolled_back";
+
+export interface ControlRouteEndpoint {
+  endpointId: string;
+  routeId: string;
+  generation: number;
+  address: string;
+  capabilities: string[];
+  weight: number;
+  maxInflight: number;
+  inflight: number;
+  healthy: boolean;
+  draining: boolean;
+  consecutiveFailures: number;
+  lastProbeAt: string;
+  lastFailure: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlRouteProbe {
+  probeId: string;
+  endpointId: string;
+  generation: number;
+  startedAt: string;
+  completedAt: string;
+  latencyMs: number;
+  accepted: boolean;
+  capabilityDigest: string;
+  errorCode: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface ControlRouteRollout {
+  rolloutId: string;
+  routeId: string;
+  fromGeneration: number;
+  toGeneration: number;
+  state: ControlRouteRolloutState;
+  canaryPercent: number;
+  minimumHealthyEndpoints: number;
+  maximumFailureRatio: number;
+  requiredProbeCount: number;
+  observedProbeCount: number;
+  observedFailureCount: number;
+  createdAt: string;
+  updatedAt: string;
+  promotedAt: string;
+  rollbackReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlRouteAssignment {
+  assignmentId: string;
+  rolloutId: string;
+  requestId: string;
+  endpointId: string;
+  generation: number;
+  capability: string;
+  acquiredAt: string;
+  releasedAt: string;
+  outcome: "pending" | "succeeded" | "failed" | "cancelled";
+  latencyMs: number;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlRouteRolloutSnapshot {
+  endpoints: ControlRouteEndpoint[];
+  probes: ControlRouteProbe[];
+  rollouts: ControlRouteRollout[];
+  assignments: ControlRouteAssignment[];
+  activeRolloutByRoute: [string, string][];
+  requestAssignments: [string, string][];
+}
+
+function assertRouteEndpoint(value: ControlRouteEndpoint): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.endpointId ||
+    !value.routeId ||
+    !value.address ||
+    !Number.isSafeInteger(value.generation) ||
+    value.generation < 1 ||
+    !Number.isFinite(value.weight) ||
+    value.weight < 0 ||
+    !Number.isSafeInteger(value.maxInflight) ||
+    value.maxInflight < 1 ||
+    !Number.isSafeInteger(value.inflight) ||
+    value.inflight < 0 ||
+    value.inflight > value.maxInflight ||
+    !Number.isSafeInteger(value.consecutiveFailures) ||
+    value.consecutiveFailures < 0 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  ) {
+    throw new E03RuntimeError(
+      "control_route_endpoint_corrupt",
+      `control route endpoint ${value.endpointId || "<empty>"} is corrupt`,
+    );
+  }
+  if (new Set(value.capabilities).size !== value.capabilities.length)
+    throw new E03RuntimeError(
+      "control_route_endpoint_capability_duplicate",
+      `control route endpoint ${value.endpointId} has duplicate capabilities`,
+    );
+}
+
+function assertRouteProbe(value: ControlRouteProbe): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.probeId ||
+    !value.endpointId ||
+    value.generation < 1 ||
+    value.latencyMs < 0 ||
+    !Number.isFinite(value.latencyMs) ||
+    !value.startedAt ||
+    !value.completedAt ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_route_probe_corrupt",
+      `control route probe ${value.probeId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertRouteRollout(value: ControlRouteRollout): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.rolloutId ||
+    !value.routeId ||
+    value.fromGeneration < 0 ||
+    value.toGeneration < 1 ||
+    value.toGeneration <= value.fromGeneration ||
+    value.canaryPercent < 0 ||
+    value.canaryPercent > 100 ||
+    value.minimumHealthyEndpoints < 1 ||
+    value.maximumFailureRatio < 0 ||
+    value.maximumFailureRatio > 1 ||
+    value.requiredProbeCount < 1 ||
+    value.observedProbeCount < value.observedFailureCount ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_route_rollout_corrupt",
+      `control route rollout ${value.rolloutId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertRouteAssignment(value: ControlRouteAssignment): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.assignmentId ||
+    !value.rolloutId ||
+    !value.requestId ||
+    !value.endpointId ||
+    value.generation < 1 ||
+    value.latencyMs < 0 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_route_assignment_corrupt",
+      `control route assignment ${value.assignmentId || "<empty>"} is corrupt`,
+    );
+}
+
+export class ControlRouteRolloutRuntime {
+  private endpoints = new Map<string, ControlRouteEndpoint>();
+  private probes = new Map<string, ControlRouteProbe[]>();
+  private rollouts = new Map<string, ControlRouteRollout>();
+  private assignments = new Map<string, ControlRouteAssignment>();
+  private activeRolloutByRoute = new Map<string, string>();
+  private requestAssignments = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerEndpoint(input: {
+    endpointId?: string;
+    routeId: string;
+    generation: number;
+    address: string;
+    capabilities: readonly string[];
+    weight: number;
+    maxInflight: number;
+  }): ControlRouteEndpoint {
+    if (!input.routeId || !input.address)
+      throw new E03RuntimeError(
+        "control_route_endpoint_identity",
+        "control route endpoint requires route and address",
+      );
+    if (input.generation < 1 || !Number.isSafeInteger(input.generation))
+      throw new E03RuntimeError(
+        "control_route_endpoint_generation",
+        "control route endpoint generation must be positive",
+      );
+    if (input.weight < 0 || !Number.isFinite(input.weight))
+      throw new E03RuntimeError(
+        "control_route_endpoint_weight",
+        "control route endpoint weight must be finite and non-negative",
+      );
+    if (input.maxInflight < 1 || !Number.isSafeInteger(input.maxInflight))
+      throw new E03RuntimeError(
+        "control_route_endpoint_capacity",
+        "control route endpoint capacity must be positive",
+      );
+    const endpointId = input.endpointId ?? createId("control-route-endpoint");
+    if (this.endpoints.has(endpointId))
+      throw new E03RuntimeError(
+        "control_route_endpoint_duplicate",
+        `control route endpoint ${endpointId} already exists`,
+      );
+    if (
+      [...this.endpoints.values()].some(
+        (value) =>
+          value.routeId === input.routeId &&
+          value.generation === input.generation &&
+          value.address === input.address,
+      )
+    )
+      throw new E03RuntimeError(
+        "control_route_endpoint_address_duplicate",
+        `control route endpoint address ${input.address} already exists`,
+      );
+    const capabilities = [...new Set(input.capabilities)].sort();
+    if (!capabilities.length)
+      throw new E03RuntimeError(
+        "control_route_endpoint_capability_empty",
+        "control route endpoint requires a capability",
+      );
+    const payload = {
+      endpointId,
+      routeId: input.routeId,
+      generation: input.generation,
+      address: input.address,
+      capabilities,
+      weight: input.weight,
+      maxInflight: input.maxInflight,
+      inflight: 0,
+      healthy: false,
+      draining: false,
+      consecutiveFailures: 0,
+      lastProbeAt: "",
+      lastFailure: "",
+      revision: 1,
+    };
+    const endpoint = { ...payload, digest: digest(payload) };
+    assertRouteEndpoint(endpoint);
+    this.endpoints.set(endpointId, endpoint);
+    return structuredClone(endpoint);
+  }
+
+  beginRollout(input: {
+    rolloutId?: string;
+    routeId: string;
+    fromGeneration: number;
+    toGeneration: number;
+    canaryPercent: number;
+    minimumHealthyEndpoints: number;
+    maximumFailureRatio: number;
+    requiredProbeCount: number;
+  }): ControlRouteRollout {
+    if (this.activeRolloutByRoute.has(input.routeId))
+      throw new E03RuntimeError(
+        "control_route_rollout_active",
+        `route ${input.routeId} already has an active rollout`,
+      );
+    if (input.toGeneration <= input.fromGeneration)
+      throw new E03RuntimeError(
+        "control_route_rollout_generation",
+        "control route rollout must advance generation",
+      );
+    if (input.canaryPercent < 1 || input.canaryPercent > 100)
+      throw new E03RuntimeError(
+        "control_route_rollout_canary",
+        "control route rollout canary percentage is invalid",
+      );
+    const candidates = [...this.endpoints.values()].filter(
+      (value) =>
+        value.routeId === input.routeId &&
+        value.generation === input.toGeneration &&
+        !value.draining,
+    );
+    if (candidates.length < input.minimumHealthyEndpoints)
+      throw new E03RuntimeError(
+        "control_route_rollout_endpoint_shortage",
+        `route ${input.routeId} has too few candidate endpoints`,
+      );
+    const rolloutId = input.rolloutId ?? createId("control-route-rollout");
+    if (this.rollouts.has(rolloutId))
+      throw new E03RuntimeError(
+        "control_route_rollout_duplicate",
+        `control route rollout ${rolloutId} already exists`,
+      );
+    const now = this.clock.now();
+    const payload = {
+      rolloutId,
+      routeId: input.routeId,
+      fromGeneration: input.fromGeneration,
+      toGeneration: input.toGeneration,
+      state: "probing" as const,
+      canaryPercent: input.canaryPercent,
+      minimumHealthyEndpoints: input.minimumHealthyEndpoints,
+      maximumFailureRatio: input.maximumFailureRatio,
+      requiredProbeCount: input.requiredProbeCount,
+      observedProbeCount: 0,
+      observedFailureCount: 0,
+      createdAt: now,
+      updatedAt: now,
+      promotedAt: "",
+      rollbackReason: "",
+      revision: 1,
+    };
+    const rollout = { ...payload, digest: digest(payload) };
+    assertRouteRollout(rollout);
+    this.rollouts.set(rolloutId, rollout);
+    this.activeRolloutByRoute.set(input.routeId, rolloutId);
+    return structuredClone(rollout);
+  }
+
+  recordProbe(input: {
+    probeId?: string;
+    endpointId: string;
+    startedAt: string;
+    latencyMs: number;
+    accepted: boolean;
+    capabilityDigest: string;
+    errorCode?: string;
+  }): ControlRouteProbe {
+    const endpoint = this.requireEndpoint(input.endpointId);
+    if (input.latencyMs < 0 || !Number.isFinite(input.latencyMs))
+      throw new E03RuntimeError(
+        "control_route_probe_latency",
+        "control route probe latency is invalid",
+      );
+    const probeId = input.probeId ?? createId("control-route-probe");
+    if (
+      [...this.probes.values()].some((entries) =>
+        entries.some((entry) => entry.probeId === probeId),
+      )
+    )
+      throw new E03RuntimeError(
+        "control_route_probe_duplicate",
+        `control route probe ${probeId} already exists`,
+      );
+    const entries = this.probes.get(endpoint.endpointId) ?? [];
+    const previousDigest = entries.at(-1)?.digest ?? "";
+    const payload = {
+      probeId,
+      endpointId: endpoint.endpointId,
+      generation: endpoint.generation,
+      startedAt: input.startedAt,
+      completedAt: this.clock.now(),
+      latencyMs: input.latencyMs,
+      accepted: input.accepted,
+      capabilityDigest: input.capabilityDigest,
+      errorCode: input.errorCode ?? "",
+      previousDigest,
+    };
+    const probe = { ...payload, digest: digest(payload) };
+    assertRouteProbe(probe);
+    entries.push(probe);
+    this.probes.set(endpoint.endpointId, entries);
+    this.transitionEndpoint(endpoint, {
+      healthy: input.accepted,
+      consecutiveFailures: input.accepted
+        ? 0
+        : endpoint.consecutiveFailures + 1,
+      lastProbeAt: probe.completedAt,
+      lastFailure: input.accepted ? "" : probe.errorCode || "probe_failed",
+    });
+    const rolloutId = this.activeRolloutByRoute.get(endpoint.routeId);
+    if (rolloutId) {
+      const rollout = this.requireRollout(rolloutId);
+      if (
+        rollout.state === "probing" &&
+        rollout.toGeneration === endpoint.generation
+      )
+        this.transitionRollout(rollout, {
+          observedProbeCount: rollout.observedProbeCount + 1,
+          observedFailureCount:
+            rollout.observedFailureCount + (input.accepted ? 0 : 1),
+        });
+    }
+    return structuredClone(probe);
+  }
+
+  enterCanary(
+    rolloutId: string,
+    expectedRevision: number,
+  ): ControlRouteRollout {
+    const rollout = this.requireRollout(rolloutId);
+    this.assertRolloutRevision(rollout, expectedRevision);
+    if (rollout.state !== "probing")
+      throw new E03RuntimeError(
+        "control_route_rollout_canary_state",
+        `control route rollout ${rolloutId} is ${rollout.state}`,
+      );
+    if (rollout.observedProbeCount < rollout.requiredProbeCount)
+      throw new E03RuntimeError(
+        "control_route_rollout_probe_shortage",
+        `control route rollout ${rolloutId} lacks probes`,
+      );
+    const failureRatio =
+      rollout.observedFailureCount / rollout.observedProbeCount;
+    if (failureRatio > rollout.maximumFailureRatio)
+      throw new E03RuntimeError(
+        "control_route_rollout_probe_failure_ratio",
+        `control route rollout ${rolloutId} exceeds failure ratio`,
+      );
+    const healthy = [...this.endpoints.values()].filter(
+      (value) =>
+        value.routeId === rollout.routeId &&
+        value.generation === rollout.toGeneration &&
+        value.healthy &&
+        !value.draining,
+    );
+    if (healthy.length < rollout.minimumHealthyEndpoints)
+      throw new E03RuntimeError(
+        "control_route_rollout_healthy_shortage",
+        `control route rollout ${rolloutId} lacks healthy endpoints`,
+      );
+    return this.transitionRollout(rollout, { state: "canary" });
+  }
+
+  promote(rolloutId: string, expectedRevision: number): ControlRouteRollout {
+    const rollout = this.requireRollout(rolloutId);
+    this.assertRolloutRevision(rollout, expectedRevision);
+    if (rollout.state !== "canary")
+      throw new E03RuntimeError(
+        "control_route_rollout_promote_state",
+        `control route rollout ${rolloutId} is ${rollout.state}`,
+      );
+    const assignments = [...this.assignments.values()].filter(
+      (value) =>
+        value.rolloutId === rolloutId &&
+        value.generation === rollout.toGeneration,
+    );
+    const finished = assignments.filter((value) => value.outcome !== "pending");
+    const failures = finished.filter((value) => value.outcome === "failed");
+    if (!finished.length)
+      throw new E03RuntimeError(
+        "control_route_rollout_canary_empty",
+        `control route rollout ${rolloutId} has no canary outcomes`,
+      );
+    if (failures.length / finished.length > rollout.maximumFailureRatio)
+      throw new E03RuntimeError(
+        "control_route_rollout_canary_failure_ratio",
+        `control route rollout ${rolloutId} canary failed`,
+      );
+    const next = this.transitionRollout(rollout, {
+      state: "promoted",
+      canaryPercent: 100,
+      promotedAt: this.clock.now(),
+    });
+    for (const endpoint of [...this.endpoints.values()])
+      if (
+        endpoint.routeId === rollout.routeId &&
+        endpoint.generation === rollout.fromGeneration
+      )
+        this.transitionEndpoint(endpoint, { draining: true });
+    return next;
+  }
+
+  rollback(
+    rolloutId: string,
+    expectedRevision: number,
+    reason: string,
+  ): ControlRouteRollout {
+    const rollout = this.requireRollout(rolloutId);
+    this.assertRolloutRevision(rollout, expectedRevision);
+    if (!["probing", "canary", "promoted"].includes(rollout.state))
+      throw new E03RuntimeError(
+        "control_route_rollout_rollback_state",
+        `control route rollout ${rolloutId} cannot roll back`,
+      );
+    if (!reason)
+      throw new E03RuntimeError(
+        "control_route_rollout_rollback_reason",
+        "control route rollout rollback requires a reason",
+      );
+    for (const endpoint of [...this.endpoints.values()]) {
+      if (
+        endpoint.routeId === rollout.routeId &&
+        endpoint.generation === rollout.fromGeneration
+      )
+        this.transitionEndpoint(endpoint, { draining: false });
+      if (
+        endpoint.routeId === rollout.routeId &&
+        endpoint.generation === rollout.toGeneration
+      )
+        this.transitionEndpoint(endpoint, { draining: true });
+    }
+    const next = this.transitionRollout(rollout, {
+      state: "rolled_back",
+      rollbackReason: reason,
+    });
+    this.activeRolloutByRoute.delete(rollout.routeId);
+    return next;
+  }
+
+  assign(input: {
+    assignmentId?: string;
+    routeId: string;
+    requestId: string;
+    capability: string;
+  }): ControlRouteAssignment {
+    const duplicateId = this.requestAssignments.get(input.requestId);
+    if (duplicateId)
+      return structuredClone(this.requireAssignment(duplicateId));
+    const rolloutId = this.activeRolloutByRoute.get(input.routeId);
+    if (!rolloutId)
+      throw new E03RuntimeError(
+        "control_route_rollout_missing_active",
+        `route ${input.routeId} has no active rollout`,
+      );
+    const rollout = this.requireRollout(rolloutId);
+    if (!["canary", "promoted"].includes(rollout.state))
+      throw new E03RuntimeError(
+        "control_route_rollout_assignment_state",
+        `control route rollout ${rolloutId} cannot assign`,
+      );
+    const useCanary =
+      rollout.state === "promoted" ||
+      this.bucket(input.requestId) < rollout.canaryPercent;
+    const generation = useCanary
+      ? rollout.toGeneration
+      : rollout.fromGeneration;
+    const candidates = [...this.endpoints.values()]
+      .filter(
+        (value) =>
+          value.routeId === input.routeId &&
+          value.generation === generation &&
+          value.healthy &&
+          !value.draining &&
+          value.inflight < value.maxInflight &&
+          value.capabilities.includes(input.capability),
+      )
+      .sort((left, right) => {
+        const leftLoad = left.inflight / left.maxInflight;
+        const rightLoad = right.inflight / right.maxInflight;
+        return (
+          leftLoad - rightLoad ||
+          right.weight - left.weight ||
+          left.endpointId.localeCompare(right.endpointId)
+        );
+      });
+    const endpoint = candidates[0];
+    if (!endpoint)
+      throw new E03RuntimeError(
+        "control_route_rollout_capacity_unavailable",
+        `route ${input.routeId} has no endpoint capacity`,
+      );
+    const assignmentId =
+      input.assignmentId ?? createId("control-route-assignment");
+    if (this.assignments.has(assignmentId))
+      throw new E03RuntimeError(
+        "control_route_assignment_duplicate",
+        `control route assignment ${assignmentId} already exists`,
+      );
+    const payload = {
+      assignmentId,
+      rolloutId,
+      requestId: input.requestId,
+      endpointId: endpoint.endpointId,
+      generation,
+      capability: input.capability,
+      acquiredAt: this.clock.now(),
+      releasedAt: "",
+      outcome: "pending" as const,
+      latencyMs: 0,
+      errorCode: "",
+      revision: 1,
+    };
+    const assignment = { ...payload, digest: digest(payload) };
+    assertRouteAssignment(assignment);
+    this.assignments.set(assignmentId, assignment);
+    this.requestAssignments.set(input.requestId, assignmentId);
+    this.transitionEndpoint(endpoint, { inflight: endpoint.inflight + 1 });
+    return structuredClone(assignment);
+  }
+
+  settle(
+    assignmentId: string,
+    expectedRevision: number,
+    input: {
+      outcome: Exclude<ControlRouteAssignment["outcome"], "pending">;
+      latencyMs: number;
+      errorCode?: string;
+    },
+  ): ControlRouteAssignment {
+    const assignment = this.requireAssignment(assignmentId);
+    this.assertAssignmentRevision(assignment, expectedRevision);
+    if (assignment.outcome !== "pending")
+      throw new E03RuntimeError(
+        "control_route_assignment_terminal",
+        `control route assignment ${assignmentId} is terminal`,
+      );
+    if (input.latencyMs < 0 || !Number.isFinite(input.latencyMs))
+      throw new E03RuntimeError(
+        "control_route_assignment_latency",
+        "control route assignment latency is invalid",
+      );
+    const endpoint = this.requireEndpoint(assignment.endpointId);
+    if (endpoint.inflight < 1)
+      throw new E03RuntimeError(
+        "control_route_assignment_inflight_underflow",
+        `control route endpoint ${endpoint.endpointId} has no inflight request`,
+      );
+    const next = this.transitionAssignment(assignment, {
+      outcome: input.outcome,
+      latencyMs: input.latencyMs,
+      errorCode: input.errorCode ?? "",
+      releasedAt: this.clock.now(),
+    });
+    this.transitionEndpoint(endpoint, {
+      inflight: endpoint.inflight - 1,
+      healthy: input.outcome === "failed" ? endpoint.healthy : true,
+      consecutiveFailures:
+        input.outcome === "failed" ? endpoint.consecutiveFailures + 1 : 0,
+      lastFailure:
+        input.outcome === "failed" ? (input.errorCode ?? "request_failed") : "",
+    });
+    return next;
+  }
+
+  snapshot(): ControlRouteRolloutSnapshot {
+    return {
+      endpoints: [...this.endpoints.values()].map((value) =>
+        structuredClone(value),
+      ),
+      probes: [...this.probes.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      rollouts: [...this.rollouts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      assignments: [...this.assignments.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeRolloutByRoute: [...this.activeRolloutByRoute.entries()],
+      requestAssignments: [...this.requestAssignments.entries()],
+    };
+  }
+
+  restore(snapshot: ControlRouteRolloutSnapshot): void {
+    const endpoints = new Map<string, ControlRouteEndpoint>();
+    const probes = new Map<string, ControlRouteProbe[]>();
+    const rollouts = new Map<string, ControlRouteRollout>();
+    const assignments = new Map<string, ControlRouteAssignment>();
+    const activeRolloutByRoute = new Map<string, string>();
+    const requestAssignments = new Map<string, string>();
+    for (const value of snapshot.endpoints) {
+      assertRouteEndpoint(value);
+      if (endpoints.has(value.endpointId))
+        throw new E03RuntimeError(
+          "control_route_endpoint_restore_duplicate",
+          `duplicate control route endpoint ${value.endpointId}`,
+        );
+      endpoints.set(value.endpointId, structuredClone(value));
+    }
+    for (const value of snapshot.probes) {
+      assertRouteProbe(value);
+      const endpoint = endpoints.get(value.endpointId);
+      if (!endpoint || endpoint.generation !== value.generation)
+        throw new E03RuntimeError(
+          "control_route_probe_restore_endpoint",
+          `control route probe ${value.probeId} has no endpoint`,
+        );
+      const entries = probes.get(value.endpointId) ?? [];
+      const expectedPrevious = entries.at(-1)?.digest ?? "";
+      if (value.previousDigest !== expectedPrevious)
+        throw new E03RuntimeError(
+          "control_route_probe_restore_chain",
+          `control route probe ${value.probeId} breaks chain`,
+        );
+      if (entries.some((entry) => entry.probeId === value.probeId))
+        throw new E03RuntimeError(
+          "control_route_probe_restore_duplicate",
+          `duplicate control route probe ${value.probeId}`,
+        );
+      entries.push(structuredClone(value));
+      probes.set(value.endpointId, entries);
+    }
+    for (const value of snapshot.rollouts) {
+      assertRouteRollout(value);
+      if (rollouts.has(value.rolloutId))
+        throw new E03RuntimeError(
+          "control_route_rollout_restore_duplicate",
+          `duplicate control route rollout ${value.rolloutId}`,
+        );
+      rollouts.set(value.rolloutId, structuredClone(value));
+    }
+    for (const value of snapshot.assignments) {
+      assertRouteAssignment(value);
+      const rollout = rollouts.get(value.rolloutId);
+      const endpoint = endpoints.get(value.endpointId);
+      if (!rollout || !endpoint || endpoint.generation !== value.generation)
+        throw new E03RuntimeError(
+          "control_route_assignment_restore_custody",
+          `control route assignment ${value.assignmentId} has invalid custody`,
+        );
+      if (assignments.has(value.assignmentId))
+        throw new E03RuntimeError(
+          "control_route_assignment_restore_duplicate",
+          `duplicate control route assignment ${value.assignmentId}`,
+        );
+      assignments.set(value.assignmentId, structuredClone(value));
+    }
+    for (const [routeId, rolloutId] of snapshot.activeRolloutByRoute) {
+      const rollout = rollouts.get(rolloutId);
+      if (
+        !rollout ||
+        rollout.routeId !== routeId ||
+        ["rolled_back", "draining"].includes(rollout.state) ||
+        activeRolloutByRoute.has(routeId)
+      )
+        throw new E03RuntimeError(
+          "control_route_rollout_restore_active",
+          `active control route rollout ${rolloutId} is invalid`,
+        );
+      activeRolloutByRoute.set(routeId, rolloutId);
+    }
+    for (const [requestId, assignmentId] of snapshot.requestAssignments) {
+      const assignment = assignments.get(assignmentId);
+      if (
+        !assignment ||
+        assignment.requestId !== requestId ||
+        requestAssignments.has(requestId)
+      )
+        throw new E03RuntimeError(
+          "control_route_assignment_restore_index",
+          `control route assignment request index ${requestId} is invalid`,
+        );
+      requestAssignments.set(requestId, assignmentId);
+    }
+    for (const endpoint of endpoints.values()) {
+      const pending = [...assignments.values()].filter(
+        (value) =>
+          value.endpointId === endpoint.endpointId &&
+          value.outcome === "pending",
+      ).length;
+      if (pending !== endpoint.inflight)
+        throw new E03RuntimeError(
+          "control_route_endpoint_restore_inflight",
+          `control route endpoint ${endpoint.endpointId} inflight is inconsistent`,
+        );
+    }
+    this.endpoints = endpoints;
+    this.probes = probes;
+    this.rollouts = rollouts;
+    this.assignments = assignments;
+    this.activeRolloutByRoute = activeRolloutByRoute;
+    this.requestAssignments = requestAssignments;
+  }
+
+  private bucket(requestId: string): number {
+    const hex = digest({ requestId, domain: "control-route-rollout" }).slice(
+      0,
+      8,
+    );
+    return Number.parseInt(hex, 16) % 100;
+  }
+
+  private requireEndpoint(id: string): ControlRouteEndpoint {
+    const value = this.endpoints.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_route_endpoint_missing",
+        `control route endpoint ${id} does not exist`,
+      );
+    assertRouteEndpoint(value);
+    return value;
+  }
+
+  private requireRollout(id: string): ControlRouteRollout {
+    const value = this.rollouts.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_route_rollout_missing",
+        `control route rollout ${id} does not exist`,
+      );
+    assertRouteRollout(value);
+    return value;
+  }
+
+  private requireAssignment(id: string): ControlRouteAssignment {
+    const value = this.assignments.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_route_assignment_missing",
+        `control route assignment ${id} does not exist`,
+      );
+    assertRouteAssignment(value);
+    return value;
+  }
+
+  private assertRolloutRevision(
+    value: ControlRouteRollout,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_route_rollout_stale_revision",
+        `control route rollout ${value.rolloutId} revision is stale`,
+      );
+  }
+
+  private assertAssignmentRevision(
+    value: ControlRouteAssignment,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_route_assignment_stale_revision",
+        `control route assignment ${value.assignmentId} revision is stale`,
+      );
+  }
+
+  private transitionEndpoint(
+    value: ControlRouteEndpoint,
+    patch: Partial<
+      Omit<ControlRouteEndpoint, "endpointId" | "revision" | "digest">
+    >,
+  ): ControlRouteEndpoint {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      endpointId: value.endpointId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertRouteEndpoint(next);
+    this.endpoints.set(next.endpointId, next);
+    return structuredClone(next);
+  }
+
+  private transitionRollout(
+    value: ControlRouteRollout,
+    patch: Partial<
+      Omit<ControlRouteRollout, "rolloutId" | "revision" | "digest">
+    >,
+  ): ControlRouteRollout {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      rolloutId: value.rolloutId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertRouteRollout(next);
+    this.rollouts.set(next.rolloutId, next);
+    return structuredClone(next);
+  }
+
+  private transitionAssignment(
+    value: ControlRouteAssignment,
+    patch: Partial<
+      Omit<ControlRouteAssignment, "assignmentId" | "revision" | "digest">
+    >,
+  ): ControlRouteAssignment {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      assignmentId: value.assignmentId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertRouteAssignment(next);
+    this.assignments.set(next.assignmentId, next);
+    return structuredClone(next);
+  }
+}

@@ -2857,6 +2857,580 @@ function assertMergeAttestation(value: MergeAttestation): void {
       `completed merge attestation ${value.attestationId} lacks time`,
     );
 }
+export type MergePromotionState =
+  | "requested"
+  | "fenced"
+  | "applying"
+  | "verifying"
+  | "promoted"
+  | "rejected"
+  | "rolled_back";
+
+export interface MergePromotion {
+  promotionId: string;
+  mergePlanId: string;
+  taskId: string;
+  sourceRevision: string;
+  expectedTargetRevision: string;
+  resultingRevision: string;
+  idempotencyKey: string;
+  ownerId: string;
+  state: MergePromotionState;
+  fencingToken: number;
+  requiredChecks: string[];
+  passedChecks: string[];
+  failedChecks: string[];
+  requestedAt: string;
+  updatedAt: string;
+  promotedAt: string;
+  terminalReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MergePromotionEffect {
+  effectId: string;
+  promotionId: string;
+  phase: "prepare" | "apply" | "verify" | "rollback";
+  requestDigest: string;
+  receiptDigest: string;
+  workerId: string;
+  fencingToken: number;
+  accepted: boolean;
+  errorCode: string;
+  startedAt: string;
+  completedAt: string;
+  previousDigest: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MergePromotionCheck {
+  checkId: string;
+  promotionId: string;
+  check: string;
+  attempt: number;
+  accepted: boolean;
+  evidenceDigest: string;
+  outputArtifactIds: string[];
+  errorCode: string;
+  completedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface MergePromotionSnapshot {
+  promotions: MergePromotion[];
+  effects: MergePromotionEffect[];
+  checks: MergePromotionCheck[];
+  promotionByIdempotencyKey: [string, string][];
+  activePromotionByPlan: [string, string][];
+  nextFenceByPlan: [string, number][];
+}
+
+function assertMergePromotion(value: MergePromotion): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.promotionId ||
+    !value.mergePlanId ||
+    !value.taskId ||
+    !value.sourceRevision ||
+    !value.expectedTargetRevision ||
+    !value.idempotencyKey ||
+    !value.ownerId ||
+    value.fencingToken < 0 ||
+    value.revision < 1 ||
+    new Set(value.requiredChecks).size !== value.requiredChecks.length ||
+    new Set(value.passedChecks).size !== value.passedChecks.length ||
+    new Set(value.failedChecks).size !== value.failedChecks.length ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "merge_promotion_corrupt",
+      `merge promotion ${value.promotionId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMergePromotionEffect(value: MergePromotionEffect): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.effectId ||
+    !value.promotionId ||
+    !value.requestDigest ||
+    !value.workerId ||
+    value.fencingToken < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "merge_promotion_effect_corrupt",
+      `merge promotion effect ${value.effectId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMergePromotionCheck(value: MergePromotionCheck): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.checkId ||
+    !value.promotionId ||
+    !value.check ||
+    value.attempt < 1 ||
+    !value.evidenceDigest ||
+    new Set(value.outputArtifactIds).size !== value.outputArtifactIds.length ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "merge_promotion_check_corrupt",
+      `merge promotion check ${value.checkId || "<empty>"} is corrupt`,
+    );
+}
+
+export class WorktreeMergePromotionRuntime {
+  private promotions = new Map<string, MergePromotion>();
+  private effects = new Map<string, MergePromotionEffect[]>();
+  private checks = new Map<string, MergePromotionCheck[]>();
+  private promotionByIdempotencyKey = new Map<string, string>();
+  private activePromotionByPlan = new Map<string, string>();
+  private nextFenceByPlan = new Map<string, number>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  request(input: {
+    promotionId?: string;
+    mergePlanId: string;
+    taskId: string;
+    sourceRevision: string;
+    expectedTargetRevision: string;
+    idempotencyKey: string;
+    ownerId: string;
+    requiredChecks: readonly string[];
+  }): MergePromotion {
+    const duplicate = this.promotionByIdempotencyKey.get(input.idempotencyKey);
+    if (duplicate) return structuredClone(this.requirePromotion(duplicate));
+    if (this.activePromotionByPlan.has(input.mergePlanId))
+      throw new E03RuntimeError(
+        "merge_promotion_active",
+        `merge plan ${input.mergePlanId} already has an active promotion`,
+      );
+    const requiredChecks = [...new Set(input.requiredChecks)].sort();
+    if (!requiredChecks.length)
+      throw new E03RuntimeError(
+        "merge_promotion_checks_empty",
+        "merge promotion requires verification checks",
+      );
+    const promotionId = input.promotionId ?? createId("merge-promotion");
+    if (this.promotions.has(promotionId))
+      throw new E03RuntimeError(
+        "merge_promotion_duplicate",
+        `merge promotion ${promotionId} already exists`,
+      );
+    const now = this.clock.now();
+    const payload = {
+      promotionId,
+      mergePlanId: input.mergePlanId,
+      taskId: input.taskId,
+      sourceRevision: input.sourceRevision,
+      expectedTargetRevision: input.expectedTargetRevision,
+      resultingRevision: "",
+      idempotencyKey: input.idempotencyKey,
+      ownerId: input.ownerId,
+      state: "requested" as const,
+      fencingToken: 0,
+      requiredChecks,
+      passedChecks: [] as string[],
+      failedChecks: [] as string[],
+      requestedAt: now,
+      updatedAt: now,
+      promotedAt: "",
+      terminalReason: "",
+      revision: 1,
+    };
+    const promotion = { ...payload, digest: digest(payload) };
+    assertMergePromotion(promotion);
+    this.promotions.set(promotionId, promotion);
+    this.effects.set(promotionId, []);
+    this.checks.set(promotionId, []);
+    this.promotionByIdempotencyKey.set(input.idempotencyKey, promotionId);
+    this.activePromotionByPlan.set(input.mergePlanId, promotionId);
+    return structuredClone(promotion);
+  }
+
+  fence(promotionId: string, expectedRevision: number): MergePromotion {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "requested")
+      throw new E03RuntimeError(
+        "merge_promotion_fence_state",
+        `merge promotion ${promotionId} is ${promotion.state}`,
+      );
+    const fencingToken =
+      (this.nextFenceByPlan.get(promotion.mergePlanId) ?? 0) + 1;
+    this.nextFenceByPlan.set(promotion.mergePlanId, fencingToken);
+    return this.transitionPromotion(promotion, {
+      state: "fenced",
+      fencingToken,
+    });
+  }
+
+  recordEffect(input: {
+    effectId?: string;
+    promotionId: string;
+    expectedRevision: number;
+    phase: MergePromotionEffect["phase"];
+    requestDigest: string;
+    receiptDigest: string;
+    workerId: string;
+    fencingToken: number;
+    accepted: boolean;
+    errorCode?: string;
+    startedAt: string;
+  }): MergePromotionEffect {
+    const promotion = this.requirePromotion(input.promotionId);
+    this.assertPromotionRevision(promotion, input.expectedRevision);
+    if (promotion.fencingToken !== input.fencingToken)
+      throw new E03RuntimeError(
+        "merge_promotion_effect_fence",
+        `merge promotion ${promotion.promotionId} fence is stale`,
+      );
+    const permitted: Record<
+      MergePromotionEffect["phase"],
+      MergePromotionState[]
+    > = {
+      prepare: ["fenced"],
+      apply: ["fenced", "applying"],
+      verify: ["verifying"],
+      rollback: ["applying", "verifying", "rejected", "promoted"],
+    };
+    if (!permitted[input.phase].includes(promotion.state))
+      throw new E03RuntimeError(
+        "merge_promotion_effect_state",
+        `merge promotion ${promotion.promotionId} cannot ${input.phase}`,
+      );
+    const entries = this.effectEntries(promotion.promotionId);
+    const duplicate = entries.find(
+      (value) =>
+        value.phase === input.phase &&
+        value.requestDigest === input.requestDigest,
+    );
+    if (duplicate) {
+      if (
+        duplicate.receiptDigest !== input.receiptDigest ||
+        duplicate.accepted !== input.accepted
+      )
+        throw new E03RuntimeError(
+          "merge_promotion_effect_idempotency_conflict",
+          `merge promotion ${promotion.promotionId} effect conflicts`,
+        );
+      return structuredClone(duplicate);
+    }
+    const effectId = input.effectId ?? createId("merge-promotion-effect");
+    const payload = {
+      effectId,
+      promotionId: promotion.promotionId,
+      phase: input.phase,
+      requestDigest: input.requestDigest,
+      receiptDigest: input.receiptDigest,
+      workerId: input.workerId,
+      fencingToken: input.fencingToken,
+      accepted: input.accepted,
+      errorCode: input.errorCode ?? "",
+      startedAt: input.startedAt,
+      completedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+      revision: 1,
+    };
+    const effect = { ...payload, digest: digest(payload) };
+    assertMergePromotionEffect(effect);
+    entries.push(effect);
+    this.effects.set(promotion.promotionId, entries);
+    if (!effect.accepted)
+      this.transitionPromotion(promotion, {
+        state: "rejected",
+        terminalReason: effect.errorCode || `${effect.phase}_failed`,
+      });
+    else if (effect.phase === "prepare" || effect.phase === "apply")
+      this.transitionPromotion(promotion, { state: "applying" });
+    else if (effect.phase === "rollback") {
+      this.transitionPromotion(promotion, {
+        state: "rolled_back",
+        terminalReason: effect.errorCode || "rollback_complete",
+      });
+      this.activePromotionByPlan.delete(promotion.mergePlanId);
+    }
+    return structuredClone(effect);
+  }
+
+  beginVerification(
+    promotionId: string,
+    expectedRevision: number,
+    resultingRevision: string,
+  ): MergePromotion {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "applying")
+      throw new E03RuntimeError(
+        "merge_promotion_verify_state",
+        `merge promotion ${promotionId} is ${promotion.state}`,
+      );
+    const apply = this.effectEntries(promotionId).find(
+      (value) => value.phase === "apply" && value.accepted,
+    );
+    if (!apply || !resultingRevision)
+      throw new E03RuntimeError(
+        "merge_promotion_apply_receipt_missing",
+        `merge promotion ${promotionId} has no apply receipt`,
+      );
+    return this.transitionPromotion(promotion, {
+      state: "verifying",
+      resultingRevision,
+    });
+  }
+
+  recordCheck(input: {
+    checkId?: string;
+    promotionId: string;
+    expectedRevision: number;
+    check: string;
+    accepted: boolean;
+    evidenceDigest: string;
+    outputArtifactIds?: readonly string[];
+    errorCode?: string;
+  }): MergePromotionCheck {
+    const promotion = this.requirePromotion(input.promotionId);
+    this.assertPromotionRevision(promotion, input.expectedRevision);
+    if (promotion.state !== "verifying")
+      throw new E03RuntimeError(
+        "merge_promotion_check_state",
+        `merge promotion ${promotion.promotionId} is ${promotion.state}`,
+      );
+    if (!promotion.requiredChecks.includes(input.check))
+      throw new E03RuntimeError(
+        "merge_promotion_check_unknown",
+        `merge promotion check ${input.check} is not required`,
+      );
+    const entries = this.checkEntries(promotion.promotionId);
+    const attempts = entries.filter((value) => value.check === input.check);
+    const payload = {
+      checkId: input.checkId ?? createId("merge-promotion-check"),
+      promotionId: promotion.promotionId,
+      check: input.check,
+      attempt: attempts.length + 1,
+      accepted: input.accepted,
+      evidenceDigest: input.evidenceDigest,
+      outputArtifactIds: [...new Set(input.outputArtifactIds ?? [])].sort(),
+      errorCode: input.errorCode ?? "",
+      completedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const check = { ...payload, digest: digest(payload) };
+    assertMergePromotionCheck(check);
+    entries.push(check);
+    this.checks.set(promotion.promotionId, entries);
+    const latestByName = new Map<string, MergePromotionCheck>();
+    for (const value of entries) latestByName.set(value.check, value);
+    const passedChecks = [...latestByName.values()]
+      .filter((value) => value.accepted)
+      .map((value) => value.check)
+      .sort();
+    const failedChecks = [...latestByName.values()]
+      .filter((value) => !value.accepted)
+      .map((value) => value.check)
+      .sort();
+    this.transitionPromotion(promotion, { passedChecks, failedChecks });
+    return structuredClone(check);
+  }
+
+  promote(promotionId: string, expectedRevision: number): MergePromotion {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "verifying")
+      throw new E03RuntimeError(
+        "merge_promotion_promote_state",
+        `merge promotion ${promotionId} is ${promotion.state}`,
+      );
+    if (
+      promotion.failedChecks.length ||
+      promotion.requiredChecks.some(
+        (value) => !promotion.passedChecks.includes(value),
+      )
+    )
+      throw new E03RuntimeError(
+        "merge_promotion_checks_incomplete",
+        `merge promotion ${promotionId} checks are incomplete`,
+      );
+    const next = this.transitionPromotion(promotion, {
+      state: "promoted",
+      promotedAt: this.clock.now(),
+      terminalReason: "promotion_complete",
+    });
+    this.activePromotionByPlan.delete(promotion.mergePlanId);
+    return next;
+  }
+
+  snapshot(): MergePromotionSnapshot {
+    return {
+      promotions: [...this.promotions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      effects: [...this.effects.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      checks: [...this.checks.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      promotionByIdempotencyKey: [...this.promotionByIdempotencyKey.entries()],
+      activePromotionByPlan: [...this.activePromotionByPlan.entries()],
+      nextFenceByPlan: [...this.nextFenceByPlan.entries()],
+    };
+  }
+
+  restore(snapshot: MergePromotionSnapshot): void {
+    const promotions = new Map<string, MergePromotion>();
+    const effects = new Map<string, MergePromotionEffect[]>();
+    const checks = new Map<string, MergePromotionCheck[]>();
+    for (const value of snapshot.promotions) {
+      assertMergePromotion(value);
+      if (promotions.has(value.promotionId))
+        throw new E03RuntimeError(
+          "merge_promotion_restore_duplicate",
+          `duplicate merge promotion ${value.promotionId}`,
+        );
+      promotions.set(value.promotionId, structuredClone(value));
+      effects.set(value.promotionId, []);
+      checks.set(value.promotionId, []);
+    }
+    for (const value of snapshot.effects) {
+      assertMergePromotionEffect(value);
+      const entries = effects.get(value.promotionId);
+      if (
+        !entries ||
+        value.previousDigest !== (entries.at(-1)?.digest ?? "") ||
+        entries.some((entry) => entry.effectId === value.effectId)
+      )
+        throw new E03RuntimeError(
+          "merge_promotion_effect_restore_chain",
+          `merge promotion effect ${value.effectId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.checks) {
+      assertMergePromotionCheck(value);
+      const entries = checks.get(value.promotionId);
+      if (
+        !entries ||
+        value.previousDigest !== (entries.at(-1)?.digest ?? "") ||
+        entries.some((entry) => entry.checkId === value.checkId)
+      )
+        throw new E03RuntimeError(
+          "merge_promotion_check_restore_chain",
+          `merge promotion check ${value.checkId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const promotionByIdempotencyKey = new Map(
+      snapshot.promotionByIdempotencyKey,
+    );
+    const activePromotionByPlan = new Map(snapshot.activePromotionByPlan);
+    const nextFenceByPlan = new Map(snapshot.nextFenceByPlan);
+    if (
+      promotionByIdempotencyKey.size !==
+        snapshot.promotionByIdempotencyKey.length ||
+      activePromotionByPlan.size !== snapshot.activePromotionByPlan.length
+    )
+      throw new E03RuntimeError(
+        "merge_promotion_restore_index_duplicate",
+        "merge promotion restore indexes contain duplicates",
+      );
+    for (const [key, promotionId] of promotionByIdempotencyKey) {
+      const promotion = promotions.get(promotionId);
+      if (!promotion || promotion.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "merge_promotion_restore_idempotency",
+          `merge promotion idempotency index ${key} is invalid`,
+        );
+    }
+    for (const [planId, promotionId] of activePromotionByPlan) {
+      const promotion = promotions.get(promotionId);
+      if (
+        !promotion ||
+        promotion.mergePlanId !== planId ||
+        ["promoted", "rolled_back"].includes(promotion.state)
+      )
+        throw new E03RuntimeError(
+          "merge_promotion_restore_active",
+          `merge promotion active index ${planId} is invalid`,
+        );
+    }
+    for (const [planId, fence] of nextFenceByPlan) {
+      const maximum = Math.max(
+        0,
+        ...[...promotions.values()]
+          .filter((value) => value.mergePlanId === planId)
+          .map((value) => value.fencingToken),
+      );
+      if (!Number.isSafeInteger(fence) || fence < maximum)
+        throw new E03RuntimeError(
+          "merge_promotion_restore_fence",
+          `merge promotion fence ${planId} is invalid`,
+        );
+    }
+    this.promotions = promotions;
+    this.effects = effects;
+    this.checks = checks;
+    this.promotionByIdempotencyKey = promotionByIdempotencyKey;
+    this.activePromotionByPlan = activePromotionByPlan;
+    this.nextFenceByPlan = nextFenceByPlan;
+  }
+
+  private effectEntries(promotionId: string): MergePromotionEffect[] {
+    return this.effects.get(promotionId) ?? [];
+  }
+
+  private checkEntries(promotionId: string): MergePromotionCheck[] {
+    return this.checks.get(promotionId) ?? [];
+  }
+
+  private requirePromotion(id: string): MergePromotion {
+    const value = this.promotions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "merge_promotion_missing",
+        `merge promotion ${id} does not exist`,
+      );
+    assertMergePromotion(value);
+    return value;
+  }
+
+  private assertPromotionRevision(
+    value: MergePromotion,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "merge_promotion_stale_revision",
+        `merge promotion ${value.promotionId} revision is stale`,
+      );
+  }
+
+  private transitionPromotion(
+    value: MergePromotion,
+    patch: Partial<Omit<MergePromotion, "promotionId" | "revision" | "digest">>,
+  ): MergePromotion {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      promotionId: value.promotionId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMergePromotion(next);
+    this.promotions.set(next.promotionId, next);
+    return structuredClone(next);
+  }
+}
+
 export class WorktreeMergeVerificationRuntime {
   private policies = new Map<string, MergeVerificationPolicy>();
   private attestations = new Map<string, MergeAttestation>();

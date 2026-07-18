@@ -2666,6 +2666,728 @@ function assertMountAccess(value: IsolationMountAccess): void {
       `isolation mount access ${value.accessId} is invalid`,
     );
 }
+export type IsolationTransferState =
+  | "planned"
+  | "uploading"
+  | "verifying"
+  | "sealed"
+  | "imported"
+  | "failed"
+  | "cancelled";
+
+export interface IsolationArtifactDescriptor {
+  artifactId: string;
+  taskId: string;
+  workspaceId: string;
+  logicalPath: string;
+  contentDigest: string;
+  byteLength: number;
+  mediaType: string;
+  executable: boolean;
+  confidential: boolean;
+  createdAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationArtifactTransfer {
+  transferId: string;
+  artifactId: string;
+  taskId: string;
+  sourceWorkspaceId: string;
+  targetWorkspaceId: string;
+  idempotencyKey: string;
+  state: IsolationTransferState;
+  chunkSize: number;
+  chunkCount: number;
+  receivedChunks: number;
+  receivedBytes: number;
+  expectedContentDigest: string;
+  observedContentDigest: string;
+  createdAt: string;
+  updatedAt: string;
+  sealedAt: string;
+  importedAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationArtifactChunk {
+  chunkId: string;
+  transferId: string;
+  ordinal: number;
+  offset: number;
+  byteLength: number;
+  contentDigest: string;
+  previousDigest: string;
+  receivedAt: string;
+  receiptToken: string;
+  digest: string;
+}
+
+export interface IsolationArtifactImportReceipt {
+  receiptId: string;
+  transferId: string;
+  artifactId: string;
+  targetWorkspaceId: string;
+  physicalPath: string;
+  contentDigest: string;
+  workerId: string;
+  fencingToken: number;
+  importedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface IsolationArtifactTransferSnapshot {
+  descriptors: IsolationArtifactDescriptor[];
+  transfers: IsolationArtifactTransfer[];
+  chunks: IsolationArtifactChunk[];
+  receipts: IsolationArtifactImportReceipt[];
+  transferByIdempotencyKey: [string, string][];
+  activeTransferByArtifactTarget: [string, string][];
+  nextFenceByTargetWorkspace: [string, number][];
+}
+
+function assertIsolationArtifactDescriptor(
+  value: IsolationArtifactDescriptor,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.artifactId ||
+    !value.taskId ||
+    !value.workspaceId ||
+    !value.logicalPath ||
+    value.logicalPath.startsWith("/") ||
+    value.logicalPath.includes("..") ||
+    !value.contentDigest ||
+    value.byteLength < 0 ||
+    !Number.isSafeInteger(value.byteLength) ||
+    !value.mediaType ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_artifact_descriptor_corrupt",
+      `isolation artifact ${value.artifactId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertIsolationArtifactTransfer(
+  value: IsolationArtifactTransfer,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.transferId ||
+    !value.artifactId ||
+    !value.taskId ||
+    !value.sourceWorkspaceId ||
+    !value.targetWorkspaceId ||
+    value.sourceWorkspaceId === value.targetWorkspaceId ||
+    !value.idempotencyKey ||
+    value.chunkSize < 1 ||
+    value.chunkCount < 0 ||
+    value.receivedChunks < 0 ||
+    value.receivedChunks > value.chunkCount ||
+    value.receivedBytes < 0 ||
+    !value.expectedContentDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_artifact_transfer_corrupt",
+      `isolation artifact transfer ${value.transferId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertIsolationArtifactChunk(value: IsolationArtifactChunk): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.chunkId ||
+    !value.transferId ||
+    value.ordinal < 0 ||
+    value.offset < 0 ||
+    value.byteLength < 0 ||
+    !Number.isSafeInteger(value.ordinal) ||
+    !Number.isSafeInteger(value.offset) ||
+    !Number.isSafeInteger(value.byteLength) ||
+    !value.contentDigest ||
+    !value.receiptToken ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_artifact_chunk_corrupt",
+      `isolation artifact chunk ${value.chunkId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertIsolationImportReceipt(
+  value: IsolationArtifactImportReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.transferId ||
+    !value.artifactId ||
+    !value.targetWorkspaceId ||
+    !value.physicalPath ||
+    !value.contentDigest ||
+    !value.workerId ||
+    value.fencingToken < 1 ||
+    !Number.isSafeInteger(value.fencingToken) ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_artifact_import_receipt_corrupt",
+      `isolation artifact receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class IsolationArtifactTransferRuntime {
+  private descriptors = new Map<string, IsolationArtifactDescriptor>();
+  private transfers = new Map<string, IsolationArtifactTransfer>();
+  private chunks = new Map<string, IsolationArtifactChunk[]>();
+  private receipts = new Map<string, IsolationArtifactImportReceipt[]>();
+  private transferByIdempotencyKey = new Map<string, string>();
+  private activeTransferByArtifactTarget = new Map<string, string>();
+  private nextFenceByTargetWorkspace = new Map<string, number>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  describe(input: {
+    artifactId?: string;
+    taskId: string;
+    workspaceId: string;
+    logicalPath: string;
+    contentDigest: string;
+    byteLength: number;
+    mediaType: string;
+    executable?: boolean;
+    confidential?: boolean;
+  }): IsolationArtifactDescriptor {
+    const artifactId = input.artifactId ?? createId("isolation-artifact");
+    if (this.descriptors.has(artifactId))
+      throw new E03RuntimeError(
+        "isolation_artifact_descriptor_duplicate",
+        `isolation artifact ${artifactId} already exists`,
+      );
+    const logicalPath = input.logicalPath.replaceAll("\\", "/");
+    const payload = {
+      artifactId,
+      taskId: input.taskId,
+      workspaceId: input.workspaceId,
+      logicalPath,
+      contentDigest: input.contentDigest,
+      byteLength: input.byteLength,
+      mediaType: input.mediaType,
+      executable: input.executable ?? false,
+      confidential: input.confidential ?? false,
+      createdAt: this.clock.now(),
+      revision: 1,
+    };
+    const descriptor = { ...payload, digest: digest(payload) };
+    assertIsolationArtifactDescriptor(descriptor);
+    this.descriptors.set(artifactId, descriptor);
+    return structuredClone(descriptor);
+  }
+
+  plan(input: {
+    transferId?: string;
+    artifactId: string;
+    targetWorkspaceId: string;
+    idempotencyKey: string;
+    chunkSize: number;
+  }): IsolationArtifactTransfer {
+    const duplicate = this.transferByIdempotencyKey.get(input.idempotencyKey);
+    if (duplicate) return structuredClone(this.requireTransfer(duplicate));
+    const descriptor = this.requireDescriptor(input.artifactId);
+    if (descriptor.workspaceId === input.targetWorkspaceId)
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_same_workspace",
+        "artifact transfer target must differ from source",
+      );
+    if (!Number.isSafeInteger(input.chunkSize) || input.chunkSize < 1)
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_chunk_size",
+        "artifact transfer chunk size must be positive",
+      );
+    const activeKey = this.activeKey(
+      descriptor.artifactId,
+      input.targetWorkspaceId,
+    );
+    if (this.activeTransferByArtifactTarget.has(activeKey))
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_active",
+        `artifact ${descriptor.artifactId} already transfers to target`,
+      );
+    const transferId =
+      input.transferId ?? createId("isolation-artifact-transfer");
+    if (this.transfers.has(transferId))
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_duplicate",
+        `artifact transfer ${transferId} already exists`,
+      );
+    const now = this.clock.now();
+    const payload = {
+      transferId,
+      artifactId: descriptor.artifactId,
+      taskId: descriptor.taskId,
+      sourceWorkspaceId: descriptor.workspaceId,
+      targetWorkspaceId: input.targetWorkspaceId,
+      idempotencyKey: input.idempotencyKey,
+      state: "planned" as const,
+      chunkSize: input.chunkSize,
+      chunkCount: Math.ceil(descriptor.byteLength / input.chunkSize),
+      receivedChunks: 0,
+      receivedBytes: 0,
+      expectedContentDigest: descriptor.contentDigest,
+      observedContentDigest: "",
+      createdAt: now,
+      updatedAt: now,
+      sealedAt: "",
+      importedAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const transfer = { ...payload, digest: digest(payload) };
+    assertIsolationArtifactTransfer(transfer);
+    this.transfers.set(transferId, transfer);
+    this.chunks.set(transferId, []);
+    this.receipts.set(transferId, []);
+    this.transferByIdempotencyKey.set(input.idempotencyKey, transferId);
+    this.activeTransferByArtifactTarget.set(activeKey, transferId);
+    return structuredClone(transfer);
+  }
+
+  begin(
+    transferId: string,
+    expectedRevision: number,
+  ): IsolationArtifactTransfer {
+    const transfer = this.requireTransfer(transferId);
+    this.assertTransferRevision(transfer, expectedRevision);
+    if (transfer.state !== "planned")
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_begin_state",
+        `artifact transfer ${transferId} is ${transfer.state}`,
+      );
+    return this.transitionTransfer(transfer, { state: "uploading" });
+  }
+
+  acceptChunk(input: {
+    transferId: string;
+    expectedRevision: number;
+    ordinal: number;
+    offset: number;
+    byteLength: number;
+    contentDigest: string;
+    receiptToken: string;
+  }): IsolationArtifactChunk {
+    const transfer = this.requireTransfer(input.transferId);
+    this.assertTransferRevision(transfer, input.expectedRevision);
+    if (transfer.state !== "uploading")
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_chunk_state",
+        `artifact transfer ${transfer.transferId} is ${transfer.state}`,
+      );
+    const entries = this.chunkEntries(transfer.transferId);
+    const duplicate = entries.find((value) => value.ordinal === input.ordinal);
+    if (duplicate) {
+      if (
+        duplicate.offset !== input.offset ||
+        duplicate.byteLength !== input.byteLength ||
+        duplicate.contentDigest !== input.contentDigest ||
+        duplicate.receiptToken !== input.receiptToken
+      )
+        throw new E03RuntimeError(
+          "isolation_artifact_chunk_idempotency_conflict",
+          `artifact transfer chunk ${input.ordinal} conflicts`,
+        );
+      return structuredClone(duplicate);
+    }
+    const descriptor = this.requireDescriptor(transfer.artifactId);
+    const expectedOffset = input.ordinal * transfer.chunkSize;
+    const expectedLength = Math.min(
+      transfer.chunkSize,
+      descriptor.byteLength - expectedOffset,
+    );
+    if (
+      input.ordinal !== entries.length ||
+      input.ordinal >= transfer.chunkCount ||
+      input.offset !== expectedOffset ||
+      input.byteLength !== expectedLength
+    )
+      throw new E03RuntimeError(
+        "isolation_artifact_chunk_geometry",
+        `artifact transfer chunk ${input.ordinal} geometry is invalid`,
+      );
+    const payload = {
+      chunkId: createId("isolation-artifact-chunk"),
+      transferId: transfer.transferId,
+      ordinal: input.ordinal,
+      offset: input.offset,
+      byteLength: input.byteLength,
+      contentDigest: input.contentDigest,
+      previousDigest: entries.at(-1)?.digest ?? "",
+      receivedAt: this.clock.now(),
+      receiptToken: input.receiptToken,
+    };
+    const chunk = { ...payload, digest: digest(payload) };
+    assertIsolationArtifactChunk(chunk);
+    entries.push(chunk);
+    this.chunks.set(transfer.transferId, entries);
+    this.transitionTransfer(transfer, {
+      receivedChunks: entries.length,
+      receivedBytes: entries.reduce((sum, value) => sum + value.byteLength, 0),
+    });
+    return structuredClone(chunk);
+  }
+
+  verify(
+    transferId: string,
+    expectedRevision: number,
+    observedContentDigest: string,
+  ): IsolationArtifactTransfer {
+    const transfer = this.requireTransfer(transferId);
+    this.assertTransferRevision(transfer, expectedRevision);
+    if (transfer.state !== "uploading")
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_verify_state",
+        `artifact transfer ${transferId} is ${transfer.state}`,
+      );
+    const descriptor = this.requireDescriptor(transfer.artifactId);
+    if (
+      transfer.receivedChunks !== transfer.chunkCount ||
+      transfer.receivedBytes !== descriptor.byteLength
+    )
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_incomplete",
+        `artifact transfer ${transferId} is incomplete`,
+      );
+    this.assertChunkChain(this.chunkEntries(transferId));
+    if (observedContentDigest !== transfer.expectedContentDigest)
+      return this.transitionTransfer(transfer, {
+        state: "failed",
+        observedContentDigest,
+        errorCode: "content_digest_mismatch",
+      });
+    return this.transitionTransfer(transfer, {
+      state: "sealed",
+      observedContentDigest,
+      sealedAt: this.clock.now(),
+    });
+  }
+
+  importReceipt(input: {
+    receiptId?: string;
+    transferId: string;
+    expectedRevision: number;
+    physicalPath: string;
+    contentDigest: string;
+    workerId: string;
+    fencingToken: number;
+  }): IsolationArtifactImportReceipt {
+    const transfer = this.requireTransfer(input.transferId);
+    this.assertTransferRevision(transfer, input.expectedRevision);
+    if (transfer.state !== "sealed")
+      throw new E03RuntimeError(
+        "isolation_artifact_import_state",
+        `artifact transfer ${transfer.transferId} is ${transfer.state}`,
+      );
+    if (input.contentDigest !== transfer.expectedContentDigest)
+      throw new E03RuntimeError(
+        "isolation_artifact_import_digest",
+        "artifact import receipt digest is invalid",
+      );
+    const nextFence =
+      (this.nextFenceByTargetWorkspace.get(transfer.targetWorkspaceId) ?? 0) +
+      1;
+    if (input.fencingToken !== nextFence)
+      throw new E03RuntimeError(
+        "isolation_artifact_import_fence",
+        `artifact import expected fence ${nextFence}`,
+      );
+    const entries = this.receiptEntries(transfer.transferId);
+    const receiptId = input.receiptId ?? createId("isolation-artifact-import");
+    const payload = {
+      receiptId,
+      transferId: transfer.transferId,
+      artifactId: transfer.artifactId,
+      targetWorkspaceId: transfer.targetWorkspaceId,
+      physicalPath: input.physicalPath,
+      contentDigest: input.contentDigest,
+      workerId: input.workerId,
+      fencingToken: input.fencingToken,
+      importedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertIsolationImportReceipt(receipt);
+    entries.push(receipt);
+    this.receipts.set(transfer.transferId, entries);
+    this.nextFenceByTargetWorkspace.set(
+      transfer.targetWorkspaceId,
+      input.fencingToken,
+    );
+    this.transitionTransfer(transfer, {
+      state: "imported",
+      importedAt: receipt.importedAt,
+    });
+    this.activeTransferByArtifactTarget.delete(
+      this.activeKey(transfer.artifactId, transfer.targetWorkspaceId),
+    );
+    return structuredClone(receipt);
+  }
+
+  terminate(
+    transferId: string,
+    expectedRevision: number,
+    state: "failed" | "cancelled",
+    errorCode: string,
+  ): IsolationArtifactTransfer {
+    const transfer = this.requireTransfer(transferId);
+    this.assertTransferRevision(transfer, expectedRevision);
+    if (["sealed", "imported", "failed", "cancelled"].includes(transfer.state))
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_terminal",
+        `artifact transfer ${transferId} is terminal`,
+      );
+    const next = this.transitionTransfer(transfer, { state, errorCode });
+    this.activeTransferByArtifactTarget.delete(
+      this.activeKey(transfer.artifactId, transfer.targetWorkspaceId),
+    );
+    return next;
+  }
+
+  snapshot(): IsolationArtifactTransferSnapshot {
+    return {
+      descriptors: [...this.descriptors.values()].map((value) =>
+        structuredClone(value),
+      ),
+      transfers: [...this.transfers.values()].map((value) =>
+        structuredClone(value),
+      ),
+      chunks: [...this.chunks.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      transferByIdempotencyKey: [...this.transferByIdempotencyKey.entries()],
+      activeTransferByArtifactTarget: [
+        ...this.activeTransferByArtifactTarget.entries(),
+      ],
+      nextFenceByTargetWorkspace: [
+        ...this.nextFenceByTargetWorkspace.entries(),
+      ],
+    };
+  }
+
+  restore(snapshot: IsolationArtifactTransferSnapshot): void {
+    const descriptors = new Map<string, IsolationArtifactDescriptor>();
+    const transfers = new Map<string, IsolationArtifactTransfer>();
+    const chunks = new Map<string, IsolationArtifactChunk[]>();
+    const receipts = new Map<string, IsolationArtifactImportReceipt[]>();
+    for (const value of snapshot.descriptors) {
+      assertIsolationArtifactDescriptor(value);
+      if (descriptors.has(value.artifactId))
+        throw new E03RuntimeError(
+          "isolation_artifact_restore_duplicate",
+          `duplicate isolation artifact ${value.artifactId}`,
+        );
+      descriptors.set(value.artifactId, structuredClone(value));
+    }
+    for (const value of snapshot.transfers) {
+      assertIsolationArtifactTransfer(value);
+      const descriptor = descriptors.get(value.artifactId);
+      if (
+        !descriptor ||
+        descriptor.taskId !== value.taskId ||
+        descriptor.workspaceId !== value.sourceWorkspaceId ||
+        transfers.has(value.transferId)
+      )
+        throw new E03RuntimeError(
+          "isolation_artifact_transfer_restore",
+          `artifact transfer ${value.transferId} is invalid`,
+        );
+      transfers.set(value.transferId, structuredClone(value));
+      chunks.set(value.transferId, []);
+      receipts.set(value.transferId, []);
+    }
+    for (const value of [...snapshot.chunks].sort(
+      (a, b) => a.ordinal - b.ordinal,
+    )) {
+      assertIsolationArtifactChunk(value);
+      const entries = chunks.get(value.transferId);
+      if (
+        !entries ||
+        value.ordinal !== entries.length ||
+        value.previousDigest !== (entries.at(-1)?.digest ?? "")
+      )
+        throw new E03RuntimeError(
+          "isolation_artifact_chunk_restore_chain",
+          `artifact chunk ${value.chunkId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.receipts) {
+      assertIsolationImportReceipt(value);
+      const transfer = transfers.get(value.transferId);
+      const entries = receipts.get(value.transferId);
+      if (
+        !transfer ||
+        !entries ||
+        transfer.artifactId !== value.artifactId ||
+        value.previousDigest !== (entries.at(-1)?.digest ?? "")
+      )
+        throw new E03RuntimeError(
+          "isolation_artifact_receipt_restore_chain",
+          `artifact receipt ${value.receiptId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const transferByIdempotencyKey = new Map(snapshot.transferByIdempotencyKey);
+    const activeTransferByArtifactTarget = new Map(
+      snapshot.activeTransferByArtifactTarget,
+    );
+    const nextFenceByTargetWorkspace = new Map(
+      snapshot.nextFenceByTargetWorkspace,
+    );
+    if (
+      transferByIdempotencyKey.size !== snapshot.transferByIdempotencyKey.length
+    )
+      throw new E03RuntimeError(
+        "isolation_artifact_restore_idempotency_duplicate",
+        "artifact transfer idempotency index is duplicated",
+      );
+    for (const [key, transferId] of transferByIdempotencyKey) {
+      const transfer = transfers.get(transferId);
+      if (!transfer || transfer.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "isolation_artifact_restore_idempotency",
+          `artifact transfer idempotency index ${key} is invalid`,
+        );
+    }
+    for (const [key, transferId] of activeTransferByArtifactTarget) {
+      const transfer = transfers.get(transferId);
+      if (
+        !transfer ||
+        key !==
+          this.activeKey(transfer.artifactId, transfer.targetWorkspaceId) ||
+        ["imported", "failed", "cancelled"].includes(transfer.state)
+      )
+        throw new E03RuntimeError(
+          "isolation_artifact_restore_active",
+          `artifact transfer active index ${key} is invalid`,
+        );
+    }
+    for (const transfer of transfers.values()) {
+      const entries = chunks.get(transfer.transferId)!;
+      if (
+        entries.length !== transfer.receivedChunks ||
+        entries.reduce((sum, value) => sum + value.byteLength, 0) !==
+          transfer.receivedBytes
+      )
+        throw new E03RuntimeError(
+          "isolation_artifact_restore_counts",
+          `artifact transfer ${transfer.transferId} counters are invalid`,
+        );
+      this.assertChunkChain(entries);
+    }
+    this.descriptors = descriptors;
+    this.transfers = transfers;
+    this.chunks = chunks;
+    this.receipts = receipts;
+    this.transferByIdempotencyKey = transferByIdempotencyKey;
+    this.activeTransferByArtifactTarget = activeTransferByArtifactTarget;
+    this.nextFenceByTargetWorkspace = nextFenceByTargetWorkspace;
+  }
+
+  private activeKey(artifactId: string, targetWorkspaceId: string): string {
+    return `${artifactId}\u0000${targetWorkspaceId}`;
+  }
+
+  private chunkEntries(transferId: string): IsolationArtifactChunk[] {
+    return this.chunks.get(transferId) ?? [];
+  }
+
+  private receiptEntries(transferId: string): IsolationArtifactImportReceipt[] {
+    return this.receipts.get(transferId) ?? [];
+  }
+
+  private assertChunkChain(entries: readonly IsolationArtifactChunk[]): void {
+    let previousDigest = "";
+    let offset = 0;
+    for (const [ordinal, value] of entries.entries()) {
+      assertIsolationArtifactChunk(value);
+      if (
+        value.ordinal !== ordinal ||
+        value.offset !== offset ||
+        value.previousDigest !== previousDigest
+      )
+        throw new E03RuntimeError(
+          "isolation_artifact_chunk_chain",
+          `artifact chunk ${value.chunkId} breaks transfer chain`,
+        );
+      previousDigest = value.digest;
+      offset += value.byteLength;
+    }
+  }
+
+  private requireDescriptor(id: string): IsolationArtifactDescriptor {
+    const value = this.descriptors.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "isolation_artifact_descriptor_missing",
+        `isolation artifact ${id} does not exist`,
+      );
+    assertIsolationArtifactDescriptor(value);
+    return value;
+  }
+
+  private requireTransfer(id: string): IsolationArtifactTransfer {
+    const value = this.transfers.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_missing",
+        `isolation artifact transfer ${id} does not exist`,
+      );
+    assertIsolationArtifactTransfer(value);
+    return value;
+  }
+
+  private assertTransferRevision(
+    value: IsolationArtifactTransfer,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "isolation_artifact_transfer_stale_revision",
+        `isolation artifact transfer ${value.transferId} revision is stale`,
+      );
+  }
+
+  private transitionTransfer(
+    value: IsolationArtifactTransfer,
+    patch: Partial<
+      Omit<IsolationArtifactTransfer, "transferId" | "revision" | "digest">
+    >,
+  ): IsolationArtifactTransfer {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      transferId: value.transferId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIsolationArtifactTransfer(next);
+    this.transfers.set(next.transferId, next);
+    return structuredClone(next);
+  }
+}
+
 export class IsolationWorkspaceMountRuntime {
   private mounts = new Map<string, IsolationWorkspaceMount>();
   private accesses = new Map<string, IsolationMountAccess[]>();
@@ -2681,10 +3403,7 @@ export class IsolationWorkspaceMountRuntime {
     operationQuota: number;
     ttlMs: number;
   }): IsolationWorkspaceMount {
-    if (
-      input.session.state !== "prepared" &&
-      input.session.state !== "running"
-    )
+    if (input.session.state !== "prepared" && input.session.state !== "running")
       throw new E03RuntimeError(
         "isolation_mount_session_state",
         `isolation session ${input.session.executionSessionId} is ${input.session.state}`,
