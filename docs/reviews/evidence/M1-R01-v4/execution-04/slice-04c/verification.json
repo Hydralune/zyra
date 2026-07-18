@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-C",
+  "implementation_commit": "102761e6264849e27d056931db6b1bde4c3dfcc2",
+  "implementation_tree": "dc5f70e1fc9301a9699219d94e26ee0f866d27a3",
+  "g0_tooling_commit": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "source_ranges_closed": [
+    "e04-source-008",
+    "e04-source-009",
+    "e04-source-010",
+    "e04-source-011"
+  ],
+  "semantic_domains_closed": [
+    "permission",
+    "mcp"
+  ],
+  "checks": [
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe run typecheck:e02",
+      "result": "pass"
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe test api-port-runtime default-capability-host permission-custody default-loop-adversarial permission-mcp-source-recovery",
+      "result": "pass",
+      "tests": 61,
+      "failures": 0,
+      "expects": 94
+    },
+    {
+      "command": ".\\node_modules\\.bin\\bun.exe test mcp-custody mcp-live-transport",
+      "result": "pass",
+      "tests": 11,
+      "failures": 0
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/integration/test_e02_typescript_api_cutover.py -q",
+      "result": "pass",
+      "tests": 1,
+      "failures": 0
+    },
+    {
+      "command": "ZYRA_TEST_PYTHON=<venv-python> node --experimental-strip-types --test packages/integrations/claude-mcp/test/client.test.ts packages/integrations/claude-mcp/test/client-edge.test.ts",
+      "result": "pass",
+      "tests": 6,
+      "failures": 0
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_g0.py",
+      "result": "pass",
+      "source_ranges": 18,
+      "target_records": 18,
+      "python_owner_symbols": 1619,
+      "mutation_points": 13,
+      "duration_seconds": 103.5
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "behavior_evidence": {
+    "permission_hook_before_classifier_order": true,
+    "permission_allow_ask_deny_default_reachable": true,
+    "permission_approval_exact_continuation": true,
+    "permission_source_disable_fails_closed": true,
+    "mcp_transport_initialize_ready_order": true,
+    "mcp_connect_failure_routes_to_recovery": true,
+    "mcp_cleared_client_rebuilds_live_transport": true,
+    "mcp_owner_and_transport_epoch_aligned": true,
+    "mcp_stdio_and_http_live_transports": true,
+    "mcp_source_disable_fails_closed": true,
+    "python_logical_fallback": false
+  },
+  "scope_verdict": "slice_pass_parent_in_progress"
+}

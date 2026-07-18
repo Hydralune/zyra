@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-C",
+  "implementation_commit": "102761e6264849e27d056931db6b1bde4c3dfcc2",
+  "results": [
+    {
+      "mutation_id": "e04-mutation-domain-04",
+      "target": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-permission-disable",
+      "killer_result": "killed",
+      "restore_result": "pass",
+      "restored_sha256": "3dd935b47950f36436c05ef0b3c945049a54d85c2a808c55b6e0a7339fcdbdf6"
+    },
+    {
+      "mutation_id": "e04-mutation-domain-05",
+      "target": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-mcp-disable",
+      "killer_result": "killed",
+      "restore_result": "pass",
+      "restored_sha256": "6c0616df8ea403832370c8a2c20678bf278c80db67bcb30ae0bc0fe1118d19ce"
+    }
+  ],
+  "residual_backups": 0,
+  "verdict": "2_of_2_killed_and_restored"
+}
