@@ -154,3 +154,55 @@ test("e02.disable.typescript-runtime fails closed before any Python fallback can
     else process.env.ZYRA_DISABLE_E02_TYPESCRIPT_RUNTIME = previous;
   }
 });
+
+test("e02.restore keeps request-scoped authority on the original worker request", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-request-scope-"));
+  const input: RuntimeRunInput = {
+    runId: "e02-request-scope-run",
+    taskId: "e02-request-scope-task",
+    nodeId: "e02-request-scope-node",
+    workerRequestId: "e02-request-scope-worker-1",
+    sessionId: "e02-request-scope-session",
+    messages: [],
+    turns: [],
+    tools: [],
+    config: {
+      permissionPolicy: { mode: "default", default_effect: "allow" },
+      runtimeConstraints: {
+        workspaceRoot: workspace,
+        watchSkills: false,
+        watchPlugins: false,
+      },
+    },
+  };
+  const original = await TypeScriptCapabilityRuntime.open(input);
+  const snapshot = original.snapshot();
+  await original.close();
+  try {
+    const sameRequest = await TypeScriptCapabilityRuntime.open({
+      ...input,
+      restoredState: { e02: snapshot as unknown as JsonObject },
+    });
+    try {
+      assert.equal(sameRequest.e02.runtime.workerRequestId, input.workerRequestId);
+      assert.equal(sameRequest.e02.runtime.epoch, snapshot.runtime.epoch + 1);
+    } finally {
+      await sameRequest.close();
+    }
+
+    const laterRequest = await TypeScriptCapabilityRuntime.open({
+      ...input,
+      workerRequestId: "e02-request-scope-worker-2",
+      restoredState: { e02: snapshot as unknown as JsonObject },
+    });
+    try {
+      assert.equal(laterRequest.e02.runtime.workerRequestId, "e02-request-scope-worker-2");
+      assert.equal(laterRequest.e02.runtime.epoch, 1);
+      assert.equal(laterRequest.snapshot().executionSequence, 0);
+    } finally {
+      await laterRequest.close();
+    }
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});

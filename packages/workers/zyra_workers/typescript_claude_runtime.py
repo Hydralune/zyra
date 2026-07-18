@@ -218,27 +218,6 @@ class TypeScriptClaudeQueryEngine:
             600.0,
             max(1.0, float(constraints.get("typescript_runtime_timeout_seconds") or 120.0)),
         )
-        process = subprocess.Popen(
-            command,
-            cwd=self.project_root,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            bufsize=1,
-            env=self._runtime_environment(),
-        )
-        if process.stdin is None or process.stdout is None or process.stderr is None:
-            process.kill()
-            raise TypeScriptRuntimeError(
-                "typescript_runtime_process_failed",
-                "TypeScript runtime process pipes were not created.",
-            )
-        reader = _ProcessLineReader(process.stdout)
-        deadline = time.monotonic() + timeout_seconds
-        outbound_sequence = 1
-        inbound_sequence = 1
         raw_restored_runtime_state = self.config.restored_runtime_state or {}
         nested_session_snapshot = raw_restored_runtime_state.get("session_snapshot")
         restored_runtime_state = (
@@ -287,6 +266,81 @@ class TypeScriptClaudeQueryEngine:
             worker_request_id=worker_request_id,
             workspace_root=self.context.workspace_root,
         )
+        raw_terminal_receipts = restored_runtime_state.get(
+            "terminal_result_receipts"
+        )
+        terminal_receipt = (
+            raw_terminal_receipts.get(worker_request_id)
+            if isinstance(raw_terminal_receipts, Mapping)
+            else None
+        )
+        if isinstance(terminal_receipt, Mapping):
+            recovered_result = terminal_receipt.get("result")
+            if (
+                str(terminal_receipt.get("run_id") or "") != run_id
+                or str(terminal_receipt.get("session_id") or "") != session_id
+                or str(terminal_receipt.get("worker_request_id") or "")
+                != worker_request_id
+                or str(terminal_receipt.get("state") or "")
+                != "committed_before_ack"
+                or not isinstance(recovered_result, Mapping)
+            ):
+                raise TypeScriptRuntimeError(
+                    "typescript_runtime_terminal_receipt_invalid",
+                    "The durable terminal receipt does not match this logical request.",
+                )
+            self._host_events.append(
+                EventRecord(
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                    event_type=EventType.AGENT_MESSAGE,
+                    payload={
+                        "query_session": {
+                            "phase": "terminal_result_recovered",
+                            "canonical_owner": "typescript",
+                            "terminal_id": str(
+                                terminal_receipt.get("terminal_id") or ""
+                            ),
+                            "worker_request_id": worker_request_id,
+                            "exactly_once": True,
+                        }
+                    },
+                )
+            )
+            return self._complete_result(
+                run_id=run_id,
+                task_id=task_id,
+                node_id=node_id,
+                session_id=session_id,
+                result_payload=dict(recovered_result),
+                projection=projection,
+                projection_error="",
+                receipt_port=receipt_port,
+                transport="durable-terminal-receipt",
+                terminal_recovered=True,
+            )
+        process = subprocess.Popen(
+            command,
+            cwd=self.project_root,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+            env=self._runtime_environment(),
+        )
+        if process.stdin is None or process.stdout is None or process.stderr is None:
+            process.kill()
+            raise TypeScriptRuntimeError(
+                "typescript_runtime_process_failed",
+                "TypeScript runtime process pipes were not created.",
+            )
+        reader = _ProcessLineReader(process.stdout)
+        deadline = time.monotonic() + timeout_seconds
+        outbound_sequence = 1
+        inbound_sequence = 1
         self._host_events.append(
             EventRecord(
                 run_id=run_id,
@@ -350,6 +404,8 @@ class TypeScriptClaudeQueryEngine:
             )
 
         result_payload: dict[str, Any] | None = None
+        pending_terminal_payload: dict[str, Any] | None = None
+        pending_terminal_id = ""
         projection_error = ""
         while result_payload is None:
             frame = self._read_frame(
@@ -385,6 +441,21 @@ class TypeScriptClaudeQueryEngine:
                 continue
             if kind == "runtime.checkpoint":
                 checkpoint = dict(payload.get("snapshot") or {})
+                if "e02" in checkpoint and self._latest_runtime_checkpoint:
+                    checkpoint = {
+                        **self._latest_runtime_checkpoint,
+                        "e02": checkpoint["e02"],
+                        "checkpointPhase": checkpoint.get("checkpointPhase"),
+                        "checkpointEventSequence": max(
+                            int(
+                                self._latest_runtime_checkpoint.get(
+                                    "checkpointEventSequence"
+                                )
+                                or 0
+                            ),
+                            int(checkpoint.get("checkpointEventSequence") or 0),
+                        ),
+                    }
                 checkpoint["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
                 checkpoint["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
                 self._latest_runtime_checkpoint = checkpoint
@@ -572,7 +643,66 @@ class TypeScriptClaudeQueryEngine:
                         "typescript_runtime_protocol_error",
                         "TypeScript runtime completed with unsettled capability executions.",
                     )
-                result_payload = dict(payload.get("result") or {})
+                terminal_id = str(payload.get("terminal_id") or "")
+                terminal_revision = int(payload.get("terminal_revision") or 0)
+                selected_result = dict(payload.get("result") or {})
+                if not terminal_id or terminal_revision != 1:
+                    self._terminate(process)
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_protocol_error",
+                        "TypeScript runtime emitted an invalid terminal result identity.",
+                    )
+                if pending_terminal_id and (
+                    pending_terminal_id != terminal_id
+                    or pending_terminal_payload != selected_result
+                ):
+                    self._terminate(process)
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_terminal_conflict",
+                        "TypeScript runtime emitted conflicting terminal results.",
+                    )
+                pending_terminal_id = terminal_id
+                pending_terminal_payload = selected_result
+                self._persist_terminal_receipt(
+                    session_id=session_id,
+                    worker_request_id=worker_request_id,
+                    run_id=run_id,
+                    terminal_id=terminal_id,
+                    result=selected_result,
+                )
+                try:
+                    self._write_frame(
+                        process,
+                        run_id=run_id,
+                        sequence=outbound_sequence,
+                        kind="run.result.ack",
+                        payload={
+                            "accepted": True,
+                            "terminal_id": terminal_id,
+                            "terminal_revision": terminal_revision,
+                            "durable": True,
+                        },
+                        correlation_id=correlation_id,
+                    )
+                except Exception:
+                    self._terminate(process)
+                    raise
+                outbound_sequence += 1
+                continue
+            if kind == "run.closed":
+                closed_terminal_id = str(payload.get("terminal_id") or "")
+                if (
+                    pending_terminal_payload is None
+                    or not pending_terminal_id
+                    or closed_terminal_id != pending_terminal_id
+                    or correlation_id != pending_terminal_id
+                ):
+                    self._terminate(process)
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_protocol_error",
+                        "TypeScript runtime closed without the committed terminal result.",
+                    )
+                result_payload = pending_terminal_payload
                 break
             self._terminate(process)
             raise TypeScriptRuntimeError(
@@ -596,6 +726,34 @@ class TypeScriptClaudeQueryEngine:
                 stderr or f"TypeScript runtime exited with status {exit_code}.",
             )
 
+        return self._complete_result(
+            run_id=run_id,
+            task_id=task_id,
+            node_id=node_id,
+            session_id=session_id,
+            result_payload=result_payload,
+            projection=projection,
+            projection_error=projection_error,
+            receipt_port=receipt_port,
+            transport=transport,
+            terminal_recovered=False,
+        )
+
+    def _complete_result(
+        self,
+        *,
+        run_id: str,
+        task_id: str,
+        node_id: str | None,
+        session_id: str,
+        result_payload: Mapping[str, Any],
+        projection: QuerySession,
+        projection_error: str,
+        receipt_port: TypeScriptPermissionReceiptPort,
+        transport: str,
+        terminal_recovered: bool,
+    ) -> ClaudeQueryEngineResult:
+        result_payload = dict(result_payload)
         ok = result_payload.get("ok") is True
         stopped_reason = str(result_payload.get("stoppedReason") or "") or None
         if projection.active_turn is not None:
@@ -621,6 +779,14 @@ class TypeScriptClaudeQueryEngine:
         )
         session_snapshot["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
         session_snapshot["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
+        raw_terminal_receipts = self._latest_runtime_checkpoint.get(
+            "terminal_result_receipts"
+        )
+        session_snapshot["terminal_result_receipts"] = to_jsonable(
+            dict(raw_terminal_receipts)
+            if isinstance(raw_terminal_receipts, Mapping)
+            else {}
+        )
         session_snapshot["runtime_state"] = {
             "schema_version": 1,
             "query_session_id": session_id,
@@ -704,6 +870,7 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_runtime_id": TYPESCRIPT_RUNTIME_ID,
                 "runtime_protocol": RUNTIME_PROTOCOL_VERSION,
                 "runtime_transport": transport,
+                "terminal_result_recovered": str(terminal_recovered).lower(),
                 "python_query_engine_fallback": "false",
                 "python_session_projection_canonical": "false",
                 "query_session_id": session_id,
@@ -792,6 +959,46 @@ class TypeScriptClaudeQueryEngine:
         encoded = json.dumps(to_jsonable(payload), ensure_ascii=False, sort_keys=True)
         staged.write_text(encoded, encoding="utf-8")
         os.replace(staged, path)
+
+    def _persist_terminal_receipt(
+        self,
+        *,
+        session_id: str,
+        worker_request_id: str,
+        run_id: str,
+        terminal_id: str,
+        result: Mapping[str, Any],
+    ) -> None:
+        checkpoint = dict(self._latest_runtime_checkpoint)
+        raw_receipts = checkpoint.get("terminal_result_receipts")
+        receipts = (
+            {str(key): dict(value) for key, value in raw_receipts.items() if isinstance(value, Mapping)}
+            if isinstance(raw_receipts, Mapping)
+            else {}
+        )
+        existing = receipts.get(worker_request_id)
+        if existing and (
+            str(existing.get("terminal_id") or "") != terminal_id
+            or dict(existing.get("result") or {}) != dict(result)
+        ):
+            raise TypeScriptRuntimeError(
+                "typescript_runtime_terminal_conflict",
+                "A different terminal result is already committed for this worker request.",
+            )
+        if not existing:
+            receipts[worker_request_id] = {
+                "schema_version": 1,
+                "run_id": run_id,
+                "session_id": session_id,
+                "worker_request_id": worker_request_id,
+                "terminal_id": terminal_id,
+                "terminal_revision": 1,
+                "state": "committed_before_ack",
+                "result": to_jsonable(dict(result)),
+            }
+        checkpoint["terminal_result_receipts"] = receipts
+        self._latest_runtime_checkpoint = checkpoint
+        self._persist_incremental_checkpoint(session_id, checkpoint)
 
     def _runtime_command(self) -> tuple[list[str], str]:
         if not self.entrypoint.exists():

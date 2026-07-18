@@ -313,6 +313,7 @@ export class E02CapabilityCoordinator {
   private readonly input: RuntimeRunInput;
   private readonly ports: E02CoordinatorPorts;
   private readonly now: () => Date;
+  private readonly restoreDisposition: E02RestoreDisposition;
   private readonly recoveries = new Map<string, E02RecoveryRecord>();
   private readonly integrationAudit = new Map<string, E02IntegrationAudit>();
   private readonly pluginIntegrationRevisions = new Map<string, number>();
@@ -338,11 +339,13 @@ export class E02CapabilityCoordinator {
   private constructor(
     input: RuntimeRunInput,
     ports: E02CoordinatorPorts,
-    snapshot: E02CapabilityCoordinatorSnapshot | null,
+    restore: E02RestoreSelection,
   ) {
+    const snapshot = restore.snapshot;
     this.input = input;
     this.ports = ports;
     this.now = ports.now ?? (() => new Date());
+    this.restoreDisposition = restore.disposition;
     this.workspaceRoot = workspaceRoot(input);
     this.runtime = runtimeIdentity(input, snapshot);
     if (snapshot) this.validateSnapshot(snapshot);
@@ -513,8 +516,8 @@ export class E02CapabilityCoordinator {
         "The canonical TypeScript E02 capability runtime is disabled; no Python fallback is permitted",
       );
     }
-    const snapshot = restoredE02Snapshot(input.restoredState);
-    const coordinator = new E02CapabilityCoordinator(input, ports, snapshot);
+    const restore = selectRestoredE02Snapshot(input.restoredState, input);
+    const coordinator = new E02CapabilityCoordinator(input, ports, restore);
     await coordinator.openRuntime();
     return coordinator;
   }
@@ -556,6 +559,7 @@ export class E02CapabilityCoordinator {
         payload: {
           epoch: this.runtime.epoch,
           restored_before_bootstrap: this.restoredBeforeBootstrap,
+          restore_disposition: this.restoreDisposition,
           canonical_permission_owner: "typescript",
           canonical_mcp_owner: "typescript",
           canonical_skill_owner: "typescript",
@@ -3130,9 +3134,17 @@ interface RequiredExecutionContext {
   agentContext?: AgentExecutionContext;
 }
 
-function restoredE02Snapshot(
+type E02RestoreDisposition = "none" | "restored" | "prior_worker_request";
+
+interface E02RestoreSelection {
+  snapshot: E02CapabilityCoordinatorSnapshot | null;
+  disposition: E02RestoreDisposition;
+}
+
+function selectRestoredE02Snapshot(
   value: JsonObject | null | undefined,
-): E02CapabilityCoordinatorSnapshot | null {
+  input: RuntimeRunInput,
+): E02RestoreSelection {
   const root = asObject(value);
   const visited = new Set<JsonObject>();
   const queue: JsonObject[] = [root];
@@ -3153,7 +3165,19 @@ function restoredE02Snapshot(
     if (visited.has(candidate)) continue;
     visited.add(candidate);
     if (candidate.version === "zyra.e02-runtime/v1") {
-      return candidate as unknown as E02CapabilityCoordinatorSnapshot;
+      const snapshot = candidate as unknown as E02CapabilityCoordinatorSnapshot;
+      if (
+        snapshot.runtime?.runId === input.runId
+        && snapshot.runtime.taskId === input.taskId
+        && snapshot.runtime.sessionId === input.sessionId
+        && snapshot.runtime.workerRequestId !== input.workerRequestId
+      ) {
+        // E02 permits, leases, continuations, and idempotency records are bound to
+        // one worker request. A later request in the same durable session starts a
+        // new E02 epoch instead of rebinding those request-scoped authorities.
+        return { snapshot: null, disposition: "prior_worker_request" };
+      }
+      return { snapshot, disposition: "restored" };
     }
     for (const key of preferredKeys) {
       const child = asObject(candidate[key]);
@@ -3164,7 +3188,7 @@ function restoredE02Snapshot(
       if (Object.keys(child).length && !visited.has(child)) queue.push(child);
     }
   }
-  return null;
+  return { snapshot: null, disposition: "none" };
 }
 
 function runtimeIdentity(

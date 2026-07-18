@@ -179,6 +179,22 @@ describe("E01 V10 default-path source custody", () => {
     expect(runtime.snapshot().sourceCustody?.lastAutoCompaction["v9-session"]?.required).toBe(true);
   });
 
+  test("e01.v10.compaction-over-wide-preservation-keeps-a-valid-source-boundary", async () => {
+    const runtime = new ContextCompactionRuntime();
+    const result = await runtime.compactConversation(
+      compactMessages(),
+      {
+        ...compactOptions(),
+        preserveRecentMessages: compactMessages().length + 4,
+      },
+      async () => "bounded compact summary",
+    );
+
+    expect(result.changed).toBe(true);
+    expect(result.boundary.sourceMessageIds.length).toBeGreaterThan(0);
+    expect(result.boundary.preservedMessageIds.length).toBeGreaterThan(0);
+  });
+
   test("e01.v10.post-compact-restore-follows-read-lineage-and-budgets", () => {
     const runtime = new ContextCompactionRuntime();
     const messages = compactMessages();

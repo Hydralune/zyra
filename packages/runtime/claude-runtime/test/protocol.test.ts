@@ -50,3 +50,45 @@ test("protocol rejects duplicate and out-of-order frames", () => {
       && error.code === "out_of_order_frame",
   );
 });
+
+test("terminal result requires a correlated durable ACK before close", () => {
+  const result = createFrame(
+    8,
+    "run-terminal",
+    "run.result",
+    {
+      terminal_id: "terminal-1",
+      terminal_revision: 1,
+      requires_ack: true,
+      result: { ok: true },
+    },
+    "terminal-1",
+  );
+  const acknowledgement = createFrame(
+    4,
+    "run-terminal",
+    "run.result.ack",
+    {
+      terminal_id: "terminal-1",
+      terminal_revision: 1,
+      accepted: true,
+      durable: true,
+    },
+    "terminal-1",
+  );
+  const closed = createFrame(
+    9,
+    "run-terminal",
+    "run.closed",
+    { terminal_id: "terminal-1", terminal_revision: 1, accepted: true },
+    "terminal-1",
+  );
+
+  assert.equal(decodeFrame(JSON.stringify(result)).kind, "run.result");
+  assert.equal(
+    decodeFrame(JSON.stringify(acknowledgement)).kind,
+    "run.result.ack",
+  );
+  assert.equal(decodeFrame(JSON.stringify(closed)).kind, "run.closed");
+  assert.equal(closed.correlation_id, result.correlation_id);
+});

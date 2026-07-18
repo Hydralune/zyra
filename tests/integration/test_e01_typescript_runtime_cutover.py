@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -283,6 +284,187 @@ def test_default_path_persists_incremental_typescript_checkpoint(tmp_path: Path)
     assert checkpoint["canonical_owner"] == "typescript"
     assert int(checkpoint["checkpointEventSequence"]) > 0
     assert checkpoint["checkpointPhase"]
+
+
+def test_terminal_result_is_durable_before_host_ack(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    original_write_frame = TypeScriptClaudeQueryEngine._write_frame
+    observed: dict[str, object] = {}
+
+    def observe_terminal_ack(*args: object, **kwargs: object) -> object:
+        if kwargs.get("kind") == "run.result.ack":
+            checkpoint_files = list(
+                (tmp_path / "artifacts" / ".runtime-checkpoints").glob(
+                    "typescript-e01-*.json"
+                )
+            )
+            assert len(checkpoint_files) == 1
+            checkpoint = json.loads(
+                checkpoint_files[0].read_text(encoding="utf-8")
+            )
+            receipts = checkpoint["terminal_result_receipts"]
+            assert isinstance(receipts, dict)
+            receipt = next(iter(receipts.values()))
+            assert receipt["state"] == "committed_before_ack"
+            assert receipt["terminal_id"] == kwargs["payload"]["terminal_id"]
+            observed["terminal_id"] = receipt["terminal_id"]
+        return original_write_frame(*args, **kwargs)
+
+    with mock.patch.object(
+        TypeScriptClaudeQueryEngine,
+        "_write_frame",
+        autospec=True,
+        side_effect=observe_terminal_ack,
+    ):
+        run = runtime.run(
+            _request(
+                "e04-terminal-durable-before-ack",
+                session_id="e04-terminal-durable-before-ack-session",
+            )
+        )
+
+    assert run.worker_result.ok is True
+    assert observed["terminal_id"]
+    assert run.worker_result.metadata["terminal_commit_protocol"] == (
+        "close-result-ack-closed"
+    )
+
+
+def test_lost_terminal_ack_resumes_without_tool_reexecution(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    (workspace / "terminal.txt").write_text("terminal receipt", encoding="utf-8")
+    runtime = CodeWorkerRuntime(
+        project_root=REPO_ROOT,
+        workspace_root=workspace,
+        artifact_root=tmp_path / "artifacts",
+    )
+    original_execute = ToolExecutor.execute
+    original_write_frame = TypeScriptClaudeQueryEngine._write_frame
+    executions = 0
+    dropped = False
+
+    def counting_execute(self: ToolExecutor, call: object, **kwargs: object) -> object:
+        nonlocal executions
+        executions += 1
+        return original_execute(self, call, **kwargs)
+
+    def drop_first_terminal_ack(*args: object, **kwargs: object) -> object:
+        nonlocal dropped
+        if kwargs.get("kind") == "run.result.ack" and not dropped:
+            dropped = True
+            raise OSError("simulated lost terminal acknowledgement")
+        return original_write_frame(*args, **kwargs)
+
+    request = _request(
+        "e04-lost-terminal-ack",
+        session_id="e04-lost-terminal-ack-session",
+        query_turns=[
+            [{"tool_name": "file_read", "arguments": {"path": "terminal.txt"}}]
+        ],
+    )
+    with (
+        mock.patch.object(ToolExecutor, "execute", counting_execute),
+        mock.patch.object(
+            TypeScriptClaudeQueryEngine,
+            "_write_frame",
+            autospec=True,
+            side_effect=drop_first_terminal_ack,
+        ),
+    ):
+        first = runtime.run(request)
+
+    with (
+        mock.patch.object(ToolExecutor, "execute", counting_execute),
+        mock.patch(
+            "zyra_workers.typescript_claude_runtime.subprocess.Popen",
+            wraps=subprocess.Popen,
+        ) as runtime_launch,
+    ):
+        resumed = runtime.run(request)
+
+    assert first.worker_result.ok is False
+    assert dropped is True
+    assert resumed.worker_result.ok is True
+    assert executions == 1
+    assert runtime_launch.call_count == 0
+    checkpoint = _checkpoint(resumed)
+    session_snapshot = checkpoint["session_snapshot"]
+    assert isinstance(session_snapshot, dict)
+    receipts = session_snapshot["terminal_result_receipts"]
+    assert isinstance(receipts, dict)
+    assert len(receipts) == 1
+
+
+def test_duplicate_terminal_delivery_is_acknowledged_idempotently(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    original_read_frame = TypeScriptClaudeQueryEngine._read_frame
+    original_write_frame = TypeScriptClaudeQueryEngine._write_frame
+    duplicate: dict[str, object] | None = None
+    duplicated = False
+    injected_sequence_offset = 0
+    terminal_ack_attempts = 0
+
+    def duplicate_terminal_result(
+        *args: object, **kwargs: object
+    ) -> dict[str, object]:
+        nonlocal duplicate, duplicated, injected_sequence_offset
+        if duplicate is not None:
+            frame = dict(duplicate)
+            frame["sequence"] = kwargs["expected_sequence"]
+            duplicate = None
+            injected_sequence_offset += 1
+            return frame
+        adjusted_kwargs = dict(kwargs)
+        adjusted_kwargs["expected_sequence"] = (
+            int(kwargs["expected_sequence"]) - injected_sequence_offset
+        )
+        frame = original_read_frame(*args, **adjusted_kwargs)
+        if frame.get("kind") == "run.result" and not duplicated:
+            duplicate = dict(frame)
+            duplicated = True
+        return frame
+
+    def count_terminal_ack(*args: object, **kwargs: object) -> object:
+        nonlocal terminal_ack_attempts
+        if kwargs.get("kind") == "run.result.ack":
+            terminal_ack_attempts += 1
+            if terminal_ack_attempts == 2:
+                # The real runtime consumes one ACK and emits run.closed. The
+                # second delivery is injected at the host boundary, so its
+                # idempotent ACK has no additional peer request to settle.
+                return None
+        return original_write_frame(*args, **kwargs)
+
+    with (
+        mock.patch.object(
+            TypeScriptClaudeQueryEngine,
+            "_read_frame",
+            autospec=True,
+            side_effect=duplicate_terminal_result,
+        ),
+        mock.patch.object(
+            TypeScriptClaudeQueryEngine,
+            "_write_frame",
+            autospec=True,
+            side_effect=count_terminal_ack,
+        ),
+    ):
+        run = runtime.run(
+            _request(
+                "e04-duplicate-terminal-delivery",
+                session_id="e04-duplicate-terminal-delivery-session",
+            )
+        )
+
+    assert run.worker_result.ok is True
+    assert duplicated is True
+    assert terminal_ack_attempts == 2
+    session_snapshot = _checkpoint(run)["session_snapshot"]
+    assert isinstance(session_snapshot, dict)
+    receipts = session_snapshot["terminal_result_receipts"]
+    assert isinstance(receipts, dict)
+    assert len(receipts) == 1
 
 
 def test_default_path_runs_read_only_batch_concurrently(tmp_path: Path) -> None:

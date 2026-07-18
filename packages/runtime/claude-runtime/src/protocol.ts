@@ -24,6 +24,8 @@ export type RuntimeFrameKind =
   | "artifact.request"
   | "artifact.result"
   | "run.result"
+  | "run.result.ack"
+  | "run.closed"
   | "runtime.error";
 
 export interface RuntimeFrame {
@@ -62,6 +64,8 @@ const FRAME_KINDS = new Set<RuntimeFrameKind>([
   "artifact.request",
   "artifact.result",
   "run.result",
+  "run.result.ack",
+  "run.closed",
   "runtime.error",
 ]);
 

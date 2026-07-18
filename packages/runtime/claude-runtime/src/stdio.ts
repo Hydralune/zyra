@@ -320,6 +320,35 @@ class JsonlRuntimeHost implements RuntimeHost {
     } as AgentMutationReceipt;
   }
 
+  async commitResult(result: JsonObject): Promise<void> {
+    const terminalId = createHash("sha256")
+      .update(this.runId, "utf8")
+      .update("\0", "utf8")
+      .update(JSON.stringify(result), "utf8")
+      .digest("hex");
+    this.send("run.result", {
+      result,
+      terminal_id: terminalId,
+      terminal_revision: 1,
+      requires_ack: true,
+    }, terminalId);
+    const acknowledgement = await this.read("run.result.ack", terminalId);
+    if (
+      acknowledgement.payload.accepted !== true ||
+      asString(acknowledgement.payload.terminal_id) !== terminalId
+    ) {
+      throw new RuntimeProtocolError(
+        "terminal_result_rejected",
+        asString(acknowledgement.payload.error) || "Python durable host rejected terminal result",
+      );
+    }
+    this.send("run.closed", {
+      terminal_id: terminalId,
+      terminal_revision: 1,
+      accepted: true,
+    }, terminalId);
+  }
+
   isAborted(): boolean {
     return this.aborted;
   }
@@ -379,6 +408,7 @@ export async function runStdioRuntime(): Promise<void> {
   }
   const host = new JsonlRuntimeHost(start.run_id, lines, start.sequence);
   let capabilities: TypeScriptCapabilityRuntime | null = null;
+  let terminalResultSent = false;
   host.send("run.accepted", {
     runtime_id: "zyra-typescript-claude-runtime",
     canonical_owner: "typescript",
@@ -409,40 +439,60 @@ export async function runStdioRuntime(): Promise<void> {
         new PermissionedCapabilityHost(host, childInput, activeCapabilities),
       ),
     });
-    host.send("run.result", {
-      result: {
-        ...result,
-        sessionSnapshot: {
-          ...result.sessionSnapshot,
-          typescriptCapabilities: permissionedHost.snapshot(),
-        },
-        metadata: {
-          ...result.metadata,
-          canonical_permission_owner: "typescript",
-          canonical_mcp_owner: "typescript",
-          canonical_skill_owner: "typescript",
-          canonical_plugin_owner: "typescript",
-          canonical_command_owner: "typescript",
-          canonical_agent_owner: "typescript",
-          canonical_control_owner: "typescript",
-          default_capability_entrypoint: "E02CapabilityCoordinator.execute",
-          typescript_state_journal_owner: "E02CapabilityCoordinator",
-          python_policy_fallback: "false",
-          python_capability_decision_fallback: "false",
-          python_agent_fallback: "false",
-        },
-      } as unknown as JsonObject,
-    });
-  } catch (error) {
-    const protocolError = error instanceof RuntimeProtocolError ? error : null;
-    host.send("runtime.error", {
-      code: protocolError?.code ?? "typescript_runtime_error",
-      message: error instanceof Error ? error.message : String(error),
-      canonical_owner: "typescript",
-    });
+    capabilities = null;
+    await activeCapabilities.close();
+    terminalResultSent = true;
+    await host.commitResult({
+      ...result,
+      sessionSnapshot: {
+        ...result.sessionSnapshot,
+        typescriptCapabilities: permissionedHost.snapshot(),
+      },
+      metadata: {
+        ...result.metadata,
+        canonical_permission_owner: "typescript",
+        canonical_mcp_owner: "typescript",
+        canonical_skill_owner: "typescript",
+        canonical_plugin_owner: "typescript",
+        canonical_command_owner: "typescript",
+        canonical_agent_owner: "typescript",
+        canonical_control_owner: "typescript",
+        default_capability_entrypoint: "E02CapabilityCoordinator.execute",
+        typescript_state_journal_owner: "E02CapabilityCoordinator",
+        terminal_commit_protocol: "close-result-ack-closed",
+        python_policy_fallback: "false",
+        python_capability_decision_fallback: "false",
+        python_agent_fallback: "false",
+      },
+    } as unknown as JsonObject);
+  } catch (caught) {
+    let error: unknown = caught;
+    if (!terminalResultSent && capabilities !== null) {
+      try {
+        await capabilities.close();
+      } catch (closeError) {
+        error = closeError;
+      } finally {
+        capabilities = null;
+      }
+    }
+    if (!terminalResultSent) {
+      const protocolError = error instanceof RuntimeProtocolError ? error : null;
+      host.send("runtime.error", {
+        code: protocolError?.code ?? "typescript_runtime_error",
+        message: error instanceof Error ? error.message : String(error),
+        canonical_owner: "typescript",
+      });
+    }
     process.exitCode = 1;
   } finally {
-    await capabilities?.close();
+    if (capabilities !== null) {
+      try {
+        await capabilities.close();
+      } catch {
+        process.exitCode = 1;
+      }
+    }
     reader.close();
   }
 }

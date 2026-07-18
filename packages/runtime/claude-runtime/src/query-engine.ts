@@ -994,6 +994,10 @@ export class ClaudeRuntimeCore {
           ? scheduleToolBatches(registry, turns.flat(), 0, config.maxReadOnlyConcurrency).length
           : 0),
         runtime_protocol: "zyra.claude-runtime.v1",
+        sidecar_contracts_used: "false",
+        query_contract_source: "zyra-claude-productized",
+        query_plan_ok: String(ok),
+        query_plan_tool_steps: String(toolCallCount),
         restored: String(session.restored),
         runtime_state_ok: "true",
         runtime_state_mutations: String(snapshot.revision),

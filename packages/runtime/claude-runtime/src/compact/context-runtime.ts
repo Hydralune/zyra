@@ -592,7 +592,14 @@ export class ContextCompactionRuntime {
     });
     const basePlan = this.planCompaction(stripped, options);
     const custodySplit = adjustIndexToPreserveApiInvariants(stripped, sourceSelection.firstKeptIndex);
-    const splitIndex = Math.min(basePlan.splitIndex, custodySplit);
+    // An over-wide recent-message preservation request can make the source
+    // custody boundary zero even though the budget planner selected a valid
+    // compactable API segment. In that case keep the invariant-safe base plan;
+    // a requested preservation window must not turn an already-triggered
+    // compaction into a terminal runtime error.
+    const splitIndex = custodySplit === 0
+      ? basePlan.splitIndex
+      : Math.min(basePlan.splitIndex, custodySplit);
     const plan: SelectionPlan = {
       compact: stripped.slice(0, splitIndex).map((item) => structuredClone(item)),
       preserve: stripped.slice(splitIndex).map((item) => structuredClone(item)),
