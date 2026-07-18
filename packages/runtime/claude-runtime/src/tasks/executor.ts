@@ -2727,6 +2727,694 @@ function assertOutputReport(value: TaskOutputVerificationReport): void {
       `completed task output report ${value.reportId} lacks time`,
     );
 }
+export interface TaskExecutionPlacement {
+  placementId: string;
+  taskId: string;
+  leaseId: string;
+  attempt: number;
+  hostId: string;
+  region: string;
+  runtimeKind: "local" | "edge" | "cloud";
+  requiredCapabilities: string[];
+  state:
+    | "reserved"
+    | "starting"
+    | "running"
+    | "migrating"
+    | "released"
+    | "failed";
+  fencingToken: number;
+  reservedAt: string;
+  startedAt: string;
+  releasedAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskExecutionHostCapacity {
+  hostId: string;
+  region: string;
+  runtimeKind: TaskExecutionPlacement["runtimeKind"];
+  capabilities: string[];
+  maximumPlacements: number;
+  activePlacements: number;
+  healthy: boolean;
+  draining: boolean;
+  leaseExpiresAt: string;
+  lastHeartbeatAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskPlacementMigration {
+  migrationId: string;
+  placementId: string;
+  taskId: string;
+  sourceHostId: string;
+  targetHostId: string;
+  checkpointDigest: string;
+  idempotencyKey: string;
+  state:
+    | "prepared"
+    | "checkpointed"
+    | "restoring"
+    | "committed"
+    | "rolled_back"
+    | "failed";
+  targetFencingToken: number;
+  preparedAt: string;
+  updatedAt: string;
+  committedAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskPlacementSnapshot {
+  hosts: TaskExecutionHostCapacity[];
+  placements: TaskExecutionPlacement[];
+  migrations: TaskPlacementMigration[];
+  activePlacementByTask: [string, string][];
+  migrationByIdempotencyKey: [string, string][];
+  nextFenceByTask: [string, number][];
+}
+
+function assertTaskExecutionPlacement(value: TaskExecutionPlacement): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.placementId ||
+    !value.taskId ||
+    !value.leaseId ||
+    value.attempt < 1 ||
+    !value.hostId ||
+    !value.region ||
+    value.fencingToken < 1 ||
+    new Set(value.requiredCapabilities).size !==
+      value.requiredCapabilities.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_execution_placement_corrupt",
+      `task execution placement ${value.placementId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskHostCapacity(value: TaskExecutionHostCapacity): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.hostId ||
+    !value.region ||
+    value.maximumPlacements < 1 ||
+    value.activePlacements < 0 ||
+    value.activePlacements > value.maximumPlacements ||
+    new Set(value.capabilities).size !== value.capabilities.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_execution_host_capacity_corrupt",
+      `task execution host ${value.hostId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskPlacementMigration(value: TaskPlacementMigration): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.migrationId ||
+    !value.placementId ||
+    !value.taskId ||
+    !value.sourceHostId ||
+    !value.targetHostId ||
+    value.sourceHostId === value.targetHostId ||
+    !value.idempotencyKey ||
+    value.targetFencingToken < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_placement_migration_corrupt",
+      `task placement migration ${value.migrationId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TaskExecutionPlacementRuntime {
+  private hosts = new Map<string, TaskExecutionHostCapacity>();
+  private placements = new Map<string, TaskExecutionPlacement>();
+  private migrations = new Map<string, TaskPlacementMigration>();
+  private activePlacementByTask = new Map<string, string>();
+  private migrationByIdempotencyKey = new Map<string, string>();
+  private nextFenceByTask = new Map<string, number>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerHost(input: {
+    hostId: string;
+    region: string;
+    runtimeKind: TaskExecutionHostCapacity["runtimeKind"];
+    capabilities: readonly string[];
+    maximumPlacements: number;
+    leaseExpiresAt: string;
+  }): TaskExecutionHostCapacity {
+    if (this.hosts.has(input.hostId))
+      throw new E03RuntimeError(
+        "task_execution_host_duplicate",
+        `task execution host ${input.hostId} already exists`,
+      );
+    const payload = {
+      hostId: input.hostId,
+      region: input.region,
+      runtimeKind: input.runtimeKind,
+      capabilities: [...new Set(input.capabilities)].sort(),
+      maximumPlacements: input.maximumPlacements,
+      activePlacements: 0,
+      healthy: true,
+      draining: false,
+      leaseExpiresAt: input.leaseExpiresAt,
+      lastHeartbeatAt: this.clock.now(),
+      revision: 1,
+    };
+    const host = { ...payload, digest: digest(payload) };
+    assertTaskHostCapacity(host);
+    this.hosts.set(host.hostId, host);
+    return structuredClone(host);
+  }
+
+  heartbeat(
+    hostId: string,
+    expectedRevision: number,
+    input: { leaseExpiresAt: string; healthy: boolean },
+  ): TaskExecutionHostCapacity {
+    const host = this.requireHost(hostId);
+    this.assertHostRevision(host, expectedRevision);
+    if (host.draining && input.healthy)
+      throw new E03RuntimeError(
+        "task_execution_host_draining_heartbeat",
+        `draining host ${hostId} cannot advertise healthy`,
+      );
+    return this.transitionHost(host, {
+      leaseExpiresAt: input.leaseExpiresAt,
+      healthy: input.healthy,
+      lastHeartbeatAt: this.clock.now(),
+    });
+  }
+
+  reserve(input: {
+    placementId?: string;
+    taskId: string;
+    leaseId: string;
+    attempt: number;
+    requiredCapabilities: readonly string[];
+    preferredRegion?: string;
+    runtimeKinds?: readonly TaskExecutionPlacement["runtimeKind"][];
+  }): TaskExecutionPlacement {
+    const activeId = this.activePlacementByTask.get(input.taskId);
+    if (activeId) return structuredClone(this.requirePlacement(activeId));
+    const requiredCapabilities = [
+      ...new Set(input.requiredCapabilities),
+    ].sort();
+    const allowedKinds = input.runtimeKinds ?? ["local", "edge", "cloud"];
+    const now = this.clock.now();
+    const host = [...this.hosts.values()]
+      .filter(
+        (value) =>
+          value.healthy &&
+          !value.draining &&
+          Date.parse(value.leaseExpiresAt) > Date.parse(now) &&
+          value.activePlacements < value.maximumPlacements &&
+          allowedKinds.includes(value.runtimeKind) &&
+          requiredCapabilities.every((capability) =>
+            value.capabilities.includes(capability),
+          ),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.region === input.preferredRegion) -
+            Number(a.region === input.preferredRegion) ||
+          a.activePlacements / a.maximumPlacements -
+            b.activePlacements / b.maximumPlacements ||
+          a.hostId.localeCompare(b.hostId),
+      )[0];
+    if (!host)
+      throw new E03RuntimeError(
+        "task_execution_placement_unavailable",
+        `task ${input.taskId} has no execution placement`,
+      );
+    const fencingToken = (this.nextFenceByTask.get(input.taskId) ?? 0) + 1;
+    const placementId =
+      input.placementId ?? createId("task-execution-placement");
+    const payload = {
+      placementId,
+      taskId: input.taskId,
+      leaseId: input.leaseId,
+      attempt: input.attempt,
+      hostId: host.hostId,
+      region: host.region,
+      runtimeKind: host.runtimeKind,
+      requiredCapabilities,
+      state: "reserved" as const,
+      fencingToken,
+      reservedAt: now,
+      startedAt: "",
+      releasedAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const placement = { ...payload, digest: digest(payload) };
+    assertTaskExecutionPlacement(placement);
+    this.placements.set(placementId, placement);
+    this.activePlacementByTask.set(input.taskId, placementId);
+    this.nextFenceByTask.set(input.taskId, fencingToken);
+    this.transitionHost(host, { activePlacements: host.activePlacements + 1 });
+    return structuredClone(placement);
+  }
+
+  start(
+    placementId: string,
+    expectedRevision: number,
+    fencingToken: number,
+  ): TaskExecutionPlacement {
+    const placement = this.requirePlacement(placementId);
+    this.assertPlacementRevision(placement, expectedRevision);
+    if (
+      placement.state !== "reserved" ||
+      placement.fencingToken !== fencingToken
+    )
+      throw new E03RuntimeError(
+        "task_execution_placement_start_fence",
+        `task execution placement ${placementId} fence is invalid`,
+      );
+    const host = this.requireHost(placement.hostId);
+    if (!host.healthy || host.draining)
+      throw new E03RuntimeError(
+        "task_execution_placement_host_unhealthy",
+        `task execution host ${host.hostId} is unavailable`,
+      );
+    return this.transitionPlacement(placement, {
+      state: "running",
+      startedAt: this.clock.now(),
+    });
+  }
+
+  prepareMigration(input: {
+    migrationId?: string;
+    placementId: string;
+    expectedRevision: number;
+    targetHostId: string;
+    idempotencyKey: string;
+  }): TaskPlacementMigration {
+    const duplicateId = this.migrationByIdempotencyKey.get(
+      input.idempotencyKey,
+    );
+    if (duplicateId) return structuredClone(this.requireMigration(duplicateId));
+    const placement = this.requirePlacement(input.placementId);
+    this.assertPlacementRevision(placement, input.expectedRevision);
+    if (placement.state !== "running")
+      throw new E03RuntimeError(
+        "task_placement_migration_source_state",
+        `task execution placement ${placement.placementId} is ${placement.state}`,
+      );
+    const target = this.requireHost(input.targetHostId);
+    if (
+      target.hostId === placement.hostId ||
+      !target.healthy ||
+      target.draining ||
+      target.activePlacements >= target.maximumPlacements ||
+      target.runtimeKind !== placement.runtimeKind ||
+      placement.requiredCapabilities.some(
+        (value) => !target.capabilities.includes(value),
+      )
+    )
+      throw new E03RuntimeError(
+        "task_placement_migration_target_invalid",
+        `task placement migration target ${target.hostId} is invalid`,
+      );
+    const targetFencingToken =
+      (this.nextFenceByTask.get(placement.taskId) ?? 0) + 1;
+    const migrationId =
+      input.migrationId ?? createId("task-placement-migration");
+    const now = this.clock.now();
+    const payload = {
+      migrationId,
+      placementId: placement.placementId,
+      taskId: placement.taskId,
+      sourceHostId: placement.hostId,
+      targetHostId: target.hostId,
+      checkpointDigest: "",
+      idempotencyKey: input.idempotencyKey,
+      state: "prepared" as const,
+      targetFencingToken,
+      preparedAt: now,
+      updatedAt: now,
+      committedAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const migration = { ...payload, digest: digest(payload) };
+    assertTaskPlacementMigration(migration);
+    this.migrations.set(migrationId, migration);
+    this.migrationByIdempotencyKey.set(input.idempotencyKey, migrationId);
+    this.transitionPlacement(placement, { state: "migrating" });
+    this.transitionHost(target, {
+      activePlacements: target.activePlacements + 1,
+    });
+    return structuredClone(migration);
+  }
+
+  checkpoint(
+    migrationId: string,
+    expectedRevision: number,
+    checkpointDigest: string,
+  ): TaskPlacementMigration {
+    const migration = this.requireMigration(migrationId);
+    this.assertMigrationRevision(migration, expectedRevision);
+    if (migration.state !== "prepared" || !checkpointDigest)
+      throw new E03RuntimeError(
+        "task_placement_migration_checkpoint_state",
+        `task placement migration ${migrationId} cannot checkpoint`,
+      );
+    return this.transitionMigration(migration, {
+      state: "checkpointed",
+      checkpointDigest,
+    });
+  }
+
+  restoreTarget(
+    migrationId: string,
+    expectedRevision: number,
+    fencingToken: number,
+  ): TaskPlacementMigration {
+    const migration = this.requireMigration(migrationId);
+    this.assertMigrationRevision(migration, expectedRevision);
+    if (
+      migration.state !== "checkpointed" ||
+      migration.targetFencingToken !== fencingToken
+    )
+      throw new E03RuntimeError(
+        "task_placement_migration_restore_fence",
+        `task placement migration ${migrationId} fence is invalid`,
+      );
+    return this.transitionMigration(migration, { state: "restoring" });
+  }
+
+  commitMigration(
+    migrationId: string,
+    expectedRevision: number,
+  ): { migration: TaskPlacementMigration; placement: TaskExecutionPlacement } {
+    const migration = this.requireMigration(migrationId);
+    this.assertMigrationRevision(migration, expectedRevision);
+    if (migration.state !== "restoring")
+      throw new E03RuntimeError(
+        "task_placement_migration_commit_state",
+        `task placement migration ${migrationId} is ${migration.state}`,
+      );
+    const placement = this.requirePlacement(migration.placementId);
+    const source = this.requireHost(migration.sourceHostId);
+    const target = this.requireHost(migration.targetHostId);
+    if (source.activePlacements < 1)
+      throw new E03RuntimeError(
+        "task_placement_migration_source_underflow",
+        `task execution host ${source.hostId} has no placement`,
+      );
+    const committedAt = this.clock.now();
+    const nextMigration = this.transitionMigration(migration, {
+      state: "committed",
+      committedAt,
+    });
+    const nextPlacement = this.transitionPlacement(placement, {
+      state: "running",
+      hostId: target.hostId,
+      region: target.region,
+      runtimeKind: target.runtimeKind,
+      fencingToken: migration.targetFencingToken,
+    });
+    this.nextFenceByTask.set(placement.taskId, migration.targetFencingToken);
+    this.transitionHost(source, {
+      activePlacements: source.activePlacements - 1,
+    });
+    return { migration: nextMigration, placement: nextPlacement };
+  }
+
+  release(
+    placementId: string,
+    expectedRevision: number,
+    errorCode = "",
+  ): TaskExecutionPlacement {
+    const placement = this.requirePlacement(placementId);
+    this.assertPlacementRevision(placement, expectedRevision);
+    if (!["reserved", "running", "failed"].includes(placement.state))
+      throw new E03RuntimeError(
+        "task_execution_placement_release_state",
+        `task execution placement ${placementId} is ${placement.state}`,
+      );
+    const host = this.requireHost(placement.hostId);
+    if (host.activePlacements < 1)
+      throw new E03RuntimeError(
+        "task_execution_placement_capacity_underflow",
+        `task execution host ${host.hostId} has no placement`,
+      );
+    const next = this.transitionPlacement(placement, {
+      state: errorCode ? "failed" : "released",
+      errorCode,
+      releasedAt: this.clock.now(),
+    });
+    this.transitionHost(host, { activePlacements: host.activePlacements - 1 });
+    this.activePlacementByTask.delete(placement.taskId);
+    return next;
+  }
+
+  snapshot(): TaskPlacementSnapshot {
+    return {
+      hosts: [...this.hosts.values()].map((value) => structuredClone(value)),
+      placements: [...this.placements.values()].map((value) =>
+        structuredClone(value),
+      ),
+      migrations: [...this.migrations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activePlacementByTask: [...this.activePlacementByTask.entries()],
+      migrationByIdempotencyKey: [...this.migrationByIdempotencyKey.entries()],
+      nextFenceByTask: [...this.nextFenceByTask.entries()],
+    };
+  }
+
+  restore(snapshot: TaskPlacementSnapshot): void {
+    const hosts = new Map<string, TaskExecutionHostCapacity>();
+    const placements = new Map<string, TaskExecutionPlacement>();
+    const migrations = new Map<string, TaskPlacementMigration>();
+    for (const value of snapshot.hosts) {
+      assertTaskHostCapacity(value);
+      if (hosts.has(value.hostId))
+        throw new E03RuntimeError(
+          "task_placement_restore_host_duplicate",
+          `host ${value.hostId} duplicate`,
+        );
+      hosts.set(value.hostId, structuredClone(value));
+    }
+    for (const value of snapshot.placements) {
+      assertTaskExecutionPlacement(value);
+      if (!hosts.has(value.hostId) || placements.has(value.placementId))
+        throw new E03RuntimeError(
+          "task_placement_restore_placement",
+          `placement ${value.placementId} invalid`,
+        );
+      placements.set(value.placementId, structuredClone(value));
+    }
+    for (const value of snapshot.migrations) {
+      assertTaskPlacementMigration(value);
+      const placement = placements.get(value.placementId);
+      if (
+        !placement ||
+        placement.taskId !== value.taskId ||
+        !hosts.has(value.sourceHostId) ||
+        !hosts.has(value.targetHostId)
+      )
+        throw new E03RuntimeError(
+          "task_placement_restore_migration",
+          `migration ${value.migrationId} invalid`,
+        );
+      migrations.set(value.migrationId, structuredClone(value));
+    }
+    const activePlacementByTask = new Map(snapshot.activePlacementByTask);
+    const migrationByIdempotencyKey = new Map(
+      snapshot.migrationByIdempotencyKey,
+    );
+    const nextFenceByTask = new Map(snapshot.nextFenceByTask);
+    if (
+      activePlacementByTask.size !== snapshot.activePlacementByTask.length ||
+      migrationByIdempotencyKey.size !==
+        snapshot.migrationByIdempotencyKey.length
+    )
+      throw new E03RuntimeError(
+        "task_placement_restore_index_duplicate",
+        "task placement indexes duplicate",
+      );
+    for (const [taskId, placementId] of activePlacementByTask) {
+      const value = placements.get(placementId);
+      if (
+        !value ||
+        value.taskId !== taskId ||
+        ["released", "failed"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "task_placement_restore_active",
+          `task placement index ${taskId} invalid`,
+        );
+    }
+    for (const [key, migrationId] of migrationByIdempotencyKey) {
+      const value = migrations.get(migrationId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "task_placement_restore_idempotency",
+          `migration index ${key} invalid`,
+        );
+    }
+    for (const host of hosts.values()) {
+      const active = [...placements.values()].filter(
+        (value) =>
+          value.hostId === host.hostId &&
+          !["released", "failed"].includes(value.state),
+      ).length;
+      if (active !== host.activePlacements)
+        throw new E03RuntimeError(
+          "task_placement_restore_capacity",
+          `host ${host.hostId} capacity invalid`,
+        );
+    }
+    this.hosts = hosts;
+    this.placements = placements;
+    this.migrations = migrations;
+    this.activePlacementByTask = activePlacementByTask;
+    this.migrationByIdempotencyKey = migrationByIdempotencyKey;
+    this.nextFenceByTask = nextFenceByTask;
+  }
+
+  private requireHost(id: string): TaskExecutionHostCapacity {
+    const value = this.hosts.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_execution_host_missing",
+        `host ${id} missing`,
+      );
+    assertTaskHostCapacity(value);
+    return value;
+  }
+
+  private requirePlacement(id: string): TaskExecutionPlacement {
+    const value = this.placements.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_execution_placement_missing",
+        `placement ${id} missing`,
+      );
+    assertTaskExecutionPlacement(value);
+    return value;
+  }
+
+  private requireMigration(id: string): TaskPlacementMigration {
+    const value = this.migrations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_placement_migration_missing",
+        `migration ${id} missing`,
+      );
+    assertTaskPlacementMigration(value);
+    return value;
+  }
+
+  private assertHostRevision(
+    value: TaskExecutionHostCapacity,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_execution_host_stale_revision",
+        `host ${value.hostId} stale`,
+      );
+  }
+
+  private assertPlacementRevision(
+    value: TaskExecutionPlacement,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_execution_placement_stale_revision",
+        `placement ${value.placementId} stale`,
+      );
+  }
+
+  private assertMigrationRevision(
+    value: TaskPlacementMigration,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_placement_migration_stale_revision",
+        `migration ${value.migrationId} stale`,
+      );
+  }
+
+  private transitionHost(
+    value: TaskExecutionHostCapacity,
+    patch: Partial<
+      Omit<TaskExecutionHostCapacity, "hostId" | "revision" | "digest">
+    >,
+  ): TaskExecutionHostCapacity {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      hostId: value.hostId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskHostCapacity(next);
+    this.hosts.set(next.hostId, next);
+    return structuredClone(next);
+  }
+
+  private transitionPlacement(
+    value: TaskExecutionPlacement,
+    patch: Partial<
+      Omit<TaskExecutionPlacement, "placementId" | "revision" | "digest">
+    >,
+  ): TaskExecutionPlacement {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      placementId: value.placementId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskExecutionPlacement(next);
+    this.placements.set(next.placementId, next);
+    return structuredClone(next);
+  }
+
+  private transitionMigration(
+    value: TaskPlacementMigration,
+    patch: Partial<
+      Omit<TaskPlacementMigration, "migrationId" | "revision" | "digest">
+    >,
+  ): TaskPlacementMigration {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      migrationId: value.migrationId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskPlacementMigration(next);
+    this.migrations.set(next.migrationId, next);
+    return structuredClone(next);
+  }
+}
+
 export class TaskOutputVerificationRuntime {
   private policies = new Map<string, TaskOutputVerificationPolicy>();
   private reports = new Map<string, TaskOutputVerificationReport>();

@@ -2257,6 +2257,650 @@ function assertTransitionVote(value: TaskTransitionVote): void {
       `task transition vote ${value.voteId} is invalid`,
     );
 }
+export interface TaskChangeRequest {
+  changeRequestId: string;
+  taskId: string;
+  requesterId: string;
+  ownerId: string;
+  expectedTaskRevision: number;
+  idempotencyKey: string;
+  summary: string;
+  requestedMutations: string[];
+  state:
+    | "submitted"
+    | "assessing"
+    | "approved"
+    | "replanning"
+    | "applied"
+    | "rejected"
+    | "cancelled";
+  submittedAt: string;
+  updatedAt: string;
+  terminalAt: string;
+  decisionReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskChangeImpact {
+  impactId: string;
+  changeRequestId: string;
+  impactedTaskId: string;
+  impactKind:
+    | "scope"
+    | "dependency"
+    | "deadline"
+    | "budget"
+    | "artifact"
+    | "placement";
+  severity: "low" | "medium" | "high" | "blocking";
+  currentDigest: string;
+  proposedDigest: string;
+  reversible: boolean;
+  assessedBy: string;
+  assessedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface TaskReplanRevision {
+  replanId: string;
+  changeRequestId: string;
+  taskId: string;
+  baseTaskRevision: number;
+  planRevision: number;
+  nodeIds: string[];
+  dependencyDigest: string;
+  scopeDigest: string;
+  budgetDigest: string;
+  deadlineAt: string;
+  state: "draft" | "validated" | "committed" | "superseded" | "rejected";
+  validationDigest: string;
+  createdAt: string;
+  committedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskChangeRequestSnapshot {
+  requests: TaskChangeRequest[];
+  impacts: TaskChangeImpact[];
+  replans: TaskReplanRevision[];
+  requestByIdempotencyKey: [string, string][];
+  activeRequestByTask: [string, string][];
+  activeReplanByRequest: [string, string][];
+}
+
+function assertTaskChangeRequest(value: TaskChangeRequest): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.changeRequestId ||
+    !value.taskId ||
+    !value.requesterId ||
+    !value.ownerId ||
+    value.expectedTaskRevision < 0 ||
+    !value.idempotencyKey ||
+    !value.summary ||
+    !value.requestedMutations.length ||
+    new Set(value.requestedMutations).size !==
+      value.requestedMutations.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_change_request_corrupt",
+      `task change request ${value.changeRequestId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskChangeImpact(value: TaskChangeImpact): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.impactId ||
+    !value.changeRequestId ||
+    !value.impactedTaskId ||
+    !value.currentDigest ||
+    !value.proposedDigest ||
+    !value.assessedBy ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_change_impact_corrupt",
+      `task change impact ${value.impactId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskReplanRevision(value: TaskReplanRevision): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.replanId ||
+    !value.changeRequestId ||
+    !value.taskId ||
+    value.baseTaskRevision < 0 ||
+    value.planRevision < 1 ||
+    !value.nodeIds.length ||
+    new Set(value.nodeIds).size !== value.nodeIds.length ||
+    !value.dependencyDigest ||
+    !value.scopeDigest ||
+    !value.budgetDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_replan_revision_corrupt",
+      `task replan ${value.replanId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TaskChangeRequestRuntime {
+  private requests = new Map<string, TaskChangeRequest>();
+  private impacts = new Map<string, TaskChangeImpact[]>();
+  private replans = new Map<string, TaskReplanRevision[]>();
+  private requestByIdempotencyKey = new Map<string, string>();
+  private activeRequestByTask = new Map<string, string>();
+  private activeReplanByRequest = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  submit(input: {
+    changeRequestId?: string;
+    taskId: string;
+    requesterId: string;
+    ownerId: string;
+    expectedTaskRevision: number;
+    idempotencyKey: string;
+    summary: string;
+    requestedMutations: readonly string[];
+  }): TaskChangeRequest {
+    const duplicateId = this.requestByIdempotencyKey.get(input.idempotencyKey);
+    if (duplicateId) return structuredClone(this.requireRequest(duplicateId));
+    if (this.activeRequestByTask.has(input.taskId))
+      throw new E03RuntimeError(
+        "task_change_request_active",
+        `task ${input.taskId} already has an active change request`,
+      );
+    const changeRequestId =
+      input.changeRequestId ?? createId("task-change-request");
+    const now = this.clock.now();
+    const payload = {
+      changeRequestId,
+      taskId: input.taskId,
+      requesterId: input.requesterId,
+      ownerId: input.ownerId,
+      expectedTaskRevision: input.expectedTaskRevision,
+      idempotencyKey: input.idempotencyKey,
+      summary: input.summary,
+      requestedMutations: [...new Set(input.requestedMutations)].sort(),
+      state: "submitted" as const,
+      submittedAt: now,
+      updatedAt: now,
+      terminalAt: "",
+      decisionReason: "",
+      revision: 1,
+    };
+    const request = { ...payload, digest: digest(payload) };
+    assertTaskChangeRequest(request);
+    this.requests.set(changeRequestId, request);
+    this.impacts.set(changeRequestId, []);
+    this.replans.set(changeRequestId, []);
+    this.requestByIdempotencyKey.set(input.idempotencyKey, changeRequestId);
+    this.activeRequestByTask.set(input.taskId, changeRequestId);
+    return structuredClone(request);
+  }
+
+  beginAssessment(
+    changeRequestId: string,
+    expectedRevision: number,
+    observedTaskRevision: number,
+  ): TaskChangeRequest {
+    const request = this.requireRequest(changeRequestId);
+    this.assertRequestRevision(request, expectedRevision);
+    if (request.state !== "submitted")
+      throw new E03RuntimeError(
+        "task_change_assessment_state",
+        `task change request ${changeRequestId} is ${request.state}`,
+      );
+    if (request.expectedTaskRevision !== observedTaskRevision)
+      throw new E03RuntimeError(
+        "task_change_task_stale_revision",
+        `task ${request.taskId} revision changed`,
+      );
+    return this.transitionRequest(request, { state: "assessing" });
+  }
+
+  assess(input: {
+    impactId?: string;
+    changeRequestId: string;
+    expectedRevision: number;
+    impactedTaskId: string;
+    impactKind: TaskChangeImpact["impactKind"];
+    severity: TaskChangeImpact["severity"];
+    currentDigest: string;
+    proposedDigest: string;
+    reversible: boolean;
+    assessedBy: string;
+  }): TaskChangeImpact {
+    const request = this.requireRequest(input.changeRequestId);
+    this.assertRequestRevision(request, input.expectedRevision);
+    if (request.state !== "assessing")
+      throw new E03RuntimeError(
+        "task_change_impact_state",
+        `task change request ${request.changeRequestId} is ${request.state}`,
+      );
+    const entries = this.impactEntries(request.changeRequestId);
+    if (
+      entries.some(
+        (value) =>
+          value.impactedTaskId === input.impactedTaskId &&
+          value.impactKind === input.impactKind,
+      )
+    )
+      throw new E03RuntimeError(
+        "task_change_impact_duplicate",
+        `task change impact ${input.impactedTaskId}:${input.impactKind} exists`,
+      );
+    const payload = {
+      impactId: input.impactId ?? createId("task-change-impact"),
+      changeRequestId: request.changeRequestId,
+      impactedTaskId: input.impactedTaskId,
+      impactKind: input.impactKind,
+      severity: input.severity,
+      currentDigest: input.currentDigest,
+      proposedDigest: input.proposedDigest,
+      reversible: input.reversible,
+      assessedBy: input.assessedBy,
+      assessedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const impact = { ...payload, digest: digest(payload) };
+    assertTaskChangeImpact(impact);
+    entries.push(impact);
+    this.impacts.set(request.changeRequestId, entries);
+    return structuredClone(impact);
+  }
+
+  decide(
+    changeRequestId: string,
+    expectedRevision: number,
+    input: { approved: boolean; ownerId: string; reason: string },
+  ): TaskChangeRequest {
+    const request = this.requireRequest(changeRequestId);
+    this.assertRequestRevision(request, expectedRevision);
+    if (request.state !== "assessing" || request.ownerId !== input.ownerId)
+      throw new E03RuntimeError(
+        "task_change_decision_authority",
+        `task change request ${changeRequestId} decision is unauthorized`,
+      );
+    const impacts = this.impactEntries(changeRequestId);
+    if (!impacts.length)
+      throw new E03RuntimeError(
+        "task_change_decision_impact_missing",
+        `task change request ${changeRequestId} has no impact assessment`,
+      );
+    if (
+      input.approved &&
+      impacts.some(
+        (value) => value.severity === "blocking" && !value.reversible,
+      )
+    )
+      throw new E03RuntimeError(
+        "task_change_decision_blocked",
+        `task change request ${changeRequestId} has irreversible blocking impact`,
+      );
+    const next = this.transitionRequest(request, {
+      state: input.approved ? "approved" : "rejected",
+      decisionReason: input.reason,
+      terminalAt: input.approved ? "" : this.clock.now(),
+    });
+    if (!input.approved) this.activeRequestByTask.delete(request.taskId);
+    return next;
+  }
+
+  draftReplan(input: {
+    replanId?: string;
+    changeRequestId: string;
+    expectedRevision: number;
+    baseTaskRevision: number;
+    nodeIds: readonly string[];
+    dependencyDigest: string;
+    scopeDigest: string;
+    budgetDigest: string;
+    deadlineAt: string;
+  }): TaskReplanRevision {
+    const request = this.requireRequest(input.changeRequestId);
+    this.assertRequestRevision(request, input.expectedRevision);
+    if (!["approved", "replanning"].includes(request.state))
+      throw new E03RuntimeError(
+        "task_replan_draft_state",
+        `task change request ${request.changeRequestId} is ${request.state}`,
+      );
+    if (input.baseTaskRevision !== request.expectedTaskRevision)
+      throw new E03RuntimeError(
+        "task_replan_base_revision",
+        `task replan base revision is stale`,
+      );
+    const entries = this.replanEntries(request.changeRequestId);
+    const activeId = this.activeReplanByRequest.get(request.changeRequestId);
+    if (activeId) {
+      const active = entries.find((value) => value.replanId === activeId);
+      if (
+        active &&
+        !["committed", "superseded", "rejected"].includes(active.state)
+      )
+        this.transitionReplan(active, { state: "superseded" });
+    }
+    const replanId = input.replanId ?? createId("task-replan");
+    const payload = {
+      replanId,
+      changeRequestId: request.changeRequestId,
+      taskId: request.taskId,
+      baseTaskRevision: input.baseTaskRevision,
+      planRevision: entries.length + 1,
+      nodeIds: [...new Set(input.nodeIds)].sort(),
+      dependencyDigest: input.dependencyDigest,
+      scopeDigest: input.scopeDigest,
+      budgetDigest: input.budgetDigest,
+      deadlineAt: input.deadlineAt,
+      state: "draft" as const,
+      validationDigest: "",
+      createdAt: this.clock.now(),
+      committedAt: "",
+      revision: 1,
+    };
+    const replan = { ...payload, digest: digest(payload) };
+    assertTaskReplanRevision(replan);
+    entries.push(replan);
+    this.replans.set(request.changeRequestId, entries);
+    this.activeReplanByRequest.set(request.changeRequestId, replanId);
+    if (request.state !== "replanning")
+      this.transitionRequest(request, { state: "replanning" });
+    return structuredClone(replan);
+  }
+
+  validateReplan(
+    replanId: string,
+    expectedRevision: number,
+    input: { accepted: boolean; validationDigest: string },
+  ): TaskReplanRevision {
+    const replan = this.requireReplan(replanId);
+    this.assertReplanRevision(replan, expectedRevision);
+    if (replan.state !== "draft" || !input.validationDigest)
+      throw new E03RuntimeError(
+        "task_replan_validation_state",
+        `task replan ${replanId} cannot validate`,
+      );
+    return this.transitionReplan(replan, {
+      state: input.accepted ? "validated" : "rejected",
+      validationDigest: input.validationDigest,
+    });
+  }
+
+  commitReplan(
+    replanId: string,
+    expectedRevision: number,
+    observedTaskRevision: number,
+  ): { request: TaskChangeRequest; replan: TaskReplanRevision } {
+    const replan = this.requireReplan(replanId);
+    this.assertReplanRevision(replan, expectedRevision);
+    if (replan.state !== "validated")
+      throw new E03RuntimeError(
+        "task_replan_commit_state",
+        `task replan ${replanId} is ${replan.state}`,
+      );
+    if (observedTaskRevision !== replan.baseTaskRevision)
+      throw new E03RuntimeError(
+        "task_replan_commit_stale_revision",
+        `task ${replan.taskId} changed before replan commit`,
+      );
+    const request = this.requireRequest(replan.changeRequestId);
+    if (request.state !== "replanning")
+      throw new E03RuntimeError(
+        "task_replan_request_state",
+        `task change request ${request.changeRequestId} is ${request.state}`,
+      );
+    const committedAt = this.clock.now();
+    const nextReplan = this.transitionReplan(replan, {
+      state: "committed",
+      committedAt,
+    });
+    const nextRequest = this.transitionRequest(request, {
+      state: "applied",
+      terminalAt: committedAt,
+    });
+    this.activeRequestByTask.delete(request.taskId);
+    this.activeReplanByRequest.delete(request.changeRequestId);
+    return { request: nextRequest, replan: nextReplan };
+  }
+
+  cancel(
+    changeRequestId: string,
+    expectedRevision: number,
+    requesterId: string,
+  ): TaskChangeRequest {
+    const request = this.requireRequest(changeRequestId);
+    this.assertRequestRevision(request, expectedRevision);
+    if (
+      request.requesterId !== requesterId ||
+      ["applied", "rejected", "cancelled"].includes(request.state)
+    )
+      throw new E03RuntimeError(
+        "task_change_cancel_denied",
+        `task change request ${changeRequestId} cannot be cancelled`,
+      );
+    const next = this.transitionRequest(request, {
+      state: "cancelled",
+      terminalAt: this.clock.now(),
+      decisionReason: "requester_cancelled",
+    });
+    this.activeRequestByTask.delete(request.taskId);
+    this.activeReplanByRequest.delete(request.changeRequestId);
+    return next;
+  }
+
+  snapshot(): TaskChangeRequestSnapshot {
+    return {
+      requests: [...this.requests.values()].map((value) =>
+        structuredClone(value),
+      ),
+      impacts: [...this.impacts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      replans: [...this.replans.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      requestByIdempotencyKey: [...this.requestByIdempotencyKey.entries()],
+      activeRequestByTask: [...this.activeRequestByTask.entries()],
+      activeReplanByRequest: [...this.activeReplanByRequest.entries()],
+    };
+  }
+
+  restore(snapshot: TaskChangeRequestSnapshot): void {
+    const requests = new Map<string, TaskChangeRequest>();
+    const impacts = new Map<string, TaskChangeImpact[]>();
+    const replans = new Map<string, TaskReplanRevision[]>();
+    for (const value of snapshot.requests) {
+      assertTaskChangeRequest(value);
+      if (requests.has(value.changeRequestId))
+        throw new E03RuntimeError(
+          "task_change_restore_duplicate",
+          `request ${value.changeRequestId} duplicate`,
+        );
+      requests.set(value.changeRequestId, structuredClone(value));
+      impacts.set(value.changeRequestId, []);
+      replans.set(value.changeRequestId, []);
+    }
+    for (const value of snapshot.impacts) {
+      assertTaskChangeImpact(value);
+      const entries = impacts.get(value.changeRequestId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "task_change_impact_restore_chain",
+          `impact ${value.impactId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of [...snapshot.replans].sort(
+      (a, b) => a.planRevision - b.planRevision,
+    )) {
+      assertTaskReplanRevision(value);
+      const entries = replans.get(value.changeRequestId);
+      if (!entries || value.planRevision !== entries.length + 1)
+        throw new E03RuntimeError(
+          "task_replan_restore_order",
+          `replan ${value.replanId} order invalid`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const requestByIdempotencyKey = new Map(snapshot.requestByIdempotencyKey);
+    const activeRequestByTask = new Map(snapshot.activeRequestByTask);
+    const activeReplanByRequest = new Map(snapshot.activeReplanByRequest);
+    if (
+      requestByIdempotencyKey.size !==
+        snapshot.requestByIdempotencyKey.length ||
+      activeRequestByTask.size !== snapshot.activeRequestByTask.length ||
+      activeReplanByRequest.size !== snapshot.activeReplanByRequest.length
+    )
+      throw new E03RuntimeError(
+        "task_change_restore_index_duplicate",
+        "task change indexes duplicate",
+      );
+    for (const [key, requestId] of requestByIdempotencyKey) {
+      const value = requests.get(requestId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "task_change_restore_idempotency",
+          `request index ${key} invalid`,
+        );
+    }
+    for (const [taskId, requestId] of activeRequestByTask) {
+      const value = requests.get(requestId);
+      if (
+        !value ||
+        value.taskId !== taskId ||
+        ["applied", "rejected", "cancelled"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "task_change_restore_active",
+          `task request index ${taskId} invalid`,
+        );
+    }
+    for (const [requestId, replanId] of activeReplanByRequest) {
+      const value = replans
+        .get(requestId)
+        ?.find((entry) => entry.replanId === replanId);
+      if (
+        !value ||
+        ["committed", "superseded", "rejected"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "task_replan_restore_active",
+          `active replan ${replanId} invalid`,
+        );
+    }
+    this.requests = requests;
+    this.impacts = impacts;
+    this.replans = replans;
+    this.requestByIdempotencyKey = requestByIdempotencyKey;
+    this.activeRequestByTask = activeRequestByTask;
+    this.activeReplanByRequest = activeReplanByRequest;
+  }
+
+  private impactEntries(requestId: string): TaskChangeImpact[] {
+    return this.impacts.get(requestId) ?? [];
+  }
+
+  private replanEntries(requestId: string): TaskReplanRevision[] {
+    return this.replans.get(requestId) ?? [];
+  }
+
+  private requireRequest(id: string): TaskChangeRequest {
+    const value = this.requests.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_change_request_missing",
+        `request ${id} missing`,
+      );
+    assertTaskChangeRequest(value);
+    return value;
+  }
+
+  private requireReplan(id: string): TaskReplanRevision {
+    const value = [...this.replans.values()]
+      .flat()
+      .find((entry) => entry.replanId === id);
+    if (!value)
+      throw new E03RuntimeError("task_replan_missing", `replan ${id} missing`);
+    assertTaskReplanRevision(value);
+    return value;
+  }
+
+  private assertRequestRevision(
+    value: TaskChangeRequest,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_change_request_stale_revision",
+        `request ${value.changeRequestId} stale`,
+      );
+  }
+
+  private assertReplanRevision(
+    value: TaskReplanRevision,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_replan_stale_revision",
+        `replan ${value.replanId} stale`,
+      );
+  }
+
+  private transitionRequest(
+    value: TaskChangeRequest,
+    patch: Partial<
+      Omit<TaskChangeRequest, "changeRequestId" | "revision" | "digest">
+    >,
+  ): TaskChangeRequest {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      changeRequestId: value.changeRequestId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskChangeRequest(next);
+    this.requests.set(next.changeRequestId, next);
+    return structuredClone(next);
+  }
+
+  private transitionReplan(
+    value: TaskReplanRevision,
+    patch: Partial<
+      Omit<TaskReplanRevision, "replanId" | "revision" | "digest">
+    >,
+  ): TaskReplanRevision {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      replanId: value.replanId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskReplanRevision(next);
+    const entries = this.replanEntries(value.changeRequestId);
+    const index = entries.findIndex(
+      (entry) => entry.replanId === value.replanId,
+    );
+    entries[index] = next;
+    this.replans.set(value.changeRequestId, entries);
+    return structuredClone(next);
+  }
+}
+
 export class TaskTransitionReservationRuntime {
   private reservations = new Map<string, TaskTransitionReservation>();
   private votes = new Map<string, TaskTransitionVote[]>();
