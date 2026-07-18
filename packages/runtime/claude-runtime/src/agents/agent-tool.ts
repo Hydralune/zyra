@@ -34,18 +34,9 @@ const AGENT_TOOLS = new Set([
   "agent_list",
 ]);
 
-type BackgroundWork = {
-  taskId: string;
-  requestId: string;
-  idempotencyKey: string;
-  argumentsValue: JsonObject;
-  context: AgentExecutionContext;
-};
-
 export class TypeScriptAgentRuntime implements AgentToolSurface {
   private coordinatorValue: E03AgentControlCoordinator | null = null;
   private coordinatorHost: AgentExecutionContext["host"] | null = null;
-  private readonly queuedBackground = new Map<string, BackgroundWork>();
   private readonly backgroundSupervisor = new AgentBackgroundSupervisor();
 
   constructor(private readonly input: RuntimeRunInput) {}
@@ -178,17 +169,20 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         ...tasks.map((task) => task.definition.budget.maxConcurrency),
       ),
       run: async (task) => {
-        const work = this.queuedBackground.get(task.identity.taskId);
         const settled = await coordinator.execution.run(
           task.identity.taskId,
-          work?.context.parentInput ?? context.parentInput,
-          work?.argumentsValue ?? { prompt: task.prompt },
-          work?.requestId ?? `background-recover:${task.identity.taskId}`,
-          work
-            ? `${work.idempotencyKey}:background-run`
-            : `background-recover:${task.identity.taskId}:${task.revision}`,
+          context.parentInput,
+          {
+            prompt: task.prompt,
+            restored_state: {
+              agent_task_id: task.identity.taskId,
+              agent_lease_id: task.identity.leaseId,
+              expected_revision: task.revision,
+            },
+          },
+          `background-run:${task.identity.taskId}:${task.identity.attempt}`,
+          `background-run:${task.identity.taskId}:${task.identity.leaseId}`,
         );
-        this.queuedBackground.delete(task.identity.taskId);
         return settled;
       },
     });
@@ -204,9 +198,22 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         : "uninitialized",
       task_registry_revision: snapshot?.revision ?? 0,
       task_ids: snapshot ? Object.keys(snapshot.tasks).sort() : [],
-      queued_background_task_ids: [...this.queuedBackground.keys()].sort(),
+      background_queue_owner: "DurableTaskRegistry",
+      queued_background_task_ids: snapshot
+        ? Object.values(snapshot.tasks)
+            .filter(
+              (task) =>
+                task.executionMode === "background" &&
+                !["completed", "failed", "cancelled", "killed"].includes(
+                  task.status,
+                ),
+            )
+            .map((task) => task.identity.taskId)
+            .sort()
+        : [],
       background_claims:
         this.backgroundSupervisor.snapshot() as unknown as JsonObject[],
+      background_claims_are_projection_only: true,
       python_agent_fallback: false,
       commit_protocol: ["prepare", "effect", "receipt", "commit", "ack"],
     };
@@ -233,6 +240,17 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
       asString(argumentsValue.task_id) ||
       `agent-${digest(idempotencyKey).slice(0, 24)}`;
     const background = asBoolean(argumentsValue.background);
+    if (
+      background &&
+      ((Array.isArray(argumentsValue.messages) &&
+        argumentsValue.messages.length > 0) ||
+        (Array.isArray(argumentsValue.turns) &&
+          argumentsValue.turns.length > 0))
+    )
+      throw new E03RuntimeError(
+        "background_input_not_durable",
+        "background Agent accepts prompt/context references only; inline messages or turns cannot enter shadow state",
+      );
     const requestId = `agent-create:${taskId}`;
     const envelope = this.envelope(
       context.parentInput,
@@ -266,13 +284,6 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         String(result.state?.message ?? "Agent creation failed"),
       );
     if (background) {
-      this.queuedBackground.set(taskId, {
-        taskId,
-        requestId,
-        idempotencyKey,
-        argumentsValue,
-        context,
-      });
       this.backgroundSupervisor.discover([
         coordinator.registry.require(taskId),
       ]);

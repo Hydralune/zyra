@@ -349,11 +349,16 @@ class TypeScriptAgentDurablePort:
         task_fragment = _digest(str(request.get("taskId") or request.get("requestId") or "task"))[:24]
         target = (worktree_root / task_fragment).resolve()
         self._require_contained(worktree_root, target)
-        if target.exists():
+        existed = target.exists()
+        if existed:
+            if request.get("reuseExisting") is False:
+                raise ValueError("existing worktree reuse is disabled by the logical request")
             current = self._git(target, "rev-parse", "HEAD")
             if current != observed:
                 raise ValueError("existing worktree revision differs from requested base")
         else:
+            if request.get("createIfMissing") is False:
+                raise ValueError("worktree is missing and creation is disabled by the logical request")
             subprocess.run(
                 ["git", "worktree", "add", "--detach", str(target), observed],
                 cwd=root,
@@ -370,6 +375,9 @@ class TypeScriptAgentDurablePort:
             "nested_repository": False,
             "physical_isolation": True,
             "backend": "git-worktree",
+            "workspace_disposition": "reused" if existed else "created",
+            "worktree_head": self._git(target, "rev-parse", "HEAD"),
+            "worktree_branch": str(request.get("branchName") or ""),
         }
 
     def _assert_snapshot(self, snapshot: Mapping[str, Any], run_id: str, parent_task_id: str, parent_session_id: str) -> None:

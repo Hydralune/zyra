@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import subprocess
 from pathlib import Path
 
 from zyra_workers.subagents.typescript_port import (
@@ -149,23 +150,114 @@ class TypeScriptAgentDurablePortTests(unittest.TestCase):
                 self.assertIn("unsupported E03 physical-port action", result["error"])
                 self.assertFalse(result["python_logical_fallback"])
 
+    def test_worktree_physical_receipt_distinguishes_create_and_safe_reuse(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            subprocess.run(["git", "init"], cwd=workspace, check=True, capture_output=True)
+            (workspace / "tracked.txt").write_text("e04\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=workspace, check=True, capture_output=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Zyra E04",
+                    "-c",
+                    "user.email=e04@zyra.invalid",
+                    "commit",
+                    "-m",
+                    "e04 worktree fixture",
+                ],
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+            )
+            port = TypeScriptAgentDurablePort(root / "state", workspace_root=workspace)
+            payload = {
+                "mode": "worktree",
+                "workspaceRoot": str(workspace),
+                "baseRevision": "HEAD",
+                "taskId": "e04-worktree-child",
+                "requestId": "e04-worktree-request",
+                "branchName": "zyra/e04-worktree-child",
+                "allowDirtyBaseline": False,
+                "allowNestedRepository": False,
+                "reuseExisting": True,
+                "createIfMissing": True,
+            }
+            created = port.handle(
+                {
+                    "action": "e03.effect",
+                    "task_id": "e04-worktree-child",
+                    "effect_request": self._effect_request(
+                        effect_id="e04-worktree-create",
+                        lease_id="e04-worktree-lease",
+                        request_id="e04-worktree-create-request",
+                        task_id="e04-worktree-child",
+                        idempotency_key="e04-worktree-create",
+                        effect_kind="workspace",
+                        operation="prepare_workspace_isolation",
+                        payload=payload,
+                    ),
+                },
+                run_id="run-1",
+                parent_task_id="parent-1",
+                parent_session_id="session-1",
+            )
+            self.assertTrue(created["accepted"], created["error"])
+            created_result = created["effect_receipt"]["result"]
+            self.assertEqual(created_result["workspace_disposition"], "created")
+            self.assertEqual(created_result["backend"], "git-worktree")
+            self.assertEqual(created_result["worktree_head"], created_result["resulting_revision"])
+
+            reused = port.handle(
+                {
+                    "action": "e03.effect",
+                    "task_id": "e04-worktree-child",
+                    "effect_request": self._effect_request(
+                        effect_id="e04-worktree-reuse",
+                        lease_id="e04-worktree-lease",
+                        request_id="e04-worktree-reuse-request",
+                        task_id="e04-worktree-child",
+                        idempotency_key="e04-worktree-reuse",
+                        effect_kind="workspace",
+                        operation="prepare_workspace_isolation",
+                        payload=payload,
+                    ),
+                },
+                run_id="run-1",
+                parent_task_id="parent-1",
+                parent_session_id="session-1",
+            )
+            self.assertTrue(reused["accepted"], reused["error"])
+            reused_result = reused["effect_receipt"]["result"]
+            self.assertEqual(reused_result["workspace_disposition"], "reused")
+            self.assertEqual(reused_result["workspace_path"], created_result["workspace_path"])
+            self.assertEqual(reused_result["worktree_head"], created_result["worktree_head"])
+
     @staticmethod
     def _effect_request(
         *,
         effect_id: str,
         lease_id: str,
+        request_id: str = "request-1",
+        task_id: str = "child-1",
+        idempotency_key: str = "idempotency-1",
+        effect_kind: str = "persist",
+        operation: str = "persist_agent_task_create",
         payload: dict[str, object] | None = None,
     ) -> dict[str, object]:
         unsigned: dict[str, object] = {
             "effectId": effect_id,
-            "requestId": "request-1",
-            "taskId": "child-1",
+            "requestId": request_id,
+            "taskId": task_id,
             "leaseId": lease_id,
             "expectedRevision": 0,
-            "effectKind": "persist",
-            "operation": "persist_agent_task_create",
+            "effectKind": effect_kind,
+            "operation": operation,
             "payload": payload or {"value": "stable"},
-            "idempotencyKey": "idempotency-1",
+            "idempotencyKey": idempotency_key,
             "preparedAt": "2026-07-18T00:00:00.000Z",
         }
         return {**unsigned, "digest": _digest(unsigned)}

@@ -22,6 +22,8 @@ export interface IsolationPrepareInput {
   expectedArtifacts?: readonly string[];
   allowDirtyBaseline?: boolean;
   allowNestedRepository?: boolean;
+  reuseExisting?: boolean;
+  createIfMissing?: boolean;
   idempotencyKey: string;
 }
 
@@ -33,6 +35,7 @@ export class IsolationRequestRuntime {
     task: E03TaskState,
     input: IsolationPrepareInput,
   ): E03IsolationRequest {
+    this.assertSourceRuntimeEnabled();
     if (!task.scope.isolationModes.includes(input.mode))
       throw new E03RuntimeError(
         "isolation_not_permitted",
@@ -80,6 +83,8 @@ export class IsolationRequestRuntime {
       ),
       allowDirtyBaseline: input.allowDirtyBaseline === true,
       allowNestedRepository: input.allowNestedRepository === true,
+      reuseExisting: input.mode === "worktree" && input.reuseExisting !== false,
+      createIfMissing: input.mode === "worktree" && input.createIfMissing !== false,
       idempotencyKey,
       preparedAt: this.clock.now(),
     };
@@ -149,6 +154,35 @@ export class IsolationRequestRuntime {
           "isolation_receipt_escape",
           "physical workspace receipt escaped requested root",
         );
+      if (request.mode === "worktree") {
+        if (!isAbsolute(workspacePath) || workspacePath === base)
+          throw new E03RuntimeError(
+            "worktree_receipt_path",
+            "worktree receipt must identify a distinct absolute workspace",
+          );
+        if (receipt.physicalBackend !== "git-worktree")
+          throw new E03RuntimeError(
+            "worktree_receipt_backend",
+            "worktree receipt must come from the git-worktree physical backend",
+          );
+        if (
+          receipt.workspaceDisposition !== "created" &&
+          receipt.workspaceDisposition !== "reused"
+        )
+          throw new E03RuntimeError(
+            "worktree_receipt_disposition",
+            "worktree receipt must distinguish create from safe reuse",
+          );
+        if (
+          !receipt.observedBaseRevision ||
+          receipt.resultingRevision !== receipt.observedBaseRevision ||
+          receipt.worktreeHead !== receipt.resultingRevision
+        )
+          throw new E03RuntimeError(
+            "worktree_receipt_revision",
+            "worktree receipt does not prove the requested revision was created or safely reused",
+          );
+      }
     }
     this.policy.assertReceipt(request, receipt);
     if (receipt.dirtyBaseline && !request.allowDirtyBaseline)
@@ -211,6 +245,24 @@ export class IsolationRequestRuntime {
         "invalid_isolation_request",
         "isolation request identity is incomplete",
       );
+    if (
+      request.mode === "worktree" &&
+      request.reuseExisting === false &&
+      request.createIfMissing === false
+    )
+      throw new E03RuntimeError(
+        "worktree_request_unfulfillable",
+        "worktree request disables both reuse and creation",
+      );
+  }
+
+  assertSourceRuntimeEnabled(): void {
+    if (process.env.ZYRA_DISABLE_E04_ISOLATION_SOURCE_RUNTIME === "1") {
+      throw new E03RuntimeError(
+        "isolation_source_runtime_disabled",
+        "Worktree/isolation source runtime is disabled; no legacy or Python logical fallback is permitted",
+      );
+    }
   }
 }
 

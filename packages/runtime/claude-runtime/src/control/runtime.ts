@@ -6,6 +6,22 @@ import {
 } from "../contracts.ts";
 import type { ControlReceipt, ControlRuntimeState } from "./contracts.ts";
 import { canonicalDigest } from "../agents/memory.ts";
+import {
+  E03RuntimeError,
+  isTerminal,
+  type E03TaskState,
+} from "../e03/contracts.ts";
+
+export interface AgentTerminalControlDecision {
+  taskId: string;
+  leaseId: string;
+  expectedRevision: number;
+  currentRevision: number;
+  action: "cancel" | "kill";
+  replay: boolean;
+  physicalEffectRequired: boolean;
+  canonicalOwner: "typescript.E03AgentControlCoordinator";
+}
 
 export class TypeScriptControlRuntime {
   private readonly state: ControlRuntimeState;
@@ -50,6 +66,36 @@ export class TypeScriptControlRuntime {
         this.idempotency.set(receipt.requestId, receipt);
       }
     }
+  }
+
+  static decideAgentTerminalMutation(
+    task: E03TaskState,
+    input: {
+      action: "cancel" | "kill";
+      expectedRevision: number;
+    },
+  ): AgentTerminalControlDecision {
+    const terminal = isTerminal(task.status);
+    if (!terminal && input.expectedRevision !== task.revision)
+      throw new E03RuntimeError(
+        "stale_revision",
+        `${input.action} expected ${input.expectedRevision}, current ${task.revision}`,
+      );
+    if (!terminal && input.action === "kill" && !task.scope.allowKill)
+      throw new E03RuntimeError(
+        "kill_not_permitted",
+        `task ${task.identity.taskId} scope denies kill`,
+      );
+    return {
+      taskId: task.identity.taskId,
+      leaseId: task.identity.leaseId,
+      expectedRevision: input.expectedRevision,
+      currentRevision: task.revision,
+      action: input.action,
+      replay: terminal,
+      physicalEffectRequired: !terminal,
+      canonicalOwner: "typescript.E03AgentControlCoordinator",
+    };
   }
 
   apply(raw: JsonValue): ControlReceipt {

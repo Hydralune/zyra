@@ -17,6 +17,7 @@ import { DurableTaskRegistry, taskProjection } from "./registry.ts";
 import { TaskLeaseRuntime } from "./identity-runtime.ts";
 import { TeamDelivery } from "../team/delivery.ts";
 import { DeliveryOutboxRuntime } from "../team/delivery.ts";
+import { runAgent } from "../agents/run-agent.ts";
 
 export interface TaskExecutionHost {
   runChild(input: RuntimeRunInput): Promise<RuntimeRunResult>;
@@ -39,7 +40,7 @@ export interface TaskDispatchInput {
 export class TaskExecutor {
   private readonly active = new Map<string, Promise<E03TaskState>>();
   private readonly deadlines: TaskDeadlineRuntime;
-  private readonly leases = new TaskLeaseRuntime();
+  private readonly leases: TaskLeaseRuntime;
   private readonly deliveries: TeamDelivery;
   private readonly outbox: DeliveryOutboxRuntime;
 
@@ -50,6 +51,7 @@ export class TaskExecutor {
     clock: E03Clock = new SystemE03Clock(),
   ) {
     this.deadlines = new TaskDeadlineRuntime(clock);
+    this.leases = new TaskLeaseRuntime(clock);
     this.deliveries = new TeamDelivery(clock);
     this.outbox = new DeliveryOutboxRuntime(clock);
   }
@@ -174,9 +176,10 @@ export class TaskExecutor {
         input,
       );
     try {
-      const result = await this.host.runChild(
-        childInput(task, input.parentInput, input.argumentsValue),
-      );
+      const result = await runAgent(task, input.argumentsValue, {
+        parentInput: input.parentInput,
+        runChild: (child) => this.host.runChild(child),
+      });
       const current = this.registry.require(task.identity.taskId);
       this.stateMachine.rejectLateResult(
         current,
@@ -277,75 +280,6 @@ export class TaskExecutor {
     const receipt = await this.registry.recordReceipt(key);
     return (await this.registry.commit(key, receipt)).state;
   }
-}
-
-function childInput(
-  task: E03TaskState,
-  parent: RuntimeRunInput,
-  argumentsValue: JsonObject,
-): RuntimeRunInput {
-  const tools = parent.tools
-    .filter(
-      (tool) =>
-        task.scope.tools.length === 0 || task.scope.tools.includes(tool.name),
-    )
-    .filter((tool) => !task.scope.deniedTools.includes(tool.name));
-  const messages = Array.isArray(argumentsValue.messages)
-    ? (argumentsValue.messages as RuntimeRunInput["messages"])
-    : [
-        {
-          role: "user",
-          content: task.prompt,
-          metadata: {
-            agent_task_id: task.identity.taskId,
-            parent_task_id: task.identity.parentTaskId,
-          },
-        },
-      ];
-  return {
-    ...parent,
-    taskId: task.identity.taskId,
-    sessionId: task.identity.sessionId,
-    workerRequestId: `agent-worker:${task.identity.attemptId}`,
-    messages,
-    tools,
-    config: {
-      ...parent.config,
-      maxTurns: task.definition.budget.maxTurns,
-      maxToolResultChars: task.definition.budget.maxResultChars,
-      modelName:
-        task.definition.model === "inherit"
-          ? parent.config.modelName
-          : task.definition.model,
-      permissionPolicy: {
-        ...parent.config.permissionPolicy,
-        mode: task.scope.permissionMode,
-        parent_ceiling_digest: task.scope.permissionCeilingDigest,
-      },
-      runtimeConstraints: {
-        ...parent.config.runtimeConstraints,
-        e03_agent_task_id: task.identity.taskId,
-        e03_parent_task_id: task.identity.parentTaskId,
-        e03_attempt_id: task.identity.attemptId,
-        e03_lease_id: task.identity.leaseId,
-        e03_lineage: task.identity.lineage,
-        e03_scope_digest: task.scope.digest,
-        e03_context_checksum: task.context.checksum,
-      },
-      controlCommands: [],
-    },
-    contextSnapshot: {
-      version: "zyra.e03-agent-context/v1",
-      snapshot_id: task.context.snapshotId,
-      branch_id: task.context.branchId,
-      checksum: task.context.checksum,
-    },
-    metadata: {
-      ...parent.metadata,
-      e03_agent_task_id: task.identity.taskId,
-      canonical_agent_owner: "typescript",
-    },
-  };
 }
 
 function runtimeResultPayload(result: RuntimeRunResult): JsonObject {

@@ -22,6 +22,7 @@ import { DurableTaskRegistry, taskProjection } from "../tasks/registry.ts";
 import { TaskStateMachine } from "../tasks/state-machine.ts";
 import { TeamMailbox } from "../team/mailbox.ts";
 import { TeamSteeringQueue } from "../team/mailbox.ts";
+import { TypeScriptControlRuntime } from "./runtime.ts";
 
 export class AgentControlHandler {
   private readonly machine = new TaskStateMachine();
@@ -75,7 +76,11 @@ export class AgentControlHandler {
   async cancel(envelope: E03ControlEnvelope): Promise<E03ControlResponse> {
     const taskId = text(envelope.body.task_id, "task_id");
     const task = this.requireAuthority(envelope, taskId);
-    if (task.status === "cancelled")
+    const decision = TypeScriptControlRuntime.decideAgentTerminalMutation(task, {
+      action: "cancel",
+      expectedRevision: envelope.expected_revision,
+    });
+    if (decision.replay)
       return response({
         ok: true,
         request_id: envelope.request_id,
@@ -100,7 +105,11 @@ export class AgentControlHandler {
   async kill(envelope: E03ControlEnvelope): Promise<E03ControlResponse> {
     const taskId = text(envelope.body.task_id, "task_id");
     const task = this.requireAuthority(envelope, taskId);
-    if (task.status === "killed")
+    const decision = TypeScriptControlRuntime.decideAgentTerminalMutation(task, {
+      action: "kill",
+      expectedRevision: envelope.expected_revision,
+    });
+    if (decision.replay)
       return response({
         ok: true,
         request_id: envelope.request_id,

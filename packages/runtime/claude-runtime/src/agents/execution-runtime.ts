@@ -39,7 +39,7 @@ export class AgentExecutionRuntime {
   constructor(
     private readonly registry: DurableTaskRegistry,
     host: TaskExecutionHost,
-    clock: E03Clock = new SystemE03Clock(),
+    private readonly clock: E03Clock = new SystemE03Clock(),
   ) {
     this.machine = new TaskStateMachine(clock);
     this.executor = new TaskExecutor(registry, this.machine, host, clock);
@@ -70,9 +70,30 @@ export class AgentExecutionRuntime {
       sessionId: identity.sessionId,
     };
     const context = { ...unsignedContext, checksum: digest(unsignedContext) };
+    const startedAt = this.clock.now();
+    const { digest: _definitionDigest, ...definitionPayload } = request.definition;
+    const definitionWithoutDigest = {
+      ...definitionPayload,
+      budget: {
+        ...request.definition.budget,
+        consumedTurns: 0,
+        consumedToolCalls: 0,
+        consumedInputTokens: 0,
+        consumedOutputTokens: 0,
+        consumedResultChars: 0,
+        startedAt,
+        deadlineAt: new Date(
+          Date.parse(startedAt) + request.definition.budget.maxWallTimeMs,
+        ).toISOString(),
+      },
+    };
+    const definition = {
+      ...definitionWithoutDigest,
+      digest: digest(definitionWithoutDigest),
+    };
     const task = this.machine.create({
       identity,
-      definition: request.definition,
+      definition,
       scope: request.scope,
       context,
       prompt: request.prompt,
@@ -89,7 +110,7 @@ export class AgentExecutionRuntime {
       effectOperation: "persist_agent_task_create",
       effectPayload: {
         parent_task_id: identity.parentTaskId,
-        definition_digest: request.definition.digest,
+        definition_digest: definition.digest,
         scope_digest: request.scope.digest,
       },
     });

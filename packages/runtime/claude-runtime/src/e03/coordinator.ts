@@ -424,6 +424,13 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
       nestedRepository: effect.result.nested_repository === true,
       mergeConflict: false,
       cleanupFailed: false,
+      workspaceDisposition: String(
+        effect.result.workspace_disposition ??
+          (request.mode === "worktree" ? "created" : "prepared"),
+      ) as E03IsolationReceipt["workspaceDisposition"],
+      physicalBackend: String(effect.result.backend ?? "workspace"),
+      worktreeHead: String(effect.result.worktree_head ?? ""),
+      worktreeBranch: String(effect.result.worktree_branch ?? request.branchName),
       artifacts: effect.artifacts,
       error: effect.error,
       completedAt: effect.completedAt,

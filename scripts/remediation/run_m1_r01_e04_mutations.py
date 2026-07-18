@@ -93,6 +93,34 @@ OPERATORS: dict[str, dict[str, str]] = {
             "    if (process.env.ZYRA_E04_MUTATION_DOMAIN_06 !== \"disabled\") { // E04 mutation: disconnect skill/plugin/command source owner"
         ),
     },
+    "e04-mutation-domain-07": {
+        "target": "packages/runtime/claude-runtime/src/agents/run-agent.ts",
+        "needle": (
+            "  assertAgentSourceRuntimeEnabled();\n"
+            "  const input = isE03Task(task)"
+        ),
+        "replacement": (
+            "  if (process.env.ZYRA_E04_MUTATION_DOMAIN_07 !== \"disabled\") { // E04 mutation: disconnect AgentTool run/resume owner\n"
+            "    throw new E03RuntimeError(\"agent_source_runtime_disconnected\", \"AgentTool run/resume source owner is disconnected\");\n"
+            "  }\n"
+            "  assertAgentSourceRuntimeEnabled();\n"
+            "  const input = isE03Task(task)"
+        ),
+    },
+    "e04-mutation-domain-08": {
+        "target": "packages/runtime/claude-runtime/src/isolation/request-runtime.ts",
+        "needle": (
+            "  ): E03IsolationRequest {\n"
+            "    this.assertSourceRuntimeEnabled();"
+        ),
+        "replacement": (
+            "  ): E03IsolationRequest {\n"
+            "    if (process.env.ZYRA_E04_MUTATION_DOMAIN_08 !== \"disabled\") { // E04 mutation: disconnect isolation/control source owner\n"
+            "      throw new E03RuntimeError(\"isolation_source_runtime_disconnected\", \"worktree/isolation source owner is disconnected\");\n"
+            "    }\n"
+            "    this.assertSourceRuntimeEnabled();"
+        ),
+    },
 }
 
 

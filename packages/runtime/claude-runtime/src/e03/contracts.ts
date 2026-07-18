@@ -178,6 +178,8 @@ export interface E03IsolationRequest {
   expectedArtifacts: string[];
   allowDirtyBaseline: boolean;
   allowNestedRepository: boolean;
+  reuseExisting?: boolean;
+  createIfMissing?: boolean;
   idempotencyKey: string;
   preparedAt: string;
   digest: string;
@@ -196,6 +198,10 @@ export interface E03IsolationReceipt {
   nestedRepository: boolean;
   mergeConflict: boolean;
   cleanupFailed: boolean;
+  workspaceDisposition?: "created" | "reused" | "prepared";
+  physicalBackend?: string;
+  worktreeHead?: string;
+  worktreeBranch?: string;
   artifacts: ArtifactReceipt[];
   error: string;
   completedAt: string;
