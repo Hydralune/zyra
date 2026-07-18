@@ -2579,3 +2579,457 @@ export class IsolationExecutionSessionRuntime {
     return structuredClone(next);
   }
 }
+
+export interface IsolationWorkspaceMount {
+  mountId: string;
+  sessionId: string;
+  taskId: string;
+  sourceRoot: string;
+  targetPath: string;
+  mode: "readonly" | "workspace-write" | "ephemeral";
+  state: "requested" | "mounted" | "revoked" | "unmounted" | "failed";
+  allowedPatterns: string[];
+  deniedPatterns: string[];
+  byteQuota: number;
+  bytesWritten: number;
+  operationQuota: number;
+  operationsUsed: number;
+  leaseExpiresAt: string;
+  mountedAt: string | null;
+  revokedAt: string | null;
+  unmountedAt: string | null;
+  failure: string | null;
+  revision: number;
+  digest: string;
+}
+export interface IsolationMountAccess {
+  accessId: string;
+  mountId: string;
+  taskId: string;
+  operation: "read" | "write" | "create" | "delete" | "execute" | "list";
+  relativePath: string;
+  requestedBytes: number;
+  outcome: "allowed" | "denied";
+  reason: string;
+  sequence: number;
+  occurredAt: string;
+  previousDigest: string;
+  digest: string;
+}
+function assertIsolationMount(value: IsolationWorkspaceMount): void {
+  assertDigest(value, "digest", `isolation mount ${value.mountId}`);
+  if (
+    !value.mountId ||
+    !value.sessionId ||
+    !value.taskId ||
+    !value.sourceRoot ||
+    !value.targetPath ||
+    !Number.isSafeInteger(value.byteQuota) ||
+    value.byteQuota < 0 ||
+    !Number.isSafeInteger(value.bytesWritten) ||
+    value.bytesWritten < 0 ||
+    value.bytesWritten > value.byteQuota ||
+    !Number.isSafeInteger(value.operationQuota) ||
+    value.operationQuota < 1 ||
+    !Number.isSafeInteger(value.operationsUsed) ||
+    value.operationsUsed < 0 ||
+    value.operationsUsed > value.operationQuota ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.leaseExpiresAt))
+  )
+    throw new E03RuntimeError(
+      "isolation_mount",
+      `isolation mount ${value.mountId} is invalid`,
+    );
+  if (value.state === "mounted" && value.mountedAt === null)
+    throw new E03RuntimeError(
+      "isolation_mount_time",
+      `mounted workspace ${value.mountId} lacks time`,
+    );
+}
+function assertMountAccess(value: IsolationMountAccess): void {
+  assertDigest(value, "digest", `isolation mount access ${value.accessId}`);
+  if (
+    !value.accessId ||
+    !value.mountId ||
+    !value.taskId ||
+    !value.relativePath ||
+    !Number.isSafeInteger(value.requestedBytes) ||
+    value.requestedBytes < 0 ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1 ||
+    !value.reason
+  )
+    throw new E03RuntimeError(
+      "isolation_mount_access",
+      `isolation mount access ${value.accessId} is invalid`,
+    );
+}
+export class IsolationWorkspaceMountRuntime {
+  private mounts = new Map<string, IsolationWorkspaceMount>();
+  private accesses = new Map<string, IsolationMountAccess[]>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  request(input: {
+    session: IsolationExecutionSession;
+    sourceRoot: string;
+    targetPath: string;
+    mode: IsolationWorkspaceMount["mode"];
+    allowedPatterns?: readonly string[];
+    deniedPatterns?: readonly string[];
+    byteQuota: number;
+    operationQuota: number;
+    ttlMs: number;
+  }): IsolationWorkspaceMount {
+    if (
+      input.session.state !== "prepared" &&
+      input.session.state !== "running"
+    )
+      throw new E03RuntimeError(
+        "isolation_mount_session_state",
+        `isolation session ${input.session.executionSessionId} is ${input.session.state}`,
+      );
+    const sourceRoot = resolve(input.sourceRoot);
+    const targetPath = normalize(input.targetPath).replaceAll("\\", "/");
+    if (
+      !sourceRoot ||
+      !targetPath ||
+      targetPath.startsWith("../") ||
+      targetPath === ".." ||
+      targetPath.includes("/../") ||
+      !Number.isSafeInteger(input.byteQuota) ||
+      input.byteQuota < 0 ||
+      !Number.isSafeInteger(input.operationQuota) ||
+      input.operationQuota < 1 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "isolation_mount_request",
+        "isolation workspace mount request is invalid",
+      );
+    if (
+      [...this.mounts.values()].some(
+        (value) =>
+          value.sessionId === input.session.executionSessionId &&
+          value.targetPath === targetPath &&
+          value.state !== "unmounted" &&
+          value.state !== "failed",
+      )
+    )
+      throw new E03RuntimeError(
+        "isolation_mount_target_conflict",
+        `isolation target ${targetPath} is already mounted`,
+      );
+    const allowedPatterns = [
+      ...new Set(input.allowedPatterns ?? ["**/*"]),
+    ].sort();
+    const deniedPatterns = [...new Set(input.deniedPatterns ?? [])].sort();
+    const payload = {
+      mountId: createId("isolation-workspace-mount"),
+      sessionId: input.session.executionSessionId,
+      taskId: input.session.taskId,
+      sourceRoot,
+      targetPath,
+      mode: input.mode,
+      state: "requested" as const,
+      allowedPatterns,
+      deniedPatterns,
+      byteQuota: input.byteQuota,
+      bytesWritten: 0,
+      operationQuota: input.operationQuota,
+      operationsUsed: 0,
+      leaseExpiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      mountedAt: null,
+      revokedAt: null,
+      unmountedAt: null,
+      failure: null,
+      revision: 1,
+    };
+    const mount = { ...payload, digest: digest(payload) };
+    assertIsolationMount(mount);
+    this.mounts.set(mount.mountId, mount);
+    return structuredClone(mount);
+  }
+  confirm(
+    mountId: string,
+    expectedRevision: number,
+    observedSourceRoot: string,
+    observedTargetPath: string,
+  ): IsolationWorkspaceMount {
+    const mount = this.requireMount(mountId);
+    this.assertMountRevision(mount, expectedRevision);
+    if (mount.state !== "requested")
+      throw new E03RuntimeError(
+        "isolation_mount_confirm_state",
+        `isolation mount ${mountId} is ${mount.state}`,
+      );
+    if (
+      resolve(observedSourceRoot) !== mount.sourceRoot ||
+      normalize(observedTargetPath).replaceAll("\\", "/") !== mount.targetPath
+    )
+      return this.transitionMount(mount, {
+        state: "failed",
+        failure: "mount observation mismatch",
+      });
+    if (Date.parse(mount.leaseExpiresAt) <= Date.parse(this.clock.now()))
+      return this.transitionMount(mount, {
+        state: "failed",
+        failure: "mount lease expired before confirmation",
+      });
+    return this.transitionMount(mount, {
+      state: "mounted",
+      mountedAt: this.clock.now(),
+    });
+  }
+  authorize(input: {
+    mountId: string;
+    taskId: string;
+    operation: IsolationMountAccess["operation"];
+    relativePath: string;
+    requestedBytes?: number;
+  }): { mount: IsolationWorkspaceMount; access: IsolationMountAccess } {
+    const mount = this.requireMount(input.mountId);
+    const relativePath = normalize(input.relativePath).replaceAll("\\", "/");
+    const requestedBytes = input.requestedBytes ?? 0;
+    let allowed = true;
+    let reason = "mount policy allowed operation";
+    if (mount.taskId !== input.taskId) {
+      allowed = false;
+      reason = "mount task custody mismatch";
+    } else if (mount.state !== "mounted") {
+      allowed = false;
+      reason = `mount is ${mount.state}`;
+    } else if (
+      Date.parse(mount.leaseExpiresAt) <= Date.parse(this.clock.now())
+    ) {
+      allowed = false;
+      reason = "mount lease expired";
+    } else if (
+      !relativePath ||
+      relativePath.startsWith("../") ||
+      relativePath === ".." ||
+      relativePath.includes("/../")
+    ) {
+      allowed = false;
+      reason = "mount path escapes target";
+    } else if (mount.operationsUsed >= mount.operationQuota) {
+      allowed = false;
+      reason = "mount operation quota exhausted";
+    } else if (!Number.isSafeInteger(requestedBytes) || requestedBytes < 0) {
+      allowed = false;
+      reason = "mount byte request is invalid";
+    } else if (
+      input.operation !== "read" &&
+      input.operation !== "list" &&
+      mount.mode === "readonly"
+    ) {
+      allowed = false;
+      reason = "readonly mount denies mutation";
+    } else if (
+      mount.bytesWritten + requestedBytes > mount.byteQuota &&
+      input.operation !== "read" &&
+      input.operation !== "list"
+    ) {
+      allowed = false;
+      reason = "mount byte quota exceeded";
+    } else if (
+      !this.matchesAny(relativePath, mount.allowedPatterns) ||
+      this.matchesAny(relativePath, mount.deniedPatterns)
+    ) {
+      allowed = false;
+      reason = "mount path policy denied operation";
+    }
+    const entries = this.accesses.get(mount.mountId) ?? [];
+    const payload = {
+      accessId: createId("isolation-mount-access"),
+      mountId: mount.mountId,
+      taskId: input.taskId,
+      operation: input.operation,
+      relativePath,
+      requestedBytes,
+      outcome: allowed ? ("allowed" as const) : ("denied" as const),
+      reason,
+      sequence: entries.length + 1,
+      occurredAt: this.clock.now(),
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+    };
+    const access = { ...payload, digest: digest(payload) };
+    assertMountAccess(access);
+    entries.push(access);
+    this.accesses.set(mount.mountId, entries);
+    const mutated =
+      allowed && input.operation !== "read" && input.operation !== "list";
+    const nextMount = allowed
+      ? this.transitionMount(mount, {
+          operationsUsed: mount.operationsUsed + 1,
+          bytesWritten: mount.bytesWritten + (mutated ? requestedBytes : 0),
+        })
+      : structuredClone(mount);
+    return { mount: nextMount, access: structuredClone(access) };
+  }
+  revoke(
+    mountId: string,
+    expectedRevision: number,
+    reason: string,
+  ): IsolationWorkspaceMount {
+    const mount = this.requireMount(mountId);
+    this.assertMountRevision(mount, expectedRevision);
+    if (
+      mount.state === "revoked" ||
+      mount.state === "unmounted" ||
+      mount.state === "failed"
+    )
+      return structuredClone(mount);
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "isolation_mount_revoke_reason",
+        "isolation mount revoke reason is required",
+      );
+    return this.transitionMount(mount, {
+      state: "revoked",
+      revokedAt: this.clock.now(),
+      failure: reason.trim(),
+    });
+  }
+  unmount(mountId: string, expectedRevision: number): IsolationWorkspaceMount {
+    const mount = this.requireMount(mountId);
+    this.assertMountRevision(mount, expectedRevision);
+    if (
+      mount.state !== "mounted" &&
+      mount.state !== "revoked" &&
+      mount.state !== "failed"
+    )
+      throw new E03RuntimeError(
+        "isolation_mount_unmount_state",
+        `isolation mount ${mountId} is ${mount.state}`,
+      );
+    return this.transitionMount(mount, {
+      state: "unmounted",
+      unmountedAt: this.clock.now(),
+    });
+  }
+  verifyAccess(mountId?: string): void {
+    const groups = mountId
+      ? [[mountId, this.accesses.get(mountId) ?? []] as const]
+      : [...this.accesses.entries()];
+    for (const [id, entries] of groups) {
+      let previousDigest = "root";
+      let sequence = 1;
+      for (const access of entries) {
+        assertMountAccess(access);
+        if (
+          access.mountId !== id ||
+          access.sequence !== sequence ||
+          access.previousDigest !== previousDigest
+        )
+          throw new E03RuntimeError(
+            "isolation_mount_access_chain",
+            `isolation mount access ${access.accessId} breaks chain`,
+          );
+        previousDigest = access.digest;
+        sequence += 1;
+      }
+    }
+  }
+  snapshot(): {
+    mounts: IsolationWorkspaceMount[];
+    accesses: IsolationMountAccess[];
+  } {
+    this.verifyAccess();
+    return {
+      mounts: [...this.mounts.values()].map((value) => structuredClone(value)),
+      accesses: [...this.accesses.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+    };
+  }
+  restore(snapshot: {
+    mounts: readonly IsolationWorkspaceMount[];
+    accesses: readonly IsolationMountAccess[];
+  }): void {
+    const mounts = new Map<string, IsolationWorkspaceMount>();
+    const accesses = new Map<string, IsolationMountAccess[]>();
+    for (const value of snapshot.mounts) {
+      assertIsolationMount(value);
+      if (mounts.has(value.mountId))
+        throw new E03RuntimeError(
+          "isolation_mount_restore_duplicate",
+          `duplicate isolation mount ${value.mountId}`,
+        );
+      mounts.set(value.mountId, structuredClone(value));
+    }
+    for (const value of snapshot.accesses) {
+      assertMountAccess(value);
+      if (!mounts.has(value.mountId))
+        throw new E03RuntimeError(
+          "isolation_mount_access_restore",
+          `isolation mount access ${value.accessId} has no mount`,
+        );
+      const entries = accesses.get(value.mountId) ?? [];
+      if (entries.some((entry) => entry.accessId === value.accessId))
+        throw new E03RuntimeError(
+          "isolation_mount_access_restore_duplicate",
+          `duplicate isolation mount access ${value.accessId}`,
+        );
+      entries.push(structuredClone(value));
+      accesses.set(value.mountId, entries);
+    }
+    for (const entries of accesses.values())
+      entries.sort((left, right) => left.sequence - right.sequence);
+    this.mounts = mounts;
+    this.accesses = accesses;
+    this.verifyAccess();
+  }
+  private matchesAny(path: string, patterns: readonly string[]): boolean {
+    return patterns.some((pattern) => {
+      const escaped = pattern
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replaceAll("**", "@@DOUBLE@@")
+        .replaceAll("*", "[^/]*")
+        .replaceAll("@@DOUBLE@@", ".*")
+        .replaceAll("?", ".");
+      return new RegExp(`^${escaped}$`).test(path);
+    });
+  }
+  private requireMount(id: string): IsolationWorkspaceMount {
+    const value = this.mounts.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "isolation_mount_missing",
+        `isolation mount ${id} does not exist`,
+      );
+    assertIsolationMount(value);
+    return value;
+  }
+  private assertMountRevision(
+    value: IsolationWorkspaceMount,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "isolation_mount_stale_revision",
+        `isolation mount ${value.mountId} revision is stale`,
+      );
+  }
+  private transitionMount(
+    value: IsolationWorkspaceMount,
+    patch: Partial<
+      Omit<IsolationWorkspaceMount, "mountId" | "revision" | "digest">
+    >,
+  ): IsolationWorkspaceMount {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      mountId: value.mountId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIsolationMount(next);
+    this.mounts.set(next.mountId, next);
+    return structuredClone(next);
+  }
+}

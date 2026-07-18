@@ -2608,3 +2608,528 @@ export class TaskExecutionAttemptRuntime {
     return structuredClone(next);
   }
 }
+
+export interface TaskOutputVerificationPolicy {
+  policyId: string;
+  name: string;
+  requiredChecks: string[];
+  optionalChecks: string[];
+  minimumOptionalPasses: number;
+  rejectOnWarning: boolean;
+  maximumArtifactBytes: number;
+  allowedMediaTypes: string[];
+  state: "active" | "disabled" | "retired";
+  revision: number;
+  digest: string;
+}
+export interface TaskOutputVerificationCheck {
+  checkId: string;
+  reportId: string;
+  name: string;
+  required: boolean;
+  outcome: "passed" | "failed" | "warning" | "skipped";
+  summary: string;
+  evidence: JsonObject;
+  checkedAt: string;
+  digest: string;
+}
+export interface TaskOutputVerificationReport {
+  reportId: string;
+  taskId: string;
+  attempt: number;
+  policyId: string;
+  state: "open" | "verified" | "rejected" | "cancelled";
+  resultDigest: string;
+  artifactIds: string[];
+  checkIds: string[];
+  requiredPassed: number;
+  requiredFailed: number;
+  optionalPassed: number;
+  warningCount: number;
+  openedAt: string;
+  completedAt: string | null;
+  rejectionReason: string | null;
+  revision: number;
+  digest: string;
+}
+function assertOutputPolicy(value: TaskOutputVerificationPolicy): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "task_output_policy_digest",
+      `task output policy ${value.policyId} is corrupt`,
+    );
+  if (
+    !value.policyId ||
+    !value.name ||
+    !value.requiredChecks.length ||
+    !Number.isSafeInteger(value.minimumOptionalPasses) ||
+    value.minimumOptionalPasses < 0 ||
+    value.minimumOptionalPasses > value.optionalChecks.length ||
+    !Number.isSafeInteger(value.maximumArtifactBytes) ||
+    value.maximumArtifactBytes < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "task_output_policy",
+      `task output policy ${value.policyId} is invalid`,
+    );
+}
+function assertOutputCheck(value: TaskOutputVerificationCheck): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "task_output_check_digest",
+      `task output check ${value.checkId} is corrupt`,
+    );
+  if (!value.checkId || !value.reportId || !value.name || !value.summary)
+    throw new E03RuntimeError(
+      "task_output_check",
+      `task output check ${value.checkId} is invalid`,
+    );
+}
+function assertOutputReport(value: TaskOutputVerificationReport): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "task_output_report_digest",
+      `task output report ${value.reportId} is corrupt`,
+    );
+  if (
+    !value.reportId ||
+    !value.taskId ||
+    !value.policyId ||
+    !value.resultDigest ||
+    !Number.isSafeInteger(value.attempt) ||
+    value.attempt < 1 ||
+    [
+      value.requiredPassed,
+      value.requiredFailed,
+      value.optionalPassed,
+      value.warningCount,
+    ].some((number) => !Number.isSafeInteger(number) || number < 0) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "task_output_report",
+      `task output report ${value.reportId} is invalid`,
+    );
+  if (
+    (value.state === "verified" ||
+      value.state === "rejected" ||
+      value.state === "cancelled") &&
+    value.completedAt === null
+  )
+    throw new E03RuntimeError(
+      "task_output_report_completion",
+      `completed task output report ${value.reportId} lacks time`,
+    );
+}
+export class TaskOutputVerificationRuntime {
+  private policies = new Map<string, TaskOutputVerificationPolicy>();
+  private reports = new Map<string, TaskOutputVerificationReport>();
+  private checks = new Map<string, TaskOutputVerificationCheck[]>();
+  private activeByTaskAttempt = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  registerPolicy(
+    input: Omit<
+      TaskOutputVerificationPolicy,
+      "policyId" | "revision" | "digest"
+    >,
+  ): TaskOutputVerificationPolicy {
+    if (
+      [...this.policies.values()].some(
+        (value) => value.name === input.name && value.state !== "retired",
+      )
+    )
+      throw new E03RuntimeError(
+        "task_output_policy_duplicate",
+        `task output policy ${input.name} already exists`,
+      );
+    const requiredChecks = [...new Set(input.requiredChecks)].sort();
+    const optionalChecks = [...new Set(input.optionalChecks)].sort();
+    if (requiredChecks.some((name) => optionalChecks.includes(name)))
+      throw new E03RuntimeError(
+        "task_output_policy_overlap",
+        "task output verification checks overlap",
+      );
+    const payload = {
+      ...structuredClone(input),
+      policyId: createId("task-output-policy"),
+      requiredChecks,
+      optionalChecks,
+      allowedMediaTypes: [...new Set(input.allowedMediaTypes)].sort(),
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertOutputPolicy(policy);
+    this.policies.set(policy.policyId, policy);
+    return structuredClone(policy);
+  }
+  updatePolicy(
+    policyId: string,
+    expectedRevision: number,
+    patch: Partial<
+      Pick<
+        TaskOutputVerificationPolicy,
+        | "requiredChecks"
+        | "optionalChecks"
+        | "minimumOptionalPasses"
+        | "rejectOnWarning"
+        | "maximumArtifactBytes"
+        | "allowedMediaTypes"
+        | "state"
+      >
+    >,
+  ): TaskOutputVerificationPolicy {
+    const policy = this.requirePolicy(policyId);
+    if (policy.revision !== expectedRevision)
+      throw new E03RuntimeError(
+        "task_output_policy_stale_revision",
+        `task output policy ${policyId} revision is stale`,
+      );
+    if (policy.state === "retired")
+      throw new E03RuntimeError(
+        "task_output_policy_update_state",
+        `task output policy ${policyId} is retired`,
+      );
+    const { digest: _, ...prior } = policy;
+    const payload = {
+      ...prior,
+      ...structuredClone(patch),
+      policyId: policy.policyId,
+      requiredChecks: patch.requiredChecks
+        ? [...new Set(patch.requiredChecks)].sort()
+        : policy.requiredChecks,
+      optionalChecks: patch.optionalChecks
+        ? [...new Set(patch.optionalChecks)].sort()
+        : policy.optionalChecks,
+      allowedMediaTypes: patch.allowedMediaTypes
+        ? [...new Set(patch.allowedMediaTypes)].sort()
+        : policy.allowedMediaTypes,
+      revision: policy.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertOutputPolicy(next);
+    if (next.requiredChecks.some((name) => next.optionalChecks.includes(name)))
+      throw new E03RuntimeError(
+        "task_output_policy_overlap",
+        "task output verification checks overlap",
+      );
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+  begin(input: {
+    task: E03TaskState;
+    policyId: string;
+    resultDigest: string;
+    artifactIds?: readonly string[];
+  }): TaskOutputVerificationReport {
+    const policy = this.requirePolicy(input.policyId);
+    if (policy.state !== "active")
+      throw new E03RuntimeError(
+        "task_output_policy_inactive",
+        `task output policy ${policy.policyId} is ${policy.state}`,
+      );
+    if (!input.resultDigest)
+      throw new E03RuntimeError(
+        "task_output_result_digest",
+        "task output result digest is required",
+      );
+    const key = `${input.task.identity.taskId}:${input.task.identity.attempt}`;
+    const existingId = this.activeByTaskAttempt.get(key);
+    if (existingId) return structuredClone(this.requireReport(existingId));
+    const payload = {
+      reportId: createId("task-output-report"),
+      taskId: input.task.identity.taskId,
+      attempt: input.task.identity.attempt,
+      policyId: policy.policyId,
+      state: "open" as const,
+      resultDigest: input.resultDigest,
+      artifactIds: [...new Set(input.artifactIds ?? [])].sort(),
+      checkIds: [],
+      requiredPassed: 0,
+      requiredFailed: 0,
+      optionalPassed: 0,
+      warningCount: 0,
+      openedAt: this.clock.now(),
+      completedAt: null,
+      rejectionReason: null,
+      revision: 1,
+    };
+    const report = { ...payload, digest: digest(payload) };
+    assertOutputReport(report);
+    this.reports.set(report.reportId, report);
+    this.activeByTaskAttempt.set(key, report.reportId);
+    return structuredClone(report);
+  }
+  record(input: {
+    reportId: string;
+    expectedRevision: number;
+    name: string;
+    outcome: TaskOutputVerificationCheck["outcome"];
+    summary: string;
+    evidence?: JsonObject;
+  }): {
+    report: TaskOutputVerificationReport;
+    check: TaskOutputVerificationCheck;
+  } {
+    const report = this.requireReport(input.reportId);
+    this.assertReportRevision(report, input.expectedRevision);
+    if (report.state !== "open")
+      throw new E03RuntimeError(
+        "task_output_check_state",
+        `task output report ${report.reportId} is ${report.state}`,
+      );
+    const policy = this.requirePolicy(report.policyId);
+    const required = policy.requiredChecks.includes(input.name);
+    if (!required && !policy.optionalChecks.includes(input.name))
+      throw new E03RuntimeError(
+        "task_output_check_unknown",
+        `task output check ${input.name} is not in policy`,
+      );
+    if (!input.summary.trim())
+      throw new E03RuntimeError(
+        "task_output_check_summary",
+        "task output check summary is required",
+      );
+    const entries = this.checks.get(report.reportId) ?? [];
+    const prior = entries.find((value) => value.name === input.name);
+    if (prior) {
+      if (prior.outcome !== input.outcome)
+        throw new E03RuntimeError(
+          "task_output_check_conflict",
+          `task output check ${input.name} already has an outcome`,
+        );
+      return { report: structuredClone(report), check: structuredClone(prior) };
+    }
+    const payload = {
+      checkId: createId("task-output-check"),
+      reportId: report.reportId,
+      name: input.name,
+      required,
+      outcome: input.outcome,
+      summary: input.summary.trim(),
+      evidence: structuredClone(input.evidence ?? {}),
+      checkedAt: this.clock.now(),
+    };
+    const check = { ...payload, digest: digest(payload) };
+    assertOutputCheck(check);
+    entries.push(check);
+    this.checks.set(report.reportId, entries);
+    const next = this.transitionReport(report, {
+      checkIds: [...report.checkIds, check.checkId],
+      requiredPassed:
+        report.requiredPassed +
+        (required && input.outcome === "passed" ? 1 : 0),
+      requiredFailed:
+        report.requiredFailed +
+        (required && (input.outcome === "failed" || input.outcome === "skipped")
+          ? 1
+          : 0),
+      optionalPassed:
+        report.optionalPassed +
+        (!required && input.outcome === "passed" ? 1 : 0),
+      warningCount: report.warningCount + (input.outcome === "warning" ? 1 : 0),
+    });
+    return { report: next, check: structuredClone(check) };
+  }
+  finalize(
+    reportId: string,
+    expectedRevision: number,
+  ): TaskOutputVerificationReport {
+    const report = this.requireReport(reportId);
+    this.assertReportRevision(report, expectedRevision);
+    if (report.state !== "open")
+      throw new E03RuntimeError(
+        "task_output_finalize_state",
+        `task output report ${reportId} is ${report.state}`,
+      );
+    const policy = this.requirePolicy(report.policyId);
+    const entries = this.checks.get(report.reportId) ?? [];
+    const missing = policy.requiredChecks.filter(
+      (name) => !entries.some((entry) => entry.name === name),
+    );
+    const rejected =
+      missing.length > 0 ||
+      report.requiredFailed > 0 ||
+      report.optionalPassed < policy.minimumOptionalPasses ||
+      (policy.rejectOnWarning && report.warningCount > 0);
+    const reasons: string[] = [];
+    if (missing.length)
+      reasons.push(`missing required checks: ${missing.join(",")}`);
+    if (report.requiredFailed)
+      reasons.push(`${report.requiredFailed} required checks failed`);
+    if (report.optionalPassed < policy.minimumOptionalPasses)
+      reasons.push("optional check threshold not met");
+    if (policy.rejectOnWarning && report.warningCount)
+      reasons.push("warning rejected by policy");
+    const next = this.transitionReport(report, {
+      state: rejected ? "rejected" : "verified",
+      completedAt: this.clock.now(),
+      rejectionReason: rejected ? reasons.join("; ") : null,
+    });
+    this.activeByTaskAttempt.delete(`${report.taskId}:${report.attempt}`);
+    return next;
+  }
+  cancel(
+    reportId: string,
+    expectedRevision: number,
+    reason: string,
+  ): TaskOutputVerificationReport {
+    const report = this.requireReport(reportId);
+    this.assertReportRevision(report, expectedRevision);
+    if (report.state !== "open") return structuredClone(report);
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "task_output_cancel_reason",
+        "task output verification cancellation reason is required",
+      );
+    const next = this.transitionReport(report, {
+      state: "cancelled",
+      completedAt: this.clock.now(),
+      rejectionReason: reason.trim(),
+    });
+    this.activeByTaskAttempt.delete(`${report.taskId}:${report.attempt}`);
+    return next;
+  }
+  snapshot(): {
+    policies: TaskOutputVerificationPolicy[];
+    reports: TaskOutputVerificationReport[];
+    checks: TaskOutputVerificationCheck[];
+    activeByTaskAttempt: Array<[string, string]>;
+  } {
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      reports: [...this.reports.values()].map((value) =>
+        structuredClone(value),
+      ),
+      checks: [...this.checks.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeByTaskAttempt: [...this.activeByTaskAttempt.entries()].map(
+        ([key, id]) => [key, id],
+      ),
+    };
+  }
+  restore(snapshot: {
+    policies: readonly TaskOutputVerificationPolicy[];
+    reports: readonly TaskOutputVerificationReport[];
+    checks: readonly TaskOutputVerificationCheck[];
+    activeByTaskAttempt: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const policies = new Map<string, TaskOutputVerificationPolicy>();
+    const reports = new Map<string, TaskOutputVerificationReport>();
+    const checks = new Map<string, TaskOutputVerificationCheck[]>();
+    const activeByTaskAttempt = new Map<string, string>();
+    for (const value of snapshot.policies) {
+      assertOutputPolicy(value);
+      if (policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "task_output_policy_restore_duplicate",
+          `duplicate task output policy ${value.policyId}`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+    }
+    for (const value of snapshot.reports) {
+      assertOutputReport(value);
+      if (reports.has(value.reportId) || !policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "task_output_report_restore",
+          `task output report ${value.reportId} is invalid`,
+        );
+      reports.set(value.reportId, structuredClone(value));
+    }
+    for (const value of snapshot.checks) {
+      assertOutputCheck(value);
+      if (!reports.has(value.reportId))
+        throw new E03RuntimeError(
+          "task_output_check_restore",
+          `task output check ${value.checkId} has no report`,
+        );
+      const entries = checks.get(value.reportId) ?? [];
+      if (
+        entries.some(
+          (entry) =>
+            entry.name === value.name || entry.checkId === value.checkId,
+        )
+      )
+        throw new E03RuntimeError(
+          "task_output_check_restore_duplicate",
+          `duplicate task output check ${value.checkId}`,
+        );
+      entries.push(structuredClone(value));
+      checks.set(value.reportId, entries);
+    }
+    for (const [key, id] of snapshot.activeByTaskAttempt) {
+      const report = reports.get(id);
+      if (
+        !report ||
+        report.state !== "open" ||
+        key !== `${report.taskId}:${report.attempt}` ||
+        activeByTaskAttempt.has(key)
+      )
+        throw new E03RuntimeError(
+          "task_output_active_restore",
+          `task output active index ${key} is invalid`,
+        );
+      activeByTaskAttempt.set(key, id);
+    }
+    this.policies = policies;
+    this.reports = reports;
+    this.checks = checks;
+    this.activeByTaskAttempt = activeByTaskAttempt;
+  }
+  private requirePolicy(id: string): TaskOutputVerificationPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_output_policy_missing",
+        `task output policy ${id} does not exist`,
+      );
+    assertOutputPolicy(value);
+    return value;
+  }
+  private requireReport(id: string): TaskOutputVerificationReport {
+    const value = this.reports.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_output_report_missing",
+        `task output report ${id} does not exist`,
+      );
+    assertOutputReport(value);
+    return value;
+  }
+  private assertReportRevision(
+    value: TaskOutputVerificationReport,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_output_report_stale_revision",
+        `task output report ${value.reportId} revision is stale`,
+      );
+  }
+  private transitionReport(
+    value: TaskOutputVerificationReport,
+    patch: Partial<
+      Omit<TaskOutputVerificationReport, "reportId" | "revision" | "digest">
+    >,
+  ): TaskOutputVerificationReport {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      reportId: value.reportId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertOutputReport(next);
+    this.reports.set(next.reportId, next);
+    return structuredClone(next);
+  }
+}

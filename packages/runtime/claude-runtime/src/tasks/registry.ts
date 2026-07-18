@@ -3154,6 +3154,638 @@ export class RegistryCheckpointRuntime {
   }
 }
 
+export interface TaskRegistryReplica {
+  replicaId: string;
+  endpointId: string;
+  state: "joining" | "active" | "lagging" | "draining" | "removed";
+  appliedRevision: number;
+  advertisedRevision: number;
+  generation: number;
+  leaseExpiresAt: string;
+  lastHeartbeatAt: string | null;
+  joinedAt: string;
+  removedAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface RegistryReplicationEnvelope {
+  envelopeId: string;
+  generation: number;
+  sourceRevision: number;
+  targetRevision: number;
+  state: "prepared" | "published" | "committed" | "rejected" | "expired";
+  snapshotChecksum: string;
+  mutationDigests: string[];
+  requiredReplicaIds: string[];
+  acknowledgedReplicaIds: string[];
+  rejectedReplicaIds: string[];
+  preparedAt: string;
+  publishedAt: string | null;
+  committedAt: string | null;
+  expiresAt: string;
+  revision: number;
+  digest: string;
+}
+export interface RegistryReplicationAck {
+  ackId: string;
+  envelopeId: string;
+  replicaId: string;
+  outcome: "applied" | "rejected";
+  appliedRevision: number;
+  snapshotChecksum: string;
+  reason: string | null;
+  acknowledgedAt: string;
+  digest: string;
+}
+function assertRegistryReplica(value: TaskRegistryReplica): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "registry_replica_digest",
+      `registry replica ${value.replicaId} is corrupt`,
+    );
+  if (
+    !value.replicaId ||
+    !value.endpointId ||
+    !Number.isSafeInteger(value.appliedRevision) ||
+    value.appliedRevision < 0 ||
+    !Number.isSafeInteger(value.advertisedRevision) ||
+    value.advertisedRevision < value.appliedRevision ||
+    !Number.isSafeInteger(value.generation) ||
+    value.generation < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.leaseExpiresAt))
+  )
+    throw new E03RuntimeError(
+      "registry_replica",
+      `registry replica ${value.replicaId} is invalid`,
+    );
+}
+function assertRegistryReplicationEnvelope(
+  value: RegistryReplicationEnvelope,
+): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "registry_replication_envelope_digest",
+      `registry replication envelope ${value.envelopeId} is corrupt`,
+    );
+  if (
+    !value.envelopeId ||
+    !Number.isSafeInteger(value.generation) ||
+    value.generation < 1 ||
+    !Number.isSafeInteger(value.sourceRevision) ||
+    value.sourceRevision < 0 ||
+    !Number.isSafeInteger(value.targetRevision) ||
+    value.targetRevision <= value.sourceRevision ||
+    !value.snapshotChecksum ||
+    !value.requiredReplicaIds.length ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "registry_replication_envelope",
+      `registry replication envelope ${value.envelopeId} is invalid`,
+    );
+}
+function assertRegistryReplicationAck(value: RegistryReplicationAck): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "registry_replication_ack_digest",
+      `registry replication ACK ${value.ackId} is corrupt`,
+    );
+  if (
+    !value.ackId ||
+    !value.envelopeId ||
+    !value.replicaId ||
+    !Number.isSafeInteger(value.appliedRevision) ||
+    value.appliedRevision < 0 ||
+    !value.snapshotChecksum ||
+    (value.outcome === "rejected" && !value.reason)
+  )
+    throw new E03RuntimeError(
+      "registry_replication_ack",
+      `registry replication ACK ${value.ackId} is invalid`,
+    );
+}
+export class TaskRegistryReplicationRuntime {
+  private replicas = new Map<string, TaskRegistryReplica>();
+  private envelopes = new Map<string, RegistryReplicationEnvelope>();
+  private acknowledgements = new Map<string, RegistryReplicationAck[]>();
+  private snapshots = new Map<number, E03RegistrySnapshot>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  join(input: {
+    endpointId: string;
+    appliedRevision: number;
+    generation: number;
+    ttlMs: number;
+  }): TaskRegistryReplica {
+    if (
+      !input.endpointId.trim() ||
+      !Number.isSafeInteger(input.appliedRevision) ||
+      input.appliedRevision < 0 ||
+      !Number.isSafeInteger(input.generation) ||
+      input.generation < 1 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "registry_replica_join",
+        "registry replica join input is invalid",
+      );
+    const existing = [...this.replicas.values()].find(
+      (value) =>
+        value.endpointId === input.endpointId && value.state !== "removed",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      replicaId: createId("registry-replica"),
+      endpointId: input.endpointId.trim(),
+      state: "joining" as const,
+      appliedRevision: input.appliedRevision,
+      advertisedRevision: input.appliedRevision,
+      generation: input.generation,
+      leaseExpiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      lastHeartbeatAt: null,
+      joinedAt: this.clock.now(),
+      removedAt: null,
+      revision: 1,
+    };
+    const replica = { ...payload, digest: digest(payload) };
+    assertRegistryReplica(replica);
+    this.replicas.set(replica.replicaId, replica);
+    return structuredClone(replica);
+  }
+  activate(
+    replicaId: string,
+    expectedRevision: number,
+    advertisedRevision: number,
+  ): TaskRegistryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (replica.state !== "joining" && replica.state !== "lagging")
+      throw new E03RuntimeError(
+        "registry_replica_activate_state",
+        `registry replica ${replicaId} is ${replica.state}`,
+      );
+    if (
+      !Number.isSafeInteger(advertisedRevision) ||
+      advertisedRevision < replica.appliedRevision
+    )
+      throw new E03RuntimeError(
+        "registry_replica_advertised_revision",
+        "registry replica advertised revision is invalid",
+      );
+    return this.transitionReplica(replica, {
+      advertisedRevision,
+      state:
+        advertisedRevision === replica.appliedRevision ? "active" : "lagging",
+      lastHeartbeatAt: this.clock.now(),
+    });
+  }
+  heartbeat(
+    replicaId: string,
+    expectedRevision: number,
+    advertisedRevision: number,
+    ttlMs: number,
+  ): TaskRegistryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (replica.state === "removed" || replica.state === "draining")
+      throw new E03RuntimeError(
+        "registry_replica_heartbeat_state",
+        `registry replica ${replicaId} is ${replica.state}`,
+      );
+    if (
+      !Number.isSafeInteger(advertisedRevision) ||
+      advertisedRevision < replica.appliedRevision ||
+      !Number.isSafeInteger(ttlMs) ||
+      ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "registry_replica_heartbeat",
+        "registry replica heartbeat is invalid",
+      );
+    return this.transitionReplica(replica, {
+      advertisedRevision,
+      state:
+        advertisedRevision > replica.appliedRevision
+          ? "lagging"
+          : replica.state,
+      lastHeartbeatAt: this.clock.now(),
+      leaseExpiresAt: new Date(
+        Date.parse(this.clock.now()) + ttlMs,
+      ).toISOString(),
+    });
+  }
+  prepare(input: {
+    snapshot: E03RegistrySnapshot;
+    sourceRevision: number;
+    generation: number;
+    mutationDigests: readonly string[];
+    requiredReplicaIds: readonly string[];
+    ttlMs: number;
+  }): RegistryReplicationEnvelope {
+    assertSnapshotChecksum(input.snapshot);
+    if (
+      input.snapshot.revision <= input.sourceRevision ||
+      !Number.isSafeInteger(input.generation) ||
+      input.generation < 1 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "registry_replication_prepare",
+        "registry replication prepare input is invalid",
+      );
+    const requiredReplicaIds = [...new Set(input.requiredReplicaIds)].sort();
+    if (!requiredReplicaIds.length)
+      throw new E03RuntimeError(
+        "registry_replication_replicas",
+        "registry replication requires replicas",
+      );
+    for (const id of requiredReplicaIds) {
+      const replica = this.requireReplica(id);
+      if (
+        replica.generation !== input.generation ||
+        (replica.state !== "active" && replica.state !== "lagging")
+      )
+        throw new E03RuntimeError(
+          "registry_replication_replica_state",
+          `registry replica ${id} cannot receive envelope`,
+        );
+    }
+    const mutationDigests = [...new Set(input.mutationDigests)];
+    const existing = [...this.envelopes.values()].find(
+      (value) =>
+        value.generation === input.generation &&
+        value.sourceRevision === input.sourceRevision &&
+        value.targetRevision === input.snapshot.revision &&
+        value.snapshotChecksum === input.snapshot.checksum &&
+        value.state !== "rejected" &&
+        value.state !== "expired",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      envelopeId: createId("registry-replication-envelope"),
+      generation: input.generation,
+      sourceRevision: input.sourceRevision,
+      targetRevision: input.snapshot.revision,
+      state: "prepared" as const,
+      snapshotChecksum: input.snapshot.checksum,
+      mutationDigests,
+      requiredReplicaIds,
+      acknowledgedReplicaIds: [],
+      rejectedReplicaIds: [],
+      preparedAt: this.clock.now(),
+      publishedAt: null,
+      committedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      revision: 1,
+    };
+    const envelope = { ...payload, digest: digest(payload) };
+    assertRegistryReplicationEnvelope(envelope);
+    this.envelopes.set(envelope.envelopeId, envelope);
+    this.snapshots.set(
+      envelope.targetRevision,
+      structuredClone(input.snapshot),
+    );
+    return structuredClone(envelope);
+  }
+  publish(
+    envelopeId: string,
+    expectedRevision: number,
+  ): RegistryReplicationEnvelope {
+    const envelope = this.requireEnvelope(envelopeId);
+    this.assertEnvelopeRevision(envelope, expectedRevision);
+    if (envelope.state !== "prepared")
+      throw new E03RuntimeError(
+        "registry_replication_publish_state",
+        `registry replication envelope ${envelopeId} is ${envelope.state}`,
+      );
+    if (Date.parse(envelope.expiresAt) <= Date.parse(this.clock.now()))
+      return this.transitionEnvelope(envelope, { state: "expired" });
+    return this.transitionEnvelope(envelope, {
+      state: "published",
+      publishedAt: this.clock.now(),
+    });
+  }
+  acknowledge(input: {
+    envelopeId: string;
+    expectedRevision: number;
+    replicaId: string;
+    appliedRevision: number;
+    snapshotChecksum: string;
+    reason?: string | null;
+  }): {
+    envelope: RegistryReplicationEnvelope;
+    ack: RegistryReplicationAck;
+    replica: TaskRegistryReplica;
+  } {
+    const envelope = this.requireEnvelope(input.envelopeId);
+    this.assertEnvelopeRevision(envelope, input.expectedRevision);
+    if (envelope.state !== "published")
+      throw new E03RuntimeError(
+        "registry_replication_ack_state",
+        `registry replication envelope ${envelope.envelopeId} is ${envelope.state}`,
+      );
+    if (!envelope.requiredReplicaIds.includes(input.replicaId))
+      throw new E03RuntimeError(
+        "registry_replication_ack_replica",
+        `registry replica ${input.replicaId} is not required`,
+      );
+    const prior = (this.acknowledgements.get(envelope.envelopeId) ?? []).find(
+      (value) => value.replicaId === input.replicaId,
+    );
+    if (prior)
+      return {
+        envelope: structuredClone(envelope),
+        ack: structuredClone(prior),
+        replica: structuredClone(this.requireReplica(input.replicaId)),
+      };
+    const applied =
+      input.appliedRevision === envelope.targetRevision &&
+      input.snapshotChecksum === envelope.snapshotChecksum;
+    const payload = {
+      ackId: createId("registry-replication-ack"),
+      envelopeId: envelope.envelopeId,
+      replicaId: input.replicaId,
+      outcome: applied ? ("applied" as const) : ("rejected" as const),
+      appliedRevision: input.appliedRevision,
+      snapshotChecksum: input.snapshotChecksum,
+      reason: applied
+        ? null
+        : input.reason?.trim() || "replica snapshot mismatch",
+      acknowledgedAt: this.clock.now(),
+    };
+    const ack = { ...payload, digest: digest(payload) };
+    assertRegistryReplicationAck(ack);
+    const entries = this.acknowledgements.get(envelope.envelopeId) ?? [];
+    entries.push(ack);
+    this.acknowledgements.set(envelope.envelopeId, entries);
+    const acknowledgedReplicaIds = applied
+      ? [...envelope.acknowledgedReplicaIds, input.replicaId].sort()
+      : envelope.acknowledgedReplicaIds;
+    const rejectedReplicaIds = applied
+      ? envelope.rejectedReplicaIds
+      : [...envelope.rejectedReplicaIds, input.replicaId].sort();
+    const complete =
+      acknowledgedReplicaIds.length + rejectedReplicaIds.length ===
+      envelope.requiredReplicaIds.length;
+    const nextEnvelope = this.transitionEnvelope(envelope, {
+      state: rejectedReplicaIds.length
+        ? "rejected"
+        : complete
+          ? "committed"
+          : "published",
+      acknowledgedReplicaIds,
+      rejectedReplicaIds,
+      committedAt:
+        complete && !rejectedReplicaIds.length ? this.clock.now() : null,
+    });
+    const replica = this.requireReplica(input.replicaId);
+    const nextReplica = this.transitionReplica(
+      replica,
+      applied
+        ? {
+            appliedRevision: envelope.targetRevision,
+            advertisedRevision: Math.max(
+              replica.advertisedRevision,
+              envelope.targetRevision,
+            ),
+            state: "active",
+          }
+        : { state: "lagging" },
+    );
+    return {
+      envelope: nextEnvelope,
+      ack: structuredClone(ack),
+      replica: nextReplica,
+    };
+  }
+  materialize(envelopeId: string): E03RegistrySnapshot {
+    const envelope = this.requireEnvelope(envelopeId);
+    if (envelope.state !== "committed")
+      throw new E03RuntimeError(
+        "registry_replication_materialize_state",
+        `registry replication envelope ${envelopeId} is ${envelope.state}`,
+      );
+    const snapshot = this.snapshots.get(envelope.targetRevision);
+    if (!snapshot || snapshot.checksum !== envelope.snapshotChecksum)
+      throw new E03RuntimeError(
+        "registry_replication_snapshot_missing",
+        `registry replication snapshot ${envelope.targetRevision} is missing`,
+      );
+    assertSnapshotChecksum(snapshot);
+    return structuredClone(snapshot);
+  }
+  drain(replicaId: string, expectedRevision: number): TaskRegistryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (replica.state !== "active" && replica.state !== "lagging")
+      throw new E03RuntimeError(
+        "registry_replica_drain_state",
+        `registry replica ${replicaId} is ${replica.state}`,
+      );
+    return this.transitionReplica(replica, { state: "draining" });
+  }
+  remove(replicaId: string, expectedRevision: number): TaskRegistryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (
+      replica.state !== "draining" &&
+      Date.parse(replica.leaseExpiresAt) > Date.parse(this.clock.now())
+    )
+      throw new E03RuntimeError(
+        "registry_replica_remove_state",
+        `registry replica ${replicaId} is ${replica.state}`,
+      );
+    if (
+      [...this.envelopes.values()].some(
+        (value) =>
+          value.requiredReplicaIds.includes(replicaId) &&
+          (value.state === "prepared" || value.state === "published"),
+      )
+    )
+      throw new E03RuntimeError(
+        "registry_replica_pending_envelope",
+        `registry replica ${replicaId} has pending envelope`,
+      );
+    return this.transitionReplica(replica, {
+      state: "removed",
+      removedAt: this.clock.now(),
+    });
+  }
+  snapshot(): {
+    replicas: TaskRegistryReplica[];
+    envelopes: RegistryReplicationEnvelope[];
+    acknowledgements: RegistryReplicationAck[];
+    snapshots: E03RegistrySnapshot[];
+  } {
+    return {
+      replicas: [...this.replicas.values()].map((value) =>
+        structuredClone(value),
+      ),
+      envelopes: [...this.envelopes.values()].map((value) =>
+        structuredClone(value),
+      ),
+      acknowledgements: [...this.acknowledgements.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      snapshots: [...this.snapshots.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    replicas: readonly TaskRegistryReplica[];
+    envelopes: readonly RegistryReplicationEnvelope[];
+    acknowledgements: readonly RegistryReplicationAck[];
+    snapshots: readonly E03RegistrySnapshot[];
+  }): void {
+    const replicas = new Map<string, TaskRegistryReplica>();
+    const envelopes = new Map<string, RegistryReplicationEnvelope>();
+    const acknowledgements = new Map<string, RegistryReplicationAck[]>();
+    const snapshots = new Map<number, E03RegistrySnapshot>();
+    for (const value of snapshot.replicas) {
+      assertRegistryReplica(value);
+      if (replicas.has(value.replicaId))
+        throw new E03RuntimeError(
+          "registry_replica_restore_duplicate",
+          `duplicate registry replica ${value.replicaId}`,
+        );
+      replicas.set(value.replicaId, structuredClone(value));
+    }
+    for (const value of snapshot.snapshots) {
+      assertSnapshotChecksum(value);
+      if (snapshots.has(value.revision))
+        throw new E03RuntimeError(
+          "registry_replication_snapshot_duplicate",
+          `duplicate registry snapshot revision ${value.revision}`,
+        );
+      snapshots.set(value.revision, structuredClone(value));
+    }
+    for (const value of snapshot.envelopes) {
+      assertRegistryReplicationEnvelope(value);
+      const stored = snapshots.get(value.targetRevision);
+      if (
+        envelopes.has(value.envelopeId) ||
+        value.requiredReplicaIds.some((id) => !replicas.has(id)) ||
+        !stored ||
+        stored.checksum !== value.snapshotChecksum
+      )
+        throw new E03RuntimeError(
+          "registry_replication_envelope_restore",
+          `registry replication envelope ${value.envelopeId} is invalid`,
+        );
+      envelopes.set(value.envelopeId, structuredClone(value));
+    }
+    for (const value of snapshot.acknowledgements) {
+      assertRegistryReplicationAck(value);
+      if (!envelopes.has(value.envelopeId) || !replicas.has(value.replicaId))
+        throw new E03RuntimeError(
+          "registry_replication_ack_restore",
+          `registry replication ACK ${value.ackId} is invalid`,
+        );
+      const entries = acknowledgements.get(value.envelopeId) ?? [];
+      if (entries.some((entry) => entry.replicaId === value.replicaId))
+        throw new E03RuntimeError(
+          "registry_replication_ack_restore_duplicate",
+          `duplicate registry replication ACK for ${value.replicaId}`,
+        );
+      entries.push(structuredClone(value));
+      acknowledgements.set(value.envelopeId, entries);
+    }
+    this.replicas = replicas;
+    this.envelopes = envelopes;
+    this.acknowledgements = acknowledgements;
+    this.snapshots = snapshots;
+  }
+  private requireReplica(id: string): TaskRegistryReplica {
+    const value = this.replicas.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "registry_replica_missing",
+        `registry replica ${id} does not exist`,
+      );
+    assertRegistryReplica(value);
+    return value;
+  }
+  private requireEnvelope(id: string): RegistryReplicationEnvelope {
+    const value = this.envelopes.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "registry_replication_envelope_missing",
+        `registry replication envelope ${id} does not exist`,
+      );
+    assertRegistryReplicationEnvelope(value);
+    return value;
+  }
+  private assertReplicaRevision(
+    value: TaskRegistryReplica,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "registry_replica_stale_revision",
+        `registry replica ${value.replicaId} revision is stale`,
+      );
+  }
+  private assertEnvelopeRevision(
+    value: RegistryReplicationEnvelope,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "registry_replication_envelope_stale_revision",
+        `registry replication envelope ${value.envelopeId} revision is stale`,
+      );
+  }
+  private transitionReplica(
+    value: TaskRegistryReplica,
+    patch: Partial<
+      Omit<TaskRegistryReplica, "replicaId" | "revision" | "digest">
+    >,
+  ): TaskRegistryReplica {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      replicaId: value.replicaId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertRegistryReplica(next);
+    this.replicas.set(next.replicaId, next);
+    return structuredClone(next);
+  }
+  private transitionEnvelope(
+    value: RegistryReplicationEnvelope,
+    patch: Partial<
+      Omit<RegistryReplicationEnvelope, "envelopeId" | "revision" | "digest">
+    >,
+  ): RegistryReplicationEnvelope {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      envelopeId: value.envelopeId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertRegistryReplicationEnvelope(next);
+    this.envelopes.set(next.envelopeId, next);
+    return structuredClone(next);
+  }
+}
+
 export function assertNoLateRevival(
   before: E03TaskState,
   after: E03TaskState,

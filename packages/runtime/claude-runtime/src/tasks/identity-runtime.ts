@@ -1868,3 +1868,495 @@ export class TaskIdentityReservationRuntime {
     return structuredClone(next);
   }
 }
+
+export interface TaskIdentityEpoch {
+  epochId: string;
+  taskId: string;
+  runId: string;
+  sessionId: string;
+  epoch: number;
+  state: "proposed" | "active" | "retiring" | "revoked";
+  predecessorEpochId: string | null;
+  leaseId: string;
+  attempt: number;
+  identityDigest: string;
+  activationNonceDigest: string;
+  proposedAt: string;
+  activatedAt: string | null;
+  retiredAt: string | null;
+  revokedAt: string | null;
+  revokeReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface TaskIdentityProof {
+  proofId: string;
+  epochId: string;
+  taskId: string;
+  purpose: "dispatch" | "commit" | "resume" | "delivery" | "merge";
+  nonceDigest: string;
+  payloadDigest: string;
+  expiresAt: string;
+  consumedAt: string | null;
+  state: "issued" | "consumed" | "expired" | "revoked";
+  issuedAt: string;
+  revision: number;
+  digest: string;
+}
+function assertIdentityEpoch(value: TaskIdentityEpoch): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "task_identity_epoch_digest",
+      `task identity epoch ${value.epochId} is corrupt`,
+    );
+  if (
+    !value.epochId ||
+    !value.taskId ||
+    !value.runId ||
+    !value.sessionId ||
+    !value.leaseId ||
+    !value.identityDigest ||
+    !value.activationNonceDigest ||
+    !Number.isSafeInteger(value.epoch) ||
+    value.epoch < 1 ||
+    !Number.isSafeInteger(value.attempt) ||
+    value.attempt < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "task_identity_epoch",
+      `task identity epoch ${value.epochId} is invalid`,
+    );
+  if (value.state === "active" && value.activatedAt === null)
+    throw new E03RuntimeError(
+      "task_identity_epoch_activation",
+      `active identity epoch ${value.epochId} lacks time`,
+    );
+}
+function assertIdentityProof(value: TaskIdentityProof): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "task_identity_proof_digest",
+      `task identity proof ${value.proofId} is corrupt`,
+    );
+  if (
+    !value.proofId ||
+    !value.epochId ||
+    !value.taskId ||
+    !value.nonceDigest ||
+    !value.payloadDigest ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "task_identity_proof",
+      `task identity proof ${value.proofId} is invalid`,
+    );
+  if (value.state === "consumed" && value.consumedAt === null)
+    throw new E03RuntimeError(
+      "task_identity_proof_consumption",
+      `consumed identity proof ${value.proofId} lacks time`,
+    );
+}
+export class TaskIdentityEpochRuntime {
+  private epochs = new Map<string, TaskIdentityEpoch>();
+  private activeByTask = new Map<string, string>();
+  private proofs = new Map<string, TaskIdentityProof>();
+  private nonceIndex = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  propose(input: {
+    identity: E03TaskState["identity"];
+    activationNonce: string;
+    predecessorEpochId?: string | null;
+  }): TaskIdentityEpoch {
+    if (!input.activationNonce)
+      throw new E03RuntimeError(
+        "task_identity_epoch_nonce",
+        "task identity epoch activation nonce is required",
+      );
+    const activeId = this.activeByTask.get(input.identity.taskId);
+    const predecessorEpochId = input.predecessorEpochId ?? activeId ?? null;
+    let epoch = 1;
+    if (predecessorEpochId) {
+      const predecessor = this.requireEpoch(predecessorEpochId);
+      if (
+        predecessor.taskId !== input.identity.taskId ||
+        predecessor.runId !== input.identity.runId ||
+        predecessor.sessionId !== input.identity.sessionId
+      )
+        throw new E03RuntimeError(
+          "task_identity_epoch_custody",
+          "task identity epoch predecessor has different custody",
+        );
+      if (predecessor.state !== "active" && predecessor.state !== "retiring")
+        throw new E03RuntimeError(
+          "task_identity_epoch_predecessor_state",
+          `task identity epoch predecessor is ${predecessor.state}`,
+        );
+      epoch = predecessor.epoch + 1;
+    }
+    if (
+      [...this.epochs.values()].some(
+        (value) =>
+          value.taskId === input.identity.taskId &&
+          value.epoch === epoch &&
+          value.state !== "revoked",
+      )
+    )
+      throw new E03RuntimeError(
+        "task_identity_epoch_duplicate",
+        `task ${input.identity.taskId} already has identity epoch ${epoch}`,
+      );
+    const payload = {
+      epochId: createId("task-identity-epoch"),
+      taskId: input.identity.taskId,
+      runId: input.identity.runId,
+      sessionId: input.identity.sessionId,
+      epoch,
+      state: "proposed" as const,
+      predecessorEpochId,
+      leaseId: input.identity.leaseId,
+      attempt: input.identity.attempt,
+      identityDigest: digest(input.identity),
+      activationNonceDigest: digest(input.activationNonce),
+      proposedAt: this.clock.now(),
+      activatedAt: null,
+      retiredAt: null,
+      revokedAt: null,
+      revokeReason: null,
+      revision: 1,
+    };
+    const identityEpoch = { ...payload, digest: digest(payload) };
+    assertIdentityEpoch(identityEpoch);
+    this.epochs.set(identityEpoch.epochId, identityEpoch);
+    return structuredClone(identityEpoch);
+  }
+  activate(
+    epochId: string,
+    expectedRevision: number,
+    activationNonce: string,
+  ): { epoch: TaskIdentityEpoch; predecessor: TaskIdentityEpoch | null } {
+    const epoch = this.requireEpoch(epochId);
+    this.assertEpochRevision(epoch, expectedRevision);
+    if (epoch.state !== "proposed")
+      throw new E03RuntimeError(
+        "task_identity_epoch_activate_state",
+        `task identity epoch ${epochId} is ${epoch.state}`,
+      );
+    if (epoch.activationNonceDigest !== digest(activationNonce))
+      throw new E03RuntimeError(
+        "task_identity_epoch_activation_nonce",
+        `task identity epoch ${epochId} activation nonce is invalid`,
+      );
+    const activeId = this.activeByTask.get(epoch.taskId);
+    if (activeId && activeId !== epoch.predecessorEpochId)
+      throw new E03RuntimeError(
+        "task_identity_epoch_active_changed",
+        `task ${epoch.taskId} active identity epoch changed`,
+      );
+    let predecessor: TaskIdentityEpoch | null = null;
+    if (epoch.predecessorEpochId) {
+      const prior = this.requireEpoch(epoch.predecessorEpochId);
+      if (prior.state === "active")
+        predecessor = this.transitionEpoch(prior, {
+          state: "retiring",
+          retiredAt: this.clock.now(),
+        });
+      else predecessor = structuredClone(prior);
+    }
+    const next = this.transitionEpoch(epoch, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activeByTask.set(next.taskId, next.epochId);
+    return { epoch: next, predecessor };
+  }
+  issueProof(input: {
+    taskId: string;
+    purpose: TaskIdentityProof["purpose"];
+    nonce: string;
+    payloadDigest: string;
+    ttlMs: number;
+  }): TaskIdentityProof {
+    const activeId = this.activeByTask.get(input.taskId);
+    if (!activeId)
+      throw new E03RuntimeError(
+        "task_identity_epoch_active_missing",
+        `task ${input.taskId} has no active identity epoch`,
+      );
+    const epoch = this.requireEpoch(activeId);
+    if (epoch.state !== "active")
+      throw new E03RuntimeError(
+        "task_identity_epoch_inactive",
+        `task identity epoch ${epoch.epochId} is ${epoch.state}`,
+      );
+    if (
+      !input.nonce ||
+      !input.payloadDigest ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "task_identity_proof_input",
+        "task identity proof input is invalid",
+      );
+    const nonceDigest = digest({ epochId: epoch.epochId, nonce: input.nonce });
+    if (this.nonceIndex.has(nonceDigest))
+      throw new E03RuntimeError(
+        "task_identity_proof_nonce_reuse",
+        "task identity proof nonce was already used",
+      );
+    const payload = {
+      proofId: createId("task-identity-proof"),
+      epochId: epoch.epochId,
+      taskId: epoch.taskId,
+      purpose: input.purpose,
+      nonceDigest,
+      payloadDigest: input.payloadDigest,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      consumedAt: null,
+      state: "issued" as const,
+      issuedAt: this.clock.now(),
+      revision: 1,
+    };
+    const proof = { ...payload, digest: digest(payload) };
+    assertIdentityProof(proof);
+    this.proofs.set(proof.proofId, proof);
+    this.nonceIndex.set(proof.nonceDigest, proof.proofId);
+    return structuredClone(proof);
+  }
+  verifyAndConsume(input: {
+    proofId: string;
+    expectedRevision: number;
+    taskId: string;
+    purpose: TaskIdentityProof["purpose"];
+    payloadDigest: string;
+  }): TaskIdentityProof {
+    const proof = this.requireProof(input.proofId);
+    this.assertProofRevision(proof, input.expectedRevision);
+    if (proof.state !== "issued")
+      throw new E03RuntimeError(
+        "task_identity_proof_state",
+        `task identity proof ${proof.proofId} is ${proof.state}`,
+      );
+    if (Date.parse(proof.expiresAt) <= Date.parse(this.clock.now()))
+      return this.transitionProof(proof, { state: "expired" });
+    if (
+      proof.taskId !== input.taskId ||
+      proof.purpose !== input.purpose ||
+      proof.payloadDigest !== input.payloadDigest
+    )
+      throw new E03RuntimeError(
+        "task_identity_proof_mismatch",
+        `task identity proof ${proof.proofId} does not authorize payload`,
+      );
+    const epoch = this.requireEpoch(proof.epochId);
+    if (
+      epoch.state !== "active" ||
+      this.activeByTask.get(proof.taskId) !== epoch.epochId
+    )
+      return this.transitionProof(proof, { state: "revoked" });
+    return this.transitionProof(proof, {
+      state: "consumed",
+      consumedAt: this.clock.now(),
+    });
+  }
+  revokeEpoch(
+    epochId: string,
+    expectedRevision: number,
+    reason: string,
+  ): { epoch: TaskIdentityEpoch; proofs: TaskIdentityProof[] } {
+    const epoch = this.requireEpoch(epochId);
+    this.assertEpochRevision(epoch, expectedRevision);
+    if (epoch.state === "revoked")
+      return { epoch: structuredClone(epoch), proofs: [] };
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "task_identity_epoch_revoke_reason",
+        "task identity epoch revoke reason is required",
+      );
+    const next = this.transitionEpoch(epoch, {
+      state: "revoked",
+      revokedAt: this.clock.now(),
+      revokeReason: reason.trim(),
+    });
+    if (this.activeByTask.get(next.taskId) === next.epochId)
+      this.activeByTask.delete(next.taskId);
+    const proofs: TaskIdentityProof[] = [];
+    for (const proof of this.proofs.values())
+      if (proof.epochId === epochId && proof.state === "issued")
+        proofs.push(this.transitionProof(proof, { state: "revoked" }));
+    return { epoch: next, proofs };
+  }
+  active(taskId: string): TaskIdentityEpoch | null {
+    const id = this.activeByTask.get(taskId);
+    return id ? structuredClone(this.requireEpoch(id)) : null;
+  }
+  lineage(epochId: string): TaskIdentityEpoch[] {
+    const values: TaskIdentityEpoch[] = [];
+    const seen = new Set<string>();
+    let cursor: TaskIdentityEpoch | null = this.requireEpoch(epochId);
+    while (cursor) {
+      if (seen.has(cursor.epochId))
+        throw new E03RuntimeError(
+          "task_identity_epoch_cycle",
+          `task identity epoch cycles at ${cursor.epochId}`,
+        );
+      seen.add(cursor.epochId);
+      values.push(structuredClone(cursor));
+      cursor = cursor.predecessorEpochId
+        ? this.requireEpoch(cursor.predecessorEpochId)
+        : null;
+    }
+    return values;
+  }
+  snapshot(): {
+    epochs: TaskIdentityEpoch[];
+    activeByTask: Array<[string, string]>;
+    proofs: TaskIdentityProof[];
+  } {
+    return {
+      epochs: [...this.epochs.values()].map((value) => structuredClone(value)),
+      activeByTask: [...this.activeByTask.entries()].map(
+        ([taskId, epochId]) => [taskId, epochId],
+      ),
+      proofs: [...this.proofs.values()].map((value) => structuredClone(value)),
+    };
+  }
+  restore(snapshot: {
+    epochs: readonly TaskIdentityEpoch[];
+    activeByTask: ReadonlyArray<readonly [string, string]>;
+    proofs: readonly TaskIdentityProof[];
+  }): void {
+    const epochs = new Map<string, TaskIdentityEpoch>();
+    const activeByTask = new Map<string, string>();
+    const proofs = new Map<string, TaskIdentityProof>();
+    const nonceIndex = new Map<string, string>();
+    for (const value of snapshot.epochs) {
+      assertIdentityEpoch(value);
+      if (epochs.has(value.epochId))
+        throw new E03RuntimeError(
+          "task_identity_epoch_restore_duplicate",
+          `duplicate task identity epoch ${value.epochId}`,
+        );
+      epochs.set(value.epochId, structuredClone(value));
+    }
+    for (const value of epochs.values())
+      if (value.predecessorEpochId && !epochs.has(value.predecessorEpochId))
+        throw new E03RuntimeError(
+          "task_identity_epoch_restore_predecessor",
+          `task identity epoch ${value.epochId} has no predecessor`,
+        );
+    for (const [taskId, epochId] of snapshot.activeByTask) {
+      const epoch = epochs.get(epochId);
+      if (
+        !epoch ||
+        epoch.taskId !== taskId ||
+        epoch.state !== "active" ||
+        activeByTask.has(taskId)
+      )
+        throw new E03RuntimeError(
+          "task_identity_epoch_restore_active",
+          `task identity active index ${taskId} is invalid`,
+        );
+      activeByTask.set(taskId, epochId);
+    }
+    for (const value of snapshot.proofs) {
+      assertIdentityProof(value);
+      if (
+        proofs.has(value.proofId) ||
+        nonceIndex.has(value.nonceDigest) ||
+        !epochs.has(value.epochId)
+      )
+        throw new E03RuntimeError(
+          "task_identity_proof_restore",
+          `task identity proof ${value.proofId} is invalid`,
+        );
+      proofs.set(value.proofId, structuredClone(value));
+      nonceIndex.set(value.nonceDigest, value.proofId);
+    }
+    this.epochs = epochs;
+    this.activeByTask = activeByTask;
+    this.proofs = proofs;
+    this.nonceIndex = nonceIndex;
+    for (const value of epochs.values()) this.lineage(value.epochId);
+  }
+  private requireEpoch(id: string): TaskIdentityEpoch {
+    const value = this.epochs.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_identity_epoch_missing",
+        `task identity epoch ${id} does not exist`,
+      );
+    assertIdentityEpoch(value);
+    return value;
+  }
+  private requireProof(id: string): TaskIdentityProof {
+    const value = this.proofs.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_identity_proof_missing",
+        `task identity proof ${id} does not exist`,
+      );
+    assertIdentityProof(value);
+    return value;
+  }
+  private assertEpochRevision(
+    value: TaskIdentityEpoch,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_identity_epoch_stale_revision",
+        `task identity epoch ${value.epochId} revision is stale`,
+      );
+  }
+  private assertProofRevision(
+    value: TaskIdentityProof,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_identity_proof_stale_revision",
+        `task identity proof ${value.proofId} revision is stale`,
+      );
+  }
+  private transitionEpoch(
+    value: TaskIdentityEpoch,
+    patch: Partial<Omit<TaskIdentityEpoch, "epochId" | "revision" | "digest">>,
+  ): TaskIdentityEpoch {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      epochId: value.epochId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIdentityEpoch(next);
+    this.epochs.set(next.epochId, next);
+    return structuredClone(next);
+  }
+  private transitionProof(
+    value: TaskIdentityProof,
+    patch: Partial<Omit<TaskIdentityProof, "proofId" | "revision" | "digest">>,
+  ): TaskIdentityProof {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      proofId: value.proofId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIdentityProof(next);
+    this.proofs.set(next.proofId, next);
+    return structuredClone(next);
+  }
+}

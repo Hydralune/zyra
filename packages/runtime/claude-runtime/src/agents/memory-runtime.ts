@@ -1553,3 +1553,646 @@ export class AgentMemoryConsolidationRuntime {
     return structuredClone(next);
   }
 }
+
+export interface MemoryReplica {
+  replicaId: string;
+  taskId: string;
+  sessionId: string;
+  endpointId: string;
+  state: "joining" | "active" | "lagging" | "draining" | "removed";
+  acknowledgedRevision: number;
+  advertisedRevision: number;
+  lastHeartbeatAt: string | null;
+  leaseExpiresAt: string;
+  joinedAt: string;
+  removedAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface MemoryReplicationBatch {
+  batchId: string;
+  taskId: string;
+  sessionId: string;
+  sourceRevision: number;
+  targetRevision: number;
+  recordIds: string[];
+  removedRecordIds: string[];
+  checksum: string;
+  state:
+    | "prepared"
+    | "published"
+    | "partially_acknowledged"
+    | "committed"
+    | "rejected"
+    | "expired";
+  requiredReplicaIds: string[];
+  acknowledgedReplicaIds: string[];
+  rejectedReplicaIds: string[];
+  preparedAt: string;
+  publishedAt: string | null;
+  committedAt: string | null;
+  expiresAt: string;
+  revision: number;
+  digest: string;
+}
+export interface MemoryReplicationAck {
+  ackId: string;
+  batchId: string;
+  replicaId: string;
+  outcome: "applied" | "rejected";
+  appliedRevision: number;
+  observedChecksum: string;
+  reason: string | null;
+  acknowledgedAt: string;
+  digest: string;
+}
+function assertMemoryReplica(value: MemoryReplica): void {
+  assertDigest(value, "digest", `memory replica ${value.replicaId}`);
+  if (
+    !value.replicaId ||
+    !value.taskId ||
+    !value.sessionId ||
+    !value.endpointId ||
+    !Number.isSafeInteger(value.acknowledgedRevision) ||
+    value.acknowledgedRevision < 0 ||
+    !Number.isSafeInteger(value.advertisedRevision) ||
+    value.advertisedRevision < value.acknowledgedRevision ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.leaseExpiresAt))
+  )
+    throw new E03RuntimeError(
+      "memory_replica",
+      `memory replica ${value.replicaId} is invalid`,
+    );
+}
+function assertMemoryReplicationBatch(value: MemoryReplicationBatch): void {
+  assertDigest(value, "digest", `memory replication batch ${value.batchId}`);
+  if (
+    !value.batchId ||
+    !value.taskId ||
+    !value.sessionId ||
+    !Number.isSafeInteger(value.sourceRevision) ||
+    value.sourceRevision < 0 ||
+    !Number.isSafeInteger(value.targetRevision) ||
+    value.targetRevision <= value.sourceRevision ||
+    !value.checksum ||
+    !value.requiredReplicaIds.length ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "memory_replication_batch",
+      `memory replication batch ${value.batchId} is invalid`,
+    );
+  if (value.state === "committed" && value.committedAt === null)
+    throw new E03RuntimeError(
+      "memory_replication_commit_time",
+      `committed memory replication batch ${value.batchId} lacks time`,
+    );
+}
+function assertMemoryReplicationAck(value: MemoryReplicationAck): void {
+  assertDigest(value, "digest", `memory replication ACK ${value.ackId}`);
+  if (
+    !value.ackId ||
+    !value.batchId ||
+    !value.replicaId ||
+    !Number.isSafeInteger(value.appliedRevision) ||
+    value.appliedRevision < 0 ||
+    !value.observedChecksum ||
+    (value.outcome === "rejected" && !value.reason)
+  )
+    throw new E03RuntimeError(
+      "memory_replication_ack",
+      `memory replication ACK ${value.ackId} is invalid`,
+    );
+}
+export class AgentMemoryReplicationRuntime {
+  private replicas = new Map<string, MemoryReplica>();
+  private batches = new Map<string, MemoryReplicationBatch>();
+  private acknowledgements = new Map<string, MemoryReplicationAck[]>();
+  private records = new Map<string, AgentMemoryRecord>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  index(records: readonly AgentMemoryRecord[]): void {
+    const next = new Map<string, AgentMemoryRecord>();
+    for (const record of records) {
+      assertDigest(record, "digest", `memory ${record.memoryId}`);
+      if (next.has(record.memoryId))
+        throw new E03RuntimeError(
+          "memory_replication_record_duplicate",
+          `duplicate memory ${record.memoryId}`,
+        );
+      next.set(record.memoryId, structuredClone(record));
+    }
+    this.records = next;
+  }
+  join(input: {
+    taskId: string;
+    sessionId: string;
+    endpointId: string;
+    currentRevision: number;
+    ttlMs: number;
+  }): MemoryReplica {
+    if (
+      !input.taskId.trim() ||
+      !input.sessionId.trim() ||
+      !input.endpointId.trim() ||
+      !Number.isSafeInteger(input.currentRevision) ||
+      input.currentRevision < 0 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "memory_replica_join",
+        "memory replica join input is invalid",
+      );
+    const existing = [...this.replicas.values()].find(
+      (value) =>
+        value.taskId === input.taskId &&
+        value.sessionId === input.sessionId &&
+        value.endpointId === input.endpointId &&
+        value.state !== "removed",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      replicaId: createId("memory-replica"),
+      taskId: input.taskId.trim(),
+      sessionId: input.sessionId.trim(),
+      endpointId: input.endpointId.trim(),
+      state: "joining" as const,
+      acknowledgedRevision: input.currentRevision,
+      advertisedRevision: input.currentRevision,
+      lastHeartbeatAt: null,
+      leaseExpiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      joinedAt: this.clock.now(),
+      removedAt: null,
+      revision: 1,
+    };
+    const replica = { ...payload, digest: digest(payload) };
+    assertMemoryReplica(replica);
+    this.replicas.set(replica.replicaId, replica);
+    return structuredClone(replica);
+  }
+  activate(
+    replicaId: string,
+    expectedRevision: number,
+    advertisedRevision: number,
+  ): MemoryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (replica.state !== "joining" && replica.state !== "lagging")
+      throw new E03RuntimeError(
+        "memory_replica_activate_state",
+        `memory replica ${replicaId} is ${replica.state}`,
+      );
+    if (
+      !Number.isSafeInteger(advertisedRevision) ||
+      advertisedRevision < replica.acknowledgedRevision
+    )
+      throw new E03RuntimeError(
+        "memory_replica_revision",
+        "memory replica advertised revision is invalid",
+      );
+    return this.transitionReplica(replica, {
+      state:
+        advertisedRevision === replica.acknowledgedRevision
+          ? "active"
+          : "lagging",
+      advertisedRevision,
+      lastHeartbeatAt: this.clock.now(),
+    });
+  }
+  heartbeat(
+    replicaId: string,
+    expectedRevision: number,
+    ttlMs: number,
+    advertisedRevision: number,
+  ): MemoryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (replica.state === "removed" || replica.state === "draining")
+      throw new E03RuntimeError(
+        "memory_replica_heartbeat_state",
+        `memory replica ${replicaId} is ${replica.state}`,
+      );
+    if (
+      !Number.isSafeInteger(ttlMs) ||
+      ttlMs < 1 ||
+      !Number.isSafeInteger(advertisedRevision) ||
+      advertisedRevision < replica.acknowledgedRevision
+    )
+      throw new E03RuntimeError(
+        "memory_replica_heartbeat",
+        "memory replica heartbeat is invalid",
+      );
+    return this.transitionReplica(replica, {
+      advertisedRevision,
+      state:
+        advertisedRevision > replica.acknowledgedRevision
+          ? "lagging"
+          : replica.state,
+      lastHeartbeatAt: this.clock.now(),
+      leaseExpiresAt: new Date(
+        Date.parse(this.clock.now()) + ttlMs,
+      ).toISOString(),
+    });
+  }
+  prepare(input: {
+    taskId: string;
+    sessionId: string;
+    sourceRevision: number;
+    targetRevision: number;
+    recordIds: readonly string[];
+    removedRecordIds?: readonly string[];
+    requiredReplicaIds: readonly string[];
+    ttlMs: number;
+  }): MemoryReplicationBatch {
+    const requiredReplicaIds = [...new Set(input.requiredReplicaIds)].sort();
+    if (
+      !requiredReplicaIds.length ||
+      !Number.isSafeInteger(input.sourceRevision) ||
+      input.sourceRevision < 0 ||
+      !Number.isSafeInteger(input.targetRevision) ||
+      input.targetRevision <= input.sourceRevision ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "memory_replication_prepare",
+        "memory replication prepare input is invalid",
+      );
+    const recordIds = [...new Set(input.recordIds)].sort();
+    const removedRecordIds = [...new Set(input.removedRecordIds ?? [])].sort();
+    if (recordIds.some((id) => removedRecordIds.includes(id)))
+      throw new E03RuntimeError(
+        "memory_replication_record_overlap",
+        "memory replication records overlap removals",
+      );
+    const records = recordIds.map((id) => {
+      const record = this.records.get(id);
+      if (
+        !record ||
+        record.taskId !== input.taskId ||
+        record.sessionId !== input.sessionId
+      )
+        throw new E03RuntimeError(
+          "memory_replication_record_missing",
+          `memory ${id} is not available for replication`,
+        );
+      return record;
+    });
+    for (const replicaId of requiredReplicaIds) {
+      const replica = this.requireReplica(replicaId);
+      if (
+        replica.taskId !== input.taskId ||
+        replica.sessionId !== input.sessionId ||
+        (replica.state !== "active" && replica.state !== "lagging")
+      )
+        throw new E03RuntimeError(
+          "memory_replication_replica_state",
+          `memory replica ${replicaId} cannot receive batch`,
+        );
+    }
+    const checksum = digest({
+      sourceRevision: input.sourceRevision,
+      targetRevision: input.targetRevision,
+      records: records.map((value) => value.digest),
+      removedRecordIds,
+    });
+    const existing = [...this.batches.values()].find(
+      (value) =>
+        value.taskId === input.taskId &&
+        value.sessionId === input.sessionId &&
+        value.sourceRevision === input.sourceRevision &&
+        value.targetRevision === input.targetRevision &&
+        value.checksum === checksum &&
+        value.state !== "rejected" &&
+        value.state !== "expired",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      batchId: createId("memory-replication-batch"),
+      taskId: input.taskId,
+      sessionId: input.sessionId,
+      sourceRevision: input.sourceRevision,
+      targetRevision: input.targetRevision,
+      recordIds,
+      removedRecordIds,
+      checksum,
+      state: "prepared" as const,
+      requiredReplicaIds,
+      acknowledgedReplicaIds: [],
+      rejectedReplicaIds: [],
+      preparedAt: this.clock.now(),
+      publishedAt: null,
+      committedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      revision: 1,
+    };
+    const batch = { ...payload, digest: digest(payload) };
+    assertMemoryReplicationBatch(batch);
+    this.batches.set(batch.batchId, batch);
+    return structuredClone(batch);
+  }
+  publish(batchId: string, expectedRevision: number): MemoryReplicationBatch {
+    const batch = this.requireBatch(batchId);
+    this.assertBatchRevision(batch, expectedRevision);
+    if (batch.state !== "prepared")
+      throw new E03RuntimeError(
+        "memory_replication_publish_state",
+        `memory replication batch ${batchId} is ${batch.state}`,
+      );
+    if (Date.parse(batch.expiresAt) <= Date.parse(this.clock.now()))
+      return this.transitionBatch(batch, { state: "expired" });
+    return this.transitionBatch(batch, {
+      state: "published",
+      publishedAt: this.clock.now(),
+    });
+  }
+  acknowledge(input: {
+    batchId: string;
+    expectedRevision: number;
+    replicaId: string;
+    outcome: MemoryReplicationAck["outcome"];
+    appliedRevision: number;
+    observedChecksum: string;
+    reason?: string | null;
+  }): {
+    batch: MemoryReplicationBatch;
+    ack: MemoryReplicationAck;
+    replica: MemoryReplica;
+  } {
+    const batch = this.requireBatch(input.batchId);
+    this.assertBatchRevision(batch, input.expectedRevision);
+    if (batch.state !== "published" && batch.state !== "partially_acknowledged")
+      throw new E03RuntimeError(
+        "memory_replication_ack_state",
+        `memory replication batch ${batch.batchId} is ${batch.state}`,
+      );
+    if (!batch.requiredReplicaIds.includes(input.replicaId))
+      throw new E03RuntimeError(
+        "memory_replication_ack_replica",
+        `memory replica ${input.replicaId} is not required`,
+      );
+    const prior = (this.acknowledgements.get(batch.batchId) ?? []).find(
+      (value) => value.replicaId === input.replicaId,
+    );
+    if (prior)
+      return {
+        batch: structuredClone(batch),
+        ack: structuredClone(prior),
+        replica: structuredClone(this.requireReplica(input.replicaId)),
+      };
+    const valid =
+      input.outcome === "applied" &&
+      input.appliedRevision === batch.targetRevision &&
+      input.observedChecksum === batch.checksum;
+    const outcome: MemoryReplicationAck["outcome"] = valid
+      ? "applied"
+      : "rejected";
+    const payload = {
+      ackId: createId("memory-replication-ack"),
+      batchId: batch.batchId,
+      replicaId: input.replicaId,
+      outcome,
+      appliedRevision: input.appliedRevision,
+      observedChecksum: input.observedChecksum,
+      reason: valid
+        ? null
+        : input.reason?.trim() || "replica observation mismatch",
+      acknowledgedAt: this.clock.now(),
+    };
+    const ack = { ...payload, digest: digest(payload) };
+    assertMemoryReplicationAck(ack);
+    const acks = this.acknowledgements.get(batch.batchId) ?? [];
+    acks.push(ack);
+    this.acknowledgements.set(batch.batchId, acks);
+    const acknowledgedReplicaIds = valid
+      ? [...batch.acknowledgedReplicaIds, input.replicaId].sort()
+      : batch.acknowledgedReplicaIds;
+    const rejectedReplicaIds = valid
+      ? batch.rejectedReplicaIds
+      : [...batch.rejectedReplicaIds, input.replicaId].sort();
+    const complete =
+      acknowledgedReplicaIds.length + rejectedReplicaIds.length ===
+      batch.requiredReplicaIds.length;
+    const nextBatch = this.transitionBatch(batch, {
+      state: rejectedReplicaIds.length
+        ? "rejected"
+        : complete
+          ? "committed"
+          : "partially_acknowledged",
+      acknowledgedReplicaIds,
+      rejectedReplicaIds,
+      committedAt:
+        complete && !rejectedReplicaIds.length ? this.clock.now() : null,
+    });
+    const replica = this.requireReplica(input.replicaId);
+    const nextReplica = this.transitionReplica(
+      replica,
+      valid
+        ? {
+            acknowledgedRevision: batch.targetRevision,
+            advertisedRevision: Math.max(
+              replica.advertisedRevision,
+              batch.targetRevision,
+            ),
+            state: "active",
+          }
+        : { state: "lagging" },
+    );
+    return {
+      batch: nextBatch,
+      ack: structuredClone(ack),
+      replica: nextReplica,
+    };
+  }
+  drain(replicaId: string, expectedRevision: number): MemoryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (replica.state !== "active" && replica.state !== "lagging")
+      throw new E03RuntimeError(
+        "memory_replica_drain_state",
+        `memory replica ${replicaId} is ${replica.state}`,
+      );
+    return this.transitionReplica(replica, { state: "draining" });
+  }
+  remove(replicaId: string, expectedRevision: number): MemoryReplica {
+    const replica = this.requireReplica(replicaId);
+    this.assertReplicaRevision(replica, expectedRevision);
+    if (
+      replica.state !== "draining" &&
+      Date.parse(replica.leaseExpiresAt) > Date.parse(this.clock.now())
+    )
+      throw new E03RuntimeError(
+        "memory_replica_remove_state",
+        `memory replica ${replicaId} is ${replica.state}`,
+      );
+    if (
+      [...this.batches.values()].some(
+        (value) =>
+          value.requiredReplicaIds.includes(replicaId) &&
+          (value.state === "prepared" ||
+            value.state === "published" ||
+            value.state === "partially_acknowledged"),
+      )
+    )
+      throw new E03RuntimeError(
+        "memory_replica_pending_batch",
+        `memory replica ${replicaId} has a pending batch`,
+      );
+    return this.transitionReplica(replica, {
+      state: "removed",
+      removedAt: this.clock.now(),
+    });
+  }
+  snapshot(): {
+    replicas: MemoryReplica[];
+    batches: MemoryReplicationBatch[];
+    acknowledgements: MemoryReplicationAck[];
+    records: AgentMemoryRecord[];
+  } {
+    return {
+      replicas: [...this.replicas.values()].map((value) =>
+        structuredClone(value),
+      ),
+      batches: [...this.batches.values()].map((value) =>
+        structuredClone(value),
+      ),
+      acknowledgements: [...this.acknowledgements.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      records: [...this.records.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    replicas: readonly MemoryReplica[];
+    batches: readonly MemoryReplicationBatch[];
+    acknowledgements: readonly MemoryReplicationAck[];
+    records: readonly AgentMemoryRecord[];
+  }): void {
+    const replicas = new Map<string, MemoryReplica>();
+    const batches = new Map<string, MemoryReplicationBatch>();
+    const acknowledgements = new Map<string, MemoryReplicationAck[]>();
+    this.index(snapshot.records);
+    for (const value of snapshot.replicas) {
+      assertMemoryReplica(value);
+      if (replicas.has(value.replicaId))
+        throw new E03RuntimeError(
+          "memory_replica_restore_duplicate",
+          `duplicate memory replica ${value.replicaId}`,
+        );
+      replicas.set(value.replicaId, structuredClone(value));
+    }
+    for (const value of snapshot.batches) {
+      assertMemoryReplicationBatch(value);
+      if (
+        batches.has(value.batchId) ||
+        value.requiredReplicaIds.some((id) => !replicas.has(id)) ||
+        value.recordIds.some((id) => !this.records.has(id))
+      )
+        throw new E03RuntimeError(
+          "memory_replication_batch_restore",
+          `memory replication batch ${value.batchId} is invalid`,
+        );
+      batches.set(value.batchId, structuredClone(value));
+    }
+    for (const value of snapshot.acknowledgements) {
+      assertMemoryReplicationAck(value);
+      if (!batches.has(value.batchId) || !replicas.has(value.replicaId))
+        throw new E03RuntimeError(
+          "memory_replication_ack_restore",
+          `memory replication ACK ${value.ackId} is invalid`,
+        );
+      const entries = acknowledgements.get(value.batchId) ?? [];
+      if (entries.some((entry) => entry.replicaId === value.replicaId))
+        throw new E03RuntimeError(
+          "memory_replication_ack_restore_duplicate",
+          `duplicate memory replication ACK for ${value.replicaId}`,
+        );
+      entries.push(structuredClone(value));
+      acknowledgements.set(value.batchId, entries);
+    }
+    this.replicas = replicas;
+    this.batches = batches;
+    this.acknowledgements = acknowledgements;
+  }
+  private requireReplica(id: string): MemoryReplica {
+    const value = this.replicas.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "memory_replica_missing",
+        `memory replica ${id} does not exist`,
+      );
+    assertMemoryReplica(value);
+    return value;
+  }
+  private requireBatch(id: string): MemoryReplicationBatch {
+    const value = this.batches.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "memory_replication_batch_missing",
+        `memory replication batch ${id} does not exist`,
+      );
+    assertMemoryReplicationBatch(value);
+    return value;
+  }
+  private assertReplicaRevision(value: MemoryReplica, expected: number): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "memory_replica_stale_revision",
+        `memory replica ${value.replicaId} revision is stale`,
+      );
+  }
+  private assertBatchRevision(
+    value: MemoryReplicationBatch,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "memory_replication_batch_stale_revision",
+        `memory replication batch ${value.batchId} revision is stale`,
+      );
+  }
+  private transitionReplica(
+    value: MemoryReplica,
+    patch: Partial<Omit<MemoryReplica, "replicaId" | "revision" | "digest">>,
+  ): MemoryReplica {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      replicaId: value.replicaId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMemoryReplica(next);
+    this.replicas.set(next.replicaId, next);
+    return structuredClone(next);
+  }
+  private transitionBatch(
+    value: MemoryReplicationBatch,
+    patch: Partial<
+      Omit<MemoryReplicationBatch, "batchId" | "revision" | "digest">
+    >,
+  ): MemoryReplicationBatch {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      batchId: value.batchId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMemoryReplicationBatch(next);
+    this.batches.set(next.batchId, next);
+    return structuredClone(next);
+  }
+}

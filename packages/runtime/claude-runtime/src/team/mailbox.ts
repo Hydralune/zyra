@@ -2078,3 +2078,597 @@ export class MailboxConsumerRuntime {
     return structuredClone(next);
   }
 }
+
+export interface MailboxTopic {
+  topicId: string;
+  teamId: string;
+  name: string;
+  state: "active" | "paused" | "closed";
+  retentionLimit: number;
+  publishedSequence: number;
+  createdAt: string;
+  closedAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface MailboxTopicEvent {
+  eventId: string;
+  topicId: string;
+  teamId: string;
+  sequence: number;
+  message: E03Message;
+  publisherTaskId: string;
+  publishedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+export interface MailboxTopicSubscription {
+  subscriptionId: string;
+  topicId: string;
+  taskId: string;
+  state: "active" | "paused" | "revoked" | "closed";
+  startSequence: number;
+  deliveredSequence: number;
+  acknowledgedSequence: number;
+  maximumInFlight: number;
+  leaseExpiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+function assertMailboxTopic(value: MailboxTopic): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "mailbox_topic_digest",
+      `mailbox topic ${value.topicId} is corrupt`,
+    );
+  if (
+    !value.topicId ||
+    !value.teamId ||
+    !value.name ||
+    !Number.isSafeInteger(value.retentionLimit) ||
+    value.retentionLimit < 1 ||
+    !Number.isSafeInteger(value.publishedSequence) ||
+    value.publishedSequence < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "mailbox_topic",
+      `mailbox topic ${value.topicId} is invalid`,
+    );
+}
+function assertMailboxTopicEvent(value: MailboxTopicEvent): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "mailbox_topic_event_digest",
+      `mailbox topic event ${value.eventId} is corrupt`,
+    );
+  if (
+    !value.eventId ||
+    !value.topicId ||
+    !value.teamId ||
+    !value.publisherTaskId ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1
+  )
+    throw new E03RuntimeError(
+      "mailbox_topic_event",
+      `mailbox topic event ${value.eventId} is invalid`,
+    );
+  const { digest: messageDigest, ...messagePayload } = value.message;
+  if (digest(messagePayload) !== messageDigest)
+    throw new E03RuntimeError(
+      "mailbox_topic_message_digest",
+      `mailbox topic event ${value.eventId} message is corrupt`,
+    );
+}
+function assertMailboxSubscription(value: MailboxTopicSubscription): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "mailbox_subscription_digest",
+      `mailbox subscription ${value.subscriptionId} is corrupt`,
+    );
+  if (
+    !value.subscriptionId ||
+    !value.topicId ||
+    !value.taskId ||
+    !Number.isSafeInteger(value.startSequence) ||
+    value.startSequence < 0 ||
+    !Number.isSafeInteger(value.deliveredSequence) ||
+    value.deliveredSequence < value.startSequence ||
+    !Number.isSafeInteger(value.acknowledgedSequence) ||
+    value.acknowledgedSequence < value.startSequence ||
+    value.acknowledgedSequence > value.deliveredSequence ||
+    !Number.isSafeInteger(value.maximumInFlight) ||
+    value.maximumInFlight < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.leaseExpiresAt))
+  )
+    throw new E03RuntimeError(
+      "mailbox_subscription",
+      `mailbox subscription ${value.subscriptionId} is invalid`,
+    );
+}
+export class MailboxTopicRuntime {
+  private topics = new Map<string, MailboxTopic>();
+  private events = new Map<string, MailboxTopicEvent[]>();
+  private subscriptions = new Map<string, MailboxTopicSubscription>();
+  private subscriptionIndex = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  create(input: {
+    teamId: string;
+    name: string;
+    retentionLimit?: number;
+  }): MailboxTopic {
+    if (!input.teamId.trim() || !input.name.trim())
+      throw new E03RuntimeError(
+        "mailbox_topic_input",
+        "mailbox topic input is invalid",
+      );
+    const existing = [...this.topics.values()].find(
+      (value) =>
+        value.teamId === input.teamId &&
+        value.name === input.name &&
+        value.state !== "closed",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      topicId: createId("mailbox-topic"),
+      teamId: input.teamId.trim(),
+      name: input.name.trim(),
+      state: "active" as const,
+      retentionLimit: input.retentionLimit ?? 1024,
+      publishedSequence: 0,
+      createdAt: this.clock.now(),
+      closedAt: null,
+      revision: 1,
+    };
+    const topic = { ...payload, digest: digest(payload) };
+    assertMailboxTopic(topic);
+    this.topics.set(topic.topicId, topic);
+    return structuredClone(topic);
+  }
+  publish(
+    topicId: string,
+    expectedRevision: number,
+    message: E03Message,
+  ): {
+    topic: MailboxTopic;
+    event: MailboxTopicEvent;
+    trimmedEventIds: string[];
+  } {
+    const topic = this.requireTopic(topicId);
+    this.assertTopicRevision(topic, expectedRevision);
+    if (topic.state !== "active")
+      throw new E03RuntimeError(
+        "mailbox_topic_publish_state",
+        `mailbox topic ${topicId} is ${topic.state}`,
+      );
+    const { digest: messageDigest, ...messagePayload } = message;
+    if (
+      digest(messagePayload) !== messageDigest ||
+      !message.senderTaskId ||
+      !message.recipientTaskId
+    )
+      throw new E03RuntimeError(
+        "mailbox_topic_message_custody",
+        `message ${message.messageId} is invalid for topic`,
+      );
+    const entries = this.events.get(topic.topicId) ?? [];
+    const sequence = topic.publishedSequence + 1;
+    const payload = {
+      eventId: createId("mailbox-topic-event"),
+      topicId: topic.topicId,
+      teamId: topic.teamId,
+      sequence,
+      message: structuredClone(message),
+      publisherTaskId: message.senderTaskId,
+      publishedAt: this.clock.now(),
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+    };
+    const event = { ...payload, digest: digest(payload) };
+    assertMailboxTopicEvent(event);
+    entries.push(event);
+    const trimmedEventIds: string[] = [];
+    while (entries.length > topic.retentionLimit) {
+      const candidate = entries[0]!;
+      const minimumAck = Math.min(
+        sequence,
+        ...[...this.subscriptions.values()]
+          .filter(
+            (value) =>
+              value.topicId === topicId &&
+              value.state !== "revoked" &&
+              value.state !== "closed",
+          )
+          .map((value) => value.acknowledgedSequence),
+      );
+      if (candidate.sequence > minimumAck)
+        throw new E03RuntimeError(
+          "mailbox_topic_retention_blocked",
+          `mailbox topic ${topicId} retention is blocked by subscriptions`,
+        );
+      trimmedEventIds.push(entries.shift()!.eventId);
+    }
+    this.events.set(topic.topicId, entries);
+    const nextTopic = this.transitionTopic(topic, {
+      publishedSequence: sequence,
+    });
+    return { topic: nextTopic, event: structuredClone(event), trimmedEventIds };
+  }
+  subscribe(input: {
+    topicId: string;
+    taskId: string;
+    startSequence?: number;
+    maximumInFlight?: number;
+    ttlMs: number;
+  }): MailboxTopicSubscription {
+    const topic = this.requireTopic(input.topicId);
+    if (topic.state === "closed")
+      throw new E03RuntimeError(
+        "mailbox_subscription_topic_closed",
+        `mailbox topic ${topic.topicId} is closed`,
+      );
+    if (
+      !input.taskId.trim() ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "mailbox_subscription_input",
+        "mailbox subscription input is invalid",
+      );
+    const key = `${topic.topicId}:${input.taskId}`;
+    const existingId = this.subscriptionIndex.get(key);
+    if (existingId)
+      return structuredClone(this.requireSubscription(existingId));
+    const startSequence = input.startSequence ?? topic.publishedSequence;
+    const earliest =
+      this.events.get(topic.topicId)?.[0]?.sequence ??
+      topic.publishedSequence + 1;
+    if (
+      !Number.isSafeInteger(startSequence) ||
+      startSequence < 0 ||
+      startSequence > topic.publishedSequence ||
+      startSequence + 1 < earliest
+    )
+      throw new E03RuntimeError(
+        "mailbox_subscription_cursor",
+        `mailbox subscription start sequence ${startSequence} is unavailable`,
+      );
+    const payload = {
+      subscriptionId: createId("mailbox-subscription"),
+      topicId: topic.topicId,
+      taskId: input.taskId.trim(),
+      state: "active" as const,
+      startSequence,
+      deliveredSequence: startSequence,
+      acknowledgedSequence: startSequence,
+      maximumInFlight: input.maximumInFlight ?? 32,
+      leaseExpiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      createdAt: this.clock.now(),
+      updatedAt: this.clock.now(),
+      revision: 1,
+    };
+    const subscription = { ...payload, digest: digest(payload) };
+    assertMailboxSubscription(subscription);
+    this.subscriptions.set(subscription.subscriptionId, subscription);
+    this.subscriptionIndex.set(key, subscription.subscriptionId);
+    return structuredClone(subscription);
+  }
+  poll(
+    subscriptionId: string,
+    expectedRevision: number,
+    maximum?: number,
+  ): { subscription: MailboxTopicSubscription; events: MailboxTopicEvent[] } {
+    const subscription = this.requireSubscription(subscriptionId);
+    this.assertSubscriptionRevision(subscription, expectedRevision);
+    if (subscription.state !== "active")
+      throw new E03RuntimeError(
+        "mailbox_subscription_poll_state",
+        `mailbox subscription ${subscriptionId} is ${subscription.state}`,
+      );
+    if (Date.parse(subscription.leaseExpiresAt) <= Date.parse(this.clock.now()))
+      return {
+        subscription: this.transitionSubscription(subscription, {
+          state: "revoked",
+        }),
+        events: [],
+      };
+    const availableCapacity =
+      subscription.maximumInFlight -
+      (subscription.deliveredSequence - subscription.acknowledgedSequence);
+    if (availableCapacity <= 0)
+      throw new E03RuntimeError(
+        "mailbox_subscription_backpressure",
+        `mailbox subscription ${subscriptionId} reached in-flight limit`,
+      );
+    const limit = Math.min(maximum ?? availableCapacity, availableCapacity);
+    if (!Number.isSafeInteger(limit) || limit < 1)
+      throw new E03RuntimeError(
+        "mailbox_subscription_poll_limit",
+        "mailbox subscription poll limit is invalid",
+      );
+    const events = (this.events.get(subscription.topicId) ?? [])
+      .filter((value) => value.sequence > subscription.deliveredSequence)
+      .slice(0, limit)
+      .map((value) => structuredClone(value));
+    const deliveredSequence =
+      events[events.length - 1]?.sequence ?? subscription.deliveredSequence;
+    const next = events.length
+      ? this.transitionSubscription(subscription, { deliveredSequence })
+      : structuredClone(subscription);
+    return { subscription: next, events };
+  }
+  acknowledge(
+    subscriptionId: string,
+    expectedRevision: number,
+    sequence: number,
+  ): MailboxTopicSubscription {
+    const subscription = this.requireSubscription(subscriptionId);
+    this.assertSubscriptionRevision(subscription, expectedRevision);
+    if (subscription.state !== "active" && subscription.state !== "paused")
+      throw new E03RuntimeError(
+        "mailbox_subscription_ack_state",
+        `mailbox subscription ${subscriptionId} is ${subscription.state}`,
+      );
+    if (
+      !Number.isSafeInteger(sequence) ||
+      sequence <= subscription.acknowledgedSequence ||
+      sequence > subscription.deliveredSequence
+    )
+      throw new E03RuntimeError(
+        "mailbox_subscription_ack_cursor",
+        `mailbox subscription ACK ${sequence} is invalid`,
+      );
+    return this.transitionSubscription(subscription, {
+      acknowledgedSequence: sequence,
+    });
+  }
+  pause(
+    subscriptionId: string,
+    expectedRevision: number,
+  ): MailboxTopicSubscription {
+    const subscription = this.requireSubscription(subscriptionId);
+    this.assertSubscriptionRevision(subscription, expectedRevision);
+    if (subscription.state !== "active")
+      throw new E03RuntimeError(
+        "mailbox_subscription_pause_state",
+        `mailbox subscription ${subscriptionId} is ${subscription.state}`,
+      );
+    return this.transitionSubscription(subscription, { state: "paused" });
+  }
+  resume(
+    subscriptionId: string,
+    expectedRevision: number,
+    ttlMs: number,
+  ): MailboxTopicSubscription {
+    const subscription = this.requireSubscription(subscriptionId);
+    this.assertSubscriptionRevision(subscription, expectedRevision);
+    if (subscription.state !== "paused")
+      throw new E03RuntimeError(
+        "mailbox_subscription_resume_state",
+        `mailbox subscription ${subscriptionId} is ${subscription.state}`,
+      );
+    if (!Number.isSafeInteger(ttlMs) || ttlMs < 1)
+      throw new E03RuntimeError(
+        "mailbox_subscription_ttl",
+        "mailbox subscription TTL is invalid",
+      );
+    return this.transitionSubscription(subscription, {
+      state: "active",
+      leaseExpiresAt: new Date(
+        Date.parse(this.clock.now()) + ttlMs,
+      ).toISOString(),
+    });
+  }
+  closeSubscription(
+    subscriptionId: string,
+    expectedRevision: number,
+  ): MailboxTopicSubscription {
+    const subscription = this.requireSubscription(subscriptionId);
+    this.assertSubscriptionRevision(subscription, expectedRevision);
+    if (subscription.state === "closed") return structuredClone(subscription);
+    const next = this.transitionSubscription(subscription, { state: "closed" });
+    this.subscriptionIndex.delete(`${next.topicId}:${next.taskId}`);
+    return next;
+  }
+  closeTopic(topicId: string, expectedRevision: number): MailboxTopic {
+    const topic = this.requireTopic(topicId);
+    this.assertTopicRevision(topic, expectedRevision);
+    if (
+      [...this.subscriptions.values()].some(
+        (value) =>
+          value.topicId === topicId &&
+          value.state !== "closed" &&
+          value.state !== "revoked",
+      )
+    )
+      throw new E03RuntimeError(
+        "mailbox_topic_live_subscription",
+        `mailbox topic ${topicId} has live subscriptions`,
+      );
+    if (topic.state === "closed") return structuredClone(topic);
+    return this.transitionTopic(topic, {
+      state: "closed",
+      closedAt: this.clock.now(),
+    });
+  }
+  verifyEvents(topicId?: string): void {
+    const groups = topicId
+      ? [[topicId, this.events.get(topicId) ?? []] as const]
+      : [...this.events.entries()];
+    for (const [id, entries] of groups) {
+      let prior: MailboxTopicEvent | null = null;
+      for (const event of entries) {
+        assertMailboxTopicEvent(event);
+        if (
+          event.topicId !== id ||
+          (prior && event.sequence !== prior.sequence + 1) ||
+          event.previousDigest !== (prior?.digest ?? "root")
+        )
+          throw new E03RuntimeError(
+            "mailbox_topic_event_chain",
+            `mailbox topic event ${event.eventId} breaks chain`,
+          );
+        prior = event;
+      }
+    }
+  }
+  snapshot(): {
+    topics: MailboxTopic[];
+    events: MailboxTopicEvent[];
+    subscriptions: MailboxTopicSubscription[];
+  } {
+    this.verifyEvents();
+    return {
+      topics: [...this.topics.values()].map((value) => structuredClone(value)),
+      events: [...this.events.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      subscriptions: [...this.subscriptions.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    topics: readonly MailboxTopic[];
+    events: readonly MailboxTopicEvent[];
+    subscriptions: readonly MailboxTopicSubscription[];
+  }): void {
+    const topics = new Map<string, MailboxTopic>();
+    const events = new Map<string, MailboxTopicEvent[]>();
+    const subscriptions = new Map<string, MailboxTopicSubscription>();
+    const subscriptionIndex = new Map<string, string>();
+    for (const value of snapshot.topics) {
+      assertMailboxTopic(value);
+      if (topics.has(value.topicId))
+        throw new E03RuntimeError(
+          "mailbox_topic_restore_duplicate",
+          `duplicate mailbox topic ${value.topicId}`,
+        );
+      topics.set(value.topicId, structuredClone(value));
+    }
+    for (const value of snapshot.events) {
+      assertMailboxTopicEvent(value);
+      if (!topics.has(value.topicId))
+        throw new E03RuntimeError(
+          "mailbox_topic_event_restore",
+          `mailbox topic event ${value.eventId} has no topic`,
+        );
+      const entries = events.get(value.topicId) ?? [];
+      if (entries.some((entry) => entry.eventId === value.eventId))
+        throw new E03RuntimeError(
+          "mailbox_topic_event_restore_duplicate",
+          `duplicate mailbox topic event ${value.eventId}`,
+        );
+      entries.push(structuredClone(value));
+      events.set(value.topicId, entries);
+    }
+    for (const entries of events.values())
+      entries.sort((left, right) => left.sequence - right.sequence);
+    for (const value of snapshot.subscriptions) {
+      assertMailboxSubscription(value);
+      const key = `${value.topicId}:${value.taskId}`;
+      if (
+        !topics.has(value.topicId) ||
+        subscriptions.has(value.subscriptionId) ||
+        (value.state !== "closed" &&
+          value.state !== "revoked" &&
+          subscriptionIndex.has(key))
+      )
+        throw new E03RuntimeError(
+          "mailbox_subscription_restore",
+          `mailbox subscription ${value.subscriptionId} is invalid`,
+        );
+      subscriptions.set(value.subscriptionId, structuredClone(value));
+      if (value.state !== "closed" && value.state !== "revoked")
+        subscriptionIndex.set(key, value.subscriptionId);
+    }
+    this.topics = topics;
+    this.events = events;
+    this.subscriptions = subscriptions;
+    this.subscriptionIndex = subscriptionIndex;
+    this.verifyEvents();
+  }
+  private requireTopic(id: string): MailboxTopic {
+    const value = this.topics.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_topic_missing",
+        `mailbox topic ${id} does not exist`,
+      );
+    assertMailboxTopic(value);
+    return value;
+  }
+  private requireSubscription(id: string): MailboxTopicSubscription {
+    const value = this.subscriptions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_subscription_missing",
+        `mailbox subscription ${id} does not exist`,
+      );
+    assertMailboxSubscription(value);
+    return value;
+  }
+  private assertTopicRevision(value: MailboxTopic, expected: number): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_topic_stale_revision",
+        `mailbox topic ${value.topicId} revision is stale`,
+      );
+  }
+  private assertSubscriptionRevision(
+    value: MailboxTopicSubscription,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_subscription_stale_revision",
+        `mailbox subscription ${value.subscriptionId} revision is stale`,
+      );
+  }
+  private transitionTopic(
+    value: MailboxTopic,
+    patch: Partial<Omit<MailboxTopic, "topicId" | "revision" | "digest">>,
+  ): MailboxTopic {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      topicId: value.topicId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxTopic(next);
+    this.topics.set(next.topicId, next);
+    return structuredClone(next);
+  }
+  private transitionSubscription(
+    value: MailboxTopicSubscription,
+    patch: Partial<
+      Omit<MailboxTopicSubscription, "subscriptionId" | "revision" | "digest">
+    >,
+  ): MailboxTopicSubscription {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      subscriptionId: value.subscriptionId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxSubscription(next);
+    this.subscriptions.set(next.subscriptionId, next);
+    return structuredClone(next);
+  }
+}

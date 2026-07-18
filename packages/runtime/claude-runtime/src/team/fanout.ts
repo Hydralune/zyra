@@ -2309,3 +2309,473 @@ export class FanoutDispatchRuntime {
     return structuredClone(next);
   }
 }
+
+export interface FanoutConsensusMember {
+  taskId: string;
+  weight: number;
+  required: boolean;
+}
+export interface FanoutConsensusRound {
+  roundId: string;
+  planId: string;
+  parentTaskId: string;
+  topic: string;
+  state: "open" | "decided" | "rejected" | "expired" | "cancelled";
+  members: FanoutConsensusMember[];
+  quorumWeight: number;
+  proposalDigests: string[];
+  winningDigest: string | null;
+  totalAcceptedWeight: number;
+  totalRejectedWeight: number;
+  openedAt: string;
+  decidedAt: string | null;
+  expiresAt: string;
+  rejectionReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface FanoutConsensusVote {
+  voteId: string;
+  roundId: string;
+  taskId: string;
+  proposalDigest: string;
+  outcome: "accept" | "reject" | "abstain";
+  weight: number;
+  reason: string;
+  votedAt: string;
+  digest: string;
+}
+function assertConsensusRound(value: FanoutConsensusRound): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "fanout_consensus_round_digest",
+      `fanout consensus round ${value.roundId} is corrupt`,
+    );
+  if (
+    !value.roundId ||
+    !value.planId ||
+    !value.parentTaskId ||
+    !value.topic ||
+    !value.members.length ||
+    value.members.some(
+      (member) =>
+        !member.taskId || !Number.isFinite(member.weight) || member.weight <= 0,
+    ) ||
+    !Number.isFinite(value.quorumWeight) ||
+    value.quorumWeight <= 0 ||
+    [value.totalAcceptedWeight, value.totalRejectedWeight].some(
+      (number) => !Number.isFinite(number) || number < 0,
+    ) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "fanout_consensus_round",
+      `fanout consensus round ${value.roundId} is invalid`,
+    );
+  if (
+    (value.state === "decided" ||
+      value.state === "rejected" ||
+      value.state === "expired" ||
+      value.state === "cancelled") &&
+    value.decidedAt === null
+  )
+    throw new E03RuntimeError(
+      "fanout_consensus_decision_time",
+      `closed consensus round ${value.roundId} lacks time`,
+    );
+}
+function assertConsensusVote(value: FanoutConsensusVote): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "fanout_consensus_vote_digest",
+      `fanout consensus vote ${value.voteId} is corrupt`,
+    );
+  if (
+    !value.voteId ||
+    !value.roundId ||
+    !value.taskId ||
+    !value.proposalDigest ||
+    !Number.isFinite(value.weight) ||
+    value.weight <= 0 ||
+    !value.reason
+  )
+    throw new E03RuntimeError(
+      "fanout_consensus_vote",
+      `fanout consensus vote ${value.voteId} is invalid`,
+    );
+}
+export class FanoutConsensusRuntime {
+  private rounds = new Map<string, FanoutConsensusRound>();
+  private votes = new Map<string, FanoutConsensusVote[]>();
+  private activeByPlanTopic = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  open(input: {
+    plan: FanoutPlan;
+    parentTaskId: string;
+    topic: string;
+    members: readonly FanoutConsensusMember[];
+    quorumWeight?: number;
+    ttlMs: number;
+  }): FanoutConsensusRound {
+    if (
+      input.plan.parentTaskId !== input.parentTaskId ||
+      !input.topic.trim() ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "fanout_consensus_open",
+        "fanout consensus open input is invalid",
+      );
+    const members = [...input.members].sort((left, right) =>
+      left.taskId.localeCompare(right.taskId),
+    );
+    if (
+      !members.length ||
+      new Set(members.map((member) => member.taskId)).size !== members.length
+    )
+      throw new E03RuntimeError(
+        "fanout_consensus_members",
+        "fanout consensus members are invalid",
+      );
+    const totalWeight = members.reduce((sum, member) => sum + member.weight, 0);
+    const quorumWeight = input.quorumWeight ?? totalWeight / 2 + Number.EPSILON;
+    if (
+      !Number.isFinite(quorumWeight) ||
+      quorumWeight <= 0 ||
+      quorumWeight > totalWeight
+    )
+      throw new E03RuntimeError(
+        "fanout_consensus_quorum",
+        "fanout consensus quorum is invalid",
+      );
+    const key = `${input.plan.planId}:${input.topic.trim()}`;
+    const activeId = this.activeByPlanTopic.get(key);
+    if (activeId) return structuredClone(this.requireRound(activeId));
+    const payload = {
+      roundId: createId("fanout-consensus-round"),
+      planId: input.plan.planId,
+      parentTaskId: input.parentTaskId,
+      topic: input.topic.trim(),
+      state: "open" as const,
+      members: structuredClone(members),
+      quorumWeight,
+      proposalDigests: [],
+      winningDigest: null,
+      totalAcceptedWeight: 0,
+      totalRejectedWeight: 0,
+      openedAt: this.clock.now(),
+      decidedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      rejectionReason: null,
+      revision: 1,
+    };
+    const round = { ...payload, digest: digest(payload) };
+    assertConsensusRound(round);
+    this.rounds.set(round.roundId, round);
+    this.activeByPlanTopic.set(key, round.roundId);
+    return structuredClone(round);
+  }
+  vote(input: {
+    roundId: string;
+    expectedRevision: number;
+    taskId: string;
+    proposalDigest: string;
+    outcome: FanoutConsensusVote["outcome"];
+    reason: string;
+  }): { round: FanoutConsensusRound; vote: FanoutConsensusVote } {
+    const round = this.requireRound(input.roundId);
+    this.assertRoundRevision(round, input.expectedRevision);
+    if (round.state !== "open")
+      throw new E03RuntimeError(
+        "fanout_consensus_vote_state",
+        `fanout consensus round ${round.roundId} is ${round.state}`,
+      );
+    if (Date.parse(round.expiresAt) <= Date.parse(this.clock.now()))
+      return {
+        round: this.expire(round.roundId, round.revision),
+        vote: this.syntheticVote(round, input, 0, "abstain", "round expired"),
+      };
+    const member = round.members.find(
+      (candidate) => candidate.taskId === input.taskId,
+    );
+    if (!member)
+      throw new E03RuntimeError(
+        "fanout_consensus_voter",
+        `task ${input.taskId} is not a consensus member`,
+      );
+    if (!input.proposalDigest || !input.reason.trim())
+      throw new E03RuntimeError(
+        "fanout_consensus_vote_input",
+        "fanout consensus vote input is invalid",
+      );
+    const entries = this.votes.get(round.roundId) ?? [];
+    const prior = entries.find((value) => value.taskId === input.taskId);
+    if (prior) {
+      if (
+        prior.proposalDigest !== input.proposalDigest ||
+        prior.outcome !== input.outcome
+      )
+        throw new E03RuntimeError(
+          "fanout_consensus_vote_conflict",
+          `task ${input.taskId} already voted`,
+        );
+      return { round: structuredClone(round), vote: structuredClone(prior) };
+    }
+    const vote = this.syntheticVote(
+      round,
+      input,
+      member.weight,
+      input.outcome,
+      input.reason.trim(),
+    );
+    entries.push(vote);
+    this.votes.set(round.roundId, entries);
+    const proposalDigests = [
+      ...new Set([...round.proposalDigests, input.proposalDigest]),
+    ].sort();
+    const tallies = new Map<string, number>();
+    let totalRejectedWeight = 0;
+    for (const candidate of entries) {
+      if (candidate.outcome === "accept")
+        tallies.set(
+          candidate.proposalDigest,
+          (tallies.get(candidate.proposalDigest) ?? 0) + candidate.weight,
+        );
+      if (candidate.outcome === "reject")
+        totalRejectedWeight += candidate.weight;
+    }
+    const winner = [...tallies.entries()].sort(
+      (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+    )[0];
+    const requiredDenied = entries.some(
+      (candidate) =>
+        candidate.outcome === "reject" &&
+        round.members.find(
+          (memberValue) => memberValue.taskId === candidate.taskId,
+        )?.required,
+    );
+    const remainingWeight = round.members
+      .filter(
+        (memberValue) =>
+          !entries.some((candidate) => candidate.taskId === memberValue.taskId),
+      )
+      .reduce((sum, memberValue) => sum + memberValue.weight, 0);
+    const canReach = (winner?.[1] ?? 0) + remainingWeight >= round.quorumWeight;
+    const decided = !requiredDenied && (winner?.[1] ?? 0) >= round.quorumWeight;
+    const rejected = requiredDenied || !canReach;
+    const next = this.transitionRound(round, {
+      state: decided ? "decided" : rejected ? "rejected" : "open",
+      proposalDigests,
+      winningDigest: decided ? winner![0] : null,
+      totalAcceptedWeight: winner?.[1] ?? 0,
+      totalRejectedWeight,
+      decidedAt: decided || rejected ? this.clock.now() : null,
+      rejectionReason: rejected
+        ? requiredDenied
+          ? "required member rejected proposal"
+          : "quorum is unreachable"
+        : null,
+    });
+    if (next.state !== "open")
+      this.activeByPlanTopic.delete(`${next.planId}:${next.topic}`);
+    return { round: next, vote: structuredClone(vote) };
+  }
+  expire(roundId: string, expectedRevision: number): FanoutConsensusRound {
+    const round = this.requireRound(roundId);
+    this.assertRoundRevision(round, expectedRevision);
+    if (round.state !== "open") return structuredClone(round);
+    const next = this.transitionRound(round, {
+      state: "expired",
+      decidedAt: this.clock.now(),
+      rejectionReason: "consensus round expired",
+    });
+    this.activeByPlanTopic.delete(`${next.planId}:${next.topic}`);
+    return next;
+  }
+  cancel(
+    roundId: string,
+    expectedRevision: number,
+    reason: string,
+  ): FanoutConsensusRound {
+    const round = this.requireRound(roundId);
+    this.assertRoundRevision(round, expectedRevision);
+    if (round.state !== "open") return structuredClone(round);
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "fanout_consensus_cancel_reason",
+        "fanout consensus cancellation reason is required",
+      );
+    const next = this.transitionRound(round, {
+      state: "cancelled",
+      decidedAt: this.clock.now(),
+      rejectionReason: reason.trim(),
+    });
+    this.activeByPlanTopic.delete(`${next.planId}:${next.topic}`);
+    return next;
+  }
+  projection(roundId: string): {
+    round: FanoutConsensusRound;
+    votes: FanoutConsensusVote[];
+    outstanding: string[];
+    tallies: Record<string, number>;
+  } {
+    const round = this.requireRound(roundId);
+    const votes = (this.votes.get(roundId) ?? []).map((value) =>
+      structuredClone(value),
+    );
+    const tallies: Record<string, number> = {};
+    for (const vote of votes)
+      if (vote.outcome === "accept")
+        tallies[vote.proposalDigest] =
+          (tallies[vote.proposalDigest] ?? 0) + vote.weight;
+    return {
+      round: structuredClone(round),
+      votes,
+      outstanding: round.members
+        .filter(
+          (member) => !votes.some((vote) => vote.taskId === member.taskId),
+        )
+        .map((member) => member.taskId),
+      tallies,
+    };
+  }
+  snapshot(): {
+    rounds: FanoutConsensusRound[];
+    votes: FanoutConsensusVote[];
+    activeByPlanTopic: Array<[string, string]>;
+  } {
+    return {
+      rounds: [...this.rounds.values()].map((value) => structuredClone(value)),
+      votes: [...this.votes.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeByPlanTopic: [...this.activeByPlanTopic.entries()].map(
+        ([key, id]) => [key, id],
+      ),
+    };
+  }
+  restore(snapshot: {
+    rounds: readonly FanoutConsensusRound[];
+    votes: readonly FanoutConsensusVote[];
+    activeByPlanTopic: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const rounds = new Map<string, FanoutConsensusRound>();
+    const votes = new Map<string, FanoutConsensusVote[]>();
+    const activeByPlanTopic = new Map<string, string>();
+    for (const value of snapshot.rounds) {
+      assertConsensusRound(value);
+      if (rounds.has(value.roundId))
+        throw new E03RuntimeError(
+          "fanout_consensus_round_restore_duplicate",
+          `duplicate fanout consensus round ${value.roundId}`,
+        );
+      rounds.set(value.roundId, structuredClone(value));
+    }
+    for (const value of snapshot.votes) {
+      assertConsensusVote(value);
+      const round = rounds.get(value.roundId);
+      if (
+        !round ||
+        !round.members.some(
+          (member) =>
+            member.taskId === value.taskId && member.weight === value.weight,
+        )
+      )
+        throw new E03RuntimeError(
+          "fanout_consensus_vote_restore",
+          `fanout consensus vote ${value.voteId} is invalid`,
+        );
+      const entries = votes.get(value.roundId) ?? [];
+      if (entries.some((entry) => entry.taskId === value.taskId))
+        throw new E03RuntimeError(
+          "fanout_consensus_vote_restore_duplicate",
+          `duplicate fanout consensus vote from ${value.taskId}`,
+        );
+      entries.push(structuredClone(value));
+      votes.set(value.roundId, entries);
+    }
+    for (const [key, id] of snapshot.activeByPlanTopic) {
+      const round = rounds.get(id);
+      if (
+        !round ||
+        round.state !== "open" ||
+        key !== `${round.planId}:${round.topic}` ||
+        activeByPlanTopic.has(key)
+      )
+        throw new E03RuntimeError(
+          "fanout_consensus_active_restore",
+          `fanout consensus active index ${key} is invalid`,
+        );
+      activeByPlanTopic.set(key, id);
+    }
+    this.rounds = rounds;
+    this.votes = votes;
+    this.activeByPlanTopic = activeByPlanTopic;
+  }
+  private syntheticVote(
+    round: FanoutConsensusRound,
+    input: { taskId: string; proposalDigest: string },
+    weight: number,
+    outcome: FanoutConsensusVote["outcome"],
+    reason: string,
+  ): FanoutConsensusVote {
+    const payload = {
+      voteId: createId("fanout-consensus-vote"),
+      roundId: round.roundId,
+      taskId: input.taskId,
+      proposalDigest: input.proposalDigest,
+      outcome,
+      weight: Math.max(weight, Number.EPSILON),
+      reason,
+      votedAt: this.clock.now(),
+    };
+    const vote = { ...payload, digest: digest(payload) };
+    assertConsensusVote(vote);
+    return vote;
+  }
+  private requireRound(id: string): FanoutConsensusRound {
+    const value = this.rounds.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "fanout_consensus_round_missing",
+        `fanout consensus round ${id} does not exist`,
+      );
+    assertConsensusRound(value);
+    return value;
+  }
+  private assertRoundRevision(
+    value: FanoutConsensusRound,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "fanout_consensus_round_stale_revision",
+        `fanout consensus round ${value.roundId} revision is stale`,
+      );
+  }
+  private transitionRound(
+    value: FanoutConsensusRound,
+    patch: Partial<
+      Omit<FanoutConsensusRound, "roundId" | "revision" | "digest">
+    >,
+  ): FanoutConsensusRound {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      roundId: value.roundId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertConsensusRound(next);
+    this.rounds.set(next.roundId, next);
+    return structuredClone(next);
+  }
+}

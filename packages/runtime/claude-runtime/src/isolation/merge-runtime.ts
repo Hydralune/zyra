@@ -2726,3 +2726,561 @@ export class WorktreeMergeRollbackRuntime {
     return structuredClone(next);
   }
 }
+
+export interface MergeVerificationPolicy {
+  policyId: string;
+  name: string;
+  requiredChecks: string[];
+  optionalChecks: string[];
+  minimumOptionalPasses: number;
+  rejectOnConflict: boolean;
+  requireCleanTarget: boolean;
+  requireSourceAttestation: boolean;
+  state: "active" | "disabled" | "retired";
+  revision: number;
+  digest: string;
+}
+export interface MergeVerificationEvidence {
+  evidenceId: string;
+  attestationId: string;
+  check: string;
+  required: boolean;
+  outcome: "passed" | "failed" | "warning" | "skipped";
+  observedDigest: string;
+  expectedDigest: string | null;
+  summary: string;
+  collectedAt: string;
+  digest: string;
+}
+export interface MergeAttestation {
+  attestationId: string;
+  mergePlanId: string;
+  taskId: string;
+  requestId: string;
+  policyId: string;
+  state: "collecting" | "verified" | "rejected" | "revoked";
+  baseRevision: string;
+  sourceRevision: string;
+  targetRevision: string;
+  resultingRevision: string | null;
+  evidenceIds: string[];
+  requiredPassed: number;
+  requiredFailed: number;
+  optionalPassed: number;
+  warningCount: number;
+  openedAt: string;
+  completedAt: string | null;
+  rejectionReason: string | null;
+  revision: number;
+  digest: string;
+}
+function assertMergeVerificationPolicy(value: MergeVerificationPolicy): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "merge_verification_policy_digest",
+      `merge verification policy ${value.policyId} is corrupt`,
+    );
+  if (
+    !value.policyId ||
+    !value.name ||
+    !value.requiredChecks.length ||
+    !Number.isSafeInteger(value.minimumOptionalPasses) ||
+    value.minimumOptionalPasses < 0 ||
+    value.minimumOptionalPasses > value.optionalChecks.length ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "merge_verification_policy",
+      `merge verification policy ${value.policyId} is invalid`,
+    );
+}
+function assertMergeVerificationEvidence(
+  value: MergeVerificationEvidence,
+): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "merge_verification_evidence_digest",
+      `merge verification evidence ${value.evidenceId} is corrupt`,
+    );
+  if (
+    !value.evidenceId ||
+    !value.attestationId ||
+    !value.check ||
+    !value.observedDigest ||
+    !value.summary
+  )
+    throw new E03RuntimeError(
+      "merge_verification_evidence",
+      `merge verification evidence ${value.evidenceId} is invalid`,
+    );
+}
+function assertMergeAttestation(value: MergeAttestation): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "merge_attestation_digest",
+      `merge attestation ${value.attestationId} is corrupt`,
+    );
+  if (
+    !value.attestationId ||
+    !value.mergePlanId ||
+    !value.taskId ||
+    !value.requestId ||
+    !value.policyId ||
+    !value.baseRevision ||
+    !value.sourceRevision ||
+    !value.targetRevision ||
+    [
+      value.requiredPassed,
+      value.requiredFailed,
+      value.optionalPassed,
+      value.warningCount,
+    ].some((number) => !Number.isSafeInteger(number) || number < 0) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "merge_attestation",
+      `merge attestation ${value.attestationId} is invalid`,
+    );
+  if (
+    (value.state === "verified" ||
+      value.state === "rejected" ||
+      value.state === "revoked") &&
+    value.completedAt === null
+  )
+    throw new E03RuntimeError(
+      "merge_attestation_completion",
+      `completed merge attestation ${value.attestationId} lacks time`,
+    );
+}
+export class WorktreeMergeVerificationRuntime {
+  private policies = new Map<string, MergeVerificationPolicy>();
+  private attestations = new Map<string, MergeAttestation>();
+  private evidence = new Map<string, MergeVerificationEvidence[]>();
+  private activeByPlan = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  registerPolicy(
+    input: Omit<MergeVerificationPolicy, "policyId" | "revision" | "digest">,
+  ): MergeVerificationPolicy {
+    if (
+      [...this.policies.values()].some(
+        (value) => value.name === input.name && value.state !== "retired",
+      )
+    )
+      throw new E03RuntimeError(
+        "merge_verification_policy_duplicate",
+        `merge verification policy ${input.name} already exists`,
+      );
+    const requiredChecks = [...new Set(input.requiredChecks)].sort();
+    const optionalChecks = [...new Set(input.optionalChecks)].sort();
+    if (requiredChecks.some((check) => optionalChecks.includes(check)))
+      throw new E03RuntimeError(
+        "merge_verification_policy_overlap",
+        "merge verification checks overlap",
+      );
+    const payload = {
+      ...structuredClone(input),
+      policyId: createId("merge-verification-policy"),
+      requiredChecks,
+      optionalChecks,
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertMergeVerificationPolicy(policy);
+    this.policies.set(policy.policyId, policy);
+    return structuredClone(policy);
+  }
+  updatePolicy(
+    policyId: string,
+    expectedRevision: number,
+    patch: Partial<
+      Pick<
+        MergeVerificationPolicy,
+        | "requiredChecks"
+        | "optionalChecks"
+        | "minimumOptionalPasses"
+        | "rejectOnConflict"
+        | "requireCleanTarget"
+        | "requireSourceAttestation"
+        | "state"
+      >
+    >,
+  ): MergeVerificationPolicy {
+    const policy = this.requirePolicy(policyId);
+    if (policy.revision !== expectedRevision)
+      throw new E03RuntimeError(
+        "merge_verification_policy_stale_revision",
+        `merge verification policy ${policyId} revision is stale`,
+      );
+    if (policy.state === "retired")
+      throw new E03RuntimeError(
+        "merge_verification_policy_update_state",
+        `merge verification policy ${policyId} is retired`,
+      );
+    const { digest: _, ...prior } = policy;
+    const payload = {
+      ...prior,
+      ...structuredClone(patch),
+      policyId: policy.policyId,
+      requiredChecks: patch.requiredChecks
+        ? [...new Set(patch.requiredChecks)].sort()
+        : policy.requiredChecks,
+      optionalChecks: patch.optionalChecks
+        ? [...new Set(patch.optionalChecks)].sort()
+        : policy.optionalChecks,
+      revision: policy.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMergeVerificationPolicy(next);
+    if (
+      next.requiredChecks.some((check) => next.optionalChecks.includes(check))
+    )
+      throw new E03RuntimeError(
+        "merge_verification_policy_overlap",
+        "merge verification checks overlap",
+      );
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+  begin(input: {
+    plan: WorktreeMergePlan;
+    policyId: string;
+  }): MergeAttestation {
+    const policy = this.requirePolicy(input.policyId);
+    if (policy.state !== "active")
+      throw new E03RuntimeError(
+        "merge_verification_policy_inactive",
+        `merge verification policy ${policy.policyId} is ${policy.state}`,
+      );
+    const existingId = this.activeByPlan.get(input.plan.mergePlanId);
+    if (existingId) return structuredClone(this.requireAttestation(existingId));
+    const payload = {
+      attestationId: createId("merge-attestation"),
+      mergePlanId: input.plan.mergePlanId,
+      taskId: input.plan.taskId,
+      requestId: input.plan.requestId,
+      policyId: policy.policyId,
+      state: "collecting" as const,
+      baseRevision: input.plan.expectedBaseRevision,
+      sourceRevision: input.plan.sourceRevision,
+      targetRevision: input.plan.targetRevision,
+      resultingRevision: null,
+      evidenceIds: [],
+      requiredPassed: 0,
+      requiredFailed: 0,
+      optionalPassed: 0,
+      warningCount: 0,
+      openedAt: this.clock.now(),
+      completedAt: null,
+      rejectionReason: null,
+      revision: 1,
+    };
+    const attestation = { ...payload, digest: digest(payload) };
+    assertMergeAttestation(attestation);
+    this.attestations.set(attestation.attestationId, attestation);
+    this.activeByPlan.set(attestation.mergePlanId, attestation.attestationId);
+    return structuredClone(attestation);
+  }
+  record(input: {
+    attestationId: string;
+    expectedRevision: number;
+    check: string;
+    outcome: MergeVerificationEvidence["outcome"];
+    observedDigest: string;
+    expectedDigest?: string | null;
+    summary: string;
+  }): { attestation: MergeAttestation; evidence: MergeVerificationEvidence } {
+    const attestation = this.requireAttestation(input.attestationId);
+    this.assertAttestationRevision(attestation, input.expectedRevision);
+    if (attestation.state !== "collecting")
+      throw new E03RuntimeError(
+        "merge_verification_record_state",
+        `merge attestation ${attestation.attestationId} is ${attestation.state}`,
+      );
+    const policy = this.requirePolicy(attestation.policyId);
+    const required = policy.requiredChecks.includes(input.check);
+    if (!required && !policy.optionalChecks.includes(input.check))
+      throw new E03RuntimeError(
+        "merge_verification_check_unknown",
+        `merge verification check ${input.check} is not in policy`,
+      );
+    if (!input.observedDigest || !input.summary.trim())
+      throw new E03RuntimeError(
+        "merge_verification_evidence_input",
+        "merge verification evidence input is invalid",
+      );
+    const entries = this.evidence.get(attestation.attestationId) ?? [];
+    const prior = entries.find((value) => value.check === input.check);
+    if (prior) {
+      if (
+        prior.outcome !== input.outcome ||
+        prior.observedDigest !== input.observedDigest
+      )
+        throw new E03RuntimeError(
+          "merge_verification_evidence_conflict",
+          `merge verification check ${input.check} already has evidence`,
+        );
+      return {
+        attestation: structuredClone(attestation),
+        evidence: structuredClone(prior),
+      };
+    }
+    const payload = {
+      evidenceId: createId("merge-verification-evidence"),
+      attestationId: attestation.attestationId,
+      check: input.check,
+      required,
+      outcome: input.outcome,
+      observedDigest: input.observedDigest,
+      expectedDigest: input.expectedDigest ?? null,
+      summary: input.summary.trim(),
+      collectedAt: this.clock.now(),
+    };
+    const evidence = { ...payload, digest: digest(payload) };
+    assertMergeVerificationEvidence(evidence);
+    entries.push(evidence);
+    this.evidence.set(attestation.attestationId, entries);
+    const next = this.transitionAttestation(attestation, {
+      evidenceIds: [...attestation.evidenceIds, evidence.evidenceId],
+      requiredPassed:
+        attestation.requiredPassed +
+        (required && input.outcome === "passed" ? 1 : 0),
+      requiredFailed:
+        attestation.requiredFailed +
+        (required && (input.outcome === "failed" || input.outcome === "skipped")
+          ? 1
+          : 0),
+      optionalPassed:
+        attestation.optionalPassed +
+        (!required && input.outcome === "passed" ? 1 : 0),
+      warningCount:
+        attestation.warningCount + (input.outcome === "warning" ? 1 : 0),
+    });
+    return { attestation: next, evidence: structuredClone(evidence) };
+  }
+  finalize(input: {
+    attestationId: string;
+    expectedRevision: number;
+    receipt: MergeReceipt;
+    conflictedPaths?: readonly string[];
+    targetWasClean?: boolean;
+    sourceAttestationDigest?: string | null;
+  }): MergeAttestation {
+    const attestation = this.requireAttestation(input.attestationId);
+    this.assertAttestationRevision(attestation, input.expectedRevision);
+    if (attestation.state !== "collecting")
+      throw new E03RuntimeError(
+        "merge_verification_finalize_state",
+        `merge attestation ${attestation.attestationId} is ${attestation.state}`,
+      );
+    if (
+      input.receipt.taskId !== attestation.taskId ||
+      input.receipt.requestId !== attestation.requestId ||
+      input.receipt.expectedBaseRevision !== attestation.baseRevision ||
+      input.receipt.sourceRevision !== attestation.sourceRevision ||
+      input.receipt.targetRevision !== attestation.targetRevision
+    )
+      throw new E03RuntimeError(
+        "merge_verification_receipt_custody",
+        "merge receipt does not match attestation",
+      );
+    const policy = this.requirePolicy(attestation.policyId);
+    const entries = this.evidence.get(attestation.attestationId) ?? [];
+    const missing = policy.requiredChecks.filter(
+      (check) => !entries.some((value) => value.check === check),
+    );
+    const reasons: string[] = [];
+    if (missing.length)
+      reasons.push(`missing required checks: ${missing.join(",")}`);
+    if (attestation.requiredFailed)
+      reasons.push(`${attestation.requiredFailed} required checks failed`);
+    if (attestation.optionalPassed < policy.minimumOptionalPasses)
+      reasons.push("optional verification threshold not met");
+    if (!input.receipt.accepted || !input.receipt.resultingRevision)
+      reasons.push("merge receipt was not accepted");
+    if (
+      policy.rejectOnConflict &&
+      (input.conflictedPaths?.length || input.receipt.conflictedPaths.length)
+    )
+      reasons.push("merge conflicts rejected by policy");
+    if (policy.requireCleanTarget && !input.targetWasClean)
+      reasons.push("target was not clean");
+    if (policy.requireSourceAttestation && !input.sourceAttestationDigest)
+      reasons.push("source attestation is missing");
+    const rejected = reasons.length > 0;
+    const next = this.transitionAttestation(attestation, {
+      state: rejected ? "rejected" : "verified",
+      resultingRevision: input.receipt.resultingRevision || null,
+      completedAt: this.clock.now(),
+      rejectionReason: rejected ? reasons.join("; ") : null,
+    });
+    this.activeByPlan.delete(next.mergePlanId);
+    return next;
+  }
+  revoke(
+    attestationId: string,
+    expectedRevision: number,
+    reason: string,
+  ): MergeAttestation {
+    const attestation = this.requireAttestation(attestationId);
+    this.assertAttestationRevision(attestation, expectedRevision);
+    if (attestation.state === "revoked") return structuredClone(attestation);
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "merge_attestation_revoke_reason",
+        "merge attestation revoke reason is required",
+      );
+    const next = this.transitionAttestation(attestation, {
+      state: "revoked",
+      completedAt: this.clock.now(),
+      rejectionReason: reason.trim(),
+    });
+    this.activeByPlan.delete(next.mergePlanId);
+    return next;
+  }
+  snapshot(): {
+    policies: MergeVerificationPolicy[];
+    attestations: MergeAttestation[];
+    evidence: MergeVerificationEvidence[];
+    activeByPlan: Array<[string, string]>;
+  } {
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      attestations: [...this.attestations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      evidence: [...this.evidence.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeByPlan: [...this.activeByPlan.entries()].map(
+        ([planId, attestationId]) => [planId, attestationId],
+      ),
+    };
+  }
+  restore(snapshot: {
+    policies: readonly MergeVerificationPolicy[];
+    attestations: readonly MergeAttestation[];
+    evidence: readonly MergeVerificationEvidence[];
+    activeByPlan: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const policies = new Map<string, MergeVerificationPolicy>();
+    const attestations = new Map<string, MergeAttestation>();
+    const evidence = new Map<string, MergeVerificationEvidence[]>();
+    const activeByPlan = new Map<string, string>();
+    for (const value of snapshot.policies) {
+      assertMergeVerificationPolicy(value);
+      if (policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "merge_verification_policy_restore_duplicate",
+          `duplicate merge verification policy ${value.policyId}`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+    }
+    for (const value of snapshot.attestations) {
+      assertMergeAttestation(value);
+      if (
+        attestations.has(value.attestationId) ||
+        !policies.has(value.policyId)
+      )
+        throw new E03RuntimeError(
+          "merge_attestation_restore",
+          `merge attestation ${value.attestationId} is invalid`,
+        );
+      attestations.set(value.attestationId, structuredClone(value));
+    }
+    for (const value of snapshot.evidence) {
+      assertMergeVerificationEvidence(value);
+      if (!attestations.has(value.attestationId))
+        throw new E03RuntimeError(
+          "merge_verification_evidence_restore",
+          `merge verification evidence ${value.evidenceId} has no attestation`,
+        );
+      const entries = evidence.get(value.attestationId) ?? [];
+      if (
+        entries.some(
+          (entry) =>
+            entry.check === value.check ||
+            entry.evidenceId === value.evidenceId,
+        )
+      )
+        throw new E03RuntimeError(
+          "merge_verification_evidence_restore_duplicate",
+          `duplicate merge verification evidence ${value.evidenceId}`,
+        );
+      entries.push(structuredClone(value));
+      evidence.set(value.attestationId, entries);
+    }
+    for (const [planId, attestationId] of snapshot.activeByPlan) {
+      const attestation = attestations.get(attestationId);
+      if (
+        !attestation ||
+        attestation.mergePlanId !== planId ||
+        attestation.state !== "collecting" ||
+        activeByPlan.has(planId)
+      )
+        throw new E03RuntimeError(
+          "merge_attestation_active_restore",
+          `merge attestation active index ${planId} is invalid`,
+        );
+      activeByPlan.set(planId, attestationId);
+    }
+    this.policies = policies;
+    this.attestations = attestations;
+    this.evidence = evidence;
+    this.activeByPlan = activeByPlan;
+  }
+  private requirePolicy(id: string): MergeVerificationPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "merge_verification_policy_missing",
+        `merge verification policy ${id} does not exist`,
+      );
+    assertMergeVerificationPolicy(value);
+    return value;
+  }
+  private requireAttestation(id: string): MergeAttestation {
+    const value = this.attestations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "merge_attestation_missing",
+        `merge attestation ${id} does not exist`,
+      );
+    assertMergeAttestation(value);
+    return value;
+  }
+  private assertAttestationRevision(
+    value: MergeAttestation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "merge_attestation_stale_revision",
+        `merge attestation ${value.attestationId} revision is stale`,
+      );
+  }
+  private transitionAttestation(
+    value: MergeAttestation,
+    patch: Partial<
+      Omit<MergeAttestation, "attestationId" | "revision" | "digest">
+    >,
+  ): MergeAttestation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      attestationId: value.attestationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMergeAttestation(next);
+    this.attestations.set(next.attestationId, next);
+    return structuredClone(next);
+  }
+}

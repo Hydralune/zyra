@@ -3117,3 +3117,466 @@ export class DeliveryArtifactRuntime {
     return structuredClone(next);
   }
 }
+
+export interface DeliveryCustodyTransfer {
+  transferId: string;
+  deliveryId: string;
+  taskId: string;
+  fromTaskId: string;
+  toTaskId: string;
+  state:
+    | "proposed"
+    | "accepted"
+    | "committed"
+    | "rejected"
+    | "expired"
+    | "cancelled";
+  deliveryDigest: string;
+  reason: string;
+  acceptanceDigest: string | null;
+  committedReceiptDigest: string | null;
+  proposedAt: string;
+  acceptedAt: string | null;
+  committedAt: string | null;
+  expiresAt: string;
+  rejectionReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface DeliveryCustodyReceipt {
+  receiptId: string;
+  transferId: string;
+  deliveryId: string;
+  fromTaskId: string;
+  toTaskId: string;
+  sequence: number;
+  outcome: "accepted" | "committed" | "rejected" | "cancelled";
+  payloadDigest: string;
+  occurredAt: string;
+  previousDigest: string;
+  digest: string;
+}
+function assertDeliveryCustodyTransfer(value: DeliveryCustodyTransfer): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "delivery_custody_transfer_digest",
+      `delivery custody transfer ${value.transferId} is corrupt`,
+    );
+  if (
+    !value.transferId ||
+    !value.deliveryId ||
+    !value.taskId ||
+    !value.fromTaskId ||
+    !value.toTaskId ||
+    value.fromTaskId === value.toTaskId ||
+    !value.deliveryDigest ||
+    !value.reason ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "delivery_custody_transfer",
+      `delivery custody transfer ${value.transferId} is invalid`,
+    );
+  if (
+    value.state === "accepted" &&
+    (!value.acceptedAt || !value.acceptanceDigest)
+  )
+    throw new E03RuntimeError(
+      "delivery_custody_acceptance",
+      `accepted delivery custody transfer ${value.transferId} lacks receipt`,
+    );
+  if (
+    value.state === "committed" &&
+    (!value.committedAt || !value.committedReceiptDigest)
+  )
+    throw new E03RuntimeError(
+      "delivery_custody_commit",
+      `committed delivery custody transfer ${value.transferId} lacks receipt`,
+    );
+}
+function assertDeliveryCustodyReceipt(value: DeliveryCustodyReceipt): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "delivery_custody_receipt_digest",
+      `delivery custody receipt ${value.receiptId} is corrupt`,
+    );
+  if (
+    !value.receiptId ||
+    !value.transferId ||
+    !value.deliveryId ||
+    !value.fromTaskId ||
+    !value.toTaskId ||
+    !value.payloadDigest ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1
+  )
+    throw new E03RuntimeError(
+      "delivery_custody_receipt",
+      `delivery custody receipt ${value.receiptId} is invalid`,
+    );
+}
+export class DeliveryCustodyTransferRuntime {
+  private transfers = new Map<string, DeliveryCustodyTransfer>();
+  private receipts = new Map<string, DeliveryCustodyReceipt[]>();
+  private activeByDelivery = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  propose(input: {
+    delivery: E03Delivery;
+    fromTaskId: string;
+    toTaskId: string;
+    reason: string;
+    ttlMs: number;
+  }): DeliveryCustodyTransfer {
+    assertDelivery(input.delivery);
+    if (
+      input.delivery.taskId !== input.fromTaskId ||
+      !input.toTaskId.trim() ||
+      input.fromTaskId === input.toTaskId ||
+      !input.reason.trim() ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "delivery_custody_proposal",
+        "delivery custody proposal is invalid",
+      );
+    const activeId = this.activeByDelivery.get(input.delivery.deliveryId);
+    if (activeId) return structuredClone(this.requireTransfer(activeId));
+    const payload = {
+      transferId: createId("delivery-custody-transfer"),
+      deliveryId: input.delivery.deliveryId,
+      taskId: input.delivery.taskId,
+      fromTaskId: input.fromTaskId,
+      toTaskId: input.toTaskId.trim(),
+      state: "proposed" as const,
+      deliveryDigest: input.delivery.digest,
+      reason: input.reason.trim(),
+      acceptanceDigest: null,
+      committedReceiptDigest: null,
+      proposedAt: this.clock.now(),
+      acceptedAt: null,
+      committedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      rejectionReason: null,
+      revision: 1,
+    };
+    const transfer = { ...payload, digest: digest(payload) };
+    assertDeliveryCustodyTransfer(transfer);
+    this.transfers.set(transfer.transferId, transfer);
+    this.activeByDelivery.set(transfer.deliveryId, transfer.transferId);
+    return structuredClone(transfer);
+  }
+  accept(input: {
+    transferId: string;
+    expectedRevision: number;
+    acceptingTaskId: string;
+    acceptancePayloadDigest: string;
+  }): { transfer: DeliveryCustodyTransfer; receipt: DeliveryCustodyReceipt } {
+    const transfer = this.requireTransfer(input.transferId);
+    this.assertTransferRevision(transfer, input.expectedRevision);
+    if (transfer.state !== "proposed")
+      throw new E03RuntimeError(
+        "delivery_custody_accept_state",
+        `delivery custody transfer ${transfer.transferId} is ${transfer.state}`,
+      );
+    if (
+      transfer.toTaskId !== input.acceptingTaskId ||
+      !input.acceptancePayloadDigest
+    )
+      throw new E03RuntimeError(
+        "delivery_custody_acceptor",
+        `task ${input.acceptingTaskId} cannot accept transfer`,
+      );
+    if (Date.parse(transfer.expiresAt) <= Date.parse(this.clock.now()))
+      return {
+        transfer: this.expire(transfer.transferId, transfer.revision),
+        receipt: this.appendReceipt(transfer, "rejected", digest("expired")),
+      };
+    const receipt = this.appendReceipt(
+      transfer,
+      "accepted",
+      input.acceptancePayloadDigest,
+    );
+    const next = this.transitionTransfer(transfer, {
+      state: "accepted",
+      acceptanceDigest: receipt.digest,
+      acceptedAt: this.clock.now(),
+    });
+    return { transfer: next, receipt };
+  }
+  commit(input: {
+    transferId: string;
+    expectedRevision: number;
+    delivery: E03Delivery;
+    ownershipPayloadDigest: string;
+  }): { transfer: DeliveryCustodyTransfer; receipt: DeliveryCustodyReceipt } {
+    const transfer = this.requireTransfer(input.transferId);
+    this.assertTransferRevision(transfer, input.expectedRevision);
+    if (transfer.state !== "accepted")
+      throw new E03RuntimeError(
+        "delivery_custody_commit_state",
+        `delivery custody transfer ${transfer.transferId} is ${transfer.state}`,
+      );
+    assertDelivery(input.delivery);
+    if (
+      input.delivery.deliveryId !== transfer.deliveryId ||
+      input.delivery.digest !== transfer.deliveryDigest ||
+      !input.ownershipPayloadDigest
+    )
+      throw new E03RuntimeError(
+        "delivery_custody_commit_delivery",
+        "delivery custody commit payload is invalid",
+      );
+    const receipt = this.appendReceipt(
+      transfer,
+      "committed",
+      input.ownershipPayloadDigest,
+    );
+    const next = this.transitionTransfer(transfer, {
+      state: "committed",
+      committedReceiptDigest: receipt.digest,
+      committedAt: this.clock.now(),
+    });
+    this.activeByDelivery.delete(next.deliveryId);
+    return { transfer: next, receipt };
+  }
+  reject(
+    transferId: string,
+    expectedRevision: number,
+    rejectingTaskId: string,
+    reason: string,
+  ): { transfer: DeliveryCustodyTransfer; receipt: DeliveryCustodyReceipt } {
+    const transfer = this.requireTransfer(transferId);
+    this.assertTransferRevision(transfer, expectedRevision);
+    if (transfer.state !== "proposed")
+      throw new E03RuntimeError(
+        "delivery_custody_reject_state",
+        `delivery custody transfer ${transferId} is ${transfer.state}`,
+      );
+    if (transfer.toTaskId !== rejectingTaskId || !reason.trim())
+      throw new E03RuntimeError(
+        "delivery_custody_rejector",
+        `task ${rejectingTaskId} cannot reject transfer`,
+      );
+    const receipt = this.appendReceipt(
+      transfer,
+      "rejected",
+      digest(reason.trim()),
+    );
+    const next = this.transitionTransfer(transfer, {
+      state: "rejected",
+      rejectionReason: reason.trim(),
+    });
+    this.activeByDelivery.delete(next.deliveryId);
+    return { transfer: next, receipt };
+  }
+  cancel(
+    transferId: string,
+    expectedRevision: number,
+    cancellingTaskId: string,
+    reason: string,
+  ): { transfer: DeliveryCustodyTransfer; receipt: DeliveryCustodyReceipt } {
+    const transfer = this.requireTransfer(transferId);
+    this.assertTransferRevision(transfer, expectedRevision);
+    if (
+      transfer.fromTaskId !== cancellingTaskId ||
+      (transfer.state !== "proposed" && transfer.state !== "accepted") ||
+      !reason.trim()
+    )
+      throw new E03RuntimeError(
+        "delivery_custody_cancel",
+        `delivery custody transfer ${transferId} cannot be cancelled`,
+      );
+    const receipt = this.appendReceipt(
+      transfer,
+      "cancelled",
+      digest(reason.trim()),
+    );
+    const next = this.transitionTransfer(transfer, {
+      state: "cancelled",
+      rejectionReason: reason.trim(),
+    });
+    this.activeByDelivery.delete(next.deliveryId);
+    return { transfer: next, receipt };
+  }
+  expire(
+    transferId: string,
+    expectedRevision: number,
+  ): DeliveryCustodyTransfer {
+    const transfer = this.requireTransfer(transferId);
+    this.assertTransferRevision(transfer, expectedRevision);
+    if (transfer.state !== "proposed" && transfer.state !== "accepted")
+      return structuredClone(transfer);
+    const next = this.transitionTransfer(transfer, {
+      state: "expired",
+      rejectionReason: "delivery custody transfer expired",
+    });
+    this.activeByDelivery.delete(next.deliveryId);
+    return next;
+  }
+  history(transferId: string): DeliveryCustodyReceipt[] {
+    const entries = this.receipts.get(transferId) ?? [];
+    let previousDigest = "root";
+    let sequence = 1;
+    for (const receipt of entries) {
+      assertDeliveryCustodyReceipt(receipt);
+      if (
+        receipt.sequence !== sequence ||
+        receipt.previousDigest !== previousDigest
+      )
+        throw new E03RuntimeError(
+          "delivery_custody_receipt_chain",
+          `delivery custody receipt ${receipt.receiptId} breaks chain`,
+        );
+      previousDigest = receipt.digest;
+      sequence += 1;
+    }
+    return entries.map((value) => structuredClone(value));
+  }
+  snapshot(): {
+    transfers: DeliveryCustodyTransfer[];
+    receipts: DeliveryCustodyReceipt[];
+    activeByDelivery: Array<[string, string]>;
+  } {
+    for (const id of this.transfers.keys()) this.history(id);
+    return {
+      transfers: [...this.transfers.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeByDelivery: [...this.activeByDelivery.entries()].map(
+        ([deliveryId, transferId]) => [deliveryId, transferId],
+      ),
+    };
+  }
+  restore(snapshot: {
+    transfers: readonly DeliveryCustodyTransfer[];
+    receipts: readonly DeliveryCustodyReceipt[];
+    activeByDelivery: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const transfers = new Map<string, DeliveryCustodyTransfer>();
+    const receipts = new Map<string, DeliveryCustodyReceipt[]>();
+    const activeByDelivery = new Map<string, string>();
+    for (const value of snapshot.transfers) {
+      assertDeliveryCustodyTransfer(value);
+      if (transfers.has(value.transferId))
+        throw new E03RuntimeError(
+          "delivery_custody_transfer_restore_duplicate",
+          `duplicate delivery custody transfer ${value.transferId}`,
+        );
+      transfers.set(value.transferId, structuredClone(value));
+    }
+    for (const value of snapshot.receipts) {
+      assertDeliveryCustodyReceipt(value);
+      const transfer = transfers.get(value.transferId);
+      if (
+        !transfer ||
+        transfer.deliveryId !== value.deliveryId ||
+        transfer.fromTaskId !== value.fromTaskId ||
+        transfer.toTaskId !== value.toTaskId
+      )
+        throw new E03RuntimeError(
+          "delivery_custody_receipt_restore",
+          `delivery custody receipt ${value.receiptId} is invalid`,
+        );
+      const entries = receipts.get(value.transferId) ?? [];
+      if (entries.some((entry) => entry.receiptId === value.receiptId))
+        throw new E03RuntimeError(
+          "delivery_custody_receipt_restore_duplicate",
+          `duplicate delivery custody receipt ${value.receiptId}`,
+        );
+      entries.push(structuredClone(value));
+      receipts.set(value.transferId, entries);
+    }
+    for (const entries of receipts.values())
+      entries.sort((left, right) => left.sequence - right.sequence);
+    for (const [deliveryId, transferId] of snapshot.activeByDelivery) {
+      const transfer = transfers.get(transferId);
+      if (
+        !transfer ||
+        transfer.deliveryId !== deliveryId ||
+        (transfer.state !== "proposed" && transfer.state !== "accepted") ||
+        activeByDelivery.has(deliveryId)
+      )
+        throw new E03RuntimeError(
+          "delivery_custody_active_restore",
+          `delivery custody active index ${deliveryId} is invalid`,
+        );
+      activeByDelivery.set(deliveryId, transferId);
+    }
+    this.transfers = transfers;
+    this.receipts = receipts;
+    this.activeByDelivery = activeByDelivery;
+    for (const id of transfers.keys()) this.history(id);
+  }
+  private appendReceipt(
+    transfer: DeliveryCustodyTransfer,
+    outcome: DeliveryCustodyReceipt["outcome"],
+    payloadDigest: string,
+  ): DeliveryCustodyReceipt {
+    const entries = this.receipts.get(transfer.transferId) ?? [];
+    const payload = {
+      receiptId: createId("delivery-custody-receipt"),
+      transferId: transfer.transferId,
+      deliveryId: transfer.deliveryId,
+      fromTaskId: transfer.fromTaskId,
+      toTaskId: transfer.toTaskId,
+      sequence: entries.length + 1,
+      outcome,
+      payloadDigest,
+      occurredAt: this.clock.now(),
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertDeliveryCustodyReceipt(receipt);
+    entries.push(receipt);
+    this.receipts.set(transfer.transferId, entries);
+    return structuredClone(receipt);
+  }
+  private requireTransfer(id: string): DeliveryCustodyTransfer {
+    const value = this.transfers.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "delivery_custody_transfer_missing",
+        `delivery custody transfer ${id} does not exist`,
+      );
+    assertDeliveryCustodyTransfer(value);
+    return value;
+  }
+  private assertTransferRevision(
+    value: DeliveryCustodyTransfer,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "delivery_custody_transfer_stale_revision",
+        `delivery custody transfer ${value.transferId} revision is stale`,
+      );
+  }
+  private transitionTransfer(
+    value: DeliveryCustodyTransfer,
+    patch: Partial<
+      Omit<DeliveryCustodyTransfer, "transferId" | "revision" | "digest">
+    >,
+  ): DeliveryCustodyTransfer {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      transferId: value.transferId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDeliveryCustodyTransfer(next);
+    this.transfers.set(next.transferId, next);
+    return structuredClone(next);
+  }
+}

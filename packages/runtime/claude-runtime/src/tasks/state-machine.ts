@@ -2172,3 +2172,453 @@ export class TaskResumeCheckpointRuntime {
     return structuredClone(next);
   }
 }
+
+export interface TaskTransitionReservation {
+  reservationId: string;
+  taskId: string;
+  from: AgentTaskPhase;
+  to: AgentTaskPhase;
+  expectedTaskRevision: number;
+  reason: string;
+  actorId: string;
+  state: "prepared" | "authorized" | "committed" | "aborted" | "expired";
+  requiredApprovers: string[];
+  approvedBy: string[];
+  deniedBy: string[];
+  transitionId: string | null;
+  preparedAt: string;
+  authorizedAt: string | null;
+  committedAt: string | null;
+  expiresAt: string;
+  abortReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface TaskTransitionVote {
+  voteId: string;
+  reservationId: string;
+  approverId: string;
+  outcome: "approve" | "deny";
+  reason: string;
+  votedAt: string;
+  digest: string;
+}
+function assertTransitionReservation(value: TaskTransitionReservation): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "task_transition_reservation_digest",
+      `task transition reservation ${value.reservationId} is corrupt`,
+    );
+  if (
+    !value.reservationId ||
+    !value.taskId ||
+    !value.reason ||
+    !value.actorId ||
+    !Number.isSafeInteger(value.expectedTaskRevision) ||
+    value.expectedTaskRevision < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "task_transition_reservation",
+      `task transition reservation ${value.reservationId} is invalid`,
+    );
+  if (value.state === "authorized" && value.authorizedAt === null)
+    throw new E03RuntimeError(
+      "task_transition_authorization_time",
+      `authorized transition reservation ${value.reservationId} lacks time`,
+    );
+  if (
+    value.state === "committed" &&
+    (!value.committedAt || !value.transitionId)
+  )
+    throw new E03RuntimeError(
+      "task_transition_commit_time",
+      `committed transition reservation ${value.reservationId} lacks receipt`,
+    );
+}
+function assertTransitionVote(value: TaskTransitionVote): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "task_transition_vote_digest",
+      `task transition vote ${value.voteId} is corrupt`,
+    );
+  if (
+    !value.voteId ||
+    !value.reservationId ||
+    !value.approverId ||
+    !value.reason
+  )
+    throw new E03RuntimeError(
+      "task_transition_vote",
+      `task transition vote ${value.voteId} is invalid`,
+    );
+}
+export class TaskTransitionReservationRuntime {
+  private reservations = new Map<string, TaskTransitionReservation>();
+  private votes = new Map<string, TaskTransitionVote[]>();
+  private activeByTask = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  prepare(input: {
+    task: E03TaskState;
+    to: AgentTaskPhase;
+    reason: string;
+    actorId: string;
+    requiredApprovers?: readonly string[];
+    ttlMs: number;
+  }): TaskTransitionReservation {
+    if (isTerminal(input.task.status))
+      throw new E03RuntimeError(
+        "task_transition_reservation_terminal",
+        `terminal task ${input.task.identity.taskId} cannot reserve transition`,
+      );
+    if (
+      !input.reason.trim() ||
+      !input.actorId.trim() ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "task_transition_reservation_input",
+        "task transition reservation input is invalid",
+      );
+    if (!ALLOWED[input.task.status].includes(input.to))
+      throw new E03RuntimeError(
+        "task_transition_reservation_forbidden",
+        `task cannot transition from ${input.task.status} to ${input.to}`,
+      );
+    const activeId = this.activeByTask.get(input.task.identity.taskId);
+    if (activeId) {
+      const active = this.requireReservation(activeId);
+      if (active.state === "prepared" || active.state === "authorized")
+        throw new E03RuntimeError(
+          "task_transition_reservation_active",
+          `task ${input.task.identity.taskId} already has an active transition reservation`,
+        );
+    }
+    const requiredApprovers = [
+      ...new Set(input.requiredApprovers ?? []),
+    ].sort();
+    if (requiredApprovers.includes(input.actorId))
+      throw new E03RuntimeError(
+        "task_transition_reservation_self_approval",
+        "transition actor cannot approve its own reservation",
+      );
+    const payload = {
+      reservationId: createId("task-transition-reservation"),
+      taskId: input.task.identity.taskId,
+      from: input.task.status,
+      to: input.to,
+      expectedTaskRevision: input.task.revision,
+      reason: input.reason.trim(),
+      actorId: input.actorId.trim(),
+      state: requiredApprovers.length
+        ? ("prepared" as const)
+        : ("authorized" as const),
+      requiredApprovers,
+      approvedBy: [],
+      deniedBy: [],
+      transitionId: null,
+      preparedAt: this.clock.now(),
+      authorizedAt: requiredApprovers.length ? null : this.clock.now(),
+      committedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      abortReason: null,
+      revision: 1,
+    };
+    const reservation = { ...payload, digest: digest(payload) };
+    assertTransitionReservation(reservation);
+    this.reservations.set(reservation.reservationId, reservation);
+    this.activeByTask.set(reservation.taskId, reservation.reservationId);
+    return structuredClone(reservation);
+  }
+  vote(input: {
+    reservationId: string;
+    expectedRevision: number;
+    approverId: string;
+    outcome: TaskTransitionVote["outcome"];
+    reason: string;
+  }): { reservation: TaskTransitionReservation; vote: TaskTransitionVote } {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state !== "prepared")
+      throw new E03RuntimeError(
+        "task_transition_vote_state",
+        `task transition reservation ${reservation.reservationId} is ${reservation.state}`,
+      );
+    if (!reservation.requiredApprovers.includes(input.approverId))
+      throw new E03RuntimeError(
+        "task_transition_vote_approver",
+        `approver ${input.approverId} is not required`,
+      );
+    if (!input.reason.trim())
+      throw new E03RuntimeError(
+        "task_transition_vote_reason",
+        "task transition vote reason is required",
+      );
+    const entries = this.votes.get(reservation.reservationId) ?? [];
+    const prior = entries.find(
+      (value) => value.approverId === input.approverId,
+    );
+    if (prior) {
+      if (prior.outcome !== input.outcome)
+        throw new E03RuntimeError(
+          "task_transition_vote_conflict",
+          `approver ${input.approverId} already voted`,
+        );
+      return {
+        reservation: structuredClone(reservation),
+        vote: structuredClone(prior),
+      };
+    }
+    const payload = {
+      voteId: createId("task-transition-vote"),
+      reservationId: reservation.reservationId,
+      approverId: input.approverId,
+      outcome: input.outcome,
+      reason: input.reason.trim(),
+      votedAt: this.clock.now(),
+    };
+    const vote = { ...payload, digest: digest(payload) };
+    assertTransitionVote(vote);
+    entries.push(vote);
+    this.votes.set(reservation.reservationId, entries);
+    const approvedBy =
+      input.outcome === "approve"
+        ? [...reservation.approvedBy, input.approverId].sort()
+        : reservation.approvedBy;
+    const deniedBy =
+      input.outcome === "deny"
+        ? [...reservation.deniedBy, input.approverId].sort()
+        : reservation.deniedBy;
+    const authorized =
+      !deniedBy.length &&
+      reservation.requiredApprovers.every((id) => approvedBy.includes(id));
+    const next = this.transitionReservation(reservation, {
+      state: deniedBy.length
+        ? "aborted"
+        : authorized
+          ? "authorized"
+          : "prepared",
+      approvedBy,
+      deniedBy,
+      authorizedAt: authorized ? this.clock.now() : null,
+      abortReason: deniedBy.length ? `denied by ${deniedBy.join(",")}` : null,
+    });
+    if (next.state === "aborted") this.activeByTask.delete(next.taskId);
+    return { reservation: next, vote: structuredClone(vote) };
+  }
+  commit(input: {
+    reservationId: string;
+    expectedRevision: number;
+    task: E03TaskState;
+    transition: E03Transition;
+  }): TaskTransitionReservation {
+    const reservation = this.requireReservation(input.reservationId);
+    this.assertReservationRevision(reservation, input.expectedRevision);
+    if (reservation.state !== "authorized")
+      throw new E03RuntimeError(
+        "task_transition_commit_state",
+        `task transition reservation ${reservation.reservationId} is ${reservation.state}`,
+      );
+    if (Date.parse(reservation.expiresAt) <= Date.parse(this.clock.now()))
+      return this.expire(reservation.reservationId, reservation.revision);
+    if (
+      input.task.identity.taskId !== reservation.taskId ||
+      input.task.revision !== reservation.expectedTaskRevision ||
+      input.task.status !== reservation.from
+    )
+      throw new E03RuntimeError(
+        "task_transition_commit_cas",
+        `task transition reservation ${reservation.reservationId} task state changed`,
+      );
+    if (
+      input.transition.taskId !== reservation.taskId ||
+      input.transition.fromStatus !== reservation.from ||
+      input.transition.toStatus !== reservation.to ||
+      input.transition.fromRevision !== reservation.expectedTaskRevision
+    )
+      throw new E03RuntimeError(
+        "task_transition_commit_receipt",
+        `transition ${input.transition.transitionId} does not match reservation`,
+      );
+    const next = this.transitionReservation(reservation, {
+      state: "committed",
+      transitionId: input.transition.transitionId,
+      committedAt: this.clock.now(),
+    });
+    this.activeByTask.delete(next.taskId);
+    return next;
+  }
+  abort(
+    reservationId: string,
+    expectedRevision: number,
+    reason: string,
+  ): TaskTransitionReservation {
+    const reservation = this.requireReservation(reservationId);
+    this.assertReservationRevision(reservation, expectedRevision);
+    if (
+      reservation.state === "committed" ||
+      reservation.state === "aborted" ||
+      reservation.state === "expired"
+    )
+      return structuredClone(reservation);
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "task_transition_abort_reason",
+        "task transition abort reason is required",
+      );
+    const next = this.transitionReservation(reservation, {
+      state: "aborted",
+      abortReason: reason.trim(),
+    });
+    this.activeByTask.delete(next.taskId);
+    return next;
+  }
+  expire(
+    reservationId: string,
+    expectedRevision: number,
+  ): TaskTransitionReservation {
+    const reservation = this.requireReservation(reservationId);
+    this.assertReservationRevision(reservation, expectedRevision);
+    if (reservation.state !== "prepared" && reservation.state !== "authorized")
+      return structuredClone(reservation);
+    const next = this.transitionReservation(reservation, {
+      state: "expired",
+      abortReason: "transition reservation expired",
+    });
+    this.activeByTask.delete(next.taskId);
+    return next;
+  }
+  sweep(now = this.clock.now()): TaskTransitionReservation[] {
+    const timestamp = Date.parse(now);
+    if (Number.isNaN(timestamp))
+      throw new E03RuntimeError(
+        "task_transition_sweep_time",
+        "task transition sweep time is invalid",
+      );
+    const values: TaskTransitionReservation[] = [];
+    for (const reservation of this.reservations.values())
+      if (
+        (reservation.state === "prepared" ||
+          reservation.state === "authorized") &&
+        Date.parse(reservation.expiresAt) <= timestamp
+      )
+        values.push(
+          this.expire(reservation.reservationId, reservation.revision),
+        );
+    return values;
+  }
+  snapshot(): {
+    reservations: TaskTransitionReservation[];
+    votes: TaskTransitionVote[];
+    activeByTask: Array<[string, string]>;
+  } {
+    return {
+      reservations: [...this.reservations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      votes: [...this.votes.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeByTask: [...this.activeByTask.entries()].map(
+        ([taskId, reservationId]) => [taskId, reservationId],
+      ),
+    };
+  }
+  restore(snapshot: {
+    reservations: readonly TaskTransitionReservation[];
+    votes: readonly TaskTransitionVote[];
+    activeByTask: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const reservations = new Map<string, TaskTransitionReservation>();
+    const votes = new Map<string, TaskTransitionVote[]>();
+    const activeByTask = new Map<string, string>();
+    for (const value of snapshot.reservations) {
+      assertTransitionReservation(value);
+      if (reservations.has(value.reservationId))
+        throw new E03RuntimeError(
+          "task_transition_reservation_restore_duplicate",
+          `duplicate task transition reservation ${value.reservationId}`,
+        );
+      reservations.set(value.reservationId, structuredClone(value));
+    }
+    for (const value of snapshot.votes) {
+      assertTransitionVote(value);
+      if (!reservations.has(value.reservationId))
+        throw new E03RuntimeError(
+          "task_transition_vote_restore",
+          `task transition vote ${value.voteId} has no reservation`,
+        );
+      const entries = votes.get(value.reservationId) ?? [];
+      if (entries.some((entry) => entry.approverId === value.approverId))
+        throw new E03RuntimeError(
+          "task_transition_vote_restore_duplicate",
+          `duplicate task transition vote from ${value.approverId}`,
+        );
+      entries.push(structuredClone(value));
+      votes.set(value.reservationId, entries);
+    }
+    for (const [taskId, reservationId] of snapshot.activeByTask) {
+      const reservation = reservations.get(reservationId);
+      if (
+        !reservation ||
+        reservation.taskId !== taskId ||
+        (reservation.state !== "prepared" &&
+          reservation.state !== "authorized") ||
+        activeByTask.has(taskId)
+      )
+        throw new E03RuntimeError(
+          "task_transition_active_restore",
+          `task transition active index ${taskId} is invalid`,
+        );
+      activeByTask.set(taskId, reservationId);
+    }
+    this.reservations = reservations;
+    this.votes = votes;
+    this.activeByTask = activeByTask;
+  }
+  private requireReservation(id: string): TaskTransitionReservation {
+    const value = this.reservations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_transition_reservation_missing",
+        `task transition reservation ${id} does not exist`,
+      );
+    assertTransitionReservation(value);
+    return value;
+  }
+  private assertReservationRevision(
+    value: TaskTransitionReservation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_transition_reservation_stale_revision",
+        `task transition reservation ${value.reservationId} revision is stale`,
+      );
+  }
+  private transitionReservation(
+    value: TaskTransitionReservation,
+    patch: Partial<
+      Omit<TaskTransitionReservation, "reservationId" | "revision" | "digest">
+    >,
+  ): TaskTransitionReservation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      reservationId: value.reservationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTransitionReservation(next);
+    this.reservations.set(next.reservationId, next);
+    return structuredClone(next);
+  }
+}
