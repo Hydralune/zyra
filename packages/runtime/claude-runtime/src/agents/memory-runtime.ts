@@ -1668,6 +1668,705 @@ function assertMemoryReplicationAck(value: MemoryReplicationAck): void {
       `memory replication ACK ${value.ackId} is invalid`,
     );
 }
+export interface MemoryProtectionPolicy {
+  policyId: string;
+  namespace: string;
+  allowedClassifications: string[];
+  encryptedClassifications: string[];
+  redactedFields: string[];
+  maximumReaders: number;
+  keyRotationMs: number;
+  state: "draft" | "active" | "deprecated" | "retired";
+  version: number;
+  createdAt: string;
+  activatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MemoryEncryptionKey {
+  keyId: string;
+  policyId: string;
+  generation: number;
+  materialDigest: string;
+  state: "proposed" | "active" | "retiring" | "retired" | "revoked";
+  createdAt: string;
+  activatedAt: string;
+  expiresAt: string;
+  retiredAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MemoryProtectionReceipt {
+  receiptId: string;
+  policyId: string;
+  memoryId: string;
+  operation:
+    | "classify"
+    | "redact"
+    | "encrypt"
+    | "decrypt"
+    | "rekey"
+    | "destroy";
+  actorId: string;
+  classification: string;
+  inputDigest: string;
+  outputDigest: string;
+  keyId: string;
+  redactedFields: string[];
+  accepted: boolean;
+  errorCode: string;
+  executedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface MemoryProtectionGrant {
+  grantId: string;
+  policyId: string;
+  memoryId: string;
+  actorId: string;
+  operations: MemoryProtectionReceipt["operation"][];
+  maximumUses: number;
+  used: number;
+  expiresAt: string;
+  state: "active" | "exhausted" | "expired" | "revoked";
+  createdAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MemoryProtectionSnapshot {
+  policies: MemoryProtectionPolicy[];
+  keys: MemoryEncryptionKey[];
+  receipts: MemoryProtectionReceipt[];
+  grants: MemoryProtectionGrant[];
+  activePolicyByNamespace: [string, string][];
+  activeKeyByPolicy: [string, string][];
+  activeGrantByMemoryActor: [string, string][];
+}
+
+function assertMemoryProtectionPolicy(value: MemoryProtectionPolicy): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.policyId ||
+    !value.namespace ||
+    !value.allowedClassifications.length ||
+    value.maximumReaders < 1 ||
+    value.keyRotationMs < 1 ||
+    value.version < 1 ||
+    new Set(value.allowedClassifications).size !==
+      value.allowedClassifications.length ||
+    new Set(value.encryptedClassifications).size !==
+      value.encryptedClassifications.length ||
+    new Set(value.redactedFields).size !== value.redactedFields.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "memory_protection_policy_corrupt",
+      `memory protection policy ${value.policyId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMemoryEncryptionKey(value: MemoryEncryptionKey): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.keyId ||
+    !value.policyId ||
+    value.generation < 1 ||
+    !value.materialDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "memory_encryption_key_corrupt",
+      `memory encryption key ${value.keyId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMemoryProtectionReceipt(value: MemoryProtectionReceipt): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.policyId ||
+    !value.memoryId ||
+    !value.actorId ||
+    !value.classification ||
+    !value.inputDigest ||
+    new Set(value.redactedFields).size !== value.redactedFields.length ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "memory_protection_receipt_corrupt",
+      `memory protection receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMemoryProtectionGrant(value: MemoryProtectionGrant): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.grantId ||
+    !value.policyId ||
+    !value.memoryId ||
+    !value.actorId ||
+    !value.operations.length ||
+    value.maximumUses < 1 ||
+    value.used < 0 ||
+    value.used > value.maximumUses ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "memory_protection_grant_corrupt",
+      `memory protection grant ${value.grantId || "<empty>"} is corrupt`,
+    );
+}
+
+export class AgentMemoryProtectionRuntime {
+  private policies = new Map<string, MemoryProtectionPolicy>();
+  private keys = new Map<string, MemoryEncryptionKey[]>();
+  private receipts = new Map<string, MemoryProtectionReceipt[]>();
+  private grants = new Map<string, MemoryProtectionGrant>();
+  private activePolicyByNamespace = new Map<string, string>();
+  private activeKeyByPolicy = new Map<string, string>();
+  private activeGrantByMemoryActor = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerPolicy(input: {
+    policyId?: string;
+    namespace: string;
+    allowedClassifications: readonly string[];
+    encryptedClassifications: readonly string[];
+    redactedFields: readonly string[];
+    maximumReaders: number;
+    keyRotationMs: number;
+    version: number;
+  }): MemoryProtectionPolicy {
+    const policyId = input.policyId ?? createId("memory-protection-policy");
+    const allowedClassifications = [
+      ...new Set(input.allowedClassifications),
+    ].sort();
+    const encryptedClassifications = [
+      ...new Set(input.encryptedClassifications),
+    ].sort();
+    if (
+      encryptedClassifications.some(
+        (value) => !allowedClassifications.includes(value),
+      )
+    )
+      throw new E03RuntimeError(
+        "memory_protection_encryption_classification",
+        "encrypted memory classification must be allowed",
+      );
+    const payload = {
+      policyId,
+      namespace: input.namespace,
+      allowedClassifications,
+      encryptedClassifications,
+      redactedFields: [...new Set(input.redactedFields)].sort(),
+      maximumReaders: input.maximumReaders,
+      keyRotationMs: input.keyRotationMs,
+      state: "draft" as const,
+      version: input.version,
+      createdAt: this.clock.now(),
+      activatedAt: "",
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertMemoryProtectionPolicy(policy);
+    this.policies.set(policyId, policy);
+    this.keys.set(policyId, []);
+    return structuredClone(policy);
+  }
+
+  activatePolicy(
+    policyId: string,
+    expectedRevision: number,
+  ): MemoryProtectionPolicy {
+    const policy = this.requirePolicy(policyId);
+    this.assertPolicyRevision(policy, expectedRevision);
+    if (policy.state !== "draft")
+      throw new E03RuntimeError(
+        "memory_protection_policy_activate_state",
+        `memory protection policy ${policyId} is ${policy.state}`,
+      );
+    const activeId = this.activePolicyByNamespace.get(policy.namespace);
+    if (activeId) {
+      const active = this.requirePolicy(activeId);
+      if (active.version >= policy.version)
+        throw new E03RuntimeError(
+          "memory_protection_policy_version_regression",
+          `memory protection policy ${policyId} is stale`,
+        );
+      this.transitionPolicy(active, { state: "deprecated" });
+    }
+    const next = this.transitionPolicy(policy, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activePolicyByNamespace.set(policy.namespace, policyId);
+    return next;
+  }
+
+  proposeKey(input: {
+    keyId?: string;
+    policyId: string;
+    materialDigest: string;
+    expiresAt: string;
+  }): MemoryEncryptionKey {
+    const policy = this.requirePolicy(input.policyId);
+    if (policy.state !== "active")
+      throw new E03RuntimeError(
+        "memory_encryption_key_policy_inactive",
+        `memory protection policy ${policy.policyId} is ${policy.state}`,
+      );
+    const entries = this.keyEntries(policy.policyId);
+    const payload = {
+      keyId: input.keyId ?? createId("memory-encryption-key"),
+      policyId: policy.policyId,
+      generation: entries.length + 1,
+      materialDigest: input.materialDigest,
+      state: "proposed" as const,
+      createdAt: this.clock.now(),
+      activatedAt: "",
+      expiresAt: input.expiresAt,
+      retiredAt: "",
+      revision: 1,
+    };
+    const key = { ...payload, digest: digest(payload) };
+    assertMemoryEncryptionKey(key);
+    entries.push(key);
+    this.keys.set(policy.policyId, entries);
+    return structuredClone(key);
+  }
+
+  activateKey(keyId: string, expectedRevision: number): MemoryEncryptionKey {
+    const key = this.requireKey(keyId);
+    this.assertKeyRevision(key, expectedRevision);
+    if (
+      key.state !== "proposed" ||
+      Date.parse(key.expiresAt) <= Date.parse(this.clock.now())
+    )
+      throw new E03RuntimeError(
+        "memory_encryption_key_activate_state",
+        `memory encryption key ${keyId} cannot activate`,
+      );
+    const activeId = this.activeKeyByPolicy.get(key.policyId);
+    if (activeId) {
+      const active = this.requireKey(activeId);
+      this.transitionKey(active, { state: "retiring" });
+    }
+    const next = this.transitionKey(key, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activeKeyByPolicy.set(key.policyId, keyId);
+    return next;
+  }
+
+  grant(input: {
+    grantId?: string;
+    policyId: string;
+    memoryId: string;
+    actorId: string;
+    operations: readonly MemoryProtectionReceipt["operation"][];
+    maximumUses: number;
+    expiresAt: string;
+  }): MemoryProtectionGrant {
+    const policy = this.requirePolicy(input.policyId);
+    if (policy.state !== "active")
+      throw new E03RuntimeError(
+        "memory_protection_grant_policy_inactive",
+        `memory protection policy ${policy.policyId} is ${policy.state}`,
+      );
+    const key = this.grantKey(input.memoryId, input.actorId);
+    const activeId = this.activeGrantByMemoryActor.get(key);
+    if (activeId) return structuredClone(this.requireGrant(activeId));
+    const grantId = input.grantId ?? createId("memory-protection-grant");
+    const payload = {
+      grantId,
+      policyId: policy.policyId,
+      memoryId: input.memoryId,
+      actorId: input.actorId,
+      operations: [...new Set(input.operations)].sort(),
+      maximumUses: input.maximumUses,
+      used: 0,
+      expiresAt: input.expiresAt,
+      state: "active" as const,
+      createdAt: this.clock.now(),
+      revision: 1,
+    };
+    const grant = { ...payload, digest: digest(payload) };
+    assertMemoryProtectionGrant(grant);
+    this.grants.set(grantId, grant);
+    this.activeGrantByMemoryActor.set(key, grantId);
+    return structuredClone(grant);
+  }
+
+  protect(input: {
+    receiptId?: string;
+    policyId: string;
+    memoryId: string;
+    actorId: string;
+    operation: MemoryProtectionReceipt["operation"];
+    classification: string;
+    inputDigest: string;
+    outputDigest: string;
+    redactedFields?: readonly string[];
+    keyId?: string;
+  }): MemoryProtectionReceipt {
+    const policy = this.requirePolicy(input.policyId);
+    if (!policy.allowedClassifications.includes(input.classification))
+      throw new E03RuntimeError(
+        "memory_protection_classification_denied",
+        `memory classification ${input.classification} is denied`,
+      );
+    const grantId = this.activeGrantByMemoryActor.get(
+      this.grantKey(input.memoryId, input.actorId),
+    );
+    const grant = grantId ? this.requireGrant(grantId) : null;
+    if (
+      !grant ||
+      grant.policyId !== policy.policyId ||
+      grant.state !== "active" ||
+      !grant.operations.includes(input.operation) ||
+      Date.parse(grant.expiresAt) <= Date.parse(this.clock.now())
+    )
+      throw new E03RuntimeError(
+        "memory_protection_grant_denied",
+        `memory protection operation ${input.operation} is denied`,
+      );
+    const requiresKey = ["encrypt", "decrypt", "rekey"].includes(
+      input.operation,
+    );
+    const key = input.keyId ? this.requireKey(input.keyId) : null;
+    if (
+      requiresKey &&
+      (!key ||
+        key.policyId !== policy.policyId ||
+        !["active", "retiring"].includes(key.state))
+    )
+      throw new E03RuntimeError(
+        "memory_protection_key_invalid",
+        `memory protection operation ${input.operation} requires active key`,
+      );
+    const redactedFields = [...new Set(input.redactedFields ?? [])].sort();
+    if (
+      input.operation === "redact" &&
+      redactedFields.some((field) => !policy.redactedFields.includes(field))
+    )
+      throw new E03RuntimeError(
+        "memory_protection_redaction_field_denied",
+        "memory redaction contains undeclared field",
+      );
+    const entries = this.receiptEntries(input.memoryId);
+    const payload = {
+      receiptId: input.receiptId ?? createId("memory-protection-receipt"),
+      policyId: policy.policyId,
+      memoryId: input.memoryId,
+      operation: input.operation,
+      actorId: input.actorId,
+      classification: input.classification,
+      inputDigest: input.inputDigest,
+      outputDigest: input.outputDigest,
+      keyId: key?.keyId ?? "",
+      redactedFields,
+      accepted: true,
+      errorCode: "",
+      executedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertMemoryProtectionReceipt(receipt);
+    entries.push(receipt);
+    this.receipts.set(input.memoryId, entries);
+    const used = grant.used + 1;
+    const nextGrant = this.transitionGrant(grant, {
+      used,
+      state: used >= grant.maximumUses ? "exhausted" : "active",
+    });
+    if (nextGrant.state === "exhausted")
+      this.activeGrantByMemoryActor.delete(
+        this.grantKey(grant.memoryId, grant.actorId),
+      );
+    return structuredClone(receipt);
+  }
+
+  revokeGrant(
+    grantId: string,
+    expectedRevision: number,
+  ): MemoryProtectionGrant {
+    const grant = this.requireGrant(grantId);
+    this.assertGrantRevision(grant, expectedRevision);
+    if (grant.state !== "active")
+      throw new E03RuntimeError(
+        "memory_protection_grant_revoke_state",
+        `memory protection grant ${grantId} is ${grant.state}`,
+      );
+    const next = this.transitionGrant(grant, { state: "revoked" });
+    this.activeGrantByMemoryActor.delete(
+      this.grantKey(grant.memoryId, grant.actorId),
+    );
+    return next;
+  }
+
+  snapshot(): MemoryProtectionSnapshot {
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      keys: [...this.keys.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      grants: [...this.grants.values()].map((value) => structuredClone(value)),
+      activePolicyByNamespace: [...this.activePolicyByNamespace.entries()],
+      activeKeyByPolicy: [...this.activeKeyByPolicy.entries()],
+      activeGrantByMemoryActor: [...this.activeGrantByMemoryActor.entries()],
+    };
+  }
+
+  restore(snapshot: MemoryProtectionSnapshot): void {
+    const policies = new Map<string, MemoryProtectionPolicy>();
+    const keys = new Map<string, MemoryEncryptionKey[]>();
+    const receipts = new Map<string, MemoryProtectionReceipt[]>();
+    const grants = new Map<string, MemoryProtectionGrant>();
+    for (const value of snapshot.policies) {
+      assertMemoryProtectionPolicy(value);
+      policies.set(value.policyId, structuredClone(value));
+      keys.set(value.policyId, []);
+    }
+    for (const value of [...snapshot.keys].sort(
+      (a, b) => a.generation - b.generation,
+    )) {
+      assertMemoryEncryptionKey(value);
+      const entries = keys.get(value.policyId);
+      if (!entries || value.generation !== entries.length + 1)
+        throw new E03RuntimeError(
+          "memory_protection_restore_key_order",
+          `key ${value.keyId} order invalid`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.receipts) {
+      assertMemoryProtectionReceipt(value);
+      if (!policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "memory_protection_restore_receipt_policy",
+          `receipt ${value.receiptId} invalid`,
+        );
+      const entries = receipts.get(value.memoryId) ?? [];
+      if (value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "memory_protection_restore_receipt_chain",
+          `receipt ${value.receiptId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+      receipts.set(value.memoryId, entries);
+    }
+    for (const value of snapshot.grants) {
+      assertMemoryProtectionGrant(value);
+      if (!policies.has(value.policyId) || grants.has(value.grantId))
+        throw new E03RuntimeError(
+          "memory_protection_restore_grant",
+          `grant ${value.grantId} invalid`,
+        );
+      grants.set(value.grantId, structuredClone(value));
+    }
+    const activePolicyByNamespace = new Map(snapshot.activePolicyByNamespace);
+    const activeKeyByPolicy = new Map(snapshot.activeKeyByPolicy);
+    const activeGrantByMemoryActor = new Map(snapshot.activeGrantByMemoryActor);
+    if (
+      activePolicyByNamespace.size !==
+        snapshot.activePolicyByNamespace.length ||
+      activeKeyByPolicy.size !== snapshot.activeKeyByPolicy.length ||
+      activeGrantByMemoryActor.size !== snapshot.activeGrantByMemoryActor.length
+    )
+      throw new E03RuntimeError(
+        "memory_protection_restore_index_duplicate",
+        "memory protection indexes duplicate",
+      );
+    for (const [namespace, policyId] of activePolicyByNamespace) {
+      const value = policies.get(policyId);
+      if (!value || value.namespace !== namespace || value.state !== "active")
+        throw new E03RuntimeError(
+          "memory_protection_restore_policy_index",
+          `policy index ${namespace} invalid`,
+        );
+    }
+    for (const [policyId, keyId] of activeKeyByPolicy) {
+      const value = keys.get(policyId)?.find((entry) => entry.keyId === keyId);
+      if (!value || value.state !== "active")
+        throw new E03RuntimeError(
+          "memory_protection_restore_key_index",
+          `key index ${policyId} invalid`,
+        );
+    }
+    for (const [index, grantId] of activeGrantByMemoryActor) {
+      const value = grants.get(grantId);
+      if (
+        !value ||
+        index !== this.grantKey(value.memoryId, value.actorId) ||
+        value.state !== "active"
+      )
+        throw new E03RuntimeError(
+          "memory_protection_restore_grant_index",
+          `grant index ${index} invalid`,
+        );
+    }
+    this.policies = policies;
+    this.keys = keys;
+    this.receipts = receipts;
+    this.grants = grants;
+    this.activePolicyByNamespace = activePolicyByNamespace;
+    this.activeKeyByPolicy = activeKeyByPolicy;
+    this.activeGrantByMemoryActor = activeGrantByMemoryActor;
+  }
+
+  private grantKey(memoryId: string, actorId: string): string {
+    return `${memoryId}\u0000${actorId}`;
+  }
+
+  private keyEntries(policyId: string): MemoryEncryptionKey[] {
+    return this.keys.get(policyId) ?? [];
+  }
+
+  private receiptEntries(memoryId: string): MemoryProtectionReceipt[] {
+    return this.receipts.get(memoryId) ?? [];
+  }
+
+  private requirePolicy(id: string): MemoryProtectionPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "memory_protection_policy_missing",
+        `policy ${id} missing`,
+      );
+    assertMemoryProtectionPolicy(value);
+    return value;
+  }
+
+  private requireKey(id: string): MemoryEncryptionKey {
+    const value = [...this.keys.values()]
+      .flat()
+      .find((entry) => entry.keyId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "memory_encryption_key_missing",
+        `key ${id} missing`,
+      );
+    assertMemoryEncryptionKey(value);
+    return value;
+  }
+
+  private requireGrant(id: string): MemoryProtectionGrant {
+    const value = this.grants.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "memory_protection_grant_missing",
+        `grant ${id} missing`,
+      );
+    assertMemoryProtectionGrant(value);
+    return value;
+  }
+
+  private assertPolicyRevision(
+    value: MemoryProtectionPolicy,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "memory_protection_policy_stale_revision",
+        `policy ${value.policyId} stale`,
+      );
+  }
+
+  private assertKeyRevision(
+    value: MemoryEncryptionKey,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "memory_encryption_key_stale_revision",
+        `key ${value.keyId} stale`,
+      );
+  }
+
+  private assertGrantRevision(
+    value: MemoryProtectionGrant,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "memory_protection_grant_stale_revision",
+        `grant ${value.grantId} stale`,
+      );
+  }
+
+  private transitionPolicy(
+    value: MemoryProtectionPolicy,
+    patch: Partial<
+      Omit<MemoryProtectionPolicy, "policyId" | "revision" | "digest">
+    >,
+  ): MemoryProtectionPolicy {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      policyId: value.policyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMemoryProtectionPolicy(next);
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+
+  private transitionKey(
+    value: MemoryEncryptionKey,
+    patch: Partial<Omit<MemoryEncryptionKey, "keyId" | "revision" | "digest">>,
+  ): MemoryEncryptionKey {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      keyId: value.keyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMemoryEncryptionKey(next);
+    const entries = this.keyEntries(value.policyId);
+    const index = entries.findIndex((entry) => entry.keyId === value.keyId);
+    entries[index] = next;
+    this.keys.set(value.policyId, entries);
+    return structuredClone(next);
+  }
+
+  private transitionGrant(
+    value: MemoryProtectionGrant,
+    patch: Partial<
+      Omit<MemoryProtectionGrant, "grantId" | "revision" | "digest">
+    >,
+  ): MemoryProtectionGrant {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      grantId: value.grantId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMemoryProtectionGrant(next);
+    this.grants.set(next.grantId, next);
+    return structuredClone(next);
+  }
+}
+
 export class AgentMemoryReplicationRuntime {
   private replicas = new Map<string, MemoryReplica>();
   private batches = new Map<string, MemoryReplicationBatch>();

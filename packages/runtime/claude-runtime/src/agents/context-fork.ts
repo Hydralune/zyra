@@ -2167,6 +2167,557 @@ function assertContextAccessDecision(value: ContextAccessDecision): void {
       `context access decision ${value.decisionId} is invalid`,
     );
 }
+export interface ContextRetentionPolicy {
+  policyId: string;
+  scopeId: string;
+  maximumAgeMs: number;
+  maximumSnapshots: number;
+  retainTerminalBranches: boolean;
+  requiredLabels: string[];
+  protectedLabels: string[];
+  state: "draft" | "active" | "deprecated" | "retired";
+  version: number;
+  createdAt: string;
+  activatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ContextLegalHold {
+  holdId: string;
+  policyId: string;
+  subjectType: "session" | "task" | "branch" | "snapshot";
+  subjectId: string;
+  reason: string;
+  requesterId: string;
+  approverId: string;
+  state: "requested" | "active" | "released" | "rejected";
+  requestedAt: string;
+  activatedAt: string;
+  releasedAt: string;
+  releaseReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ContextRetentionDecision {
+  decisionId: string;
+  policyId: string;
+  snapshotId: string;
+  branchId: string;
+  sessionId: string;
+  taskId: string;
+  labels: string[];
+  createdAt: string;
+  evaluatedAt: string;
+  decision: "retain" | "archive" | "delete" | "hold";
+  reasonCode: string;
+  holdId: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface ContextRetentionSnapshot {
+  policies: ContextRetentionPolicy[];
+  holds: ContextLegalHold[];
+  decisions: ContextRetentionDecision[];
+  activePolicyByScope: [string, string][];
+  activeHoldBySubject: [string, string][];
+}
+
+function assertContextRetentionPolicy(value: ContextRetentionPolicy): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.policyId ||
+    !value.scopeId ||
+    value.maximumAgeMs < 0 ||
+    value.maximumSnapshots < 1 ||
+    value.version < 1 ||
+    new Set(value.requiredLabels).size !== value.requiredLabels.length ||
+    new Set(value.protectedLabels).size !== value.protectedLabels.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "context_retention_policy_corrupt",
+      `context retention policy ${value.policyId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertContextLegalHold(value: ContextLegalHold): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.holdId ||
+    !value.policyId ||
+    !value.subjectId ||
+    !value.reason ||
+    !value.requesterId ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "context_legal_hold_corrupt",
+      `context legal hold ${value.holdId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertContextRetentionDecision(value: ContextRetentionDecision): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.decisionId ||
+    !value.policyId ||
+    !value.snapshotId ||
+    !value.branchId ||
+    !value.sessionId ||
+    !value.taskId ||
+    new Set(value.labels).size !== value.labels.length ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "context_retention_decision_corrupt",
+      `context retention decision ${value.decisionId || "<empty>"} is corrupt`,
+    );
+}
+
+export class ContextRetentionRuntime {
+  private policies = new Map<string, ContextRetentionPolicy>();
+  private holds = new Map<string, ContextLegalHold>();
+  private decisions = new Map<string, ContextRetentionDecision[]>();
+  private activePolicyByScope = new Map<string, string>();
+  private activeHoldBySubject = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerPolicy(input: {
+    policyId?: string;
+    scopeId: string;
+    maximumAgeMs: number;
+    maximumSnapshots: number;
+    retainTerminalBranches: boolean;
+    requiredLabels: readonly string[];
+    protectedLabels: readonly string[];
+    version: number;
+  }): ContextRetentionPolicy {
+    const policyId = input.policyId ?? createId("context-retention-policy");
+    if (this.policies.has(policyId))
+      throw new E03RuntimeError(
+        "context_retention_policy_duplicate",
+        `context retention policy ${policyId} already exists`,
+      );
+    if (
+      [...this.policies.values()].some(
+        (value) =>
+          value.scopeId === input.scopeId && value.version === input.version,
+      )
+    )
+      throw new E03RuntimeError(
+        "context_retention_policy_version_duplicate",
+        `context retention scope ${input.scopeId} version exists`,
+      );
+    const payload = {
+      policyId,
+      scopeId: input.scopeId,
+      maximumAgeMs: input.maximumAgeMs,
+      maximumSnapshots: input.maximumSnapshots,
+      retainTerminalBranches: input.retainTerminalBranches,
+      requiredLabels: [...new Set(input.requiredLabels)].sort(),
+      protectedLabels: [...new Set(input.protectedLabels)].sort(),
+      state: "draft" as const,
+      version: input.version,
+      createdAt: this.clock.now(),
+      activatedAt: "",
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertContextRetentionPolicy(policy);
+    this.policies.set(policyId, policy);
+    return structuredClone(policy);
+  }
+
+  activatePolicy(
+    policyId: string,
+    expectedRevision: number,
+  ): ContextRetentionPolicy {
+    const policy = this.requirePolicy(policyId);
+    this.assertPolicyRevision(policy, expectedRevision);
+    if (policy.state !== "draft")
+      throw new E03RuntimeError(
+        "context_retention_policy_activate_state",
+        `context retention policy ${policyId} is ${policy.state}`,
+      );
+    const activeId = this.activePolicyByScope.get(policy.scopeId);
+    if (activeId) {
+      const active = this.requirePolicy(activeId);
+      if (active.version >= policy.version)
+        throw new E03RuntimeError(
+          "context_retention_policy_version_regression",
+          `context retention policy ${policyId} version is stale`,
+        );
+      this.transitionPolicy(active, { state: "deprecated" });
+    }
+    const next = this.transitionPolicy(policy, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activePolicyByScope.set(policy.scopeId, policyId);
+    return next;
+  }
+
+  requestHold(input: {
+    holdId?: string;
+    policyId: string;
+    subjectType: ContextLegalHold["subjectType"];
+    subjectId: string;
+    reason: string;
+    requesterId: string;
+  }): ContextLegalHold {
+    this.requirePolicy(input.policyId);
+    const subjectKey = this.subjectKey(input.subjectType, input.subjectId);
+    const activeId = this.activeHoldBySubject.get(subjectKey);
+    if (activeId) return structuredClone(this.requireHold(activeId));
+    const holdId = input.holdId ?? createId("context-legal-hold");
+    const payload = {
+      holdId,
+      policyId: input.policyId,
+      subjectType: input.subjectType,
+      subjectId: input.subjectId,
+      reason: input.reason,
+      requesterId: input.requesterId,
+      approverId: "",
+      state: "requested" as const,
+      requestedAt: this.clock.now(),
+      activatedAt: "",
+      releasedAt: "",
+      releaseReason: "",
+      revision: 1,
+    };
+    const hold = { ...payload, digest: digest(payload) };
+    assertContextLegalHold(hold);
+    this.holds.set(holdId, hold);
+    this.activeHoldBySubject.set(subjectKey, holdId);
+    return structuredClone(hold);
+  }
+
+  decideHold(
+    holdId: string,
+    expectedRevision: number,
+    approverId: string,
+    accepted: boolean,
+  ): ContextLegalHold {
+    const hold = this.requireHold(holdId);
+    this.assertHoldRevision(hold, expectedRevision);
+    if (hold.state !== "requested" || hold.requesterId === approverId)
+      throw new E03RuntimeError(
+        "context_legal_hold_decision_denied",
+        `context legal hold ${holdId} decision is denied`,
+      );
+    const next = this.transitionHold(hold, {
+      state: accepted ? "active" : "rejected",
+      approverId,
+      activatedAt: accepted ? this.clock.now() : "",
+      releasedAt: accepted ? "" : this.clock.now(),
+    });
+    if (!accepted)
+      this.activeHoldBySubject.delete(
+        this.subjectKey(hold.subjectType, hold.subjectId),
+      );
+    return next;
+  }
+
+  releaseHold(
+    holdId: string,
+    expectedRevision: number,
+    approverId: string,
+    reason: string,
+  ): ContextLegalHold {
+    const hold = this.requireHold(holdId);
+    this.assertHoldRevision(hold, expectedRevision);
+    if (hold.state !== "active" || hold.approverId !== approverId || !reason)
+      throw new E03RuntimeError(
+        "context_legal_hold_release_denied",
+        `context legal hold ${holdId} release is denied`,
+      );
+    const next = this.transitionHold(hold, {
+      state: "released",
+      releasedAt: this.clock.now(),
+      releaseReason: reason,
+    });
+    this.activeHoldBySubject.delete(
+      this.subjectKey(hold.subjectType, hold.subjectId),
+    );
+    return next;
+  }
+
+  evaluate(input: {
+    policyId: string;
+    snapshotId: string;
+    branchId: string;
+    sessionId: string;
+    taskId: string;
+    labels: readonly string[];
+    createdAt: string;
+    branchTerminal: boolean;
+    snapshotOrdinalFromNewest: number;
+  }): ContextRetentionDecision {
+    const policy = this.requirePolicy(input.policyId);
+    if (policy.state !== "active")
+      throw new E03RuntimeError(
+        "context_retention_policy_inactive",
+        `context retention policy ${policy.policyId} is ${policy.state}`,
+      );
+    const labels = [...new Set(input.labels)].sort();
+    const hold = this.findActiveHold(input);
+    const missingRequired = policy.requiredLabels.some(
+      (label) => !labels.includes(label),
+    );
+    const protectedLabel = policy.protectedLabels.some((label) =>
+      labels.includes(label),
+    );
+    const expired =
+      Date.parse(this.clock.now()) - Date.parse(input.createdAt) >
+      policy.maximumAgeMs;
+    const overflow = input.snapshotOrdinalFromNewest >= policy.maximumSnapshots;
+    let decision: ContextRetentionDecision["decision"] = "retain";
+    let reasonCode = "within_policy";
+    if (hold) {
+      decision = "hold";
+      reasonCode = `legal_hold:${hold.holdId}`;
+    } else if (
+      protectedLabel ||
+      (policy.retainTerminalBranches && input.branchTerminal)
+    ) {
+      decision = "archive";
+      reasonCode = protectedLabel ? "protected_label" : "terminal_branch";
+    } else if (missingRequired || expired || overflow) {
+      decision = "delete";
+      reasonCode = missingRequired
+        ? "required_label_missing"
+        : expired
+          ? "maximum_age"
+          : "snapshot_limit";
+    }
+    const entries = this.decisionEntries(input.snapshotId);
+    const payload = {
+      decisionId: createId("context-retention-decision"),
+      policyId: policy.policyId,
+      snapshotId: input.snapshotId,
+      branchId: input.branchId,
+      sessionId: input.sessionId,
+      taskId: input.taskId,
+      labels,
+      createdAt: input.createdAt,
+      evaluatedAt: this.clock.now(),
+      decision,
+      reasonCode,
+      holdId: hold?.holdId ?? "",
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const value = { ...payload, digest: digest(payload) };
+    assertContextRetentionDecision(value);
+    entries.push(value);
+    this.decisions.set(input.snapshotId, entries);
+    return structuredClone(value);
+  }
+
+  snapshot(): ContextRetentionSnapshot {
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      holds: [...this.holds.values()].map((value) => structuredClone(value)),
+      decisions: [...this.decisions.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activePolicyByScope: [...this.activePolicyByScope.entries()],
+      activeHoldBySubject: [...this.activeHoldBySubject.entries()],
+    };
+  }
+
+  restore(snapshot: ContextRetentionSnapshot): void {
+    const policies = new Map<string, ContextRetentionPolicy>();
+    const holds = new Map<string, ContextLegalHold>();
+    const decisions = new Map<string, ContextRetentionDecision[]>();
+    for (const value of snapshot.policies) {
+      assertContextRetentionPolicy(value);
+      if (policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "context_retention_restore_policy_duplicate",
+          `policy ${value.policyId} duplicate`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+    }
+    for (const value of snapshot.holds) {
+      assertContextLegalHold(value);
+      if (!policies.has(value.policyId) || holds.has(value.holdId))
+        throw new E03RuntimeError(
+          "context_retention_restore_hold",
+          `hold ${value.holdId} invalid`,
+        );
+      holds.set(value.holdId, structuredClone(value));
+    }
+    for (const value of snapshot.decisions) {
+      assertContextRetentionDecision(value);
+      if (!policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "context_retention_restore_decision_policy",
+          `decision ${value.decisionId} invalid`,
+        );
+      const entries = decisions.get(value.snapshotId) ?? [];
+      if (value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "context_retention_restore_decision_chain",
+          `decision ${value.decisionId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+      decisions.set(value.snapshotId, entries);
+    }
+    const activePolicyByScope = new Map(snapshot.activePolicyByScope);
+    const activeHoldBySubject = new Map(snapshot.activeHoldBySubject);
+    if (
+      activePolicyByScope.size !== snapshot.activePolicyByScope.length ||
+      activeHoldBySubject.size !== snapshot.activeHoldBySubject.length
+    )
+      throw new E03RuntimeError(
+        "context_retention_restore_index_duplicate",
+        "context retention indexes duplicate",
+      );
+    for (const [scopeId, policyId] of activePolicyByScope) {
+      const value = policies.get(policyId);
+      if (!value || value.scopeId !== scopeId || value.state !== "active")
+        throw new E03RuntimeError(
+          "context_retention_restore_policy_index",
+          `policy index ${scopeId} invalid`,
+        );
+    }
+    for (const [key, holdId] of activeHoldBySubject) {
+      const value = holds.get(holdId);
+      if (
+        !value ||
+        key !== this.subjectKey(value.subjectType, value.subjectId) ||
+        !["requested", "active"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "context_retention_restore_hold_index",
+          `hold index ${key} invalid`,
+        );
+    }
+    this.policies = policies;
+    this.holds = holds;
+    this.decisions = decisions;
+    this.activePolicyByScope = activePolicyByScope;
+    this.activeHoldBySubject = activeHoldBySubject;
+  }
+
+  private findActiveHold(input: {
+    snapshotId: string;
+    branchId: string;
+    sessionId: string;
+    taskId: string;
+  }): ContextLegalHold | null {
+    const subjects: [ContextLegalHold["subjectType"], string][] = [
+      ["snapshot", input.snapshotId],
+      ["branch", input.branchId],
+      ["task", input.taskId],
+      ["session", input.sessionId],
+    ];
+    for (const [type, id] of subjects) {
+      const holdId = this.activeHoldBySubject.get(this.subjectKey(type, id));
+      if (!holdId) continue;
+      const hold = this.requireHold(holdId);
+      if (hold.state === "active") return hold;
+    }
+    return null;
+  }
+
+  private subjectKey(
+    type: ContextLegalHold["subjectType"],
+    id: string,
+  ): string {
+    return `${type}\u0000${id}`;
+  }
+
+  private decisionEntries(snapshotId: string): ContextRetentionDecision[] {
+    return this.decisions.get(snapshotId) ?? [];
+  }
+
+  private requirePolicy(id: string): ContextRetentionPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "context_retention_policy_missing",
+        `policy ${id} missing`,
+      );
+    assertContextRetentionPolicy(value);
+    return value;
+  }
+
+  private requireHold(id: string): ContextLegalHold {
+    const value = this.holds.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "context_legal_hold_missing",
+        `hold ${id} missing`,
+      );
+    assertContextLegalHold(value);
+    return value;
+  }
+
+  private assertPolicyRevision(
+    value: ContextRetentionPolicy,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "context_retention_policy_stale_revision",
+        `policy ${value.policyId} stale`,
+      );
+  }
+
+  private assertHoldRevision(value: ContextLegalHold, expected: number): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "context_legal_hold_stale_revision",
+        `hold ${value.holdId} stale`,
+      );
+  }
+
+  private transitionPolicy(
+    value: ContextRetentionPolicy,
+    patch: Partial<
+      Omit<ContextRetentionPolicy, "policyId" | "revision" | "digest">
+    >,
+  ): ContextRetentionPolicy {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      policyId: value.policyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertContextRetentionPolicy(next);
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+
+  private transitionHold(
+    value: ContextLegalHold,
+    patch: Partial<Omit<ContextLegalHold, "holdId" | "revision" | "digest">>,
+  ): ContextLegalHold {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      holdId: value.holdId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertContextLegalHold(next);
+    this.holds.set(next.holdId, next);
+    return structuredClone(next);
+  }
+}
+
 export class ContextAccessRuntime {
   private grants = new Map<string, ContextAccessGrant>();
   private decisions = new Map<string, ContextAccessDecision[]>();
