@@ -78,6 +78,16 @@ interface ConnectionOwner {
 
 const transitionHead = "sha256:zyra-mcp-connection-genesis";
 
+export function assertMcpSourceRuntimeEnabled(): void {
+  if (process.env.ZYRA_DISABLE_E04_MCP_SOURCE_RUNTIME === "1") {
+    throw connectionError(
+      "",
+      "mcp_source_runtime_disabled",
+      "The migrated TypeScript MCP source runtime is disabled; no logical client fallback is permitted",
+    );
+  }
+}
+
 export class McpConnectionRuntime {
   private readonly policy: McpServerPolicy;
   private readonly sessionId: string;
@@ -122,6 +132,7 @@ export class McpConnectionRuntime {
   }
 
   async connect(configValue: McpServerConfigRecord, signal?: AbortSignal): Promise<McpConnectedServer> {
+    assertMcpSourceRuntimeEnabled();
     const config = cloneJson(configValue);
     let owner = this.owners.get(config.serverId);
     if (owner?.record.phase === "ready" && owner.initialize && owner.record.configDigest === config.configDigest) {
@@ -149,13 +160,11 @@ export class McpConnectionRuntime {
         policyDecision: null,
       };
       this.owners.set(config.serverId, owner);
-      transport.onMessage((message) => this.handleUnsolicited(config.serverId, message));
-      transport.onEvent((event) => {
-        const current = this.owners.get(config.serverId);
-        if (current) current.record.lastActivityAt = event.occurredAt;
-      });
+      this.subscribeTransport(owner);
+    } else if (owner.record.phase === "closed" || owner.record.phase === "failed") {
+      await this.rebuildTransport(owner, `connect_after_${owner.record.phase}`);
     }
-    const promise = this.performConnect(owner, signal);
+    const promise = this.performConnect(owner, signal, owner.record.reconnectAttempt > 0);
     owner.connectPromise = promise;
     try {
       return await promise;
@@ -165,30 +174,10 @@ export class McpConnectionRuntime {
   }
 
   async reconnect(serverId: string, reason = "requested", signal?: AbortSignal): Promise<McpConnectedServer> {
+    assertMcpSourceRuntimeEnabled();
     const owner = this.requireOwner(serverId);
     if (owner.connectPromise) return owner.connectPromise;
-    const nonIdempotentPending = owner.transport.snapshot().pending.filter((request) => !request.idempotent);
-    if (nonIdempotentPending.length) {
-      throw connectionError(
-        serverId,
-        "non_idempotent_request_inflight",
-        `cannot reconnect ${serverId} with ${nonIdempotentPending.length} non-idempotent requests in flight`,
-        false,
-        { request_ids: nonIdempotentPending.map((request) => request.requestId) },
-      );
-    }
-    this.transition(owner, "reconnecting", reason);
-    await owner.transport.close(`reconnect:${reason}`);
-    const previousEpoch = owner.record.epoch;
-    const snapshot = owner.transport.snapshot();
-    this.restoredTransportSnapshots.set(serverId, snapshot);
-    owner.transport = await this.createTransport(owner.config);
-    owner.record.epoch = previousEpoch + 1;
-    owner.record.initialized = false;
-    owner.record.protocolVersion = null;
-    owner.record.reconnectAttempt += 1;
-    owner.initialize = null;
-    owner.transport.onMessage((message) => this.handleUnsolicited(serverId, message));
+    await this.rebuildTransport(owner, reason);
     const promise = this.performConnect(owner, signal, true);
     owner.connectPromise = promise;
     try {
@@ -246,6 +235,7 @@ export class McpConnectionRuntime {
   }
 
   requireConnected(serverId: string): McpConnectedServer {
+    assertMcpSourceRuntimeEnabled();
     const connected = this.getConnected(serverId);
     if (!connected) throw connectionError(serverId, "server_not_connected", `MCP server ${serverId} is not connected`);
     return connected;
@@ -546,6 +536,40 @@ export class McpConnectionRuntime {
     return this.inProcessFactory(config);
   }
 
+  private async rebuildTransport(owner: ConnectionOwner, reason: string): Promise<void> {
+    const serverId = owner.config.serverId;
+    const nonIdempotentPending = owner.transport.snapshot().pending.filter((request) => !request.idempotent);
+    if (nonIdempotentPending.length) {
+      throw connectionError(
+        serverId,
+        "non_idempotent_request_inflight",
+        `cannot reconnect ${serverId} with ${nonIdempotentPending.length} non-idempotent requests in flight`,
+        false,
+        { request_ids: nonIdempotentPending.map((request) => request.requestId) },
+      );
+    }
+    this.transition(owner, "reconnecting", reason);
+    await owner.transport.close(`reconnect:${reason}`);
+    const snapshot = owner.transport.snapshot();
+    this.restoredTransportSnapshots.set(serverId, snapshot);
+    owner.transport = await this.createTransport(owner.config);
+    owner.record.epoch += 1;
+    owner.record.initialized = false;
+    owner.record.protocolVersion = null;
+    owner.record.reconnectAttempt += 1;
+    owner.initialize = null;
+    this.subscribeTransport(owner);
+  }
+
+  private subscribeTransport(owner: ConnectionOwner): void {
+    const serverId = owner.config.serverId;
+    owner.transport.onMessage((message) => this.handleUnsolicited(serverId, message));
+    owner.transport.onEvent((event) => {
+      const current = this.owners.get(serverId);
+      if (current) current.record.lastActivityAt = event.occurredAt;
+    });
+  }
+
   private handleUnsolicited(serverId: string, message: JsonRpcMessage): void {
     const owner = this.owners.get(serverId);
     if (!owner) return;
@@ -647,7 +671,11 @@ function initialRecord(config: McpServerConfigRecord, policyDigest: string): Mcp
     reconnectNotBefore: null,
     catalogRevision: 0,
     authRevision: 0,
-    metadata: { config_source: config.source },
+    metadata: {
+      config_source: config.source,
+      source_custody: "claude-code-best:connectToServer",
+      transport_initialize_order: ["policy", "transport", "initialize", "initialized_notification", "ready"],
+    },
   };
 }
 

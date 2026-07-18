@@ -60,6 +60,28 @@ OPERATORS: dict[str, dict[str, str]] = {
             "    if (process.env.ZYRA_E04_MUTATION_DOMAIN_03 !== \"disabled\") { // E04 mutation: disconnect tool source owner"
         ),
     },
+    "e04-mutation-domain-04": {
+        "target": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts",
+        "needle": (
+            "export function assertPermissionSourceRuntimeEnabled(): void {\n"
+            "  if (process.env.ZYRA_DISABLE_E04_PERMISSION_SOURCE_RUNTIME === \"1\") {"
+        ),
+        "replacement": (
+            "export function assertPermissionSourceRuntimeEnabled(): void {\n"
+            "  if (process.env.ZYRA_E04_MUTATION_DOMAIN_04 !== \"disabled\") { // E04 mutation: disconnect permission source owner"
+        ),
+    },
+    "e04-mutation-domain-05": {
+        "target": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts",
+        "needle": (
+            "export function assertMcpSourceRuntimeEnabled(): void {\n"
+            "  if (process.env.ZYRA_DISABLE_E04_MCP_SOURCE_RUNTIME === \"1\") {"
+        ),
+        "replacement": (
+            "export function assertMcpSourceRuntimeEnabled(): void {\n"
+            "  if (process.env.ZYRA_E04_MUTATION_DOMAIN_05 !== \"disabled\") { // E04 mutation: disconnect MCP source owner"
+        ),
+    },
 }
 
 

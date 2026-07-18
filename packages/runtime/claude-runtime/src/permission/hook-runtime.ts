@@ -56,6 +56,14 @@ export interface PermissionHookPipelineResult {
   failedClosed: boolean;
 }
 
+export function assertPermissionSourceRuntimeEnabled(): void {
+  if (process.env.ZYRA_DISABLE_E04_PERMISSION_SOURCE_RUNTIME === "1") {
+    throw new Error(
+      "The migrated TypeScript permission source runtime is disabled; no local policy fallback is permitted",
+    );
+  }
+}
+
 export class PermissionHookRuntime {
   private readonly hooks = new Map<string, PermissionHookDescriptor>();
   private readonly clock: E02Clock;
@@ -97,6 +105,7 @@ export class PermissionHookRuntime {
     risk: PermissionRiskAssessment,
     outerSignal?: AbortSignal,
   ): Promise<PermissionHookPipelineResult> {
+    assertPermissionSourceRuntimeEnabled();
     let current = cloneJson(identity);
     const audits: PermissionHookAudit[] = [];
     let forcedEffect: PermissionEffect | null = null;
@@ -191,6 +200,7 @@ export class PermissionHookRuntime {
     identity: PermissionIdentityRecord,
     risk: PermissionRiskAssessment,
   ): PermissionHookPipelineResult {
+    assertPermissionSourceRuntimeEnabled();
     let current = cloneJson(identity);
     const audits: PermissionHookAudit[] = [];
     let forcedEffect: PermissionEffect | null = null;

@@ -2,7 +2,11 @@ import type { JsonObject, JsonRpcMessage, JsonRpcResponse, JsonValue } from "../
 import type { McpServerConfigRecord } from "../config/config-store.ts";
 import { McpServerPolicy, type McpPolicyOperation } from "../config/policy.ts";
 import { McpCapabilityCatalog, type McpCatalogDiff, type McpCatalogServerSnapshot } from "../catalog/capability-catalog.ts";
-import { McpConnectionRuntime, type McpConnectedServer } from "../connection/connection-runtime.ts";
+import {
+  McpConnectionRuntime,
+  assertMcpSourceRuntimeEnabled,
+  type McpConnectedServer,
+} from "../connection/connection-runtime.ts";
 import type { McpTransportAdapter } from "../connection/contracts.ts";
 import { canonicalJson, cloneJson, deterministicMcpId, monotonicNow, sha256 } from "../core/canonical.ts";
 import { McpRuntimeError, normalizeFailure, type McpFailureRecord } from "../core/failure.ts";
@@ -143,7 +147,7 @@ export class McpClientRuntime {
   }
 
   async refreshCatalog(serverId: string, signal?: AbortSignal): Promise<McpCatalogServerSnapshot> {
-    const connected = this.connections.requireConnected(serverId);
+    const connected = await this.ensureConnectedClient(serverId, signal);
     const tools = await this.collectList(connected, "tools/list", "tools", (value) => value.name, signal);
     const resources = await this.collectList(connected, "resources/list", "resources", (value) => value.uri, signal);
     const templates = await this.collectList(connected, "resources/templates/list", "resourceTemplates", (value) => value.uriTemplate, signal, true);
@@ -253,7 +257,7 @@ export class McpClientRuntime {
   ): Promise<McpClientExecution<JsonObject>> {
     const identity = cloneJson(identityValue);
     const config = this.requireConfig(identity.serverId);
-    const connected = this.connections.requireConnected(identity.serverId);
+    const connected = await this.ensureConnectedClient(identity.serverId, signal);
     if (identity.connectionId !== connected.record.connectionId || identity.connectionEpoch !== connected.record.epoch) {
       throw clientError(identity.serverId, "connection_identity_mismatch", "MCP invocation belongs to another connection epoch");
     }
@@ -499,6 +503,28 @@ export class McpClientRuntime {
       }, message);
     });
     this.unsubscribers.set(connected.record.serverId, unsubscribe);
+  }
+
+  private async ensureConnectedClient(
+    serverId: string,
+    signal?: AbortSignal,
+  ): Promise<McpConnectedServer> {
+    // Adapted from ensureConnectedClient: every capability operation must use
+    // a live client. A cleared/closed connection is rebuilt through the
+    // connection owner; a failed reconnect remains a typed terminal failure.
+    assertMcpSourceRuntimeEnabled();
+    const current = this.connections.getConnected(serverId);
+    if (current) return current;
+    const connected = await this.connections.connect(this.requireConfig(serverId), signal);
+    if (connected.record.phase !== "ready" || !connected.record.initialized) {
+      throw clientError(
+        serverId,
+        "server_not_connected",
+        `MCP server ${serverId} is not connected`,
+      );
+    }
+    this.subscribe(connected);
+    return connected;
   }
 
   private requireConfig(serverId: string): McpServerConfigRecord {

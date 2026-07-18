@@ -125,10 +125,16 @@ export class PermissionEvaluator {
 
   async evaluateAsync(input: PermissionEvaluationInput): Promise<PermissionDecisionRecord> {
     const identity = PermissionIdentity.create(input);
-    const initialRisk = await this.risks.classifyAsync(identity);
+    // Adapted from handleCoordinatorPermission: fast local hooks resolve first;
+    // the slower classifier is only consulted when hooks did not resolve the
+    // request. Interactive ASK remains a later continuation concern.
+    const initialRisk = this.risks.classify(identity);
     const hookResult = await this.hooks.runBeforeTool(identity, initialRisk, input.signal);
-    const finalRisk = hookResult.identity.argumentsDigest === identity.argumentsDigest
+    const deterministicAfterHooks = hookResult.identity.argumentsDigest === identity.argumentsDigest
       ? initialRisk
+      : this.risks.classify(hookResult.identity);
+    const finalRisk = hookResult.forcedEffect || hookResult.failedClosed
+      ? deterministicAfterHooks
       : await this.risks.classifyAsync(hookResult.identity);
     return this.finalize(identity, hookResult, finalRisk);
   }
@@ -221,6 +227,9 @@ export class PermissionEvaluator {
       evaluatedAt: this.clock(),
       metadata: {
         runtime_owner: "zyra-typescript-claude-runtime",
+        source_custody: "claude-code-best:handleCoordinatorPermission+checkRuleBasedPermissions",
+        automated_check_order: ["permission_hooks", "classifier", "interactive_continuation"],
+        classifier_skipped_by_hook: hookResult.forcedEffect !== null || hookResult.failedClosed,
         hook_failed_closed: hookResult.failedClosed,
         grant_id: selection.grantId,
         denial_abort_limit: this.denialAbortLimit,
@@ -416,6 +425,15 @@ export class PermissionEvaluator {
         effect: "ask",
         reasonCode: "before_tool_hook_ask",
         reason: hooks.forcedReason || "before-tool hook requires approval",
+        matchedRules: winner ? [winner] : [],
+        grantId: null,
+      };
+    }
+    if (hooks.forcedEffect === "allow") {
+      return {
+        effect: "allow",
+        reasonCode: "before_tool_hook_allow",
+        reason: hooks.forcedReason || "before-tool hook allowed the request",
         matchedRules: winner ? [winner] : [],
         grantId: null,
       };

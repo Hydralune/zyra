@@ -12,7 +12,7 @@ import type {
   ToolExecutionRequest,
   ToolExecutionResponse,
 } from "../../src/contracts.ts";
-import type { TypeScriptCapabilityRuntime } from "../../src/capabilities.ts";
+import { TypeScriptCapabilityRuntime } from "../../src/capabilities.ts";
 import {
   consumeCompatibleStream,
   createCompatibleEnvelope,
@@ -84,14 +84,6 @@ class GatewayHost implements RuntimeHost {
   isAborted(): boolean {
     return false;
   }
-}
-
-function capabilityStub(): TypeScriptCapabilityRuntime {
-  return {
-    owns: () => false,
-    owner: () => "python-tool-executor",
-    snapshot: () => ({ version: "test-capabilities" }),
-  } as unknown as TypeScriptCapabilityRuntime;
 }
 
 function runtimeInput(
@@ -185,69 +177,84 @@ describe("default permission execution custody", () => {
   test("e01.mutation.permission-deny-is-never-delegated", async () => {
     const gateway = new GatewayHost();
     const input = runtimeInput({ mode: "auto", interactive: false, headless: true });
-    const host = new PermissionedCapabilityHost(gateway, input, capabilityStub());
-    const selected = [request(
-      "deny-call",
-      "file_write",
-      { path: "C:\\outside\\blocked.txt", content: "blocked" },
-      0,
-    )];
-    const result = await host.executeBatch(batch(selected), selected);
+    const capabilities = await TypeScriptCapabilityRuntime.open(input);
+    try {
+      const host = new PermissionedCapabilityHost(gateway, input, capabilities);
+      const selected = [request(
+        "deny-call",
+        "file_write",
+        { path: "C:\\outside\\blocked.txt", content: "blocked" },
+        0,
+      )];
+      const result = await host.executeBatch(batch(selected), selected);
 
-    expect(gateway.delegated).toHaveLength(0);
-    expect(result).toHaveLength(1);
-    expect(result[0]?.ok).toBe(false);
-    expect(result[0]?.error).toBe("permission_denied");
-    expect(result[0]?.metadata.permission_delegated).toBe("false");
+      expect(gateway.delegated).toHaveLength(0);
+      expect(result).toHaveLength(1);
+      expect(result[0]?.ok).toBe(false);
+      expect(result[0]?.error).toBe("permission_denied");
+      expect(result[0]?.metadata.permission_delegated).toBe("false");
 
-    const snapshot = host.snapshot();
-    const settlement = snapshot.settlement as JsonObject;
-    const calls = settlement.calls as JsonObject[];
-    expect(calls[0]?.state).toBe("permission_blocked");
-    expect(calls[0]?.delegated).toBe(false);
+      const snapshot = host.snapshot();
+      const settlement = snapshot.settlement as JsonObject;
+      const calls = settlement.calls as JsonObject[];
+      expect(calls[0]?.state).toBe("permission_blocked");
+      expect(calls[0]?.delegated).toBe(false);
+    } finally {
+      await capabilities.close();
+    }
   });
 
   test("e01.mutation.permission-ask-is-suspended-without-gateway-execution", async () => {
     const gateway = new GatewayHost();
     const input = runtimeInput({ mode: "default", interactive: true, headless: false });
-    const host = new PermissionedCapabilityHost(gateway, input, capabilityStub());
-    const selected = [request(
-      "ask-call",
-      "file_write",
-      { path: "G:\\agent-zoo\\zyra\\allowed.txt", content: "approval" },
-      0,
-    )];
-    const result = await host.executeBatch(batch(selected), selected);
+    const capabilities = await TypeScriptCapabilityRuntime.open(input);
+    try {
+      const host = new PermissionedCapabilityHost(gateway, input, capabilities);
+      const selected = [request(
+        "ask-call",
+        "file_write",
+        { path: "G:\\agent-zoo\\zyra\\allowed.txt", content: "approval" },
+        0,
+      )];
+      const result = await host.executeBatch(batch(selected), selected);
 
-    expect(gateway.delegated).toHaveLength(0);
-    expect(result[0]?.error).toBe("permission_approval_required");
-    expect(result[0]?.metadata.permission_abort_loop).toBe("true");
-    expect(result[0]?.metadata.canonical_permission_owner).toBe("python-durable-gateway");
+      expect(gateway.delegated).toHaveLength(0);
+      expect(result[0]?.error).toBe("permission_approval_required");
+      expect(result[0]?.metadata.permission_abort_loop).toBe("true");
+      expect(result[0]?.metadata.canonical_permission_owner).toBe("python-durable-gateway");
+    } finally {
+      await capabilities.close();
+    }
   });
 
   test("e01.mutation.permission-mixed-batch-delegates-only-allowed-calls", async () => {
     const gateway = new GatewayHost();
     const input = runtimeInput({ mode: "default", interactive: true, headless: false });
-    const host = new PermissionedCapabilityHost(gateway, input, capabilityStub());
-    const selected = [
-      request("allow-call", "file_read", { path: "G:\\agent-zoo\\zyra\\package.json" }, 0),
-      request("outside-call", "file_write", { path: "C:\\outside\\owned.txt", content: "no" }, 1),
-    ];
-    const result = await host.executeBatch(batch(selected), selected);
+    const capabilities = await TypeScriptCapabilityRuntime.open(input);
+    try {
+      const host = new PermissionedCapabilityHost(gateway, input, capabilities);
+      const selected = [
+        request("allow-call", "file_read", { path: "G:\\agent-zoo\\zyra\\package.json" }, 0),
+        request("outside-call", "file_write", { path: "C:\\outside\\owned.txt", content: "no" }, 1),
+      ];
+      const result = await host.executeBatch(batch(selected), selected);
 
-    expect(gateway.delegated).toHaveLength(1);
-    expect(gateway.delegated[0]?.map((item) => item.toolCallId)).toEqual(["allow-call"]);
-    expect(result.map((item) => item.tool_call_id)).toEqual(["allow-call", "outside-call"]);
-    expect(result[0]?.ok).toBe(true);
-    expect(result[1]?.ok).toBe(false);
-    expect(result[1]?.error).toBe("permission_denied");
-    expect(result[1]?.metadata.permission_reason).toContain("outside the bound workspace");
+      expect(gateway.delegated).toHaveLength(1);
+      expect(gateway.delegated[0]?.map((item) => item.toolCallId)).toEqual(["allow-call"]);
+      expect(result.map((item) => item.tool_call_id)).toEqual(["allow-call", "outside-call"]);
+      expect(result[0]?.ok).toBe(true);
+      expect(result[1]?.ok).toBe(false);
+      expect(result[1]?.error).toBe("permission_denied");
+      expect(result[1]?.metadata.permission_reason).toContain("outside the bound workspace");
 
-    const snapshot = host.snapshot();
-    const settlement = snapshot.settlement as JsonObject;
-    const calls = settlement.calls as JsonObject[];
-    expect(calls.find((item) => item.callId === "allow-call")?.delegated).toBe(true);
-    expect(calls.find((item) => item.callId === "outside-call")?.delegated).toBe(false);
+      const snapshot = host.snapshot();
+      const settlement = snapshot.settlement as JsonObject;
+      const calls = settlement.calls as JsonObject[];
+      expect(calls.find((item) => item.callId === "allow-call")?.delegated).toBe(true);
+      expect(calls.find((item) => item.callId === "outside-call")?.delegated).toBe(false);
+    } finally {
+      await capabilities.close();
+    }
   });
 });
 
