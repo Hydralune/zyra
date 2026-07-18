@@ -14,6 +14,13 @@ import {
   deepClone,
   digestJson,
 } from "../core/runtime-primitives.js";
+import {
+  jsonChars,
+  runtimeId,
+  type ArtifactReceipt,
+  type RuntimeHost,
+  type ToolExecutionResponse,
+} from "../contracts.ts";
 
 export type ToolResultBlockKind =
   | "text"
@@ -113,7 +120,26 @@ export interface ToolResultRuntimeSnapshot {
   accumulators: ToolResultAccumulator[];
   deliveries: ToolResultDelivery[];
   redactionRules: ToolResultRedactionRule[];
+  budgetReplacements?: ToolResultBudgetReplacement[];
   checksum: string;
+}
+
+export interface ToolResultBudgetReplacement {
+  toolCallId: string;
+  sourceDigest: string;
+  maximumCharacters: number;
+  originalCharacters: number;
+  artifact: ArtifactReceipt;
+  result: ToolExecutionResponse;
+  createdAt: number;
+}
+
+export interface BudgetedToolResult {
+  result: ToolExecutionResponse;
+  artifact: ArtifactReceipt | null;
+  originalChars: number;
+  applied: boolean;
+  reapplied: boolean;
 }
 
 export interface ToolResultRuntimeOptions {
@@ -140,6 +166,11 @@ export class ToolResultRuntime {
   private readonly byToolCallId = new Map<string, string>();
   private readonly deliveries = new Map<string, ToolResultDelivery>();
   private readonly redactionRules = new Map<string, ToolResultRedactionRule>();
+  private readonly budgetReplacements = new Map<string, ToolResultBudgetReplacement>();
+  private readonly budgetInFlight = new Map<string, {
+    sourceDigest: string;
+    operation: Promise<BudgetedToolResult>;
+  }>();
 
   constructor(options: ToolResultRuntimeOptions = {}) {
     this.clock = options.clock ?? new SystemClock();
@@ -153,6 +184,119 @@ export class ToolResultRuntime {
     for (const rule of options.redactionRules ?? defaultRedactionRules()) {
       this.registerRedactionRule(rule);
     }
+  }
+
+  /**
+   * Adapted from claude-code-best enforceToolResultBudget. Prior decisions are
+   * reapplied without I/O; fresh oversized results are persisted before the
+   * seen/replacement pair becomes observable.
+   */
+  async enforceToolResultBudget(
+    host: Pick<RuntimeHost, "externalize">,
+    result: ToolExecutionResponse,
+    maxChars: number,
+  ): Promise<BudgetedToolResult> {
+    if (process.env.ZYRA_DISABLE_E04_TOOL_SOURCE_RUNTIME === "1") {
+      throw new Error("e04_tool_source_runtime_disabled");
+    }
+    const sourceDigest = digestJson(result as unknown as JsonValue);
+    const existing = this.budgetReplacements.get(result.tool_call_id);
+    if (existing) {
+      if (existing.sourceDigest !== sourceDigest) {
+        throw new RuntimeInvariantError("tool_result_budget_identity_conflict", {
+          toolCallId: result.tool_call_id,
+        });
+      }
+      return {
+        result: deepClone(existing.result),
+        artifact: deepClone(existing.artifact),
+        originalChars: existing.originalCharacters,
+        applied: true,
+        reapplied: true,
+      };
+    }
+    const pending = this.budgetInFlight.get(result.tool_call_id);
+    if (pending) {
+      if (pending.sourceDigest !== sourceDigest) {
+        throw new RuntimeInvariantError("tool_result_budget_identity_conflict", {
+          toolCallId: result.tool_call_id,
+        });
+      }
+      return pending.operation;
+    }
+    const operation = this.enforceFreshToolResultBudget(
+      host,
+      result,
+      Math.max(1, Math.floor(maxChars)),
+      sourceDigest,
+    );
+    this.budgetInFlight.set(result.tool_call_id, { sourceDigest, operation });
+    try {
+      return await operation;
+    } finally {
+      this.budgetInFlight.delete(result.tool_call_id);
+    }
+  }
+
+  private async enforceFreshToolResultBudget(
+    host: Pick<RuntimeHost, "externalize">,
+    result: ToolExecutionResponse,
+    maxChars: number,
+    sourceDigest: string,
+  ): Promise<BudgetedToolResult> {
+    const originalChars = jsonChars(result.output);
+    if (originalChars <= maxChars) {
+      return { result, artifact: null, originalChars, applied: false, reapplied: false };
+    }
+    const serialized = JSON.stringify(result.output);
+    const artifact = await host.externalize({
+      requestId: runtimeId("artifact_request"),
+      title: "CodeWorker tool result " + result.tool_call_id,
+      kind: "structured_data",
+      extension: ".json",
+      content: serialized,
+      metadata: {
+        source: "typescript_tool_result_budget",
+        tool_call_id: result.tool_call_id,
+        original_chars: originalChars,
+        budget_chars: maxChars,
+      },
+    });
+    const previewChars = Math.max(0, Math.min(maxChars, serialized.length));
+    const replacement: ToolExecutionResponse = {
+      ...result,
+      output: {
+        content_preview: serialized.slice(0, previewChars),
+        truncated: true,
+        original_chars: originalChars,
+        artifact_id: artifact.artifact_id,
+      },
+      artifacts: [...result.artifacts, artifact],
+      metadata: {
+        ...result.metadata,
+        tool_result_budget_applied: "true",
+        tool_result_budget_chars: String(maxChars),
+        tool_result_original_chars: String(originalChars),
+        tool_result_artifact_id: artifact.artifact_id,
+      },
+    };
+    // Commit the pair only after the physical artifact effect has succeeded.
+    this.budgetReplacements.set(result.tool_call_id, {
+      toolCallId: result.tool_call_id,
+      sourceDigest,
+      maximumCharacters: maxChars,
+      originalCharacters: originalChars,
+      artifact: deepClone(artifact),
+      result: deepClone(replacement),
+      createdAt: this.clock.now(),
+    });
+    return {
+      result: replacement,
+      artifact,
+      originalChars,
+      applied: true,
+      reapplied: false,
+    };
   }
 
   begin(input: {
@@ -486,6 +630,9 @@ export class ToolResultRuntime {
       redactionRules: [...this.redactionRules.values()]
         .sort((left, right) => compareStrings(left.ruleId, right.ruleId))
         .map((rule) => deepClone(rule)),
+      budgetReplacements: [...this.budgetReplacements.values()]
+        .sort((left, right) => compareStrings(left.toolCallId, right.toolCallId))
+        .map((replacement) => deepClone(replacement)),
     };
     return { ...body, checksum: digestJson(body) };
   }
@@ -504,6 +651,7 @@ export class ToolResultRuntime {
     this.byToolCallId.clear();
     this.deliveries.clear();
     this.redactionRules.clear();
+    this.budgetReplacements.clear();
     for (const accumulator of snapshot.accumulators) {
       validateAccumulator(accumulator);
       if (this.byToolCallId.has(accumulator.toolCallId)) {
@@ -525,6 +673,14 @@ export class ToolResultRuntime {
     }
     for (const rule of snapshot.redactionRules) {
       this.registerRedactionRule(rule);
+    }
+    for (const replacement of snapshot.budgetReplacements ?? []) {
+      if (digestJson(replacement.result as unknown as JsonValue) === replacement.sourceDigest) {
+        throw new RuntimeInvariantError("tool_result_budget_replacement_is_not_transformed", {
+          toolCallId: replacement.toolCallId,
+        });
+      }
+      this.budgetReplacements.set(replacement.toolCallId, deepClone(replacement));
     }
     this.trimDeliveries();
   }

@@ -182,9 +182,35 @@ export interface QueryLifecycleOptions {
 }
 
 export interface QueryTurnPlan {
+  turnId?: string;
   model: string;
   messageDigest: string;
   inputIds: readonly string[];
+}
+
+export interface QueryAskInput {
+  commands?: readonly string[];
+  prompt: JsonValue;
+  promptUuid?: string;
+  cwd?: string;
+  tools?: readonly string[];
+  maxTurns?: number | null;
+  maxBudgetUsd?: number | null;
+  mutableMessages?: readonly JsonValue[];
+  userSpecifiedModel?: string | null;
+  abortRequested?: boolean;
+  inputId: string;
+  idempotencyKey: string;
+  correlationId: string;
+  createdAt?: string;
+}
+
+export interface QueryLoopContinuation {
+  messagesForQuery: readonly JsonValue[];
+  assistantMessages: readonly JsonValue[];
+  toolResults: readonly JsonValue[];
+  turnCount: number;
+  maxTurns?: number | null;
 }
 
 export interface ToolPlanInput {
@@ -215,15 +241,15 @@ export interface QueryStopDecision {
 const STATUS_TRANSITIONS: Readonly<Record<QueryLifecycleStatus, readonly QueryLifecycleStatus[]>> = {
   created: ["admitted", "cancelled", "failed"],
   admitted: ["queued", "running", "cancelled", "failed"],
-  queued: ["running", "paused", "cancelled", "failed"],
+  queued: ["running", "paused", "completed", "cancelled", "failed"],
   running: ["waiting_tool", "revising", "compacting", "paused", "completed", "failed", "cancelled"],
   waiting_tool: ["revising", "running", "paused", "failed", "cancelled"],
   revising: ["running", "waiting_tool", "compacting", "paused", "completed", "failed", "cancelled"],
   compacting: ["running", "paused", "failed", "cancelled"],
   paused: ["queued", "running", "cancelled", "failed"],
-  completed: [],
-  failed: [],
-  cancelled: [],
+  completed: ["created"],
+  failed: ["created"],
+  cancelled: ["created"],
 };
 
 export class QueryLifecycleRuntime {
@@ -300,6 +326,100 @@ export class QueryLifecycleRuntime {
     return this.project();
   }
 
+  /** Adapted from QueryEngine.ask: product/UI inputs are cropped at admission. */
+  ask(input: QueryAskInput): QueryAdmission {
+    if (process.env.ZYRA_DISABLE_E04_QUERY_SOURCE_RUNTIME === "1") {
+      throw new Error("e04_query_source_runtime_disabled");
+    }
+    const prompt = typeof input.prompt === "string"
+      ? input.prompt
+      : canonicalJson(input.prompt);
+    return this.admit({
+      inputId: input.inputId,
+      kind: "prompt",
+      content: prompt,
+      priority: "interactive",
+      idempotencyKey: input.idempotencyKey,
+      correlationId: input.correlationId,
+      metadata: {
+        source: "claude_query_engine_ask",
+        prompt_uuid: input.promptUuid ?? null,
+        cwd: input.cwd ?? null,
+        command_count: input.commands?.length ?? 0,
+        tool_count: input.tools?.length ?? 0,
+        max_turns: input.maxTurns ?? null,
+        max_budget_usd: input.maxBudgetUsd ?? null,
+        mutable_message_count: input.mutableMessages?.length ?? 0,
+        user_specified_model: input.userSpecifiedModel ?? null,
+        abort_requested: input.abortRequested ?? false,
+      },
+      createdAt: input.createdAt ?? new Date().toISOString(),
+    });
+  }
+
+  resumeForContinuation(correlationId: string): void {
+    if (!this.isTerminal()) return;
+    if (process.env.ZYRA_DISABLE_E04_QUERY_SOURCE_RUNTIME === "1") {
+      throw new Error("e04_query_source_runtime_disabled");
+    }
+    this.restartEpoch += 1;
+    this.stopReason = null;
+    this.terminalError = null;
+    this.activeTurnId = null;
+    this.transition(
+      "created",
+      "query_resume_continuation",
+      "state",
+      correlationId,
+      `query:${this.identity.queryId}:resume:${this.restartEpoch}`,
+      { restart_epoch: this.restartEpoch },
+    );
+    this.bump();
+  }
+
+  /** Adapted from queryLoop's observation-to-next-turn tail. */
+  advanceAfterObservation(input: QueryLoopContinuation): JsonObject {
+    if (process.env.ZYRA_DISABLE_E04_QUERY_SOURCE_RUNTIME === "1") {
+      throw new Error("e04_query_source_runtime_disabled");
+    }
+    const nextTurnCount = input.turnCount + 1;
+    if (input.maxTurns && nextTurnCount > input.maxTurns) {
+      this.recordSameState(
+        "query_max_turns_reached",
+        "state",
+        this.identity.queryId,
+        `query:${this.identity.queryId}:max-turns:${nextTurnCount}`,
+        { max_turns: input.maxTurns, turn_count: nextTurnCount },
+      );
+      this.bump();
+      return { reason: "max_turns", turn_count: nextTurnCount, messages: [] };
+    }
+    const messages = [
+      ...input.messagesForQuery,
+      ...input.assistantMessages,
+      ...input.toolResults,
+    ].map((message) => structuredClone(message));
+    this.recordSameState(
+      "query_recursive_call",
+      "state",
+      this.identity.queryId,
+      `query:${this.identity.queryId}:next-turn:${nextTurnCount}:${digest(messages)}`,
+      {
+        reason: "next_turn",
+        turn_count: nextTurnCount,
+        observation_count: input.toolResults.length,
+        message_digest: digest(messages),
+      },
+    );
+    this.bump();
+    return {
+      reason: "next_turn",
+      turn_count: nextTurnCount,
+      messages,
+      transition: { reason: "next_turn" },
+    };
+  }
+
   admit(input: QueryInput): QueryAdmission {
     const normalized = normalizeInput(input);
     const duplicate = this.findByIdempotencyKey(normalized.idempotencyKey);
@@ -374,7 +494,7 @@ export class QueryLifecycleRuntime {
     const inputIds = plan.inputIds.length > 0 ? [...new Set(plan.inputIds)] : this.dequeue(16).map((item) => item.inputId);
     for (const id of inputIds) if (!this.inputs.has(id)) throw new Error(`turn references unknown input: ${id}`);
     const turn: QueryTurn = {
-      turnId: randomUUID(),
+      turnId: plan.turnId?.trim() || randomUUID(),
       index: this.turns.size,
       status: "sampling",
       model: required(plan.model, "model"),

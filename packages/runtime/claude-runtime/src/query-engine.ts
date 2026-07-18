@@ -15,7 +15,6 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "./contracts.ts";
-import { applyToolResultBudget } from "./budget.ts";
 import { normalizeMessages, resolveModelTurns } from "./model-stream.ts";
 import { RuntimeSession } from "./session.ts";
 import {
@@ -114,6 +113,12 @@ export class ClaudeRuntimeCore {
         input.workerRequestId,
         input.messages,
       );
+    const processedResume = restored
+      ? await e01.processResumedConversation(
+        restored,
+        asString(asObject(input.metadata).cwd, process.cwd()),
+      )
+      : null;
     e01.attachSessionProjection(
       input.messages.map((message) => message as unknown as JsonObject),
     );
@@ -172,6 +177,10 @@ export class ClaudeRuntimeCore {
 
     await emit(restored ? "context_restored" : "session_started", {
       restored: Boolean(restored),
+      resume_process_id: processedResume?.processId ?? null,
+      resume_session_id: processedResume?.sessionId ?? null,
+      resume_content_replacements_seeded:
+        processedResume?.seededContentReplacements ?? false,
       model_name: config.modelName,
       registry_size: registry.list().length,
     });
@@ -540,7 +549,7 @@ export class ClaudeRuntimeCore {
             ? config.maxToolResultChars
             : Math.max(1, config.maxTurnToolResultChars - turnResultChars);
           const budget = Math.min(config.maxToolResultChars, remainingTurnBudget);
-          const budgeted = await applyToolResultBudget(host, result, budget);
+          const budgeted = await e01.enforceToolResultBudget(host, result, budget);
           result = budgeted.result;
           const toolCustody = e01.completeToolExecution({
             callId: result.tool_call_id,
@@ -743,25 +752,41 @@ export class ClaudeRuntimeCore {
              runtime_tool_call_id: item.tool_call_id,
            },
          }));
+        const compactOptions = {
+          trigger: asBoolean(config.runtimeConstraints.force_compact_restore) ? "manual" as const : "auto_threshold" as const,
+          model: config.modelName,
+          contextWindow: Math.max(8_192, Math.ceil(config.maxQueryContextChars / 4)),
+          maxOutputTokens: 8_192,
+          targetTokens: Math.max(2_048, Math.ceil(config.maxQueryContextChars / 8)),
+          preserveRecentMessages: 4,
+          preserveApiRounds: 2,
+          systemPrompt: "Zyra CodeWorker runtime context",
+          customInstructions: "Preserve tool outcomes, artifacts, failures, and pending work.",
+          attachments: [],
+          querySource: "ClaudeRuntimeCore.run",
+          sessionId: input.sessionId,
+        };
         const matureCompact = compactSource.length >= 3
-          ? await e01.compact.compactConversation(
+          ? asBoolean(config.runtimeConstraints.force_compact_restore)
+            ? await e01.compact.compactConversation(
             compactSource,
-            {
-              trigger: asBoolean(config.runtimeConstraints.force_compact_restore) ? "manual" : "auto_threshold",
-              model: config.modelName,
-              contextWindow: Math.max(8_192, Math.ceil(config.maxQueryContextChars / 4)),
-              maxOutputTokens: 8_192,
-              targetTokens: Math.max(2_048, Math.ceil(config.maxQueryContextChars / 8)),
-              preserveRecentMessages: 4,
-              preserveApiRounds: 2,
-              systemPrompt: "Zyra CodeWorker runtime context",
-              customInstructions: "Preserve tool outcomes, artifacts, failures, and pending work.",
-              attachments: [],
-              querySource: "ClaudeRuntimeCore.run",
-            },
+            compactOptions,
             async () => fallbackCompact.summary,
           )
+            : await e01.compact.autoCompactIfNeeded(
+              compactSource,
+              compactOptions,
+              async () => fallbackCompact.summary,
+            )
           : null;
+        if (compactSource.length >= 3 && matureCompact === null) {
+          await emit("context_compaction_skipped", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            reason: "source_runtime_not_compacted",
+            compact_owner: "typescript",
+          });
+        } else {
         const preservedIds = new Set(matureCompact?.boundary.preservedMessageIds ?? fallbackCompact.preserved.map((item) => item.message_id));
         const preserved = session.messages.filter((item) => preservedIds.has(item.message_id));
         const removed = session.messages.filter((item) => !preservedIds.has(item.message_id));
@@ -825,10 +850,19 @@ export class ClaudeRuntimeCore {
           restore_owner: "typescript",
           status: "ready",
         });
+        }
       }
 
       session.completeTurn(turnOk, turnError);
       e01.completeCanonicalTurn(turn.turn_id, turnIndex, turnOk, turnError);
+      const sourceContinuation = e01.advanceQueryLoop({
+        messagesForQuery: [{ turn_id: turn.turn_id, prompt }],
+        assistantMessages: [{ ok: turnOk, error: turnError }],
+        toolResults: stepSummaries.slice(-steps.length),
+        turnCount: turnIndex,
+        maxTurns: turnLimit,
+      });
+      await emit("upstream_query_continuation", sourceContinuation);
       await emit("turn_completed", {
         turn_id: turn.turn_id,
         turn_index: turnIndex,
@@ -954,6 +988,7 @@ export class ClaudeRuntimeCore {
       model_stream_ok: modelStreamOk,
       runtime_budget_state_ok: runtimeBudgetStateOk,
     });
+    e01.finishCanonicalQuery(ok, stoppedReason);
     session.finish(ok);
     await emit(ok ? "session_completed" : "session_failed", {
       ok,

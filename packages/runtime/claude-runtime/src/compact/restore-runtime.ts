@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { isAbsolute, normalize, relative, resolve } from "node:path";
+import { dirname, isAbsolute, normalize, relative, resolve } from "node:path";
 
 import { asBoolean, asObject, asString, type JsonObject, type JsonValue } from "../contracts.ts";
 import { ContextTokenRuntime } from "../context/token-runtime.ts";
@@ -58,7 +58,62 @@ export interface CompactRestoreSnapshot {
   policy: RestorePolicy;
   candidates: RestoreCandidate[];
   receipts: RestoreReceipt[];
+  resumeProcesses?: ResumeProcessReceipt[];
   checksum: string;
+}
+
+export interface ResumeConversationInput {
+  sessionId: string | null;
+  messages: JsonValue[];
+  fileHistorySnapshots?: JsonValue[];
+  contentReplacements?: JsonValue[];
+  agentName?: string | null;
+  agentColor?: string | null;
+  agentSetting?: string | null;
+  mode?: string | null;
+  contextCollapseCommits?: JsonValue[];
+  contextCollapseSnapshot?: JsonValue | null;
+  metadata?: JsonObject;
+}
+
+export interface ProcessResumeOptions {
+  forkSession: boolean;
+  sessionIdOverride?: string;
+  transcriptPath?: string;
+  includeAttribution?: boolean;
+}
+
+export interface ProcessResumeContext {
+  currentSessionId: string;
+  currentWorkspace: string;
+  availableAgentSettings?: readonly string[];
+}
+
+export interface ProcessedResume {
+  processId: string;
+  sessionId: string;
+  sourceSessionId: string | null;
+  forked: boolean;
+  messages: JsonValue[];
+  fileHistorySnapshots: JsonValue[];
+  contentReplacements: JsonValue[];
+  seededContentReplacements: boolean;
+  agentName: string | null;
+  agentColor: string | null;
+  restoredAgentSetting: string | null;
+  mode: string | null;
+  workspace: string;
+  contextCollapseCommits: JsonValue[];
+  contextCollapseSnapshot: JsonValue | null;
+  attachments: CompactAttachmentBlock[];
+  metadata: JsonObject;
+}
+
+export interface ResumeProcessReceipt {
+  processId: string;
+  inputDigest: string;
+  result: ProcessedResume;
+  createdAt: string;
 }
 
 export interface RestoreReader {
@@ -69,12 +124,86 @@ export class CompactRestoreRuntime {
   private readonly tokens: ContextTokenRuntime;
   private readonly candidates = new Map<string, RestoreCandidate>();
   private readonly receipts: RestoreReceipt[] = [];
+  private readonly resumeProcesses = new Map<string, ResumeProcessReceipt>();
   private policy: RestorePolicy;
   private revision = 0;
 
   constructor(policy: Partial<RestorePolicy> = {}) {
     this.policy = normalizePolicy(policy);
     this.tokens = new ContextTokenRuntime(this.policy.maximumTotalTokens);
+  }
+
+  /**
+   * Adapted from claude-code-best processResumedConversation. Global session,
+   * worktree and agent registries become explicit Zyra inputs and a durable
+   * receipt; forked restores keep the fresh session identity and seed content
+   * replacements, while non-fork restores adopt the resumed identity.
+   */
+  async processResumedConversation(
+    input: ResumeConversationInput,
+    options: ProcessResumeOptions,
+    context: ProcessResumeContext,
+  ): Promise<ProcessedResume> {
+    if (process.env.ZYRA_DISABLE_E04_COMPACT_SOURCE_RUNTIME === "1") {
+      throw new Error("e04_compact_source_runtime_disabled");
+    }
+    const sourceSessionId = input.sessionId?.trim() || null;
+    const sessionId = options.forkSession
+      ? required(context.currentSessionId, "current session id")
+      : required(options.sessionIdOverride?.trim() || sourceSessionId || context.currentSessionId, "resumed session id");
+    const workspace = options.forkSession || !options.transcriptPath
+      ? normalize(resolve(context.currentWorkspace))
+      : normalize(dirname(resolve(options.transcriptPath)));
+    const available = new Set(context.availableAgentSettings ?? []);
+    const requestedAgent = input.agentSetting?.trim() || null;
+    const restoredAgentSetting = requestedAgent !== null
+      && (available.size === 0 || available.has(requestedAgent))
+      ? requestedAgent
+      : null;
+    const inputDigest = digest({
+      input,
+      options,
+      context: {
+        currentSessionId: context.currentSessionId,
+        currentWorkspace: context.currentWorkspace,
+        availableAgentSettings: [...available].sort(),
+      },
+    });
+    const processId = `resume-${inputDigest.slice(0, 24)}`;
+    const existing = this.resumeProcesses.get(processId);
+    if (existing) return structuredClone(existing.result);
+    const result: ProcessedResume = {
+      processId,
+      sessionId,
+      sourceSessionId,
+      forked: options.forkSession,
+      messages: structuredClone(input.messages),
+      fileHistorySnapshots: structuredClone(input.fileHistorySnapshots ?? []),
+      contentReplacements: structuredClone(input.contentReplacements ?? []),
+      seededContentReplacements: options.forkSession && (input.contentReplacements?.length ?? 0) > 0,
+      agentName: input.agentName?.trim() || null,
+      agentColor: input.agentColor === "default" ? null : (input.agentColor?.trim() || null),
+      restoredAgentSetting,
+      mode: input.mode?.trim() || null,
+      workspace,
+      contextCollapseCommits: structuredClone(input.contextCollapseCommits ?? []),
+      contextCollapseSnapshot: structuredClone(input.contextCollapseSnapshot ?? null),
+      attachments: this.select(),
+      metadata: {
+        ...sanitizeMetadata(input.metadata ?? {}),
+        source: "claude_session_restore_process",
+        attribution_requested: options.includeAttribution === true,
+        adopted_transcript: !options.forkSession && Boolean(options.transcriptPath),
+      },
+    };
+    this.resumeProcesses.set(processId, {
+      processId,
+      inputDigest,
+      result: structuredClone(result),
+      createdAt: new Date().toISOString(),
+    });
+    this.revision += 1;
+    return structuredClone(result);
   }
 
   restore_module(value: JsonObject): JsonObject {
@@ -271,6 +400,7 @@ export class CompactRestoreRuntime {
       policy: structuredClone(this.policy),
       candidates: structuredClone([...this.candidates.values()]),
       receipts: structuredClone(this.receipts),
+      resumeProcesses: structuredClone([...this.resumeProcesses.values()]),
     };
     return { ...unsigned, checksum: digest(unsigned) };
   }
@@ -286,6 +416,13 @@ export class CompactRestoreRuntime {
       this.candidates.set(candidate.candidateId, structuredClone(candidate));
     }
     this.receipts.splice(0, this.receipts.length, ...structuredClone(snapshot.receipts));
+    this.resumeProcesses.clear();
+    for (const receipt of snapshot.resumeProcesses ?? []) {
+      if (receipt.processId !== `resume-${receipt.inputDigest.slice(0, 24)}`) {
+        throw new Error(`compact resume process digest mismatch: ${receipt.processId}`);
+      }
+      this.resumeProcesses.set(receipt.processId, structuredClone(receipt));
+    }
     this.revision = snapshot.revision;
   }
 

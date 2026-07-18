@@ -435,12 +435,31 @@ export class ContextCompactionRuntime {
     const auto = asObject(custody.envelope.sourceCustodyAutoCompaction);
     if (!asBoolean(auto.required, false)) return null;
     const preserved = Array.isArray(auto.preserved) ? auto.preserved : [];
-    return this.compactConversation(custody.messages, {
-      ...options,
-      contextWindow,
-      preserveRecentMessages: Math.max(options.preserveRecentMessages, preserved.length),
-      trigger: "auto_threshold",
-    }, summarize);
+    const sessionId = options.sessionId ?? "default";
+    try {
+      // Preserve upstream ordering: session-memory compaction is attempted
+      // before the legacy summary path and both run cleanup on success.
+      const sessionMemory = await this.trySessionMemoryCompaction(
+        custody.messages,
+        { ...options, contextWindow, trigger: "session_memory" },
+        summarize,
+      );
+      if (sessionMemory) {
+        this.sourceCustody.recordAutoCompactionSuccess(sessionId);
+        return sessionMemory;
+      }
+      const result = await this.compactConversation(custody.messages, {
+        ...options,
+        contextWindow,
+        preserveRecentMessages: Math.max(options.preserveRecentMessages, preserved.length),
+        trigger: "auto_threshold",
+      }, summarize);
+      this.sourceCustody.recordAutoCompactionSuccess(sessionId);
+      return result;
+    } catch {
+      this.sourceCustody.recordAutoCompactionFailure(sessionId);
+      return null;
+    }
   }
 
   stripImagesFromMessages(messages: readonly CompactMessage[]): CompactMessage[] {

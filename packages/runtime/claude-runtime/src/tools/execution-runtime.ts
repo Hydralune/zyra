@@ -388,30 +388,54 @@ export class ToolExecutionRuntime {
   }
 
   schedule(turnId: string, callIds: readonly string[], maximumConcurrency = 10): ToolBatch[] {
+    return this.runTools(turnId, callIds, maximumConcurrency);
+  }
+
+  /**
+   * Adapted from claude-code-best/src/services/tools/toolOrchestration.ts
+   * runTools/partitionToolCalls. Zyra keeps leases, permissions and effects in
+   * this runtime, but retains the upstream consecutive-batch ordering.
+   */
+  runTools(turnId: string, callIds: readonly string[], maximumConcurrency = 10): ToolBatch[] {
+    if (process.env.ZYRA_DISABLE_E04_TOOL_SOURCE_RUNTIME === "1") {
+      throw new Error("e04_tool_source_runtime_disabled");
+    }
     const calls = callIds.map((id) => this.requireCall(id));
     if (calls.some((call) => call.turnId !== turnId)) throw new Error("tool batch spans multiple turns");
     if (calls.some((call) => call.state !== "queued")) throw new Error("tool batch contains unqueued call");
-    const readOnly: ToolInvocation[] = [];
-    const serialGroups = new Map<string, ToolInvocation[]>();
-    for (const call of calls) {
-      const spec = this.requireSpec(call.toolName);
-      if (spec.readOnly) readOnly.push(call);
-      else {
-        const group = serialGroups.get(spec.concurrencyKey) ?? [];
-        group.push(call);
-        serialGroups.set(spec.concurrencyKey, group);
+    const partitions = calls.reduce<Array<{
+      isConcurrencySafe: boolean;
+      blocks: ToolInvocation[];
+    }>>((acc, call) => {
+      const tool = this.requireSpec(call.toolName);
+      let isConcurrencySafe = false;
+      try {
+        isConcurrencySafe = Boolean(tool.readOnly);
+      } catch {
+        // A failed safety classifier is side-effecting by default.
+        isConcurrencySafe = false;
       }
-    }
+      if (isConcurrencySafe && acc[acc.length - 1]?.isConcurrencySafe) {
+        acc[acc.length - 1]!.blocks.push(call);
+      } else if (!isConcurrencySafe && acc[acc.length - 1]?.isConcurrencySafe === false) {
+        acc[acc.length - 1]!.blocks.push(call);
+      } else {
+        acc.push({ isConcurrencySafe, blocks: [call] });
+      }
+      return acc;
+    }, []);
     const result: ToolBatch[] = [];
     const concurrency = Math.max(1, Math.floor(maximumConcurrency));
-    for (let index = 0; index < readOnly.length; index += concurrency) {
-      const slice = readOnly.slice(index, index + concurrency);
-      result.push(createBatch(turnId, slice, concurrency, true, this.specs));
-    }
-    const maximumSerialDepth = Math.max(0, ...[...serialGroups.values()].map((items) => items.length));
-    for (let depth = 0; depth < maximumSerialDepth; depth += 1) {
-      const slice = [...serialGroups.values()].map((items) => items[depth]).filter(Boolean);
-      if (slice.length > 0) result.push(createBatch(turnId, slice, Math.min(concurrency, slice.length), false, this.specs));
+    for (const { isConcurrencySafe, blocks } of partitions) {
+      if (isConcurrencySafe) {
+        for (let index = 0; index < blocks.length; index += concurrency) {
+          const slice = blocks.slice(index, index + concurrency);
+          result.push(createBatch(turnId, slice, Math.min(concurrency, slice.length), true, this.specs));
+        }
+      } else {
+        // The host observes readOnly=false and executes these blocks serially.
+        result.push(createBatch(turnId, blocks, 1, false, this.specs));
+      }
     }
     this.batches.push(...result);
     this.revision += 1;

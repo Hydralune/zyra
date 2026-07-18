@@ -1,5 +1,8 @@
 import { ContextCompactionRuntime } from "../compact/context-runtime.ts";
-import { CompactRestoreRuntime } from "../compact/restore-runtime.ts";
+import {
+  CompactRestoreRuntime,
+  type ProcessedResume,
+} from "../compact/restore-runtime.ts";
 import { CompactSummaryRuntime } from "../compact/summary-runtime.ts";
 import { ContextAssemblyRuntime } from "../context/assembly-runtime.ts";
 import { ContextCacheRuntime } from "../context/cache-runtime.ts";
@@ -7,7 +10,13 @@ import {
   ContextTokenRuntime,
   type ContinuationBudgetDecision,
 } from "../context/token-runtime.ts";
-import type { JsonObject, JsonValue, ToolStep } from "../contracts.ts";
+import type {
+  JsonObject,
+  JsonValue,
+  RuntimeHost,
+  ToolExecutionResponse,
+  ToolStep,
+} from "../contracts.ts";
 import {
   durableMessageRole,
   normalizedProviderBaseUrl,
@@ -918,6 +927,26 @@ export class E01RuntimeCoordinator {
   }
 
   beginCanonicalTurn(turnId: string, turnIndex: number, prompt: string): void {
+    const queryPrompt = prompt.trim() || `[tool-only turn ${turnIndex}]`;
+    this.query.resumeForContinuation(turnId);
+    this.query.ask({
+      commands: [],
+      prompt: queryPrompt,
+      promptUuid: `${turnId}:prompt`,
+      cwd: "zyra-workspace",
+      tools: this.tools.snapshot().specs.map((spec) => spec.name),
+      maxTurns: this.executionPlan.snapshot().plans[0]?.budget.maximumTurns ?? null,
+      mutableMessages: [],
+      inputId: `${turnId}:user`,
+      idempotencyKey: `${turnId}:user`,
+      correlationId: turnId,
+    });
+    this.query.startTurn({
+      turnId,
+      model: this.provider.snapshot().activeModel || "zyra-runtime-model",
+      messageDigest: digest({ turn_id: turnId, prompt: queryPrompt }),
+      inputIds: [],
+    });
     const messageId = prompt.trim() ? `${turnId}:user` : null;
     this.custody.beginTurn({
       turnId,
@@ -1010,6 +1039,33 @@ export class E01RuntimeCoordinator {
       byCallId.set(callId, step);
       callIds.push(callId);
     }
+    const querySnapshot = this.query.snapshot();
+    if (!querySnapshot.turns.some((turn) => turn.turnId === turnId)) {
+      this.query.startTurn({
+        turnId,
+        model: this.provider.snapshot().activeModel || "zyra-runtime-model",
+        messageDigest: digest({ turn_id: turnId, restored: true }),
+        inputIds: [],
+      });
+    }
+    const existingQueryCalls = new Map(
+      this.query.snapshot().toolCalls.map((call) => [call.toolCallId, call]),
+    );
+    const existingQueryCallCount = callIds.filter((callId) => existingQueryCalls.has(callId)).length;
+    if (existingQueryCallCount !== 0 && existingQueryCallCount !== callIds.length) {
+      throw new Error("restored query tool batch is only partially present");
+    }
+    if (existingQueryCallCount === 0 && callIds.length > 0) {
+      this.query.planTools(turnId, callIds.map((callId) => {
+        const step = byCallId.get(callId)!;
+        return {
+          toolCallId: callId,
+          name: step.tool_name,
+          arguments: asRuntimeObject(step.arguments),
+          readOnly: this.tools.snapshot().specs.find((spec) => spec.name === step.tool_name)?.readOnly ?? false,
+        };
+      }));
+    }
     if (restoredCallCount > 0) {
       if (restoredCallCount !== callIds.length) {
         throw new Error("restored tool batch is only partially present");
@@ -1032,7 +1088,7 @@ export class E01RuntimeCoordinator {
       }
       return restoredBatches;
     }
-    const batches: OwnedToolBatch[] = this.tools.schedule(
+    const batches: OwnedToolBatch[] = this.tools.runTools(
       turnId,
       callIds,
       maximumConcurrency,
@@ -1087,6 +1143,8 @@ export class E01RuntimeCoordinator {
         120_000,
       );
       this.tools.start(callId, lease.leaseId);
+      const queryCall = this.query.snapshot().toolCalls.find((call) => call.toolCallId === callId);
+      if (queryCall?.status === "planned") this.query.startTool(callId);
       const result = this.toolResults.begin({
         resultId: `${callId}:result`,
         toolCallId: callId,
@@ -1148,6 +1206,14 @@ export class E01RuntimeCoordinator {
       summary: input.summary,
       errorCode: input.ok ? null : (input.error || "tool_failed"),
       errorMessage: input.ok ? null : (input.error || input.summary),
+    });
+    this.query.recordToolResult({
+      toolCallId: input.callId,
+      ok: input.ok,
+      summary: input.summary,
+      result: input.output,
+      error: input.error,
+      resultChars: JSON.stringify(input.output).length,
     });
     const custodyBeforeSettlement = this.custody.tool(input.callId);
     if (custodyBeforeSettlement.permissionMode === "delegated_host") {
@@ -1259,12 +1325,33 @@ export class E01RuntimeCoordinator {
     };
   }
 
+  enforceToolResultBudget(
+    host: Pick<RuntimeHost, "externalize">,
+    result: ToolExecutionResponse,
+    maximumCharacters: number,
+  ) {
+    return this.toolResults.enforceToolResultBudget(
+      host,
+      result,
+      maximumCharacters,
+    );
+  }
+
   completeCanonicalTurn(
     turnId: string,
     turnIndex: number,
     ok: boolean,
     error: string | null,
   ): void {
+    const queryTurn = this.query.snapshot().turns.find((turn) => turn.turnId === turnId);
+    if (queryTurn && queryTurn.status !== "completed") {
+      this.query.completeTurn(turnId, {
+        messageDigest: digest({ turn_id: turnId, ok, error }),
+        inputTokens: 0,
+        outputTokens: 0,
+        stopReason: ok ? "tool_use" : (error || "tool_error"),
+      });
+    }
     const content = ok
       ? `Turn ${turnIndex} completed.`
       : `Turn ${turnIndex} failed: ${error || "tool_error"}`;
@@ -1306,6 +1393,62 @@ export class E01RuntimeCoordinator {
       status: ok ? "completed" : "failed",
       error,
     });
+  }
+
+  advanceQueryLoop(input: {
+    messagesForQuery: readonly JsonValue[];
+    assistantMessages: readonly JsonValue[];
+    toolResults: readonly JsonValue[];
+    turnCount: number;
+    maxTurns: number | null;
+  }): JsonObject {
+    return this.query.advanceAfterObservation(input);
+  }
+
+  processResumedConversation(
+    restored: JsonObject,
+    currentWorkspace: string,
+  ): Promise<ProcessedResume> {
+    const messages = Array.isArray(restored.messages)
+      ? restored.messages as JsonValue[]
+      : [];
+    const metadata = restored.metadata !== null && typeof restored.metadata === "object"
+      && !Array.isArray(restored.metadata)
+      ? restored.metadata as JsonObject
+      : {};
+    return this.compactRestore.processResumedConversation({
+      sessionId: asRuntimeString(restored.session_id, this.sessionId),
+      messages,
+      fileHistorySnapshots: Array.isArray(restored.file_history_snapshots)
+        ? restored.file_history_snapshots as JsonValue[]
+        : [],
+      contentReplacements: Array.isArray(restored.content_replacements)
+        ? restored.content_replacements as JsonValue[]
+        : [],
+      agentName: asRuntimeString(restored.agent_name, "") || null,
+      agentColor: asRuntimeString(restored.agent_color, "") || null,
+      agentSetting: asRuntimeString(restored.agent_setting, "") || null,
+      mode: asRuntimeString(restored.mode, "") || null,
+      contextCollapseCommits: Array.isArray(restored.context_collapse_commits)
+        ? restored.context_collapse_commits as JsonValue[]
+        : [],
+      contextCollapseSnapshot: restored.context_collapse_snapshot ?? null,
+      metadata,
+    }, {
+      forkSession: false,
+      sessionIdOverride: this.sessionId,
+    }, {
+      currentSessionId: this.sessionId,
+      currentWorkspace,
+    });
+  }
+
+  finishCanonicalQuery(ok: boolean, reason: string | null): void {
+    const project = this.query.project();
+    if (/completed|failed|cancelled/.test(asRuntimeString(project.status, ""))) return;
+    const normalized = sourceQueryStopReason(reason, ok);
+    if (ok) this.query.finish(normalized);
+    else this.query.fail(normalized, reason || "runtime_failed");
   }
 
   recordTool(operation: string, payload: O, effect = false): TransitionReceipt {
@@ -2444,6 +2587,20 @@ export class E01RuntimeCoordinator {
 
 function asRuntimeString(value: JsonValue | undefined, fallback: string): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function sourceQueryStopReason(
+  value: string | null,
+  ok: boolean,
+): import("../query/lifecycle-runtime.ts").QueryStopReason {
+  if (ok) return "end_turn";
+  if (value === "max_turns_exceeded") return "max_turns";
+  if (value === "user_cancelled") return "user_cancelled";
+  if (value === "model_error" || value === "model_stream_failed") return "model_error";
+  if (value === "permission_denied" || value === "permission_suspended") return "permission_denied";
+  if (value === "empty_query_turn") return "empty_turn";
+  if (value?.includes("tool") || value?.includes("schema")) return "tool_error";
+  return "runtime_invariant";
 }
 
 function asRuntimeObject(value: JsonValue | undefined): JsonObject {

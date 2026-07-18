@@ -46,6 +46,9 @@ export interface AutoCompactionPlan {
   required: boolean;
   firstKeptIndex: number;
   preserved: CustodyCompactionMessage[];
+  reason?: "disabled" | "circuit_breaker" | "below_threshold" | "threshold_reached";
+  consecutiveFailures?: number;
+  phaseTrace?: string[];
 }
 
 export interface SummaryStreamState {
@@ -64,6 +67,7 @@ export interface CompactionSourceCustodySnapshot {
   lastPartialBoundary: Record<string, CompactBoundary>;
   lastSessionMemory: Record<string, SessionMemoryCompactionResult>;
   lastSummaryStream: Record<string, SummaryStreamState>;
+  consecutiveAutoCompactionFailures?: Record<string, number>;
 }
 
 export type SummaryStreamEvent =
@@ -108,6 +112,13 @@ export class CompactionSourceCustodyRuntime {
   private readonly lastPartialBoundary = new Map<string, CompactBoundary>();
   private readonly lastSessionMemory = new Map<string, SessionMemoryCompactionResult>();
   private readonly lastSummaryStream = new Map<string, SummaryStreamState>();
+  private readonly consecutiveAutoCompactionFailures = new Map<string, number>();
+
+  assertSourceRuntimeEnabled(): void {
+    if (process.env.ZYRA_DISABLE_E04_COMPACT_SOURCE_RUNTIME === "1") {
+      throw new Error("e04_compact_source_runtime_disabled");
+    }
+  }
 
   pendingCacheEdits(sessionId: string): readonly string[] {
     return [...(this.pendingEdits.get(sessionId) ?? [])];
@@ -212,6 +223,34 @@ export class CompactionSourceCustodyRuntime {
     messages: readonly CustodyCompactionMessage[];
     keepLastMessages: number;
   }): AutoCompactionPlan {
+    const sessionId = input.sessionId ?? "default";
+    const consecutiveFailures = this.consecutiveAutoCompactionFailures.get(sessionId) ?? 0;
+    if (process.env.ZYRA_DISABLE_E04_COMPACT_SOURCE_RUNTIME === "1") {
+      const plan: AutoCompactionPlan = {
+        required: false,
+        firstKeptIndex: 0,
+        preserved: [],
+        reason: "disabled",
+        consecutiveFailures,
+        phaseTrace: ["disabled"],
+      };
+      if (input.sessionId) this.lastAutoCompaction.set(input.sessionId, cloneValue(plan));
+      return plan;
+    }
+    // Adapted from upstream autoCompactIfNeeded: after three consecutive
+    // failures the session stops issuing doomed compaction effects.
+    if (consecutiveFailures >= 3) {
+      const plan: AutoCompactionPlan = {
+        required: false,
+        firstKeptIndex: 0,
+        preserved: [],
+        reason: "circuit_breaker",
+        consecutiveFailures,
+        phaseTrace: ["circuit_breaker"],
+      };
+      if (input.sessionId) this.lastAutoCompaction.set(input.sessionId, cloneValue(plan));
+      return plan;
+    }
     const required = this.shouldAutoCompact(input);
     const firstKeptIndex = required
       ? Math.max(0, input.messages.length - Math.max(1, input.keepLastMessages))
@@ -220,9 +259,24 @@ export class CompactionSourceCustodyRuntime {
       required,
       firstKeptIndex,
       preserved: cloneValue(input.messages.slice(firstKeptIndex)),
+      reason: required ? "threshold_reached" as const : "below_threshold" as const,
+      consecutiveFailures,
+      phaseTrace: required
+        ? ["threshold_reached", "session_memory_first", "legacy_compaction_fallback"]
+        : ["below_threshold"],
     };
     if (input.sessionId) this.lastAutoCompaction.set(input.sessionId, cloneValue(plan));
     return plan;
+  }
+
+  recordAutoCompactionSuccess(sessionId: string): void {
+    this.consecutiveAutoCompactionFailures.set(sessionId, 0);
+  }
+
+  recordAutoCompactionFailure(sessionId: string): number {
+    const next = (this.consecutiveAutoCompactionFailures.get(sessionId) ?? 0) + 1;
+    this.consecutiveAutoCompactionFailures.set(sessionId, next);
+    return next;
   }
 
   annotateBoundaryWithPreservedSegment(
@@ -347,6 +401,7 @@ export class CompactionSourceCustodyRuntime {
   }
 
   applyCompactionCustody(input: unknown): MicrocompactResult | null {
+    this.assertSourceRuntimeEnabled();
     const record = recordOf(input);
     if (!record || !Array.isArray(record.messages)) return null;
     const sessionId = String(record.sessionId ?? "default");
@@ -419,6 +474,7 @@ export class CompactionSourceCustodyRuntime {
       lastPartialBoundary: Object.fromEntries([...this.lastPartialBoundary].map(([key, value]) => [key, cloneValue(value)])),
       lastSessionMemory: Object.fromEntries([...this.lastSessionMemory].map(([key, value]) => [key, cloneValue(value)])),
       lastSummaryStream: Object.fromEntries([...this.lastSummaryStream].map(([key, value]) => [key, cloneValue(value)])),
+      consecutiveAutoCompactionFailures: Object.fromEntries(this.consecutiveAutoCompactionFailures),
     };
   }
 
@@ -437,6 +493,10 @@ export class CompactionSourceCustodyRuntime {
     for (const [key, value] of Object.entries(snapshot.lastSessionMemory ?? {})) this.lastSessionMemory.set(key, cloneValue(value));
     this.lastSummaryStream.clear();
     for (const [key, value] of Object.entries(snapshot.lastSummaryStream ?? {})) this.lastSummaryStream.set(key, cloneValue(value));
+    this.consecutiveAutoCompactionFailures.clear();
+    for (const [key, value] of Object.entries(snapshot.consecutiveAutoCompactionFailures ?? {})) {
+      this.consecutiveAutoCompactionFailures.set(key, Math.max(0, Math.floor(value)));
+    }
   }
 }
 
