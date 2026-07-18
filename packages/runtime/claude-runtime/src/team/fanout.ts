@@ -3106,6 +3106,559 @@ export class TeamMembershipRuntime {
   }
 }
 
+export interface FanoutRepairPlan {
+  repairPlanId: string;
+  fanoutPlanId: string;
+  parentTaskId: string;
+  idempotencyKey: string;
+  failedBranchIds: string[];
+  replacementBranchIds: string[];
+  maximumAttempts: number;
+  state:
+    | "planned"
+    | "dispatching"
+    | "collecting"
+    | "reconciled"
+    | "failed"
+    | "cancelled";
+  createdAt: string;
+  updatedAt: string;
+  terminalAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface FanoutRepairAttempt {
+  repairAttemptId: string;
+  repairPlanId: string;
+  failedBranchId: string;
+  replacementBranchId: string;
+  workerId: string;
+  leaseId: string;
+  attempt: number;
+  state:
+    | "reserved"
+    | "dispatched"
+    | "completed"
+    | "failed"
+    | "expired"
+    | "cancelled";
+  resultDigest: string;
+  errorCode: string;
+  reservedAt: string;
+  settledAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface FanoutRepairEvidence {
+  evidenceId: string;
+  repairPlanId: string;
+  repairAttemptId: string;
+  failedBranchId: string;
+  replacementBranchId: string;
+  originalResultDigest: string;
+  replacementResultDigest: string;
+  equivalent: boolean;
+  verifierId: string;
+  evidenceDigest: string;
+  verifiedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface FanoutRepairSnapshot {
+  plans: FanoutRepairPlan[];
+  attempts: FanoutRepairAttempt[];
+  evidence: FanoutRepairEvidence[];
+  planByIdempotencyKey: [string, string][];
+  activePlanByFanout: [string, string][];
+}
+
+function assertFanoutRepairPlan(value: FanoutRepairPlan): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.repairPlanId ||
+    !value.fanoutPlanId ||
+    !value.parentTaskId ||
+    !value.idempotencyKey ||
+    !value.failedBranchIds.length ||
+    value.maximumAttempts < 1 ||
+    new Set(value.failedBranchIds).size !== value.failedBranchIds.length ||
+    new Set(value.replacementBranchIds).size !==
+      value.replacementBranchIds.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "fanout_repair_plan_corrupt",
+      `fanout repair plan ${value.repairPlanId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertFanoutRepairAttempt(value: FanoutRepairAttempt): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.repairAttemptId ||
+    !value.repairPlanId ||
+    !value.failedBranchId ||
+    !value.replacementBranchId ||
+    !value.workerId ||
+    !value.leaseId ||
+    value.attempt < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "fanout_repair_attempt_corrupt",
+      `fanout repair attempt ${value.repairAttemptId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertFanoutRepairEvidence(value: FanoutRepairEvidence): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.evidenceId ||
+    !value.repairPlanId ||
+    !value.repairAttemptId ||
+    !value.failedBranchId ||
+    !value.replacementBranchId ||
+    !value.replacementResultDigest ||
+    !value.verifierId ||
+    !value.evidenceDigest ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "fanout_repair_evidence_corrupt",
+      `fanout repair evidence ${value.evidenceId || "<empty>"} is corrupt`,
+    );
+}
+
+export class FanoutRepairRuntime {
+  private plans = new Map<string, FanoutRepairPlan>();
+  private attempts = new Map<string, FanoutRepairAttempt[]>();
+  private evidence = new Map<string, FanoutRepairEvidence[]>();
+  private planByIdempotencyKey = new Map<string, string>();
+  private activePlanByFanout = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  plan(input: {
+    repairPlanId?: string;
+    fanoutPlanId: string;
+    parentTaskId: string;
+    idempotencyKey: string;
+    failedBranchIds: readonly string[];
+    maximumAttempts: number;
+  }): FanoutRepairPlan {
+    const duplicateId = this.planByIdempotencyKey.get(input.idempotencyKey);
+    if (duplicateId) return structuredClone(this.requirePlan(duplicateId));
+    if (this.activePlanByFanout.has(input.fanoutPlanId))
+      throw new E03RuntimeError(
+        "fanout_repair_plan_active",
+        `fanout ${input.fanoutPlanId} already has an active repair plan`,
+      );
+    const repairPlanId = input.repairPlanId ?? createId("fanout-repair-plan");
+    const now = this.clock.now();
+    const payload = {
+      repairPlanId,
+      fanoutPlanId: input.fanoutPlanId,
+      parentTaskId: input.parentTaskId,
+      idempotencyKey: input.idempotencyKey,
+      failedBranchIds: [...new Set(input.failedBranchIds)].sort(),
+      replacementBranchIds: [] as string[],
+      maximumAttempts: input.maximumAttempts,
+      state: "planned" as const,
+      createdAt: now,
+      updatedAt: now,
+      terminalAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const plan = { ...payload, digest: digest(payload) };
+    assertFanoutRepairPlan(plan);
+    this.plans.set(repairPlanId, plan);
+    this.attempts.set(repairPlanId, []);
+    this.evidence.set(repairPlanId, []);
+    this.planByIdempotencyKey.set(input.idempotencyKey, repairPlanId);
+    this.activePlanByFanout.set(input.fanoutPlanId, repairPlanId);
+    return structuredClone(plan);
+  }
+
+  reserve(input: {
+    repairAttemptId?: string;
+    repairPlanId: string;
+    expectedRevision: number;
+    failedBranchId: string;
+    replacementBranchId: string;
+    workerId: string;
+    leaseId: string;
+  }): FanoutRepairAttempt {
+    const plan = this.requirePlan(input.repairPlanId);
+    this.assertPlanRevision(plan, input.expectedRevision);
+    if (!["planned", "dispatching", "collecting"].includes(plan.state))
+      throw new E03RuntimeError(
+        "fanout_repair_reserve_state",
+        `fanout repair plan ${plan.repairPlanId} is ${plan.state}`,
+      );
+    if (!plan.failedBranchIds.includes(input.failedBranchId))
+      throw new E03RuntimeError(
+        "fanout_repair_branch_unknown",
+        `fanout repair branch ${input.failedBranchId} is unknown`,
+      );
+    const entries = this.attemptEntries(plan.repairPlanId);
+    const attemptsForBranch = entries.filter(
+      (value) => value.failedBranchId === input.failedBranchId,
+    );
+    if (attemptsForBranch.length >= plan.maximumAttempts)
+      throw new E03RuntimeError(
+        "fanout_repair_attempts_exhausted",
+        `fanout repair branch ${input.failedBranchId} exhausted attempts`,
+      );
+    if (
+      entries.some(
+        (value) =>
+          value.replacementBranchId === input.replacementBranchId ||
+          (value.failedBranchId === input.failedBranchId &&
+            ["reserved", "dispatched"].includes(value.state)),
+      )
+    )
+      throw new E03RuntimeError(
+        "fanout_repair_attempt_conflict",
+        `fanout repair replacement ${input.replacementBranchId} conflicts`,
+      );
+    const payload = {
+      repairAttemptId:
+        input.repairAttemptId ?? createId("fanout-repair-attempt"),
+      repairPlanId: plan.repairPlanId,
+      failedBranchId: input.failedBranchId,
+      replacementBranchId: input.replacementBranchId,
+      workerId: input.workerId,
+      leaseId: input.leaseId,
+      attempt: attemptsForBranch.length + 1,
+      state: "reserved" as const,
+      resultDigest: "",
+      errorCode: "",
+      reservedAt: this.clock.now(),
+      settledAt: "",
+      revision: 1,
+    };
+    const attempt = { ...payload, digest: digest(payload) };
+    assertFanoutRepairAttempt(attempt);
+    entries.push(attempt);
+    this.attempts.set(plan.repairPlanId, entries);
+    const replacementBranchIds = [
+      ...new Set([...plan.replacementBranchIds, input.replacementBranchId]),
+    ].sort();
+    this.transitionPlan(plan, { state: "dispatching", replacementBranchIds });
+    return structuredClone(attempt);
+  }
+
+  dispatch(
+    repairAttemptId: string,
+    expectedRevision: number,
+    leaseId: string,
+  ): FanoutRepairAttempt {
+    const attempt = this.requireAttempt(repairAttemptId);
+    this.assertAttemptRevision(attempt, expectedRevision);
+    if (attempt.state !== "reserved" || attempt.leaseId !== leaseId)
+      throw new E03RuntimeError(
+        "fanout_repair_dispatch_lease",
+        `fanout repair attempt ${repairAttemptId} lease is invalid`,
+      );
+    return this.transitionAttempt(attempt, { state: "dispatched" });
+  }
+
+  settle(
+    repairAttemptId: string,
+    expectedRevision: number,
+    input: { accepted: boolean; resultDigest?: string; errorCode?: string },
+  ): FanoutRepairAttempt {
+    const attempt = this.requireAttempt(repairAttemptId);
+    this.assertAttemptRevision(attempt, expectedRevision);
+    if (attempt.state !== "dispatched")
+      throw new E03RuntimeError(
+        "fanout_repair_settle_state",
+        `fanout repair attempt ${repairAttemptId} is ${attempt.state}`,
+      );
+    if (input.accepted && !input.resultDigest)
+      throw new E03RuntimeError(
+        "fanout_repair_result_missing",
+        `fanout repair attempt ${repairAttemptId} result is missing`,
+      );
+    const next = this.transitionAttempt(attempt, {
+      state: input.accepted ? "completed" : "failed",
+      resultDigest: input.resultDigest ?? "",
+      errorCode: input.errorCode ?? "",
+      settledAt: this.clock.now(),
+    });
+    const plan = this.requirePlan(attempt.repairPlanId);
+    this.transitionPlan(plan, { state: "collecting" });
+    return next;
+  }
+
+  verify(input: {
+    evidenceId?: string;
+    repairPlanId: string;
+    expectedRevision: number;
+    repairAttemptId: string;
+    originalResultDigest: string;
+    equivalent: boolean;
+    verifierId: string;
+    evidenceDigest: string;
+  }): FanoutRepairEvidence {
+    const plan = this.requirePlan(input.repairPlanId);
+    this.assertPlanRevision(plan, input.expectedRevision);
+    if (plan.state !== "collecting")
+      throw new E03RuntimeError(
+        "fanout_repair_verify_state",
+        `fanout repair plan ${plan.repairPlanId} is ${plan.state}`,
+      );
+    const attempt = this.requireAttempt(input.repairAttemptId);
+    if (
+      attempt.repairPlanId !== plan.repairPlanId ||
+      attempt.state !== "completed"
+    )
+      throw new E03RuntimeError(
+        "fanout_repair_evidence_attempt",
+        `fanout repair attempt ${attempt.repairAttemptId} is invalid`,
+      );
+    const entries = this.evidenceEntries(plan.repairPlanId);
+    if (
+      entries.some((value) => value.repairAttemptId === attempt.repairAttemptId)
+    )
+      throw new E03RuntimeError(
+        "fanout_repair_evidence_duplicate",
+        `fanout repair attempt ${attempt.repairAttemptId} already verified`,
+      );
+    const payload = {
+      evidenceId: input.evidenceId ?? createId("fanout-repair-evidence"),
+      repairPlanId: plan.repairPlanId,
+      repairAttemptId: attempt.repairAttemptId,
+      failedBranchId: attempt.failedBranchId,
+      replacementBranchId: attempt.replacementBranchId,
+      originalResultDigest: input.originalResultDigest,
+      replacementResultDigest: attempt.resultDigest,
+      equivalent: input.equivalent,
+      verifierId: input.verifierId,
+      evidenceDigest: input.evidenceDigest,
+      verifiedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const evidence = { ...payload, digest: digest(payload) };
+    assertFanoutRepairEvidence(evidence);
+    entries.push(evidence);
+    this.evidence.set(plan.repairPlanId, entries);
+    return structuredClone(evidence);
+  }
+
+  reconcile(repairPlanId: string, expectedRevision: number): FanoutRepairPlan {
+    const plan = this.requirePlan(repairPlanId);
+    this.assertPlanRevision(plan, expectedRevision);
+    if (plan.state !== "collecting")
+      throw new E03RuntimeError(
+        "fanout_repair_reconcile_state",
+        `fanout repair plan ${repairPlanId} is ${plan.state}`,
+      );
+    const evidence = this.evidenceEntries(repairPlanId);
+    if (
+      plan.failedBranchIds.some(
+        (branchId) =>
+          !evidence.some(
+            (value) => value.failedBranchId === branchId && value.equivalent,
+          ),
+      )
+    )
+      throw new E03RuntimeError(
+        "fanout_repair_evidence_incomplete",
+        `fanout repair plan ${repairPlanId} lacks equivalent evidence`,
+      );
+    const next = this.transitionPlan(plan, {
+      state: "reconciled",
+      terminalAt: this.clock.now(),
+    });
+    this.activePlanByFanout.delete(plan.fanoutPlanId);
+    return next;
+  }
+
+  snapshot(): FanoutRepairSnapshot {
+    return {
+      plans: [...this.plans.values()].map((value) => structuredClone(value)),
+      attempts: [...this.attempts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      evidence: [...this.evidence.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      planByIdempotencyKey: [...this.planByIdempotencyKey.entries()],
+      activePlanByFanout: [...this.activePlanByFanout.entries()],
+    };
+  }
+
+  restore(snapshot: FanoutRepairSnapshot): void {
+    const plans = new Map<string, FanoutRepairPlan>();
+    const attempts = new Map<string, FanoutRepairAttempt[]>();
+    const evidence = new Map<string, FanoutRepairEvidence[]>();
+    for (const value of snapshot.plans) {
+      assertFanoutRepairPlan(value);
+      plans.set(value.repairPlanId, structuredClone(value));
+      attempts.set(value.repairPlanId, []);
+      evidence.set(value.repairPlanId, []);
+    }
+    for (const value of snapshot.attempts) {
+      assertFanoutRepairAttempt(value);
+      const entries = attempts.get(value.repairPlanId);
+      if (!entries)
+        throw new E03RuntimeError(
+          "fanout_repair_restore_attempt_plan",
+          `attempt ${value.repairAttemptId} invalid`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.evidence) {
+      assertFanoutRepairEvidence(value);
+      const entries = evidence.get(value.repairPlanId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "fanout_repair_restore_evidence_chain",
+          `evidence ${value.evidenceId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const planByIdempotencyKey = new Map(snapshot.planByIdempotencyKey);
+    const activePlanByFanout = new Map(snapshot.activePlanByFanout);
+    if (
+      planByIdempotencyKey.size !== snapshot.planByIdempotencyKey.length ||
+      activePlanByFanout.size !== snapshot.activePlanByFanout.length
+    )
+      throw new E03RuntimeError(
+        "fanout_repair_restore_index_duplicate",
+        "fanout repair indexes duplicate",
+      );
+    for (const [key, planId] of planByIdempotencyKey) {
+      const value = plans.get(planId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "fanout_repair_restore_idempotency",
+          `plan index ${key} invalid`,
+        );
+    }
+    for (const [fanoutId, planId] of activePlanByFanout) {
+      const value = plans.get(planId);
+      if (
+        !value ||
+        value.fanoutPlanId !== fanoutId ||
+        ["reconciled", "failed", "cancelled"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "fanout_repair_restore_active",
+          `fanout index ${fanoutId} invalid`,
+        );
+    }
+    this.plans = plans;
+    this.attempts = attempts;
+    this.evidence = evidence;
+    this.planByIdempotencyKey = planByIdempotencyKey;
+    this.activePlanByFanout = activePlanByFanout;
+  }
+
+  private attemptEntries(planId: string): FanoutRepairAttempt[] {
+    return this.attempts.get(planId) ?? [];
+  }
+
+  private evidenceEntries(planId: string): FanoutRepairEvidence[] {
+    return this.evidence.get(planId) ?? [];
+  }
+
+  private requirePlan(id: string): FanoutRepairPlan {
+    const value = this.plans.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "fanout_repair_plan_missing",
+        `plan ${id} missing`,
+      );
+    assertFanoutRepairPlan(value);
+    return value;
+  }
+
+  private requireAttempt(id: string): FanoutRepairAttempt {
+    const value = [...this.attempts.values()]
+      .flat()
+      .find((entry) => entry.repairAttemptId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "fanout_repair_attempt_missing",
+        `attempt ${id} missing`,
+      );
+    assertFanoutRepairAttempt(value);
+    return value;
+  }
+
+  private assertPlanRevision(value: FanoutRepairPlan, expected: number): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "fanout_repair_plan_stale_revision",
+        `plan ${value.repairPlanId} stale`,
+      );
+  }
+
+  private assertAttemptRevision(
+    value: FanoutRepairAttempt,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "fanout_repair_attempt_stale_revision",
+        `attempt ${value.repairAttemptId} stale`,
+      );
+  }
+
+  private transitionPlan(
+    value: FanoutRepairPlan,
+    patch: Partial<
+      Omit<FanoutRepairPlan, "repairPlanId" | "revision" | "digest">
+    >,
+  ): FanoutRepairPlan {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      repairPlanId: value.repairPlanId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertFanoutRepairPlan(next);
+    this.plans.set(next.repairPlanId, next);
+    return structuredClone(next);
+  }
+
+  private transitionAttempt(
+    value: FanoutRepairAttempt,
+    patch: Partial<
+      Omit<FanoutRepairAttempt, "repairAttemptId" | "revision" | "digest">
+    >,
+  ): FanoutRepairAttempt {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      repairAttemptId: value.repairAttemptId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertFanoutRepairAttempt(next);
+    const entries = this.attemptEntries(value.repairPlanId);
+    const index = entries.findIndex(
+      (entry) => entry.repairAttemptId === value.repairAttemptId,
+    );
+    entries[index] = next;
+    this.attempts.set(value.repairPlanId, entries);
+    return structuredClone(next);
+  }
+}
+
 export class FanoutConsensusRuntime {
   private rounds = new Map<string, FanoutConsensusRound>();
   private votes = new Map<string, FanoutConsensusVote[]>();
