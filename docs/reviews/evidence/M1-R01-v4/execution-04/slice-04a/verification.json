@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-A",
+  "implementation_commit": "f69bbd5bb06a4b335e7b4730ec2d5a785c0302ac",
+  "implementation_tree": "76a5ea4f79d5ff8bf6154920d07b0a738f9ac511",
+  "g0_tooling_commit": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "g0_immutable_verification": {
+    "ok": true,
+    "source_ranges": 18,
+    "target_records": 18,
+    "python_owner_symbols": 1619,
+    "mutation_points": 13,
+    "duration_seconds": 101.9
+  },
+  "checks": [
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/integration/test_e01_typescript_runtime_cutover.py tests/integration/test_code_worker_clean_productized_runtime.py -q",
+      "result": "pass",
+      "tests": 22,
+      "duration_seconds": 51.47
+    },
+    {
+      "command": "npx --yes bun@1.2.15 test packages/runtime/claude-runtime/test/protocol.test.ts packages/runtime/claude-runtime/test/runtime.test.ts packages/runtime/claude-runtime/test/e01/source-custody-default-path.behavior.test.ts packages/runtime/claude-runtime/test/e02/default-capability-host.behavior.test.ts",
+      "result": "pass",
+      "tests_reported": 13,
+      "note": "runtime.test.ts is an import-time aggregate in this invocation; Bun reported all selected assertions passing"
+    },
+    {
+      "command": "npx --yes bun@1.2.15 run typecheck:e02",
+      "result": "pass"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "behavior_evidence": {
+    "frozen_default_path_failures_closed": true,
+    "terminal_result_durable_before_ack": true,
+    "lost_ack_restart_without_process_or_tool_reexecution": true,
+    "duplicate_delivery_idempotent": true,
+    "run_closed_correlated": true,
+    "typescript_disable_fails_closed": true,
+    "python_decision_fallback": false
+  },
+  "scope_verdict": "slice_pass_parent_in_progress"
+}
