@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-B",
+  "implementation_commit": "01ca151bd717e792a2db512e24cd82dab2b4c577",
+  "results": [
+    {
+      "mutation_id": "e04-mutation-domain-01",
+      "target": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-query-disable",
+      "killer_result": "killed",
+      "restore_result": "pass",
+      "restored_sha256": "27b7015731326ad39929d16ec0fcf11f7e3425510bea5e014480d58144a106ae"
+    },
+    {
+      "mutation_id": "e04-mutation-domain-02",
+      "target": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-compact-disable",
+      "killer_result": "killed",
+      "restore_result": "pass",
+      "restored_sha256": "7d5ea2b3980a80212e3fee43a349b8344b585de07491ec2ac9469b996c57b459"
+    },
+    {
+      "mutation_id": "e04-mutation-domain-03",
+      "target": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-tool-disable",
+      "killer_result": "killed",
+      "restore_result": "pass",
+      "restored_sha256": "d67d181e2c543fda469c19bf181785dc6be200d8446512d15aa76afd2658800a"
+    }
+  ],
+  "residual_backups": 0,
+  "verdict": "3_of_3_killed_and_restored"
+}

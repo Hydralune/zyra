@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-B",
+  "implementation_commit": "01ca151bd717e792a2db512e24cd82dab2b4c577",
+  "implementation_tree": "0dc089aaa12ad681c06a49563872358ec2f4e56d",
+  "g0_tooling_commit": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "source_ranges_closed": [
+    "e04-source-001",
+    "e04-source-002",
+    "e04-source-003",
+    "e04-source-004",
+    "e04-source-005",
+    "e04-source-006",
+    "e04-source-007"
+  ],
+  "semantic_domains_closed": [
+    "query_loop",
+    "session_context_compact",
+    "tool_orchestration"
+  ],
+  "checks": [
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/integration/test_e01_typescript_runtime_cutover.py tests/integration/test_code_worker_clean_productized_runtime.py -q",
+      "result": "pass",
+      "tests": 22,
+      "duration_seconds": 45.49
+    },
+    {
+      "command": "npx --yes bun@1.2.15 test protocol.test.ts runtime.test.ts source-custody-default-path source-custody-specific tool-protocol mutation-contract e04",
+      "result": "pass",
+      "tests": 115,
+      "failures": 0,
+      "expects": 311
+    },
+    {
+      "command": "npx --yes bun@1.2.15 test packages/runtime/claude-runtime/test/e04/runtime-core-source-recovery.behavior.test.ts",
+      "result": "pass",
+      "tests": 12,
+      "failures": 0,
+      "expects": 47
+    },
+    {
+      "command": "npx --yes bun@1.2.15 run typecheck:e01",
+      "result": "pass",
+      "note": "tsc completed with exit 0; sandbox denied one optional npx global-path probe before the local command ran"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_g0.py",
+      "result": "pass",
+      "source_ranges": 18,
+      "target_records": 18,
+      "python_owner_symbols": 1619,
+      "mutation_points": 13,
+      "duration_seconds": 107.9
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "behavior_evidence": {
+    "query_admission_and_observation_default_reachable": true,
+    "restored_query_can_continue_in_new_epoch": true,
+    "auto_compact_failure_circuit_durable": true,
+    "resume_receipts_idempotent": true,
+    "fork_and_nonfork_session_identity_preserved": true,
+    "consecutive_tool_partition_order_preserved": true,
+    "tool_result_artifact_durable_before_context_visibility": true,
+    "conflicting_inflight_result_fails_closed": true,
+    "three_domain_disable_paths_fail_closed": true,
+    "legacy_budget_reconstruction_default_owner": false
+  },
+  "known_out_of_slice_regression": {
+    "tests": 3,
+    "file": "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
+    "cause": "permission adversarial fixtures still use the pre-E02 fake capability-host shape",
+    "assigned_slice": "M1-R01-E04-C"
+  },
+  "scope_verdict": "slice_pass_parent_in_progress"
+}
