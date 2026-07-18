@@ -1962,6 +1962,516 @@ function assertIdentityProof(value: TaskIdentityProof): void {
       `consumed identity proof ${value.proofId} lacks time`,
     );
 }
+export interface TaskIdentityCredential {
+  credentialId: string;
+  taskId: string;
+  sessionId: string;
+  ownerId: string;
+  issuerId: string;
+  subjectDigest: string;
+  capabilities: string[];
+  state: "issued" | "active" | "suspended" | "revoked" | "expired";
+  issuedAt: string;
+  activatedAt: string;
+  expiresAt: string;
+  revokedAt: string;
+  revocationReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskCredentialVerificationProof {
+  proofId: string;
+  credentialId: string;
+  taskId: string;
+  nonce: string;
+  challengeDigest: string;
+  responseDigest: string;
+  verifierId: string;
+  accepted: boolean;
+  errorCode: string;
+  verifiedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface TaskIdentityRevocation {
+  revocationId: string;
+  credentialId: string;
+  taskId: string;
+  issuerId: string;
+  reasonCode: string;
+  evidenceDigest: string;
+  effectiveAt: string;
+  state: "proposed" | "committed" | "reversed";
+  committedAt: string;
+  reversedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskIdentityProofSnapshot {
+  credentials: TaskIdentityCredential[];
+  proofs: TaskCredentialVerificationProof[];
+  revocations: TaskIdentityRevocation[];
+  activeCredentialByTask: [string, string][];
+  activeRevocationByCredential: [string, string][];
+}
+
+function assertTaskIdentityCredential(value: TaskIdentityCredential): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.credentialId ||
+    !value.taskId ||
+    !value.sessionId ||
+    !value.ownerId ||
+    !value.issuerId ||
+    !value.subjectDigest ||
+    !value.capabilities.length ||
+    new Set(value.capabilities).size !== value.capabilities.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_identity_credential_corrupt",
+      `task identity credential ${value.credentialId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskCredentialVerificationProof(
+  value: TaskCredentialVerificationProof,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.proofId ||
+    !value.credentialId ||
+    !value.taskId ||
+    !value.nonce ||
+    !value.challengeDigest ||
+    !value.responseDigest ||
+    !value.verifierId ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_identity_proof_corrupt",
+      `task identity proof ${value.proofId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskIdentityRevocation(value: TaskIdentityRevocation): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.revocationId ||
+    !value.credentialId ||
+    !value.taskId ||
+    !value.issuerId ||
+    !value.reasonCode ||
+    !value.evidenceDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_identity_revocation_corrupt",
+      `task identity revocation ${value.revocationId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TaskIdentityProofRuntime {
+  private credentials = new Map<string, TaskIdentityCredential>();
+  private proofs = new Map<string, TaskCredentialVerificationProof[]>();
+  private revocations = new Map<string, TaskIdentityRevocation>();
+  private activeCredentialByTask = new Map<string, string>();
+  private activeRevocationByCredential = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  issue(input: {
+    credentialId?: string;
+    taskId: string;
+    sessionId: string;
+    ownerId: string;
+    issuerId: string;
+    subjectDigest: string;
+    capabilities: readonly string[];
+    expiresAt: string;
+  }): TaskIdentityCredential {
+    if (this.activeCredentialByTask.has(input.taskId))
+      throw new E03RuntimeError(
+        "task_identity_credential_active",
+        `task ${input.taskId} already has an active credential`,
+      );
+    if (Date.parse(input.expiresAt) <= Date.parse(this.clock.now()))
+      throw new E03RuntimeError(
+        "task_identity_credential_expiry",
+        "task identity credential expiry must be in the future",
+      );
+    const credentialId =
+      input.credentialId ?? createId("task-identity-credential");
+    const payload = {
+      credentialId,
+      taskId: input.taskId,
+      sessionId: input.sessionId,
+      ownerId: input.ownerId,
+      issuerId: input.issuerId,
+      subjectDigest: input.subjectDigest,
+      capabilities: [...new Set(input.capabilities)].sort(),
+      state: "issued" as const,
+      issuedAt: this.clock.now(),
+      activatedAt: "",
+      expiresAt: input.expiresAt,
+      revokedAt: "",
+      revocationReason: "",
+      revision: 1,
+    };
+    const credential = { ...payload, digest: digest(payload) };
+    assertTaskIdentityCredential(credential);
+    this.credentials.set(credentialId, credential);
+    this.proofs.set(credentialId, []);
+    return structuredClone(credential);
+  }
+
+  activate(
+    credentialId: string,
+    expectedRevision: number,
+    issuerId: string,
+  ): TaskIdentityCredential {
+    const credential = this.requireCredential(credentialId);
+    this.assertCredentialRevision(credential, expectedRevision);
+    if (credential.state !== "issued" || credential.issuerId !== issuerId)
+      throw new E03RuntimeError(
+        "task_identity_credential_activate_denied",
+        `task identity credential ${credentialId} activation is denied`,
+      );
+    const next = this.transitionCredential(credential, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activeCredentialByTask.set(credential.taskId, credentialId);
+    return next;
+  }
+
+  verify(input: {
+    proofId?: string;
+    credentialId: string;
+    nonce: string;
+    challengeDigest: string;
+    responseDigest: string;
+    verifierId: string;
+    expectedSubjectDigest: string;
+    requiredCapabilities: readonly string[];
+  }): TaskCredentialVerificationProof {
+    const credential = this.requireCredential(input.credentialId);
+    const entries = this.proofEntries(credential.credentialId);
+    const duplicate = entries.find((value) => value.nonce === input.nonce);
+    if (duplicate) {
+      if (
+        duplicate.challengeDigest !== input.challengeDigest ||
+        duplicate.responseDigest !== input.responseDigest
+      )
+        throw new E03RuntimeError(
+          "task_identity_proof_nonce_reuse",
+          `task identity proof nonce ${input.nonce} was reused`,
+        );
+      return structuredClone(duplicate);
+    }
+    const accepted =
+      credential.state === "active" &&
+      Date.parse(credential.expiresAt) > Date.parse(this.clock.now()) &&
+      credential.subjectDigest === input.expectedSubjectDigest &&
+      input.requiredCapabilities.every((value) =>
+        credential.capabilities.includes(value),
+      ) &&
+      !this.activeRevocationByCredential.has(credential.credentialId);
+    const payload = {
+      proofId: input.proofId ?? createId("task-identity-proof"),
+      credentialId: credential.credentialId,
+      taskId: credential.taskId,
+      nonce: input.nonce,
+      challengeDigest: input.challengeDigest,
+      responseDigest: input.responseDigest,
+      verifierId: input.verifierId,
+      accepted,
+      errorCode: accepted ? "" : "credential_verification_failed",
+      verifiedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const proof = { ...payload, digest: digest(payload) };
+    assertTaskCredentialVerificationProof(proof);
+    entries.push(proof);
+    this.proofs.set(credential.credentialId, entries);
+    return structuredClone(proof);
+  }
+
+  proposeRevocation(input: {
+    revocationId?: string;
+    credentialId: string;
+    issuerId: string;
+    reasonCode: string;
+    evidenceDigest: string;
+    effectiveAt: string;
+  }): TaskIdentityRevocation {
+    const credential = this.requireCredential(input.credentialId);
+    if (
+      credential.issuerId !== input.issuerId ||
+      !["active", "suspended"].includes(credential.state)
+    )
+      throw new E03RuntimeError(
+        "task_identity_revocation_authority",
+        `task identity credential ${credential.credentialId} revocation is denied`,
+      );
+    const activeId = this.activeRevocationByCredential.get(
+      credential.credentialId,
+    );
+    if (activeId) return structuredClone(this.requireRevocation(activeId));
+    const revocationId =
+      input.revocationId ?? createId("task-identity-revocation");
+    const payload = {
+      revocationId,
+      credentialId: credential.credentialId,
+      taskId: credential.taskId,
+      issuerId: input.issuerId,
+      reasonCode: input.reasonCode,
+      evidenceDigest: input.evidenceDigest,
+      effectiveAt: input.effectiveAt,
+      state: "proposed" as const,
+      committedAt: "",
+      reversedAt: "",
+      revision: 1,
+    };
+    const revocation = { ...payload, digest: digest(payload) };
+    assertTaskIdentityRevocation(revocation);
+    this.revocations.set(revocationId, revocation);
+    this.activeRevocationByCredential.set(
+      credential.credentialId,
+      revocationId,
+    );
+    return structuredClone(revocation);
+  }
+
+  commitRevocation(
+    revocationId: string,
+    expectedRevision: number,
+  ): {
+    revocation: TaskIdentityRevocation;
+    credential: TaskIdentityCredential;
+  } {
+    const revocation = this.requireRevocation(revocationId);
+    this.assertRevocationRevision(revocation, expectedRevision);
+    if (revocation.state !== "proposed")
+      throw new E03RuntimeError(
+        "task_identity_revocation_commit_state",
+        `task identity revocation ${revocationId} is ${revocation.state}`,
+      );
+    const credential = this.requireCredential(revocation.credentialId);
+    const now = this.clock.now();
+    const nextRevocation = this.transitionRevocation(revocation, {
+      state: "committed",
+      committedAt: now,
+    });
+    const nextCredential = this.transitionCredential(credential, {
+      state: "revoked",
+      revokedAt: now,
+      revocationReason: revocation.reasonCode,
+    });
+    this.activeCredentialByTask.delete(credential.taskId);
+    return { revocation: nextRevocation, credential: nextCredential };
+  }
+
+  expire(at = this.clock.now()): TaskIdentityCredential[] {
+    const expired: TaskIdentityCredential[] = [];
+    for (const credential of [...this.credentials.values()]) {
+      if (
+        ["issued", "active", "suspended"].includes(credential.state) &&
+        Date.parse(credential.expiresAt) <= Date.parse(at)
+      ) {
+        const next = this.transitionCredential(credential, {
+          state: "expired",
+        });
+        this.activeCredentialByTask.delete(credential.taskId);
+        expired.push(next);
+      }
+    }
+    return expired;
+  }
+
+  snapshot(): TaskIdentityProofSnapshot {
+    return {
+      credentials: [...this.credentials.values()].map((value) =>
+        structuredClone(value),
+      ),
+      proofs: [...this.proofs.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      revocations: [...this.revocations.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeCredentialByTask: [...this.activeCredentialByTask.entries()],
+      activeRevocationByCredential: [
+        ...this.activeRevocationByCredential.entries(),
+      ],
+    };
+  }
+
+  restore(snapshot: TaskIdentityProofSnapshot): void {
+    const credentials = new Map<string, TaskIdentityCredential>();
+    const proofs = new Map<string, TaskCredentialVerificationProof[]>();
+    const revocations = new Map<string, TaskIdentityRevocation>();
+    for (const value of snapshot.credentials) {
+      assertTaskIdentityCredential(value);
+      credentials.set(value.credentialId, structuredClone(value));
+      proofs.set(value.credentialId, []);
+    }
+    for (const value of snapshot.proofs) {
+      assertTaskCredentialVerificationProof(value);
+      const entries = proofs.get(value.credentialId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "task_identity_restore_proof_chain",
+          `proof ${value.proofId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.revocations) {
+      assertTaskIdentityRevocation(value);
+      if (
+        !credentials.has(value.credentialId) ||
+        revocations.has(value.revocationId)
+      )
+        throw new E03RuntimeError(
+          "task_identity_restore_revocation",
+          `revocation ${value.revocationId} invalid`,
+        );
+      revocations.set(value.revocationId, structuredClone(value));
+    }
+    const activeCredentialByTask = new Map(snapshot.activeCredentialByTask);
+    const activeRevocationByCredential = new Map(
+      snapshot.activeRevocationByCredential,
+    );
+    if (
+      activeCredentialByTask.size !== snapshot.activeCredentialByTask.length ||
+      activeRevocationByCredential.size !==
+        snapshot.activeRevocationByCredential.length
+    )
+      throw new E03RuntimeError(
+        "task_identity_restore_index_duplicate",
+        "task identity indexes duplicate",
+      );
+    for (const [taskId, credentialId] of activeCredentialByTask) {
+      const value = credentials.get(credentialId);
+      if (!value || value.taskId !== taskId || value.state !== "active")
+        throw new E03RuntimeError(
+          "task_identity_restore_credential_index",
+          `credential index ${taskId} invalid`,
+        );
+    }
+    for (const [credentialId, revocationId] of activeRevocationByCredential) {
+      const value = revocations.get(revocationId);
+      if (
+        !value ||
+        value.credentialId !== credentialId ||
+        value.state === "reversed"
+      )
+        throw new E03RuntimeError(
+          "task_identity_restore_revocation_index",
+          `revocation index ${credentialId} invalid`,
+        );
+    }
+    this.credentials = credentials;
+    this.proofs = proofs;
+    this.revocations = revocations;
+    this.activeCredentialByTask = activeCredentialByTask;
+    this.activeRevocationByCredential = activeRevocationByCredential;
+  }
+
+  private proofEntries(
+    credentialId: string,
+  ): TaskCredentialVerificationProof[] {
+    return this.proofs.get(credentialId) ?? [];
+  }
+
+  private requireCredential(id: string): TaskIdentityCredential {
+    const value = this.credentials.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_identity_credential_missing",
+        `credential ${id} missing`,
+      );
+    assertTaskIdentityCredential(value);
+    return value;
+  }
+
+  private requireRevocation(id: string): TaskIdentityRevocation {
+    const value = this.revocations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_identity_revocation_missing",
+        `revocation ${id} missing`,
+      );
+    assertTaskIdentityRevocation(value);
+    return value;
+  }
+
+  private assertCredentialRevision(
+    value: TaskIdentityCredential,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_identity_credential_stale_revision",
+        `credential ${value.credentialId} stale`,
+      );
+  }
+
+  private assertRevocationRevision(
+    value: TaskIdentityRevocation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_identity_revocation_stale_revision",
+        `revocation ${value.revocationId} stale`,
+      );
+  }
+
+  private transitionCredential(
+    value: TaskIdentityCredential,
+    patch: Partial<
+      Omit<TaskIdentityCredential, "credentialId" | "revision" | "digest">
+    >,
+  ): TaskIdentityCredential {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      credentialId: value.credentialId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskIdentityCredential(next);
+    this.credentials.set(next.credentialId, next);
+    return structuredClone(next);
+  }
+
+  private transitionRevocation(
+    value: TaskIdentityRevocation,
+    patch: Partial<
+      Omit<TaskIdentityRevocation, "revocationId" | "revision" | "digest">
+    >,
+  ): TaskIdentityRevocation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      revocationId: value.revocationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskIdentityRevocation(next);
+    this.revocations.set(next.revocationId, next);
+    return structuredClone(next);
+  }
+}
+
 export class TaskIdentityEpochRuntime {
   private epochs = new Map<string, TaskIdentityEpoch>();
   private activeByTask = new Map<string, string>();
