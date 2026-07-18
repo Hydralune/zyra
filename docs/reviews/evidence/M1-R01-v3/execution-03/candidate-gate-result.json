@@ -1,7 +1,7 @@
 {
   "schema_version": "3.0",
   "execution_id": "E03",
-  "candidate": "e527b3b20bfedd18b0340f7aaa13d3768bad9588",
+  "candidate": "dc4ca5f7c43db2fc5522a752bb6b8be2a5dac029",
   "baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
   "source": {
     "accepted_ranges": 391,
@@ -11,7 +11,7 @@
   "python": {
     "frozen_delete_sloc": 10309,
     "deleted_files": 27,
-    "retained_logical_hits": 1,
+    "retained_logical_hits": 0,
     "logical_owner_census_hits": []
   },
   "lines": {
@@ -38,11 +38,6 @@
     "python_delete_sloc": 70623,
     "e03_delete_sloc": 10309
   },
-  "findings": [
-    {
-      "gate": "python",
-      "detail": "1 forbidden logical-owner symbols remain in retained Python ports"
-    }
-  ],
-  "passed": false
+  "findings": [],
+  "passed": true
 }
