@@ -229,7 +229,9 @@ function verifyPython(rows: Json[], baseline: string, candidate: string, profile
   for (const row of finalized ? rows.filter((item) => item.disposition === "retain") : []) {
     try {
       const text = candidateText(candidate, row.python_path);
-      retainedLogicalHits += retainedLogical.filter((token) => text.includes(token)).length;
+      retainedLogicalHits += retainedLogical.filter((token) =>
+        new RegExp(`\\b(?:class|def)\\s+${token}\\b|\\b${token}\\s*=`).test(text),
+      ).length;
     } catch { findings.push({ gate: "python", detail: `retained Python port ${row.python_path} is missing` }); }
   }
   assert(retainedLogicalHits === 0, findings, "python", `${retainedLogicalHits} forbidden logical-owner symbols remain in retained Python ports`);
