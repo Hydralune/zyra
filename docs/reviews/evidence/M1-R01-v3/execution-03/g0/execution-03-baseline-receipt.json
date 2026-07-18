@@ -4,12 +4,15 @@
   "execution_id": "E03",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "verified_zyra_tree": "c69879e1c1715020caf3cc0b3ed7e7455ba85494",
-  "g0_candidate_head": "1a56a46d95f3ebfb78578feb3771f4fd806002f4",
-  "g0_candidate_tree": "acde3634f146f71af4c7ccc6209b53ffafea3ad6",
+  "g0_candidate_head": "3abc056d4c3b4befd903672e7e73f844079f4b03",
+  "g0_candidate_tree": "5d9fdacca8af298d4343b98e04d74a3f0598151c",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "captured_at_utc": "2026-07-18T09:27:11.932Z",
-  "clean_worktree": true,
-  "dirty_paths": [],
+  "captured_at_utc": "2026-07-18T09:35:42.767Z",
+  "clean_worktree": false,
+  "dirty_paths": [
+    "docs/reviews/evidence/M1-R01-v3/execution-03/candidate-gate-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-03/mutation-results.json"
+  ],
   "source_hash_semantics": "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
   "source_snapshots": {
     "claude-code-best": {
@@ -28,9 +31,9 @@
   "manifest_sha256": {
     "execution-03-source-manifest.jsonl": "11f74159374981c7809bce42c5e2416a92610b1d5e19e7b90e4e293f8ecda335",
     "execution-03-python-owner-baseline.jsonl": "d94712bd65a172d2df111bfee0fdb95770ece401414753862bff77b6d6b597fb",
-    "execution-03-target-custody-map.jsonl": "2c4381fc5c2c532b50ddb5657cedaf9cdeebfc6fb990c2a30db85041b4cd8e84",
+    "execution-03-target-custody-map.jsonl": "06e5bf48099df5361e549b935fa53f08621c3afa98808fd31daf0e9fe6263a39",
     "execution-03-mutation-manifest.jsonl": "a992d42d0e9b03c6b427215e6710f9d9f4911c82443da7ed4382d4f7c08a0b13",
-    "execution-03-gate-profile.json": "6ea1c25e9f424c9e77322ce09602a700212798acc20eec74468174248f65c14c"
+    "execution-03-gate-profile.json": "1e404dd56eccdebf90b054cfdf726e36edfa76ad59f7d9a9451491f151e0c578"
   },
   "toolchain": {
     "bun": "1.2.15",
@@ -46,7 +49,7 @@
     "bun",
     "scripts/remediation/verify_m1_r01_e03.ts",
     "--candidate",
-    "1a56a46d95f3ebfb78578feb3771f4fd806002f4"
+    "3abc056d4c3b4befd903672e7e73f844079f4b03"
   ],
   "schema_validator_version": "zyra.e03-verification/v1",
   "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",

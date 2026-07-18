@@ -8,7 +8,7 @@
   "mutation_runner": "scripts/remediation/run_m1_r01_e03_mutations.ts",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "candidate_head_at_g0": "1a56a46d95f3ebfb78578feb3771f4fd806002f4",
+  "candidate_head_at_g0": "3abc056d4c3b4befd903672e7e73f844079f4b03",
   "source_snapshots": {
     "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
     "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
@@ -90,7 +90,8 @@
   "default_entry": {
     "path": "apps/code-worker/src/main.ts",
     "symbol": "main",
-    "runtime_symbol": "CodeWorkerApplication.runTaskRuntime",
+    "task_runtime_symbol": "CodeWorkerApplication.runTaskRuntime",
+    "control_runtime_symbol": "CodeWorkerApplication.runAgentControlPort",
     "e03_symbol": "E03AgentControlCoordinator.execute"
   },
   "required_toolchain": {
@@ -217,7 +218,7 @@
     "runtime-sources/"
   ],
   "checker_sources": {
-    "scripts/remediation/m1_r01_e03_g0.ts": "948b5507025298c8a0af5768a2de0b80f693013b40ca11eca7d0e6dd011f7bcc",
+    "scripts/remediation/m1_r01_e03_g0.ts": "316520da92b35862449edd5a7a4f98cb6974705258f4fb2a3def8d5d0560f0fa",
     "scripts/remediation/verify_m1_r01_e03.ts": "1a5df48ced52cc6b7f625129ea475907e0f9180da336b56aebe8cca991adb019",
     "scripts/remediation/run_m1_r01_e03_mutations.ts": "9eac4fd330a8251aaa78a25cbf6797d2e101f99b7fb55ddb4a46c320ee5c60e7",
     "scripts/remediation/probe_m1_r01_e03.ts": "c8104f676a34e31e4c9836923a45eed371643e3cad6fcf0ab9285905b8e16be4",
