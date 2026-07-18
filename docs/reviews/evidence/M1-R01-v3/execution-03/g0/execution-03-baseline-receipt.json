@@ -4,20 +4,12 @@
   "execution_id": "E03",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "verified_zyra_tree": "c69879e1c1715020caf3cc0b3ed7e7455ba85494",
-  "g0_candidate_head": "fce6f9d937890d1b94fb7f636a80ebe1462853de",
-  "g0_candidate_tree": "fff64ea6a1caae6d07bd0464f51f688bc44e1300",
+  "g0_candidate_head": "1fcda204d0df25bad48f594bad55f373cfc5fff0",
+  "g0_candidate_tree": "75764cad4e05bcf70fd62c40957e856789a33e96",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "captured_at_utc": "2026-07-18T09:20:21.215Z",
-  "clean_worktree": false,
-  "dirty_paths": [
-    "docs/reviews/evidence/M1-R01-v3/execution-03/candidate-gate-result.json",
-    "docs/reviews/evidence/M1-R01-v3/execution-03/cleanroom-result.json",
-    "docs/reviews/evidence/M1-R01-v3/execution-03/mutation-results.json",
-    "packages/runtime/claude-runtime/test/e03/control-routing-lease.behavior.test.ts",
-    "packages/runtime/claude-runtime/test/e03/isolation-resource-cleanup.behavior.test.ts",
-    "scripts/remediation/m1_r01_e03_g0.ts",
-    "scripts/remediation/verify_m1_r01_e03.ts"
-  ],
+  "captured_at_utc": "2026-07-18T09:23:47.324Z",
+  "clean_worktree": true,
+  "dirty_paths": [],
   "source_hash_semantics": "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
   "source_snapshots": {
     "claude-code-best": {
@@ -38,7 +30,7 @@
     "execution-03-python-owner-baseline.jsonl": "d94712bd65a172d2df111bfee0fdb95770ece401414753862bff77b6d6b597fb",
     "execution-03-target-custody-map.jsonl": "340a891f96c9b470b16f8970de16d84757545e237ac086fbd439a9ebc6a23cea",
     "execution-03-mutation-manifest.jsonl": "a992d42d0e9b03c6b427215e6710f9d9f4911c82443da7ed4382d4f7c08a0b13",
-    "execution-03-gate-profile.json": "2c1dd49f0fd5e9135e59b9b3bcfc184926935a44720683e12441cd4754be4b89"
+    "execution-03-gate-profile.json": "e1b73098ef5c9988c4ae552f88413aa940cf1ff74f6882ee89c0e52a800eb00c"
   },
   "toolchain": {
     "bun": "1.2.15",
@@ -54,7 +46,7 @@
     "bun",
     "scripts/remediation/verify_m1_r01_e03.ts",
     "--candidate",
-    "fce6f9d937890d1b94fb7f636a80ebe1462853de"
+    "1fcda204d0df25bad48f594bad55f373cfc5fff0"
   ],
   "schema_validator_version": "zyra.e03-verification/v1",
   "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",

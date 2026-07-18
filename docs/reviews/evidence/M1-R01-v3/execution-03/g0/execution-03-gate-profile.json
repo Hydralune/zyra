@@ -8,7 +8,7 @@
   "mutation_runner": "scripts/remediation/run_m1_r01_e03_mutations.ts",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "candidate_head_at_g0": "fce6f9d937890d1b94fb7f636a80ebe1462853de",
+  "candidate_head_at_g0": "1fcda204d0df25bad48f594bad55f373cfc5fff0",
   "source_snapshots": {
     "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
     "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
