@@ -2274,6 +2274,520 @@ function assertCheckpointRestore(value: AgentCheckpointRestore): void {
       `agent checkpoint restore ${value.restoreId} is invalid`,
     );
 }
+export interface AgentExecutionEvent {
+  eventId: string;
+  executionId: string;
+  taskId: string;
+  leaseId: string;
+  sequence: number;
+  kind:
+    | "reason"
+    | "tool_request"
+    | "tool_result"
+    | "revise"
+    | "checkpoint"
+    | "restore"
+    | "terminal";
+  inputDigest: string;
+  outputDigest: string;
+  parentEventId: string;
+  causationId: string;
+  correlationId: string;
+  emittedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface AgentExecutionSpan {
+  spanId: string;
+  executionId: string;
+  taskId: string;
+  parentSpanId: string;
+  name: string;
+  state: "open" | "succeeded" | "failed" | "cancelled";
+  startSequence: number;
+  endSequence: number;
+  startedAt: string;
+  endedAt: string;
+  attributesDigest: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface AgentExecutionCursor {
+  cursorId: string;
+  executionId: string;
+  consumerId: string;
+  acknowledgedSequence: number;
+  eventDigest: string;
+  leaseExpiresAt: string;
+  state: "active" | "expired" | "released";
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface AgentExecutionEventSnapshot {
+  events: AgentExecutionEvent[];
+  spans: AgentExecutionSpan[];
+  cursors: AgentExecutionCursor[];
+  activeSpanByExecutionName: [string, string][];
+  activeCursorByExecutionConsumer: [string, string][];
+}
+
+function assertAgentExecutionEvent(value: AgentExecutionEvent): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.eventId ||
+    !value.executionId ||
+    !value.taskId ||
+    !value.leaseId ||
+    value.sequence < 0 ||
+    !value.inputDigest ||
+    !value.correlationId ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "agent_execution_event_corrupt",
+      `agent execution event ${value.eventId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertAgentExecutionSpan(value: AgentExecutionSpan): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.spanId ||
+    !value.executionId ||
+    !value.taskId ||
+    !value.name ||
+    value.startSequence < 0 ||
+    value.endSequence < -1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "agent_execution_span_corrupt",
+      `agent execution span ${value.spanId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertAgentExecutionCursor(value: AgentExecutionCursor): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.cursorId ||
+    !value.executionId ||
+    !value.consumerId ||
+    value.acknowledgedSequence < -1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "agent_execution_cursor_corrupt",
+      `agent execution cursor ${value.cursorId || "<empty>"} is corrupt`,
+    );
+}
+
+export class AgentExecutionEventRuntime {
+  private events = new Map<string, AgentExecutionEvent[]>();
+  private spans = new Map<string, AgentExecutionSpan>();
+  private cursors = new Map<string, AgentExecutionCursor>();
+  private activeSpanByExecutionName = new Map<string, string>();
+  private activeCursorByExecutionConsumer = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  append(input: {
+    eventId?: string;
+    executionId: string;
+    taskId: string;
+    leaseId: string;
+    kind: AgentExecutionEvent["kind"];
+    inputDigest: string;
+    outputDigest?: string;
+    parentEventId?: string;
+    causationId?: string;
+    correlationId: string;
+  }): AgentExecutionEvent {
+    const entries = this.eventEntries(input.executionId);
+    if (entries.length) {
+      const head = entries.at(-1)!;
+      if (head.taskId !== input.taskId || head.leaseId !== input.leaseId)
+        throw new E03RuntimeError(
+          "agent_execution_event_custody_change",
+          `agent execution ${input.executionId} custody changed`,
+        );
+    }
+    if (
+      input.parentEventId &&
+      !entries.some((value) => value.eventId === input.parentEventId)
+    )
+      throw new E03RuntimeError(
+        "agent_execution_event_parent_missing",
+        `agent execution parent ${input.parentEventId} is missing`,
+      );
+    const eventId = input.eventId ?? createId("agent-execution-event");
+    const payload = {
+      eventId,
+      executionId: input.executionId,
+      taskId: input.taskId,
+      leaseId: input.leaseId,
+      sequence: entries.length,
+      kind: input.kind,
+      inputDigest: input.inputDigest,
+      outputDigest: input.outputDigest ?? "",
+      parentEventId: input.parentEventId ?? "",
+      causationId: input.causationId ?? entries.at(-1)?.eventId ?? "",
+      correlationId: input.correlationId,
+      emittedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const event = { ...payload, digest: digest(payload) };
+    assertAgentExecutionEvent(event);
+    entries.push(event);
+    this.events.set(input.executionId, entries);
+    return structuredClone(event);
+  }
+
+  openSpan(input: {
+    spanId?: string;
+    executionId: string;
+    taskId: string;
+    parentSpanId?: string;
+    name: string;
+    attributesDigest: string;
+  }): AgentExecutionSpan {
+    const key = this.spanKey(input.executionId, input.name);
+    if (this.activeSpanByExecutionName.has(key))
+      throw new E03RuntimeError(
+        "agent_execution_span_active",
+        `agent execution span ${input.name} is already active`,
+      );
+    if (input.parentSpanId) {
+      const parent = this.requireSpan(input.parentSpanId);
+      if (parent.executionId !== input.executionId || parent.state !== "open")
+        throw new E03RuntimeError(
+          "agent_execution_span_parent_invalid",
+          `agent execution parent span ${input.parentSpanId} is invalid`,
+        );
+    }
+    const spanId = input.spanId ?? createId("agent-execution-span");
+    const entries = this.eventEntries(input.executionId);
+    const payload = {
+      spanId,
+      executionId: input.executionId,
+      taskId: input.taskId,
+      parentSpanId: input.parentSpanId ?? "",
+      name: input.name,
+      state: "open" as const,
+      startSequence: entries.length,
+      endSequence: -1,
+      startedAt: this.clock.now(),
+      endedAt: "",
+      attributesDigest: input.attributesDigest,
+      errorCode: "",
+      revision: 1,
+    };
+    const span = { ...payload, digest: digest(payload) };
+    assertAgentExecutionSpan(span);
+    this.spans.set(spanId, span);
+    this.activeSpanByExecutionName.set(key, spanId);
+    return structuredClone(span);
+  }
+
+  closeSpan(
+    spanId: string,
+    expectedRevision: number,
+    input: {
+      state: Exclude<AgentExecutionSpan["state"], "open">;
+      errorCode?: string;
+    },
+  ): AgentExecutionSpan {
+    const span = this.requireSpan(spanId);
+    this.assertSpanRevision(span, expectedRevision);
+    if (span.state !== "open")
+      throw new E03RuntimeError(
+        "agent_execution_span_terminal",
+        `agent execution span ${spanId} is terminal`,
+      );
+    const entries = this.eventEntries(span.executionId);
+    const next = this.transitionSpan(span, {
+      state: input.state,
+      errorCode: input.errorCode ?? "",
+      endSequence: entries.length - 1,
+      endedAt: this.clock.now(),
+    });
+    this.activeSpanByExecutionName.delete(
+      this.spanKey(span.executionId, span.name),
+    );
+    return next;
+  }
+
+  openCursor(input: {
+    cursorId?: string;
+    executionId: string;
+    consumerId: string;
+    leaseMs: number;
+  }): AgentExecutionCursor {
+    const key = this.cursorKey(input.executionId, input.consumerId);
+    const activeId = this.activeCursorByExecutionConsumer.get(key);
+    if (activeId) return structuredClone(this.requireCursor(activeId));
+    const now = this.clock.now();
+    const cursorId = input.cursorId ?? createId("agent-execution-cursor");
+    const payload = {
+      cursorId,
+      executionId: input.executionId,
+      consumerId: input.consumerId,
+      acknowledgedSequence: -1,
+      eventDigest: "",
+      leaseExpiresAt: new Date(Date.parse(now) + input.leaseMs).toISOString(),
+      state: "active" as const,
+      updatedAt: now,
+      revision: 1,
+    };
+    const cursor = { ...payload, digest: digest(payload) };
+    assertAgentExecutionCursor(cursor);
+    this.cursors.set(cursorId, cursor);
+    this.activeCursorByExecutionConsumer.set(key, cursorId);
+    return structuredClone(cursor);
+  }
+
+  acknowledge(
+    cursorId: string,
+    expectedRevision: number,
+    sequence: number,
+    eventDigest: string,
+  ): AgentExecutionCursor {
+    const cursor = this.requireCursor(cursorId);
+    this.assertCursorRevision(cursor, expectedRevision);
+    if (cursor.state !== "active")
+      throw new E03RuntimeError(
+        "agent_execution_cursor_inactive",
+        `agent execution cursor ${cursorId} is ${cursor.state}`,
+      );
+    if (sequence !== cursor.acknowledgedSequence + 1)
+      throw new E03RuntimeError(
+        "agent_execution_cursor_gap",
+        `agent execution cursor ${cursorId} expected sequence ${cursor.acknowledgedSequence + 1}`,
+      );
+    const event = this.eventEntries(cursor.executionId)[sequence];
+    if (!event || event.digest !== eventDigest)
+      throw new E03RuntimeError(
+        "agent_execution_cursor_event_mismatch",
+        `agent execution cursor ${cursorId} event mismatch`,
+      );
+    return this.transitionCursor(cursor, {
+      acknowledgedSequence: sequence,
+      eventDigest,
+    });
+  }
+
+  snapshot(): AgentExecutionEventSnapshot {
+    return {
+      events: [...this.events.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      spans: [...this.spans.values()].map((value) => structuredClone(value)),
+      cursors: [...this.cursors.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeSpanByExecutionName: [...this.activeSpanByExecutionName.entries()],
+      activeCursorByExecutionConsumer: [
+        ...this.activeCursorByExecutionConsumer.entries(),
+      ],
+    };
+  }
+
+  restore(snapshot: AgentExecutionEventSnapshot): void {
+    const events = new Map<string, AgentExecutionEvent[]>();
+    for (const value of [...snapshot.events].sort(
+      (a, b) => a.sequence - b.sequence,
+    )) {
+      assertAgentExecutionEvent(value);
+      const entries = events.get(value.executionId) ?? [];
+      if (
+        value.sequence !== entries.length ||
+        value.previousDigest !== (entries.at(-1)?.digest ?? "")
+      )
+        throw new E03RuntimeError(
+          "agent_execution_event_restore_chain",
+          `event ${value.eventId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+      events.set(value.executionId, entries);
+    }
+    const spans = new Map<string, AgentExecutionSpan>();
+    for (const value of snapshot.spans) {
+      assertAgentExecutionSpan(value);
+      if (
+        spans.has(value.spanId) ||
+        (value.parentSpanId &&
+          !snapshot.spans.some((entry) => entry.spanId === value.parentSpanId))
+      )
+        throw new E03RuntimeError(
+          "agent_execution_span_restore",
+          `span ${value.spanId} invalid`,
+        );
+      spans.set(value.spanId, structuredClone(value));
+    }
+    const cursors = new Map<string, AgentExecutionCursor>();
+    for (const value of snapshot.cursors) {
+      assertAgentExecutionCursor(value);
+      const event =
+        value.acknowledgedSequence >= 0
+          ? events.get(value.executionId)?.[value.acknowledgedSequence]
+          : null;
+      if (
+        (event && event.digest !== value.eventDigest) ||
+        cursors.has(value.cursorId)
+      )
+        throw new E03RuntimeError(
+          "agent_execution_cursor_restore",
+          `cursor ${value.cursorId} invalid`,
+        );
+      cursors.set(value.cursorId, structuredClone(value));
+    }
+    const activeSpanByExecutionName = new Map(
+      snapshot.activeSpanByExecutionName,
+    );
+    const activeCursorByExecutionConsumer = new Map(
+      snapshot.activeCursorByExecutionConsumer,
+    );
+    if (
+      activeSpanByExecutionName.size !==
+        snapshot.activeSpanByExecutionName.length ||
+      activeCursorByExecutionConsumer.size !==
+        snapshot.activeCursorByExecutionConsumer.length
+    )
+      throw new E03RuntimeError(
+        "agent_execution_restore_index_duplicate",
+        "agent execution indexes duplicate",
+      );
+    for (const [key, spanId] of activeSpanByExecutionName) {
+      const value = spans.get(spanId);
+      if (
+        !value ||
+        key !== this.spanKey(value.executionId, value.name) ||
+        value.state !== "open"
+      )
+        throw new E03RuntimeError(
+          "agent_execution_span_restore_index",
+          `span index ${key} invalid`,
+        );
+    }
+    for (const [key, cursorId] of activeCursorByExecutionConsumer) {
+      const value = cursors.get(cursorId);
+      if (
+        !value ||
+        key !== this.cursorKey(value.executionId, value.consumerId) ||
+        value.state !== "active"
+      )
+        throw new E03RuntimeError(
+          "agent_execution_cursor_restore_index",
+          `cursor index ${key} invalid`,
+        );
+    }
+    this.events = events;
+    this.spans = spans;
+    this.cursors = cursors;
+    this.activeSpanByExecutionName = activeSpanByExecutionName;
+    this.activeCursorByExecutionConsumer = activeCursorByExecutionConsumer;
+  }
+
+  private eventEntries(executionId: string): AgentExecutionEvent[] {
+    return this.events.get(executionId) ?? [];
+  }
+
+  private spanKey(executionId: string, name: string): string {
+    return `${executionId}\u0000${name}`;
+  }
+
+  private cursorKey(executionId: string, consumerId: string): string {
+    return `${executionId}\u0000${consumerId}`;
+  }
+
+  private requireSpan(id: string): AgentExecutionSpan {
+    const value = this.spans.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "agent_execution_span_missing",
+        `span ${id} missing`,
+      );
+    assertAgentExecutionSpan(value);
+    return value;
+  }
+
+  private requireCursor(id: string): AgentExecutionCursor {
+    const value = this.cursors.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "agent_execution_cursor_missing",
+        `cursor ${id} missing`,
+      );
+    assertAgentExecutionCursor(value);
+    return value;
+  }
+
+  private assertSpanRevision(
+    value: AgentExecutionSpan,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "agent_execution_span_stale_revision",
+        `span ${value.spanId} stale`,
+      );
+  }
+
+  private assertCursorRevision(
+    value: AgentExecutionCursor,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "agent_execution_cursor_stale_revision",
+        `cursor ${value.cursorId} stale`,
+      );
+  }
+
+  private transitionSpan(
+    value: AgentExecutionSpan,
+    patch: Partial<Omit<AgentExecutionSpan, "spanId" | "revision" | "digest">>,
+  ): AgentExecutionSpan {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      spanId: value.spanId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertAgentExecutionSpan(next);
+    this.spans.set(next.spanId, next);
+    return structuredClone(next);
+  }
+
+  private transitionCursor(
+    value: AgentExecutionCursor,
+    patch: Partial<
+      Omit<AgentExecutionCursor, "cursorId" | "revision" | "digest">
+    >,
+  ): AgentExecutionCursor {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      cursorId: value.cursorId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertAgentExecutionCursor(next);
+    this.cursors.set(next.cursorId, next);
+    return structuredClone(next);
+  }
+}
+
 export class AgentExecutionCheckpointRuntime {
   private checkpoints = new Map<string, AgentExecutionCheckpoint>();
   private heads = new Map<string, string>();
