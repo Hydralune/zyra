@@ -1768,6 +1768,550 @@ function assertDefinitionPromotion(value: DefinitionPromotion): void {
       `definition promotion ${value.promotionId} lacks transition time`,
     );
 }
+export interface DefinitionRegistryTransaction {
+  transactionId: string;
+  registryId: string;
+  ownerId: string;
+  idempotencyKey: string;
+  expectedRegistryRevision: number;
+  state:
+    | "open"
+    | "validated"
+    | "committing"
+    | "committed"
+    | "aborted"
+    | "in_doubt";
+  operationCount: number;
+  appliedCount: number;
+  createdAt: string;
+  updatedAt: string;
+  terminalAt: string;
+  decisionDigest: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DefinitionRegistryOperation {
+  operationId: string;
+  transactionId: string;
+  ordinal: number;
+  kind: "register" | "replace" | "deprecate" | "remove" | "set_precedence";
+  definitionName: string;
+  sourceId: string;
+  expectedDefinitionRevision: number;
+  definitionDigest: string;
+  state: "staged" | "validated" | "applied" | "compensated" | "rejected";
+  validationDigest: string;
+  receiptDigest: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface DefinitionRegistryDecision {
+  decisionId: string;
+  transactionId: string;
+  decision: "commit" | "abort" | "recover_commit" | "recover_abort";
+  operationDigest: string;
+  actorId: string;
+  reason: string;
+  decidedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface DefinitionRegistryTransactionSnapshot {
+  transactions: DefinitionRegistryTransaction[];
+  operations: DefinitionRegistryOperation[];
+  decisions: DefinitionRegistryDecision[];
+  transactionByIdempotencyKey: [string, string][];
+  activeTransactionByRegistry: [string, string][];
+}
+
+function assertDefinitionRegistryTransaction(
+  value: DefinitionRegistryTransaction,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.transactionId ||
+    !value.registryId ||
+    !value.ownerId ||
+    !value.idempotencyKey ||
+    value.expectedRegistryRevision < 0 ||
+    value.operationCount < 0 ||
+    value.appliedCount < 0 ||
+    value.appliedCount > value.operationCount ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_registry_transaction_corrupt",
+      `definition registry transaction ${value.transactionId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertDefinitionRegistryOperation(
+  value: DefinitionRegistryOperation,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.operationId ||
+    !value.transactionId ||
+    value.ordinal < 0 ||
+    !value.definitionName ||
+    !value.sourceId ||
+    value.expectedDefinitionRevision < 0 ||
+    !value.definitionDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_registry_operation_corrupt",
+      `definition registry operation ${value.operationId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertDefinitionRegistryDecision(
+  value: DefinitionRegistryDecision,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.decisionId ||
+    !value.transactionId ||
+    !value.operationDigest ||
+    !value.actorId ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "definition_registry_decision_corrupt",
+      `definition registry decision ${value.decisionId || "<empty>"} is corrupt`,
+    );
+}
+
+export class DefinitionRegistryTransactionRuntime {
+  private transactions = new Map<string, DefinitionRegistryTransaction>();
+  private operations = new Map<string, DefinitionRegistryOperation[]>();
+  private decisions = new Map<string, DefinitionRegistryDecision[]>();
+  private transactionByIdempotencyKey = new Map<string, string>();
+  private activeTransactionByRegistry = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  open(input: {
+    transactionId?: string;
+    registryId: string;
+    ownerId: string;
+    idempotencyKey: string;
+    expectedRegistryRevision: number;
+  }): DefinitionRegistryTransaction {
+    const duplicateId = this.transactionByIdempotencyKey.get(
+      input.idempotencyKey,
+    );
+    if (duplicateId)
+      return structuredClone(this.requireTransaction(duplicateId));
+    if (this.activeTransactionByRegistry.has(input.registryId))
+      throw new E03RuntimeError(
+        "definition_registry_transaction_active",
+        `definition registry ${input.registryId} already has a transaction`,
+      );
+    const transactionId =
+      input.transactionId ?? createId("definition-registry-transaction");
+    const now = this.clock.now();
+    const payload = {
+      transactionId,
+      registryId: input.registryId,
+      ownerId: input.ownerId,
+      idempotencyKey: input.idempotencyKey,
+      expectedRegistryRevision: input.expectedRegistryRevision,
+      state: "open" as const,
+      operationCount: 0,
+      appliedCount: 0,
+      createdAt: now,
+      updatedAt: now,
+      terminalAt: "",
+      decisionDigest: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const transaction = { ...payload, digest: digest(payload) };
+    assertDefinitionRegistryTransaction(transaction);
+    this.transactions.set(transactionId, transaction);
+    this.operations.set(transactionId, []);
+    this.decisions.set(transactionId, []);
+    this.transactionByIdempotencyKey.set(input.idempotencyKey, transactionId);
+    this.activeTransactionByRegistry.set(input.registryId, transactionId);
+    return structuredClone(transaction);
+  }
+
+  stage(input: {
+    operationId?: string;
+    transactionId: string;
+    kind: DefinitionRegistryOperation["kind"];
+    definitionName: string;
+    sourceId: string;
+    expectedDefinitionRevision: number;
+    definitionDigest: string;
+  }): DefinitionRegistryOperation {
+    const transaction = this.requireTransaction(input.transactionId);
+    if (transaction.state !== "open")
+      throw new E03RuntimeError(
+        "definition_registry_operation_stage_state",
+        `definition registry transaction ${transaction.transactionId} is ${transaction.state}`,
+      );
+    const entries = this.operationEntries(transaction.transactionId);
+    if (entries.some((value) => value.definitionName === input.definitionName))
+      throw new E03RuntimeError(
+        "definition_registry_operation_name_duplicate",
+        `definition ${input.definitionName} already staged`,
+      );
+    const payload = {
+      operationId:
+        input.operationId ?? createId("definition-registry-operation"),
+      transactionId: transaction.transactionId,
+      ordinal: entries.length,
+      kind: input.kind,
+      definitionName: input.definitionName,
+      sourceId: input.sourceId,
+      expectedDefinitionRevision: input.expectedDefinitionRevision,
+      definitionDigest: input.definitionDigest,
+      state: "staged" as const,
+      validationDigest: "",
+      receiptDigest: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const operation = { ...payload, digest: digest(payload) };
+    assertDefinitionRegistryOperation(operation);
+    entries.push(operation);
+    this.operations.set(transaction.transactionId, entries);
+    this.transitionTransaction(transaction, { operationCount: entries.length });
+    return structuredClone(operation);
+  }
+
+  validateOperation(
+    operationId: string,
+    expectedRevision: number,
+    input: { accepted: boolean; validationDigest: string; errorCode?: string },
+  ): DefinitionRegistryOperation {
+    const operation = this.requireOperation(operationId);
+    this.assertOperationRevision(operation, expectedRevision);
+    const transaction = this.requireTransaction(operation.transactionId);
+    if (transaction.state !== "open" || operation.state !== "staged")
+      throw new E03RuntimeError(
+        "definition_registry_operation_validate_state",
+        `definition registry operation ${operationId} cannot validate`,
+      );
+    return this.transitionOperation(operation, {
+      state: input.accepted ? "validated" : "rejected",
+      validationDigest: input.validationDigest,
+      errorCode: input.errorCode ?? "",
+    });
+  }
+
+  decide(
+    transactionId: string,
+    expectedRevision: number,
+    actorId: string,
+    accepted: boolean,
+    reason: string,
+  ): DefinitionRegistryDecision {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (transaction.state !== "open" || transaction.ownerId !== actorId)
+      throw new E03RuntimeError(
+        "definition_registry_transaction_decision_authority",
+        `definition registry transaction ${transactionId} decision is denied`,
+      );
+    const operations = this.operationEntries(transactionId);
+    if (
+      !operations.length ||
+      (accepted && operations.some((value) => value.state !== "validated"))
+    )
+      throw new E03RuntimeError(
+        "definition_registry_transaction_not_validated",
+        `definition registry transaction ${transactionId} is not validated`,
+      );
+    const entries = this.decisionEntries(transactionId);
+    const operationDigest = digest(
+      operations.map((value) => ({
+        ordinal: value.ordinal,
+        digest: value.digest,
+      })),
+    );
+    const payload = {
+      decisionId: createId("definition-registry-decision"),
+      transactionId,
+      decision: accepted ? ("commit" as const) : ("abort" as const),
+      operationDigest,
+      actorId,
+      reason,
+      decidedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const decision = { ...payload, digest: digest(payload) };
+    assertDefinitionRegistryDecision(decision);
+    entries.push(decision);
+    this.decisions.set(transactionId, entries);
+    this.transitionTransaction(transaction, {
+      state: accepted ? "committing" : "aborted",
+      decisionDigest: decision.digest,
+      terminalAt: accepted ? "" : decision.decidedAt,
+      errorCode: accepted ? "" : reason,
+    });
+    if (!accepted)
+      this.activeTransactionByRegistry.delete(transaction.registryId);
+    return structuredClone(decision);
+  }
+
+  apply(
+    operationId: string,
+    expectedRevision: number,
+    receiptDigest: string,
+  ): DefinitionRegistryOperation {
+    const operation = this.requireOperation(operationId);
+    this.assertOperationRevision(operation, expectedRevision);
+    const transaction = this.requireTransaction(operation.transactionId);
+    if (transaction.state !== "committing" || operation.state !== "validated")
+      throw new E03RuntimeError(
+        "definition_registry_operation_apply_state",
+        `definition registry operation ${operationId} cannot apply`,
+      );
+    const next = this.transitionOperation(operation, {
+      state: "applied",
+      receiptDigest,
+    });
+    const current = this.requireTransaction(transaction.transactionId);
+    const appliedCount = this.operationEntries(
+      transaction.transactionId,
+    ).filter((value) => value.state === "applied").length;
+    this.transitionTransaction(current, { appliedCount });
+    return next;
+  }
+
+  commit(
+    transactionId: string,
+    expectedRevision: number,
+  ): DefinitionRegistryTransaction {
+    const transaction = this.requireTransaction(transactionId);
+    this.assertTransactionRevision(transaction, expectedRevision);
+    if (
+      transaction.state !== "committing" ||
+      this.operationEntries(transactionId).some(
+        (value) => value.state !== "applied",
+      )
+    )
+      throw new E03RuntimeError(
+        "definition_registry_transaction_commit_incomplete",
+        `definition registry transaction ${transactionId} is incomplete`,
+      );
+    const next = this.transitionTransaction(transaction, {
+      state: "committed",
+      terminalAt: this.clock.now(),
+    });
+    this.activeTransactionByRegistry.delete(transaction.registryId);
+    return next;
+  }
+
+  snapshot(): DefinitionRegistryTransactionSnapshot {
+    return {
+      transactions: [...this.transactions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      operations: [...this.operations.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      decisions: [...this.decisions.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      transactionByIdempotencyKey: [
+        ...this.transactionByIdempotencyKey.entries(),
+      ],
+      activeTransactionByRegistry: [
+        ...this.activeTransactionByRegistry.entries(),
+      ],
+    };
+  }
+
+  restore(snapshot: DefinitionRegistryTransactionSnapshot): void {
+    const transactions = new Map<string, DefinitionRegistryTransaction>();
+    const operations = new Map<string, DefinitionRegistryOperation[]>();
+    const decisions = new Map<string, DefinitionRegistryDecision[]>();
+    for (const value of snapshot.transactions) {
+      assertDefinitionRegistryTransaction(value);
+      transactions.set(value.transactionId, structuredClone(value));
+      operations.set(value.transactionId, []);
+      decisions.set(value.transactionId, []);
+    }
+    for (const value of [...snapshot.operations].sort(
+      (a, b) => a.ordinal - b.ordinal,
+    )) {
+      assertDefinitionRegistryOperation(value);
+      const entries = operations.get(value.transactionId);
+      if (!entries || value.ordinal !== entries.length)
+        throw new E03RuntimeError(
+          "definition_registry_restore_operation_order",
+          `operation ${value.operationId} order invalid`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.decisions) {
+      assertDefinitionRegistryDecision(value);
+      const entries = decisions.get(value.transactionId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "definition_registry_restore_decision_chain",
+          `decision ${value.decisionId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const transactionByIdempotencyKey = new Map(
+      snapshot.transactionByIdempotencyKey,
+    );
+    const activeTransactionByRegistry = new Map(
+      snapshot.activeTransactionByRegistry,
+    );
+    if (
+      transactionByIdempotencyKey.size !==
+        snapshot.transactionByIdempotencyKey.length ||
+      activeTransactionByRegistry.size !==
+        snapshot.activeTransactionByRegistry.length
+    )
+      throw new E03RuntimeError(
+        "definition_registry_restore_index_duplicate",
+        "definition registry indexes duplicate",
+      );
+    for (const [key, transactionId] of transactionByIdempotencyKey) {
+      const value = transactions.get(transactionId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "definition_registry_restore_idempotency",
+          `transaction index ${key} invalid`,
+        );
+    }
+    for (const [registryId, transactionId] of activeTransactionByRegistry) {
+      const value = transactions.get(transactionId);
+      if (
+        !value ||
+        value.registryId !== registryId ||
+        ["committed", "aborted"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "definition_registry_restore_active",
+          `registry index ${registryId} invalid`,
+        );
+    }
+    this.transactions = transactions;
+    this.operations = operations;
+    this.decisions = decisions;
+    this.transactionByIdempotencyKey = transactionByIdempotencyKey;
+    this.activeTransactionByRegistry = activeTransactionByRegistry;
+  }
+
+  private operationEntries(
+    transactionId: string,
+  ): DefinitionRegistryOperation[] {
+    return this.operations.get(transactionId) ?? [];
+  }
+
+  private decisionEntries(transactionId: string): DefinitionRegistryDecision[] {
+    return this.decisions.get(transactionId) ?? [];
+  }
+
+  private requireTransaction(id: string): DefinitionRegistryTransaction {
+    const value = this.transactions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_registry_transaction_missing",
+        `transaction ${id} missing`,
+      );
+    assertDefinitionRegistryTransaction(value);
+    return value;
+  }
+
+  private requireOperation(id: string): DefinitionRegistryOperation {
+    const value = [...this.operations.values()]
+      .flat()
+      .find((entry) => entry.operationId === id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_registry_operation_missing",
+        `operation ${id} missing`,
+      );
+    assertDefinitionRegistryOperation(value);
+    return value;
+  }
+
+  private assertTransactionRevision(
+    value: DefinitionRegistryTransaction,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_registry_transaction_stale_revision",
+        `transaction ${value.transactionId} stale`,
+      );
+  }
+
+  private assertOperationRevision(
+    value: DefinitionRegistryOperation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_registry_operation_stale_revision",
+        `operation ${value.operationId} stale`,
+      );
+  }
+
+  private transitionTransaction(
+    value: DefinitionRegistryTransaction,
+    patch: Partial<
+      Omit<
+        DefinitionRegistryTransaction,
+        "transactionId" | "revision" | "digest"
+      >
+    >,
+  ): DefinitionRegistryTransaction {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      transactionId: value.transactionId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDefinitionRegistryTransaction(next);
+    this.transactions.set(next.transactionId, next);
+    return structuredClone(next);
+  }
+
+  private transitionOperation(
+    value: DefinitionRegistryOperation,
+    patch: Partial<
+      Omit<DefinitionRegistryOperation, "operationId" | "revision" | "digest">
+    >,
+  ): DefinitionRegistryOperation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      operationId: value.operationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDefinitionRegistryOperation(next);
+    const entries = this.operationEntries(value.transactionId);
+    const index = entries.findIndex(
+      (entry) => entry.operationId === value.operationId,
+    );
+    entries[index] = next;
+    this.operations.set(value.transactionId, entries);
+    return structuredClone(next);
+  }
+}
+
 export class AgentDefinitionReleaseRuntime {
   private channels = new Map<string, DefinitionReleaseChannel>();
   private promotions = new Map<string, DefinitionPromotion>();
