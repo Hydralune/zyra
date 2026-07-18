@@ -4,12 +4,20 @@
   "execution_id": "E03",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "verified_zyra_tree": "c69879e1c1715020caf3cc0b3ed7e7455ba85494",
-  "g0_candidate_head": "a2ab7956bd8cb68dfee46b8b9f5776ce25eb760d",
-  "g0_candidate_tree": "1c1d338ca560111f8cfd0b28c56975c0c56433f8",
+  "g0_candidate_head": "fce6f9d937890d1b94fb7f636a80ebe1462853de",
+  "g0_candidate_tree": "fff64ea6a1caae6d07bd0464f51f688bc44e1300",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "captured_at_utc": "2026-07-18T08:43:11.752Z",
-  "clean_worktree": true,
-  "dirty_paths": [],
+  "captured_at_utc": "2026-07-18T09:20:21.215Z",
+  "clean_worktree": false,
+  "dirty_paths": [
+    "docs/reviews/evidence/M1-R01-v3/execution-03/candidate-gate-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-03/cleanroom-result.json",
+    "docs/reviews/evidence/M1-R01-v3/execution-03/mutation-results.json",
+    "packages/runtime/claude-runtime/test/e03/control-routing-lease.behavior.test.ts",
+    "packages/runtime/claude-runtime/test/e03/isolation-resource-cleanup.behavior.test.ts",
+    "scripts/remediation/m1_r01_e03_g0.ts",
+    "scripts/remediation/verify_m1_r01_e03.ts"
+  ],
   "source_hash_semantics": "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
   "source_snapshots": {
     "claude-code-best": {
@@ -26,11 +34,11 @@
     }
   },
   "manifest_sha256": {
-    "execution-03-source-manifest.jsonl": "7c3f9ace651ba2d7c695c33b0ae155472f68df426158e55bf5cdff776b7bbdc1",
+    "execution-03-source-manifest.jsonl": "839861b8991b10cf09323a994ae2eafb284dcfacfd2485f1b358df43eb121c59",
     "execution-03-python-owner-baseline.jsonl": "d94712bd65a172d2df111bfee0fdb95770ece401414753862bff77b6d6b597fb",
-    "execution-03-target-custody-map.jsonl": "92c7b99d83fcb92f1e5636dd3083edf384bd61c6454bd059e00a620603510867",
+    "execution-03-target-custody-map.jsonl": "340a891f96c9b470b16f8970de16d84757545e237ac086fbd439a9ebc6a23cea",
     "execution-03-mutation-manifest.jsonl": "a992d42d0e9b03c6b427215e6710f9d9f4911c82443da7ed4382d4f7c08a0b13",
-    "execution-03-gate-profile.json": "4d54e645c13b9b449d87790accd57cf4de150d58cb3938847e7af336f22e2122"
+    "execution-03-gate-profile.json": "2c1dd49f0fd5e9135e59b9b3bcfc184926935a44720683e12441cd4754be4b89"
   },
   "toolchain": {
     "bun": "1.2.15",
@@ -46,7 +54,7 @@
     "bun",
     "scripts/remediation/verify_m1_r01_e03.ts",
     "--candidate",
-    "a2ab7956bd8cb68dfee46b8b9f5776ce25eb760d"
+    "fce6f9d937890d1b94fb7f636a80ebe1462853de"
   ],
   "schema_validator_version": "zyra.e03-verification/v1",
   "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",

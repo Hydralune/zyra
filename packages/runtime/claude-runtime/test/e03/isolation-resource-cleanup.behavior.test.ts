@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { resolve } from "node:path";
 import { digest, E03RuntimeError } from "../../src/e03/contracts.ts";
 import {
+  IsolationMergeRuntime,
   type CleanupReceipt,
   WorktreeCleanupSettlementRuntime,
 } from "../../src/isolation/merge-runtime.ts";
 import {
+  IsolationRequestRuntime,
   type IsolationResourceBudget,
   IsolationResourceReservationRuntime,
 } from "../../src/isolation/request-runtime.ts";
-import { TestClock } from "./fixtures.ts";
+import { scope, task, TestClock } from "./fixtures.ts";
 
 function assertCode(error: unknown, code: string): boolean {
   assert.ok(error instanceof E03RuntimeError);
@@ -702,4 +705,171 @@ test("e03.cleanup rejects corrupt snapshot", () => {
   );
   assert.equal(restored.snapshot().settlements.length, 0);
   assert.equal(restored.snapshot().claims.length, 0);
+});
+
+function worktreeCustody(label: string) {
+  const clock = new TestClock("2026-07-18T15:00:00.000Z");
+  const workspaceRoot = resolve(process.cwd());
+  const state = task(`worktree-${label}`, {
+    scope: scope({ workspaceRoots: [workspaceRoot], isolationModes: ["worktree"] }),
+  });
+  const requests = new IsolationRequestRuntime(clock);
+  const request = requests.prepare(state, {
+    mode: "worktree",
+    workspaceRoot,
+    baseRevision: `base-${label}`,
+    branchName: `zyra/review/${label}`,
+    expectedArtifacts: [`artifacts/${label}.json`],
+    idempotencyKey: `isolation-${label}`,
+  });
+  const receiptPayload = {
+    receiptId: `isolation-receipt-${label}`,
+    requestId: request.requestId,
+    taskId: state.identity.taskId,
+    leaseId: state.identity.leaseId,
+    accepted: true,
+    workspacePath: resolve(workspaceRoot, ".tmp", `worktree-${label}`),
+    observedBaseRevision: request.baseRevision,
+    resultingRevision: `source-${label}`,
+    dirtyBaseline: false,
+    nestedRepository: false,
+    mergeConflict: false,
+    cleanupFailed: false,
+    artifacts: [],
+    error: "",
+    completedAt: clock.now(),
+  };
+  const receipt = { ...receiptPayload, digest: digest(receiptPayload) };
+  return { clock, state, requests, request, receipt, workspaceRoot };
+}
+
+test("e03 worktree custody traverses prepare receipt commit merge conflict and cleanup", () => {
+  const harness = worktreeCustody("success");
+  const recorded = harness.requests.recordReceipt(harness.request, harness.receipt);
+  const committed = harness.requests.commit(harness.state, harness.request, recorded);
+  assert.equal(committed.isolation?.requestId, harness.request.requestId);
+  assert.equal(committed.isolationReceipt?.receiptId, harness.receipt.receiptId);
+
+  const merges = new IsolationMergeRuntime(harness.clock);
+  const mergePayload = {
+    mergeId: "merge-success",
+    taskId: committed.identity.taskId,
+    requestId: harness.request.requestId,
+    leaseId: committed.identity.leaseId,
+    expectedBaseRevision: harness.request.baseRevision,
+    sourceRevision: harness.receipt.resultingRevision,
+    targetRevision: "target-before",
+    accepted: true,
+    conflictedPaths: [],
+    resultingRevision: "target-after",
+    error: "",
+    completedAt: harness.clock.now(),
+  };
+  const merged = merges.merge(
+    committed,
+    harness.request,
+    harness.receipt,
+    { ...mergePayload, digest: digest(mergePayload) },
+  );
+  assert.equal(merged.deliveries.at(-1)?.summary, "worktree merged");
+
+  const conflictPayload = {
+    ...mergePayload,
+    mergeId: "merge-conflict",
+    accepted: false,
+    conflictedPaths: ["src/conflict.ts"],
+    resultingRevision: "",
+    error: "merge conflict",
+  };
+  const conflicted = merges.merge(
+    committed,
+    harness.request,
+    harness.receipt,
+    { ...conflictPayload, digest: digest(conflictPayload) },
+  );
+  assert.equal(conflicted.deliveries.at(-1)?.summary, "worktree merge conflict");
+
+  const cleanupPayload = {
+    cleanupId: "cleanup-success",
+    taskId: committed.identity.taskId,
+    requestId: harness.request.requestId,
+    leaseId: committed.identity.leaseId,
+    removed: true,
+    retainedArtifacts: ["artifacts/success.json"],
+    error: "",
+    completedAt: harness.clock.now(),
+  };
+  const cleaned = merges.cleanup(
+    committed,
+    harness.request,
+    { ...cleanupPayload, digest: digest(cleanupPayload) },
+  );
+  assert.equal(cleaned.deliveries.at(-1)?.summary, "worktree cleaned");
+});
+
+test("e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper", () => {
+  const harness = worktreeCustody("failure");
+  assert.throws(
+    () => harness.requests.validateWorkspace(resolve(harness.workspaceRoot, ".."), [harness.workspaceRoot]),
+    (error) => assertCode(error, "workspace_escape"),
+  );
+  assert.throws(
+    () => harness.requests.prepare(harness.state, {
+      mode: "worktree",
+      workspaceRoot: harness.workspaceRoot,
+      baseRevision: "",
+      idempotencyKey: "missing-base",
+    }),
+    (error) => assertCode(error, "missing_base_revision"),
+  );
+
+  const { digest: _receiptDigest, ...receiptPayload } = harness.receipt;
+  const foreignPayload = { ...receiptPayload, taskId: "foreign-task" };
+  assert.throws(
+    () => harness.requests.recordReceipt(harness.request, { ...foreignPayload, digest: digest(foreignPayload) }),
+    (error) => assertCode(error, "isolation_receipt_identity"),
+  );
+  const rejectedPayload = { ...receiptPayload, accepted: false, workspacePath: "", error: "physical deny" };
+  assert.throws(
+    () => harness.requests.commit(harness.state, harness.request, { ...rejectedPayload, digest: digest(rejectedPayload) }),
+    (error) => assertCode(error, "isolation_rejected"),
+  );
+
+  const merges = new IsolationMergeRuntime(harness.clock);
+  const mergePayload = {
+    mergeId: "merge-failure",
+    taskId: harness.state.identity.taskId,
+    requestId: harness.request.requestId,
+    leaseId: harness.state.identity.leaseId,
+    expectedBaseRevision: "wrong-base",
+    sourceRevision: harness.receipt.resultingRevision,
+    targetRevision: "target-before",
+    accepted: true,
+    conflictedPaths: [],
+    resultingRevision: "target-after",
+    error: "",
+    completedAt: harness.clock.now(),
+  };
+  assert.throws(
+    () => merges.merge(harness.state, harness.request, harness.receipt, { ...mergePayload, digest: digest(mergePayload) }),
+    (error) => assertCode(error, "merge_revision_mismatch"),
+  );
+  assert.throws(
+    () => merges.recordConflict(harness.state, { ...mergePayload, conflictedPaths: [], digest: digest(mergePayload) }),
+    (error) => assertCode(error, "empty_merge_conflict"),
+  );
+  const cleanupPayload = {
+    cleanupId: "cleanup-failure",
+    taskId: harness.state.identity.taskId,
+    requestId: harness.request.requestId,
+    leaseId: harness.state.identity.leaseId,
+    removed: true,
+    retainedArtifacts: [],
+    error: "",
+    completedAt: harness.clock.now(),
+  };
+  assert.throws(
+    () => merges.cleanup(harness.state, harness.request, { ...cleanupPayload, digest: digest("tampered") }),
+    (error) => assertCode(error, "cleanup_receipt_checksum"),
+  );
 });

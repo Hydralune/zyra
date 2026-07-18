@@ -164,6 +164,184 @@ const routes: readonly Route[] = [
   ["packages/runtime/claude-runtime/src/control/stdio.ts", "StructuredControlStdio.run", "control", "structured-stdio"],
 ] as const;
 
+const routeHints: Readonly<Record<string, readonly RegExp[]>> = {
+  "definition-registry": [/definition/i, /agents?json/i, /builtinagent/i, /customagent/i, /pluginagent/i, /agenttool$/i, /tasktool$/i, /^id$/i, /module/i],
+  "definition-precedence": [/override/i, /precedence/i, /activeagents/i, /resolveagent/i, /builtin/i, /customagent/i, /pluginagent/i],
+  "definition-load": [/loadagents/i, /parseagent/i, /agents?json/i, /directory/i, /mcpserver/i, /initializeagent/i],
+  "definition-validation": [/schema/i, /validate/i, /parseerror/i, /requiredmcp/i, /filteragents/i, /isbuiltin/i, /iscustom/i, /isplugin/i, /parameter/i],
+  "scope-derive": [/permission/i, /filtertools/i, /resolveagenttools/i, /requiredmcp/i, /scope/i, /capabil/i],
+  "scope-ceiling": [/permission/i, /filtertools/i, /counttool/i, /requiredmcp/i, /mcpserver/i],
+  "context-fork": [/fork/i, /background/i, /buildforked/i, /placeholder/i, /context/i],
+  "context-restore": [/resume/i, /forkchild/i, /copySnapshot/i, /synced/i, /context/i],
+  "memory-capture": [/memory/i, /snapshot/i, /save/i, /copy/i, /recordable/i],
+  "memory-restore": [/memory/i, /snapshot/i, /read/i, /synced/i, /checkagentmemory/i],
+  "agent-create": [/agenttool/i, /tasktool/i, /initialize/i, /started/i],
+  "agent-run": [/runagent/i, /finalize/i, /result/i, /progress/i, /renderoutput/i, /updated/i],
+  "agent-resume": [/resume/i, /background_updated/i, /snapshot/i],
+  "agent-abort": [/abort/i, /disabled/i, /stop/i, /handoff/i, /failure/i],
+  "task-identity": [/tasktype/i, /identity/i, /eligib/i, /register/i, /session/i, /runid/i, /islocal/i, /ispanel/i, /isbackground/i],
+  "task-attempt": [/attempt/i, /retry/i, /poll/i, /duration/i, /deadline/i, /timeout/i],
+  "task-create": [/create/i, /register/i, /start/i, /localagenttask/i, /inprocessteammatetask/i],
+  "task-transition": [/update/i, /progress/i, /summary/i, /pause/i, /yield/i, /state/i, /lifecycle/i, /^log$/i],
+  "task-cancel": [/cancel/i, /skip/i, /stop/i, /shutdown/i],
+  "task-kill": [/kill/i, /cleanup/i, /ended/i],
+  "late-result-fence": [/late/i, /stale/i, /deadline/i, /timeout/i, /notified/i],
+  "task-prepare": [/persist/i, /queue/i, /enqueue/i, /cache/i, /snapshot/i],
+  "task-receipt": [/receipt/i, /metadata/i, /disk/i, /notification/i, /attachment/i],
+  "task-commit": [/commit/i, /complete/i, /fail/i, /ended/i, /mark/i],
+  "task-ack": [/ack/i, /notified/i, /delivery/i, /completion/i],
+  "task-restore": [/restore/i, /loadpersisted/i, /snapshot/i, /readcache/i],
+  "lost-ack": [/recover/i, /cache/i, /remember/i, /read/i],
+  "task-dispatch": [/start/i, /register/i, /remote/i, /workflow/i, /eligibility/i],
+  "task-wait": [/wait/i, /poll/i, /liveness/i, /paused/i, /yield/i],
+  "task-result": [/result/i, /complete/i, /fail/i, /extract/i, /review/i, /todo/i, /summary/i],
+  "task-timeout": [/timeout/i, /deadline/i, /duration/i, /stale/i, /timer/i],
+  "message-send": [/send/i, /message/i, /announceagentcall/i],
+  "message-steer": [/steer/i, /steering/i, /prompt/i],
+  "message-receive": [/receive/i, /load/i, /listpending/i, /readsession/i, /findentry/i, /normalize.*state/i],
+  "message-ack": [/ack/i, /deliveryevidence/i, /positiveDelivery/i, /completion/i],
+  "message-dedupe": [/duplicate/i, /idempot/i, /sameagent/i, /merge/i],
+  "fanout-plan": [/spawn/i, /resolve.*model/i, /capabil/i, /context/i, /plan/i, /control.*deps/i, /controller/i],
+  "fanout-dispatch": [/spawn/i, /runannounce/i, /wake/i, /call/i, /ensure/i, /command/i, /controlruntime/i],
+  "fanin-collect": [/collect/i, /list/i, /merge/i, /result/i, /outcome/i],
+  "fanout-fail-fast": [/kill/i, /shutdown/i, /abort/i, /failure/i, /terminal/i],
+  "partial-delivery": [/partial/i, /visible/i, /media/i, /nonsilent/i],
+  "final-delivery": [/completion/i, /final/i, /complete/i, /announce/i],
+  backpressure: [/retry/i, /rate/i, /limit/i, /timeout/i, /pending/i, /queue/i, /lease/i, /recent_minutes/i],
+  "late-delivery": [/late/i, /stale/i, /permanent/i, /expired/i, /finished/i],
+  "isolation-prepare": [/getorcreate/i, /mkdir/i, /command/i, /flag/i],
+  "workspace-containment": [/validate/i, /slug/i, /path/i, /symlink/i, /include/i, /mount/i],
+  "isolation-receipt": [/mkdir/i, /copy/i, /session/i, /create/i],
+  "isolation-commit": [/current/i, /restore/i, /session/i, /branch/i],
+  "worktree-merge": [/branch/i, /flatten/i, /pathfor/i, /worktree/i],
+  "merge-conflict": [/conflict/i, /collision/i, /already.*exists/i, /no_prompt/i],
+  "worktree-cleanup": [/cleanup/i, /remove/i, /command/i, /include/i],
+  "control-parse": [/parse/i, /sanitize/i, /unsafe/i, /modelref/i, /configured/i, /resolve.*mode/i],
+  "control-dispatch": [/spawn/i, /gateway/i, /call/i, /prepare/i, /bind/i, /placement/i],
+  "control-lost-ack": [/rollback/i, /rollback/i, /cleanup/i, /failed/i, /orphan/i, /idempot/i],
+  "agent-control": [/ownership/i, /spawn/i, /session/i, /context/i, /controller/i],
+  "control-cancel": [/rollback/i, /cleanup/i, /error/i],
+  "control-kill": [/timeout/i, /terminal/i],
+  "control-wait": [/timeout/i, /wait/i, /fresh/i, /timestamp/i],
+  "control-result": [/runid/i, /store/i, /entry/i, /metadata/i, /session/i],
+  "structured-stdio": [/gateway/i, /command/i, /call/i, /threadbinding/i],
+};
+
+function semanticRoute(unit: Selected, use: ReadonlyMap<string, number>): { route: Route; score: number } {
+  const candidates = routes.filter((route) => route[2] === unit.domain && !route[3].endsWith("delegation"));
+  const scored = candidates.map((route) => ({
+    route,
+    score: (routeHints[route[3]] ?? []).reduce(
+      (sum, pattern) => sum + (pattern.test(unit.symbol) ? 3 : 0) + (pattern.test(unit.path) ? 1 : 0),
+      0,
+    ),
+  }));
+  const maximum = Math.max(...scored.map((item) => item.score));
+  const relevant = maximum > 0 ? scored.filter((item) => item.score === maximum) : scored;
+  return relevant.sort((left, right) =>
+    (use.get(left.route[1]) ?? 0) - (use.get(right.route[1]) ?? 0)
+    || left.route[1].localeCompare(right.route[1]),
+  )[0]!;
+}
+
+const failureTestByEffect: Readonly<Record<string, string>> = {
+  "definition-registry": "e03.definition rejects changed duplicate version",
+  "definition-precedence": "e03.definition rejects unknown resolution",
+  "definition-load": "e03.definition rejects invalid agent name",
+  "definition-validation": "e03.definition rejects invalid isolation",
+  "scope-derive": "e03.scope rejects depth escape",
+  "scope-ceiling": "e03.scope rejects permission ceiling escalation",
+  "context-fork": "e03.context rejects permission mismatch",
+  "context-restore": "e03.context rejects restore identity mismatch",
+  "memory-capture": "e03.memory rejects invalid importance",
+  "memory-restore": "e03.memory rejects corrupt restore",
+  "agent-create": "e03.task executor rejects terminal dispatch",
+  "agent-run": "e03.task executor rejects terminal dispatch",
+  "agent-resume": "e03.agent execution rejects stale resume revision",
+  "agent-abort": "e03.task state denies kill outside scope",
+  "task-identity": "e03.task identity rejects invalid attempt",
+  "task-attempt": "e03.task identity rejects tampered attempt identity",
+  "task-create": "e03.task state rejects invalid transition",
+  "task-transition": "e03.task state rejects stale transition revision",
+  "task-cancel": "e03.task state rejects stale transition revision",
+  "task-kill": "e03.task state denies kill outside scope",
+  "late-result-fence": "e03.task state rejects late result after kill",
+  "task-prepare": "e03.task registry rejects idempotency conflict",
+  "task-receipt": "e03.task registry rejects physical effect",
+  "task-commit": "e03.task registry rejects stale CAS commit",
+  "task-ack": "e03.task invariant rejects checksum tamper",
+  "task-restore": "e03.task invariant rejects checksum tamper",
+  "lost-ack": "e03.task registry rejects idempotency conflict",
+  "task-dispatch": "e03.task executor rejects terminal dispatch",
+  "task-wait": "e03.task deadline rejects invalid deadline",
+  "task-result": "e03.task state rejects missing terminal result",
+  "task-timeout": "e03.task deadline rejects expired task",
+  "message-send": "e03.team mailbox denies a cross-run escape",
+  "message-steer": "e03.team mailbox rejects late steering",
+  "message-receive": "e03.team mailbox rejects invalid receive limits",
+  "message-ack": "e03.team mailbox rejects ACK before delivery",
+  "message-dedupe": "e03.team mailbox rejects duplicate content conflict",
+  "fanout-plan": "e03 fanout failure rejects an empty target set",
+  "fanout-dispatch": "e03 fanout dispatch converts a thrown branch into a failed result",
+  "fanin-collect": "e03 fanin failure rejects an unknown branch key",
+  "fanout-fail-fast": "e03 fanout failure rejects a tampered plan before dispatch",
+  "partial-delivery": "e03 delivery failure rejects partial output after terminal state",
+  "final-delivery": "e03 delivery failure rejects a second final envelope in one attempt",
+  backpressure: "e03 delivery failure rejects invalid backpressure construction",
+  "late-delivery": "e03 delivery failure validates late-kind revision and terminal policy",
+  "isolation-prepare": "e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper",
+  "workspace-containment": "e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper",
+  "isolation-receipt": "e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper",
+  "isolation-commit": "e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper",
+  "worktree-merge": "e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper",
+  "merge-conflict": "e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper",
+  "worktree-cleanup": "e03 worktree custody rejects escape receipt identity rejection revision conflict and cleanup tamper",
+  "control-parse": "e03 control schema failure rejects unsupported command",
+  "control-dispatch": "e03 structured router failure rejects false E03 ownership claim",
+  "e01-delegation": "e03 structured router rejects unavailable E01 delegate without fallback",
+  "e02-delegation": "e03 structured router rejects unavailable E02 delegate without fallback",
+  "control-lost-ack": "e03 structured router does not claim predecessor lost-ack recovery",
+  "agent-control": "e03 agent control handler rejects unknown custody and stale revision",
+  "control-cancel": "e03 agent control handler rejects unknown custody and stale revision",
+  "control-kill": "e03 agent control handler rejects unknown custody and stale revision",
+  "control-wait": "e03 agent control handler rejects unknown custody and stale revision",
+  "control-result": "e03 agent control handler rejects unknown custody and stale revision",
+  "structured-stdio": "e03 control frame failure rejects invalid NDJSON",
+};
+
+const successTestByEffect: Readonly<Record<string, string>> = {
+  "partial-delivery": "e03 partial delivery enters canonical task state",
+  "final-delivery": "e03 final delivery represents a completed child outcome",
+  backpressure: "e03 delivery backpressure exposes pending count and limit",
+  "late-delivery": "e03 delivery acknowledgment seals parent-visible receipt state",
+  "isolation-prepare": "e03 worktree custody traverses prepare receipt commit merge conflict and cleanup",
+  "workspace-containment": "e03 worktree custody traverses prepare receipt commit merge conflict and cleanup",
+  "isolation-receipt": "e03 worktree custody traverses prepare receipt commit merge conflict and cleanup",
+  "isolation-commit": "e03 worktree custody traverses prepare receipt commit merge conflict and cleanup",
+  "worktree-merge": "e03 worktree custody traverses prepare receipt commit merge conflict and cleanup",
+  "merge-conflict": "e03 worktree custody traverses prepare receipt commit merge conflict and cleanup",
+  "worktree-cleanup": "e03 worktree custody traverses prepare receipt commit merge conflict and cleanup",
+  "control-parse": "e03 control schema parses an agent create envelope",
+  "control-dispatch": "e03 structured router dispatches agent creation to E03 coordinator",
+  "e01-delegation": "e03 structured router delegates E01 session commands",
+  "e02-delegation": "e03 structured router delegates E02 capability commands",
+  "control-lost-ack": "e03 structured router lost-ack recovery stays with E03 agent handler",
+  "agent-control": "e03 agent control handler executes status wait result cancel and kill against durable custody",
+  "control-cancel": "e03 agent control handler executes status wait result cancel and kill against durable custody",
+  "control-kill": "e03 agent control handler executes status wait result cancel and kill against durable custody",
+  "control-wait": "e03 agent control handler executes status wait result cancel and kill against durable custody",
+  "control-result": "e03 agent control handler executes status wait result cancel and kill against durable custody",
+  "structured-stdio": "e03 built health contract exposes canonical control readiness",
+};
+
+function routeTestBindings(route: Route): { success: string; failure: string } {
+  const mutationIndex = mutationRoutes.findIndex((candidate) => candidate[1] === route[1]);
+  const success = mutationIndex >= 0 ? `e03.mutation.${route[3]}` : successTestByEffect[route[3]];
+  const failure = failureTestByEffect[route[3]];
+  if (!success || !failure) throw new Error(`missing behavior test binding for ${route[3]}`);
+  return { success, failure };
+}
+
 const mutationRoutes = routes.filter((route) => !route[3].endsWith("delegation")).slice(0, 40);
 const deletePython = [
   "agent_tool.py", "runtime.py", "lifecycle.py", "continuation.py", "control.py", "definitions.py", "context.py",
@@ -326,14 +504,55 @@ function selectSources(): Selected[] {
   return output.sort((a, b) => a.repo.localeCompare(b.repo) || a.path.localeCompare(b.path) || a.startLine - b.startLine);
 }
 
+function rejectedSourceRows(selected: readonly Selected[]): Json[] {
+  const rows: Json[] = [];
+  const usedPaths = new Set<string>();
+  for (const spec of specs) {
+    for (const path of spec.paths) {
+      if (usedPaths.has(`${spec.repo}:${path}`)) continue;
+      const accepted = selected.filter((unit) => unit.repo === spec.repo && unit.path === path);
+      const candidate = sourceUnits(spec, path).find((unit) =>
+        !accepted.some((range) => unit.startLine <= range.endLine && unit.endLine >= range.startLine),
+      );
+      if (!candidate) continue;
+      usedPaths.add(`${spec.repo}:${path}`);
+      rows.push({
+        schema_version: SCHEMA_VERSION,
+        record_type: "source_range",
+        execution_id: EXECUTION_ID,
+        mapping_id: `e03-rejected-${String(rows.length + 1).padStart(4, "0")}`,
+        source_repo: spec.repo,
+        source_snapshot: spec.snapshot,
+        source_path: path,
+        source_symbol: `${path}::${candidate.symbol}`,
+        start_line: candidate.startLine,
+        end_line: candidate.endLine,
+        source_sha256: candidate.sha256,
+        semantic_domain: spec.domain,
+        source_role: spec.role,
+        accepted: false,
+        migration_mode: "conformance",
+        supplementary_gap: null,
+        exclusion_reason: "outside frozen executable-line quota; no production migration credit or canonical ownership is claimed",
+      });
+      if (rows.length === 4) return rows;
+    }
+  }
+  throw new Error(`expected four explicit rejected source symbols, got ${rows.length}`);
+}
+
 function sourceAndTargetRows(finalize: boolean): { source: Json[]; target: Json[] } {
   const selected = selectSources();
   const routeUse = new Map<string, number>();
+  const sourceRoutes = new Map<string, { route: Route; score: number }>();
   const source: Json[] = [];
   const target: Json[] = [];
   selected.forEach((unit, index) => {
-    const candidates = routes.filter((route) => route[2] === unit.domain);
-    const route = [...candidates].sort((a, b) => (routeUse.get(a[1]) ?? 0) - (routeUse.get(b[1]) ?? 0) || a[1].localeCompare(b[1]))[0]!;
+    const sourceKey = `${unit.repo}:${unit.path}::${unit.symbol}`;
+    const selectedRoute = sourceRoutes.get(sourceKey) ?? semanticRoute(unit, routeUse);
+    sourceRoutes.set(sourceKey, selectedRoute);
+    const { route, score } = selectedRoute;
+    const tests = routeTestBindings(route);
     routeUse.set(route[1], (routeUse.get(route[1]) ?? 0) + 1);
     const mappingId = `e03-src-${String(index + 1).padStart(4, "0")}`;
     source.push({
@@ -347,24 +566,25 @@ function sourceAndTargetRows(finalize: boolean): { source: Json[]; target: Json[
     const targetPath = join(repoRoot, route[0]);
     target.push({
       schema_version: SCHEMA_VERSION, record_type: "custody_mapping", execution_id: EXECUTION_ID, mapping_id: mappingId,
-      source_symbol: `${unit.path}::${unit.symbol}`, source_behavior_claim: `${unit.symbol} contributes ${route[3]} semantics`,
+      source_symbol: `${unit.path}::${unit.symbol}`, source_behavior_claim: `${unit.symbol} provides upstream evidence for ${route[3]} selected by explicit semantic routing`,
       target_path: route[0], target_symbol: route[1], planned_method: route[1].split(".").at(-1),
       target_sha256: finalize ? sha256(readFileSync(targetPath)) : null,
-      semantic_anchor_tokens: [unit.domain, route[3]], semantic_match_score: 2,
-      mapping_basis: "frozen-domain-and-behavior-route-v1", bounded_source_group: 0,
+      semantic_anchor_tokens: [unit.domain, route[3], unit.symbol], semantic_match_score: score,
+      mapping_basis: score > 0 ? "explicit-symbol-and-path-semantic-route-v2" : "domain-fallback-route-v2", bounded_source_group: 0,
       target_behavior_claim: `${route[1]} is the Zyra canonical ${route[3]} owner`,
       semantic_equivalence: "Zyra preserves the selected lifecycle, ownership, failure and restore behavior using canonical task/session events and revisioned receipts",
       adaptation: "Upstream behavior is decomposed into Zyra task, session, permission, event, artifact and cross-language commit boundaries",
       behavior_contract_id: `e03.contract.${mappingId}`, canonical_owner_id: `typescript.${route[1].split(".")[0]}`,
       default_entry_id: "E03.default.CodeWorkerApplication.runTaskRuntime", default_callsite_path: "apps/code-worker/src/main.ts",
       default_callsite_symbol: "CodeWorkerApplication.runTaskRuntime", state_store: `E03RuntimeSnapshot.${unit.domain}`,
-      state_effect_kind: route[3], state_effect_assertion: `e03.behavior.${route[3]}`,
-      success_test_ids: [`e03.behavior.${route[3]}`], failure_test_ids: [`e03.failure.${route[3]}`],
+      state_effect_kind: route[3], state_effect_assertion: tests.success,
+      success_test_ids: [tests.success], failure_test_ids: [tests.failure],
       disable_test_ids: ["e03.disable.typescript-owner-fails-closed"],
       mutation_ids: mutationRoutes.some((candidate) => candidate[1] === route[1]) ? [`e03-mut-${String(mutationRoutes.findIndex((candidate) => candidate[1] === route[1]) + 1).padStart(3, "0")}`] : [],
       runtime_origin_probe_id: "e03.probe.runtime-origin", write_path_probe_id: "e03.probe.write-path", restore_probe_id: "e03.probe.resume",
     });
   });
+  source.push(...rejectedSourceRows(selected));
   return { source, target };
 }
 
@@ -451,6 +671,7 @@ function gateProfile(candidateHead: string): Json {
       behavior_cases_minimum: 100, failure_cases_minimum: 35, mutation_points_minimum: 35,
       core_mutation_kill_ratio_minimum: 1, other_mutation_kill_ratio_minimum: 0.9,
       source_to_target_unique_symbols_minimum: 50, source_to_target_max_mappings_per_symbol: 40,
+      rejected_source_symbols_minimum: 4, semantic_route_score_minimum: 1,
       cumulative_final_typescript_sloc: 100_000, cumulative_changed_typescript_sloc: 92_672,
       cumulative_test_sloc: 26_000, cumulative_python_delete_executable_sloc: 68_063,
     },

@@ -159,14 +159,18 @@ function verifyFrozenInputs(profile: Json, receipt: Json, findings: Finding[]): 
 
 function verifySources(sourceRows: Json[], targetRows: Json[], profile: Json, candidate: string, findings: Finding[], finalized = true): Json {
   const accepted = sourceRows.filter((row) => row.accepted === true);
+  const rejected = sourceRows.filter((row) => row.accepted === false);
   assert(accepted.length === profile.thresholds.accepted_source_ranges, findings, "source", `expected ${profile.thresholds.accepted_source_ranges} accepted ranges, got ${accepted.length}`);
+  assert(rejected.length >= profile.thresholds.rejected_source_symbols_minimum, findings, "source", `expected at least ${profile.thresholds.rejected_source_symbols_minimum} rejected symbols, got ${rejected.length}`);
   const ids = new Set<string>();
+  const sourceById = new Map<string, Json>();
   const intervals = new Map<string, Array<[number, number]>>();
   let sloc = 0;
   for (const row of accepted) {
     assert(row.schema_version === "3.0" && row.execution_id === "E03" && row.record_type === "source_range", findings, "source", `invalid source row ${row.mapping_id}`);
     assert(!ids.has(row.mapping_id), findings, "source", `duplicate mapping id ${row.mapping_id}`);
     ids.add(row.mapping_id);
+    sourceById.set(row.mapping_id, row);
     const snapshot = profile.source_snapshots[row.source_repo];
     assert(snapshot === row.source_snapshot, findings, "source", `${row.mapping_id} snapshot differs from profile`);
     if (!sourceRepos[row.source_repo]) { findings.push({ gate: "source", detail: `${row.mapping_id} has unknown repo ${row.source_repo}` }); continue; }
@@ -179,12 +183,49 @@ function verifySources(sourceRows: Json[], targetRows: Json[], profile: Json, ca
     prior.push([row.start_line, row.end_line]); intervals.set(key, prior);
     sloc += lines.slice(row.start_line - 1, row.end_line).filter(tsExecutable).length;
   }
+  for (const row of rejected) {
+    assert(row.exclusion_reason?.trim(), findings, "source", `${row.mapping_id} rejected source lacks exclusion reason`);
+    assert(row.migration_mode === "conformance", findings, "source", `${row.mapping_id} rejected source must be conformance-only`);
+    assert(!ids.has(row.mapping_id), findings, "source", `duplicate rejected mapping id ${row.mapping_id}`);
+    const snapshot = profile.source_snapshots[row.source_repo];
+    assert(snapshot === row.source_snapshot, findings, "source", `${row.mapping_id} rejected snapshot differs from profile`);
+    if (!sourceRepos[row.source_repo]) { findings.push({ gate: "source", detail: `${row.mapping_id} has unknown repo ${row.source_repo}` }); continue; }
+    const { raw, lines } = sourceTextAt(row.source_repo, row.source_snapshot, row.source_path);
+    assert(sha256(raw) === row.source_sha256, findings, "source", `${row.mapping_id} rejected source blob hash mismatch`);
+    assert(row.start_line >= 1 && row.end_line >= row.start_line && row.end_line <= lines.length, findings, "source", `${row.mapping_id} rejected range is invalid`);
+    const key = `${row.source_repo}:${row.source_path}`;
+    const prior = intervals.get(key) ?? [];
+    assert(!prior.some(([start, end]) => row.start_line <= end && row.end_line >= start), findings, "source", `${row.mapping_id} rejected range overlaps accepted credit`);
+    ids.add(row.mapping_id);
+  }
   assert(sloc === profile.thresholds.accepted_source_executable_sloc, findings, "source", `expected ${profile.thresholds.accepted_source_executable_sloc} source SLOC, got ${sloc}`);
   assert(targetRows.length === accepted.length, findings, "mapping", `target rows ${targetRows.length} do not match source rows ${accepted.length}`);
+  const behaviorTestIds = new Set<string>();
+  if (finalized) {
+    for (const path of listFilesAt(candidate, profile.behavior_test_roots as string[]).filter((value) => [".ts", ".tsx"].includes(extname(value)))) {
+      const text = candidateText(candidate, path);
+      for (const match of text.matchAll(/\b(?:test|it)\s*\(\s*["'`]([^"'`]+)["'`]/g)) behaviorTestIds.add(match[1]!);
+    }
+  }
   const targetUse = new Map<string, number>();
   const targetFiles = new Map<string, string>();
+  const callsiteFiles = new Map<string, string>();
   for (const row of targetRows) {
-    assert(ids.has(row.mapping_id), findings, "mapping", `${row.mapping_id} has no accepted source row`);
+    const sourceRow = sourceById.get(row.mapping_id);
+    assert(Boolean(sourceRow), findings, "mapping", `${row.mapping_id} has no accepted source row`);
+    assert(row.source_symbol === sourceRow?.source_symbol, findings, "mapping", `${row.mapping_id} source symbol differs from accepted row`);
+    assert(row.semantic_match_score >= profile.thresholds.semantic_route_score_minimum, findings, "mapping", `${row.mapping_id} has no positive semantic route score`);
+    assert(row.mapping_basis === "explicit-symbol-and-path-semantic-route-v2", findings, "mapping", `${row.mapping_id} used fallback or unknown semantic routing`);
+    assert(row.success_test_ids?.length && row.failure_test_ids?.length && row.disable_test_ids?.length, findings, "mapping", `${row.mapping_id} lacks five-hop behavior bindings`);
+    if (finalized) {
+      for (const testId of [...(row.success_test_ids ?? []), ...(row.failure_test_ids ?? [])])
+        assert(behaviorTestIds.has(testId), findings, "mapping", `${row.mapping_id} references absent behavior test ${testId}`);
+      try {
+        const callsite = callsiteFiles.get(row.default_callsite_path) ?? candidateText(candidate, row.default_callsite_path);
+        callsiteFiles.set(row.default_callsite_path, callsite);
+        assert(walkSymbols(row.default_callsite_path, callsite).has(row.default_callsite_symbol), findings, "mapping", `${row.mapping_id} default callsite symbol is absent`);
+      } catch (error) { findings.push({ gate: "mapping", detail: `${row.mapping_id} callsite load failed: ${String(error)}` }); }
+    }
     const key = `${row.target_path}::${row.target_symbol}`;
     targetUse.set(key, (targetUse.get(key) ?? 0) + 1);
     if (!finalized) {

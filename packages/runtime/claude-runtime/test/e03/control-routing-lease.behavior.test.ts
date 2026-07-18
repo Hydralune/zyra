@@ -16,7 +16,9 @@ import {
   type ControlRouteDescriptor,
   type E03CommandHandler,
 } from "../../src/control/router.ts";
-import type { AgentControlHandler } from "../../src/control/session-handler.ts";
+import { AgentControlHandler } from "../../src/control/session-handler.ts";
+import { AgentExecutionRuntime } from "../../src/agents/execution-runtime.ts";
+import { commitTask, registry, successfulRunResult, task, TestClock } from "./fixtures.ts";
 
 function assertRuntimeCode(error: unknown, code: string): boolean {
   assert.ok(error instanceof E03RuntimeError);
@@ -355,6 +357,87 @@ test("e03 structured router does not claim predecessor lost-ack recovery", () =>
       envelope("router-e02-ack", "permission.inspect", {}),
     ),
     null,
+  );
+});
+
+test("e03 agent control handler executes status wait result cancel and kill against durable custody", async () => {
+  const clock = new TestClock("2026-07-18T19:30:00.000Z");
+  const durable = registry(clock).registry;
+  const execution = new AgentExecutionRuntime(
+    durable,
+    { runChild: async () => successfulRunResult({ summary: "done" }) },
+    clock,
+  );
+  const handler = new AgentControlHandler(durable, execution);
+  const created = await commitTask(durable, task("handler-created", {
+    runId: "run-routing-e03",
+    sessionId: "handler-child-session",
+    parentTaskId: "parent-routing-e03",
+    parentSessionId: "session-routing-e03",
+  }));
+  const status = await handler.execute({
+    ...envelope("handler-status", "agent.status", { task_id: created.identity.taskId }),
+    expected_revision: created.revision,
+  });
+  assert.equal(status.ok, true);
+  assert.equal(status.state?.task_id, created.identity.taskId);
+  const waiting = await handler.execute({
+    ...envelope("handler-wait", "agent.wait", { task_id: created.identity.taskId, timeout_ms: 1 }),
+    expected_revision: created.revision,
+  });
+  assert.equal(waiting.ok, false);
+  assert.equal(waiting.error, "task_not_terminal");
+  const cancelled = await handler.execute({
+    ...envelope("handler-cancel", "agent.cancel", { task_id: created.identity.taskId, reason: "review cancel" }),
+    expected_revision: created.revision,
+  });
+  assert.equal(cancelled.ok, true);
+  assert.equal(cancelled.state?.status, "cancelled");
+  const result = await handler.execute({
+    ...envelope("handler-result", "agent.result", { task_id: created.identity.taskId }),
+    expected_revision: cancelled.revision,
+  });
+  assert.equal(result.state?.status, "cancelled");
+
+  const killable = await commitTask(durable, task("handler-kill", {
+    runId: "run-routing-e03",
+    sessionId: "handler-kill-session",
+    parentTaskId: "parent-routing-e03",
+    parentSessionId: "session-routing-e03",
+  }), "commit-handler-kill");
+  const killed = await handler.execute({
+    ...envelope("handler-kill", "agent.kill", { task_id: killable.identity.taskId, reason: "review kill" }),
+    expected_revision: killable.revision,
+  });
+  assert.equal(killed.ok, true);
+  assert.equal(killed.state?.status, "killed");
+});
+
+test("e03 agent control handler rejects unknown custody and stale revision", async () => {
+  const clock = new TestClock("2026-07-18T19:40:00.000Z");
+  const durable = registry(clock).registry;
+  const execution = new AgentExecutionRuntime(
+    durable,
+    { runChild: async () => successfulRunResult() },
+    clock,
+  );
+  const handler = new AgentControlHandler(durable, execution);
+  await assert.rejects(
+    () => handler.execute(envelope("handler-missing", "agent.status", { task_id: "missing-task" })),
+    (error) => assertRuntimeCode(error, "unknown_task"),
+  );
+  const created = await commitTask(durable, task("handler-stale", {
+    runId: "run-routing-e03",
+    sessionId: "handler-stale-session",
+    parentTaskId: "parent-routing-e03",
+    parentSessionId: "session-routing-e03",
+  }));
+  await assert.rejects(
+    () => handler.execute({
+      ...envelope("handler-stale", "agent.cancel", { task_id: created.identity.taskId }),
+      expected_revision: 0,
+    }),
+    (error) => assertRuntimeCode(error, "stale_revision"),
   );
 });
 

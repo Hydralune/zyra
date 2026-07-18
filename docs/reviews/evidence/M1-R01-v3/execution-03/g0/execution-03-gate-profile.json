@@ -8,7 +8,7 @@
   "mutation_runner": "scripts/remediation/run_m1_r01_e03_mutations.ts",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "candidate_head_at_g0": "a2ab7956bd8cb68dfee46b8b9f5776ce25eb760d",
+  "candidate_head_at_g0": "fce6f9d937890d1b94fb7f636a80ebe1462853de",
   "source_snapshots": {
     "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
     "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
@@ -80,6 +80,8 @@
     "other_mutation_kill_ratio_minimum": 0.9,
     "source_to_target_unique_symbols_minimum": 50,
     "source_to_target_max_mappings_per_symbol": 40,
+    "rejected_source_symbols_minimum": 4,
+    "semantic_route_score_minimum": 1,
     "cumulative_final_typescript_sloc": 100000,
     "cumulative_changed_typescript_sloc": 92672,
     "cumulative_test_sloc": 26000,
@@ -215,8 +217,8 @@
     "runtime-sources/"
   ],
   "checker_sources": {
-    "scripts/remediation/m1_r01_e03_g0.ts": "c23426bae49a6c92541d1d5c71a49036bde33f1d99d079abb4c918b4e6a2eb6d",
-    "scripts/remediation/verify_m1_r01_e03.ts": "24eed2bedee4110d63a44ec83ae4d23fcdd1e918bc582f72e74f48096bb87c52",
+    "scripts/remediation/m1_r01_e03_g0.ts": "7305b4b8c7c7890e3cb09028ae8327ce9aa54ba45f63b413f65f68d5f6c19300",
+    "scripts/remediation/verify_m1_r01_e03.ts": "1a5df48ced52cc6b7f625129ea475907e0f9180da336b56aebe8cca991adb019",
     "scripts/remediation/run_m1_r01_e03_mutations.ts": "9eac4fd330a8251aaa78a25cbf6797d2e101f99b7fb55ddb4a46c320ee5c60e7",
     "scripts/remediation/probe_m1_r01_e03.ts": "c8104f676a34e31e4c9836923a45eed371643e3cad6fcf0ab9285905b8e16be4",
     "scripts/remediation/cleanroom_m1_r01_e03.ts": "728f64de871866300787238664a448723d489d41fdad0fc67d3fb3dba2e236a0"
