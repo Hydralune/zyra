@@ -1,12 +1,12 @@
 {
   "schema_version": "3.0",
   "execution_id": "E03",
-  "candidate": "fce6f9d937890d1b94fb7f636a80ebe1462853de",
+  "candidate": "256026c04a3c4559a4873f633ba3651f152463c7",
   "baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
   "source": {
     "accepted_ranges": 391,
     "accepted_source_sloc": 6928,
-    "unique_target_symbols": 62
+    "unique_target_symbols": 59
   },
   "python": {
     "frozen_delete_sloc": 10309,
@@ -22,9 +22,9 @@
     "duplicate_pairs": []
   },
   "tests": {
-    "effective_sloc": 7413,
-    "behavior_cases": 342,
-    "failure_cases": 188,
+    "effective_sloc": 7655,
+    "behavior_cases": 346,
+    "failure_cases": 192,
     "files": 9,
     "duplicate_pairs": []
   },
@@ -33,11 +33,16 @@
   },
   "cumulative": {
     "source_sloc": 37564,
-    "final_target_file_union_sloc": 100302,
-    "test_sloc": 32145,
+    "final_target_file_union_sloc": 96704,
+    "test_sloc": 32387,
     "python_delete_sloc": 70623,
     "e03_delete_sloc": 10309
   },
-  "findings": [],
-  "passed": true
+  "findings": [
+    {
+      "gate": "cumulative",
+      "detail": "cumulative target-file union 96704 < 100000"
+    }
+  ],
+  "passed": false
 }

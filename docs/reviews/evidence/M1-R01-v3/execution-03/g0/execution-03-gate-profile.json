@@ -8,7 +8,7 @@
   "mutation_runner": "scripts/remediation/run_m1_r01_e03_mutations.ts",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "candidate_head_at_g0": "1fcda204d0df25bad48f594bad55f373cfc5fff0",
+  "candidate_head_at_g0": "256026c04a3c4559a4873f633ba3651f152463c7",
   "source_snapshots": {
     "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
     "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
@@ -217,7 +217,7 @@
     "runtime-sources/"
   ],
   "checker_sources": {
-    "scripts/remediation/m1_r01_e03_g0.ts": "7305b4b8c7c7890e3cb09028ae8327ce9aa54ba45f63b413f65f68d5f6c19300",
+    "scripts/remediation/m1_r01_e03_g0.ts": "948b5507025298c8a0af5768a2de0b80f693013b40ca11eca7d0e6dd011f7bcc",
     "scripts/remediation/verify_m1_r01_e03.ts": "1a5df48ced52cc6b7f625129ea475907e0f9180da336b56aebe8cca991adb019",
     "scripts/remediation/run_m1_r01_e03_mutations.ts": "9eac4fd330a8251aaa78a25cbf6797d2e101f99b7fb55ddb4a46c320ee5c60e7",
     "scripts/remediation/probe_m1_r01_e03.ts": "c8104f676a34e31e4c9836923a45eed371643e3cad6fcf0ab9285905b8e16be4",

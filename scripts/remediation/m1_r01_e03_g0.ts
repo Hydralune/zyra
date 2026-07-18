@@ -224,7 +224,7 @@ const routeHints: Readonly<Record<string, readonly RegExp[]>> = {
   "control-kill": [/timeout/i, /terminal/i],
   "control-wait": [/timeout/i, /wait/i, /fresh/i, /timestamp/i],
   "control-result": [/runid/i, /store/i, /entry/i, /metadata/i, /session/i],
-  "structured-stdio": [/gateway/i, /command/i, /call/i, /threadbinding/i],
+  "structured-stdio": [/gateway/i, /gateway/i, /command/i, /call/i, /threadbinding/i, /threadbinding/i],
 };
 
 function semanticRoute(unit: Selected, use: ReadonlyMap<string, number>): { route: Route; score: number } {

@@ -4,12 +4,15 @@
   "execution_id": "E03",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "verified_zyra_tree": "c69879e1c1715020caf3cc0b3ed7e7455ba85494",
-  "g0_candidate_head": "1fcda204d0df25bad48f594bad55f373cfc5fff0",
-  "g0_candidate_tree": "75764cad4e05bcf70fd62c40957e856789a33e96",
+  "g0_candidate_head": "256026c04a3c4559a4873f633ba3651f152463c7",
+  "g0_candidate_tree": "953241cb7294429d4399bf7f5ddaf2fac632834b",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "captured_at_utc": "2026-07-18T09:23:47.324Z",
-  "clean_worktree": true,
-  "dirty_paths": [],
+  "captured_at_utc": "2026-07-18T09:26:11.601Z",
+  "clean_worktree": false,
+  "dirty_paths": [
+    "docs/reviews/evidence/M1-R01-v3/execution-03/candidate-gate-result.json",
+    "scripts/remediation/m1_r01_e03_g0.ts"
+  ],
   "source_hash_semantics": "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
   "source_snapshots": {
     "claude-code-best": {
@@ -26,11 +29,11 @@
     }
   },
   "manifest_sha256": {
-    "execution-03-source-manifest.jsonl": "839861b8991b10cf09323a994ae2eafb284dcfacfd2485f1b358df43eb121c59",
+    "execution-03-source-manifest.jsonl": "11f74159374981c7809bce42c5e2416a92610b1d5e19e7b90e4e293f8ecda335",
     "execution-03-python-owner-baseline.jsonl": "d94712bd65a172d2df111bfee0fdb95770ece401414753862bff77b6d6b597fb",
-    "execution-03-target-custody-map.jsonl": "340a891f96c9b470b16f8970de16d84757545e237ac086fbd439a9ebc6a23cea",
+    "execution-03-target-custody-map.jsonl": "2c4381fc5c2c532b50ddb5657cedaf9cdeebfc6fb990c2a30db85041b4cd8e84",
     "execution-03-mutation-manifest.jsonl": "a992d42d0e9b03c6b427215e6710f9d9f4911c82443da7ed4382d4f7c08a0b13",
-    "execution-03-gate-profile.json": "e1b73098ef5c9988c4ae552f88413aa940cf1ff74f6882ee89c0e52a800eb00c"
+    "execution-03-gate-profile.json": "4cbef69babc85a66df1a1d29bb61a4ef3cd7a42fd00507db722662ff10d09d3b"
   },
   "toolchain": {
     "bun": "1.2.15",
@@ -46,7 +49,7 @@
     "bun",
     "scripts/remediation/verify_m1_r01_e03.ts",
     "--candidate",
-    "1fcda204d0df25bad48f594bad55f373cfc5fff0"
+    "256026c04a3c4559a4873f633ba3651f152463c7"
   ],
   "schema_validator_version": "zyra.e03-verification/v1",
   "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",
