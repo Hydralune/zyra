@@ -4401,3 +4401,543 @@ export class WorktreeMergeVerificationRuntime {
     return structuredClone(next);
   }
 }
+
+export type CleanupSettlementState =
+  | "planned"
+  | "collecting"
+  | "verified"
+  | "incomplete"
+  | "released";
+
+export interface CleanupResourceClaim {
+  claimId: string;
+  cleanupId: string;
+  taskId: string;
+  requestId: string;
+  resourceKind: "worktree" | "process" | "mount" | "credential" | "artifact";
+  resourceId: string;
+  expectedPresent: boolean;
+  observedPresent: boolean | null;
+  observationDigest: string;
+  observedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface CleanupSettlement {
+  settlementId: string;
+  cleanupId: string;
+  taskId: string;
+  requestId: string;
+  leaseId: string;
+  state: CleanupSettlementState;
+  requiredClaimIds: string[];
+  satisfiedClaimIds: string[];
+  retainedArtifactIds: string[];
+  blockingClaimIds: string[];
+  cleanupReceiptDigest: string;
+  releaseFence: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface CleanupSettlementEvidence {
+  evidenceId: string;
+  settlementId: string;
+  claimId: string;
+  observerId: string;
+  observedPresent: boolean;
+  observationDigest: string;
+  priorClaimDigest: string;
+  recordedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface CleanupSettlementSnapshot {
+  settlements: CleanupSettlement[];
+  claims: CleanupResourceClaim[];
+  evidence: CleanupSettlementEvidence[];
+  digest: string;
+}
+
+function assertCleanupResourceClaim(value: CleanupResourceClaim): void {
+  if (
+    !value.claimId ||
+    !value.cleanupId ||
+    !value.taskId ||
+    !value.requestId ||
+    !value.resourceId
+  )
+    throw new E03RuntimeError(
+      "cleanup_resource_claim_invalid",
+      "cleanup resource claim requires custody identity",
+    );
+  if (!Number.isInteger(value.revision) || value.revision < 1)
+    throw new E03RuntimeError(
+      "cleanup_resource_claim_revision_invalid",
+      "cleanup resource claim revision must be positive",
+    );
+  if (value.observedPresent !== null && !value.observationDigest)
+    throw new E03RuntimeError(
+      "cleanup_resource_observation_digest_missing",
+      "observed cleanup resource requires evidence digest",
+    );
+}
+
+function assertCleanupSettlement(value: CleanupSettlement): void {
+  if (
+    !value.settlementId ||
+    !value.cleanupId ||
+    !value.taskId ||
+    !value.requestId ||
+    !value.leaseId
+  )
+    throw new E03RuntimeError(
+      "cleanup_settlement_invalid",
+      "cleanup settlement requires task and lease custody",
+    );
+  if (new Set(value.requiredClaimIds).size !== value.requiredClaimIds.length)
+    throw new E03RuntimeError(
+      "cleanup_settlement_claim_duplicate",
+      "cleanup settlement claims must be unique",
+    );
+  if (
+    value.satisfiedClaimIds.some(
+      (claimId) => !value.requiredClaimIds.includes(claimId),
+    ) ||
+    value.blockingClaimIds.some(
+      (claimId) => !value.requiredClaimIds.includes(claimId),
+    )
+  )
+    throw new E03RuntimeError(
+      "cleanup_settlement_claim_outside_plan",
+      "cleanup settlement references claim outside plan",
+    );
+  if (value.state === "released" && !value.releaseFence)
+    throw new E03RuntimeError(
+      "cleanup_settlement_release_fence_missing",
+      "released cleanup settlement requires fence",
+    );
+}
+
+function assertCleanupSettlementEvidence(
+  value: CleanupSettlementEvidence,
+): void {
+  if (
+    !value.evidenceId ||
+    !value.settlementId ||
+    !value.claimId ||
+    !value.observerId ||
+    !value.observationDigest ||
+    !value.priorClaimDigest
+  )
+    throw new E03RuntimeError(
+      "cleanup_settlement_evidence_invalid",
+      "cleanup settlement evidence requires observer and digest chain",
+    );
+}
+
+export class WorktreeCleanupSettlementRuntime {
+  private settlements = new Map<string, CleanupSettlement>();
+  private claims = new Map<string, CleanupResourceClaim>();
+  private evidence = new Map<string, CleanupSettlementEvidence>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  plan(input: {
+    cleanup: CleanupReceipt;
+    resources: Array<{
+      resourceKind: CleanupResourceClaim["resourceKind"];
+      resourceId: string;
+      expectedPresent?: boolean;
+    }>;
+  }): CleanupSettlement {
+    if (!input.cleanup.cleanupId || !input.cleanup.digest)
+      throw new E03RuntimeError(
+        "cleanup_settlement_receipt_invalid",
+        "cleanup settlement requires a sealed cleanup receipt",
+      );
+    const existing = [...this.settlements.values()].find(
+      (value) => value.cleanupId === input.cleanup.cleanupId,
+    );
+    if (existing) {
+      if (existing.cleanupReceiptDigest !== input.cleanup.digest)
+        throw new E03RuntimeError(
+          "cleanup_settlement_receipt_conflict",
+          "cleanup settlement already exists for another receipt digest",
+        );
+      return structuredClone(existing);
+    }
+    const uniqueResources = new Set<string>();
+    const claims = input.resources.map((resource) => {
+      const resourceKey = `${resource.resourceKind}:${resource.resourceId}`;
+      if (!resource.resourceId || uniqueResources.has(resourceKey))
+        throw new E03RuntimeError(
+          "cleanup_settlement_resource_duplicate",
+          `cleanup settlement resource ${resourceKey} is invalid or duplicate`,
+        );
+      uniqueResources.add(resourceKey);
+      const claimPayload = {
+        claimId: createId("cleanup-resource-claim"),
+        cleanupId: input.cleanup.cleanupId,
+        taskId: input.cleanup.taskId,
+        requestId: input.cleanup.requestId,
+        resourceKind: resource.resourceKind,
+        resourceId: resource.resourceId,
+        expectedPresent: resource.expectedPresent ?? false,
+        observedPresent: null,
+        observationDigest: "",
+        observedAt: "",
+        revision: 1,
+      };
+      const claim = { ...claimPayload, digest: digest(claimPayload) };
+      assertCleanupResourceClaim(claim);
+      this.claims.set(claim.claimId, claim);
+      return claim;
+    });
+    const now = this.clock.now();
+    const payload = {
+      settlementId: createId("cleanup-settlement"),
+      cleanupId: input.cleanup.cleanupId,
+      taskId: input.cleanup.taskId,
+      requestId: input.cleanup.requestId,
+      leaseId: input.cleanup.leaseId,
+      state: "planned" as const,
+      requiredClaimIds: claims.map((value) => value.claimId),
+      satisfiedClaimIds: [] as string[],
+      retainedArtifactIds: [...input.cleanup.retainedArtifacts].sort(),
+      blockingClaimIds: [] as string[],
+      cleanupReceiptDigest: input.cleanup.digest,
+      releaseFence: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const settlement = { ...payload, digest: digest(payload) };
+    assertCleanupSettlement(settlement);
+    this.settlements.set(settlement.settlementId, settlement);
+    return structuredClone(settlement);
+  }
+
+  begin(input: {
+    settlementId: string;
+    expectedRevision: number;
+    cleanupReceiptDigest: string;
+  }): CleanupSettlement {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.cleanupReceiptDigest !== input.cleanupReceiptDigest)
+      throw new E03RuntimeError(
+        "cleanup_settlement_receipt_digest_mismatch",
+        "cleanup settlement receipt digest changed",
+      );
+    if (settlement.state === "released") return structuredClone(settlement);
+    if (settlement.state !== "planned" && settlement.state !== "incomplete")
+      throw new E03RuntimeError(
+        "cleanup_settlement_begin_invalid_state",
+        `cannot begin cleanup settlement from ${settlement.state}`,
+      );
+    return this.transitionSettlement(settlement, {
+      state: "collecting",
+      updatedAt: this.clock.now(),
+      blockingClaimIds: [],
+    });
+  }
+
+  observe(input: {
+    settlementId: string;
+    claimId: string;
+    expectedSettlementRevision: number;
+    expectedClaimRevision: number;
+    observerId: string;
+    observedPresent: boolean;
+    observationDigest: string;
+  }): CleanupSettlementEvidence {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedSettlementRevision);
+    if (settlement.state !== "collecting")
+      throw new E03RuntimeError(
+        "cleanup_settlement_not_collecting",
+        "cleanup evidence may only be recorded while collecting",
+      );
+    const claim = this.requireClaim(input.claimId);
+    this.assertClaimRevision(claim, input.expectedClaimRevision);
+    if (!settlement.requiredClaimIds.includes(claim.claimId))
+      throw new E03RuntimeError(
+        "cleanup_settlement_claim_mismatch",
+        "cleanup claim does not belong to settlement",
+      );
+    if (!input.observerId || !input.observationDigest)
+      throw new E03RuntimeError(
+        "cleanup_settlement_observation_invalid",
+        "cleanup observation requires observer and digest",
+      );
+    const nextClaim = this.transitionClaim(claim, {
+      observedPresent: input.observedPresent,
+      observationDigest: input.observationDigest,
+      observedAt: this.clock.now(),
+    });
+    const evidencePayload = {
+      evidenceId: createId("cleanup-settlement-evidence"),
+      settlementId: settlement.settlementId,
+      claimId: claim.claimId,
+      observerId: input.observerId,
+      observedPresent: input.observedPresent,
+      observationDigest: input.observationDigest,
+      priorClaimDigest: claim.digest,
+      recordedAt: this.clock.now(),
+      revision: 1,
+    };
+    const evidence = {
+      ...evidencePayload,
+      digest: digest({ ...evidencePayload, nextClaimDigest: nextClaim.digest }),
+    };
+    assertCleanupSettlementEvidence(evidence);
+    this.evidence.set(evidence.evidenceId, evidence);
+    return structuredClone(evidence);
+  }
+
+  reconcile(input: {
+    settlementId: string;
+    expectedRevision: number;
+  }): CleanupSettlement {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state !== "collecting")
+      throw new E03RuntimeError(
+        "cleanup_settlement_reconcile_invalid_state",
+        "cleanup settlement must be collecting before reconciliation",
+      );
+    const claims = settlement.requiredClaimIds.map((claimId) =>
+      this.requireClaim(claimId),
+    );
+    const unobserved = claims.filter((claim) => claim.observedPresent === null);
+    if (unobserved.length > 0)
+      throw new E03RuntimeError(
+        "cleanup_settlement_observation_incomplete",
+        `cleanup settlement is missing ${unobserved.length} observations`,
+      );
+    const blocking = claims.filter(
+      (claim) => claim.observedPresent !== claim.expectedPresent,
+    );
+    const satisfied = claims.filter(
+      (claim) => claim.observedPresent === claim.expectedPresent,
+    );
+    return this.transitionSettlement(settlement, {
+      state: blocking.length === 0 ? "verified" : "incomplete",
+      satisfiedClaimIds: satisfied.map((value) => value.claimId),
+      blockingClaimIds: blocking.map((value) => value.claimId),
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  release(input: {
+    settlementId: string;
+    expectedRevision: number;
+    leaseId: string;
+    releaseFence: string;
+  }): CleanupSettlement {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state === "released") {
+      if (settlement.releaseFence !== input.releaseFence)
+        throw new E03RuntimeError(
+          "cleanup_settlement_release_conflict",
+          "cleanup settlement was released by another fence",
+        );
+      return structuredClone(settlement);
+    }
+    if (settlement.state !== "verified")
+      throw new E03RuntimeError(
+        "cleanup_settlement_not_verified",
+        "cleanup settlement must be verified before release",
+      );
+    if (settlement.leaseId !== input.leaseId || !input.releaseFence)
+      throw new E03RuntimeError(
+        "cleanup_settlement_release_fence_invalid",
+        "cleanup settlement release lease or fence is invalid",
+      );
+    return this.transitionSettlement(settlement, {
+      state: "released",
+      releaseFence: input.releaseFence,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  reopen(input: {
+    settlementId: string;
+    expectedRevision: number;
+    resolvedClaimIds: string[];
+  }): CleanupSettlement {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state !== "incomplete")
+      throw new E03RuntimeError(
+        "cleanup_settlement_reopen_invalid_state",
+        "only incomplete cleanup settlement may reopen",
+      );
+    for (const claimId of input.resolvedClaimIds) {
+      if (!settlement.blockingClaimIds.includes(claimId))
+        throw new E03RuntimeError(
+          "cleanup_settlement_resolution_mismatch",
+          `cleanup claim ${claimId} is not blocking`,
+        );
+      const claim = this.requireClaim(claimId);
+      this.transitionClaim(claim, {
+        observedPresent: null,
+        observationDigest: "",
+        observedAt: "",
+      });
+    }
+    return this.transitionSettlement(settlement, {
+      state: "collecting",
+      blockingClaimIds: settlement.blockingClaimIds.filter(
+        (claimId) => !input.resolvedClaimIds.includes(claimId),
+      ),
+      satisfiedClaimIds: settlement.satisfiedClaimIds.filter(
+        (claimId) => !input.resolvedClaimIds.includes(claimId),
+      ),
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  snapshot(): CleanupSettlementSnapshot {
+    const payload = {
+      settlements: [...this.settlements.values()].map((value) =>
+        structuredClone(value),
+      ),
+      claims: [...this.claims.values()].map((value) => structuredClone(value)),
+      evidence: [...this.evidence.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: CleanupSettlementSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "cleanup_settlement_snapshot_corrupt",
+        "cleanup settlement snapshot digest mismatch",
+      );
+    const settlements = new Map<string, CleanupSettlement>();
+    const claims = new Map<string, CleanupResourceClaim>();
+    const evidence = new Map<string, CleanupSettlementEvidence>();
+    for (const value of payload.claims) {
+      assertCleanupResourceClaim(value);
+      if (claims.has(value.claimId))
+        throw new E03RuntimeError(
+          "cleanup_settlement_snapshot_claim_duplicate",
+          `duplicate cleanup claim ${value.claimId}`,
+        );
+      claims.set(value.claimId, structuredClone(value));
+    }
+    for (const value of payload.settlements) {
+      assertCleanupSettlement(value);
+      if (value.requiredClaimIds.some((claimId) => !claims.has(claimId)))
+        throw new E03RuntimeError(
+          "cleanup_settlement_snapshot_claim_missing",
+          `cleanup settlement ${value.settlementId} references missing claim`,
+        );
+      settlements.set(value.settlementId, structuredClone(value));
+    }
+    for (const value of payload.evidence) {
+      assertCleanupSettlementEvidence(value);
+      if (!settlements.has(value.settlementId) || !claims.has(value.claimId))
+        throw new E03RuntimeError(
+          "cleanup_settlement_snapshot_evidence_orphaned",
+          `cleanup evidence ${value.evidenceId} is orphaned`,
+        );
+      evidence.set(value.evidenceId, structuredClone(value));
+    }
+    this.settlements = settlements;
+    this.claims = claims;
+    this.evidence = evidence;
+  }
+
+  private requireSettlement(id: string): CleanupSettlement {
+    const value = this.settlements.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "cleanup_settlement_missing",
+        `cleanup settlement ${id} does not exist`,
+      );
+    assertCleanupSettlement(value);
+    return value;
+  }
+
+  private requireClaim(id: string): CleanupResourceClaim {
+    const value = this.claims.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "cleanup_resource_claim_missing",
+        `cleanup resource claim ${id} does not exist`,
+      );
+    assertCleanupResourceClaim(value);
+    return value;
+  }
+
+  private assertSettlementRevision(
+    value: CleanupSettlement,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "cleanup_settlement_stale_revision",
+        `cleanup settlement ${value.settlementId} revision is stale`,
+      );
+  }
+
+  private assertClaimRevision(
+    value: CleanupResourceClaim,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "cleanup_resource_claim_stale_revision",
+        `cleanup resource claim ${value.claimId} revision is stale`,
+      );
+  }
+
+  private transitionSettlement(
+    value: CleanupSettlement,
+    patch: Partial<
+      Omit<CleanupSettlement, "settlementId" | "revision" | "digest">
+    >,
+  ): CleanupSettlement {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      settlementId: value.settlementId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCleanupSettlement(next);
+    this.settlements.set(next.settlementId, next);
+    return structuredClone(next);
+  }
+
+  private transitionClaim(
+    value: CleanupResourceClaim,
+    patch: Partial<
+      Omit<CleanupResourceClaim, "claimId" | "revision" | "digest">
+    >,
+  ): CleanupResourceClaim {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      claimId: value.claimId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCleanupResourceClaim(next);
+    this.claims.set(next.claimId, next);
+    return structuredClone(next);
+  }
+}

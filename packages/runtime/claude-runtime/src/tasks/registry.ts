@@ -4607,3 +4607,901 @@ export function assertTransitionReceiptBinding(
     );
   }
 }
+
+export type TaskJournalArchiveState =
+  | "open"
+  | "sealed"
+  | "verified"
+  | "archived"
+  | "purged";
+
+export interface TaskJournalArchivePolicy {
+  policyId: string;
+  maximumRecordsPerSegment: number;
+  minimumVerifiedSegments: number;
+  retentionMs: number;
+  legalHoldTaskIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskJournalArchiveSegment {
+  segmentId: string;
+  policyId: string;
+  state: TaskJournalArchiveState;
+  firstSequence: number;
+  lastSequence: number;
+  recordCount: number;
+  taskIds: string[];
+  headDigest: string;
+  tailDigest: string;
+  recordsDigest: string;
+  archiveLocation: string;
+  archiveDigest: string;
+  openedAt: string;
+  sealedAt: string;
+  verifiedAt: string;
+  expiresAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskJournalArchiveCursor {
+  cursorId: string;
+  consumerId: string;
+  segmentId: string;
+  sequence: number;
+  recordDigest: string;
+  leaseExpiresAt: string;
+  generation: number;
+  state: "active" | "released" | "expired";
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskJournalArchiveReceipt {
+  receiptId: string;
+  segmentId: string;
+  operation: "seal" | "verify" | "archive" | "purge";
+  actorId: string;
+  sourceDigest: string;
+  resultDigest: string;
+  previousReceiptDigest: string;
+  recordedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface TaskJournalArchiveSnapshot {
+  policies: TaskJournalArchivePolicy[];
+  segments: TaskJournalArchiveSegment[];
+  recordsBySegment: Array<[string, TaskJournalRecord[]]>;
+  cursors: TaskJournalArchiveCursor[];
+  receipts: TaskJournalArchiveReceipt[];
+  activeSegmentIdByPolicy: Array<[string, string]>;
+  activeCursorIdByConsumer: Array<[string, string]>;
+  digest: string;
+}
+
+function assertTaskJournalArchivePolicy(value: TaskJournalArchivePolicy): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.policyId ||
+    value.maximumRecordsPerSegment < 1 ||
+    value.minimumVerifiedSegments < 0 ||
+    value.retentionMs < 1 ||
+    new Set(value.legalHoldTaskIds).size !== value.legalHoldTaskIds.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_journal_archive_policy_corrupt",
+      `task journal archive policy ${value.policyId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskJournalArchiveSegment(
+  value: TaskJournalArchiveSegment,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.segmentId ||
+    !value.policyId ||
+    value.firstSequence < 1 ||
+    value.lastSequence < value.firstSequence - 1 ||
+    value.recordCount < 0 ||
+    new Set(value.taskIds).size !== value.taskIds.length ||
+    !value.headDigest ||
+    !value.tailDigest ||
+    !value.recordsDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_journal_archive_segment_corrupt",
+      `task journal archive segment ${value.segmentId || "<empty>"} is corrupt`,
+    );
+  if (
+    (value.state === "archived" || value.state === "purged") &&
+    (!value.archiveLocation || !value.archiveDigest)
+  )
+    throw new E03RuntimeError(
+      "task_journal_archive_location_missing",
+      "archived task journal segment requires location and digest",
+    );
+}
+
+function assertTaskJournalArchiveCursor(value: TaskJournalArchiveCursor): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.cursorId ||
+    !value.consumerId ||
+    !value.segmentId ||
+    value.sequence < 0 ||
+    !value.recordDigest ||
+    value.generation < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_journal_archive_cursor_corrupt",
+      `task journal archive cursor ${value.cursorId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertTaskJournalArchiveReceipt(
+  value: TaskJournalArchiveReceipt,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.segmentId ||
+    !value.actorId ||
+    !value.sourceDigest ||
+    !value.resultDigest ||
+    !value.previousReceiptDigest ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "task_journal_archive_receipt_corrupt",
+      `task journal archive receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class TaskJournalArchiveRuntime {
+  private policies = new Map<string, TaskJournalArchivePolicy>();
+  private segments = new Map<string, TaskJournalArchiveSegment>();
+  private recordsBySegment = new Map<string, TaskJournalRecord[]>();
+  private cursors = new Map<string, TaskJournalArchiveCursor>();
+  private receipts = new Map<string, TaskJournalArchiveReceipt[]>();
+  private activeSegmentIdByPolicy = new Map<string, string>();
+  private activeCursorIdByConsumer = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerPolicy(input: {
+    policyId?: string;
+    maximumRecordsPerSegment: number;
+    minimumVerifiedSegments?: number;
+    retentionMs: number;
+  }): TaskJournalArchivePolicy {
+    const policyId = input.policyId ?? createId("task-journal-archive-policy");
+    const existing = this.policies.get(policyId);
+    if (existing) return structuredClone(existing);
+    const now = this.clock.now();
+    const payload = {
+      policyId,
+      maximumRecordsPerSegment: input.maximumRecordsPerSegment,
+      minimumVerifiedSegments: input.minimumVerifiedSegments ?? 1,
+      retentionMs: input.retentionMs,
+      legalHoldTaskIds: [] as string[],
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertTaskJournalArchivePolicy(policy);
+    this.policies.set(policyId, policy);
+    return structuredClone(policy);
+  }
+
+  setLegalHold(input: {
+    policyId: string;
+    expectedRevision: number;
+    taskId: string;
+    enabled: boolean;
+  }): TaskJournalArchivePolicy {
+    const policy = this.requirePolicy(input.policyId);
+    this.assertPolicyRevision(policy, input.expectedRevision);
+    if (!input.taskId)
+      throw new E03RuntimeError(
+        "task_journal_archive_hold_task_required",
+        "task journal legal hold requires task",
+      );
+    const held = new Set(policy.legalHoldTaskIds);
+    if (input.enabled) held.add(input.taskId);
+    else held.delete(input.taskId);
+    return this.transitionPolicy(policy, {
+      legalHoldTaskIds: [...held].sort(),
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  append(input: {
+    policyId: string;
+    record: TaskJournalRecord;
+  }): TaskJournalArchiveSegment {
+    const policy = this.requirePolicy(input.policyId);
+    this.assertRecord(input.record);
+    const duplicate = [...this.recordsBySegment.values()].some((records) =>
+      records.some((record) => record.journalId === input.record.journalId),
+    );
+    if (duplicate) {
+      const segment = [...this.segments.values()].find((candidate) =>
+        (this.recordsBySegment.get(candidate.segmentId) ?? []).some(
+          (record) => record.journalId === input.record.journalId,
+        ),
+      );
+      if (!segment)
+        throw new E03RuntimeError(
+          "task_journal_archive_duplicate_orphaned",
+          "duplicate task journal record has no segment",
+        );
+      return structuredClone(segment);
+    }
+    let segment = this.openSegment(policy, input.record);
+    const records = this.recordsBySegment.get(segment.segmentId) ?? [];
+    if (records.length > 0) {
+      const previous = records.at(-1)!;
+      if (
+        input.record.sequence !== previous.sequence + 1 ||
+        input.record.previousDigest !== previous.digest
+      )
+        throw new E03RuntimeError(
+          "task_journal_archive_chain_break",
+          "task journal archive record breaks sequence or digest chain",
+        );
+    } else if (input.record.sequence !== segment.firstSequence)
+      throw new E03RuntimeError(
+        "task_journal_archive_segment_sequence_mismatch",
+        "task journal archive segment starts at unexpected sequence",
+      );
+    const nextRecords = [...records, structuredClone(input.record)];
+    this.recordsBySegment.set(segment.segmentId, nextRecords);
+    segment = this.transitionSegment(segment, {
+      lastSequence: input.record.sequence,
+      recordCount: nextRecords.length,
+      taskIds: [...new Set([...segment.taskIds, input.record.taskId])].sort(),
+      headDigest: nextRecords[0]!.digest,
+      tailDigest: input.record.digest,
+      recordsDigest: digest(nextRecords.map((record) => record.digest)),
+    });
+    if (nextRecords.length >= policy.maximumRecordsPerSegment)
+      segment = this.seal({
+        segmentId: segment.segmentId,
+        expectedRevision: segment.revision,
+        actorId: "archive:auto-seal",
+      }).segment;
+    return segment;
+  }
+
+  seal(input: {
+    segmentId: string;
+    expectedRevision: number;
+    actorId: string;
+  }): {
+    segment: TaskJournalArchiveSegment;
+    receipt: TaskJournalArchiveReceipt;
+  } {
+    const segment = this.requireSegment(input.segmentId);
+    this.assertSegmentRevision(segment, input.expectedRevision);
+    if (segment.state === "sealed") {
+      const receipt = (this.receipts.get(segment.segmentId) ?? []).find(
+        (value) =>
+          value.operation === "seal" && value.resultDigest === segment.digest,
+      );
+      if (!receipt)
+        throw new E03RuntimeError(
+          "task_journal_archive_seal_receipt_missing",
+          "sealed task journal segment lacks receipt",
+        );
+      return {
+        segment: structuredClone(segment),
+        receipt: structuredClone(receipt),
+      };
+    }
+    if (segment.state !== "open" || segment.recordCount < 1)
+      throw new E03RuntimeError(
+        "task_journal_archive_seal_invalid_state",
+        `cannot seal task journal segment from ${segment.state}`,
+      );
+    const sourceDigest = segment.digest;
+    const next = this.transitionSegment(segment, {
+      state: "sealed",
+      sealedAt: this.clock.now(),
+    });
+    if (
+      this.activeSegmentIdByPolicy.get(segment.policyId) === segment.segmentId
+    )
+      this.activeSegmentIdByPolicy.delete(segment.policyId);
+    const receipt = this.recordReceipt(
+      next,
+      "seal",
+      input.actorId,
+      sourceDigest,
+    );
+    return { segment: next, receipt };
+  }
+
+  verify(input: {
+    segmentId: string;
+    expectedRevision: number;
+    actorId: string;
+    expectedRecordsDigest: string;
+  }): {
+    segment: TaskJournalArchiveSegment;
+    receipt: TaskJournalArchiveReceipt;
+  } {
+    const segment = this.requireSegment(input.segmentId);
+    this.assertSegmentRevision(segment, input.expectedRevision);
+    if (segment.state !== "sealed")
+      throw new E03RuntimeError(
+        "task_journal_archive_verify_invalid_state",
+        "task journal archive segment must be sealed before verification",
+      );
+    const records = this.recordsBySegment.get(segment.segmentId) ?? [];
+    this.assertRecordChain(records);
+    const recordsDigest = digest(records.map((record) => record.digest));
+    if (
+      recordsDigest !== segment.recordsDigest ||
+      recordsDigest !== input.expectedRecordsDigest
+    )
+      throw new E03RuntimeError(
+        "task_journal_archive_verify_digest_mismatch",
+        "task journal archive records digest mismatch",
+      );
+    const sourceDigest = segment.digest;
+    const next = this.transitionSegment(segment, {
+      state: "verified",
+      verifiedAt: this.clock.now(),
+    });
+    return {
+      segment: next,
+      receipt: this.recordReceipt(next, "verify", input.actorId, sourceDigest),
+    };
+  }
+
+  archive(input: {
+    segmentId: string;
+    expectedRevision: number;
+    actorId: string;
+    archiveLocation: string;
+    archiveDigest: string;
+  }): {
+    segment: TaskJournalArchiveSegment;
+    receipt: TaskJournalArchiveReceipt;
+  } {
+    const segment = this.requireSegment(input.segmentId);
+    this.assertSegmentRevision(segment, input.expectedRevision);
+    if (segment.state !== "verified")
+      throw new E03RuntimeError(
+        "task_journal_archive_upload_invalid_state",
+        "task journal segment must be verified before archive",
+      );
+    if (!input.archiveLocation || !input.archiveDigest)
+      throw new E03RuntimeError(
+        "task_journal_archive_destination_invalid",
+        "task journal archive requires location and digest",
+      );
+    if (input.archiveDigest !== segment.recordsDigest)
+      throw new E03RuntimeError(
+        "task_journal_archive_upload_digest_mismatch",
+        "task journal archive upload digest differs from verified segment",
+      );
+    const policy = this.requirePolicy(segment.policyId);
+    const sourceDigest = segment.digest;
+    const next = this.transitionSegment(segment, {
+      state: "archived",
+      archiveLocation: input.archiveLocation,
+      archiveDigest: input.archiveDigest,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + policy.retentionMs,
+      ).toISOString(),
+    });
+    return {
+      segment: next,
+      receipt: this.recordReceipt(next, "archive", input.actorId, sourceDigest),
+    };
+  }
+
+  acquireCursor(input: {
+    consumerId: string;
+    segmentId: string;
+    leaseMs: number;
+    now?: string;
+  }): TaskJournalArchiveCursor {
+    const segment = this.requireSegment(input.segmentId);
+    if (segment.state === "purged")
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_segment_purged",
+        "cannot acquire cursor for purged task journal segment",
+      );
+    const now = input.now ?? this.clock.now();
+    const activeId = this.activeCursorIdByConsumer.get(input.consumerId);
+    const active = activeId ? this.cursors.get(activeId) : undefined;
+    if (
+      active &&
+      active.state === "active" &&
+      Date.parse(active.leaseExpiresAt) > Date.parse(now)
+    ) {
+      if (active.segmentId !== input.segmentId)
+        throw new E03RuntimeError(
+          "task_journal_archive_cursor_conflict",
+          `consumer ${input.consumerId} already holds another cursor`,
+        );
+      return structuredClone(active);
+    }
+    if (!Number.isInteger(input.leaseMs) || input.leaseMs < 1)
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_lease_invalid",
+        "task journal archive cursor lease must be positive",
+      );
+    const payload = {
+      cursorId: createId("task-journal-archive-cursor"),
+      consumerId: input.consumerId,
+      segmentId: segment.segmentId,
+      sequence: segment.firstSequence - 1,
+      recordDigest: digest("task-journal-archive-cursor-root"),
+      leaseExpiresAt: new Date(Date.parse(now) + input.leaseMs).toISOString(),
+      generation: (active?.generation ?? 0) + 1,
+      state: "active" as const,
+      updatedAt: now,
+      revision: 1,
+    };
+    const cursor = { ...payload, digest: digest(payload) };
+    assertTaskJournalArchiveCursor(cursor);
+    this.cursors.set(cursor.cursorId, cursor);
+    this.activeCursorIdByConsumer.set(cursor.consumerId, cursor.cursorId);
+    return structuredClone(cursor);
+  }
+
+  advanceCursor(input: {
+    cursorId: string;
+    expectedRevision: number;
+    generation: number;
+    sequence: number;
+    recordDigest: string;
+    now?: string;
+  }): TaskJournalArchiveCursor {
+    const cursor = this.requireCursor(input.cursorId);
+    this.assertCursorRevision(cursor, input.expectedRevision);
+    const now = input.now ?? this.clock.now();
+    if (
+      cursor.state !== "active" ||
+      Date.parse(cursor.leaseExpiresAt) <= Date.parse(now)
+    )
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_expired",
+        "task journal archive cursor is not active",
+      );
+    if (cursor.generation !== input.generation)
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_generation_stale",
+        "task journal archive cursor generation is stale",
+      );
+    const records = this.recordsBySegment.get(cursor.segmentId) ?? [];
+    const record = records.find((value) => value.sequence === input.sequence);
+    if (!record || record.digest !== input.recordDigest)
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_record_mismatch",
+        "task journal archive cursor does not match retained record",
+      );
+    if (input.sequence <= cursor.sequence)
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_non_monotonic",
+        "task journal archive cursor must advance monotonically",
+      );
+    return this.transitionCursor(cursor, {
+      sequence: input.sequence,
+      recordDigest: input.recordDigest,
+      updatedAt: now,
+    });
+  }
+
+  purge(input: {
+    segmentId: string;
+    expectedRevision: number;
+    actorId: string;
+    now?: string;
+  }): {
+    segment: TaskJournalArchiveSegment;
+    receipt: TaskJournalArchiveReceipt;
+  } {
+    const segment = this.requireSegment(input.segmentId);
+    this.assertSegmentRevision(segment, input.expectedRevision);
+    const now = input.now ?? this.clock.now();
+    if (segment.state !== "archived")
+      throw new E03RuntimeError(
+        "task_journal_archive_purge_invalid_state",
+        "only archived task journal segments may purge",
+      );
+    if (Date.parse(segment.expiresAt) > Date.parse(now))
+      throw new E03RuntimeError(
+        "task_journal_archive_retention_active",
+        "task journal archive retention window is active",
+      );
+    const policy = this.requirePolicy(segment.policyId);
+    if (
+      segment.taskIds.some((taskId) => policy.legalHoldTaskIds.includes(taskId))
+    )
+      throw new E03RuntimeError(
+        "task_journal_archive_legal_hold",
+        "task journal archive segment contains held task",
+      );
+    const verifiedSegments = [...this.segments.values()].filter(
+      (candidate) =>
+        candidate.policyId === policy.policyId &&
+        candidate.segmentId !== segment.segmentId &&
+        (candidate.state === "verified" || candidate.state === "archived"),
+    );
+    if (verifiedSegments.length < policy.minimumVerifiedSegments)
+      throw new E03RuntimeError(
+        "task_journal_archive_minimum_segments",
+        "task journal archive minimum verified segments would be violated",
+      );
+    const activeCursor = [...this.cursors.values()].find(
+      (cursor) =>
+        cursor.segmentId === segment.segmentId && cursor.state === "active",
+    );
+    if (activeCursor)
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_active",
+        "task journal archive segment has active cursor",
+      );
+    const sourceDigest = segment.digest;
+    const next = this.transitionSegment(segment, { state: "purged" });
+    this.recordsBySegment.delete(segment.segmentId);
+    return {
+      segment: next,
+      receipt: this.recordReceipt(next, "purge", input.actorId, sourceDigest),
+    };
+  }
+
+  snapshot(): TaskJournalArchiveSnapshot {
+    const payload = {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      segments: [...this.segments.values()].map((value) =>
+        structuredClone(value),
+      ),
+      recordsBySegment: [...this.recordsBySegment.entries()].map(
+        ([segmentId, records]) =>
+          [segmentId, structuredClone(records)] as [
+            string,
+            TaskJournalRecord[],
+          ],
+      ),
+      cursors: [...this.cursors.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      activeSegmentIdByPolicy: [...this.activeSegmentIdByPolicy.entries()],
+      activeCursorIdByConsumer: [...this.activeCursorIdByConsumer.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: TaskJournalArchiveSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "task_journal_archive_snapshot_corrupt",
+        "task journal archive snapshot digest mismatch",
+      );
+    const policies = new Map<string, TaskJournalArchivePolicy>();
+    const segments = new Map<string, TaskJournalArchiveSegment>();
+    const recordsBySegment = new Map<string, TaskJournalRecord[]>();
+    const cursors = new Map<string, TaskJournalArchiveCursor>();
+    const receipts = new Map<string, TaskJournalArchiveReceipt[]>();
+    for (const value of payload.policies) {
+      assertTaskJournalArchivePolicy(value);
+      if (policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "task_journal_archive_snapshot_policy_duplicate",
+          `duplicate task journal archive policy ${value.policyId}`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+    }
+    for (const value of payload.segments) {
+      assertTaskJournalArchiveSegment(value);
+      if (!policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "task_journal_archive_snapshot_policy_missing",
+          `task journal archive segment ${value.segmentId} lacks policy`,
+        );
+      segments.set(value.segmentId, structuredClone(value));
+    }
+    for (const [segmentId, records] of payload.recordsBySegment) {
+      const segment = segments.get(segmentId);
+      if (!segment || segment.state === "purged")
+        throw new E03RuntimeError(
+          "task_journal_archive_snapshot_records_orphaned",
+          `task journal records for ${segmentId} are orphaned`,
+        );
+      this.assertRecordChain(records);
+      if (
+        digest(records.map((record) => record.digest)) !== segment.recordsDigest
+      )
+        throw new E03RuntimeError(
+          "task_journal_archive_snapshot_records_corrupt",
+          `task journal archive records for ${segmentId} are corrupt`,
+        );
+      recordsBySegment.set(segmentId, structuredClone(records));
+    }
+    for (const value of payload.cursors) {
+      assertTaskJournalArchiveCursor(value);
+      if (!segments.has(value.segmentId))
+        throw new E03RuntimeError(
+          "task_journal_archive_snapshot_cursor_orphaned",
+          `task journal archive cursor ${value.cursorId} is orphaned`,
+        );
+      cursors.set(value.cursorId, structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertTaskJournalArchiveReceipt(value);
+      const list = receipts.get(value.segmentId) ?? [];
+      list.push(structuredClone(value));
+      receipts.set(value.segmentId, list);
+    }
+    const activeSegments = new Map(payload.activeSegmentIdByPolicy);
+    for (const [policyId, segmentId] of activeSegments)
+      if (!policies.has(policyId) || segments.get(segmentId)?.state !== "open")
+        throw new E03RuntimeError(
+          "task_journal_archive_snapshot_active_segment_invalid",
+          "task journal archive active segment index is corrupt",
+        );
+    const activeCursors = new Map(payload.activeCursorIdByConsumer);
+    for (const cursorId of activeCursors.values())
+      if (!cursors.has(cursorId))
+        throw new E03RuntimeError(
+          "task_journal_archive_snapshot_active_cursor_invalid",
+          "task journal archive active cursor index is corrupt",
+        );
+    this.policies = policies;
+    this.segments = segments;
+    this.recordsBySegment = recordsBySegment;
+    this.cursors = cursors;
+    this.receipts = receipts;
+    this.activeSegmentIdByPolicy = activeSegments;
+    this.activeCursorIdByConsumer = activeCursors;
+  }
+
+  private openSegment(
+    policy: TaskJournalArchivePolicy,
+    firstRecord: TaskJournalRecord,
+  ): TaskJournalArchiveSegment {
+    const activeId = this.activeSegmentIdByPolicy.get(policy.policyId);
+    const active = activeId ? this.segments.get(activeId) : undefined;
+    if (active) return active;
+    const now = this.clock.now();
+    const emptyDigest = digest([]);
+    const payload = {
+      segmentId: createId("task-journal-archive-segment"),
+      policyId: policy.policyId,
+      state: "open" as const,
+      firstSequence: firstRecord.sequence,
+      lastSequence: firstRecord.sequence - 1,
+      recordCount: 0,
+      taskIds: [] as string[],
+      headDigest: digest("task-journal-archive-head"),
+      tailDigest: digest("task-journal-archive-tail"),
+      recordsDigest: emptyDigest,
+      archiveLocation: "",
+      archiveDigest: "",
+      openedAt: now,
+      sealedAt: "",
+      verifiedAt: "",
+      expiresAt: "",
+      revision: 1,
+    };
+    const segment = { ...payload, digest: digest(payload) };
+    assertTaskJournalArchiveSegment(segment);
+    this.segments.set(segment.segmentId, segment);
+    this.recordsBySegment.set(segment.segmentId, []);
+    this.activeSegmentIdByPolicy.set(policy.policyId, segment.segmentId);
+    return segment;
+  }
+
+  private recordReceipt(
+    segment: TaskJournalArchiveSegment,
+    operation: TaskJournalArchiveReceipt["operation"],
+    actorId: string,
+    sourceDigest: string,
+  ): TaskJournalArchiveReceipt {
+    if (!actorId)
+      throw new E03RuntimeError(
+        "task_journal_archive_receipt_actor_required",
+        "task journal archive receipt requires actor",
+      );
+    const list = this.receipts.get(segment.segmentId) ?? [];
+    const payload = {
+      receiptId: createId("task-journal-archive-receipt"),
+      segmentId: segment.segmentId,
+      operation,
+      actorId,
+      sourceDigest,
+      resultDigest: segment.digest,
+      previousReceiptDigest:
+        list.at(-1)?.digest ?? digest("task-journal-archive-receipt-root"),
+      recordedAt: this.clock.now(),
+      revision: list.length + 1,
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertTaskJournalArchiveReceipt(receipt);
+    this.receipts.set(segment.segmentId, [...list, receipt]);
+    return structuredClone(receipt);
+  }
+
+  private assertRecord(value: TaskJournalRecord): void {
+    const { digest: expected, ...payload } = value;
+    if (
+      !value.journalId ||
+      value.sequence < 1 ||
+      !value.taskId ||
+      !value.leaseId ||
+      !value.payloadDigest ||
+      !value.previousDigest ||
+      digest(payload) !== expected
+    )
+      throw new E03RuntimeError(
+        "task_journal_archive_record_corrupt",
+        `task journal archive record ${value.journalId || "<empty>"} is corrupt`,
+      );
+  }
+
+  private assertRecordChain(records: TaskJournalRecord[]): void {
+    records.forEach((record, index) => {
+      this.assertRecord(record);
+      const previous = records[index - 1];
+      if (
+        previous &&
+        (record.sequence !== previous.sequence + 1 ||
+          record.previousDigest !== previous.digest)
+      )
+        throw new E03RuntimeError(
+          "task_journal_archive_record_chain_corrupt",
+          `task journal archive record ${record.journalId} breaks chain`,
+        );
+    });
+  }
+
+  private requirePolicy(id: string): TaskJournalArchivePolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_journal_archive_policy_missing",
+        `task journal archive policy ${id} does not exist`,
+      );
+    assertTaskJournalArchivePolicy(value);
+    return value;
+  }
+
+  private requireSegment(id: string): TaskJournalArchiveSegment {
+    const value = this.segments.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_journal_archive_segment_missing",
+        `task journal archive segment ${id} does not exist`,
+      );
+    assertTaskJournalArchiveSegment(value);
+    return value;
+  }
+
+  private requireCursor(id: string): TaskJournalArchiveCursor {
+    const value = this.cursors.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_missing",
+        `task journal archive cursor ${id} does not exist`,
+      );
+    assertTaskJournalArchiveCursor(value);
+    return value;
+  }
+
+  private assertPolicyRevision(
+    value: TaskJournalArchivePolicy,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_journal_archive_policy_stale_revision",
+        `task journal archive policy ${value.policyId} revision is stale`,
+      );
+  }
+
+  private assertSegmentRevision(
+    value: TaskJournalArchiveSegment,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_journal_archive_segment_stale_revision",
+        `task journal archive segment ${value.segmentId} revision is stale`,
+      );
+  }
+
+  private assertCursorRevision(
+    value: TaskJournalArchiveCursor,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "task_journal_archive_cursor_stale_revision",
+        `task journal archive cursor ${value.cursorId} revision is stale`,
+      );
+  }
+
+  private transitionPolicy(
+    value: TaskJournalArchivePolicy,
+    patch: Partial<
+      Omit<TaskJournalArchivePolicy, "policyId" | "revision" | "digest">
+    >,
+  ): TaskJournalArchivePolicy {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      policyId: value.policyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskJournalArchivePolicy(next);
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+
+  private transitionSegment(
+    value: TaskJournalArchiveSegment,
+    patch: Partial<
+      Omit<TaskJournalArchiveSegment, "segmentId" | "revision" | "digest">
+    >,
+  ): TaskJournalArchiveSegment {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      segmentId: value.segmentId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskJournalArchiveSegment(next);
+    this.segments.set(next.segmentId, next);
+    return structuredClone(next);
+  }
+
+  private transitionCursor(
+    value: TaskJournalArchiveCursor,
+    patch: Partial<
+      Omit<TaskJournalArchiveCursor, "cursorId" | "revision" | "digest">
+    >,
+  ): TaskJournalArchiveCursor {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      cursorId: value.cursorId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertTaskJournalArchiveCursor(next);
+    this.cursors.set(next.cursorId, next);
+    return structuredClone(next);
+  }
+}

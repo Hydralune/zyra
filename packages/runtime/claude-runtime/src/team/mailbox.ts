@@ -3239,3 +3239,634 @@ export class MailboxTopicRuntime {
     return structuredClone(next);
   }
 }
+
+export type MailboxRetentionSegmentState =
+  | "open"
+  | "sealed"
+  | "compacting"
+  | "compacted"
+  | "expired";
+
+export interface MailboxRetentionPolicy {
+  policyId: string;
+  topicId: string;
+  retentionMs: number;
+  maxEventsPerSegment: number;
+  minSegmentsToRetain: number;
+  compactAcknowledgedOnly: boolean;
+  legalHold: boolean;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxRetentionEvent {
+  retentionEventId: string;
+  topicId: string;
+  messageId: string;
+  senderTaskId: string;
+  recipientTaskId: string;
+  messageDigest: string;
+  acknowledged: boolean;
+  occurredAt: string;
+  sequence: number;
+  digest: string;
+}
+
+export interface MailboxRetentionSegment {
+  segmentId: string;
+  policyId: string;
+  topicId: string;
+  state: MailboxRetentionSegmentState;
+  firstSequence: number;
+  lastSequence: number;
+  eventCount: number;
+  acknowledgedCount: number;
+  eventDigests: string[];
+  openedAt: string;
+  sealedAt: string;
+  expiresAt: string;
+  replacedBySegmentId: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxCompactionReceipt {
+  receiptId: string;
+  policyId: string;
+  sourceSegmentIds: string[];
+  targetSegmentId: string;
+  retainedEventIds: string[];
+  removedEventIds: string[];
+  sourceDigest: string;
+  targetDigest: string;
+  completedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MailboxRetentionSnapshot {
+  policies: MailboxRetentionPolicy[];
+  events: MailboxRetentionEvent[];
+  segments: MailboxRetentionSegment[];
+  receipts: MailboxCompactionReceipt[];
+  nextSequenceByTopic: Array<[string, number]>;
+  digest: string;
+}
+
+function assertMailboxRetentionPolicy(value: MailboxRetentionPolicy): void {
+  if (!value.policyId || !value.topicId)
+    throw new E03RuntimeError(
+      "mailbox_retention_policy_invalid",
+      "mailbox retention policy requires identity and topic",
+    );
+  if (!Number.isInteger(value.retentionMs) || value.retentionMs < 1)
+    throw new E03RuntimeError(
+      "mailbox_retention_window_invalid",
+      "mailbox retention window must be a positive integer",
+    );
+  if (
+    !Number.isInteger(value.maxEventsPerSegment) ||
+    value.maxEventsPerSegment < 1
+  )
+    throw new E03RuntimeError(
+      "mailbox_retention_segment_limit_invalid",
+      "mailbox retention segment limit must be positive",
+    );
+  if (!Number.isInteger(value.revision) || value.revision < 1)
+    throw new E03RuntimeError(
+      "mailbox_retention_policy_revision_invalid",
+      "mailbox retention policy revision must be positive",
+    );
+}
+
+function assertMailboxRetentionEvent(value: MailboxRetentionEvent): void {
+  if (
+    !value.retentionEventId ||
+    !value.topicId ||
+    !value.messageId ||
+    !value.messageDigest
+  )
+    throw new E03RuntimeError(
+      "mailbox_retention_event_invalid",
+      "mailbox retention event requires message custody",
+    );
+  if (!Number.isInteger(value.sequence) || value.sequence < 1)
+    throw new E03RuntimeError(
+      "mailbox_retention_sequence_invalid",
+      "mailbox retention sequence must be positive",
+    );
+}
+
+function assertMailboxRetentionSegment(value: MailboxRetentionSegment): void {
+  if (!value.segmentId || !value.policyId || !value.topicId)
+    throw new E03RuntimeError(
+      "mailbox_retention_segment_invalid",
+      "mailbox retention segment requires policy custody",
+    );
+  if (
+    !Number.isInteger(value.firstSequence) ||
+    !Number.isInteger(value.lastSequence) ||
+    value.firstSequence < 1 ||
+    value.lastSequence < value.firstSequence - 1
+  )
+    throw new E03RuntimeError(
+      "mailbox_retention_segment_range_invalid",
+      "mailbox retention segment range is invalid",
+    );
+  if (value.eventCount !== value.eventDigests.length)
+    throw new E03RuntimeError(
+      "mailbox_retention_segment_count_mismatch",
+      "mailbox retention event count does not match digests",
+    );
+}
+
+function assertMailboxCompactionReceipt(value: MailboxCompactionReceipt): void {
+  if (!value.receiptId || !value.policyId || !value.targetSegmentId)
+    throw new E03RuntimeError(
+      "mailbox_compaction_receipt_invalid",
+      "mailbox compaction receipt requires target custody",
+    );
+  if (new Set(value.sourceSegmentIds).size !== value.sourceSegmentIds.length)
+    throw new E03RuntimeError(
+      "mailbox_compaction_source_duplicate",
+      "mailbox compaction sources must be unique",
+    );
+}
+
+export class MailboxRetentionRuntime {
+  private policies = new Map<string, MailboxRetentionPolicy>();
+  private events = new Map<string, MailboxRetentionEvent>();
+  private segments = new Map<string, MailboxRetentionSegment>();
+  private receipts = new Map<string, MailboxCompactionReceipt>();
+  private nextSequenceByTopic = new Map<string, number>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  registerPolicy(input: {
+    policyId?: string;
+    topicId: string;
+    retentionMs: number;
+    maxEventsPerSegment: number;
+    minSegmentsToRetain?: number;
+    compactAcknowledgedOnly?: boolean;
+  }): MailboxRetentionPolicy {
+    if (!input.topicId)
+      throw new E03RuntimeError(
+        "mailbox_retention_topic_required",
+        "mailbox retention policy requires topic",
+      );
+    const policyId = input.policyId ?? createId("mailbox-retention-policy");
+    if (this.policies.has(policyId))
+      throw new E03RuntimeError(
+        "mailbox_retention_policy_duplicate",
+        `mailbox retention policy ${policyId} already exists`,
+      );
+    const now = this.clock.now();
+    const payload = {
+      policyId,
+      topicId: input.topicId,
+      retentionMs: input.retentionMs,
+      maxEventsPerSegment: input.maxEventsPerSegment,
+      minSegmentsToRetain: input.minSegmentsToRetain ?? 1,
+      compactAcknowledgedOnly: input.compactAcknowledgedOnly ?? true,
+      legalHold: false,
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertMailboxRetentionPolicy(policy);
+    this.policies.set(policyId, policy);
+    return structuredClone(policy);
+  }
+
+  setLegalHold(input: {
+    policyId: string;
+    expectedRevision: number;
+    enabled: boolean;
+  }): MailboxRetentionPolicy {
+    const policy = this.requirePolicy(input.policyId);
+    this.assertPolicyRevision(policy, input.expectedRevision);
+    return this.transitionPolicy(policy, {
+      legalHold: input.enabled,
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  append(input: {
+    policyId: string;
+    message: E03Message;
+    acknowledged?: boolean;
+  }): { event: MailboxRetentionEvent; segment: MailboxRetentionSegment } {
+    const policy = this.requirePolicy(input.policyId);
+    const existing = [...this.events.values()].find(
+      (event) =>
+        event.topicId === policy.topicId &&
+        event.messageId === input.message.messageId,
+    );
+    if (existing) {
+      const segment = [...this.segments.values()].find(
+        (candidate) =>
+          candidate.topicId === policy.topicId &&
+          candidate.eventDigests.includes(existing.digest),
+      );
+      if (!segment)
+        throw new E03RuntimeError(
+          "mailbox_retention_segment_missing",
+          `retained message ${existing.messageId} has no segment`,
+        );
+      return {
+        event: structuredClone(existing),
+        segment: structuredClone(segment),
+      };
+    }
+    let segment = this.openSegment(policy);
+    if (segment.eventCount >= policy.maxEventsPerSegment) {
+      segment = this.transitionSegment(segment, {
+        state: "sealed",
+        sealedAt: this.clock.now(),
+      });
+      segment = this.createSegment(policy, segment.lastSequence + 1);
+    }
+    const sequence = this.nextSequenceByTopic.get(policy.topicId) ?? 1;
+    const eventPayload = {
+      retentionEventId: createId("mailbox-retention-event"),
+      topicId: policy.topicId,
+      messageId: input.message.messageId,
+      senderTaskId: input.message.senderTaskId,
+      recipientTaskId: input.message.recipientTaskId,
+      messageDigest: input.message.digest,
+      acknowledged: input.acknowledged ?? false,
+      occurredAt: this.clock.now(),
+      sequence,
+    };
+    const event = { ...eventPayload, digest: digest(eventPayload) };
+    assertMailboxRetentionEvent(event);
+    this.events.set(event.retentionEventId, event);
+    this.nextSequenceByTopic.set(policy.topicId, sequence + 1);
+    segment = this.transitionSegment(segment, {
+      lastSequence: sequence,
+      eventCount: segment.eventCount + 1,
+      acknowledgedCount:
+        segment.acknowledgedCount + (event.acknowledged ? 1 : 0),
+      eventDigests: [...segment.eventDigests, event.digest],
+    });
+    return { event: structuredClone(event), segment };
+  }
+
+  acknowledge(input: {
+    retentionEventId: string;
+    expectedMessageDigest: string;
+  }): MailboxRetentionEvent {
+    const event = this.requireEvent(input.retentionEventId);
+    if (event.messageDigest !== input.expectedMessageDigest)
+      throw new E03RuntimeError(
+        "mailbox_retention_message_digest_mismatch",
+        "mailbox retention acknowledgement does not match message",
+      );
+    if (event.acknowledged) return structuredClone(event);
+    const nextPayload = { ...event, acknowledged: true };
+    const { digest: _, ...unsigned } = nextPayload;
+    const next = { ...unsigned, digest: digest(unsigned) };
+    assertMailboxRetentionEvent(next);
+    this.events.set(next.retentionEventId, next);
+    const segment = [...this.segments.values()].find((candidate) =>
+      candidate.eventDigests.includes(event.digest),
+    );
+    if (!segment)
+      throw new E03RuntimeError(
+        "mailbox_retention_segment_missing",
+        `retained message ${event.messageId} has no segment`,
+      );
+    this.transitionSegment(segment, {
+      acknowledgedCount: segment.acknowledgedCount + 1,
+      eventDigests: segment.eventDigests.map((value) =>
+        value === event.digest ? next.digest : value,
+      ),
+    });
+    return structuredClone(next);
+  }
+
+  compact(input: {
+    policyId: string;
+    sourceSegmentIds: string[];
+    expectedRevisions: Record<string, number>;
+  }): MailboxCompactionReceipt {
+    const policy = this.requirePolicy(input.policyId);
+    if (policy.legalHold)
+      throw new E03RuntimeError(
+        "mailbox_retention_legal_hold",
+        "mailbox retention policy is under legal hold",
+      );
+    if (input.sourceSegmentIds.length < 1)
+      throw new E03RuntimeError(
+        "mailbox_compaction_sources_required",
+        "mailbox compaction requires source segments",
+      );
+    const sources = input.sourceSegmentIds.map((id) => {
+      const segment = this.requireSegment(id);
+      if (segment.policyId !== policy.policyId)
+        throw new E03RuntimeError(
+          "mailbox_compaction_policy_mismatch",
+          "mailbox compaction source belongs to another policy",
+        );
+      if (segment.state !== "sealed")
+        throw new E03RuntimeError(
+          "mailbox_compaction_source_not_sealed",
+          `mailbox retention segment ${id} is not sealed`,
+        );
+      this.assertSegmentRevision(segment, input.expectedRevisions[id] ?? -1);
+      return segment;
+    });
+    const sourceEvents = [...this.events.values()]
+      .filter((event) =>
+        sources.some((segment) => segment.eventDigests.includes(event.digest)),
+      )
+      .sort((left, right) => left.sequence - right.sequence);
+    const retained = policy.compactAcknowledgedOnly
+      ? sourceEvents.filter((event) => !event.acknowledged)
+      : sourceEvents;
+    const removed = sourceEvents.filter(
+      (event) =>
+        !retained.some(
+          (candidate) => candidate.retentionEventId === event.retentionEventId,
+        ),
+    );
+    const target = this.createCompactedSegment(policy, retained);
+    for (const source of sources)
+      this.transitionSegment(source, {
+        state: "compacted",
+        replacedBySegmentId: target.segmentId,
+      });
+    for (const event of removed) this.events.delete(event.retentionEventId);
+    const receiptPayload = {
+      receiptId: createId("mailbox-compaction-receipt"),
+      policyId: policy.policyId,
+      sourceSegmentIds: sources.map((value) => value.segmentId).sort(),
+      targetSegmentId: target.segmentId,
+      retainedEventIds: retained.map((value) => value.retentionEventId),
+      removedEventIds: removed.map((value) => value.retentionEventId),
+      sourceDigest: digest(sources.map((value) => value.digest).sort()),
+      targetDigest: target.digest,
+      completedAt: this.clock.now(),
+      revision: 1,
+    };
+    const receipt = { ...receiptPayload, digest: digest(receiptPayload) };
+    assertMailboxCompactionReceipt(receipt);
+    this.receipts.set(receipt.receiptId, receipt);
+    return structuredClone(receipt);
+  }
+
+  expire(now = this.clock.now()): MailboxRetentionSegment[] {
+    const nowMs = Date.parse(now);
+    const expired: MailboxRetentionSegment[] = [];
+    for (const policy of this.policies.values()) {
+      if (policy.legalHold) continue;
+      const candidates = [...this.segments.values()]
+        .filter(
+          (segment) =>
+            segment.policyId === policy.policyId &&
+            (segment.state === "sealed" || segment.state === "compacted"),
+        )
+        .sort((left, right) => right.lastSequence - left.lastSequence);
+      for (const segment of candidates.slice(policy.minSegmentsToRetain)) {
+        if (Date.parse(segment.expiresAt) > nowMs) continue;
+        const next = this.transitionSegment(segment, { state: "expired" });
+        for (const event of [...this.events.values()])
+          if (segment.eventDigests.includes(event.digest))
+            this.events.delete(event.retentionEventId);
+        expired.push(next);
+      }
+    }
+    return expired;
+  }
+
+  snapshot(): MailboxRetentionSnapshot {
+    const payload = {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      events: [...this.events.values()].map((value) => structuredClone(value)),
+      segments: [...this.segments.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      nextSequenceByTopic: [...this.nextSequenceByTopic.entries()],
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: MailboxRetentionSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "mailbox_retention_snapshot_corrupt",
+        "mailbox retention snapshot digest mismatch",
+      );
+    const policies = new Map<string, MailboxRetentionPolicy>();
+    const events = new Map<string, MailboxRetentionEvent>();
+    const segments = new Map<string, MailboxRetentionSegment>();
+    const receipts = new Map<string, MailboxCompactionReceipt>();
+    for (const value of payload.policies) {
+      assertMailboxRetentionPolicy(value);
+      if (policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "mailbox_retention_snapshot_policy_duplicate",
+          `duplicate mailbox retention policy ${value.policyId}`,
+        );
+      policies.set(value.policyId, structuredClone(value));
+    }
+    for (const value of payload.events) {
+      assertMailboxRetentionEvent(value);
+      if (events.has(value.retentionEventId))
+        throw new E03RuntimeError(
+          "mailbox_retention_snapshot_event_duplicate",
+          `duplicate mailbox retention event ${value.retentionEventId}`,
+        );
+      events.set(value.retentionEventId, structuredClone(value));
+    }
+    for (const value of payload.segments) {
+      assertMailboxRetentionSegment(value);
+      if (!policies.has(value.policyId))
+        throw new E03RuntimeError(
+          "mailbox_retention_snapshot_policy_missing",
+          `segment ${value.segmentId} references missing policy`,
+        );
+      segments.set(value.segmentId, structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertMailboxCompactionReceipt(value);
+      receipts.set(value.receiptId, structuredClone(value));
+    }
+    this.policies = policies;
+    this.events = events;
+    this.segments = segments;
+    this.receipts = receipts;
+    this.nextSequenceByTopic = new Map(payload.nextSequenceByTopic);
+  }
+
+  private openSegment(policy: MailboxRetentionPolicy): MailboxRetentionSegment {
+    const existing = [...this.segments.values()].find(
+      (segment) =>
+        segment.policyId === policy.policyId && segment.state === "open",
+    );
+    if (existing) return existing;
+    return this.createSegment(
+      policy,
+      this.nextSequenceByTopic.get(policy.topicId) ?? 1,
+    );
+  }
+
+  private createSegment(
+    policy: MailboxRetentionPolicy,
+    firstSequence: number,
+  ): MailboxRetentionSegment {
+    const now = this.clock.now();
+    const payload = {
+      segmentId: createId("mailbox-retention-segment"),
+      policyId: policy.policyId,
+      topicId: policy.topicId,
+      state: "open" as const,
+      firstSequence,
+      lastSequence: firstSequence - 1,
+      eventCount: 0,
+      acknowledgedCount: 0,
+      eventDigests: [] as string[],
+      openedAt: now,
+      sealedAt: "",
+      expiresAt: new Date(Date.parse(now) + policy.retentionMs).toISOString(),
+      replacedBySegmentId: "",
+      revision: 1,
+    };
+    const segment = { ...payload, digest: digest(payload) };
+    assertMailboxRetentionSegment(segment);
+    this.segments.set(segment.segmentId, segment);
+    return segment;
+  }
+
+  private createCompactedSegment(
+    policy: MailboxRetentionPolicy,
+    events: MailboxRetentionEvent[],
+  ): MailboxRetentionSegment {
+    const now = this.clock.now();
+    const firstSequence = events.at(0)?.sequence ?? 1;
+    const lastSequence = events.at(-1)?.sequence ?? firstSequence - 1;
+    const payload = {
+      segmentId: createId("mailbox-retention-compacted"),
+      policyId: policy.policyId,
+      topicId: policy.topicId,
+      state: "sealed" as const,
+      firstSequence,
+      lastSequence,
+      eventCount: events.length,
+      acknowledgedCount: events.filter((event) => event.acknowledged).length,
+      eventDigests: events.map((event) => event.digest),
+      openedAt: now,
+      sealedAt: now,
+      expiresAt: new Date(Date.parse(now) + policy.retentionMs).toISOString(),
+      replacedBySegmentId: "",
+      revision: 1,
+    };
+    const segment = { ...payload, digest: digest(payload) };
+    assertMailboxRetentionSegment(segment);
+    this.segments.set(segment.segmentId, segment);
+    return segment;
+  }
+
+  private requirePolicy(id: string): MailboxRetentionPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_retention_policy_missing",
+        `mailbox retention policy ${id} does not exist`,
+      );
+    assertMailboxRetentionPolicy(value);
+    return value;
+  }
+
+  private requireEvent(id: string): MailboxRetentionEvent {
+    const value = this.events.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_retention_event_missing",
+        `mailbox retention event ${id} does not exist`,
+      );
+    assertMailboxRetentionEvent(value);
+    return value;
+  }
+
+  private requireSegment(id: string): MailboxRetentionSegment {
+    const value = this.segments.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "mailbox_retention_segment_missing",
+        `mailbox retention segment ${id} does not exist`,
+      );
+    assertMailboxRetentionSegment(value);
+    return value;
+  }
+
+  private assertPolicyRevision(
+    value: MailboxRetentionPolicy,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_retention_policy_stale_revision",
+        `mailbox retention policy ${value.policyId} revision is stale`,
+      );
+  }
+
+  private assertSegmentRevision(
+    value: MailboxRetentionSegment,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "mailbox_retention_segment_stale_revision",
+        `mailbox retention segment ${value.segmentId} revision is stale`,
+      );
+  }
+
+  private transitionPolicy(
+    value: MailboxRetentionPolicy,
+    patch: Partial<
+      Omit<MailboxRetentionPolicy, "policyId" | "revision" | "digest">
+    >,
+  ): MailboxRetentionPolicy {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      policyId: value.policyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxRetentionPolicy(next);
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+
+  private transitionSegment(
+    value: MailboxRetentionSegment,
+    patch: Partial<
+      Omit<MailboxRetentionSegment, "segmentId" | "revision" | "digest">
+    >,
+  ): MailboxRetentionSegment {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      segmentId: value.segmentId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMailboxRetentionSegment(next);
+    this.segments.set(next.segmentId, next);
+    return structuredClone(next);
+  }
+}

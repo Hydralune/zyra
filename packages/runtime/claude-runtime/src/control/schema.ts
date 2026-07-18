@@ -3922,3 +3922,566 @@ export class ControlSchemaEvolutionRuntime {
     return structuredClone(next);
   }
 }
+
+export type ControlSchemaDeploymentState =
+  | "planned"
+  | "canary"
+  | "promoting"
+  | "active"
+  | "rolling-back"
+  | "rolled-back"
+  | "failed";
+
+export interface ControlSchemaDeployment {
+  deploymentId: string;
+  fromSchemaId: string;
+  toSchemaId: string;
+  migrationId: string;
+  state: ControlSchemaDeploymentState;
+  peerIds: string[];
+  canaryPeerIds: string[];
+  acknowledgedPeerIds: string[];
+  failedPeerIds: string[];
+  requiredAcknowledgements: number;
+  generation: number;
+  activationFence: string;
+  rollbackReason: string;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlSchemaPeerReceipt {
+  receiptId: string;
+  deploymentId: string;
+  peerId: string;
+  generation: number;
+  fromSchemaId: string;
+  toSchemaId: string;
+  accepted: boolean;
+  observedSchemaDigest: string;
+  transformedPayloadDigest: string;
+  errorCode: string;
+  priorReceiptDigest: string;
+  recordedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface ControlSchemaDeploymentSnapshot {
+  deployments: ControlSchemaDeployment[];
+  receipts: ControlSchemaPeerReceipt[];
+  receiptIdByDeploymentPeer: Array<[string, string]>;
+  activeDeploymentId: string;
+  digest: string;
+}
+
+function assertControlSchemaDeployment(value: ControlSchemaDeployment): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.deploymentId ||
+    !value.fromSchemaId ||
+    !value.toSchemaId ||
+    !value.migrationId ||
+    value.fromSchemaId === value.toSchemaId ||
+    !value.peerIds.length ||
+    new Set(value.peerIds).size !== value.peerIds.length ||
+    value.canaryPeerIds.some((peerId) => !value.peerIds.includes(peerId)) ||
+    value.acknowledgedPeerIds.some(
+      (peerId) => !value.peerIds.includes(peerId),
+    ) ||
+    value.failedPeerIds.some((peerId) => !value.peerIds.includes(peerId)) ||
+    value.requiredAcknowledgements < 1 ||
+    value.requiredAcknowledgements > value.peerIds.length ||
+    value.generation < 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_schema_deployment_corrupt",
+      `control schema deployment ${value.deploymentId || "<empty>"} is corrupt`,
+    );
+  if (value.state === "active" && !value.activationFence)
+    throw new E03RuntimeError(
+      "control_schema_deployment_activation_fence_missing",
+      "active control schema deployment requires activation fence",
+    );
+}
+
+function assertControlSchemaPeerReceipt(value: ControlSchemaPeerReceipt): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.deploymentId ||
+    !value.peerId ||
+    !value.fromSchemaId ||
+    !value.toSchemaId ||
+    value.generation < 1 ||
+    !value.observedSchemaDigest ||
+    !value.priorReceiptDigest ||
+    (value.accepted && !value.transformedPayloadDigest) ||
+    (!value.accepted && !value.errorCode) ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "control_schema_peer_receipt_corrupt",
+      `control schema peer receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+export class ControlSchemaDeploymentRuntime {
+  private deployments = new Map<string, ControlSchemaDeployment>();
+  private receipts = new Map<string, ControlSchemaPeerReceipt>();
+  private receiptIdByDeploymentPeer = new Map<string, string>();
+  private activeDeploymentId = "";
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  plan(input: {
+    deploymentId?: string;
+    fromSchema: ControlSchemaVersion;
+    toSchema: ControlSchemaVersion;
+    migration: ControlSchemaMigration;
+    peerIds: string[];
+    canaryPeerIds: string[];
+    requiredAcknowledgements: number;
+  }): ControlSchemaDeployment {
+    assertSchemaVersion(input.fromSchema);
+    assertSchemaVersion(input.toSchema);
+    assertSchemaMigration(input.migration);
+    if (
+      input.migration.fromSchemaId !== input.fromSchema.schemaId ||
+      input.migration.toSchemaId !== input.toSchema.schemaId ||
+      (input.migration.state !== "validated" &&
+        input.migration.state !== "active")
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_migration_invalid",
+        "control schema deployment requires matching validated migration",
+      );
+    const deploymentId =
+      input.deploymentId ?? createId("control-schema-deployment");
+    const prior = this.deployments.get(deploymentId);
+    if (prior) {
+      if (
+        prior.fromSchemaId !== input.fromSchema.schemaId ||
+        prior.toSchemaId !== input.toSchema.schemaId ||
+        prior.migrationId !== input.migration.migrationId
+      )
+        throw new E03RuntimeError(
+          "control_schema_deployment_id_conflict",
+          `control schema deployment ${deploymentId} has conflicting custody`,
+        );
+      return structuredClone(prior);
+    }
+    const peerIds = [...new Set(input.peerIds)].sort();
+    const canaryPeerIds = [...new Set(input.canaryPeerIds)].sort();
+    const now = this.clock.now();
+    const payload = {
+      deploymentId,
+      fromSchemaId: input.fromSchema.schemaId,
+      toSchemaId: input.toSchema.schemaId,
+      migrationId: input.migration.migrationId,
+      state: "planned" as const,
+      peerIds,
+      canaryPeerIds,
+      acknowledgedPeerIds: [] as string[],
+      failedPeerIds: [] as string[],
+      requiredAcknowledgements: input.requiredAcknowledgements,
+      generation: 1,
+      activationFence: "",
+      rollbackReason: "",
+      createdAt: now,
+      updatedAt: now,
+      revision: 1,
+    };
+    const deployment = { ...payload, digest: digest(payload) };
+    assertControlSchemaDeployment(deployment);
+    this.deployments.set(deploymentId, deployment);
+    return structuredClone(deployment);
+  }
+
+  startCanary(input: {
+    deploymentId: string;
+    expectedRevision: number;
+  }): ControlSchemaDeployment {
+    const deployment = this.requireDeployment(input.deploymentId);
+    this.assertDeploymentRevision(deployment, input.expectedRevision);
+    if (deployment.state !== "planned")
+      throw new E03RuntimeError(
+        "control_schema_deployment_canary_invalid_state",
+        `cannot start canary from ${deployment.state}`,
+      );
+    if (!deployment.canaryPeerIds.length)
+      throw new E03RuntimeError(
+        "control_schema_deployment_canary_empty",
+        "control schema deployment requires canary peers",
+      );
+    return this.transitionDeployment(deployment, {
+      state: "canary",
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  recordPeer(input: {
+    deploymentId: string;
+    expectedRevision: number;
+    peerId: string;
+    generation: number;
+    accepted: boolean;
+    observedSchemaDigest: string;
+    transformedPayloadDigest?: string;
+    errorCode?: string;
+  }): {
+    deployment: ControlSchemaDeployment;
+    receipt: ControlSchemaPeerReceipt;
+  } {
+    const deployment = this.requireDeployment(input.deploymentId);
+    this.assertDeploymentRevision(deployment, input.expectedRevision);
+    if (deployment.generation !== input.generation)
+      throw new E03RuntimeError(
+        "control_schema_deployment_generation_stale",
+        "control schema deployment receipt generation is stale",
+      );
+    if (
+      deployment.state !== "canary" &&
+      deployment.state !== "promoting" &&
+      deployment.state !== "rolling-back"
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_receipt_invalid_state",
+        `cannot record schema receipt while ${deployment.state}`,
+      );
+    if (!deployment.peerIds.includes(input.peerId))
+      throw new E03RuntimeError(
+        "control_schema_deployment_peer_unknown",
+        `control schema deployment peer ${input.peerId} is unknown`,
+      );
+    if (
+      deployment.state === "canary" &&
+      !deployment.canaryPeerIds.includes(input.peerId)
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_peer_not_canary",
+        `control schema peer ${input.peerId} is outside canary`,
+      );
+    const key = this.peerKey(deployment.deploymentId, input.peerId);
+    const priorId = this.receiptIdByDeploymentPeer.get(key);
+    const prior = priorId ? this.receipts.get(priorId) : undefined;
+    if (prior && prior.generation === input.generation) {
+      if (
+        prior.accepted !== input.accepted ||
+        prior.observedSchemaDigest !== input.observedSchemaDigest
+      )
+        throw new E03RuntimeError(
+          "control_schema_deployment_peer_receipt_conflict",
+          `control schema peer ${input.peerId} reported conflicting outcome`,
+        );
+      return {
+        deployment: structuredClone(deployment),
+        receipt: structuredClone(prior),
+      };
+    }
+    const receiptPayload = {
+      receiptId: createId("control-schema-peer-receipt"),
+      deploymentId: deployment.deploymentId,
+      peerId: input.peerId,
+      generation: input.generation,
+      fromSchemaId: deployment.fromSchemaId,
+      toSchemaId: deployment.toSchemaId,
+      accepted: input.accepted,
+      observedSchemaDigest: input.observedSchemaDigest,
+      transformedPayloadDigest: input.transformedPayloadDigest ?? "",
+      errorCode: input.errorCode ?? "",
+      priorReceiptDigest: prior?.digest ?? digest("control-schema-peer-root"),
+      recordedAt: this.clock.now(),
+      revision: (prior?.revision ?? 0) + 1,
+    };
+    const receipt = { ...receiptPayload, digest: digest(receiptPayload) };
+    assertControlSchemaPeerReceipt(receipt);
+    this.receipts.set(receipt.receiptId, receipt);
+    this.receiptIdByDeploymentPeer.set(key, receipt.receiptId);
+    const acknowledged = new Set(deployment.acknowledgedPeerIds);
+    const failed = new Set(deployment.failedPeerIds);
+    if (input.accepted) {
+      acknowledged.add(input.peerId);
+      failed.delete(input.peerId);
+    } else {
+      failed.add(input.peerId);
+      acknowledged.delete(input.peerId);
+    }
+    const next = this.transitionDeployment(deployment, {
+      acknowledgedPeerIds: [...acknowledged].sort(),
+      failedPeerIds: [...failed].sort(),
+      state: input.accepted ? deployment.state : "failed",
+      updatedAt: this.clock.now(),
+    });
+    return { deployment: next, receipt: structuredClone(receipt) };
+  }
+
+  promote(input: {
+    deploymentId: string;
+    expectedRevision: number;
+  }): ControlSchemaDeployment {
+    const deployment = this.requireDeployment(input.deploymentId);
+    this.assertDeploymentRevision(deployment, input.expectedRevision);
+    if (deployment.state !== "canary")
+      throw new E03RuntimeError(
+        "control_schema_deployment_promote_invalid_state",
+        `cannot promote control schema from ${deployment.state}`,
+      );
+    const missingCanary = deployment.canaryPeerIds.filter(
+      (peerId) => !deployment.acknowledgedPeerIds.includes(peerId),
+    );
+    if (missingCanary.length)
+      throw new E03RuntimeError(
+        "control_schema_deployment_canary_incomplete",
+        `control schema canary is missing ${missingCanary.length} acknowledgements`,
+      );
+    return this.transitionDeployment(deployment, {
+      state: "promoting",
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  activate(input: {
+    deploymentId: string;
+    expectedRevision: number;
+    activationFence: string;
+  }): ControlSchemaDeployment {
+    const deployment = this.requireDeployment(input.deploymentId);
+    this.assertDeploymentRevision(deployment, input.expectedRevision);
+    if (deployment.state === "active") {
+      if (deployment.activationFence !== input.activationFence)
+        throw new E03RuntimeError(
+          "control_schema_deployment_activation_conflict",
+          "control schema deployment was activated by another fence",
+        );
+      return structuredClone(deployment);
+    }
+    if (deployment.state !== "promoting")
+      throw new E03RuntimeError(
+        "control_schema_deployment_activate_invalid_state",
+        `cannot activate control schema from ${deployment.state}`,
+      );
+    if (
+      deployment.acknowledgedPeerIds.length <
+      deployment.requiredAcknowledgements
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_quorum_missing",
+        "control schema deployment acknowledgement quorum is missing",
+      );
+    if (!input.activationFence)
+      throw new E03RuntimeError(
+        "control_schema_deployment_activation_fence_invalid",
+        "control schema deployment activation fence is required",
+      );
+    if (this.activeDeploymentId) {
+      const active = this.requireDeployment(this.activeDeploymentId);
+      if (
+        active.state === "active" &&
+        active.toSchemaId !== deployment.fromSchemaId
+      )
+        throw new E03RuntimeError(
+          "control_schema_deployment_lineage_conflict",
+          "control schema deployment does not extend active lineage",
+        );
+    }
+    const next = this.transitionDeployment(deployment, {
+      state: "active",
+      activationFence: input.activationFence,
+      updatedAt: this.clock.now(),
+    });
+    this.activeDeploymentId = next.deploymentId;
+    return next;
+  }
+
+  beginRollback(input: {
+    deploymentId: string;
+    expectedRevision: number;
+    reason: string;
+  }): ControlSchemaDeployment {
+    const deployment = this.requireDeployment(input.deploymentId);
+    this.assertDeploymentRevision(deployment, input.expectedRevision);
+    if (
+      deployment.state !== "active" &&
+      deployment.state !== "failed" &&
+      deployment.state !== "promoting"
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_rollback_invalid_state",
+        `cannot rollback control schema from ${deployment.state}`,
+      );
+    if (!input.reason)
+      throw new E03RuntimeError(
+        "control_schema_deployment_rollback_reason_required",
+        "control schema rollback requires reason",
+      );
+    return this.transitionDeployment(deployment, {
+      state: "rolling-back",
+      rollbackReason: input.reason,
+      generation: deployment.generation + 1,
+      acknowledgedPeerIds: [],
+      failedPeerIds: [],
+      updatedAt: this.clock.now(),
+    });
+  }
+
+  settleRollback(input: {
+    deploymentId: string;
+    expectedRevision: number;
+    peerIds: string[];
+  }): ControlSchemaDeployment {
+    const deployment = this.requireDeployment(input.deploymentId);
+    this.assertDeploymentRevision(deployment, input.expectedRevision);
+    if (deployment.state !== "rolling-back")
+      throw new E03RuntimeError(
+        "control_schema_deployment_rollback_settle_invalid_state",
+        "control schema deployment is not rolling back",
+      );
+    const unique = [...new Set(input.peerIds)].sort();
+    if (
+      unique.length !== input.peerIds.length ||
+      unique.some((peerId) => !deployment.peerIds.includes(peerId))
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_rollback_peer_invalid",
+        "control schema rollback peers are invalid",
+      );
+    const rollbackReceipts = unique.map((peerId) => {
+      const receiptId = this.receiptIdByDeploymentPeer.get(
+        this.peerKey(deployment.deploymentId, peerId),
+      );
+      return receiptId ? this.receipts.get(receiptId) : undefined;
+    });
+    if (
+      rollbackReceipts.some(
+        (receipt) =>
+          !receipt ||
+          receipt.generation !== deployment.generation ||
+          !receipt.accepted,
+      )
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_rollback_receipt_missing",
+        "control schema rollback acknowledgement is missing",
+      );
+    const next = this.transitionDeployment(deployment, {
+      state: "rolled-back",
+      acknowledgedPeerIds: unique,
+      updatedAt: this.clock.now(),
+    });
+    if (this.activeDeploymentId === next.deploymentId)
+      this.activeDeploymentId = "";
+    return next;
+  }
+
+  snapshot(): ControlSchemaDeploymentSnapshot {
+    const payload = {
+      deployments: [...this.deployments.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receiptIdByDeploymentPeer: [...this.receiptIdByDeploymentPeer.entries()],
+      activeDeploymentId: this.activeDeploymentId,
+    };
+    return { ...payload, digest: digest(payload) };
+  }
+
+  restore(snapshot: ControlSchemaDeploymentSnapshot): void {
+    const { digest: expected, ...payload } = snapshot;
+    if (digest(payload) !== expected)
+      throw new E03RuntimeError(
+        "control_schema_deployment_snapshot_corrupt",
+        "control schema deployment snapshot digest mismatch",
+      );
+    const deployments = new Map<string, ControlSchemaDeployment>();
+    const receipts = new Map<string, ControlSchemaPeerReceipt>();
+    for (const value of payload.deployments) {
+      assertControlSchemaDeployment(value);
+      if (deployments.has(value.deploymentId))
+        throw new E03RuntimeError(
+          "control_schema_deployment_snapshot_duplicate",
+          `duplicate control schema deployment ${value.deploymentId}`,
+        );
+      deployments.set(value.deploymentId, structuredClone(value));
+    }
+    for (const value of payload.receipts) {
+      assertControlSchemaPeerReceipt(value);
+      if (!deployments.has(value.deploymentId))
+        throw new E03RuntimeError(
+          "control_schema_deployment_snapshot_receipt_orphaned",
+          `control schema receipt ${value.receiptId} is orphaned`,
+        );
+      receipts.set(value.receiptId, structuredClone(value));
+    }
+    const receiptIndex = new Map(payload.receiptIdByDeploymentPeer);
+    for (const receiptId of receiptIndex.values())
+      if (!receipts.has(receiptId))
+        throw new E03RuntimeError(
+          "control_schema_deployment_snapshot_index_corrupt",
+          `control schema receipt index references ${receiptId}`,
+        );
+    if (
+      payload.activeDeploymentId &&
+      deployments.get(payload.activeDeploymentId)?.state !== "active"
+    )
+      throw new E03RuntimeError(
+        "control_schema_deployment_snapshot_active_invalid",
+        "control schema active deployment is invalid",
+      );
+    this.deployments = deployments;
+    this.receipts = receipts;
+    this.receiptIdByDeploymentPeer = receiptIndex;
+    this.activeDeploymentId = payload.activeDeploymentId;
+  }
+
+  private peerKey(deploymentId: string, peerId: string): string {
+    return `${deploymentId}:${peerId}`;
+  }
+
+  private requireDeployment(id: string): ControlSchemaDeployment {
+    const value = this.deployments.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "control_schema_deployment_missing",
+        `control schema deployment ${id} does not exist`,
+      );
+    assertControlSchemaDeployment(value);
+    return value;
+  }
+
+  private assertDeploymentRevision(
+    value: ControlSchemaDeployment,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "control_schema_deployment_stale_revision",
+        `control schema deployment ${value.deploymentId} revision is stale`,
+      );
+  }
+
+  private transitionDeployment(
+    value: ControlSchemaDeployment,
+    patch: Partial<
+      Omit<ControlSchemaDeployment, "deploymentId" | "revision" | "digest">
+    >,
+  ): ControlSchemaDeployment {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      deploymentId: value.deploymentId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertControlSchemaDeployment(next);
+    this.deployments.set(next.deploymentId, next);
+    return structuredClone(next);
+  }
+}
