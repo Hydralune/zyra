@@ -1566,6 +1566,618 @@ function normalizedPathSet(values: readonly string[]): string[] {
   return [...new Set(values.map((value) => resolve(value)))].sort();
 }
 
+export interface IsolationNetworkPolicy {
+  policyId: string;
+  workspaceId: string;
+  allowedHosts: string[];
+  deniedHosts: string[];
+  allowedPorts: number[];
+  maximumConnections: number;
+  maximumBytes: number;
+  dnsResolutionAllowed: boolean;
+  state: "draft" | "active" | "deprecated" | "retired";
+  version: number;
+  createdAt: string;
+  activatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationNetworkSession {
+  networkSessionId: string;
+  policyId: string;
+  workspaceId: string;
+  taskId: string;
+  workerId: string;
+  state: "opening" | "active" | "draining" | "closed" | "failed";
+  activeConnections: number;
+  transferredBytes: number;
+  openedAt: string;
+  updatedAt: string;
+  closedAt: string;
+  errorCode: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationNetworkFlow {
+  flowId: string;
+  networkSessionId: string;
+  host: string;
+  port: number;
+  protocol: "tcp" | "udp" | "https" | "wss";
+  resolvedAddress: string;
+  state: "prepared" | "open" | "closed" | "blocked" | "failed";
+  sentBytes: number;
+  receivedBytes: number;
+  openedAt: string;
+  closedAt: string;
+  decisionReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface IsolationNetworkSnapshot {
+  policies: IsolationNetworkPolicy[];
+  sessions: IsolationNetworkSession[];
+  flows: IsolationNetworkFlow[];
+  activePolicyByWorkspace: [string, string][];
+  activeSessionByTask: [string, string][];
+}
+
+function assertIsolationNetworkPolicy(value: IsolationNetworkPolicy): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.policyId ||
+    !value.workspaceId ||
+    value.maximumConnections < 1 ||
+    value.maximumBytes < 0 ||
+    value.version < 1 ||
+    new Set(value.allowedHosts).size !== value.allowedHosts.length ||
+    new Set(value.deniedHosts).size !== value.deniedHosts.length ||
+    new Set(value.allowedPorts).size !== value.allowedPorts.length ||
+    value.allowedPorts.some((port) => port < 1 || port > 65535) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_network_policy_corrupt",
+      `isolation network policy ${value.policyId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertIsolationNetworkSession(value: IsolationNetworkSession): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.networkSessionId ||
+    !value.policyId ||
+    !value.workspaceId ||
+    !value.taskId ||
+    !value.workerId ||
+    value.activeConnections < 0 ||
+    value.transferredBytes < 0 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_network_session_corrupt",
+      `isolation network session ${value.networkSessionId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertIsolationNetworkFlow(value: IsolationNetworkFlow): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.flowId ||
+    !value.networkSessionId ||
+    !value.host ||
+    value.port < 1 ||
+    value.port > 65535 ||
+    value.sentBytes < 0 ||
+    value.receivedBytes < 0 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "isolation_network_flow_corrupt",
+      `isolation network flow ${value.flowId || "<empty>"} is corrupt`,
+    );
+}
+
+export class IsolationNetworkPolicyRuntime {
+  private policies = new Map<string, IsolationNetworkPolicy>();
+  private sessions = new Map<string, IsolationNetworkSession>();
+  private flows = new Map<string, IsolationNetworkFlow>();
+  private activePolicyByWorkspace = new Map<string, string>();
+  private activeSessionByTask = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  register(input: {
+    policyId?: string;
+    workspaceId: string;
+    allowedHosts: readonly string[];
+    deniedHosts: readonly string[];
+    allowedPorts: readonly number[];
+    maximumConnections: number;
+    maximumBytes: number;
+    dnsResolutionAllowed: boolean;
+    version: number;
+  }): IsolationNetworkPolicy {
+    const policyId = input.policyId ?? createId("isolation-network-policy");
+    const payload = {
+      policyId,
+      workspaceId: input.workspaceId,
+      allowedHosts: [...new Set(input.allowedHosts)].sort(),
+      deniedHosts: [...new Set(input.deniedHosts)].sort(),
+      allowedPorts: [...new Set(input.allowedPorts)].sort((a, b) => a - b),
+      maximumConnections: input.maximumConnections,
+      maximumBytes: input.maximumBytes,
+      dnsResolutionAllowed: input.dnsResolutionAllowed,
+      state: "draft" as const,
+      version: input.version,
+      createdAt: this.clock.now(),
+      activatedAt: "",
+      revision: 1,
+    };
+    const policy = { ...payload, digest: digest(payload) };
+    assertIsolationNetworkPolicy(policy);
+    this.policies.set(policyId, policy);
+    return structuredClone(policy);
+  }
+
+  activate(policyId: string, expectedRevision: number): IsolationNetworkPolicy {
+    const policy = this.requirePolicy(policyId);
+    this.assertPolicyRevision(policy, expectedRevision);
+    if (policy.state !== "draft")
+      throw new E03RuntimeError(
+        "isolation_network_policy_activate_state",
+        `isolation network policy ${policyId} is ${policy.state}`,
+      );
+    const activeId = this.activePolicyByWorkspace.get(policy.workspaceId);
+    if (activeId) {
+      const active = this.requirePolicy(activeId);
+      if (active.version >= policy.version)
+        throw new E03RuntimeError(
+          "isolation_network_policy_version_regression",
+          `isolation network policy ${policyId} is stale`,
+        );
+      this.transitionPolicy(active, { state: "deprecated" });
+    }
+    const next = this.transitionPolicy(policy, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activePolicyByWorkspace.set(policy.workspaceId, policyId);
+    return next;
+  }
+
+  openSession(input: {
+    networkSessionId?: string;
+    workspaceId: string;
+    taskId: string;
+    workerId: string;
+  }): IsolationNetworkSession {
+    const activeId = this.activeSessionByTask.get(input.taskId);
+    if (activeId) return structuredClone(this.requireSession(activeId));
+    const policyId = this.activePolicyByWorkspace.get(input.workspaceId);
+    if (!policyId)
+      throw new E03RuntimeError(
+        "isolation_network_policy_missing_active",
+        `workspace ${input.workspaceId} has no active network policy`,
+      );
+    const networkSessionId =
+      input.networkSessionId ?? createId("isolation-network-session");
+    const now = this.clock.now();
+    const payload = {
+      networkSessionId,
+      policyId,
+      workspaceId: input.workspaceId,
+      taskId: input.taskId,
+      workerId: input.workerId,
+      state: "active" as const,
+      activeConnections: 0,
+      transferredBytes: 0,
+      openedAt: now,
+      updatedAt: now,
+      closedAt: "",
+      errorCode: "",
+      revision: 1,
+    };
+    const session = { ...payload, digest: digest(payload) };
+    assertIsolationNetworkSession(session);
+    this.sessions.set(networkSessionId, session);
+    this.activeSessionByTask.set(input.taskId, networkSessionId);
+    return structuredClone(session);
+  }
+
+  prepareFlow(input: {
+    flowId?: string;
+    networkSessionId: string;
+    expectedRevision: number;
+    host: string;
+    port: number;
+    protocol: IsolationNetworkFlow["protocol"];
+    resolvedAddress?: string;
+  }): IsolationNetworkFlow {
+    const session = this.requireSession(input.networkSessionId);
+    this.assertSessionRevision(session, input.expectedRevision);
+    if (session.state !== "active")
+      throw new E03RuntimeError(
+        "isolation_network_flow_session_state",
+        `isolation network session ${session.networkSessionId} is ${session.state}`,
+      );
+    const policy = this.requirePolicy(session.policyId);
+    const hostAllowed =
+      !policy.deniedHosts.some((pattern) =>
+        this.hostMatches(pattern, input.host),
+      ) &&
+      policy.allowedHosts.some((pattern) =>
+        this.hostMatches(pattern, input.host),
+      );
+    const portAllowed = policy.allowedPorts.includes(input.port);
+    const dnsAllowed = policy.dnsResolutionAllowed || !input.resolvedAddress;
+    const capacityAllowed =
+      session.activeConnections < policy.maximumConnections;
+    const accepted =
+      hostAllowed && portAllowed && dnsAllowed && capacityAllowed;
+    const flowId = input.flowId ?? createId("isolation-network-flow");
+    const payload = {
+      flowId,
+      networkSessionId: session.networkSessionId,
+      host: input.host,
+      port: input.port,
+      protocol: input.protocol,
+      resolvedAddress: input.resolvedAddress ?? "",
+      state: accepted ? ("prepared" as const) : ("blocked" as const),
+      sentBytes: 0,
+      receivedBytes: 0,
+      openedAt: "",
+      closedAt: accepted ? "" : this.clock.now(),
+      decisionReason: accepted
+        ? "policy_allowed"
+        : !hostAllowed
+          ? "host_denied"
+          : !portAllowed
+            ? "port_denied"
+            : !dnsAllowed
+              ? "dns_denied"
+              : "connection_capacity",
+      revision: 1,
+    };
+    const flow = { ...payload, digest: digest(payload) };
+    assertIsolationNetworkFlow(flow);
+    this.flows.set(flowId, flow);
+    return structuredClone(flow);
+  }
+
+  openFlow(flowId: string, expectedRevision: number): IsolationNetworkFlow {
+    const flow = this.requireFlow(flowId);
+    this.assertFlowRevision(flow, expectedRevision);
+    if (flow.state !== "prepared")
+      throw new E03RuntimeError(
+        "isolation_network_flow_open_state",
+        `isolation network flow ${flowId} is ${flow.state}`,
+      );
+    const session = this.requireSession(flow.networkSessionId);
+    const next = this.transitionFlow(flow, {
+      state: "open",
+      openedAt: this.clock.now(),
+    });
+    this.transitionSession(session, {
+      activeConnections: session.activeConnections + 1,
+    });
+    return next;
+  }
+
+  account(
+    flowId: string,
+    expectedRevision: number,
+    sentBytes: number,
+    receivedBytes: number,
+  ): IsolationNetworkFlow {
+    const flow = this.requireFlow(flowId);
+    this.assertFlowRevision(flow, expectedRevision);
+    if (flow.state !== "open" || sentBytes < 0 || receivedBytes < 0)
+      throw new E03RuntimeError(
+        "isolation_network_flow_account_state",
+        `isolation network flow ${flowId} cannot account`,
+      );
+    const session = this.requireSession(flow.networkSessionId);
+    const policy = this.requirePolicy(session.policyId);
+    const delta = sentBytes + receivedBytes;
+    if (session.transferredBytes + delta > policy.maximumBytes)
+      throw new E03RuntimeError(
+        "isolation_network_byte_budget",
+        `isolation network session ${session.networkSessionId} exceeds byte budget`,
+      );
+    const next = this.transitionFlow(flow, {
+      sentBytes: flow.sentBytes + sentBytes,
+      receivedBytes: flow.receivedBytes + receivedBytes,
+    });
+    this.transitionSession(session, {
+      transferredBytes: session.transferredBytes + delta,
+    });
+    return next;
+  }
+
+  closeFlow(
+    flowId: string,
+    expectedRevision: number,
+    errorCode = "",
+  ): IsolationNetworkFlow {
+    const flow = this.requireFlow(flowId);
+    this.assertFlowRevision(flow, expectedRevision);
+    if (flow.state !== "open")
+      throw new E03RuntimeError(
+        "isolation_network_flow_close_state",
+        `isolation network flow ${flowId} is ${flow.state}`,
+      );
+    const session = this.requireSession(flow.networkSessionId);
+    if (session.activeConnections < 1)
+      throw new E03RuntimeError(
+        "isolation_network_connection_underflow",
+        `isolation network session ${session.networkSessionId} has no connection`,
+      );
+    const next = this.transitionFlow(flow, {
+      state: errorCode ? "failed" : "closed",
+      closedAt: this.clock.now(),
+      decisionReason: errorCode || "closed",
+    });
+    this.transitionSession(session, {
+      activeConnections: session.activeConnections - 1,
+    });
+    return next;
+  }
+
+  closeSession(
+    networkSessionId: string,
+    expectedRevision: number,
+  ): IsolationNetworkSession {
+    const session = this.requireSession(networkSessionId);
+    this.assertSessionRevision(session, expectedRevision);
+    if (session.state !== "active" || session.activeConnections > 0)
+      throw new E03RuntimeError(
+        "isolation_network_session_close_state",
+        `isolation network session ${networkSessionId} cannot close`,
+      );
+    const next = this.transitionSession(session, {
+      state: "closed",
+      closedAt: this.clock.now(),
+    });
+    this.activeSessionByTask.delete(session.taskId);
+    return next;
+  }
+
+  snapshot(): IsolationNetworkSnapshot {
+    return {
+      policies: [...this.policies.values()].map((value) =>
+        structuredClone(value),
+      ),
+      sessions: [...this.sessions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      flows: [...this.flows.values()].map((value) => structuredClone(value)),
+      activePolicyByWorkspace: [...this.activePolicyByWorkspace.entries()],
+      activeSessionByTask: [...this.activeSessionByTask.entries()],
+    };
+  }
+
+  restore(snapshot: IsolationNetworkSnapshot): void {
+    const policies = new Map<string, IsolationNetworkPolicy>();
+    const sessions = new Map<string, IsolationNetworkSession>();
+    const flows = new Map<string, IsolationNetworkFlow>();
+    for (const value of snapshot.policies) {
+      assertIsolationNetworkPolicy(value);
+      policies.set(value.policyId, structuredClone(value));
+    }
+    for (const value of snapshot.sessions) {
+      assertIsolationNetworkSession(value);
+      if (!policies.has(value.policyId) || sessions.has(value.networkSessionId))
+        throw new E03RuntimeError(
+          "isolation_network_restore_session",
+          `session ${value.networkSessionId} invalid`,
+        );
+      sessions.set(value.networkSessionId, structuredClone(value));
+    }
+    for (const value of snapshot.flows) {
+      assertIsolationNetworkFlow(value);
+      if (!sessions.has(value.networkSessionId) || flows.has(value.flowId))
+        throw new E03RuntimeError(
+          "isolation_network_restore_flow",
+          `flow ${value.flowId} invalid`,
+        );
+      flows.set(value.flowId, structuredClone(value));
+    }
+    const activePolicyByWorkspace = new Map(snapshot.activePolicyByWorkspace);
+    const activeSessionByTask = new Map(snapshot.activeSessionByTask);
+    if (
+      activePolicyByWorkspace.size !==
+        snapshot.activePolicyByWorkspace.length ||
+      activeSessionByTask.size !== snapshot.activeSessionByTask.length
+    )
+      throw new E03RuntimeError(
+        "isolation_network_restore_index_duplicate",
+        "isolation network indexes duplicate",
+      );
+    for (const [workspaceId, policyId] of activePolicyByWorkspace) {
+      const value = policies.get(policyId);
+      if (
+        !value ||
+        value.workspaceId !== workspaceId ||
+        value.state !== "active"
+      )
+        throw new E03RuntimeError(
+          "isolation_network_restore_policy_index",
+          `policy index ${workspaceId} invalid`,
+        );
+    }
+    for (const [taskId, sessionId] of activeSessionByTask) {
+      const value = sessions.get(sessionId);
+      if (!value || value.taskId !== taskId || value.state !== "active")
+        throw new E03RuntimeError(
+          "isolation_network_restore_session_index",
+          `session index ${taskId} invalid`,
+        );
+    }
+    for (const session of sessions.values()) {
+      const active = [...flows.values()].filter(
+        (value) =>
+          value.networkSessionId === session.networkSessionId &&
+          value.state === "open",
+      ).length;
+      const bytes = [...flows.values()]
+        .filter((value) => value.networkSessionId === session.networkSessionId)
+        .reduce((sum, value) => sum + value.sentBytes + value.receivedBytes, 0);
+      if (
+        active !== session.activeConnections ||
+        bytes !== session.transferredBytes
+      )
+        throw new E03RuntimeError(
+          "isolation_network_restore_counters",
+          `session ${session.networkSessionId} counters invalid`,
+        );
+    }
+    this.policies = policies;
+    this.sessions = sessions;
+    this.flows = flows;
+    this.activePolicyByWorkspace = activePolicyByWorkspace;
+    this.activeSessionByTask = activeSessionByTask;
+  }
+
+  private hostMatches(pattern: string, host: string): boolean {
+    return (
+      pattern === "*" ||
+      pattern === host ||
+      (pattern.startsWith("*.") && host.endsWith(pattern.slice(1)))
+    );
+  }
+
+  private requirePolicy(id: string): IsolationNetworkPolicy {
+    const value = this.policies.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "isolation_network_policy_missing",
+        `policy ${id} missing`,
+      );
+    assertIsolationNetworkPolicy(value);
+    return value;
+  }
+
+  private requireSession(id: string): IsolationNetworkSession {
+    const value = this.sessions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "isolation_network_session_missing",
+        `session ${id} missing`,
+      );
+    assertIsolationNetworkSession(value);
+    return value;
+  }
+
+  private requireFlow(id: string): IsolationNetworkFlow {
+    const value = this.flows.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "isolation_network_flow_missing",
+        `flow ${id} missing`,
+      );
+    assertIsolationNetworkFlow(value);
+    return value;
+  }
+
+  private assertPolicyRevision(
+    value: IsolationNetworkPolicy,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "isolation_network_policy_stale_revision",
+        `policy ${value.policyId} stale`,
+      );
+  }
+
+  private assertSessionRevision(
+    value: IsolationNetworkSession,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "isolation_network_session_stale_revision",
+        `session ${value.networkSessionId} stale`,
+      );
+  }
+
+  private assertFlowRevision(
+    value: IsolationNetworkFlow,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "isolation_network_flow_stale_revision",
+        `flow ${value.flowId} stale`,
+      );
+  }
+
+  private transitionPolicy(
+    value: IsolationNetworkPolicy,
+    patch: Partial<
+      Omit<IsolationNetworkPolicy, "policyId" | "revision" | "digest">
+    >,
+  ): IsolationNetworkPolicy {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      policyId: value.policyId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIsolationNetworkPolicy(next);
+    this.policies.set(next.policyId, next);
+    return structuredClone(next);
+  }
+
+  private transitionSession(
+    value: IsolationNetworkSession,
+    patch: Partial<
+      Omit<IsolationNetworkSession, "networkSessionId" | "revision" | "digest">
+    >,
+  ): IsolationNetworkSession {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      networkSessionId: value.networkSessionId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIsolationNetworkSession(next);
+    this.sessions.set(next.networkSessionId, next);
+    return structuredClone(next);
+  }
+
+  private transitionFlow(
+    value: IsolationNetworkFlow,
+    patch: Partial<
+      Omit<IsolationNetworkFlow, "flowId" | "revision" | "digest">
+    >,
+  ): IsolationNetworkFlow {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      flowId: value.flowId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertIsolationNetworkFlow(next);
+    this.flows.set(next.flowId, next);
+    return structuredClone(next);
+  }
+}
+
 export class SandboxExecutionPolicyRuntime {
   private policies = new Map<string, SandboxExecutionPolicy>();
   private requests = new Map<string, SandboxExecutionRequest>();
