@@ -2195,6 +2195,527 @@ function assertCapabilityQuotaReservation(
       `capability quota reservation ${value.reservationId} is invalid`,
     );
 }
+export interface CapabilityPolicyVersion {
+  policyVersionId: string;
+  policyName: string;
+  version: number;
+  ruleDigest: string;
+  allowedCapabilities: string[];
+  deniedCapabilities: string[];
+  maximumDelegationDepth: number;
+  state:
+    | "draft"
+    | "validating"
+    | "canary"
+    | "active"
+    | "deprecated"
+    | "rejected";
+  createdAt: string;
+  activatedAt: string;
+  revision: number;
+  digest: string;
+}
+
+export interface CapabilityPolicyEvaluation {
+  evaluationId: string;
+  policyVersionId: string;
+  subjectId: string;
+  scopeId: string;
+  capability: string;
+  delegationDepth: number;
+  expectedDecision: "allow" | "deny";
+  observedDecision: "allow" | "deny";
+  accepted: boolean;
+  evidenceDigest: string;
+  evaluatedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface CapabilityPolicyRollout {
+  rolloutId: string;
+  policyVersionId: string;
+  policyName: string;
+  previousPolicyVersionId: string;
+  canaryPercent: number;
+  minimumEvaluations: number;
+  maximumMismatchRatio: number;
+  state: "planned" | "canary" | "promoted" | "rolled_back" | "failed";
+  startedAt: string;
+  updatedAt: string;
+  terminalReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface CapabilityPolicyRolloutSnapshot {
+  versions: CapabilityPolicyVersion[];
+  evaluations: CapabilityPolicyEvaluation[];
+  rollouts: CapabilityPolicyRollout[];
+  activeVersionByPolicy: [string, string][];
+  activeRolloutByPolicy: [string, string][];
+}
+
+function assertCapabilityPolicyVersion(value: CapabilityPolicyVersion): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.policyVersionId ||
+    !value.policyName ||
+    value.version < 1 ||
+    !value.ruleDigest ||
+    value.maximumDelegationDepth < 0 ||
+    new Set(value.allowedCapabilities).size !==
+      value.allowedCapabilities.length ||
+    new Set(value.deniedCapabilities).size !==
+      value.deniedCapabilities.length ||
+    value.allowedCapabilities.some((capability) =>
+      value.deniedCapabilities.includes(capability),
+    ) ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "capability_policy_version_corrupt",
+      `capability policy version ${value.policyVersionId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertCapabilityPolicyEvaluation(
+  value: CapabilityPolicyEvaluation,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.evaluationId ||
+    !value.policyVersionId ||
+    !value.subjectId ||
+    !value.scopeId ||
+    !value.capability ||
+    value.delegationDepth < 0 ||
+    !value.evidenceDigest ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "capability_policy_evaluation_corrupt",
+      `capability policy evaluation ${value.evaluationId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertCapabilityPolicyRollout(value: CapabilityPolicyRollout): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.rolloutId ||
+    !value.policyVersionId ||
+    !value.policyName ||
+    value.canaryPercent < 1 ||
+    value.canaryPercent > 100 ||
+    value.minimumEvaluations < 1 ||
+    value.maximumMismatchRatio < 0 ||
+    value.maximumMismatchRatio > 1 ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "capability_policy_rollout_corrupt",
+      `capability policy rollout ${value.rolloutId || "<empty>"} is corrupt`,
+    );
+}
+
+export class CapabilityPolicyRolloutRuntime {
+  private versions = new Map<string, CapabilityPolicyVersion>();
+  private evaluations = new Map<string, CapabilityPolicyEvaluation[]>();
+  private rollouts = new Map<string, CapabilityPolicyRollout>();
+  private activeVersionByPolicy = new Map<string, string>();
+  private activeRolloutByPolicy = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  register(input: {
+    policyVersionId?: string;
+    policyName: string;
+    version: number;
+    ruleDigest: string;
+    allowedCapabilities: readonly string[];
+    deniedCapabilities: readonly string[];
+    maximumDelegationDepth: number;
+  }): CapabilityPolicyVersion {
+    if (
+      [...this.versions.values()].some(
+        (value) =>
+          value.policyName === input.policyName &&
+          value.version === input.version,
+      )
+    )
+      throw new E03RuntimeError(
+        "capability_policy_version_duplicate",
+        `capability policy ${input.policyName} version ${input.version} exists`,
+      );
+    const policyVersionId =
+      input.policyVersionId ?? createId("capability-policy-version");
+    const payload = {
+      policyVersionId,
+      policyName: input.policyName,
+      version: input.version,
+      ruleDigest: input.ruleDigest,
+      allowedCapabilities: [...new Set(input.allowedCapabilities)].sort(),
+      deniedCapabilities: [...new Set(input.deniedCapabilities)].sort(),
+      maximumDelegationDepth: input.maximumDelegationDepth,
+      state: "draft" as const,
+      createdAt: this.clock.now(),
+      activatedAt: "",
+      revision: 1,
+    };
+    const version = { ...payload, digest: digest(payload) };
+    assertCapabilityPolicyVersion(version);
+    this.versions.set(policyVersionId, version);
+    this.evaluations.set(policyVersionId, []);
+    return structuredClone(version);
+  }
+
+  beginRollout(input: {
+    rolloutId?: string;
+    policyVersionId: string;
+    expectedRevision: number;
+    canaryPercent: number;
+    minimumEvaluations: number;
+    maximumMismatchRatio: number;
+  }): CapabilityPolicyRollout {
+    const version = this.requireVersion(input.policyVersionId);
+    this.assertVersionRevision(version, input.expectedRevision);
+    if (
+      version.state !== "draft" ||
+      this.activeRolloutByPolicy.has(version.policyName)
+    )
+      throw new E03RuntimeError(
+        "capability_policy_rollout_active",
+        `capability policy ${version.policyName} cannot start rollout`,
+      );
+    const activeVersionId =
+      this.activeVersionByPolicy.get(version.policyName) ?? "";
+    if (activeVersionId) {
+      const active = this.requireVersion(activeVersionId);
+      if (active.version >= version.version)
+        throw new E03RuntimeError(
+          "capability_policy_rollout_version_regression",
+          `capability policy ${version.policyName} version is stale`,
+        );
+    }
+    const rolloutId = input.rolloutId ?? createId("capability-policy-rollout");
+    const now = this.clock.now();
+    const payload = {
+      rolloutId,
+      policyVersionId: version.policyVersionId,
+      policyName: version.policyName,
+      previousPolicyVersionId: activeVersionId,
+      canaryPercent: input.canaryPercent,
+      minimumEvaluations: input.minimumEvaluations,
+      maximumMismatchRatio: input.maximumMismatchRatio,
+      state: "canary" as const,
+      startedAt: now,
+      updatedAt: now,
+      terminalReason: "",
+      revision: 1,
+    };
+    const rollout = { ...payload, digest: digest(payload) };
+    assertCapabilityPolicyRollout(rollout);
+    this.rollouts.set(rolloutId, rollout);
+    this.activeRolloutByPolicy.set(version.policyName, rolloutId);
+    this.transitionVersion(version, { state: "canary" });
+    return structuredClone(rollout);
+  }
+
+  choose(policyName: string, subjectId: string): CapabilityPolicyVersion {
+    const rolloutId = this.activeRolloutByPolicy.get(policyName);
+    if (rolloutId) {
+      const rollout = this.requireRollout(rolloutId);
+      const bucket =
+        Number.parseInt(
+          digest({ policyName, subjectId, rolloutId }).slice(0, 8),
+          16,
+        ) % 100;
+      if (bucket < rollout.canaryPercent)
+        return structuredClone(this.requireVersion(rollout.policyVersionId));
+    }
+    const activeId = this.activeVersionByPolicy.get(policyName);
+    if (!activeId)
+      throw new E03RuntimeError(
+        "capability_policy_active_missing",
+        `capability policy ${policyName} has no active version`,
+      );
+    return structuredClone(this.requireVersion(activeId));
+  }
+
+  evaluate(input: {
+    policyVersionId: string;
+    subjectId: string;
+    scopeId: string;
+    capability: string;
+    delegationDepth: number;
+    expectedDecision: CapabilityPolicyEvaluation["expectedDecision"];
+    evidenceDigest: string;
+  }): CapabilityPolicyEvaluation {
+    const version = this.requireVersion(input.policyVersionId);
+    if (!["canary", "active"].includes(version.state))
+      throw new E03RuntimeError(
+        "capability_policy_evaluation_version_state",
+        `capability policy version ${version.policyVersionId} is ${version.state}`,
+      );
+    const observedDecision: CapabilityPolicyEvaluation["observedDecision"] =
+      version.deniedCapabilities.includes(input.capability) ||
+      input.delegationDepth > version.maximumDelegationDepth ||
+      (!version.allowedCapabilities.includes("*") &&
+        !version.allowedCapabilities.includes(input.capability))
+        ? "deny"
+        : "allow";
+    const entries = this.evaluationEntries(version.policyVersionId);
+    const payload = {
+      evaluationId: createId("capability-policy-evaluation"),
+      policyVersionId: version.policyVersionId,
+      subjectId: input.subjectId,
+      scopeId: input.scopeId,
+      capability: input.capability,
+      delegationDepth: input.delegationDepth,
+      expectedDecision: input.expectedDecision,
+      observedDecision,
+      accepted: observedDecision === input.expectedDecision,
+      evidenceDigest: input.evidenceDigest,
+      evaluatedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const evaluation = { ...payload, digest: digest(payload) };
+    assertCapabilityPolicyEvaluation(evaluation);
+    entries.push(evaluation);
+    this.evaluations.set(version.policyVersionId, entries);
+    return structuredClone(evaluation);
+  }
+
+  promote(
+    rolloutId: string,
+    expectedRevision: number,
+  ): CapabilityPolicyRollout {
+    const rollout = this.requireRollout(rolloutId);
+    this.assertRolloutRevision(rollout, expectedRevision);
+    if (rollout.state !== "canary")
+      throw new E03RuntimeError(
+        "capability_policy_rollout_promote_state",
+        `capability policy rollout ${rolloutId} is ${rollout.state}`,
+      );
+    const evaluations = this.evaluationEntries(rollout.policyVersionId);
+    if (evaluations.length < rollout.minimumEvaluations)
+      throw new E03RuntimeError(
+        "capability_policy_rollout_evaluations_missing",
+        `capability policy rollout ${rolloutId} lacks evaluations`,
+      );
+    const mismatchRatio =
+      evaluations.filter((value) => !value.accepted).length /
+      evaluations.length;
+    if (mismatchRatio > rollout.maximumMismatchRatio)
+      throw new E03RuntimeError(
+        "capability_policy_rollout_mismatch_ratio",
+        `capability policy rollout ${rolloutId} mismatch ratio is too high`,
+      );
+    const version = this.requireVersion(rollout.policyVersionId);
+    if (rollout.previousPolicyVersionId) {
+      const previous = this.requireVersion(rollout.previousPolicyVersionId);
+      this.transitionVersion(previous, { state: "deprecated" });
+    }
+    this.transitionVersion(version, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+    this.activeVersionByPolicy.set(rollout.policyName, rollout.policyVersionId);
+    this.activeRolloutByPolicy.delete(rollout.policyName);
+    return this.transitionRollout(rollout, {
+      state: "promoted",
+      terminalReason: "evaluation_threshold_met",
+    });
+  }
+
+  rollback(
+    rolloutId: string,
+    expectedRevision: number,
+    reason: string,
+  ): CapabilityPolicyRollout {
+    const rollout = this.requireRollout(rolloutId);
+    this.assertRolloutRevision(rollout, expectedRevision);
+    if (rollout.state !== "canary")
+      throw new E03RuntimeError(
+        "capability_policy_rollout_rollback_state",
+        `capability policy rollout ${rolloutId} is ${rollout.state}`,
+      );
+    const version = this.requireVersion(rollout.policyVersionId);
+    this.transitionVersion(version, { state: "rejected" });
+    this.activeRolloutByPolicy.delete(rollout.policyName);
+    return this.transitionRollout(rollout, {
+      state: "rolled_back",
+      terminalReason: reason,
+    });
+  }
+
+  snapshot(): CapabilityPolicyRolloutSnapshot {
+    return {
+      versions: [...this.versions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      evaluations: [...this.evaluations.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      rollouts: [...this.rollouts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeVersionByPolicy: [...this.activeVersionByPolicy.entries()],
+      activeRolloutByPolicy: [...this.activeRolloutByPolicy.entries()],
+    };
+  }
+
+  restore(snapshot: CapabilityPolicyRolloutSnapshot): void {
+    const versions = new Map<string, CapabilityPolicyVersion>();
+    const evaluations = new Map<string, CapabilityPolicyEvaluation[]>();
+    const rollouts = new Map<string, CapabilityPolicyRollout>();
+    for (const value of snapshot.versions) {
+      assertCapabilityPolicyVersion(value);
+      versions.set(value.policyVersionId, structuredClone(value));
+      evaluations.set(value.policyVersionId, []);
+    }
+    for (const value of snapshot.evaluations) {
+      assertCapabilityPolicyEvaluation(value);
+      const entries = evaluations.get(value.policyVersionId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "capability_policy_restore_evaluation_chain",
+          `evaluation ${value.evaluationId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.rollouts) {
+      assertCapabilityPolicyRollout(value);
+      if (!versions.has(value.policyVersionId) || rollouts.has(value.rolloutId))
+        throw new E03RuntimeError(
+          "capability_policy_restore_rollout",
+          `rollout ${value.rolloutId} invalid`,
+        );
+      rollouts.set(value.rolloutId, structuredClone(value));
+    }
+    const activeVersionByPolicy = new Map(snapshot.activeVersionByPolicy);
+    const activeRolloutByPolicy = new Map(snapshot.activeRolloutByPolicy);
+    if (
+      activeVersionByPolicy.size !== snapshot.activeVersionByPolicy.length ||
+      activeRolloutByPolicy.size !== snapshot.activeRolloutByPolicy.length
+    )
+      throw new E03RuntimeError(
+        "capability_policy_restore_index_duplicate",
+        "capability policy indexes duplicate",
+      );
+    for (const [name, versionId] of activeVersionByPolicy) {
+      const value = versions.get(versionId);
+      if (!value || value.policyName !== name || value.state !== "active")
+        throw new E03RuntimeError(
+          "capability_policy_restore_active_version",
+          `policy index ${name} invalid`,
+        );
+    }
+    for (const [name, rolloutId] of activeRolloutByPolicy) {
+      const value = rollouts.get(rolloutId);
+      if (!value || value.policyName !== name || value.state !== "canary")
+        throw new E03RuntimeError(
+          "capability_policy_restore_active_rollout",
+          `rollout index ${name} invalid`,
+        );
+    }
+    this.versions = versions;
+    this.evaluations = evaluations;
+    this.rollouts = rollouts;
+    this.activeVersionByPolicy = activeVersionByPolicy;
+    this.activeRolloutByPolicy = activeRolloutByPolicy;
+  }
+
+  private evaluationEntries(versionId: string): CapabilityPolicyEvaluation[] {
+    return this.evaluations.get(versionId) ?? [];
+  }
+
+  private requireVersion(id: string): CapabilityPolicyVersion {
+    const value = this.versions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "capability_policy_version_missing",
+        `version ${id} missing`,
+      );
+    assertCapabilityPolicyVersion(value);
+    return value;
+  }
+
+  private requireRollout(id: string): CapabilityPolicyRollout {
+    const value = this.rollouts.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "capability_policy_rollout_missing",
+        `rollout ${id} missing`,
+      );
+    assertCapabilityPolicyRollout(value);
+    return value;
+  }
+
+  private assertVersionRevision(
+    value: CapabilityPolicyVersion,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "capability_policy_version_stale_revision",
+        `version ${value.policyVersionId} stale`,
+      );
+  }
+
+  private assertRolloutRevision(
+    value: CapabilityPolicyRollout,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "capability_policy_rollout_stale_revision",
+        `rollout ${value.rolloutId} stale`,
+      );
+  }
+
+  private transitionVersion(
+    value: CapabilityPolicyVersion,
+    patch: Partial<
+      Omit<CapabilityPolicyVersion, "policyVersionId" | "revision" | "digest">
+    >,
+  ): CapabilityPolicyVersion {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      policyVersionId: value.policyVersionId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCapabilityPolicyVersion(next);
+    this.versions.set(next.policyVersionId, next);
+    return structuredClone(next);
+  }
+
+  private transitionRollout(
+    value: CapabilityPolicyRollout,
+    patch: Partial<
+      Omit<CapabilityPolicyRollout, "rolloutId" | "revision" | "digest">
+    >,
+  ): CapabilityPolicyRollout {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      rolloutId: value.rolloutId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCapabilityPolicyRollout(next);
+    this.rollouts.set(next.rolloutId, next);
+    return structuredClone(next);
+  }
+}
+
 export class CapabilityQuotaRuntime {
   private accounts = new Map<string, CapabilityQuotaAccount>();
   private reservations = new Map<string, CapabilityQuotaReservation>();
