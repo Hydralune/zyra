@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-E",
+  "implementation_commit": "60bfe4984a1b2d2ac1820446b7f532c50e6e2cee",
+  "results": [
+    {
+      "mutation_id": "e04-mutation-domain-07",
+      "target": "packages/runtime/claude-runtime/src/agents/run-agent.ts",
+      "target_symbol": "runAgent",
+      "original_sha256": "a525892d57e2f94ac682ce8b44f9e0d6a7b6b859f9eda95963d645ad073ca493",
+      "mutated_sha256": "a79d12a1f3821bacd29b980019828932822190f82ad68e951fb402c73b83a7b7",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-agent-disable",
+      "killer_result": "killed",
+      "observed_disconnect": "TaskExecutor -> runAgent source owner was replaced by an unconditional disconnected error",
+      "restore_result": "pass",
+      "restored_sha256": "a525892d57e2f94ac682ce8b44f9e0d6a7b6b859f9eda95963d645ad073ca493"
+    },
+    {
+      "mutation_id": "e04-mutation-domain-08",
+      "target": "packages/runtime/claude-runtime/src/isolation/request-runtime.ts",
+      "target_symbol": "IsolationRequestRuntime",
+      "original_sha256": "1c5f12690da9e1485f6658425fe17202260235f461e47cf12fba730c2c0b969d",
+      "mutated_sha256": "88cc12335c74e6cfa1cca83bd8080bf9449e63f5e25f941f76b410b7c5f273a2",
+      "compile_after_apply": "pass",
+      "killer_test_id": "e04-isolation-disable",
+      "killer_result": "killed",
+      "observed_disconnect": "E03AgentControlCoordinator -> IsolationRequestRuntime source owner was replaced by an unconditional disconnected error",
+      "restore_result": "pass",
+      "restored_sha256": "1c5f12690da9e1485f6658425fe17202260235f461e47cf12fba730c2c0b969d"
+    }
+  ],
+  "residual_backups": 0,
+  "verdict": "2_of_2_killed_and_restored"
+}

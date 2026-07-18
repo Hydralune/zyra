@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "slice": "M1-R01-E04-E",
+  "implementation_commit": "60bfe4984a1b2d2ac1820446b7f532c50e6e2cee",
+  "implementation_tree": "1826c950ade9651f04d196aa422b91992251c32a",
+  "g0_tooling_commit": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "source_ranges_closed": [
+    "e04-source-015",
+    "e04-source-016",
+    "e04-source-017",
+    "e04-source-018"
+  ],
+  "semantic_domains_closed": [
+    "agent_subagent",
+    "isolation_control"
+  ],
+  "checks": [
+    {
+      "command": "npx --yes bun@1.2.15 run typecheck",
+      "result": "pass"
+    },
+    {
+      "command": "npx --yes bun@1.2.15 test ./packages/runtime/claude-runtime/test/e04/agent-control-source-recovery.behavior.test.ts",
+      "result": "pass",
+      "tests": 8,
+      "failures": 0
+    },
+    {
+      "command": "npx --yes bun@1.2.15 scripts/remediation/run_m1_r01_e03_behavior.ts",
+      "result": "pass",
+      "tests": 346,
+      "failures": 0
+    },
+    {
+      "command": "npx --yes bun@1.2.15 test ./packages/runtime/claude-runtime/test/e02/default-capability-host.behavior.test.ts ./packages/runtime/claude-runtime/test/e02/runtime-custody.test.ts",
+      "result": "pass",
+      "tests": 14,
+      "failures": 0
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest tests/unit/test_typescript_agent_durable_port.py -q",
+      "result": "pass",
+      "tests": 4,
+      "failures": 0
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe scripts/remediation/run_m1_r01_e04_mutations.py --id/--restore e04-mutation-domain-07 and e04-mutation-domain-08",
+      "result": "pass",
+      "compile_after_apply": "pass",
+      "killer_tests": [
+        "e04-agent-disable",
+        "e04-isolation-disable"
+      ],
+      "killer_result": "2_of_2_killed",
+      "restore_result": "pass"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_g0.py",
+      "result": "pass",
+      "source_ranges": 18,
+      "target_records": 18,
+      "python_owner_symbols": 1619,
+      "mutation_points": 13,
+      "duration_seconds": 105.5
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "behavior_evidence": {
+    "run_agent_owns_scoped_tool_skill_mcp_context_and_budget_input": true,
+    "child_settlement_rejects_budget_task_or_lease_mismatch": true,
+    "background_resume_reconstructs_only_from_durable_task_registry": true,
+    "background_shadow_queue_removed": true,
+    "failed_task_resumes_under_a_new_fenced_lease": true,
+    "cancel_and_kill_are_terminal_idempotent": true,
+    "worktree_create_and_safe_reuse_return_typed_receipts": true,
+    "wrong_worktree_head_is_rejected": true,
+    "typescript_logical_owner": true,
+    "python_physical_effect_only": true,
+    "source_disable_fails_closed": true,
+    "python_logical_fallback": false
+  },
+  "scope_verdict": "slice_pass_parent_in_progress"
+}
