@@ -553,6 +553,9 @@ function sourceAndTargetRows(finalize: boolean): { source: Json[]; target: Json[
     sourceRoutes.set(sourceKey, selectedRoute);
     const { route, score } = selectedRoute;
     const tests = routeTestBindings(route);
+    const defaultCallsiteSymbol = route[2] === "control"
+      ? "CodeWorkerApplication.runAgentControlPort"
+      : "CodeWorkerApplication.runTaskRuntime";
     routeUse.set(route[1], (routeUse.get(route[1]) ?? 0) + 1);
     const mappingId = `e03-src-${String(index + 1).padStart(4, "0")}`;
     source.push({
@@ -575,8 +578,8 @@ function sourceAndTargetRows(finalize: boolean): { source: Json[]; target: Json[
       semantic_equivalence: "Zyra preserves the selected lifecycle, ownership, failure and restore behavior using canonical task/session events and revisioned receipts",
       adaptation: "Upstream behavior is decomposed into Zyra task, session, permission, event, artifact and cross-language commit boundaries",
       behavior_contract_id: `e03.contract.${mappingId}`, canonical_owner_id: `typescript.${route[1].split(".")[0]}`,
-      default_entry_id: "E03.default.CodeWorkerApplication.runTaskRuntime", default_callsite_path: "apps/code-worker/src/main.ts",
-      default_callsite_symbol: "CodeWorkerApplication.runTaskRuntime", state_store: `E03RuntimeSnapshot.${unit.domain}`,
+      default_entry_id: `E03.default.${defaultCallsiteSymbol}`, default_callsite_path: "apps/code-worker/src/main.ts",
+      default_callsite_symbol: defaultCallsiteSymbol, state_store: `E03RuntimeSnapshot.${unit.domain}`,
       state_effect_kind: route[3], state_effect_assertion: tests.success,
       success_test_ids: [tests.success], failure_test_ids: [tests.failure],
       disable_test_ids: ["e03.disable.typescript-owner-fails-closed"],
@@ -675,7 +678,12 @@ function gateProfile(candidateHead: string): Json {
       cumulative_final_typescript_sloc: 100_000, cumulative_changed_typescript_sloc: 92_672,
       cumulative_test_sloc: 26_000, cumulative_python_delete_executable_sloc: 68_063,
     },
-    default_entry: { path: "apps/code-worker/src/main.ts", symbol: "main", runtime_symbol: "CodeWorkerApplication.runTaskRuntime", e03_symbol: "E03AgentControlCoordinator.execute" },
+    default_entry: {
+      path: "apps/code-worker/src/main.ts", symbol: "main",
+      task_runtime_symbol: "CodeWorkerApplication.runTaskRuntime",
+      control_runtime_symbol: "CodeWorkerApplication.runAgentControlPort",
+      e03_symbol: "E03AgentControlCoordinator.execute",
+    },
     required_toolchain: { bun: "1.2.15", typescript: "5.8.3", node_types: "22.15.29" },
     commands: {
       install: ["npx", "--yes", "bun@1.2.15", "install", "--frozen-lockfile"], typecheck: ["npx", "--yes", "bun@1.2.15", "run", "typecheck:e03"],
