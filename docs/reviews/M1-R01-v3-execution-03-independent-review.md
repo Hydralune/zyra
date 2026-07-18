@@ -6,6 +6,7 @@
 - User-accepted E02 / effective E03 implementation baseline: `454a22d344d7a5413cf8d49c22bf609f85f9d7e4`
 - Submitted evidence candidate: `da3b372c29a838be9816ffce5878d02c525e014b`
 - Repaired implementation candidate: `62c514d14b720060479ae5f673c45a9b273bae52`
+- Review evidence commit: `c723a20b5fbc516de97ae606de9c4d2bf9738327`
 - Evidence root: `docs/reviews/evidence/M1-R01-v3/execution-03`
 - Verdict: **PASS after repair and complete re-verification**
 
@@ -92,4 +93,3 @@ The unscoped repository-root `pytest -q` is not used as an E03 gate: it recursiv
 E03 satisfies G0 integrity, source custody, default reachability, state ownership, crash recovery, anti-inflation, Python cutover, mutation and cleanroom requirements. The final verdict is **PASS**.
 
 After the review evidence commit is recorded, `verified_zyra_head` may advance to that evidence commit, `candidate_zyra_head` must be cleared, M1-R01 becomes `completed_after_independent_review`, and the next allowed slice is `docs/milestones/M1-runtime-memory-scheduler-fault/slice-05c-01-runtime-event-message-bus-foundation.md` (`M1-S05C-01`).
-
