@@ -4,15 +4,12 @@
   "execution_id": "E03",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "verified_zyra_tree": "c69879e1c1715020caf3cc0b3ed7e7455ba85494",
-  "g0_candidate_head": "3abc056d4c3b4befd903672e7e73f844079f4b03",
-  "g0_candidate_tree": "5d9fdacca8af298d4343b98e04d74a3f0598151c",
+  "g0_candidate_head": "76197e6e3c8b9b196347fdcf62de438e9650e48e",
+  "g0_candidate_tree": "f68875bd0bcd7c85d8d1d449e0ab48223bcb6eba",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "captured_at_utc": "2026-07-18T09:35:42.767Z",
-  "clean_worktree": false,
-  "dirty_paths": [
-    "docs/reviews/evidence/M1-R01-v3/execution-03/candidate-gate-result.json",
-    "docs/reviews/evidence/M1-R01-v3/execution-03/mutation-results.json"
-  ],
+  "captured_at_utc": "2026-07-18T09:39:18.896Z",
+  "clean_worktree": true,
+  "dirty_paths": [],
   "source_hash_semantics": "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
   "source_snapshots": {
     "claude-code-best": {
@@ -33,7 +30,7 @@
     "execution-03-python-owner-baseline.jsonl": "d94712bd65a172d2df111bfee0fdb95770ece401414753862bff77b6d6b597fb",
     "execution-03-target-custody-map.jsonl": "06e5bf48099df5361e549b935fa53f08621c3afa98808fd31daf0e9fe6263a39",
     "execution-03-mutation-manifest.jsonl": "a992d42d0e9b03c6b427215e6710f9d9f4911c82443da7ed4382d4f7c08a0b13",
-    "execution-03-gate-profile.json": "1e404dd56eccdebf90b054cfdf726e36edfa76ad59f7d9a9451491f151e0c578"
+    "execution-03-gate-profile.json": "48185d6208da91e166a7c9a74a78a24262d15c702ca82cffc1567f4615f5bcc6"
   },
   "toolchain": {
     "bun": "1.2.15",
@@ -49,7 +46,7 @@
     "bun",
     "scripts/remediation/verify_m1_r01_e03.ts",
     "--candidate",
-    "3abc056d4c3b4befd903672e7e73f844079f4b03"
+    "76197e6e3c8b9b196347fdcf62de438e9650e48e"
   ],
   "schema_validator_version": "zyra.e03-verification/v1",
   "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",
