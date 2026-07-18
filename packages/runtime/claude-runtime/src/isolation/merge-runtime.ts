@@ -3431,6 +3431,549 @@ export class WorktreeMergePromotionRuntime {
   }
 }
 
+export interface MergeArtifactSettlement {
+  settlementId: string;
+  mergePlanId: string;
+  taskId: string;
+  targetRevision: string;
+  idempotencyKey: string;
+  expectedArtifactIds: string[];
+  acceptedArtifactIds: string[];
+  rejectedArtifactIds: string[];
+  state:
+    | "open"
+    | "collecting"
+    | "verifying"
+    | "committed"
+    | "rejected"
+    | "rolled_back";
+  createdAt: string;
+  updatedAt: string;
+  committedAt: string;
+  terminalReason: string;
+  revision: number;
+  digest: string;
+}
+
+export interface MergeArtifactReceipt {
+  receiptId: string;
+  settlementId: string;
+  artifactId: string;
+  logicalPath: string;
+  contentDigest: string;
+  byteLength: number;
+  sourceRevision: string;
+  targetRevision: string;
+  workerId: string;
+  accepted: boolean;
+  errorCode: string;
+  receivedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface MergeArtifactVerification {
+  verificationId: string;
+  settlementId: string;
+  artifactId: string;
+  check: "content" | "path" | "size" | "provenance" | "executable";
+  accepted: boolean;
+  evidenceDigest: string;
+  verifierId: string;
+  errorCode: string;
+  verifiedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+
+export interface MergeArtifactSettlementSnapshot {
+  settlements: MergeArtifactSettlement[];
+  receipts: MergeArtifactReceipt[];
+  verifications: MergeArtifactVerification[];
+  settlementByIdempotencyKey: [string, string][];
+  activeSettlementByPlan: [string, string][];
+}
+
+function assertMergeArtifactSettlement(value: MergeArtifactSettlement): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.settlementId ||
+    !value.mergePlanId ||
+    !value.taskId ||
+    !value.targetRevision ||
+    !value.idempotencyKey ||
+    !value.expectedArtifactIds.length ||
+    new Set(value.expectedArtifactIds).size !==
+      value.expectedArtifactIds.length ||
+    new Set(value.acceptedArtifactIds).size !==
+      value.acceptedArtifactIds.length ||
+    new Set(value.rejectedArtifactIds).size !==
+      value.rejectedArtifactIds.length ||
+    value.revision < 1 ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "merge_artifact_settlement_corrupt",
+      `merge artifact settlement ${value.settlementId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMergeArtifactReceipt(value: MergeArtifactReceipt): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.receiptId ||
+    !value.settlementId ||
+    !value.artifactId ||
+    !value.logicalPath ||
+    value.logicalPath.startsWith("/") ||
+    value.logicalPath.includes("..") ||
+    !value.contentDigest ||
+    value.byteLength < 0 ||
+    !value.sourceRevision ||
+    !value.targetRevision ||
+    !value.workerId ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "merge_artifact_receipt_corrupt",
+      `merge artifact receipt ${value.receiptId || "<empty>"} is corrupt`,
+    );
+}
+
+function assertMergeArtifactVerification(
+  value: MergeArtifactVerification,
+): void {
+  const { digest: expected, ...payload } = value;
+  if (
+    !value.verificationId ||
+    !value.settlementId ||
+    !value.artifactId ||
+    !value.evidenceDigest ||
+    !value.verifierId ||
+    digest(payload) !== expected
+  )
+    throw new E03RuntimeError(
+      "merge_artifact_verification_corrupt",
+      `merge artifact verification ${value.verificationId || "<empty>"} is corrupt`,
+    );
+}
+
+export class WorktreeMergeArtifactSettlementRuntime {
+  private settlements = new Map<string, MergeArtifactSettlement>();
+  private receipts = new Map<string, MergeArtifactReceipt[]>();
+  private verifications = new Map<string, MergeArtifactVerification[]>();
+  private settlementByIdempotencyKey = new Map<string, string>();
+  private activeSettlementByPlan = new Map<string, string>();
+
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+
+  open(input: {
+    settlementId?: string;
+    mergePlanId: string;
+    taskId: string;
+    targetRevision: string;
+    idempotencyKey: string;
+    expectedArtifactIds: readonly string[];
+  }): MergeArtifactSettlement {
+    const duplicateId = this.settlementByIdempotencyKey.get(
+      input.idempotencyKey,
+    );
+    if (duplicateId)
+      return structuredClone(this.requireSettlement(duplicateId));
+    if (this.activeSettlementByPlan.has(input.mergePlanId))
+      throw new E03RuntimeError(
+        "merge_artifact_settlement_active",
+        `merge plan ${input.mergePlanId} already has artifact settlement`,
+      );
+    const settlementId =
+      input.settlementId ?? createId("merge-artifact-settlement");
+    const now = this.clock.now();
+    const payload = {
+      settlementId,
+      mergePlanId: input.mergePlanId,
+      taskId: input.taskId,
+      targetRevision: input.targetRevision,
+      idempotencyKey: input.idempotencyKey,
+      expectedArtifactIds: [...new Set(input.expectedArtifactIds)].sort(),
+      acceptedArtifactIds: [] as string[],
+      rejectedArtifactIds: [] as string[],
+      state: "collecting" as const,
+      createdAt: now,
+      updatedAt: now,
+      committedAt: "",
+      terminalReason: "",
+      revision: 1,
+    };
+    const settlement = { ...payload, digest: digest(payload) };
+    assertMergeArtifactSettlement(settlement);
+    this.settlements.set(settlementId, settlement);
+    this.receipts.set(settlementId, []);
+    this.verifications.set(settlementId, []);
+    this.settlementByIdempotencyKey.set(input.idempotencyKey, settlementId);
+    this.activeSettlementByPlan.set(input.mergePlanId, settlementId);
+    return structuredClone(settlement);
+  }
+
+  receive(input: {
+    receiptId?: string;
+    settlementId: string;
+    expectedRevision: number;
+    artifactId: string;
+    logicalPath: string;
+    contentDigest: string;
+    byteLength: number;
+    sourceRevision: string;
+    targetRevision: string;
+    workerId: string;
+  }): MergeArtifactReceipt {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state !== "collecting")
+      throw new E03RuntimeError(
+        "merge_artifact_receive_state",
+        `merge artifact settlement ${settlement.settlementId} is ${settlement.state}`,
+      );
+    if (
+      !settlement.expectedArtifactIds.includes(input.artifactId) ||
+      input.targetRevision !== settlement.targetRevision
+    )
+      throw new E03RuntimeError(
+        "merge_artifact_receipt_binding",
+        `merge artifact ${input.artifactId} does not match settlement`,
+      );
+    const entries = this.receiptEntries(settlement.settlementId);
+    const duplicate = entries.find(
+      (value) => value.artifactId === input.artifactId,
+    );
+    if (duplicate) {
+      if (
+        duplicate.contentDigest !== input.contentDigest ||
+        duplicate.logicalPath !== input.logicalPath
+      )
+        throw new E03RuntimeError(
+          "merge_artifact_receipt_idempotency_conflict",
+          `merge artifact ${input.artifactId} receipt conflicts`,
+        );
+      return structuredClone(duplicate);
+    }
+    const payload = {
+      receiptId: input.receiptId ?? createId("merge-artifact-receipt"),
+      settlementId: settlement.settlementId,
+      artifactId: input.artifactId,
+      logicalPath: input.logicalPath.replaceAll("\\", "/"),
+      contentDigest: input.contentDigest,
+      byteLength: input.byteLength,
+      sourceRevision: input.sourceRevision,
+      targetRevision: input.targetRevision,
+      workerId: input.workerId,
+      accepted: true,
+      errorCode: "",
+      receivedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertMergeArtifactReceipt(receipt);
+    entries.push(receipt);
+    this.receipts.set(settlement.settlementId, entries);
+    return structuredClone(receipt);
+  }
+
+  beginVerification(
+    settlementId: string,
+    expectedRevision: number,
+  ): MergeArtifactSettlement {
+    const settlement = this.requireSettlement(settlementId);
+    this.assertSettlementRevision(settlement, expectedRevision);
+    if (settlement.state !== "collecting")
+      throw new E03RuntimeError(
+        "merge_artifact_verify_state",
+        `merge artifact settlement ${settlementId} is ${settlement.state}`,
+      );
+    const receipts = this.receiptEntries(settlementId);
+    if (
+      settlement.expectedArtifactIds.some(
+        (artifactId) =>
+          !receipts.some((value) => value.artifactId === artifactId),
+      )
+    )
+      throw new E03RuntimeError(
+        "merge_artifact_receipts_incomplete",
+        `merge artifact settlement ${settlementId} lacks receipts`,
+      );
+    return this.transitionSettlement(settlement, { state: "verifying" });
+  }
+
+  verify(input: {
+    verificationId?: string;
+    settlementId: string;
+    expectedRevision: number;
+    artifactId: string;
+    check: MergeArtifactVerification["check"];
+    accepted: boolean;
+    evidenceDigest: string;
+    verifierId: string;
+    errorCode?: string;
+  }): MergeArtifactVerification {
+    const settlement = this.requireSettlement(input.settlementId);
+    this.assertSettlementRevision(settlement, input.expectedRevision);
+    if (settlement.state !== "verifying")
+      throw new E03RuntimeError(
+        "merge_artifact_verification_state",
+        `merge artifact settlement ${settlement.settlementId} is ${settlement.state}`,
+      );
+    if (
+      !this.receiptEntries(settlement.settlementId).some(
+        (value) => value.artifactId === input.artifactId,
+      )
+    )
+      throw new E03RuntimeError(
+        "merge_artifact_verification_receipt_missing",
+        `merge artifact ${input.artifactId} has no receipt`,
+      );
+    const entries = this.verificationEntries(settlement.settlementId);
+    if (
+      entries.some(
+        (value) =>
+          value.artifactId === input.artifactId && value.check === input.check,
+      )
+    )
+      throw new E03RuntimeError(
+        "merge_artifact_verification_duplicate",
+        `merge artifact ${input.artifactId} check ${input.check} exists`,
+      );
+    const payload = {
+      verificationId:
+        input.verificationId ?? createId("merge-artifact-verification"),
+      settlementId: settlement.settlementId,
+      artifactId: input.artifactId,
+      check: input.check,
+      accepted: input.accepted,
+      evidenceDigest: input.evidenceDigest,
+      verifierId: input.verifierId,
+      errorCode: input.errorCode ?? "",
+      verifiedAt: this.clock.now(),
+      previousDigest: entries.at(-1)?.digest ?? "",
+    };
+    const verification = { ...payload, digest: digest(payload) };
+    assertMergeArtifactVerification(verification);
+    entries.push(verification);
+    this.verifications.set(settlement.settlementId, entries);
+    const requiredChecks: MergeArtifactVerification["check"][] = [
+      "content",
+      "path",
+      "size",
+      "provenance",
+    ];
+    const acceptedArtifactIds = settlement.expectedArtifactIds.filter(
+      (artifactId) =>
+        requiredChecks.every((check) =>
+          entries.some(
+            (value) =>
+              value.artifactId === artifactId &&
+              value.check === check &&
+              value.accepted,
+          ),
+        ),
+    );
+    const rejectedArtifactIds = settlement.expectedArtifactIds.filter(
+      (artifactId) =>
+        entries.some(
+          (value) => value.artifactId === artifactId && !value.accepted,
+        ),
+    );
+    this.transitionSettlement(settlement, {
+      acceptedArtifactIds,
+      rejectedArtifactIds,
+    });
+    return structuredClone(verification);
+  }
+
+  commit(
+    settlementId: string,
+    expectedRevision: number,
+  ): MergeArtifactSettlement {
+    const settlement = this.requireSettlement(settlementId);
+    this.assertSettlementRevision(settlement, expectedRevision);
+    if (
+      settlement.state !== "verifying" ||
+      settlement.rejectedArtifactIds.length ||
+      settlement.acceptedArtifactIds.length !==
+        settlement.expectedArtifactIds.length
+    )
+      throw new E03RuntimeError(
+        "merge_artifact_settlement_incomplete",
+        `merge artifact settlement ${settlementId} is incomplete`,
+      );
+    const next = this.transitionSettlement(settlement, {
+      state: "committed",
+      committedAt: this.clock.now(),
+      terminalReason: "all_artifacts_verified",
+    });
+    this.activeSettlementByPlan.delete(settlement.mergePlanId);
+    return next;
+  }
+
+  reject(
+    settlementId: string,
+    expectedRevision: number,
+    reason: string,
+  ): MergeArtifactSettlement {
+    const settlement = this.requireSettlement(settlementId);
+    this.assertSettlementRevision(settlement, expectedRevision);
+    if (!["collecting", "verifying"].includes(settlement.state))
+      throw new E03RuntimeError(
+        "merge_artifact_settlement_reject_state",
+        `merge artifact settlement ${settlementId} is ${settlement.state}`,
+      );
+    const next = this.transitionSettlement(settlement, {
+      state: "rejected",
+      terminalReason: reason,
+    });
+    this.activeSettlementByPlan.delete(settlement.mergePlanId);
+    return next;
+  }
+
+  snapshot(): MergeArtifactSettlementSnapshot {
+    return {
+      settlements: [...this.settlements.values()].map((value) =>
+        structuredClone(value),
+      ),
+      receipts: [...this.receipts.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      verifications: [...this.verifications.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      settlementByIdempotencyKey: [
+        ...this.settlementByIdempotencyKey.entries(),
+      ],
+      activeSettlementByPlan: [...this.activeSettlementByPlan.entries()],
+    };
+  }
+
+  restore(snapshot: MergeArtifactSettlementSnapshot): void {
+    const settlements = new Map<string, MergeArtifactSettlement>();
+    const receipts = new Map<string, MergeArtifactReceipt[]>();
+    const verifications = new Map<string, MergeArtifactVerification[]>();
+    for (const value of snapshot.settlements) {
+      assertMergeArtifactSettlement(value);
+      settlements.set(value.settlementId, structuredClone(value));
+      receipts.set(value.settlementId, []);
+      verifications.set(value.settlementId, []);
+    }
+    for (const value of snapshot.receipts) {
+      assertMergeArtifactReceipt(value);
+      const entries = receipts.get(value.settlementId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "merge_artifact_restore_receipt_chain",
+          `receipt ${value.receiptId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    for (const value of snapshot.verifications) {
+      assertMergeArtifactVerification(value);
+      const entries = verifications.get(value.settlementId);
+      if (!entries || value.previousDigest !== (entries.at(-1)?.digest ?? ""))
+        throw new E03RuntimeError(
+          "merge_artifact_restore_verification_chain",
+          `verification ${value.verificationId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+    }
+    const settlementByIdempotencyKey = new Map(
+      snapshot.settlementByIdempotencyKey,
+    );
+    const activeSettlementByPlan = new Map(snapshot.activeSettlementByPlan);
+    if (
+      settlementByIdempotencyKey.size !==
+        snapshot.settlementByIdempotencyKey.length ||
+      activeSettlementByPlan.size !== snapshot.activeSettlementByPlan.length
+    )
+      throw new E03RuntimeError(
+        "merge_artifact_restore_index_duplicate",
+        "merge artifact indexes duplicate",
+      );
+    for (const [key, settlementId] of settlementByIdempotencyKey) {
+      const value = settlements.get(settlementId);
+      if (!value || value.idempotencyKey !== key)
+        throw new E03RuntimeError(
+          "merge_artifact_restore_idempotency",
+          `settlement index ${key} invalid`,
+        );
+    }
+    for (const [planId, settlementId] of activeSettlementByPlan) {
+      const value = settlements.get(settlementId);
+      if (
+        !value ||
+        value.mergePlanId !== planId ||
+        ["committed", "rejected", "rolled_back"].includes(value.state)
+      )
+        throw new E03RuntimeError(
+          "merge_artifact_restore_active",
+          `settlement index ${planId} invalid`,
+        );
+    }
+    this.settlements = settlements;
+    this.receipts = receipts;
+    this.verifications = verifications;
+    this.settlementByIdempotencyKey = settlementByIdempotencyKey;
+    this.activeSettlementByPlan = activeSettlementByPlan;
+  }
+
+  private receiptEntries(settlementId: string): MergeArtifactReceipt[] {
+    return this.receipts.get(settlementId) ?? [];
+  }
+
+  private verificationEntries(
+    settlementId: string,
+  ): MergeArtifactVerification[] {
+    return this.verifications.get(settlementId) ?? [];
+  }
+
+  private requireSettlement(id: string): MergeArtifactSettlement {
+    const value = this.settlements.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "merge_artifact_settlement_missing",
+        `settlement ${id} missing`,
+      );
+    assertMergeArtifactSettlement(value);
+    return value;
+  }
+
+  private assertSettlementRevision(
+    value: MergeArtifactSettlement,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "merge_artifact_settlement_stale_revision",
+        `settlement ${value.settlementId} stale`,
+      );
+  }
+
+  private transitionSettlement(
+    value: MergeArtifactSettlement,
+    patch: Partial<
+      Omit<MergeArtifactSettlement, "settlementId" | "revision" | "digest">
+    >,
+  ): MergeArtifactSettlement {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      settlementId: value.settlementId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertMergeArtifactSettlement(next);
+    this.settlements.set(next.settlementId, next);
+    return structuredClone(next);
+  }
+}
+
 export class WorktreeMergeVerificationRuntime {
   private policies = new Map<string, MergeVerificationPolicy>();
   private attestations = new Map<string, MergeAttestation>();
