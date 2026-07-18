@@ -2098,3 +2098,377 @@ export class ContextBranchLineageRuntime {
     return structuredClone(next);
   }
 }
+
+export interface ContextAccessGrant {
+  grantId: string;
+  snapshotId: string;
+  ownerTaskId: string;
+  subjectTaskId: string;
+  actions: Array<"read" | "fork" | "merge" | "restore" | "pin">;
+  state: "issued" | "active" | "revoked" | "expired" | "exhausted";
+  maximumUses: number;
+  consumedUses: number;
+  issuedAt: string;
+  activatedAt: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  revokeReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface ContextAccessDecision {
+  decisionId: string;
+  grantId: string;
+  snapshotId: string;
+  subjectTaskId: string;
+  action: ContextAccessGrant["actions"][number];
+  outcome: "allowed" | "denied";
+  reason: string;
+  sequence: number;
+  decidedAt: string;
+  previousDigest: string;
+  digest: string;
+}
+function assertContextAccessGrant(value: ContextAccessGrant): void {
+  assertDigest(value, "digest", `context access grant ${value.grantId}`);
+  if (
+    !value.grantId ||
+    !value.snapshotId ||
+    !value.ownerTaskId ||
+    !value.subjectTaskId ||
+    !value.actions.length ||
+    !Number.isSafeInteger(value.maximumUses) ||
+    value.maximumUses < 1 ||
+    !Number.isSafeInteger(value.consumedUses) ||
+    value.consumedUses < 0 ||
+    value.consumedUses > value.maximumUses ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "context_access_grant",
+      `context access grant ${value.grantId} is invalid`,
+    );
+}
+function assertContextAccessDecision(value: ContextAccessDecision): void {
+  assertDigest(value, "digest", `context access decision ${value.decisionId}`);
+  if (
+    !value.decisionId ||
+    !value.grantId ||
+    !value.snapshotId ||
+    !value.subjectTaskId ||
+    !value.reason ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1
+  )
+    throw new E03RuntimeError(
+      "context_access_decision",
+      `context access decision ${value.decisionId} is invalid`,
+    );
+}
+export class ContextAccessRuntime {
+  private grants = new Map<string, ContextAccessGrant>();
+  private decisions = new Map<string, ContextAccessDecision[]>();
+  private snapshots = new Map<string, E03ContextSnapshot>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  index(snapshots: readonly E03ContextSnapshot[]): void {
+    const next = new Map<string, E03ContextSnapshot>();
+    for (const snapshot of snapshots) {
+      assertDigest(snapshot, "checksum", `context ${snapshot.snapshotId}`);
+      if (next.has(snapshot.snapshotId))
+        throw new E03RuntimeError(
+          "context_access_snapshot_duplicate",
+          `duplicate context snapshot ${snapshot.snapshotId}`,
+        );
+      next.set(snapshot.snapshotId, structuredClone(snapshot));
+    }
+    this.snapshots = next;
+  }
+  issue(input: {
+    snapshotId: string;
+    ownerTaskId: string;
+    subjectTaskId: string;
+    actions: readonly ContextAccessGrant["actions"][number][];
+    maximumUses: number;
+    ttlMs: number;
+  }): ContextAccessGrant {
+    const snapshot = this.requireSnapshot(input.snapshotId);
+    if (snapshot.taskId !== input.ownerTaskId || !input.subjectTaskId.trim())
+      throw new E03RuntimeError(
+        "context_access_grant_custody",
+        "context access grant custody is invalid",
+      );
+    const actions = [...new Set(input.actions)].sort();
+    if (
+      !actions.length ||
+      !Number.isSafeInteger(input.maximumUses) ||
+      input.maximumUses < 1 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "context_access_grant_input",
+        "context access grant input is invalid",
+      );
+    const existing = [...this.grants.values()].find(
+      (value) =>
+        value.snapshotId === input.snapshotId &&
+        value.subjectTaskId === input.subjectTaskId &&
+        value.state !== "revoked" &&
+        value.state !== "expired" &&
+        value.state !== "exhausted",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      grantId: createId("context-access-grant"),
+      snapshotId: snapshot.snapshotId,
+      ownerTaskId: input.ownerTaskId,
+      subjectTaskId: input.subjectTaskId.trim(),
+      actions,
+      state: "issued" as const,
+      maximumUses: input.maximumUses,
+      consumedUses: 0,
+      issuedAt: this.clock.now(),
+      activatedAt: null,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      revokedAt: null,
+      revokeReason: null,
+      revision: 1,
+    };
+    const grant = { ...payload, digest: digest(payload) };
+    assertContextAccessGrant(grant);
+    this.grants.set(grant.grantId, grant);
+    return structuredClone(grant);
+  }
+  activate(
+    grantId: string,
+    expectedRevision: number,
+    subjectTaskId: string,
+  ): ContextAccessGrant {
+    const grant = this.requireGrant(grantId);
+    this.assertGrantRevision(grant, expectedRevision);
+    if (grant.subjectTaskId !== subjectTaskId || grant.state !== "issued")
+      throw new E03RuntimeError(
+        "context_access_activate",
+        `context access grant ${grantId} cannot be activated`,
+      );
+    if (Date.parse(grant.expiresAt) <= Date.parse(this.clock.now()))
+      return this.transitionGrant(grant, { state: "expired" });
+    return this.transitionGrant(grant, {
+      state: "active",
+      activatedAt: this.clock.now(),
+    });
+  }
+  authorize(input: {
+    grantId: string;
+    subjectTaskId: string;
+    snapshotId: string;
+    action: ContextAccessGrant["actions"][number];
+  }): { grant: ContextAccessGrant; decision: ContextAccessDecision } {
+    const grant = this.requireGrant(input.grantId);
+    let allowed = true;
+    let reason = "context access grant allowed action";
+    if (
+      grant.subjectTaskId !== input.subjectTaskId ||
+      grant.snapshotId !== input.snapshotId
+    ) {
+      allowed = false;
+      reason = "context access grant custody mismatch";
+    } else if (grant.state !== "active") {
+      allowed = false;
+      reason = `context access grant is ${grant.state}`;
+    } else if (Date.parse(grant.expiresAt) <= Date.parse(this.clock.now())) {
+      allowed = false;
+      reason = "context access grant expired";
+    } else if (!grant.actions.includes(input.action)) {
+      allowed = false;
+      reason = `context access grant denies ${input.action}`;
+    } else if (grant.consumedUses >= grant.maximumUses) {
+      allowed = false;
+      reason = "context access grant exhausted";
+    }
+    let nextGrant = grant;
+    if (
+      Date.parse(grant.expiresAt) <= Date.parse(this.clock.now()) &&
+      grant.state === "active"
+    )
+      nextGrant = this.transitionGrant(grant, { state: "expired" });
+    else if (allowed)
+      nextGrant = this.transitionGrant(grant, {
+        consumedUses: grant.consumedUses + 1,
+        state:
+          grant.consumedUses + 1 >= grant.maximumUses
+            ? "exhausted"
+            : grant.state,
+      });
+    const decision = this.appendDecision(nextGrant, input, allowed, reason);
+    return { grant: structuredClone(nextGrant), decision };
+  }
+  revoke(
+    grantId: string,
+    expectedRevision: number,
+    ownerTaskId: string,
+    reason: string,
+  ): ContextAccessGrant {
+    const grant = this.requireGrant(grantId);
+    this.assertGrantRevision(grant, expectedRevision);
+    if (grant.ownerTaskId !== ownerTaskId || !reason.trim())
+      throw new E03RuntimeError(
+        "context_access_revoke",
+        `context access grant ${grantId} cannot be revoked`,
+      );
+    if (grant.state === "revoked") return structuredClone(grant);
+    return this.transitionGrant(grant, {
+      state: "revoked",
+      revokedAt: this.clock.now(),
+      revokeReason: reason.trim(),
+    });
+  }
+  history(grantId: string): ContextAccessDecision[] {
+    const entries = this.decisions.get(grantId) ?? [];
+    let previousDigest = "root";
+    let sequence = 1;
+    for (const decision of entries) {
+      assertContextAccessDecision(decision);
+      if (
+        decision.sequence !== sequence ||
+        decision.previousDigest !== previousDigest
+      )
+        throw new E03RuntimeError(
+          "context_access_decision_chain",
+          `context access decision ${decision.decisionId} breaks chain`,
+        );
+      previousDigest = decision.digest;
+      sequence += 1;
+    }
+    return entries.map((value) => structuredClone(value));
+  }
+  snapshot(): {
+    grants: ContextAccessGrant[];
+    decisions: ContextAccessDecision[];
+    snapshots: E03ContextSnapshot[];
+  } {
+    for (const id of this.grants.keys()) this.history(id);
+    return {
+      grants: [...this.grants.values()].map((value) => structuredClone(value)),
+      decisions: [...this.decisions.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      snapshots: [...this.snapshots.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    grants: readonly ContextAccessGrant[];
+    decisions: readonly ContextAccessDecision[];
+    snapshots: readonly E03ContextSnapshot[];
+  }): void {
+    this.index(snapshot.snapshots);
+    const grants = new Map<string, ContextAccessGrant>();
+    const decisions = new Map<string, ContextAccessDecision[]>();
+    for (const value of snapshot.grants) {
+      assertContextAccessGrant(value);
+      if (grants.has(value.grantId) || !this.snapshots.has(value.snapshotId))
+        throw new E03RuntimeError(
+          "context_access_grant_restore",
+          `context access grant ${value.grantId} is invalid`,
+        );
+      grants.set(value.grantId, structuredClone(value));
+    }
+    for (const value of snapshot.decisions) {
+      assertContextAccessDecision(value);
+      if (!grants.has(value.grantId))
+        throw new E03RuntimeError(
+          "context_access_decision_restore",
+          `context access decision ${value.decisionId} has no grant`,
+        );
+      const entries = decisions.get(value.grantId) ?? [];
+      entries.push(structuredClone(value));
+      decisions.set(value.grantId, entries);
+    }
+    for (const entries of decisions.values())
+      entries.sort((left, right) => left.sequence - right.sequence);
+    this.grants = grants;
+    this.decisions = decisions;
+    for (const id of grants.keys()) this.history(id);
+  }
+  private appendDecision(
+    grant: ContextAccessGrant,
+    input: {
+      subjectTaskId: string;
+      snapshotId: string;
+      action: ContextAccessGrant["actions"][number];
+    },
+    allowed: boolean,
+    reason: string,
+  ): ContextAccessDecision {
+    const entries = this.decisions.get(grant.grantId) ?? [];
+    const payload = {
+      decisionId: createId("context-access-decision"),
+      grantId: grant.grantId,
+      snapshotId: input.snapshotId,
+      subjectTaskId: input.subjectTaskId,
+      action: input.action,
+      outcome: allowed ? ("allowed" as const) : ("denied" as const),
+      reason,
+      sequence: entries.length + 1,
+      decidedAt: this.clock.now(),
+      previousDigest: entries[entries.length - 1]?.digest ?? "root",
+    };
+    const decision = { ...payload, digest: digest(payload) };
+    assertContextAccessDecision(decision);
+    entries.push(decision);
+    this.decisions.set(grant.grantId, entries);
+    return structuredClone(decision);
+  }
+  private requireSnapshot(id: string): E03ContextSnapshot {
+    const value = this.snapshots.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "context_access_snapshot_missing",
+        `context snapshot ${id} does not exist`,
+      );
+    assertDigest(value, "checksum", `context ${id}`);
+    return value;
+  }
+  private requireGrant(id: string): ContextAccessGrant {
+    const value = this.grants.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "context_access_grant_missing",
+        `context access grant ${id} does not exist`,
+      );
+    assertContextAccessGrant(value);
+    return value;
+  }
+  private assertGrantRevision(
+    value: ContextAccessGrant,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "context_access_grant_stale_revision",
+        `context access grant ${value.grantId} revision is stale`,
+      );
+  }
+  private transitionGrant(
+    value: ContextAccessGrant,
+    patch: Partial<Omit<ContextAccessGrant, "grantId" | "revision" | "digest">>,
+  ): ContextAccessGrant {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      grantId: value.grantId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertContextAccessGrant(next);
+    this.grants.set(next.grantId, next);
+    return structuredClone(next);
+  }
+}

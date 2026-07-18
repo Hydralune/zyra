@@ -1683,3 +1683,500 @@ export class AgentDefinitionActivationRuntime {
     return structuredClone(next);
   }
 }
+
+export interface DefinitionReleaseChannel {
+  channelId: string;
+  name: string;
+  environment: string;
+  state: "active" | "frozen" | "closed";
+  currentDefinitionDigests: Record<string, string>;
+  previousDefinitionDigests: Record<string, string>;
+  promotionCount: number;
+  createdAt: string;
+  updatedAt: string;
+  revision: number;
+  digest: string;
+}
+export interface DefinitionPromotion {
+  promotionId: string;
+  channelId: string;
+  definitionName: string;
+  fromDigest: string | null;
+  toDigest: string;
+  state: "planned" | "validated" | "promoted" | "rolled_back" | "rejected";
+  requiredCheckDigests: string[];
+  observedCheckDigests: string[];
+  rolloutPercent: number;
+  plannedAt: string;
+  validatedAt: string | null;
+  promotedAt: string | null;
+  rolledBackAt: string | null;
+  rejectionReason: string | null;
+  revision: number;
+  digest: string;
+}
+function assertReleaseChannel(value: DefinitionReleaseChannel): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_release_channel_digest",
+      `definition release channel ${value.channelId} is corrupt`,
+    );
+  if (
+    !value.channelId ||
+    !value.name ||
+    !value.environment ||
+    !Number.isSafeInteger(value.promotionCount) ||
+    value.promotionCount < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "definition_release_channel",
+      `definition release channel ${value.channelId} is invalid`,
+    );
+}
+function assertDefinitionPromotion(value: DefinitionPromotion): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_promotion_digest",
+      `definition promotion ${value.promotionId} is corrupt`,
+    );
+  if (
+    !value.promotionId ||
+    !value.channelId ||
+    !value.definitionName ||
+    !value.toDigest ||
+    !Number.isFinite(value.rolloutPercent) ||
+    value.rolloutPercent < 0 ||
+    value.rolloutPercent > 100 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "definition_promotion",
+      `definition promotion ${value.promotionId} is invalid`,
+    );
+  if (
+    (value.state === "validated" && value.validatedAt === null) ||
+    (value.state === "promoted" && value.promotedAt === null) ||
+    (value.state === "rolled_back" && value.rolledBackAt === null)
+  )
+    throw new E03RuntimeError(
+      "definition_promotion_time",
+      `definition promotion ${value.promotionId} lacks transition time`,
+    );
+}
+export class AgentDefinitionReleaseRuntime {
+  private channels = new Map<string, DefinitionReleaseChannel>();
+  private promotions = new Map<string, DefinitionPromotion>();
+  private activeByChannelName = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  createChannel(input: {
+    name: string;
+    environment: string;
+    initialDefinitions?: Record<string, string>;
+  }): DefinitionReleaseChannel {
+    if (!input.name.trim() || !input.environment.trim())
+      throw new E03RuntimeError(
+        "definition_release_channel_input",
+        "definition release channel input is invalid",
+      );
+    const key = `${input.environment}:${input.name}`;
+    const existingId = this.activeByChannelName.get(key);
+    if (existingId) return structuredClone(this.requireChannel(existingId));
+    const initialDefinitions = structuredClone(input.initialDefinitions ?? {});
+    if (
+      Object.entries(initialDefinitions).some(
+        ([name, checksum]) => !name.trim() || !checksum,
+      )
+    )
+      throw new E03RuntimeError(
+        "definition_release_channel_definitions",
+        "definition release channel definitions are invalid",
+      );
+    const payload = {
+      channelId: createId("definition-release-channel"),
+      name: input.name.trim(),
+      environment: input.environment.trim(),
+      state: "active" as const,
+      currentDefinitionDigests: initialDefinitions,
+      previousDefinitionDigests: {},
+      promotionCount: 0,
+      createdAt: this.clock.now(),
+      updatedAt: this.clock.now(),
+      revision: 1,
+    };
+    const channel = { ...payload, digest: digest(payload) };
+    assertReleaseChannel(channel);
+    this.channels.set(channel.channelId, channel);
+    this.activeByChannelName.set(key, channel.channelId);
+    return structuredClone(channel);
+  }
+  plan(input: {
+    channelId: string;
+    definition: E03AgentDefinition;
+    requiredCheckDigests?: readonly string[];
+    rolloutPercent?: number;
+  }): DefinitionPromotion {
+    const channel = this.requireChannel(input.channelId);
+    if (channel.state !== "active")
+      throw new E03RuntimeError(
+        "definition_promotion_channel_state",
+        `definition release channel ${channel.channelId} is ${channel.state}`,
+      );
+    const fromDigest =
+      channel.currentDefinitionDigests[input.definition.name] ?? null;
+    if (fromDigest === input.definition.digest)
+      throw new E03RuntimeError(
+        "definition_promotion_unchanged",
+        `definition ${input.definition.name} is already current`,
+      );
+    const existing = [...this.promotions.values()].find(
+      (value) =>
+        value.channelId === channel.channelId &&
+        value.definitionName === input.definition.name &&
+        value.toDigest === input.definition.digest &&
+        value.state !== "rejected" &&
+        value.state !== "rolled_back",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      promotionId: createId("definition-promotion"),
+      channelId: channel.channelId,
+      definitionName: input.definition.name,
+      fromDigest,
+      toDigest: input.definition.digest,
+      state: "planned" as const,
+      requiredCheckDigests: [
+        ...new Set(input.requiredCheckDigests ?? []),
+      ].sort(),
+      observedCheckDigests: [],
+      rolloutPercent: input.rolloutPercent ?? 100,
+      plannedAt: this.clock.now(),
+      validatedAt: null,
+      promotedAt: null,
+      rolledBackAt: null,
+      rejectionReason: null,
+      revision: 1,
+    };
+    const promotion = { ...payload, digest: digest(payload) };
+    assertDefinitionPromotion(promotion);
+    this.promotions.set(promotion.promotionId, promotion);
+    return structuredClone(promotion);
+  }
+  observeCheck(
+    promotionId: string,
+    expectedRevision: number,
+    checkDigest: string,
+  ): DefinitionPromotion {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "planned")
+      throw new E03RuntimeError(
+        "definition_promotion_check_state",
+        `definition promotion ${promotionId} is ${promotion.state}`,
+      );
+    if (!checkDigest)
+      throw new E03RuntimeError(
+        "definition_promotion_check_digest",
+        "definition promotion check digest is required",
+      );
+    const observedCheckDigests = [
+      ...new Set([...promotion.observedCheckDigests, checkDigest]),
+    ].sort();
+    const validated = promotion.requiredCheckDigests.every((value) =>
+      observedCheckDigests.includes(value),
+    );
+    return this.transitionPromotion(promotion, {
+      state: validated ? "validated" : "planned",
+      observedCheckDigests,
+      validatedAt: validated ? this.clock.now() : null,
+    });
+  }
+  validateWithoutChecks(
+    promotionId: string,
+    expectedRevision: number,
+  ): DefinitionPromotion {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "planned" || promotion.requiredCheckDigests.length)
+      throw new E03RuntimeError(
+        "definition_promotion_validate_state",
+        `definition promotion ${promotionId} cannot validate without checks`,
+      );
+    return this.transitionPromotion(promotion, {
+      state: "validated",
+      validatedAt: this.clock.now(),
+    });
+  }
+  promote(
+    promotionId: string,
+    expectedRevision: number,
+  ): { promotion: DefinitionPromotion; channel: DefinitionReleaseChannel } {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "validated")
+      throw new E03RuntimeError(
+        "definition_promotion_promote_state",
+        `definition promotion ${promotionId} is ${promotion.state}`,
+      );
+    const channel = this.requireChannel(promotion.channelId);
+    if (
+      channel.state !== "active" ||
+      (channel.currentDefinitionDigests[promotion.definitionName] ?? null) !==
+        promotion.fromDigest
+    )
+      throw new E03RuntimeError(
+        "definition_promotion_channel_changed",
+        `definition release channel ${channel.channelId} changed`,
+      );
+    const currentDefinitionDigests = {
+      ...channel.currentDefinitionDigests,
+      [promotion.definitionName]: promotion.toDigest,
+    };
+    const previousDefinitionDigests = {
+      ...channel.previousDefinitionDigests,
+      ...(promotion.fromDigest
+        ? { [promotion.definitionName]: promotion.fromDigest }
+        : {}),
+    };
+    const nextChannel = this.transitionChannel(channel, {
+      currentDefinitionDigests,
+      previousDefinitionDigests,
+      promotionCount: channel.promotionCount + 1,
+    });
+    const nextPromotion = this.transitionPromotion(promotion, {
+      state: "promoted",
+      promotedAt: this.clock.now(),
+    });
+    return { promotion: nextPromotion, channel: nextChannel };
+  }
+  rollback(
+    promotionId: string,
+    expectedRevision: number,
+    reason: string,
+  ): { promotion: DefinitionPromotion; channel: DefinitionReleaseChannel } {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "promoted")
+      throw new E03RuntimeError(
+        "definition_promotion_rollback_state",
+        `definition promotion ${promotionId} is ${promotion.state}`,
+      );
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "definition_promotion_rollback_reason",
+        "definition promotion rollback reason is required",
+      );
+    const channel = this.requireChannel(promotion.channelId);
+    if (
+      channel.currentDefinitionDigests[promotion.definitionName] !==
+      promotion.toDigest
+    )
+      throw new E03RuntimeError(
+        "definition_promotion_rollback_changed",
+        `definition ${promotion.definitionName} changed after promotion`,
+      );
+    const currentDefinitionDigests = { ...channel.currentDefinitionDigests };
+    if (promotion.fromDigest)
+      currentDefinitionDigests[promotion.definitionName] = promotion.fromDigest;
+    else delete currentDefinitionDigests[promotion.definitionName];
+    const nextChannel = this.transitionChannel(channel, {
+      currentDefinitionDigests,
+    });
+    const nextPromotion = this.transitionPromotion(promotion, {
+      state: "rolled_back",
+      rolledBackAt: this.clock.now(),
+      rejectionReason: reason.trim(),
+    });
+    return { promotion: nextPromotion, channel: nextChannel };
+  }
+  reject(
+    promotionId: string,
+    expectedRevision: number,
+    reason: string,
+  ): DefinitionPromotion {
+    const promotion = this.requirePromotion(promotionId);
+    this.assertPromotionRevision(promotion, expectedRevision);
+    if (promotion.state !== "planned" && promotion.state !== "validated")
+      throw new E03RuntimeError(
+        "definition_promotion_reject_state",
+        `definition promotion ${promotionId} is ${promotion.state}`,
+      );
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "definition_promotion_reject_reason",
+        "definition promotion rejection reason is required",
+      );
+    return this.transitionPromotion(promotion, {
+      state: "rejected",
+      rejectionReason: reason.trim(),
+    });
+  }
+  freezeChannel(
+    channelId: string,
+    expectedRevision: number,
+  ): DefinitionReleaseChannel {
+    const channel = this.requireChannel(channelId);
+    this.assertChannelRevision(channel, expectedRevision);
+    if (channel.state !== "active")
+      throw new E03RuntimeError(
+        "definition_release_channel_freeze_state",
+        `definition release channel ${channelId} is ${channel.state}`,
+      );
+    return this.transitionChannel(channel, { state: "frozen" });
+  }
+  resumeChannel(
+    channelId: string,
+    expectedRevision: number,
+  ): DefinitionReleaseChannel {
+    const channel = this.requireChannel(channelId);
+    this.assertChannelRevision(channel, expectedRevision);
+    if (channel.state !== "frozen")
+      throw new E03RuntimeError(
+        "definition_release_channel_resume_state",
+        `definition release channel ${channelId} is ${channel.state}`,
+      );
+    return this.transitionChannel(channel, { state: "active" });
+  }
+  snapshot(): {
+    channels: DefinitionReleaseChannel[];
+    promotions: DefinitionPromotion[];
+    activeByChannelName: Array<[string, string]>;
+  } {
+    return {
+      channels: [...this.channels.values()].map((value) =>
+        structuredClone(value),
+      ),
+      promotions: [...this.promotions.values()].map((value) =>
+        structuredClone(value),
+      ),
+      activeByChannelName: [...this.activeByChannelName.entries()].map(
+        ([key, id]) => [key, id],
+      ),
+    };
+  }
+  restore(snapshot: {
+    channels: readonly DefinitionReleaseChannel[];
+    promotions: readonly DefinitionPromotion[];
+    activeByChannelName: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const channels = new Map<string, DefinitionReleaseChannel>();
+    const promotions = new Map<string, DefinitionPromotion>();
+    const activeByChannelName = new Map<string, string>();
+    for (const value of snapshot.channels) {
+      assertReleaseChannel(value);
+      if (channels.has(value.channelId))
+        throw new E03RuntimeError(
+          "definition_release_channel_restore_duplicate",
+          `duplicate definition release channel ${value.channelId}`,
+        );
+      channels.set(value.channelId, structuredClone(value));
+    }
+    for (const value of snapshot.promotions) {
+      assertDefinitionPromotion(value);
+      if (promotions.has(value.promotionId) || !channels.has(value.channelId))
+        throw new E03RuntimeError(
+          "definition_promotion_restore",
+          `definition promotion ${value.promotionId} is invalid`,
+        );
+      promotions.set(value.promotionId, structuredClone(value));
+    }
+    for (const [key, id] of snapshot.activeByChannelName) {
+      const channel = channels.get(id);
+      if (
+        !channel ||
+        channel.state === "closed" ||
+        key !== `${channel.environment}:${channel.name}` ||
+        activeByChannelName.has(key)
+      )
+        throw new E03RuntimeError(
+          "definition_release_channel_active_restore",
+          `definition release channel index ${key} is invalid`,
+        );
+      activeByChannelName.set(key, id);
+    }
+    this.channels = channels;
+    this.promotions = promotions;
+    this.activeByChannelName = activeByChannelName;
+  }
+  private requireChannel(id: string): DefinitionReleaseChannel {
+    const value = this.channels.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_release_channel_missing",
+        `definition release channel ${id} does not exist`,
+      );
+    assertReleaseChannel(value);
+    return value;
+  }
+  private requirePromotion(id: string): DefinitionPromotion {
+    const value = this.promotions.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_promotion_missing",
+        `definition promotion ${id} does not exist`,
+      );
+    assertDefinitionPromotion(value);
+    return value;
+  }
+  private assertChannelRevision(
+    value: DefinitionReleaseChannel,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_release_channel_stale_revision",
+        `definition release channel ${value.channelId} revision is stale`,
+      );
+  }
+  private assertPromotionRevision(
+    value: DefinitionPromotion,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_promotion_stale_revision",
+        `definition promotion ${value.promotionId} revision is stale`,
+      );
+  }
+  private transitionChannel(
+    value: DefinitionReleaseChannel,
+    patch: Partial<
+      Omit<DefinitionReleaseChannel, "channelId" | "revision" | "digest">
+    >,
+  ): DefinitionReleaseChannel {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      channelId: value.channelId,
+      updatedAt: this.clock.now(),
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertReleaseChannel(next);
+    this.channels.set(next.channelId, next);
+    return structuredClone(next);
+  }
+  private transitionPromotion(
+    value: DefinitionPromotion,
+    patch: Partial<
+      Omit<DefinitionPromotion, "promotionId" | "revision" | "digest">
+    >,
+  ): DefinitionPromotion {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      promotionId: value.promotionId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertDefinitionPromotion(next);
+    this.promotions.set(next.promotionId, next);
+    return structuredClone(next);
+  }
+}

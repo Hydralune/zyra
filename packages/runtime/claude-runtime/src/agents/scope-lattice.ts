@@ -2116,6 +2116,429 @@ export class CapabilityAuditLedger {
   }
 }
 
+export interface CapabilityQuotaAccount {
+  accountId: string;
+  taskId: string;
+  state: "open" | "exhausted" | "closed";
+  limits: Record<string, number>;
+  consumed: Record<string, number>;
+  reserved: Record<string, number>;
+  openedAt: string;
+  closedAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface CapabilityQuotaReservation {
+  reservationId: string;
+  accountId: string;
+  taskId: string;
+  capability: string;
+  amount: number;
+  state: "held" | "consumed" | "released" | "expired";
+  expiresAt: string;
+  settledAt: string | null;
+  revision: number;
+  digest: string;
+}
+function assertCapabilityQuota(value: CapabilityQuotaAccount): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "capability_quota_digest",
+      `capability quota ${value.accountId} is corrupt`,
+    );
+  if (
+    !value.accountId ||
+    !value.taskId ||
+    Object.keys(value.limits).length === 0 ||
+    Object.entries(value.limits).some(
+      ([key, limit]) =>
+        !key ||
+        !Number.isSafeInteger(limit) ||
+        limit < 0 ||
+        !Number.isSafeInteger(value.consumed[key] ?? 0) ||
+        (value.consumed[key] ?? 0) < 0 ||
+        !Number.isSafeInteger(value.reserved[key] ?? 0) ||
+        (value.reserved[key] ?? 0) < 0 ||
+        (value.consumed[key] ?? 0) + (value.reserved[key] ?? 0) > limit,
+    ) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "capability_quota",
+      `capability quota ${value.accountId} is invalid`,
+    );
+}
+function assertCapabilityQuotaReservation(
+  value: CapabilityQuotaReservation,
+): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "capability_quota_reservation_digest",
+      `capability quota reservation ${value.reservationId} is corrupt`,
+    );
+  if (
+    !value.reservationId ||
+    !value.accountId ||
+    !value.taskId ||
+    !value.capability ||
+    !Number.isSafeInteger(value.amount) ||
+    value.amount < 1 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "capability_quota_reservation",
+      `capability quota reservation ${value.reservationId} is invalid`,
+    );
+}
+export class CapabilityQuotaRuntime {
+  private accounts = new Map<string, CapabilityQuotaAccount>();
+  private reservations = new Map<string, CapabilityQuotaReservation>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  open(
+    taskId: string,
+    limits: Readonly<Record<string, number>>,
+  ): CapabilityQuotaAccount {
+    if (!taskId.trim() || !Object.keys(limits).length)
+      throw new E03RuntimeError(
+        "capability_quota_open",
+        "capability quota input is invalid",
+      );
+    const existing = [...this.accounts.values()].find(
+      (value) => value.taskId === taskId && value.state !== "closed",
+    );
+    if (existing) return structuredClone(existing);
+    const normalized = Object.fromEntries(
+      Object.entries(limits).sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    );
+    const consumed = Object.fromEntries(
+      Object.keys(normalized).map((key) => [key, 0]),
+    );
+    const reserved = Object.fromEntries(
+      Object.keys(normalized).map((key) => [key, 0]),
+    );
+    const payload = {
+      accountId: createId("capability-quota-account"),
+      taskId: taskId.trim(),
+      state: "open" as const,
+      limits: normalized,
+      consumed,
+      reserved,
+      openedAt: this.clock.now(),
+      closedAt: null,
+      revision: 1,
+    };
+    const account = { ...payload, digest: digest(payload) };
+    assertCapabilityQuota(account);
+    this.accounts.set(account.accountId, account);
+    return structuredClone(account);
+  }
+  reserve(input: {
+    accountId: string;
+    expectedRevision: number;
+    capability: string;
+    amount?: number;
+    ttlMs: number;
+  }): {
+    account: CapabilityQuotaAccount;
+    reservation: CapabilityQuotaReservation;
+  } {
+    const account = this.requireAccount(input.accountId);
+    this.assertAccountRevision(account, input.expectedRevision);
+    if (account.state !== "open")
+      throw new E03RuntimeError(
+        "capability_quota_reserve_state",
+        `capability quota ${account.accountId} is ${account.state}`,
+      );
+    const amount = input.amount ?? 1;
+    if (
+      !(input.capability in account.limits) ||
+      !Number.isSafeInteger(amount) ||
+      amount < 1 ||
+      !Number.isSafeInteger(input.ttlMs) ||
+      input.ttlMs < 1
+    )
+      throw new E03RuntimeError(
+        "capability_quota_reserve_input",
+        "capability quota reservation is invalid",
+      );
+    if (
+      (account.consumed[input.capability] ?? 0) +
+        (account.reserved[input.capability] ?? 0) +
+        amount >
+      account.limits[input.capability]!
+    )
+      throw new E03RuntimeError(
+        "capability_quota_exceeded",
+        `capability quota ${input.capability} is exhausted`,
+      );
+    const payload = {
+      reservationId: createId("capability-quota-reservation"),
+      accountId: account.accountId,
+      taskId: account.taskId,
+      capability: input.capability,
+      amount,
+      state: "held" as const,
+      expiresAt: new Date(
+        Date.parse(this.clock.now()) + input.ttlMs,
+      ).toISOString(),
+      settledAt: null,
+      revision: 1,
+    };
+    const reservation = { ...payload, digest: digest(payload) };
+    assertCapabilityQuotaReservation(reservation);
+    this.reservations.set(reservation.reservationId, reservation);
+    const reserved = {
+      ...account.reserved,
+      [input.capability]: (account.reserved[input.capability] ?? 0) + amount,
+    };
+    const nextAccount = this.transitionAccount(account, { reserved });
+    return { account: nextAccount, reservation: structuredClone(reservation) };
+  }
+  consume(
+    reservationId: string,
+    expectedRevision: number,
+  ): {
+    account: CapabilityQuotaAccount;
+    reservation: CapabilityQuotaReservation;
+  } {
+    const reservation = this.requireReservation(reservationId);
+    this.assertReservationRevision(reservation, expectedRevision);
+    if (reservation.state !== "held")
+      throw new E03RuntimeError(
+        "capability_quota_consume_state",
+        `capability quota reservation ${reservationId} is ${reservation.state}`,
+      );
+    if (Date.parse(reservation.expiresAt) <= Date.parse(this.clock.now()))
+      return this.expire(reservationId, expectedRevision);
+    const account = this.requireAccount(reservation.accountId);
+    const reserved = {
+      ...account.reserved,
+      [reservation.capability]:
+        (account.reserved[reservation.capability] ?? 0) - reservation.amount,
+    };
+    const consumed = {
+      ...account.consumed,
+      [reservation.capability]:
+        (account.consumed[reservation.capability] ?? 0) + reservation.amount,
+    };
+    const exhausted = Object.keys(account.limits).every(
+      (key) => (consumed[key] ?? 0) >= account.limits[key]!,
+    );
+    const nextAccount = this.transitionAccount(account, {
+      reserved,
+      consumed,
+      state: exhausted ? "exhausted" : account.state,
+    });
+    const nextReservation = this.transitionReservation(reservation, {
+      state: "consumed",
+      settledAt: this.clock.now(),
+    });
+    return { account: nextAccount, reservation: nextReservation };
+  }
+  release(
+    reservationId: string,
+    expectedRevision: number,
+  ): {
+    account: CapabilityQuotaAccount;
+    reservation: CapabilityQuotaReservation;
+  } {
+    const reservation = this.requireReservation(reservationId);
+    this.assertReservationRevision(reservation, expectedRevision);
+    if (reservation.state !== "held")
+      return {
+        account: structuredClone(this.requireAccount(reservation.accountId)),
+        reservation: structuredClone(reservation),
+      };
+    const account = this.requireAccount(reservation.accountId);
+    const reserved = {
+      ...account.reserved,
+      [reservation.capability]:
+        (account.reserved[reservation.capability] ?? 0) - reservation.amount,
+    };
+    return {
+      account: this.transitionAccount(account, { reserved }),
+      reservation: this.transitionReservation(reservation, {
+        state: "released",
+        settledAt: this.clock.now(),
+      }),
+    };
+  }
+  expire(
+    reservationId: string,
+    expectedRevision: number,
+  ): {
+    account: CapabilityQuotaAccount;
+    reservation: CapabilityQuotaReservation;
+  } {
+    const reservation = this.requireReservation(reservationId);
+    this.assertReservationRevision(reservation, expectedRevision);
+    if (reservation.state !== "held")
+      return {
+        account: structuredClone(this.requireAccount(reservation.accountId)),
+        reservation: structuredClone(reservation),
+      };
+    const account = this.requireAccount(reservation.accountId);
+    const reserved = {
+      ...account.reserved,
+      [reservation.capability]:
+        (account.reserved[reservation.capability] ?? 0) - reservation.amount,
+    };
+    return {
+      account: this.transitionAccount(account, { reserved }),
+      reservation: this.transitionReservation(reservation, {
+        state: "expired",
+        settledAt: this.clock.now(),
+      }),
+    };
+  }
+  close(accountId: string, expectedRevision: number): CapabilityQuotaAccount {
+    const account = this.requireAccount(accountId);
+    this.assertAccountRevision(account, expectedRevision);
+    if (
+      [...this.reservations.values()].some(
+        (value) => value.accountId === accountId && value.state === "held",
+      )
+    )
+      throw new E03RuntimeError(
+        "capability_quota_live_reservation",
+        `capability quota ${accountId} has live reservations`,
+      );
+    if (account.state === "closed") return structuredClone(account);
+    return this.transitionAccount(account, {
+      state: "closed",
+      closedAt: this.clock.now(),
+    });
+  }
+  snapshot(): {
+    accounts: CapabilityQuotaAccount[];
+    reservations: CapabilityQuotaReservation[];
+  } {
+    return {
+      accounts: [...this.accounts.values()].map((value) =>
+        structuredClone(value),
+      ),
+      reservations: [...this.reservations.values()].map((value) =>
+        structuredClone(value),
+      ),
+    };
+  }
+  restore(snapshot: {
+    accounts: readonly CapabilityQuotaAccount[];
+    reservations: readonly CapabilityQuotaReservation[];
+  }): void {
+    const accounts = new Map<string, CapabilityQuotaAccount>();
+    const reservations = new Map<string, CapabilityQuotaReservation>();
+    for (const value of snapshot.accounts) {
+      assertCapabilityQuota(value);
+      if (accounts.has(value.accountId))
+        throw new E03RuntimeError(
+          "capability_quota_restore_duplicate",
+          `duplicate capability quota ${value.accountId}`,
+        );
+      accounts.set(value.accountId, structuredClone(value));
+    }
+    for (const value of snapshot.reservations) {
+      assertCapabilityQuotaReservation(value);
+      const account = accounts.get(value.accountId);
+      if (
+        !account ||
+        account.taskId !== value.taskId ||
+        reservations.has(value.reservationId)
+      )
+        throw new E03RuntimeError(
+          "capability_quota_reservation_restore",
+          `capability quota reservation ${value.reservationId} is invalid`,
+        );
+      reservations.set(value.reservationId, structuredClone(value));
+    }
+    this.accounts = accounts;
+    this.reservations = reservations;
+  }
+  private requireAccount(id: string): CapabilityQuotaAccount {
+    const value = this.accounts.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "capability_quota_missing",
+        `capability quota ${id} does not exist`,
+      );
+    assertCapabilityQuota(value);
+    return value;
+  }
+  private requireReservation(id: string): CapabilityQuotaReservation {
+    const value = this.reservations.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "capability_quota_reservation_missing",
+        `capability quota reservation ${id} does not exist`,
+      );
+    assertCapabilityQuotaReservation(value);
+    return value;
+  }
+  private assertAccountRevision(
+    value: CapabilityQuotaAccount,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "capability_quota_stale_revision",
+        `capability quota ${value.accountId} revision is stale`,
+      );
+  }
+  private assertReservationRevision(
+    value: CapabilityQuotaReservation,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "capability_quota_reservation_stale_revision",
+        `capability quota reservation ${value.reservationId} revision is stale`,
+      );
+  }
+  private transitionAccount(
+    value: CapabilityQuotaAccount,
+    patch: Partial<
+      Omit<CapabilityQuotaAccount, "accountId" | "revision" | "digest">
+    >,
+  ): CapabilityQuotaAccount {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      accountId: value.accountId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCapabilityQuota(next);
+    this.accounts.set(next.accountId, next);
+    return structuredClone(next);
+  }
+  private transitionReservation(
+    value: CapabilityQuotaReservation,
+    patch: Partial<
+      Omit<CapabilityQuotaReservation, "reservationId" | "revision" | "digest">
+    >,
+  ): CapabilityQuotaReservation {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      reservationId: value.reservationId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertCapabilityQuotaReservation(next);
+    this.reservations.set(next.reservationId, next);
+    return structuredClone(next);
+  }
+}
+
 function containsAny(roots: readonly string[], candidate: string): boolean {
   return roots.some((root) => contains(root, candidate));
 }

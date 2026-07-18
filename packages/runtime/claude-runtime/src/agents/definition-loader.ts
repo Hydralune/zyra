@@ -1551,3 +1551,552 @@ export class AgentDefinitionSourceCustody {
     return structuredClone(next);
   }
 }
+
+export interface DefinitionWatchTarget {
+  watchId: string;
+  root: string;
+  source: E03AgentDefinition["source"];
+  state: "active" | "paused" | "backoff" | "closed";
+  debounceMs: number;
+  maximumBatchSize: number;
+  failureCount: number;
+  nextScanAt: string;
+  lastScanAt: string | null;
+  lastGeneration: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  revision: number;
+  digest: string;
+}
+export interface DefinitionWatchChange {
+  changeId: string;
+  watchId: string;
+  path: string;
+  kind: "created" | "modified" | "removed" | "renamed";
+  priorPath: string | null;
+  contentDigest: string | null;
+  observedAt: string;
+  sequence: number;
+  previousDigest: string;
+  digest: string;
+}
+export interface DefinitionWatchBatch {
+  batchId: string;
+  watchId: string;
+  state: "pending" | "claimed" | "applied" | "failed" | "expired";
+  changeIds: string[];
+  generation: string;
+  claimantId: string | null;
+  attempt: number;
+  claimedAt: string | null;
+  completedAt: string | null;
+  expiresAt: string;
+  failure: string | null;
+  revision: number;
+  digest: string;
+}
+function assertWatchTarget(value: DefinitionWatchTarget): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_watch_digest",
+      `definition watch ${value.watchId} is corrupt`,
+    );
+  if (
+    !value.watchId ||
+    !value.root ||
+    !Number.isSafeInteger(value.debounceMs) ||
+    value.debounceMs < 0 ||
+    !Number.isSafeInteger(value.maximumBatchSize) ||
+    value.maximumBatchSize < 1 ||
+    !Number.isSafeInteger(value.failureCount) ||
+    value.failureCount < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.nextScanAt))
+  )
+    throw new E03RuntimeError(
+      "definition_watch",
+      `definition watch ${value.watchId} is invalid`,
+    );
+}
+function assertWatchChange(value: DefinitionWatchChange): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_watch_change_digest",
+      `definition watch change ${value.changeId} is corrupt`,
+    );
+  if (
+    !value.changeId ||
+    !value.watchId ||
+    !value.path ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1
+  )
+    throw new E03RuntimeError(
+      "definition_watch_change",
+      `definition watch change ${value.changeId} is invalid`,
+    );
+}
+function assertWatchBatch(value: DefinitionWatchBatch): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "definition_watch_batch_digest",
+      `definition watch batch ${value.batchId} is corrupt`,
+    );
+  if (
+    !value.batchId ||
+    !value.watchId ||
+    !value.changeIds.length ||
+    !value.generation ||
+    !Number.isSafeInteger(value.attempt) ||
+    value.attempt < 0 ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new E03RuntimeError(
+      "definition_watch_batch",
+      `definition watch batch ${value.batchId} is invalid`,
+    );
+  if (value.state === "claimed" && (!value.claimantId || !value.claimedAt))
+    throw new E03RuntimeError(
+      "definition_watch_batch_claim",
+      `claimed definition watch batch ${value.batchId} lacks claimant`,
+    );
+}
+export class DefinitionWatchRuntime {
+  private watches = new Map<string, DefinitionWatchTarget>();
+  private changes = new Map<string, DefinitionWatchChange[]>();
+  private batches = new Map<string, DefinitionWatchBatch>();
+  private pendingByWatch = new Map<string, string>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  register(input: {
+    root: string;
+    source: E03AgentDefinition["source"];
+    debounceMs?: number;
+    maximumBatchSize?: number;
+  }): DefinitionWatchTarget {
+    const root = resolve(input.root);
+    const existing = [...this.watches.values()].find(
+      (value) =>
+        value.root === root &&
+        value.source === input.source &&
+        value.state !== "closed",
+    );
+    if (existing) return structuredClone(existing);
+    const payload = {
+      watchId: createId("definition-watch"),
+      root,
+      source: input.source,
+      state: "active" as const,
+      debounceMs: input.debounceMs ?? 250,
+      maximumBatchSize: input.maximumBatchSize ?? 256,
+      failureCount: 0,
+      nextScanAt: this.clock.now(),
+      lastScanAt: null,
+      lastGeneration: null,
+      createdAt: this.clock.now(),
+      closedAt: null,
+      revision: 1,
+    };
+    const watch = { ...payload, digest: digest(payload) };
+    assertWatchTarget(watch);
+    this.watches.set(watch.watchId, watch);
+    return structuredClone(watch);
+  }
+  observe(input: {
+    watchId: string;
+    path: string;
+    kind: DefinitionWatchChange["kind"];
+    priorPath?: string | null;
+    contentDigest?: string | null;
+  }): DefinitionWatchChange {
+    const watch = this.requireWatch(input.watchId);
+    if (watch.state !== "active")
+      throw new E03RuntimeError(
+        "definition_watch_observe_state",
+        `definition watch ${watch.watchId} is ${watch.state}`,
+      );
+    const path = resolve(input.path);
+    if (
+      relative(watch.root, path).startsWith(`..${sep}`) ||
+      relative(watch.root, path) === ".."
+    )
+      throw new E03RuntimeError(
+        "definition_watch_path_escape",
+        `definition watch change ${path} escapes ${watch.root}`,
+      );
+    const entries = this.changes.get(watch.watchId) ?? [];
+    const last = entries[entries.length - 1];
+    if (
+      last &&
+      last.path === path &&
+      last.kind === input.kind &&
+      last.contentDigest === (input.contentDigest ?? null)
+    )
+      return structuredClone(last);
+    const payload = {
+      changeId: createId("definition-watch-change"),
+      watchId: watch.watchId,
+      path,
+      kind: input.kind,
+      priorPath: input.priorPath ? resolve(input.priorPath) : null,
+      contentDigest: input.contentDigest ?? null,
+      observedAt: this.clock.now(),
+      sequence: entries.length + 1,
+      previousDigest: last?.digest ?? "root",
+    };
+    const change = { ...payload, digest: digest(payload) };
+    assertWatchChange(change);
+    entries.push(change);
+    this.changes.set(watch.watchId, entries);
+    this.transitionWatch(watch, {
+      nextScanAt: new Date(
+        Date.parse(this.clock.now()) + watch.debounceMs,
+      ).toISOString(),
+    });
+    return structuredClone(change);
+  }
+  flush(
+    watchId: string,
+    expectedRevision: number,
+    ttlMs: number,
+  ): DefinitionWatchBatch | null {
+    const watch = this.requireWatch(watchId);
+    this.assertWatchRevision(watch, expectedRevision);
+    if (watch.state !== "active")
+      throw new E03RuntimeError(
+        "definition_watch_flush_state",
+        `definition watch ${watchId} is ${watch.state}`,
+      );
+    if (Date.parse(watch.nextScanAt) > Date.parse(this.clock.now()))
+      return null;
+    const pendingId = this.pendingByWatch.get(watchId);
+    if (pendingId) return structuredClone(this.requireBatch(pendingId));
+    const generationStart = watch.lastGeneration
+      ? (this.changes.get(watchId) ?? []).findIndex(
+          (value) => value.digest === watch.lastGeneration,
+        ) + 1
+      : 0;
+    const available = (this.changes.get(watchId) ?? []).slice(
+      Math.max(0, generationStart),
+      Math.max(0, generationStart) + watch.maximumBatchSize,
+    );
+    if (!available.length) {
+      this.transitionWatch(watch, {
+        lastScanAt: this.clock.now(),
+        nextScanAt: new Date(
+          Date.parse(this.clock.now()) + watch.debounceMs,
+        ).toISOString(),
+      });
+      return null;
+    }
+    if (!Number.isSafeInteger(ttlMs) || ttlMs < 1)
+      throw new E03RuntimeError(
+        "definition_watch_batch_ttl",
+        "definition watch batch TTL is invalid",
+      );
+    const generation = digest(available.map((value) => value.digest));
+    const payload = {
+      batchId: createId("definition-watch-batch"),
+      watchId,
+      state: "pending" as const,
+      changeIds: available.map((value) => value.changeId),
+      generation,
+      claimantId: null,
+      attempt: 0,
+      claimedAt: null,
+      completedAt: null,
+      expiresAt: new Date(Date.parse(this.clock.now()) + ttlMs).toISOString(),
+      failure: null,
+      revision: 1,
+    };
+    const batch = { ...payload, digest: digest(payload) };
+    assertWatchBatch(batch);
+    this.batches.set(batch.batchId, batch);
+    this.pendingByWatch.set(watchId, batch.batchId);
+    return structuredClone(batch);
+  }
+  claim(
+    batchId: string,
+    expectedRevision: number,
+    claimantId: string,
+  ): DefinitionWatchBatch {
+    const batch = this.requireBatch(batchId);
+    this.assertBatchRevision(batch, expectedRevision);
+    if (batch.state !== "pending" && batch.state !== "failed")
+      throw new E03RuntimeError(
+        "definition_watch_batch_claim_state",
+        `definition watch batch ${batchId} is ${batch.state}`,
+      );
+    if (!claimantId.trim())
+      throw new E03RuntimeError(
+        "definition_watch_batch_claimant",
+        "definition watch batch claimant is required",
+      );
+    if (Date.parse(batch.expiresAt) <= Date.parse(this.clock.now()))
+      return this.transitionBatch(batch, {
+        state: "expired",
+        completedAt: this.clock.now(),
+      });
+    return this.transitionBatch(batch, {
+      state: "claimed",
+      claimantId: claimantId.trim(),
+      attempt: batch.attempt + 1,
+      claimedAt: this.clock.now(),
+      failure: null,
+    });
+  }
+  complete(
+    batchId: string,
+    expectedRevision: number,
+    result: { ok: boolean; error?: string | null },
+  ): { batch: DefinitionWatchBatch; watch: DefinitionWatchTarget } {
+    const batch = this.requireBatch(batchId);
+    this.assertBatchRevision(batch, expectedRevision);
+    if (batch.state !== "claimed")
+      throw new E03RuntimeError(
+        "definition_watch_batch_complete_state",
+        `definition watch batch ${batchId} is ${batch.state}`,
+      );
+    const watch = this.requireWatch(batch.watchId);
+    const nextBatch = this.transitionBatch(batch, {
+      state: result.ok ? "applied" : "failed",
+      completedAt: result.ok ? this.clock.now() : null,
+      failure: result.ok
+        ? null
+        : result.error?.trim() || "definition reload failed",
+      claimantId: result.ok ? batch.claimantId : null,
+    });
+    let nextWatch: DefinitionWatchTarget;
+    if (result.ok) {
+      const lastChangeId = batch.changeIds[batch.changeIds.length - 1]!;
+      const lastChange = (this.changes.get(batch.watchId) ?? []).find(
+        (value) => value.changeId === lastChangeId,
+      )!;
+      nextWatch = this.transitionWatch(watch, {
+        state: "active",
+        failureCount: 0,
+        lastScanAt: this.clock.now(),
+        lastGeneration: lastChange.digest,
+        nextScanAt: new Date(
+          Date.parse(this.clock.now()) + watch.debounceMs,
+        ).toISOString(),
+      });
+      this.pendingByWatch.delete(batch.watchId);
+    } else {
+      const failureCount = watch.failureCount + 1;
+      nextWatch = this.transitionWatch(watch, {
+        state: "backoff",
+        failureCount,
+        nextScanAt: new Date(
+          Date.parse(this.clock.now()) +
+            Math.min(60_000, watch.debounceMs * 2 ** failureCount),
+        ).toISOString(),
+      });
+    }
+    return { batch: nextBatch, watch: nextWatch };
+  }
+  resume(watchId: string, expectedRevision: number): DefinitionWatchTarget {
+    const watch = this.requireWatch(watchId);
+    this.assertWatchRevision(watch, expectedRevision);
+    if (watch.state !== "paused" && watch.state !== "backoff")
+      throw new E03RuntimeError(
+        "definition_watch_resume_state",
+        `definition watch ${watchId} is ${watch.state}`,
+      );
+    return this.transitionWatch(watch, {
+      state: "active",
+      nextScanAt: this.clock.now(),
+    });
+  }
+  close(watchId: string, expectedRevision: number): DefinitionWatchTarget {
+    const watch = this.requireWatch(watchId);
+    this.assertWatchRevision(watch, expectedRevision);
+    if (this.pendingByWatch.has(watchId))
+      throw new E03RuntimeError(
+        "definition_watch_pending_batch",
+        `definition watch ${watchId} has pending batch`,
+      );
+    if (watch.state === "closed") return structuredClone(watch);
+    return this.transitionWatch(watch, {
+      state: "closed",
+      closedAt: this.clock.now(),
+    });
+  }
+  snapshot(): {
+    watches: DefinitionWatchTarget[];
+    changes: DefinitionWatchChange[];
+    batches: DefinitionWatchBatch[];
+    pendingByWatch: Array<[string, string]>;
+  } {
+    return {
+      watches: [...this.watches.values()].map((value) =>
+        structuredClone(value),
+      ),
+      changes: [...this.changes.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+      batches: [...this.batches.values()].map((value) =>
+        structuredClone(value),
+      ),
+      pendingByWatch: [...this.pendingByWatch.entries()].map(
+        ([watchId, batchId]) => [watchId, batchId],
+      ),
+    };
+  }
+  restore(snapshot: {
+    watches: readonly DefinitionWatchTarget[];
+    changes: readonly DefinitionWatchChange[];
+    batches: readonly DefinitionWatchBatch[];
+    pendingByWatch: ReadonlyArray<readonly [string, string]>;
+  }): void {
+    const watches = new Map<string, DefinitionWatchTarget>();
+    const changes = new Map<string, DefinitionWatchChange[]>();
+    const batches = new Map<string, DefinitionWatchBatch>();
+    const pendingByWatch = new Map<string, string>();
+    for (const value of snapshot.watches) {
+      assertWatchTarget(value);
+      if (watches.has(value.watchId))
+        throw new E03RuntimeError(
+          "definition_watch_restore_duplicate",
+          `duplicate definition watch ${value.watchId}`,
+        );
+      watches.set(value.watchId, structuredClone(value));
+    }
+    for (const value of snapshot.changes) {
+      assertWatchChange(value);
+      if (!watches.has(value.watchId))
+        throw new E03RuntimeError(
+          "definition_watch_change_restore",
+          `definition watch change ${value.changeId} has no watch`,
+        );
+      const entries = changes.get(value.watchId) ?? [];
+      if (
+        value.sequence !== entries.length + 1 ||
+        value.previousDigest !== (entries[entries.length - 1]?.digest ?? "root")
+      )
+        throw new E03RuntimeError(
+          "definition_watch_change_chain",
+          `definition watch change ${value.changeId} breaks chain`,
+        );
+      entries.push(structuredClone(value));
+      changes.set(value.watchId, entries);
+    }
+    for (const value of snapshot.batches) {
+      assertWatchBatch(value);
+      const available = changes.get(value.watchId) ?? [];
+      if (
+        batches.has(value.batchId) ||
+        !watches.has(value.watchId) ||
+        value.changeIds.some(
+          (id) => !available.some((change) => change.changeId === id),
+        )
+      )
+        throw new E03RuntimeError(
+          "definition_watch_batch_restore",
+          `definition watch batch ${value.batchId} is invalid`,
+        );
+      batches.set(value.batchId, structuredClone(value));
+    }
+    for (const [watchId, batchId] of snapshot.pendingByWatch) {
+      const batch = batches.get(batchId);
+      if (
+        !batch ||
+        batch.watchId !== watchId ||
+        (batch.state !== "pending" &&
+          batch.state !== "claimed" &&
+          batch.state !== "failed") ||
+        pendingByWatch.has(watchId)
+      )
+        throw new E03RuntimeError(
+          "definition_watch_pending_restore",
+          `definition watch pending index ${watchId} is invalid`,
+        );
+      pendingByWatch.set(watchId, batchId);
+    }
+    this.watches = watches;
+    this.changes = changes;
+    this.batches = batches;
+    this.pendingByWatch = pendingByWatch;
+  }
+  private requireWatch(id: string): DefinitionWatchTarget {
+    const value = this.watches.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_watch_missing",
+        `definition watch ${id} does not exist`,
+      );
+    assertWatchTarget(value);
+    return value;
+  }
+  private requireBatch(id: string): DefinitionWatchBatch {
+    const value = this.batches.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "definition_watch_batch_missing",
+        `definition watch batch ${id} does not exist`,
+      );
+    assertWatchBatch(value);
+    return value;
+  }
+  private assertWatchRevision(
+    value: DefinitionWatchTarget,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_watch_stale_revision",
+        `definition watch ${value.watchId} revision is stale`,
+      );
+  }
+  private assertBatchRevision(
+    value: DefinitionWatchBatch,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "definition_watch_batch_stale_revision",
+        `definition watch batch ${value.batchId} revision is stale`,
+      );
+  }
+  private transitionWatch(
+    value: DefinitionWatchTarget,
+    patch: Partial<
+      Omit<DefinitionWatchTarget, "watchId" | "revision" | "digest">
+    >,
+  ): DefinitionWatchTarget {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      watchId: value.watchId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertWatchTarget(next);
+    this.watches.set(next.watchId, next);
+    return structuredClone(next);
+  }
+  private transitionBatch(
+    value: DefinitionWatchBatch,
+    patch: Partial<
+      Omit<DefinitionWatchBatch, "batchId" | "revision" | "digest">
+    >,
+  ): DefinitionWatchBatch {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      batchId: value.batchId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertWatchBatch(next);
+    this.batches.set(next.batchId, next);
+    return structuredClone(next);
+  }
+}

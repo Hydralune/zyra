@@ -2184,3 +2184,409 @@ export class AgentExecutionBudgetRuntime {
     return structuredClone(next);
   }
 }
+
+export interface AgentExecutionCheckpoint {
+  checkpointId: string;
+  taskId: string;
+  runId: string;
+  sessionId: string;
+  attempt: number;
+  state: "prepared" | "committed" | "superseded" | "restored" | "rejected";
+  taskRevision: number;
+  contextChecksum: string;
+  memoryChecksum: string;
+  toolCursor: number;
+  messageCursor: number;
+  deliveryCursor: number;
+  leaseId: string;
+  hostId: string;
+  payload: JsonObject;
+  predecessorCheckpointId: string | null;
+  preparedAt: string;
+  committedAt: string | null;
+  restoredAt: string | null;
+  rejectionReason: string | null;
+  revision: number;
+  digest: string;
+}
+export interface AgentCheckpointRestore {
+  restoreId: string;
+  checkpointId: string;
+  taskId: string;
+  requestedAttempt: number;
+  outcome: "accepted" | "rejected";
+  restoredTaskRevision: number | null;
+  reason: string;
+  requestedAt: string;
+  digest: string;
+}
+function assertAgentCheckpoint(value: AgentExecutionCheckpoint): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "agent_checkpoint_digest",
+      `agent checkpoint ${value.checkpointId} is corrupt`,
+    );
+  if (
+    !value.checkpointId ||
+    !value.taskId ||
+    !value.runId ||
+    !value.sessionId ||
+    !value.contextChecksum ||
+    !value.memoryChecksum ||
+    !value.leaseId ||
+    !value.hostId ||
+    !Number.isSafeInteger(value.attempt) ||
+    value.attempt < 1 ||
+    !Number.isSafeInteger(value.taskRevision) ||
+    value.taskRevision < 1 ||
+    [value.toolCursor, value.messageCursor, value.deliveryCursor].some(
+      (number) => !Number.isSafeInteger(number) || number < 0,
+    ) ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 1
+  )
+    throw new E03RuntimeError(
+      "agent_checkpoint",
+      `agent checkpoint ${value.checkpointId} is invalid`,
+    );
+}
+function assertCheckpointRestore(value: AgentCheckpointRestore): void {
+  const { digest: checksum, ...payload } = value;
+  if (digest(payload) !== checksum)
+    throw new E03RuntimeError(
+      "agent_checkpoint_restore_digest",
+      `agent checkpoint restore ${value.restoreId} is corrupt`,
+    );
+  if (
+    !value.restoreId ||
+    !value.checkpointId ||
+    !value.taskId ||
+    !value.reason ||
+    !Number.isSafeInteger(value.requestedAttempt) ||
+    value.requestedAttempt < 1 ||
+    (value.restoredTaskRevision !== null &&
+      (!Number.isSafeInteger(value.restoredTaskRevision) ||
+        value.restoredTaskRevision < 1))
+  )
+    throw new E03RuntimeError(
+      "agent_checkpoint_restore",
+      `agent checkpoint restore ${value.restoreId} is invalid`,
+    );
+}
+export class AgentExecutionCheckpointRuntime {
+  private checkpoints = new Map<string, AgentExecutionCheckpoint>();
+  private heads = new Map<string, string>();
+  private restores = new Map<string, AgentCheckpointRestore[]>();
+  constructor(private readonly clock: E03Clock = new SystemE03Clock()) {}
+  prepare(input: {
+    task: E03TaskState;
+    hostId: string;
+    contextChecksum: string;
+    memoryChecksum: string;
+    toolCursor: number;
+    messageCursor: number;
+    deliveryCursor: number;
+    payload?: JsonObject;
+  }): AgentExecutionCheckpoint {
+    if (
+      isTerminal(input.task.status) ||
+      !input.hostId.trim() ||
+      !input.contextChecksum ||
+      !input.memoryChecksum ||
+      [input.toolCursor, input.messageCursor, input.deliveryCursor].some(
+        (number) => !Number.isSafeInteger(number) || number < 0,
+      )
+    )
+      throw new E03RuntimeError(
+        "agent_checkpoint_prepare",
+        "agent checkpoint prepare input is invalid",
+      );
+    const headId = this.heads.get(input.task.identity.taskId) ?? null;
+    const head = headId ? this.requireCheckpoint(headId) : null;
+    if (head && head.taskRevision >= input.task.revision) {
+      if (
+        head.taskRevision === input.task.revision &&
+        head.contextChecksum === input.contextChecksum &&
+        head.memoryChecksum === input.memoryChecksum
+      )
+        return structuredClone(head);
+      throw new E03RuntimeError(
+        "agent_checkpoint_revision_conflict",
+        `task ${input.task.identity.taskId} checkpoint revision did not advance`,
+      );
+    }
+    const payload = {
+      checkpointId: createId("agent-execution-checkpoint"),
+      taskId: input.task.identity.taskId,
+      runId: input.task.identity.runId,
+      sessionId: input.task.identity.sessionId,
+      attempt: input.task.identity.attempt,
+      state: "prepared" as const,
+      taskRevision: input.task.revision,
+      contextChecksum: input.contextChecksum,
+      memoryChecksum: input.memoryChecksum,
+      toolCursor: input.toolCursor,
+      messageCursor: input.messageCursor,
+      deliveryCursor: input.deliveryCursor,
+      leaseId: input.task.identity.leaseId,
+      hostId: input.hostId.trim(),
+      payload: structuredClone(input.payload ?? {}),
+      predecessorCheckpointId: headId,
+      preparedAt: this.clock.now(),
+      committedAt: null,
+      restoredAt: null,
+      rejectionReason: null,
+      revision: 1,
+    };
+    const checkpoint = { ...payload, digest: digest(payload) };
+    assertAgentCheckpoint(checkpoint);
+    this.checkpoints.set(checkpoint.checkpointId, checkpoint);
+    return structuredClone(checkpoint);
+  }
+  commit(
+    checkpointId: string,
+    expectedRevision: number,
+  ): AgentExecutionCheckpoint {
+    const checkpoint = this.requireCheckpoint(checkpointId);
+    this.assertCheckpointRevision(checkpoint, expectedRevision);
+    if (checkpoint.state !== "prepared")
+      throw new E03RuntimeError(
+        "agent_checkpoint_commit_state",
+        `agent checkpoint ${checkpointId} is ${checkpoint.state}`,
+      );
+    const currentHeadId = this.heads.get(checkpoint.taskId) ?? null;
+    if (currentHeadId !== checkpoint.predecessorCheckpointId)
+      throw new E03RuntimeError(
+        "agent_checkpoint_head_changed",
+        `task ${checkpoint.taskId} checkpoint head changed`,
+      );
+    if (currentHeadId) {
+      const head = this.requireCheckpoint(currentHeadId);
+      this.transitionCheckpoint(head, { state: "superseded" });
+    }
+    const next = this.transitionCheckpoint(checkpoint, {
+      state: "committed",
+      committedAt: this.clock.now(),
+    });
+    this.heads.set(next.taskId, next.checkpointId);
+    return next;
+  }
+  reject(
+    checkpointId: string,
+    expectedRevision: number,
+    reason: string,
+  ): AgentExecutionCheckpoint {
+    const checkpoint = this.requireCheckpoint(checkpointId);
+    this.assertCheckpointRevision(checkpoint, expectedRevision);
+    if (checkpoint.state !== "prepared")
+      throw new E03RuntimeError(
+        "agent_checkpoint_reject_state",
+        `agent checkpoint ${checkpointId} is ${checkpoint.state}`,
+      );
+    if (!reason.trim())
+      throw new E03RuntimeError(
+        "agent_checkpoint_reject_reason",
+        "agent checkpoint rejection reason is required",
+      );
+    return this.transitionCheckpoint(checkpoint, {
+      state: "rejected",
+      rejectionReason: reason.trim(),
+    });
+  }
+  restore(input: {
+    checkpointId: string;
+    requestedAttempt: number;
+    leaseId: string;
+    contextChecksum: string;
+    memoryChecksum: string;
+  }): {
+    checkpoint: AgentExecutionCheckpoint;
+    receipt: AgentCheckpointRestore;
+  } {
+    const checkpoint = this.requireCheckpoint(input.checkpointId);
+    let accepted = true;
+    let reason = "agent checkpoint accepted for restore";
+    if (checkpoint.state !== "committed" && checkpoint.state !== "superseded") {
+      accepted = false;
+      reason = `agent checkpoint is ${checkpoint.state}`;
+    } else if (
+      !Number.isSafeInteger(input.requestedAttempt) ||
+      input.requestedAttempt <= checkpoint.attempt
+    ) {
+      accepted = false;
+      reason = "restore attempt must advance";
+    } else if (input.leaseId === checkpoint.leaseId) {
+      accepted = false;
+      reason = "restore requires a new lease";
+    } else if (
+      input.contextChecksum !== checkpoint.contextChecksum ||
+      input.memoryChecksum !== checkpoint.memoryChecksum
+    ) {
+      accepted = false;
+      reason = "checkpoint restore checksum mismatch";
+    }
+    const payload = {
+      restoreId: createId("agent-checkpoint-restore"),
+      checkpointId: checkpoint.checkpointId,
+      taskId: checkpoint.taskId,
+      requestedAttempt: input.requestedAttempt,
+      outcome: accepted ? ("accepted" as const) : ("rejected" as const),
+      restoredTaskRevision: accepted ? checkpoint.taskRevision : null,
+      reason,
+      requestedAt: this.clock.now(),
+    };
+    const receipt = { ...payload, digest: digest(payload) };
+    assertCheckpointRestore(receipt);
+    const entries = this.restores.get(checkpoint.checkpointId) ?? [];
+    entries.push(receipt);
+    this.restores.set(checkpoint.checkpointId, entries);
+    const nextCheckpoint = accepted
+      ? this.transitionCheckpoint(checkpoint, {
+          state: "restored",
+          restoredAt: this.clock.now(),
+        })
+      : structuredClone(checkpoint);
+    return { checkpoint: nextCheckpoint, receipt: structuredClone(receipt) };
+  }
+  head(taskId: string): AgentExecutionCheckpoint | null {
+    const id = this.heads.get(taskId);
+    return id ? structuredClone(this.requireCheckpoint(id)) : null;
+  }
+  lineage(checkpointId: string): AgentExecutionCheckpoint[] {
+    const values: AgentExecutionCheckpoint[] = [];
+    const seen = new Set<string>();
+    let cursor: AgentExecutionCheckpoint | null =
+      this.requireCheckpoint(checkpointId);
+    while (cursor) {
+      if (seen.has(cursor.checkpointId))
+        throw new E03RuntimeError(
+          "agent_checkpoint_cycle",
+          `agent checkpoint lineage cycles at ${cursor.checkpointId}`,
+        );
+      seen.add(cursor.checkpointId);
+      values.push(structuredClone(cursor));
+      cursor = cursor.predecessorCheckpointId
+        ? this.requireCheckpoint(cursor.predecessorCheckpointId)
+        : null;
+    }
+    return values;
+  }
+  snapshot(): {
+    checkpoints: AgentExecutionCheckpoint[];
+    heads: Array<[string, string]>;
+    restores: AgentCheckpointRestore[];
+  } {
+    return {
+      checkpoints: [...this.checkpoints.values()].map((value) =>
+        structuredClone(value),
+      ),
+      heads: [...this.heads.entries()].map(([taskId, checkpointId]) => [
+        taskId,
+        checkpointId,
+      ]),
+      restores: [...this.restores.values()]
+        .flat()
+        .map((value) => structuredClone(value)),
+    };
+  }
+  restoreSnapshot(snapshot: {
+    checkpoints: readonly AgentExecutionCheckpoint[];
+    heads: ReadonlyArray<readonly [string, string]>;
+    restores: readonly AgentCheckpointRestore[];
+  }): void {
+    const checkpoints = new Map<string, AgentExecutionCheckpoint>();
+    const heads = new Map<string, string>();
+    const restores = new Map<string, AgentCheckpointRestore[]>();
+    for (const value of snapshot.checkpoints) {
+      assertAgentCheckpoint(value);
+      if (checkpoints.has(value.checkpointId))
+        throw new E03RuntimeError(
+          "agent_checkpoint_restore_duplicate",
+          `duplicate agent checkpoint ${value.checkpointId}`,
+        );
+      checkpoints.set(value.checkpointId, structuredClone(value));
+    }
+    for (const value of checkpoints.values())
+      if (
+        value.predecessorCheckpointId &&
+        !checkpoints.has(value.predecessorCheckpointId)
+      )
+        throw new E03RuntimeError(
+          "agent_checkpoint_restore_predecessor",
+          `agent checkpoint ${value.checkpointId} has no predecessor`,
+        );
+    for (const [taskId, checkpointId] of snapshot.heads) {
+      const checkpoint = checkpoints.get(checkpointId);
+      if (
+        !checkpoint ||
+        checkpoint.taskId !== taskId ||
+        (checkpoint.state !== "committed" && checkpoint.state !== "restored") ||
+        heads.has(taskId)
+      )
+        throw new E03RuntimeError(
+          "agent_checkpoint_restore_head",
+          `agent checkpoint head ${taskId} is invalid`,
+        );
+      heads.set(taskId, checkpointId);
+    }
+    for (const value of snapshot.restores) {
+      assertCheckpointRestore(value);
+      if (!checkpoints.has(value.checkpointId))
+        throw new E03RuntimeError(
+          "agent_checkpoint_restore_receipt",
+          `agent checkpoint restore receipt ${value.restoreId} is invalid`,
+        );
+      const entries = restores.get(value.checkpointId) ?? [];
+      if (entries.some((entry) => entry.restoreId === value.restoreId))
+        throw new E03RuntimeError(
+          "agent_checkpoint_restore_receipt_duplicate",
+          `duplicate agent checkpoint restore receipt ${value.restoreId}`,
+        );
+      entries.push(structuredClone(value));
+      restores.set(value.checkpointId, entries);
+    }
+    this.checkpoints = checkpoints;
+    this.heads = heads;
+    this.restores = restores;
+    for (const value of checkpoints.values()) this.lineage(value.checkpointId);
+  }
+  private requireCheckpoint(id: string): AgentExecutionCheckpoint {
+    const value = this.checkpoints.get(id);
+    if (!value)
+      throw new E03RuntimeError(
+        "agent_checkpoint_missing",
+        `agent checkpoint ${id} does not exist`,
+      );
+    assertAgentCheckpoint(value);
+    return value;
+  }
+  private assertCheckpointRevision(
+    value: AgentExecutionCheckpoint,
+    expected: number,
+  ): void {
+    if (value.revision !== expected)
+      throw new E03RuntimeError(
+        "agent_checkpoint_stale_revision",
+        `agent checkpoint ${value.checkpointId} revision is stale`,
+      );
+  }
+  private transitionCheckpoint(
+    value: AgentExecutionCheckpoint,
+    patch: Partial<
+      Omit<AgentExecutionCheckpoint, "checkpointId" | "revision" | "digest">
+    >,
+  ): AgentExecutionCheckpoint {
+    const { digest: _, ...prior } = value;
+    const payload = {
+      ...prior,
+      ...patch,
+      checkpointId: value.checkpointId,
+      revision: value.revision + 1,
+    };
+    const next = { ...payload, digest: digest(payload) };
+    assertAgentCheckpoint(next);
+    this.checkpoints.set(next.checkpointId, next);
+    return structuredClone(next);
+  }
+}
