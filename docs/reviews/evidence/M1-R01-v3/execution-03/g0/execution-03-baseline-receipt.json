@@ -4,10 +4,10 @@
   "execution_id": "E03",
   "verified_zyra_head": "f07fd239dd768f399a36329314da82e90ddce6a4",
   "verified_zyra_tree": "c69879e1c1715020caf3cc0b3ed7e7455ba85494",
-  "g0_candidate_head": "86a2010b3c83ca5493f23e20b3f93f2385471909",
-  "g0_candidate_tree": "79636bf9dcd2fab26b19479759900b6c0ec0674f",
+  "g0_candidate_head": "18c529174449a672b1216a786906e6fff4f536be",
+  "g0_candidate_tree": "87ba04a238e63088ccd14f67d1bbdde9f1267cfb",
   "implementation_diff_baseline": "454a22d344d7a5413cf8d49c22bf609f85f9d7e4",
-  "captured_at_utc": "2026-07-18T08:30:09.914Z",
+  "captured_at_utc": "2026-07-18T08:39:08.007Z",
   "clean_worktree": true,
   "dirty_paths": [],
   "source_hash_semantics": "sha256-of-raw-git-blob-bytes-at-declared-snapshot",
@@ -30,7 +30,7 @@
     "execution-03-python-owner-baseline.jsonl": "d94712bd65a172d2df111bfee0fdb95770ece401414753862bff77b6d6b597fb",
     "execution-03-target-custody-map.jsonl": "92c7b99d83fcb92f1e5636dd3083edf384bd61c6454bd059e00a620603510867",
     "execution-03-mutation-manifest.jsonl": "a992d42d0e9b03c6b427215e6710f9d9f4911c82443da7ed4382d4f7c08a0b13",
-    "execution-03-gate-profile.json": "1f323ad75792c42a45045bf4f6ab6883e6e39f0cf6726ceab23a6b5784439d9d"
+    "execution-03-gate-profile.json": "a5f1a864b6c5cc63cd760c2c2211796d910310c42723c74edef76a93a7949b2c"
   },
   "toolchain": {
     "bun": "1.2.15",
@@ -46,7 +46,7 @@
     "bun",
     "scripts/remediation/verify_m1_r01_e03.ts",
     "--candidate",
-    "86a2010b3c83ca5493f23e20b3f93f2385471909"
+    "18c529174449a672b1216a786906e6fff4f536be"
   ],
   "schema_validator_version": "zyra.e03-verification/v1",
   "lockfile_sha256": "801d5b0248047a2e01ccb7e250e6af639418a5dc19a7379a225b9b7de8e470c2",
