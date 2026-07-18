@@ -370,7 +370,7 @@ function sourceAndTargetRows(finalize: boolean): { source: Json[]; target: Json[
 
 function pythonRows(): Json[] {
   const rows: Json[] = [];
-  let deletionRemaining = 6_268;
+  let deletionRemaining = 10_309;
   for (const [index, path] of [...deletePython, ...retainPython].entries()) {
     const raw = gitBytes(repoRoot, ["show", `${IMPLEMENTATION_BASELINE}:${path}`]);
     const lines = raw.toString("utf8").replaceAll("\r", "").split("\n");
