@@ -54,7 +54,15 @@ function main(): void {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
     if (!passed) process.exitCode = 1;
   } finally {
-    git(repoRoot, ["worktree", "remove", "--force", cleanRoot]);
+    try {
+      git(repoRoot, ["worktree", "remove", "--force", cleanRoot]);
+    } catch (error) {
+      const registered = git(repoRoot, ["worktree", "list", "--porcelain"])
+        .split(/\r?\n/)
+        .some((line) => line === `worktree ${cleanRoot.replaceAll("\\", "/")}`);
+      if (registered) throw error;
+      rmSync(cleanRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    }
   }
 }
 
