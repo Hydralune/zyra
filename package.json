@@ -44,6 +44,9 @@
     ,"e03:test": "bun scripts/remediation/run_m1_r01_e03_behavior.ts"
     ,"e03:mutation": "bun scripts/remediation/run_m1_r01_e03_mutations.ts"
     ,"e03:cleanroom": "bun scripts/remediation/cleanroom_m1_r01_e03.ts"
+    ,"e04:g0:freeze": ".venv\\Scripts\\python.exe scripts/remediation/m1_r01_e04_g0.py freeze"
+    ,"e04:g0:verify": ".venv\\Scripts\\python.exe scripts/remediation/verify_m1_r01_e04_g0.py"
+    ,"e04:mutation": ".venv\\Scripts\\python.exe scripts/remediation/run_m1_r01_e04_mutations.py --all"
   },
   "devDependencies": {
     "@types/bun": "1.2.15",
