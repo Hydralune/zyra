@@ -2,11 +2,23 @@
   "baseline_commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249",
   "buckets": {
     "adapter-only": {
-      "added": 489,
-      "deleted": 27,
+      "added": 790,
+      "deleted": 39,
       "files": [
         "packages/runtime/zyra_runtime/runtime_events/typescript_port.py",
         "packages/workers/zyra_workers/typescript_claude_runtime.py"
+      ]
+    },
+    "audit-tooling": {
+      "added": 3268,
+      "deleted": 0,
+      "files": [
+        "scripts/remediation/cleanroom_m1_r01_e04.py",
+        "scripts/remediation/m1_r01_e04_g0.py",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "scripts/remediation/run_m1_r01_e04_mutations.py",
+        "scripts/remediation/verify_m1_r01_e04_candidate.py",
+        "scripts/remediation/verify_m1_r01_e04_g0.py"
       ]
     },
     "data": {
@@ -17,14 +29,42 @@
       ]
     },
     "docs": {
-      "added": 923,
+      "added": 7939,
       "deleted": 0,
       "files": [
+        "docs/reviews/M1-R01-v4-execution-04-implementation-self-review.md",
+        "docs/reviews/M1-R01-v4-execution-04-independent-review.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04a-self-review.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04b-self-review.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04c-self-review.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04d-self-review.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04e-self-review.md",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/build-and-test-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/cleanroom-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/cross-language-commit-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/default-path-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/dependency-audit.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/disconnect-mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/domain-verdicts.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/final-verdict.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/identity-and-baseline.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/line-buckets.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/python-owner-census.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/reviewer-metadata.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/source-recovery-full-audit.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/source-recovery-samples.jsonl",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/terminal-crash-matrix.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04-independent-review/terminal-order-probe.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/baseline-receipt.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/build-and-test-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/candidate-gate-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/cleanroom-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/default-path-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/dependency-audit.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/line-buckets.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/mutation-results.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/python-owner-result.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/reimplementation-exceptions.json",
         "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04a/verification.json",
         "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04b/mutation-results.json",
         "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04b/target-provenance-report.jsonl",
@@ -37,11 +77,14 @@
         "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04d/verification.json",
         "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04e/mutation-results.json",
         "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04e/target-provenance-report.jsonl",
-        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04e/verification.json"
+        "docs/reviews/evidence/M1-R01-v4/execution-04/slice-04e/verification.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/source-recovery-report.json",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/target-provenance-report.jsonl",
+        "docs/reviews/evidence/M1-R01-v4/execution-04/terminal-protocol-crash-matrix.json"
       ]
     },
     "production": {
-      "added": 5111,
+      "added": 2432,
       "deleted": 411,
       "files": [
         "apps/api/zyra_api/main.py",
@@ -92,18 +135,12 @@
         "packages/runtime/zyra_runtime/sandbox_gateway/integration_policy.py",
         "packages/runtime/zyra_runtime/sandbox_gateway/integration_tools.py",
         "packages/workers/zyra_workers/code_worker_runtime.py",
-        "packages/workers/zyra_workers/subagents/typescript_port.py",
-        "scripts/remediation/cleanroom_m1_r01_e04.py",
-        "scripts/remediation/m1_r01_e04_g0.py",
-        "scripts/remediation/probe_m1_r01_e04.py",
-        "scripts/remediation/run_m1_r01_e04_mutations.py",
-        "scripts/remediation/verify_m1_r01_e04_candidate.py",
-        "scripts/remediation/verify_m1_r01_e04_g0.py"
+        "packages/workers/zyra_workers/subagents/typescript_port.py"
       ]
     },
     "test": {
-      "added": 2804,
-      "deleted": 111,
+      "added": 2913,
+      "deleted": 112,
       "files": [
         "packages/runtime/claude-runtime/test/agents.test.ts",
         "packages/runtime/claude-runtime/test/e01/default-loop-adversarial.behavior.test.ts",
@@ -121,11 +158,11 @@
       ]
     }
   },
-  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65",
-  "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66",
+  "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
   "execution_id": "E04",
-  "g0_tooling_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
-  "generated_at": "2026-07-18T18:41:49.051402+00:00",
+  "g0_tooling_head": "c62af85aec158bc5e0e4887fa69389b46fd8082c",
+  "generated_at": "2026-07-19T02:23:46.045679+00:00",
   "note": "E04 has no independent line minimum; buckets prevent generated/data/vendor-like/adapter-only inflation.",
   "record_type": "line_buckets",
   "schema_version": "4.0",
@@ -134,7 +171,7 @@
     "node": "v22.17.0",
     "python": "Python 3.13.9"
   },
-  "total_added": 9330,
-  "total_deleted": 549,
+  "total_added": 17345,
+  "total_deleted": 562,
   "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
 }

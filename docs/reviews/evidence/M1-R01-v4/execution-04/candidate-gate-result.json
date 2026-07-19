@@ -1,10 +1,10 @@
 {
   "baseline_commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249",
-  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65",
+  "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66",
   "candidate_gate_passed": true,
-  "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
   "execution_id": "E04",
-  "g0_tooling_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "g0_tooling_head": "c62af85aec158bc5e0e4887fa69389b46fd8082c",
   "gate_checks": {
     "build_and_test": true,
     "cleanroom": true,
@@ -17,7 +17,7 @@
     "target_provenance": true,
     "terminal_crash_matrix": true
   },
-  "generated_at": "2026-07-18T18:46:14.378473+00:00",
+  "generated_at": "2026-07-19T02:30:20.038442+00:00",
   "independent_review_required": true,
   "passed": true,
   "record_type": "candidate_gate_result",
@@ -26,8 +26,10 @@
     "default_path_required_passes": 8,
     "dirty_cleanroom_path_count": 0,
     "forbidden_dependency_count": 0,
+    "minimum_restart_epochs": 2,
     "mutation_kill_rate": 1.0,
-    "python_logical_owner_count": 0
+    "python_logical_owner_count": 0,
+    "terminal_fault_points": 5
   },
   "schema_version": "4.0",
   "status_if_passed": "implementation_complete_review_pending",
@@ -36,8 +38,10 @@
     "default_path_required_passes": 8,
     "dirty_cleanroom_path_count": 0,
     "forbidden_dependency_count": 0,
+    "minimum_restart_epochs": 2,
     "mutation_kill_rate": 1.0,
-    "python_logical_owner_count": 0
+    "python_logical_owner_count": 0,
+    "terminal_fault_points": 5
   },
   "toolchain": {
     "bun": "1.2.15",

@@ -1,21 +1,21 @@
 {
-  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65",
+  "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66",
   "candidate_target_records_passed": 18,
-  "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
   "execution_id": "E04",
-  "g0_tooling_head": "509c1a4c6e688e899ba1930cd5779f18c18c1176",
+  "g0_tooling_head": "c62af85aec158bc5e0e4887fa69389b46fd8082c",
   "g0_verification": {
     "command": [
       "G:\\agent-zoo\\zyra\\.venv\\Scripts\\python.exe",
       "scripts/remediation/verify_m1_r01_e04_g0.py"
     ],
-    "duration_seconds": 104.322,
+    "duration_seconds": 128.173,
     "exit_code": 0,
     "passed": true,
     "stderr_tail": "",
-    "stdout_tail": "{\n  \"baseline_commit\": \"299b708d3559da7a5da1f9d6d55d2d1f1b155249\",\n  \"domains\": [\n    \"agent_subagent\",\n    \"isolation_control\",\n    \"mcp\",\n    \"permission\",\n    \"query_loop\",\n    \"session_context_compact\",\n    \"skill_plugin_command\",\n    \"tool_orchestration\"\n  ],\n  \"mutation_points\": 13,\n  \"ok\": true,\n  \"python_owner_symbols\": 1619,\n  \"source_ranges\": 18,\n  \"target_records\": 18,\n  \"verified_zyra_head\": \"509c1a4c6e688e899ba1930cd5779f18c18c1176\"\n}\n"
+    "stdout_tail": "{\n  \"baseline_commit\": \"299b708d3559da7a5da1f9d6d55d2d1f1b155249\",\n  \"domains\": [\n    \"agent_subagent\",\n    \"isolation_control\",\n    \"mcp\",\n    \"permission\",\n    \"query_loop\",\n    \"session_context_compact\",\n    \"skill_plugin_command\",\n    \"tool_orchestration\"\n  ],\n  \"mutation_points\": 15,\n  \"ok\": true,\n  \"python_owner_symbols\": 1619,\n  \"source_ranges\": 18,\n  \"target_records\": 18,\n  \"verified_zyra_head\": \"c62af85aec158bc5e0e4887fa69389b46fd8082c\"\n}\n"
   },
-  "generated_at": "2026-07-18T18:43:37.922968+00:00",
+  "generated_at": "2026-07-19T02:25:58.741122+00:00",
   "passed": true,
   "record_type": "source_recovery_report",
   "schema_version": "4.0",

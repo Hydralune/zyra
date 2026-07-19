@@ -87,3 +87,15 @@ Python stdio/事件/API/workspace 接线、候选验证脚本和 cleanroom 编�
 本自审不能证明独立 reviewer 的 source-range 抽样一定认可 retained control flow，也不能替代 reviewer-owned terminal-order probe、dependency/process audit、cleanroom 重放和 mutation 复验。token overlap 仅作为诊断，不是迁移成败的独立裁决。
 
 因此当前只能进入 `implementation_complete_review_pending`：候选 evidence commit 形成后必须停止，由 `docs/remediations/M1-R01-E04完成后独立审查任务书.md` 接管。只有独立 PASS 才能推进 `verified_zyra_head`、关闭 M1-R01 并恢复 M1-S05C-01。
+
+## 8. 2026-07-19 独立审查后修复补充
+
+首次独立审查的历史结论保持 FAIL；其四项发现已在候选 `2340b792d184bc7625ba15fe7e9d958c3daa4c66` 修复。更新后的事实取代本文件第 4-6 节中的旧候选统计：
+
+- G0 Python owner census：`1,619` 条 schema v4 完整记录，schema error `0`，logical owner `0`；
+- terminal matrix：五个真实 kill/disconnect point，除 durable terminal receipt 直接恢复外均跨至少两个真实 TypeScript process epochs，完整 protocol frame trace 可审计；
+- mutation：`15/15` killed，恢复哈希一致，残留 `0`；
+- cleanroom：candidate-local `.venv`、candidate-local npm cache/Bun、fresh installs，`1,257` TypeScript + `34` Python 通过，dirty path `0`；
+- line buckets：audit tooling `3,268` 行独立列桶，不计入 production；production `2,432`，test `2,913`，adapter-only `790`。
+
+详细修复映射见 `docs/reviews/M1-R01-v4-execution-04-repair-report.md`。最终候选门禁为 `10/10` PASS，但状态仍是 `implementation_complete_review_pending`，不得用自审替代新的独立审查。
