@@ -173,7 +173,7 @@ OPERATORS: dict[str, dict[str, Any]] = {
             "  ): Promise<CompactionResult | null> {\n"
             "    const custody = process.env.ZYRA_E04_MUTATION_DOMAIN_02 === \"connected\"\n"
             "      ? this.applySourceCustody(messages, options)\n"
-            "      : { messages: structuredClone(messages), envelope: { sourceCustodyAutoCompaction: { required: false } } } as { messages: CompactMessage[]; envelope: Record<string, unknown> }; // E04 mutation: disconnect compact source owner"
+            "      : { messages: messages.map((message) => structuredClone(message)), envelope: { sourceCustodyAutoCompaction: { required: false } } } as { messages: CompactMessage[]; envelope: Record<string, unknown> }; // E04 mutation: disconnect compact source owner"
         ),
     },
     "e04-mutation-domain-03": {
