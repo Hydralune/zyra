@@ -319,7 +319,10 @@ def runtime_ports(root: Path, *, built: bool) -> dict[str, object]:
         ["node", str(REPO_ROOT / "dist" / "code-worker-node" / "main.js")]
         if built
         else [
-            str(REPO_ROOT / "node_modules" / "bun" / "bin" / "bun.exe"),
+            str(
+                os.environ.get("ZYRA_BUN_EXECUTABLE")
+                or REPO_ROOT / "node_modules" / "bun" / "bin" / "bun.exe"
+            ),
             str(REPO_ROOT / "apps" / "code-worker" / "src" / "main.ts"),
         ]
     )
