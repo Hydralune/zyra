@@ -145,7 +145,7 @@ SELECTIONS = (
     ),
     RecoverySelection(
         "execution-02-source-manifest.jsonl", "e02-src-0001", "permission",
-        "packages/runtime/claude-runtime/src/permission/hook-runtime.ts", "PermissionHookRuntime",
+        "packages/runtime/claude-runtime/src/permission/evaluator.ts", "PermissionEvaluator",
         "CodeWorkerApplication.runCapabilityApiPort", "PermissionDecisionStore", "permission_decision",
         "Coordinator permission requests preserve hook ordering and resolve exactly once.",
         "call_sequence", "handleCoordinatorPermission is the mature coordinator approval boundary.",
@@ -403,6 +403,55 @@ def lines_for_symbol_text(text: str, symbol: str) -> tuple[int, int]:
 
 def lines_for_symbol(path: Path, symbol: str) -> tuple[int, int]:
     return lines_for_symbol_text(path.read_text(encoding="utf-8"), symbol)
+
+
+def candidate_symbol_range_text(text: str, qualified_symbol: str) -> tuple[int, int] | None:
+    lines = text.splitlines()
+    parts = qualified_symbol.split(".")
+    leaf = parts[-1]
+    search_start = 1
+    search_end = len(lines)
+    if len(parts) > 1:
+        owner = parts[-2]
+        owner_pattern = re.compile(rf"\bclass\s+{re.escape(owner)}\b")
+        owner_start = next(
+            (index for index, line in enumerate(lines, 1) if owner_pattern.search(line)),
+            None,
+        )
+        if owner_start is None:
+            return None
+        search_start, search_end = lines_for_symbol_text(text, owner)
+        definition = re.compile(
+            rf"^\s*(?:(?:public|private|protected|static|readonly|override|abstract|async)\s+)*"
+            rf"{re.escape(leaf)}(?:\s*<[^>]+>)?\s*\("
+        )
+    else:
+        definition = re.compile(
+            rf"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+{re.escape(leaf)}\b"
+        )
+    start = next(
+        (index for index in range(search_start, search_end + 1) if definition.search(lines[index - 1])),
+        None,
+    )
+    if start is None:
+        return None
+    depth = 0
+    opened = False
+    for index in range(start - 1, search_end):
+        line = re.sub(r"(['\"]).*?\1", "", lines[index])
+        depth += line.count("{") - line.count("}")
+        opened = opened or "{" in line
+        if opened and depth <= 0:
+            return start, index + 1
+    return None
+
+
+def executable_typescript(value: str) -> bool:
+    without_comments = re.sub(r"/\*.*?\*/|//[^\n]*", "", value, flags=re.S)
+    return "{" in without_comments and bool(re.search(
+        r"\b(?:await|return|if|for|while|try|catch|throw|const|let|var)\b|\.[A-Za-z_][A-Za-z0-9_]*\s*\(",
+        without_comments,
+    ))
 
 
 def load_selected_sources() -> list[tuple[RecoverySelection, dict[str, Any]]]:
@@ -1113,6 +1162,22 @@ def verify() -> dict[str, Any]:
             raise ValueError(f"target baseline hash mismatch: {target['record_id']}")
         if not target["retained_control_flow_anchors"]:
             raise ValueError(f"missing retained control-flow anchors: {target['record_id']}")
+        candidate_bytes = target_blob(tooling_head, target["target_path"])
+        candidate_text = candidate_bytes.decode("utf-8", errors="strict")
+        candidate_range = candidate_symbol_range_text(
+            candidate_text,
+            target["candidate_target_symbol"],
+        )
+        if candidate_range is None:
+            raise ValueError(
+                f"candidate target symbol is absent from its declared path: {target['record_id']}"
+            )
+        candidate_lines = candidate_text.splitlines()
+        candidate_selected = "\n".join(
+            candidate_lines[candidate_range[0] - 1:candidate_range[1]]
+        )
+        if not executable_typescript(candidate_selected):
+            raise ValueError(f"candidate target symbol is not executable: {target['record_id']}")
         if not set(target["mutation_ids"]).issubset(mutation_ids):
             raise ValueError(f"unknown mutation ID: {target['record_id']}")
     for owner in owners:
