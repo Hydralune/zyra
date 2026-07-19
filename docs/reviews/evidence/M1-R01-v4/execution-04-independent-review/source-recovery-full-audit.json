@@ -1,12 +1,29 @@
 {
-  "schema_version": "4.0", "record_type": "source_recovery_full_audit", "timestamp_utc": "2026-07-18T23:59:56.2204761Z",
-  "reviewer_nonce_digest_sha256": "b940f0e6ea1837093be7ef0b8d54a3e971be08d76cb70bab3df1de8e08bb964f",
-  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65", "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
-  "candidate_evidence_commit": "d1401f6ff980ede26d61968a5f20c5c90fc072ea", "candidate_evidence_tree": "f0dcd07bbf0aa362c9816159592404888235ac19",
-  "source_snapshots": {"claude_code_best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102", "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda", "openclaw": "b63e06f68aa0f5fc3dc809c37615b8b1012b180b"},
-  "toolchain": {"bun": "1.2.15", "node": "v22.17.0", "python": "Python 3.13.9"},
-  "commands": ["parse all 18 source-recovery and 18 target-provenance G0 records", "validate all 1619 Python owner census records against schema-v4 required field list"], "exit_code": 0,
-  "source_records_parsed": 18, "target_records_parsed": 18, "python_owner_records_parsed": 1619,
-  "blocking_manifest_error": "all Python owner records omit tests and callsites", "manual_full_file_samples_completed": 0,
-  "verdict": "FAIL_INVALID_G0_AND_INCOMPLETE_SAMPLING", "output_digest_sha256": "fead5facd70997ceb89be7137770098b60690eb0d30180e95bc048578f64fbb2"
+  "schema_version": "4.0",
+  "record_type": "source_recovery_full_audit",
+  "timestamp_utc": "2026-07-19T03:24:35.3364627Z",
+  "reviewer_nonce_digest_sha256": "1b86f66a19265218a7615c2c395459d3af732749f84f518bf1559e3521caf973",
+  "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66",
+  "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
+  "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+  "manifest_sha256": "942de4ac1e05a9f9c16ccfc00932dcf4527a03059d6d52e9133cb7a847e46587",
+  "record_count": 18,
+  "hash_range_nonoverlap_machine_pass_count": 18,
+  "credited_executable_control_flow_pass_count": 14,
+  "credited_executable_control_flow_failures": [
+    {"record_id": "e04-source-001", "path": "src/QueryEngine.ts", "range": "1211-1258", "reason": "range contains only the ask parameter/type declaration; executable body starts at 1273"},
+    {"record_id": "e04-source-012", "path": "src/skills/loadSkillsDir.ts", "range": "407-425", "reason": "range ends before directory filtering, parse and registration flow"},
+    {"record_id": "e04-source-013", "path": "src/tools/SkillTool/SkillTool.ts", "range": "122-143", "reason": "range ends in initial metadata construction before bounded fork execution"},
+    {"record_id": "e04-source-015", "path": "src/tools/AgentTool/runAgent.ts", "range": "248-323", "reason": "range contains only the runAgent parameter/type declaration; executable body starts at 329"}
+  ],
+  "target_anchor_failures": [
+    {"record_id": "e04-target-015", "path": "packages/runtime/claude-runtime/src/agents/run-agent.ts", "declared_range": "85-93", "actual_symbol_range": "103-116", "reason": "candidate credited range does not contain runAgent"},
+    {"record_ids": ["e04-target-001", "e04-target-002"], "reason": "different source ranges share the same whole QueryLifecycleRuntime range and candidate fingerprint"},
+    {"record_ids": ["e04-target-005", "e04-target-006"], "reason": "different source ranges share the same whole ToolExecutionRuntime range and candidate fingerprint"},
+    {"record_ids": ["e04-target-012", "e04-target-013"], "reason": "different source ranges share the same whole TypeScriptSkillRuntime range and candidate fingerprint"}
+  ],
+  "verdict": "FAIL",
+  "commands": ["recompute all source blob/range hashes", "inspect all 18 credited ranges", "verify each candidate target range contains its declared symbol", "compare candidate anchor fingerprints"],
+  "exit_code": 1,
+  "output_digest_sha256": "0d2660b36a91a89d37bcbdc4e6463affac2a2eb37292612abe6b97bec3c2c750"
 }

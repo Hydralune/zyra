@@ -1,12 +1,8 @@
 {
-  "schema_version": "4.0", "record_type": "terminal_crash_matrix", "timestamp_utc": "2026-07-18T23:59:56.2204761Z",
-  "reviewer_nonce_digest_sha256": "b940f0e6ea1837093be7ef0b8d54a3e971be08d76cb70bab3df1de8e08bb964f",
-  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65", "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
-  "candidate_evidence_commit": "d1401f6ff980ede26d61968a5f20c5c90fc072ea", "candidate_evidence_tree": "f0dcd07bbf0aa362c9816159592404888235ac19",
-  "source_snapshots": {"claude_code_best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102", "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda", "openclaw": "b63e06f68aa0f5fc3dc809c37615b8b1012b180b"},
-  "toolchain": {"bun": "1.2.15", "node": "v22.17.0", "python": "Python 3.13.9"},
-  "commands": ["inspect candidate terminal-protocol-crash-matrix.json", ".venv/Scripts/python.exe scripts/remediation/probe_m1_r01_e04.py resume"], "exit_code": 0,
-  "candidate_modes": ["resume", "lost-ack", "duplicate-ack", "disable"], "real_typescript_process_kills": 0, "restart_epochs": 0,
-  "required_terminal_faults_covered": 0, "required_terminal_faults_total": 5,
-  "verdict": "FAIL", "output_digest_sha256": "190c2cd6662055690ad9a5f2b601c67c2b792abe65c7be43e5efac95b12e081b"
+  "schema_version": "4.0", "record_type": "terminal_crash_matrix", "timestamp_utc": "2026-07-19T03:24:35.3364627Z",
+  "reviewer_nonce_digest_sha256": "1b86f66a19265218a7615c2c395459d3af732749f84f518bf1559e3521caf973",
+  "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66", "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
+  "fault_seed_sha256": "7cd7e892da22bfc8c0d5f38b5f6344f2349ee6f53ac3b40918c40fd5cbd415c8",
+  "status": "NOT_RUN_AFTER_DIRECT_R0_R2_R3_FAIL", "required_fault_points": ["checkpoint_request_before_ack", "final_checkpoint_ack_before_terminal", "terminal_result_ack_lost", "python_host_terminal_disconnect", "typescript_process_terminal_disconnect"],
+  "exit_code": 1, "output_digest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }
