@@ -1,0 +1,173 @@
+{
+  "review_id": "M1-S05A-S05B-aggregate-review-2026-07-19",
+  "scope": [
+    "M1-S05A-01",
+    "M1-S05A-02",
+    "M1-S05B-01",
+    "M1-S05B-02"
+  ],
+  "review_baseline_commit": "6242f33870beaa241145bf54a29c475e678797ba",
+  "review_fix_commit": "59a0581f8b5063f904a368c49cf7121f95cd67e1",
+  "verdict": "PASS_AFTER_REMEDIATION",
+  "blocking_findings_after_fix": 0,
+  "historical_commits": {
+    "M1-S05A-01": {
+      "implementation": "7881864",
+      "evidence": "5e232ca",
+      "raw_additions": 8739,
+      "conservative_production_lines": 8116,
+      "minimum": 8000
+    },
+    "M1-S05A-02": {
+      "implementation": "afb5654",
+      "evidence": "e7b204d",
+      "raw_additions": 8393,
+      "conservative_production_lines": 7926,
+      "minimum": 6000
+    },
+    "M1-S05B-01": {
+      "implementation": "9dc178d",
+      "evidence": "7880aaa",
+      "raw_additions": 13838,
+      "conservative_production_lines": 12034,
+      "minimum": 8000
+    },
+    "M1-S05B-02": {
+      "implementation": "4497e21",
+      "evidence": "c34535a",
+      "raw_additions": 7924,
+      "conservative_production_lines": 7085,
+      "minimum": 6000
+    }
+  },
+  "parent_conservative_production_lines": {
+    "M1-05A": 16042,
+    "M1-05B": 19119
+  },
+  "review_fix_buckets": {
+    "production": {
+      "insertions": 1323,
+      "deletions": 138
+    },
+    "test": {
+      "insertions": 495,
+      "deletions": 2
+    },
+    "audit_script": {
+      "insertions": 25,
+      "deletions": 0
+    },
+    "vendor_source_pool_generated_data_docs": {
+      "insertions": 0,
+      "deletions": 0
+    }
+  },
+  "findings": {
+    "workspace": [
+      "authorization_epoch_rotation_race",
+      "transaction_delete_missing_read_precondition",
+      "full_snapshot_rollback_overwrites_concurrent_state",
+      "non_atomic_create_for_task",
+      "handoff_double_consume",
+      "cross_task_idempotency_collision",
+      "partial_rebind_mount_migration",
+      "api_event_spine_sqlite_lifecycle_leak"
+    ],
+    "sandbox_gateway": [
+      "browser_live_plan_gateway_bypass",
+      "browser_artifact_download_gateway_bypass",
+      "artifact_owner_epoch_toctou",
+      "browser_upload_content_tamper_gap",
+      "typescript_host_direct_process_launch",
+      "bounded_output_without_spill_artifact",
+      "missing_injectable_backend_contract",
+      "stale_permission_owner_custody",
+      "incomplete_source_custody",
+      "submission_verifier_cache_false_positives",
+      "known_secret_redactor_not_applied",
+      "browser_plan_epoch_self_fencing"
+    ]
+  },
+  "canonical_owners": {
+    "workspace": "WorkspaceManagerRuntime/WorkspaceBindingStore",
+    "workspace_mutation": "WorkspaceEditPort",
+    "sandbox_gateway": "SandboxGatewayRuntime",
+    "permission": "typescript.PermissionCoordinator",
+    "query_session": "TypeScriptClaudeQueryEngine",
+    "artifact_publication": "GatewayFileArtifactPort -> LocalArtifactStore"
+  },
+  "worktree_validation": [
+    {
+      "suite": "workspace_manager_foundation_and_integration",
+      "result": "26 passed, 5 subtests passed"
+    },
+    {
+      "suite": "direct_and_adjacent_05A_05B_aggregate",
+      "result": "73 passed, 9 subtests passed in 90.99s"
+    },
+    {
+      "suite": "typescript_runtime_cutover",
+      "result": "23 passed in 75.82s"
+    },
+    {
+      "suite": "sandbox_gateway_control_typescript",
+      "result": "21 passed"
+    },
+    {
+      "suite": "submission_boundary_verifier",
+      "result": "passed"
+    },
+    {
+      "suite": "workspace_manager_source_ledger_check",
+      "result": "8 decisions; passed"
+    }
+  ],
+  "clean_source_tree_validation": [
+    {
+      "suite": "direct_and_adjacent_05A_05B_aggregate",
+      "result": "73 passed, 9 subtests passed in 91.59s"
+    },
+    {
+      "suite": "typescript_runtime_cutover",
+      "result": "23 passed in 74.14s"
+    },
+    {
+      "suite": "browser_worker_permission_gate",
+      "result": "17 passed, 2 subtests passed in 18.57s"
+    },
+    {
+      "suite": "sandbox_gateway_control_typescript",
+      "result": "21 passed"
+    },
+    {
+      "suite": "submission_boundary_verifier",
+      "result": "passed"
+    }
+  ],
+  "diagnostic_reruns": [
+    {
+      "cause": "pytest user temp directory permission denied before fixture creation",
+      "resolution": "explicit workspace --basetemp",
+      "business_assertion_failures": 0
+    },
+    {
+      "cause": "clean source tree did not contain installed Bun dependency directory",
+      "resolution": "ZYRA_BUN_EXECUTABLE bound to the project-locked Bun 1.2.15 toolchain",
+      "business_assertion_failures": 0
+    }
+  ],
+  "submission_boundary": {
+    "root_source_runtime_dependencies": 0,
+    "vendor_source_pool_runtime_dependencies": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "root_docs_modified": false,
+    "execution_state_modified": false,
+    "preexisting_user_agents_change_touched": false
+  },
+  "competition_evidence": {
+    "engineering_internalization_gate": "closed for reviewed scope",
+    "REQ-EDGE-01_status_change": "none",
+    "real_edge_cloud_dispatch_claimed": false
+  },
+  "next_entry": "docs/milestones/M1-runtime-memory-scheduler-fault/slice-05c-01-runtime-event-message-bus-foundation.md"
+}
