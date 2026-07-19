@@ -986,7 +986,12 @@ def archive_abandoned_g0(
     return archive_root
 
 
-def freeze(*, refreeze_reason: str = "", failed_candidate: str = "") -> None:
+def freeze(
+    *,
+    refreeze_reason: str = "",
+    failed_candidate: str = "",
+    inherit_abandoned: str = "",
+) -> None:
     MANIFEST_ROOT.mkdir(parents=True, exist_ok=True)
     output_names = [
         "execution-04-baseline-receipt.json",
@@ -999,6 +1004,22 @@ def freeze(*, refreeze_reason: str = "", failed_candidate: str = "") -> None:
     ]
     existing = [name for name in output_names if (MANIFEST_ROOT / name).exists()]
     abandoned_archive: Path | None = None
+    recovered_interrupted_refreeze = False
+    if inherit_abandoned:
+        if existing:
+            raise RuntimeError("cannot inherit an abandoned G0 while active manifests exist")
+        if not re.fullmatch(r"execution-04-g0-[0-9a-f]{12}", inherit_abandoned):
+            raise RuntimeError("invalid abandoned G0 recovery directory")
+        abandoned_archive = (MANIFEST_ROOT / "abandoned" / inherit_abandoned).resolve()
+        abandoned_root = (MANIFEST_ROOT / "abandoned").resolve()
+        if abandoned_archive.parent != abandoned_root or not abandoned_archive.is_dir():
+            raise RuntimeError(f"abandoned G0 recovery directory was not found: {inherit_abandoned}")
+        missing_recovery = [
+            name for name in output_names if not (abandoned_archive / name).is_file()
+        ]
+        if missing_recovery:
+            raise RuntimeError(f"abandoned G0 recovery set is incomplete: {missing_recovery}")
+        recovered_interrupted_refreeze = True
     if existing and refreeze_reason and failed_candidate:
         abandoned_archive = archive_abandoned_g0(
             output_names,
@@ -1092,6 +1113,7 @@ def freeze(*, refreeze_reason: str = "", failed_candidate: str = "") -> None:
                 if abandoned_archive
                 else None
             ),
+            "recovered_interrupted_refreeze": recovered_interrupted_refreeze,
         },
         "clean_worktree": True,
         "dirty_paths": [],
@@ -1295,6 +1317,7 @@ def main() -> int:
     parser.add_argument("mode", choices=("freeze", "refreeze", "verify"), nargs="?", default="verify")
     parser.add_argument("--abandon-reason", default="")
     parser.add_argument("--failed-candidate", default="")
+    parser.add_argument("--inherit-abandoned", default="")
     args = parser.parse_args()
     if args.mode in {"freeze", "refreeze"}:
         if args.mode == "refreeze" and (not args.abandon_reason or not re.fullmatch(r"[0-9a-f]{40}", args.failed_candidate)):
@@ -1302,6 +1325,7 @@ def main() -> int:
         freeze(
             refreeze_reason=args.abandon_reason if args.mode == "refreeze" else "",
             failed_candidate=args.failed_candidate if args.mode == "refreeze" else "",
+            inherit_abandoned=args.inherit_abandoned if args.mode == "refreeze" else "",
         )
     result = verify()
     print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
