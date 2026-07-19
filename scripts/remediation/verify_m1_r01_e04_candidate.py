@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -26,6 +27,21 @@ SOURCE_REPOS = {
     "claude-code-best": WORKSPACE / "claude-code-best",
     "opencode": WORKSPACE / "opencode",
     "OpenClaw": WORKSPACE / "OpenClaw",
+}
+PYTHON_OWNER_REQUIRED_FIELDS = {
+    "path", "symbol", "start_line", "end_line", "sha256",
+    "responsibility_domain", "disposition", "default_reachable",
+    "can_advance_logical_state", "can_select_policy_or_route",
+    "can_fallback_for_typescript", "allowed_physical_durable_responsibility",
+    "tests", "callsites", "callsite_scan_complete",
+}
+ALLOWED_CANDIDATE_PORT_ADDITIONS = {
+    ("packages/workers/zyra_workers/typescript_claude_runtime.py", "_complete_result"),
+    ("packages/workers/zyra_workers/typescript_claude_runtime.py", "_persist_terminal_receipt"),
+    ("packages/workers/zyra_workers/typescript_claude_runtime.py", "_permission_queue"),
+    ("packages/workers/zyra_workers/typescript_claude_runtime.py", "_find_e02_snapshot"),
+    ("packages/workers/zyra_workers/typescript_claude_runtime.py", "_host_permission_responses"),
+    ("packages/workers/zyra_workers/typescript_claude_runtime.py", "_project_permission_request"),
 }
 
 
@@ -216,6 +232,8 @@ def line_buckets(candidate: str, tree: str) -> dict[str, Any]:
             bucket = "vendor-like/source-pool"
         elif path.startswith("tests/") or "/test/" in lowered or lowered.endswith((".test.ts", "_test.py")):
             bucket = "test"
+        elif path.startswith("scripts/remediation/"):
+            bucket = "audit-tooling"
         elif lowered.endswith((".json", ".jsonl", ".yaml", ".yml", ".csv")):
             bucket = "data"
         elif path in {
@@ -287,6 +305,16 @@ def dependency_audit(candidate: str, tree: str, profile: dict[str, Any]) -> dict
 
 def python_owner_report(candidate: str, tree: str) -> dict[str, Any]:
     owners = jsonl(MANIFEST_ROOT / "execution-04-python-owner-census.jsonl")
+    schema_errors: list[dict[str, Any]] = []
+    for row in owners:
+        missing_fields = sorted(PYTHON_OWNER_REQUIRED_FIELDS - set(row))
+        if missing_fields:
+            schema_errors.append({"record_id": row.get("record_id"), "missing_fields": missing_fields})
+            continue
+        if not isinstance(row["tests"], list) or not isinstance(row["callsites"], list):
+            schema_errors.append({"record_id": row.get("record_id"), "invalid_fields": ["tests", "callsites"]})
+        if row["callsite_scan_complete"] is not True:
+            schema_errors.append({"record_id": row.get("record_id"), "invalid_fields": ["callsite_scan_complete"]})
     logical = [row for row in owners if row["can_advance_logical_state"] or row["can_select_policy_or_route"] or row["can_fallback_for_typescript"]]
     paths = sorted({row["path"] for row in owners})
     missing = []
@@ -296,6 +324,28 @@ def python_owner_report(candidate: str, tree: str) -> dict[str, Any]:
             candidate_hashes[path] = sha256(git_blob(candidate, path))
         except subprocess.CalledProcessError:
             missing.append(path)
+    baseline_symbols = {(row["path"], row["symbol"]) for row in owners}
+    candidate_symbols: set[tuple[str, str]] = set()
+    candidate_symbol_records: list[dict[str, Any]] = []
+    for path in paths:
+        try:
+            parsed = ast.parse(git_blob(candidate, path).decode("utf-8"), filename=path)
+        except (subprocess.CalledProcessError, SyntaxError):
+            continue
+        for node in ast.walk(parsed):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            key = (path, node.name)
+            candidate_symbols.add(key)
+            candidate_symbol_records.append({
+                "path": path,
+                "symbol": node.name,
+                "start_line": int(node.lineno),
+                "end_line": int(getattr(node, "end_lineno", node.lineno)),
+            })
+    candidate_additions = sorted(candidate_symbols - baseline_symbols)
+    unexpected_additions = [key for key in candidate_additions if key not in ALLOWED_CANDIDATE_PORT_ADDITIONS]
+    missing_retained_symbols = sorted(baseline_symbols - candidate_symbols)
     return {
         **binding(candidate, tree),
         "record_type": "python_owner_result",
@@ -303,10 +353,22 @@ def python_owner_report(candidate: str, tree: str) -> dict[str, Any]:
         "census_paths": len(paths),
         "candidate_path_hashes": candidate_hashes,
         "missing_candidate_paths": missing,
+        "schema_errors": schema_errors,
+        "candidate_symbol_records": candidate_symbol_records,
+        "candidate_owner_additions": [
+            {"path": path, "symbol": symbol, "allowed_port_addition": (path, symbol) in ALLOWED_CANDIDATE_PORT_ADDITIONS}
+            for path, symbol in candidate_additions
+        ],
+        "unexpected_candidate_owner_additions": [
+            {"path": path, "symbol": symbol} for path, symbol in unexpected_additions
+        ],
+        "missing_retained_symbols": [
+            {"path": path, "symbol": symbol} for path, symbol in missing_retained_symbols
+        ],
         "python_logical_owner_records": [row["record_id"] for row in logical],
         "python_logical_owner_count": len(logical),
         "python_fallback": False,
-        "passed": not missing and not logical,
+        "passed": not missing and not logical and not schema_errors and not unexpected_additions and not missing_retained_symbols,
     }
 
 
@@ -352,7 +414,14 @@ def execute_evidence(candidate: str, tree: str, targets: list[dict[str, Any]]) -
         "passed": all(result["passed"] for result in default_results) and all(value["passed"] for value in domain_closure.values()),
     }
     crash_results = []
-    for mode in ("resume", "lost-ack", "duplicate-ack", "disable"):
+    terminal_fault_modes = (
+        "checkpoint-before-ack",
+        "final-checkpoint-before-terminal",
+        "lost-ack",
+        "host-disconnect",
+        "typescript-disconnect",
+    )
+    for mode in (*terminal_fault_modes, "duplicate-ack", "disable"):
         result = run([str(PYTHON), "scripts/remediation/probe_m1_r01_e04.py", mode], timeout=300)
         result["mode"] = mode
         result["parsed"] = parse_json_output(result)
@@ -361,6 +430,24 @@ def execute_evidence(candidate: str, tree: str, targets: list[dict[str, Any]]) -
         **binding(candidate, tree),
         "record_type": "terminal_protocol_crash_matrix",
         "cases": crash_results,
+        "terminal_fault_modes": list(terminal_fault_modes),
+        "terminal_fault_points": sum(
+            1
+            for result in crash_results
+            if result["mode"] in terminal_fault_modes
+            and result["passed"]
+            and bool((result["parsed"] or {}).get("ok"))
+        ),
+        "minimum_restart_epochs": min(
+            [
+                int(item.get("restart_epochs") or 0)
+                for result in crash_results
+                if result["mode"] in terminal_fault_modes
+                for item in list((result["parsed"] or {}).get("results") or [])
+                if result["mode"] != "lost-ack"
+            ]
+            or [0]
+        ),
         "passed": all(
             result["passed"]
             and bool(
@@ -368,6 +455,13 @@ def execute_evidence(candidate: str, tree: str, targets: list[dict[str, Any]]) -
                 or (result["parsed"] or {}).get("ok")
             )
             for result in crash_results
+        ) and all(
+            any(
+                int(item.get("real_process_kills") or 0) >= 1
+                for item in list((result["parsed"] or {}).get("results") or [])
+            )
+            for result in crash_results
+            if result["mode"] in terminal_fault_modes
         ),
     }
     build_commands = [
@@ -451,8 +545,9 @@ def main() -> int:
     cleanroom, cleanroom_ok = existing_report(output / "cleanroom-result.json", candidate)
     mutations, mutation_ok = existing_report(output / "mutation-results.json", candidate)
     mutation_count = len((mutations or {}).get("results", []))
+    required_mutation_count = len(jsonl(MANIFEST_ROOT / "execution-04-mutation-manifest.jsonl"))
     mutation_items = (mutations or {}).get("results", [])
-    mutation_ok = mutation_ok and mutation_count == 13 and all(
+    mutation_ok = mutation_ok and mutation_count == required_mutation_count and all(
         item.get("ok") is True and item.get("killer_result") == "killed"
         for item in mutation_items
     )
@@ -470,13 +565,19 @@ def main() -> int:
             / mutation_count
         ) if mutation_count else 0.0,
         "python_logical_owner_count": owners["python_logical_owner_count"],
+        "terminal_fault_points": crash_report["terminal_fault_points"],
+        "minimum_restart_epochs": crash_report["minimum_restart_epochs"],
     }
     gate_checks = {
         "g0_immutable": g0["passed"],
         "source_recovery": source_report["passed"],
         "target_provenance": all(row["passed"] for row in reports),
         "default_path": default_report["passed"] and thresholds["default_path_required_passes"] == 8,
-        "terminal_crash_matrix": crash_report["passed"],
+        "terminal_crash_matrix": (
+            crash_report["passed"]
+            and thresholds["terminal_fault_points"] == profile["thresholds"]["terminal_fault_points"]
+            and thresholds["minimum_restart_epochs"] >= profile["thresholds"]["minimum_restart_epochs"]
+        ),
         "python_owner": owners["passed"] and thresholds["python_logical_owner_count"] == 0,
         "dependency_audit": dependencies["passed"],
         "build_and_test": build_report["passed"],

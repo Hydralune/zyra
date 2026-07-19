@@ -19,6 +19,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -29,7 +30,7 @@ from typing import Any, Iterable
 
 SCHEMA_VERSION = "4.0"
 EXECUTION_ID = "E04"
-GENERATOR_VERSION = "1.0.0"
+GENERATOR_VERSION = "1.1.0"
 BASELINE_COMMIT = "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
 BASELINE_TREE = "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00"
 
@@ -311,14 +312,28 @@ def source_blob(repo: str, snapshot: str, path: str) -> bytes:
     return run(["git", "show", f"{snapshot}:{path}"], SOURCE_REPOS[repo]["root"]).stdout
 
 
+def target_blob(snapshot: str, path: str) -> bytes:
+    safe_relative(path)
+    return run(["git", "show", f"{snapshot}:{path}"], ZYRA_ROOT).stdout
+
+
+def target_paths(snapshot: str, *roots: str) -> list[str]:
+    command = ["git", "ls-tree", "-r", "--name-only", snapshot, "--", *roots]
+    return [
+        safe_relative(line)
+        for line in run(command, ZYRA_ROOT).stdout.decode("utf-8", errors="strict").splitlines()
+        if line.strip()
+    ]
+
+
 def normalized_fingerprint(value: str) -> str:
     without_comments = re.sub(r"/\*.*?\*/|//[^\n]*", "", value, flags=re.S)
     normalized = re.sub(r"\s+", " ", without_comments).strip()
     return sha256_bytes(normalized.encode("utf-8"))
 
 
-def lines_for_symbol(path: Path, symbol: str) -> tuple[int, int]:
-    lines = path.read_text(encoding="utf-8").splitlines()
+def lines_for_symbol_text(text: str, symbol: str) -> tuple[int, int]:
+    lines = text.splitlines()
     escaped = re.escape(symbol)
     pattern = re.compile(rf"\b(?:class|function)\s+{escaped}\b|\b{escaped}\s*[(:]")
     start = next((index for index, line in enumerate(lines, 1) if pattern.search(line)), 1)
@@ -331,6 +346,10 @@ def lines_for_symbol(path: Path, symbol: str) -> tuple[int, int]:
         if opened and depth <= 0:
             return start, index + 1
     return start, len(lines)
+
+
+def lines_for_symbol(path: Path, symbol: str) -> tuple[int, int]:
+    return lines_for_symbol_text(path.read_text(encoding="utf-8"), symbol)
 
 
 def load_selected_sources() -> list[tuple[RecoverySelection, dict[str, Any]]]:
@@ -400,12 +419,10 @@ def target_provenance_records(source_records: list[dict[str, Any]], target_snaps
     records: list[dict[str, Any]] = []
     for index, ((selection, _legacy), source) in enumerate(zip(load_selected_sources(), source_records, strict=True), 1):
         target_path = safe_relative(selection.target_path)
-        path = ZYRA_ROOT / target_path
-        if not path.is_file():
-            raise ValueError(f"missing G0 target inventory path: {target_path}")
-        target_bytes = path.read_bytes()
-        target_lines = target_bytes.decode("utf-8", errors="strict").splitlines()
-        target_start, target_end = lines_for_symbol(path, selection.target_symbol)
+        target_bytes = target_blob(target_snapshot, target_path)
+        target_text = target_bytes.decode("utf-8", errors="strict")
+        target_lines = target_text.splitlines()
+        target_start, target_end = lines_for_symbol_text(target_text, selection.target_symbol)
         source_bytes = source_blob(source["source_repo"], source["source_snapshot"], source["source_path"])
         source_lines = source_bytes.decode("utf-8", errors="strict").splitlines()
         success_id, failure_id, restore_id, disable_id = TEST_IDS[selection.semantic_domain]
@@ -467,6 +484,32 @@ def target_provenance_records(source_records: list[dict[str, Any]], target_snaps
     return records
 
 
+def python_reference_index(target_snapshot: str) -> dict[str, list[dict[str, Any]]]:
+    references: dict[str, list[dict[str, Any]]] = {}
+    for relative in target_paths(target_snapshot, "apps", "packages", "tests"):
+        if not relative.endswith(".py"):
+            continue
+        raw = target_blob(target_snapshot, relative)
+        try:
+            tree = ast.parse(raw.decode("utf-8"), filename=relative)
+        except SyntaxError as error:
+            raise ValueError(f"cannot parse Python callsite inventory {relative}: {error}") from error
+        for node in ast.walk(tree):
+            name = ""
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                name = node.id
+            elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+                name = node.attr
+            if not name:
+                continue
+            references.setdefault(name, []).append({
+                "path": relative,
+                "line": int(node.lineno),
+                "kind": "test" if relative.startswith("tests/") else "callsite",
+            })
+    return references
+
+
 def python_owner_records(target_snapshot: str) -> list[dict[str, Any]]:
     roots = [
         "packages/workers/zyra_workers/code_worker_bridge.py",
@@ -477,26 +520,26 @@ def python_owner_records(target_snapshot: str) -> list[dict[str, Any]]:
         "packages/runtime/zyra_runtime/permission",
         "packages/runtime/zyra_runtime/e02_ports.py",
     ]
-    paths: list[Path] = []
+    paths: list[str] = []
     for raw in roots:
-        path = ZYRA_ROOT / raw
-        if path.is_file():
-            paths.append(path)
-        elif path.is_dir():
-            paths.extend(sorted(path.rglob("*.py")))
+        candidates = target_paths(target_snapshot, raw)
+        if raw.endswith(".py") and raw in candidates:
+            paths.append(raw)
+        else:
+            paths.extend(path for path in candidates if path.endswith(".py"))
     records: list[dict[str, Any]] = []
-    seen: set[Path] = set()
+    seen: set[str] = set()
+    references = python_reference_index(target_snapshot)
     default_files = {
         "packages/workers/zyra_workers/code_worker_bridge.py",
         "packages/workers/zyra_workers/code_worker_runtime.py",
         "packages/workers/zyra_workers/typescript_claude_runtime.py",
     }
-    for path in paths:
-        if path in seen:
+    for relative in paths:
+        if relative in seen:
             continue
-        seen.add(path)
-        relative = path.relative_to(ZYRA_ROOT).as_posix()
-        raw = path.read_bytes()
+        seen.add(relative)
+        raw = target_blob(target_snapshot, relative)
         tree = ast.parse(raw.decode("utf-8"), filename=relative)
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -511,6 +554,24 @@ def python_owner_records(target_snapshot: str) -> list[dict[str, Any]]:
                 responsibility = "permission_durable_receipt_or_transport_port"
             elif "/subagents/" in relative:
                 responsibility = "agent_durable_schema_digest_or_typescript_port"
+            symbol_references = [
+                reference
+                for reference in references.get(symbol, [])
+                if not (
+                    reference["path"] == relative
+                    and int(node.lineno) <= int(reference["line"]) <= int(getattr(node, "end_lineno", node.lineno))
+                )
+            ]
+            callsites = [
+                f"{reference['path']}:{reference['line']}"
+                for reference in symbol_references
+                if reference["kind"] == "callsite"
+            ][:32]
+            tests = [
+                f"{reference['path']}:{reference['line']}"
+                for reference in symbol_references
+                if reference["kind"] == "test"
+            ][:32]
             records.append({
                 "schema_version": SCHEMA_VERSION,
                 "execution_id": EXECUTION_ID,
@@ -524,10 +585,14 @@ def python_owner_records(target_snapshot: str) -> list[dict[str, Any]]:
                 "sha256": sha256_bytes(raw),
                 "responsibility_domain": responsibility,
                 "disposition": "retain_port",
-                "default_reachable": relative in default_files,
+                "default_reachable": relative in default_files and bool(callsites),
                 "can_advance_logical_state": False,
                 "can_select_policy_or_route": False,
                 "can_fallback_for_typescript": False,
+                "allowed_physical_durable_responsibility": responsibility,
+                "callsites": callsites,
+                "tests": tests,
+                "callsite_scan_complete": True,
                 "retained_reason": "Typed durable/process/physical boundary; all Claude local-control decisions remain in TypeScript.",
                 "deletion_or_block_reason": None,
             })
@@ -537,7 +602,7 @@ def python_owner_records(target_snapshot: str) -> list[dict[str, Any]]:
     return records
 
 
-def mutation_records(target_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def mutation_records(target_records: list[dict[str, Any]], target_snapshot: str) -> list[dict[str, Any]]:
     first_by_domain: dict[str, dict[str, Any]] = {}
     source_by_id = {row["record_id"]: row for row in source_recovery_records()}
     for target in target_records:
@@ -552,8 +617,10 @@ def mutation_records(target_records: list[dict[str, Any]]) -> list[dict[str, Any
 
     specs: list[tuple[str, str, str, str, str, str]] = [
         ("e04-mutation-terminal-order", "terminal_protocol", protocol_target["path"], protocol_target["symbol"], "emit run.result before the final checkpoint/effect ACK", "e04-terminal-order"),
-        ("e04-mutation-checkpoint-ack-loss", "terminal_protocol", protocol_target["path"], protocol_target["symbol"], "drop the final checkpoint ACK once", "e04-terminal-lost-ack"),
+        ("e04-mutation-checkpoint-ack-loss", "terminal_protocol", protocol_target["path"], protocol_target["symbol"], "drop the final checkpoint ACK once", "e04-terminal-checkpoint-before-ack"),
         ("e04-mutation-checkpoint-ack-duplicate", "terminal_protocol", protocol_target["path"], protocol_target["symbol"], "deliver the final checkpoint ACK twice", "e04-terminal-duplicate-ack"),
+        ("e04-mutation-python-host-disconnect", "terminal_protocol", protocol_target["path"], protocol_target["symbol"], "disconnect the Python host during terminal transition", "e04-terminal-host-disconnect"),
+        ("e04-mutation-typescript-disconnect", "terminal_protocol", protocol_target["path"], protocol_target["symbol"], "kill the TypeScript owner during terminal transition", "e04-terminal-typescript-disconnect"),
         ("e04-mutation-python-fallback", "python_fallback", "packages/workers/zyra_workers/typescript_claude_runtime.py", "TypeScriptClaudeRuntime", "enable a local Python completion fallback after TypeScript failure", "e04-typescript-disable"),
         ("e04-mutation-root-dependency", "dependency", "packages/workers/zyra_workers/typescript_claude_runtime.py", "TypeScriptClaudeRuntime", "resolve runtime code from ../claude-code-best", "e04-root-dependency"),
     ]
@@ -573,16 +640,15 @@ def mutation_records(target_records: list[dict[str, Any]]) -> list[dict[str, Any
             TEST_IDS[domain][3],
         ))
     for index, (record_id, family, path, symbol, purpose, killer) in enumerate(specs, 1):
-        target_path = ZYRA_ROOT / path
-        raw = target_path.read_bytes()
-        start, end = lines_for_symbol(target_path, symbol)
+        raw = target_blob(target_snapshot, path)
+        start, end = lines_for_symbol_text(raw.decode("utf-8", errors="strict"), symbol)
         operator = {"record_id": record_id, "path": path, "symbol": symbol, "purpose": purpose}
         records.append({
             "schema_version": SCHEMA_VERSION,
             "execution_id": EXECUTION_ID,
             "record_type": "mutation_point",
             "record_id": record_id,
-            "target_snapshot_commit": git_text(ZYRA_ROOT, "rev-parse", "HEAD"),
+            "target_snapshot_commit": target_snapshot,
             "target_path": path,
             "target_symbol": symbol,
             "target_start_line": start,
@@ -672,8 +738,11 @@ def gate_profile(target_snapshot: str) -> dict[str, Any]:
             f"{python} scripts/remediation/probe_m1_r01_e04.py api-route",
         ],
         "crash_restore_disable_commands": [
-            f"{python} scripts/remediation/probe_m1_r01_e04.py resume",
+            f"{python} scripts/remediation/probe_m1_r01_e04.py checkpoint-before-ack",
+            f"{python} scripts/remediation/probe_m1_r01_e04.py final-checkpoint-before-terminal",
             f"{python} scripts/remediation/probe_m1_r01_e04.py lost-ack",
+            f"{python} scripts/remediation/probe_m1_r01_e04.py host-disconnect",
+            f"{python} scripts/remediation/probe_m1_r01_e04.py typescript-disconnect",
             f"{python} scripts/remediation/probe_m1_r01_e04.py duplicate-ack",
             f"{python} scripts/remediation/probe_m1_r01_e04.py disable",
             f"{python} scripts/remediation/run_m1_r01_e04_mutations.py --all",
@@ -698,6 +767,8 @@ def gate_profile(target_snapshot: str) -> dict[str, Any]:
             "python_logical_owner_count": 0,
             "forbidden_dependency_count": 0,
             "dirty_cleanroom_path_count": 0,
+            "terminal_fault_points": 5,
+            "minimum_restart_epochs": 2,
         },
     }
 
@@ -715,7 +786,43 @@ def verify_source_repos() -> list[dict[str, Any]]:
     return snapshots
 
 
-def freeze() -> None:
+def archive_abandoned_g0(
+    output_names: list[str],
+    *,
+    reason: str,
+    failed_candidate: str,
+) -> Path:
+    old_receipt_path = MANIFEST_ROOT / "execution-04-baseline-receipt.json"
+    old_receipt = json.loads(old_receipt_path.read_text(encoding="utf-8"))
+    old_tooling = str(old_receipt.get("verified_zyra_head") or "unknown")
+    archive_root = MANIFEST_ROOT / "abandoned" / f"execution-04-g0-{old_tooling[:12]}"
+    if archive_root.exists():
+        raise RuntimeError(f"refusing to overwrite abandoned G0 archive: {archive_root}")
+    archive_root.mkdir(parents=True)
+    archived_hashes: dict[str, str] = {}
+    for name in output_names:
+        source = MANIFEST_ROOT / name
+        if not source.is_file():
+            raise RuntimeError(f"cannot archive incomplete G0: {name}")
+        destination = archive_root / name
+        shutil.copy2(source, destination)
+        archived_hashes[name] = sha256_file(destination)
+    write_json(archive_root / "abandonment-receipt.json", {
+        "schema_version": SCHEMA_VERSION,
+        "execution_id": EXECUTION_ID,
+        "record_type": "g0_abandonment_receipt",
+        "record_id": f"e04-g0-abandoned-{old_tooling[:12]}",
+        "abandoned_g0_tooling_commit": old_tooling,
+        "failed_candidate": failed_candidate,
+        "reason": reason,
+        "archived_manifest_sha256": archived_hashes,
+        "replacement_tooling_commit": git_text(ZYRA_ROOT, "rev-parse", "HEAD"),
+        "archived_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return archive_root
+
+
+def freeze(*, refreeze_reason: str = "", failed_candidate: str = "") -> None:
     MANIFEST_ROOT.mkdir(parents=True, exist_ok=True)
     output_names = [
         "execution-04-baseline-receipt.json",
@@ -727,13 +834,24 @@ def freeze() -> None:
         "execution-04-gate-profile.json",
     ]
     existing = [name for name in output_names if (MANIFEST_ROOT / name).exists()]
+    abandoned_archive: Path | None = None
+    if existing and refreeze_reason and failed_candidate:
+        abandoned_archive = archive_abandoned_g0(
+            output_names,
+            reason=refreeze_reason,
+            failed_candidate=failed_candidate,
+        )
+        for name in output_names:
+            (MANIFEST_ROOT / name).unlink()
+        existing = []
     if existing:
         raise RuntimeError(f"refusing to overwrite immutable G0 files: {existing}")
 
     baseline_tree = git_text(ZYRA_ROOT, "rev-parse", f"{BASELINE_COMMIT}^{{tree}}")
     if baseline_tree != BASELINE_TREE:
         raise RuntimeError(f"baseline tree mismatch: {baseline_tree}")
-    target_snapshot = git_text(ZYRA_ROOT, "rev-parse", "HEAD")
+    tooling_snapshot = git_text(ZYRA_ROOT, "rev-parse", "HEAD")
+    target_snapshot = BASELINE_COMMIT
     dirty = git_text(ZYRA_ROOT, "status", "--porcelain=v1", "--untracked-files=all").splitlines()
     if dirty:
         raise RuntimeError(f"G0 requires a clean Zyra worktree: {dirty}")
@@ -742,7 +860,7 @@ def freeze() -> None:
     sources = source_recovery_records()
     targets = target_provenance_records(sources, target_snapshot)
     python_owners = python_owner_records(target_snapshot)
-    mutations = mutation_records(targets)
+    mutations = mutation_records(targets, target_snapshot)
     profile = gate_profile(target_snapshot)
 
     source_path = MANIFEST_ROOT / "execution-04-source-recovery-manifest.jsonl"
@@ -762,10 +880,21 @@ def freeze() -> None:
     lockfile = ZYRA_ROOT / "bun.lock"
     if not lockfile.is_file():
         raise RuntimeError("bun.lock is required")
-    frozen_failures = frozen_failure_results()
-    source_health = capture([str(local_bun), "apps/code-worker/src/main.ts", "--health"], timeout=60)
-    built_bun_health = capture([str(local_bun), "dist/code-worker/main.js", "--health"], timeout=60)
-    built_node_health = capture(["node", "dist/code-worker-node/main.js", "--health"], timeout=60)
+    inherited_baseline_receipt: dict[str, Any] | None = None
+    if abandoned_archive is not None:
+        inherited_baseline_receipt = json.loads(
+            (abandoned_archive / "execution-04-baseline-receipt.json").read_text(encoding="utf-8")
+        )
+        frozen_failures = list(inherited_baseline_receipt["frozen_default_path_failures"])
+        entry_baseline = dict(inherited_baseline_receipt["entry_baseline"])
+    else:
+        frozen_failures = frozen_failure_results()
+        entry_baseline = {
+            "source_health": capture([str(local_bun), "apps/code-worker/src/main.ts", "--health"], timeout=60),
+            "built_bun_health": capture([str(local_bun), "dist/code-worker/main.js", "--health"], timeout=60),
+            "built_node_health": capture(["node", "dist/code-worker-node/main.js", "--health"], timeout=60),
+            "observation": "Health probes can pass while the real Python-to-TypeScript stdio terminal handshake fails; E04 gates real stdio runs separately.",
+        }
 
     other_manifests = {
         path.name: sha256_file(path)
@@ -778,8 +907,21 @@ def freeze() -> None:
         "record_id": "e04-baseline-receipt",
         "zyra_baseline_commit": BASELINE_COMMIT,
         "zyra_baseline_tree": BASELINE_TREE,
-        "verified_zyra_head": target_snapshot,
+        "verified_zyra_head": tooling_snapshot,
         "verified_zyra_tree": git_text(ZYRA_ROOT, "rev-parse", "HEAD^{tree}"),
+        "target_inventory_commit": target_snapshot,
+        "target_inventory_tree": BASELINE_TREE,
+        "refreeze": {
+            "performed": bool(refreeze_reason),
+            "reason": refreeze_reason or None,
+            "failed_candidate": failed_candidate or None,
+            "abandoned_archive": str(abandoned_archive.relative_to(WORKSPACE_ROOT)).replace("\\", "/") if abandoned_archive else None,
+            "inherited_baseline_receipt_sha256": (
+                sha256_file(abandoned_archive / "execution-04-baseline-receipt.json")
+                if abandoned_archive
+                else None
+            ),
+        },
         "clean_worktree": True,
         "dirty_paths": [],
         "source_snapshots": snapshots,
@@ -793,12 +935,7 @@ def freeze() -> None:
         "lockfile_sha256": sha256_file(lockfile),
         "manifest_sha256": other_manifests,
         "frozen_default_path_failures": frozen_failures,
-        "entry_baseline": {
-            "source_health": source_health,
-            "built_bun_health": built_bun_health,
-            "built_node_health": built_node_health,
-            "observation": "Health probes can pass while the real Python-to-TypeScript stdio terminal handshake fails; E04 gates real stdio runs separately.",
-        },
+        "entry_baseline": entry_baseline,
         "generator": {
             "command": [str(ZYRA_ROOT / ".venv" / "Scripts" / "python.exe"), "scripts/remediation/m1_r01_e04_g0.py", "freeze"],
             "version": GENERATOR_VERSION,
@@ -891,6 +1028,22 @@ def verify() -> dict[str, Any]:
         if not set(target["mutation_ids"]).issubset(mutation_ids):
             raise ValueError(f"unknown mutation ID: {target['record_id']}")
     for owner in owners:
+        required_owner_fields = {
+            "path", "symbol", "start_line", "end_line", "sha256",
+            "responsibility_domain", "disposition", "default_reachable",
+            "can_advance_logical_state", "can_select_policy_or_route",
+            "can_fallback_for_typescript", "allowed_physical_durable_responsibility",
+            "tests", "callsites", "callsite_scan_complete",
+        }
+        missing_owner_fields = sorted(required_owner_fields - set(owner))
+        if missing_owner_fields:
+            raise ValueError(
+                f"Python owner record misses schema-v4 fields: {owner['record_id']}: {missing_owner_fields}"
+            )
+        if not isinstance(owner["tests"], list) or not isinstance(owner["callsites"], list):
+            raise ValueError(f"Python owner tests/callsites are not arrays: {owner['record_id']}")
+        if owner["callsite_scan_complete"] is not True:
+            raise ValueError(f"Python owner callsite scan is incomplete: {owner['record_id']}")
         if owner["disposition"] == "retain_port" and (
             owner["can_advance_logical_state"] or owner["can_select_policy_or_route"] or owner["can_fallback_for_typescript"]
         ):
@@ -898,14 +1051,29 @@ def verify() -> dict[str, Any]:
         blob = run(["git", "show", f"{owner['target_snapshot_commit']}:{owner['path']}"], ZYRA_ROOT).stdout
         if sha256_bytes(blob) != owner["sha256"]:
             raise ValueError(f"Python census hash mismatch: {owner['record_id']}")
+        for field in ("tests", "callsites"):
+            for reference in owner[field]:
+                match = re.fullmatch(r"([^:]+):(\d+)", str(reference))
+                if match is None:
+                    raise ValueError(f"invalid Python owner {field} reference: {owner['record_id']}: {reference}")
+                reference_path, reference_line = match.group(1), int(match.group(2))
+                reference_blob = target_blob(owner["target_snapshot_commit"], reference_path)
+                if reference_line < 1 or reference_line > len(reference_blob.decode("utf-8").splitlines()):
+                    raise ValueError(f"out-of-range Python owner {field} reference: {owner['record_id']}: {reference}")
     required_mutations = {
         "e04-mutation-terminal-order", "e04-mutation-checkpoint-ack-loss",
         "e04-mutation-checkpoint-ack-duplicate", "e04-mutation-python-fallback",
+        "e04-mutation-python-host-disconnect", "e04-mutation-typescript-disconnect",
         "e04-mutation-root-dependency", *{f"e04-mutation-domain-{i:02d}" for i in range(1, 9)},
     }
     if mutation_ids != required_mutations:
         raise ValueError(f"mutation corpus mismatch: {mutation_ids ^ required_mutations}")
-    if profile["thresholds"]["credited_domain_count"] != 8 or profile["thresholds"]["mutation_kill_rate"] != 1.0:
+    if (
+        profile["thresholds"]["credited_domain_count"] != 8
+        or profile["thresholds"]["mutation_kill_rate"] != 1.0
+        or profile["thresholds"].get("terminal_fault_points") != 5
+        or profile["thresholds"].get("minimum_restart_epochs") != 2
+    ):
         raise ValueError("gate thresholds were weakened")
     return {
         "ok": True,
@@ -921,10 +1089,17 @@ def verify() -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("freeze", "verify"), nargs="?", default="verify")
+    parser.add_argument("mode", choices=("freeze", "refreeze", "verify"), nargs="?", default="verify")
+    parser.add_argument("--abandon-reason", default="")
+    parser.add_argument("--failed-candidate", default="")
     args = parser.parse_args()
-    if args.mode == "freeze":
-        freeze()
+    if args.mode in {"freeze", "refreeze"}:
+        if args.mode == "refreeze" and (not args.abandon_reason or not re.fullmatch(r"[0-9a-f]{40}", args.failed_candidate)):
+            parser.error("refreeze requires --abandon-reason and a 40-hex --failed-candidate")
+        freeze(
+            refreeze_reason=args.abandon_reason if args.mode == "refreeze" else "",
+            failed_candidate=args.failed_candidate if args.mode == "refreeze" else "",
+        )
     result = verify()
     print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
     return 0
