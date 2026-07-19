@@ -67,3 +67,9 @@ R0/R2/R3 已触发直接 FAIL，因此没有把实现方预生成的 terminal、
 > 当前 E04 candidate 是否已经通过真实源码迁移、成熟语义保留、默认产品主路径、正确跨语言职责和独立 cleanroom 交付，充分达到了用户定义的核心补救目标？
 
 否。候选存在 exact identity 冲突、非 executable source credit、失真的 target range、generic target 机械映射以及未进入真实调用链的薄迁移方法，不能通过独立审查。
+
+## 修复移交（不构成新的独立 PASS）
+
+上述 FAIL 已形成审查提交 `8fc5b9d` 与订正提交 `014c95d`，其后直接实施了修复。新实现候选为 `3d4a00d62e47264cc4ac8678de41af497be7aec8`，tree 为 `af2f174ae9607fbcaebd33a691f1e1c5451fcadb`；修复映射与新候选验证见 `M1-R01-v4-execution-04-repair-report.md` 和 implementation evidence 目录。
+
+新候选已由实现侧通过 10/10 candidate gate、15/15 mutation、37/37 E04 专项与 fresh cleanroom，但本报告的 reviewer 已参与修复，不能继续以“独立审查者”身份对它签发 PASS。原候选的 FAIL 结论不变；E04 当前状态为 `implementation_complete_review_pending`，必须由不同 reviewer 使用新的 nonce、样本、fault seed 和 mutation seed 对新 implementation/evidence pair 完成独立审查。

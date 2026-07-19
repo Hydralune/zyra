@@ -10,7 +10,7 @@
       ]
     },
     "audit-tooling": {
-      "added": 3268,
+      "added": 3644,
       "deleted": 0,
       "files": [
         "scripts/remediation/cleanroom_m1_r01_e04.py",
@@ -29,11 +29,12 @@
       ]
     },
     "docs": {
-      "added": 7939,
+      "added": 27907,
       "deleted": 0,
       "files": [
         "docs/reviews/M1-R01-v4-execution-04-implementation-self-review.md",
         "docs/reviews/M1-R01-v4-execution-04-independent-review.md",
+        "docs/reviews/M1-R01-v4-execution-04-repair-report.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04a-self-review.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04b-self-review.md",
         "docs/reviews/M1-R01-v4-execution-04-slice-04c-self-review.md",
@@ -84,8 +85,8 @@
       ]
     },
     "production": {
-      "added": 2432,
-      "deleted": 411,
+      "added": 2570,
+      "deleted": 487,
       "files": [
         "apps/api/zyra_api/main.py",
         "apps/code-worker/src/main.ts",
@@ -139,7 +140,7 @@
       ]
     },
     "test": {
-      "added": 2913,
+      "added": 2961,
       "deleted": 112,
       "files": [
         "packages/runtime/claude-runtime/test/agents.test.ts",
@@ -158,11 +159,11 @@
       ]
     }
   },
-  "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66",
-  "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "candidate_tree": "af2f174ae9607fbcaebd33a691f1e1c5451fcadb",
   "execution_id": "E04",
-  "g0_tooling_head": "c62af85aec158bc5e0e4887fa69389b46fd8082c",
-  "generated_at": "2026-07-19T02:23:46.045679+00:00",
+  "g0_tooling_head": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "generated_at": "2026-07-19T04:32:21.396054+00:00",
   "note": "E04 has no independent line minimum; buckets prevent generated/data/vendor-like/adapter-only inflation.",
   "record_type": "line_buckets",
   "schema_version": "4.0",
@@ -171,7 +172,7 @@
     "node": "v22.17.0",
     "python": "Python 3.13.9"
   },
-  "total_added": 17345,
-  "total_deleted": 562,
+  "total_added": 37875,
+  "total_deleted": 638,
   "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
 }

@@ -1,5 +1,5 @@
 {
-  "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
   "candidate_owner_additions": [
     {
       "allowed_port_addition": true,
@@ -9817,12 +9817,12 @@
       "symbol": "execute_one"
     }
   ],
-  "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
+  "candidate_tree": "af2f174ae9607fbcaebd33a691f1e1c5451fcadb",
   "census_paths": 31,
   "census_symbols": 1619,
   "execution_id": "E04",
-  "g0_tooling_head": "c62af85aec158bc5e0e4887fa69389b46fd8082c",
-  "generated_at": "2026-07-19T02:26:48.946790+00:00",
+  "g0_tooling_head": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "generated_at": "2026-07-19T04:35:25.726907+00:00",
   "missing_candidate_paths": [],
   "missing_retained_symbols": [],
   "passed": true,

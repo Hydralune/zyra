@@ -99,3 +99,13 @@ Python stdio/事件/API/workspace 接线、候选验证脚本和 cleanroom 编�
 - line buckets：audit tooling `3,268` 行独立列桶，不计入 production；production `2,432`，test `2,913`，adapter-only `790`。
 
 详细修复映射见 `docs/reviews/M1-R01-v4-execution-04-repair-report.md`。最终候选门禁为 `10/10` PASS，但状态仍是 `implementation_complete_review_pending`，不得用自审替代新的独立审查。
+
+## 9. 2026-07-19 第二次独立审查后修复补充
+
+候选 `2340b792d184bc7625ba15fe7e9d958c3daa4c66` / evidence `2c74e21ec35ab29fe67a11b24a5f4d90de64cbfc` 的重新独立审查结论为 FAIL。历史报告与 reviewer-owned evidence 保持不变。新实现候选为 `3d4a00d62e47264cc4ac8678de41af497be7aec8`，tree 为 `af2f174ae9607fbcaebd33a691f1e1c5451fcadb`。
+
+新候选把 baseline identity 与 G0 tooling identity 分离，冻结 18 个可执行 source ranges，并把每项 provenance 绑定到不同的 qualified candidate method/function body。tool partition、skill discover/validate/register、forked child input 构造和 plugin hook replacement 均已进入真实 production 调用链，不再以 callback passthrough、whole-class anchor 或 symbol-anywhere 取得 recovery credit。
+
+复验得到 E04 专项 `37/37`、mutation `15/15`、candidate gate `10/10` 和 fresh cleanroom PASS；cleanroom 未复用原 node_modules/venv，forbidden dependency 与 dirty path 均为 0。最新 line bucket 把 production、test、adapter-only、audit-tooling、docs 和 data 分开，production 新增 `2,570`、test 新增 `2,961`、adapter-only 新增 `790`、audit-tooling 新增 `3,644`。
+
+由于本轮审查者执行了修复，本节只是 implementation self-review/repair handoff，不能构成独立 PASS。状态必须保持 `implementation_complete_review_pending`，由不同 reviewer 对新 implementation/evidence pair 重跑任务书。

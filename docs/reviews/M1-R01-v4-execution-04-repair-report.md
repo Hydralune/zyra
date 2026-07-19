@@ -63,3 +63,24 @@ line bucket 将 `scripts/remediation/**` 单独归入 `audit-tooling`。最终�
 
 候选总门禁阈值：8/8 语义域、5/5 terminal fault points、minimum restart epochs `2`、mutation kill rate `1.0`、Python logical owner `0`、forbidden dependency `0`、dirty cleanroom path `0`。
 
+## 5. 第二次独立审查后的修复候选
+
+本节记录对候选 `2340b792d184bc7625ba15fe7e9d958c3daa4c66` / evidence `2c74e21ec35ab29fe67a11b24a5f4d90de64cbfc` 的独立审查及后续修复，不改写前述候选的历史。该独立审查以 `FAIL` 结束，审查证据和四项 finding 保存在 `M1-R01-v4-execution-04-independent-review.md` 及其 evidence 目录。
+
+- 新实现候选 commit/tree：`3d4a00d62e47264cc4ac8678de41af497be7aec8` / `af2f174ae9607fbcaebd33a691f1e1c5451fcadb`
+- 受保护 baseline commit/tree：`299b708d3559da7a5da1f9d6d55d2d1f1b155249` / `897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00`
+- 当前 G0 tooling commit/tree：`3d4a00d62e47264cc4ac8678de41af497be7aec8` / `af2f174ae9607fbcaebd33a691f1e1c5451fcadb`
+- 当前状态：`implementation_complete_review_pending`
+
+修复内容如下：
+
+1. G0 receipt 明确分离受保护 `verified_zyra_head/tree` 与可演进的 `g0_tooling_head/tree`，不再把冻结工具提交冒充受保护 baseline；refreeze 会校验两组身份并归档旧 manifest。
+2. 18 个 credited source ranges 全部扩展到可执行成熟控制流；G0 verifier 现在拒绝只有参数/类型声明、空 body 或缺少真实控制流的 source range。
+3. 18 项 provenance 改为 18 个不同的 qualified candidate symbols，并在精确 G0 tooling commit 的精确文件中解析真实 method/function body、计算候选区间和 fingerprint；generic whole-class anchor、stale range 和 symbol-anywhere 通过路径均被关闭。
+4. `ToolExecutionRuntime.partitionToolCalls` 成为真实运行分区 owner；skill discovery 由 `TypeScriptSkillRuntime.loadSkillsFromSkillsDir` 承担 discover/validate/register；forked skill 由 `executeForkedSkill` 构造受限 child input；plugin hook 条目绑定真实 `PluginCoordinator.replaceActiveHooks`。
+5. mutation 工具在 Windows 上按 LF 逻辑匹配、按原 newline 写回，并以 base64 保存原始 bytes 和 SHA，保证 15 个 operator 的修改/恢复完全可逆。
+
+新候选复验结果：candidate gate `10/10`，E04 专项 `37/37`，mutation `15/15` killed，cleanroom 通过且 `independent_tooling=true`、`dirty_paths=0`、`forbidden_exists=[]`，8 个语义域、18 个 source ranges 和 18 个 qualified candidate targets 全部关闭。当前分桶为 production `2,570/487`、test `2,961/112`、adapter-only `790/39`、audit-tooling `3,644/0`（新增/删除）；审计工具、adapter 与文档不计入 production。
+
+本轮审查者同时实施了上述修复，因此不能对新候选签发新的独立 PASS。新候选及随本报告提交的 evidence 必须由不同的独立审查运行重新验收；在此之前不得推进 M1-S05C-01。
+
