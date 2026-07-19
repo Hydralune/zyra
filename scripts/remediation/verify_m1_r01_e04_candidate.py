@@ -158,6 +158,53 @@ def _brace_range(lines: list[str], start: int, limit: int | None = None) -> tupl
     return None
 
 
+def _function_body_open(
+    lines: list[str],
+    start: int,
+    limit: int,
+) -> tuple[int | None, int | None]:
+    paren_depth = 0
+    saw_parameters = False
+    parameters_closed = False
+    angle_depth = 0
+    return_object_depth = 0
+    after_parameters = ""
+    for index in range(start - 1, limit):
+        line = re.sub(r"(['\"]).*?\1", "", lines[index])
+        for column, character in enumerate(line):
+            if not parameters_closed:
+                if character == "(":
+                    saw_parameters = True
+                    paren_depth += 1
+                elif character == ")" and saw_parameters:
+                    paren_depth -= 1
+                    if paren_depth == 0:
+                        parameters_closed = True
+                        after_parameters = ""
+                continue
+            if return_object_depth:
+                if character == "{":
+                    return_object_depth += 1
+                elif character == "}":
+                    return_object_depth -= 1
+                after_parameters += character
+                continue
+            if character == "<":
+                angle_depth += 1
+            elif character == ">" and angle_depth:
+                angle_depth -= 1
+            elif character == "{" and angle_depth == 0:
+                if re.search(r":\s*$", after_parameters):
+                    return_object_depth = 1
+                    after_parameters += character
+                    continue
+                return index + 1, column
+            after_parameters += character
+        if parameters_closed:
+            after_parameters += "\n"
+    return None, None
+
+
 def typescript_symbol_range(text: str, qualified_symbol: str) -> tuple[int, int] | None:
     """Resolve an exact TypeScript class method or top-level function range."""
     lines = text.replace("\r", "").splitlines()
@@ -196,7 +243,22 @@ def typescript_symbol_range(text: str, qualified_symbol: str) -> tuple[int, int]
     )
     if symbol_start is None:
         return None
-    return _brace_range(lines, symbol_start, search_end)
+    body_start_line, body_start_column = _function_body_open(
+        lines,
+        symbol_start,
+        search_end,
+    )
+    if body_start_line is None or body_start_column is None:
+        return None
+    depth = 0
+    for index in range(body_start_line - 1, search_end):
+        line = re.sub(r"(['\"]).*?\1", "", lines[index])
+        if index == body_start_line - 1:
+            line = line[body_start_column:]
+        depth += line.count("{") - line.count("}")
+        if depth <= 0:
+            return symbol_start, index + 1
+    return None
 
 
 def executable_typescript(value: str) -> bool:
