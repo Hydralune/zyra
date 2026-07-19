@@ -46,6 +46,15 @@ const DEFAULT_CONFIG: RuntimeConfig = {
 
 export class ClaudeRuntimeCore {
   async run(input: RuntimeRunInput, host: RuntimeHost): Promise<RuntimeRunResult> {
+    // Retain QueryEngine.ask's outer lifecycle ordering in the real default
+    // owner: construct the canonical query, submit/iterate, route failure, and
+    // always settle query state from finally even when initialization or a
+    // provider/tool branch throws before the normal terminal path.
+    let sourceQuery: E01RuntimeCoordinator | null = null;
+    let sourceQueryOk = false;
+    let sourceQueryStopReason: string | null = "runtime_initialization_failed";
+    let sourceResult: RuntimeRunResult | null = null;
+    try {
     const config = normalizeConfig(input.config);
     const e01 = new E01RuntimeCoordinator(
       input.runId,
@@ -53,6 +62,7 @@ export class ClaudeRuntimeCore {
       input.taskId,
       input.workerRequestId,
     );
+    sourceQuery = e01;
     const restoredE01 = selectRestoredE01Snapshot(input.restoredState);
     if (restoredE01) {
       e01.restore(restoredE01);
@@ -988,7 +998,8 @@ export class ClaudeRuntimeCore {
       model_stream_ok: modelStreamOk,
       runtime_budget_state_ok: runtimeBudgetStateOk,
     });
-    e01.finishCanonicalQuery(ok, stoppedReason);
+    sourceQueryOk = ok;
+    sourceQueryStopReason = stoppedReason;
     session.finish(ok);
     await emit(ok ? "session_completed" : "session_failed", {
       ok,
@@ -1008,7 +1019,7 @@ export class ClaudeRuntimeCore {
       snapshot_checksum: snapshot.checksum,
       snapshot_revision: snapshot.revision,
     });
-    return {
+    sourceResult = {
       ok,
       stoppedReason,
       turnCount,
@@ -1060,6 +1071,18 @@ export class ClaudeRuntimeCore {
         ...modelMetadata,
       },
     };
+    } catch (error) {
+      sourceQueryOk = false;
+      sourceQueryStopReason = error instanceof Error ? error.message : String(error);
+      throw error;
+    } finally {
+      sourceQuery?.finishCanonicalQuery(sourceQueryOk, sourceQueryStopReason);
+      if (sourceQuery && sourceResult) {
+        sourceResult.sessionSnapshot.e01Runtime = sourceQuery.snapshot() as unknown as JsonObject;
+      }
+    }
+    if (!sourceResult) throw new Error("query source lifecycle settled without a result");
+    return sourceResult;
   }
 }
 

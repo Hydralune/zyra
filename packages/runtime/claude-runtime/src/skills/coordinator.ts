@@ -407,18 +407,14 @@ export class SkillCoordinator {
     if (this.reloadPromise) return this.reloadPromise;
     const registryRevisionBefore = this.registry.revision;
     const source = typeof metadataValue.source === "string" ? metadataValue.source : "unknown";
-    this.reloadPromise = TypeScriptSkillRuntime.loadSkillsFromSkillsDir({
-      discover: () => this.reload.scan(this.rootRuntime.list({ enabledOnly: true, existingOnly: true })),
-      validate: (scan) => {
-        if (scan.baseRevision !== registryRevisionBefore || this.registry.revision !== registryRevisionBefore) {
-          throw new Error(
-            `skill directory scan is stale: base ${scan.baseRevision}, expected ${registryRevisionBefore}, current ${this.registry.revision}`,
-          );
-        }
-        if (!scan.scanId || !scan.digest) throw new Error("skill directory scan has no durable identity");
-      },
-      register: async (scan) => {
-        const revision = this.reload.commit(scan.scanId, registryRevisionBefore, metadataValue);
+    this.reloadPromise = (async () => {
+        const loaded = await this.reload.loadSkillsFromSkillsDir({
+          roots: this.rootRuntime.list({ enabledOnly: true, existingOnly: true }),
+          expectedRevision: registryRevisionBefore,
+          metadata: metadataValue,
+        });
+        const { scan, revision } = loaded;
+        if (!revision) throw new Error("skill directory loader did not commit its staged registry revision");
         for (const skillId of revision.removed) this.resources.clear(skillId);
         await this.refreshSearch();
         const committedAt = this.timestamp();
@@ -449,8 +445,7 @@ export class SkillCoordinator {
           if (!oldest) break;
           this.reloadHistory.delete(oldest.receiptId);
         }
-      },
-    });
+    })();
     try {
       await this.reloadPromise;
     } catch (error) {

@@ -6,7 +6,6 @@ import { test } from "bun:test";
 import {
   PluginCoordinator,
   TypeScriptCapabilityRuntime,
-  TypeScriptSkillRuntime,
   type AgentExecutionContext,
   type JsonObject,
   type PluginManifest,
@@ -15,6 +14,10 @@ import {
   type RuntimeRunResult,
 } from "../../src/index.ts";
 import { digest } from "../../src/e02/index.ts";
+import { SkillFrontmatterRuntime } from "../../src/skills/frontmatter-runtime.ts";
+import { SkillRegistryRuntime } from "../../src/skills/registry-runtime.ts";
+import { SkillReloadRuntime } from "../../src/skills/reload-runtime.ts";
+import { SkillSourceRuntime } from "../../src/skills/source-runtime.ts";
 
 const e04TemporaryRoot = join(process.cwd(), ".tmp");
 
@@ -266,39 +269,53 @@ test("e04-skill-plugin-command", async () => {
   }
 });
 
-test("e04 skill directory loader owns discover validate register ordering", async () => {
-  const phases: string[] = [];
-  const result = await TypeScriptSkillRuntime.loadSkillsFromSkillsDir({
-    discover: async () => {
-      phases.push("discover");
-      return { scanId: "e04-scan", entries: ["SKILL.md"] };
-    },
-    validate: (scan) => {
-      phases.push(`validate:${scan.scanId}`);
-      assert.deepEqual(scan.entries, ["SKILL.md"]);
-    },
-    register: async (scan) => {
-      phases.push(`register:${scan.scanId}`);
-      return scan.entries.length;
-    },
+test("e04 skill directory loader owns discovery parse filter and atomic registration", async () => {
+  const workspace = await mkdtemp(join(e04TemporaryRoot, "zyra-e04-loader-"));
+  const skillDirectory = join(workspace, "skills", "retained-loader");
+  await mkdir(skillDirectory, { recursive: true });
+  await writeFile(join(skillDirectory, "SKILL.md"), skillMarkdown("Retained loader control flow"), "utf8");
+  const registry = new SkillRegistryRuntime();
+  const reload = new SkillReloadRuntime({
+    sources: new SkillSourceRuntime({ workspaceRoot: workspace }),
+    parser: new SkillFrontmatterRuntime(),
+    registry,
   });
-  assert.equal(result, 1);
-  assert.deepEqual(phases, ["discover", "validate:e04-scan", "register:e04-scan"]);
+  const roots = [{
+    sourceId: "e04-loader-root",
+    kind: "project" as const,
+    rootPath: join(workspace, "skills"),
+    priority: 100,
+    enabled: true,
+    recursive: true,
+    followSymlinks: false,
+    maximumDepth: 8,
+    includePatterns: [],
+    excludePatterns: [],
+    pluginId: null,
+    revision: 1,
+    metadata: { source_custody: "claude-code-best:loadSkillsFromSkillsDir" },
+  }];
+  try {
+    const loaded = await reload.loadSkillsFromSkillsDir({
+      roots,
+      expectedRevision: 0,
+      metadata: { trigger: "e04-retained-loader" },
+    });
+    assert.equal(loaded.scan.sources.length, 1);
+    assert.equal(loaded.scan.sources[0]?.manifestPath, join(skillDirectory, "SKILL.md"));
+    assert.equal(loaded.scan.descriptors.length, 1);
+    assert.equal(loaded.scan.descriptors[0]?.description, "Retained loader control flow");
+    assert.equal(loaded.revision?.revision, 1);
+    assert.equal(registry.resolve("e04-fork-skill").descriptor.body.includes("{{target}}"), true);
 
-  let registered = false;
-  await assert.rejects(
-    TypeScriptSkillRuntime.loadSkillsFromSkillsDir({
-      discover: async () => ({ scanId: "stale" }),
-      validate: () => {
-        throw new Error("stale skill directory scan");
-      },
-      register: async () => {
-        registered = true;
-      },
-    }),
-    /stale skill directory scan/,
-  );
-  assert.equal(registered, false);
+    await assert.rejects(
+      reload.loadSkillsFromSkillsDir({ roots, expectedRevision: 0 }),
+      /expected revision 0, current 1/,
+    );
+    assert.equal(registry.revision, 1);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
 });
 
 test("e04-skill-fork-failure", async () => {

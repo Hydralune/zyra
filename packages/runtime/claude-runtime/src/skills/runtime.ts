@@ -21,12 +21,6 @@ interface RuntimeRoot {
   precedence: number;
 }
 
-export interface SkillDirectoryLoadOperations<TScan, TResult> {
-  discover: () => Promise<TScan>;
-  validate: (scan: TScan) => void;
-  register: (scan: TScan) => Promise<TResult>;
-}
-
 export interface ForkedSkillExecutionInput {
   parentInput: RuntimeRunInput;
   childTaskId: string;
@@ -68,15 +62,6 @@ export class TypeScriptSkillRuntime {
         },
       );
     }
-  }
-
-  static async loadSkillsFromSkillsDir<TScan, TResult>(
-    operations: SkillDirectoryLoadOperations<TScan, TResult>,
-  ): Promise<TResult> {
-    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
-    const scan = await operations.discover();
-    operations.validate(scan);
-    return operations.register(scan);
   }
 
   static executeForkedSkill(

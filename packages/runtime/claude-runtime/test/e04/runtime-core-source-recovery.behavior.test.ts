@@ -485,6 +485,11 @@ test("e04-compact-disable", async () => {
   });
   expect(plan.reason).toBe("disabled");
   const compact = new ContextCompactionRuntime();
+  await expect(compact.autoCompactIfNeeded(
+    compactMessages(),
+    compactOptions(),
+    async () => "summary",
+  )).rejects.toThrow("e04_compact_source_runtime_disabled");
   let compactError = "";
   try {
     await compact.compactConversation(compactMessages(), compactOptions(), async () => "summary");
@@ -579,6 +584,7 @@ test("e04-query-disable", async () => {
   const e01 = result.sessionSnapshot.e01Runtime as JsonObject;
   const query = e01.query as JsonObject;
   expect(Number(query.revision)).toBeGreaterThan(0);
+  expect(query.status).toBe("completed");
 });
 
 test("e04-tool-disable", async () => {

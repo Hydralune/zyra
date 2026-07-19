@@ -31,7 +31,7 @@ from typing import Any, Iterable
 
 SCHEMA_VERSION = "4.0"
 EXECUTION_ID = "E04"
-GENERATOR_VERSION = "1.2.0"
+GENERATOR_VERSION = "1.3.0"
 BASELINE_COMMIT = "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
 BASELINE_TREE = "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00"
 
@@ -264,9 +264,9 @@ SOURCE_SYMBOL_OVERRIDES = {
 # Candidate verification resolves these distinct executable symbols in the new
 # tree instead of reusing a whole-class range for several source mechanisms.
 CANDIDATE_TARGET_SYMBOLS = {
-    "e01-src-0006": "QueryLifecycleRuntime.ask",
+    "e01-src-0006": "ClaudeRuntimeCore.run",
     "e01-rej-0002": "QueryLifecycleRuntime.advanceAfterObservation",
-    "e01-src-0180": "CompactionSourceCustodyRuntime.autoCompactIfNeeded",
+    "e01-src-0180": "ContextCompactionRuntime.autoCompactIfNeeded",
     "e01-src-0296": "CompactRestoreRuntime.processResumedConversation",
     "e01-src-0231": "ToolExecutionRuntime.runTools",
     "e01-src-0232": "ToolExecutionRuntime.partitionToolCalls",
@@ -275,7 +275,7 @@ CANDIDATE_TARGET_SYMBOLS = {
     "e02-src-0157": "PermissionEvaluator.selectEffect",
     "e02-src-0489": "McpConnectionRuntime.performConnect",
     "e02-src-0540": "McpClientRuntime.ensureConnectedClient",
-    "e02-src-1021": "TypeScriptSkillRuntime.loadSkillsFromSkillsDir",
+    "e02-src-1021": "SkillReloadRuntime.loadSkillsFromSkillsDir",
     "e02-src-1045": "TypeScriptSkillRuntime.executeForkedSkill",
     "e02-src-1179": "PluginCoordinator.replaceActiveHooks",
     "e03-src-0127": "e03ChildRunInput",
@@ -284,14 +284,26 @@ CANDIDATE_TARGET_SYMBOLS = {
     "e03-src-0018": "TypeScriptControlRuntime.decideAgentTerminalMutation",
 }
 
+CANDIDATE_TARGET_PATHS = {
+    "e01-src-0006": "packages/runtime/claude-runtime/src/query-engine.ts",
+    "e01-src-0180": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
+    "e02-src-1021": "packages/runtime/claude-runtime/src/skills/reload-runtime.ts",
+}
+
+TARGET_BASELINE_SYMBOLS = {
+    "e01-src-0006": "ClaudeRuntimeCore",
+    "e01-src-0180": "ContextCompactionRuntime",
+    "e02-src-1021": "SkillReloadRuntime",
+}
+
 
 TARGET_EDGES = {
-    "query_loop": ["runTaskRuntime", "ClaudeRuntimeCore.run", "QueryLifecycleRuntime"],
-    "session_context_compact": ["runTaskRuntime", "ClaudeRuntimeCore.run", "CompactionSourceCustodyRuntime"],
+    "query_loop": ["runTaskRuntime", "ClaudeRuntimeCore.run", "E01RuntimeCoordinator.beginCanonicalTurn", "QueryLifecycleRuntime"],
+    "session_context_compact": ["runTaskRuntime", "ClaudeRuntimeCore.run", "ContextCompactionRuntime.autoCompactIfNeeded", "CompactionSourceCustodyRuntime"],
     "tool_orchestration": ["runTaskRuntime", "PermissionedCapabilityHost.executeBatch", "ToolExecutionRuntime"],
     "permission": ["runCapabilityApiPort", "E02RuntimeCoordinator", "PermissionEvaluator"],
     "mcp": ["runCapabilityApiPort", "E02RuntimeCoordinator", "McpConnectionRuntime"],
-    "skill_plugin_command": ["runCapabilityApiPort", "E02RuntimeCoordinator", "TypeScriptSkillRuntime"],
+    "skill_plugin_command": ["runCapabilityApiPort", "E02RuntimeCoordinator", "SkillCoordinator.reloadNow", "SkillReloadRuntime.loadSkillsFromSkillsDir"],
     "agent_subagent": ["runAgentControlPort", "E03RuntimeCoordinator", "runAgent"],
     "isolation_control": ["runAgentControlPort", "E03RuntimeCoordinator", "IsolationRequestRuntime"],
 }
@@ -576,11 +588,12 @@ def source_recovery_records() -> list[dict[str, Any]]:
 def target_provenance_records(source_records: list[dict[str, Any]], target_snapshot: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for index, ((selection, _legacy), source) in enumerate(zip(load_selected_sources(), source_records, strict=True), 1):
-        target_path = safe_relative(selection.target_path)
+        target_path = safe_relative(CANDIDATE_TARGET_PATHS.get(selection.legacy_mapping_id, selection.target_path))
+        target_symbol = TARGET_BASELINE_SYMBOLS.get(selection.legacy_mapping_id, selection.target_symbol)
         target_bytes = target_blob(target_snapshot, target_path)
         target_text = target_bytes.decode("utf-8", errors="strict")
         target_lines = target_text.splitlines()
-        target_start, target_end = lines_for_symbol_text(target_text, selection.target_symbol)
+        target_start, target_end = lines_for_symbol_text(target_text, target_symbol)
         source_bytes = source_blob(source["source_repo"], source["source_snapshot"], source["source_path"])
         source_lines = source_bytes.decode("utf-8", errors="strict").splitlines()
         success_id, failure_id, restore_id, disable_id = TEST_IDS[selection.semantic_domain]
@@ -593,12 +606,12 @@ def target_provenance_records(source_records: list[dict[str, Any]], target_snaps
             "source_record_id": source["record_id"],
             "target_snapshot_commit": target_snapshot,
             "target_path": target_path,
-            "target_symbol": selection.target_symbol,
+            "target_symbol": target_symbol,
             "candidate_target_symbol": CANDIDATE_TARGET_SYMBOLS[selection.legacy_mapping_id],
             "target_start_line": target_start,
             "target_end_line": target_end,
             "target_sha256": sha256_bytes(target_bytes),
-            "canonical_owner_id": f"typescript.{selection.semantic_domain}.{selection.target_symbol}",
+            "canonical_owner_id": f"typescript.{selection.semantic_domain}.{target_symbol}",
             "default_entry_id": selection.default_entry_id,
             "default_entry_edges": TARGET_EDGES[selection.semantic_domain],
             "state_store": selection.state_store,
@@ -611,7 +624,7 @@ def target_provenance_records(source_records: list[dict[str, Any]], target_snaps
                 "source_start_line": source["start_line"],
                 "source_end_line": source["end_line"],
                 "target_path": target_path,
-                "target_symbol": selection.target_symbol,
+                "target_symbol": target_symbol,
                 "candidate_target_symbol": CANDIDATE_TARGET_SYMBOLS[selection.legacy_mapping_id],
                 "target_start_line": target_start,
                 "target_end_line": target_end,
@@ -638,7 +651,7 @@ def target_provenance_records(source_records: list[dict[str, Any]], target_snaps
             "restore_test_ids": [restore_id],
             "disable_test_ids": [disable_id],
             "mutation_ids": [mutation_id],
-            "disconnect_effect": f"Disconnecting {selection.target_symbol} must fail or observably change {success_id}.",
+            "disconnect_effect": f"Disconnecting {target_symbol} must fail or observably change {success_id}.",
             "baseline_inventory_only": True,
         })
     return records

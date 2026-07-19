@@ -11,6 +11,18 @@ import { SkillFrontmatterRuntime } from "./frontmatter-runtime.ts";
 import { SkillRegistryRuntime } from "./registry-runtime.ts";
 import { SkillSourceRuntime } from "./source-runtime.ts";
 
+export interface SkillDirectoryLoadInput {
+  roots: readonly SkillSourceRoot[];
+  expectedRevision: number;
+  metadata?: JsonObject;
+  commit?: boolean;
+}
+
+export interface SkillDirectoryLoadResult {
+  scan: SkillReloadScan;
+  revision: SkillRevision | null;
+}
+
 export class SkillReloadRuntime {
   private readonly sources: SkillSourceRuntime;
   private readonly parser: SkillFrontmatterRuntime;
@@ -56,8 +68,26 @@ export class SkillReloadRuntime {
     return revision;
   }
 
-  async scan(roots: SkillSourceRoot[]): Promise<SkillReloadScan> {
+  /**
+   * Adapted from Claude's loadSkillsFromSkillsDir: the credited owner performs
+   * concrete root discovery, SKILL.md reads/frontmatter parsing, filtering,
+   * durable scan construction and atomic registry replacement.  The staged
+   * scan remains explicit so Zyra can preserve revision and restore semantics.
+   */
+  async loadSkillsFromSkillsDir(input: SkillDirectoryLoadInput): Promise<SkillDirectoryLoadResult> {
+    if (process.env.ZYRA_DISABLE_E04_SKILL_SOURCE_RUNTIME === "1") {
+      throw Object.assign(new Error("the migrated skill directory loader is disabled"), {
+        name: "SkillSourceRuntimeDisabledError",
+        code: "e04_skill_source_runtime_disabled",
+      });
+    }
+    if (input.expectedRevision !== this.registry.revision) {
+      throw new Error(
+        `skill directory load expected revision ${input.expectedRevision}, current ${this.registry.revision}`,
+      );
+    }
     const startedAt = this.timestamp();
+    const roots = input.roots.map(cloneJson);
     const discovery = await this.sources.discover(roots);
     const descriptors: SkillDescriptor[] = [];
     const errors: JsonObject[] = discovery.errors.map(cloneJson);
@@ -107,7 +137,30 @@ export class SkillReloadRuntime {
       digest: digest(base),
     };
     this.scans.set(scan.scanId, scan);
-    return cloneJson(scan);
+    if (input.commit === false) {
+      return { scan: cloneJson(scan), revision: null };
+    }
+    if (scan.baseRevision !== input.expectedRevision || this.registry.revision !== input.expectedRevision) {
+      this.scans.delete(scan.scanId);
+      throw new Error(
+        `skill directory scan is stale: base ${scan.baseRevision}, expected ${input.expectedRevision}, current ${this.registry.revision}`,
+      );
+    }
+    if (!scan.scanId || !scan.digest) {
+      this.scans.delete(scan.scanId);
+      throw new Error("skill directory scan has no durable identity");
+    }
+    const revision = this.commit(scan.scanId, input.expectedRevision, input.metadata ?? {});
+    return { scan: cloneJson(scan), revision };
+  }
+
+  async scan(roots: SkillSourceRoot[]): Promise<SkillReloadScan> {
+    const loaded = await this.loadSkillsFromSkillsDir({
+      roots,
+      expectedRevision: this.registry.revision,
+      commit: false,
+    });
+    return loaded.scan;
   }
 
   commit(scanId: string, expectedRevision: number, metadata: JsonObject = {}): SkillRevision {

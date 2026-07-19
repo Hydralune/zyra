@@ -151,25 +151,29 @@ OPERATORS: dict[str, dict[str, Any]] = {
         ),
     },
     "e04-mutation-domain-01": {
-        "target": "packages/runtime/claude-runtime/src/query/lifecycle-runtime.ts",
+        "target": "packages/runtime/claude-runtime/src/query-engine.ts",
         "needle": (
-            "  ask(input: QueryAskInput): QueryAdmission {\n"
-            "    if (process.env.ZYRA_DISABLE_E04_QUERY_SOURCE_RUNTIME === \"1\") {"
+            "    } finally {\n"
+            "      sourceQuery?.finishCanonicalQuery(sourceQueryOk, sourceQueryStopReason);"
         ),
         "replacement": (
-            "  ask(input: QueryAskInput): QueryAdmission {\n"
-            "    if (process.env.ZYRA_E04_MUTATION_DOMAIN_01 !== \"disabled\") { // E04 mutation: disconnect query source owner"
+            "    } finally {\n"
+            "      if (process.env.ZYRA_E04_MUTATION_DOMAIN_01 === \"settle\") { // E04 mutation: disconnect query finally settlement\n"
+            "        sourceQuery?.finishCanonicalQuery(sourceQueryOk, sourceQueryStopReason);\n"
+            "      }"
         ),
     },
     "e04-mutation-domain-02": {
-        "target": "packages/runtime/claude-runtime/src/compact/compaction-custody-runtime.ts",
+        "target": "packages/runtime/claude-runtime/src/compact/context-runtime.ts",
         "needle": (
-            "  assertSourceRuntimeEnabled(): void {\n"
-            "    if (process.env.ZYRA_DISABLE_E04_COMPACT_SOURCE_RUNTIME === \"1\") {"
+            "  ): Promise<CompactionResult | null> {\n"
+            "    const custody = this.applySourceCustody(messages, options);"
         ),
         "replacement": (
-            "  assertSourceRuntimeEnabled(): void {\n"
-            "    if (process.env.ZYRA_E04_MUTATION_DOMAIN_02 !== \"disabled\") { // E04 mutation: disconnect compact source owner"
+            "  ): Promise<CompactionResult | null> {\n"
+            "    const custody = process.env.ZYRA_E04_MUTATION_DOMAIN_02 === \"connected\"\n"
+            "      ? this.applySourceCustody(messages, options)\n"
+            "      : { messages: structuredClone(messages), envelope: { sourceCustodyAutoCompaction: { required: false } } } as { messages: CompactMessage[]; envelope: Record<string, unknown> }; // E04 mutation: disconnect compact source owner"
         ),
     },
     "e04-mutation-domain-03": {
@@ -206,13 +210,13 @@ OPERATORS: dict[str, dict[str, Any]] = {
         ),
     },
     "e04-mutation-domain-06": {
-        "target": "packages/runtime/claude-runtime/src/skills/runtime.ts",
+        "target": "packages/runtime/claude-runtime/src/skills/reload-runtime.ts",
         "needle": (
-            "  static assertSourceRuntimeEnabled(): void {\n"
+            "  async loadSkillsFromSkillsDir(input: SkillDirectoryLoadInput): Promise<SkillDirectoryLoadResult> {\n"
             "    if (process.env.ZYRA_DISABLE_E04_SKILL_SOURCE_RUNTIME === \"1\") {"
         ),
         "replacement": (
-            "  static assertSourceRuntimeEnabled(): void {\n"
+            "  async loadSkillsFromSkillsDir(input: SkillDirectoryLoadInput): Promise<SkillDirectoryLoadResult> {\n"
             "    if (process.env.ZYRA_E04_MUTATION_DOMAIN_06 !== \"disabled\") { // E04 mutation: disconnect skill/plugin/command source owner"
         ),
     },
