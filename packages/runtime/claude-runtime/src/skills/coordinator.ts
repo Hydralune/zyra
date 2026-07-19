@@ -405,41 +405,51 @@ export class SkillCoordinator {
   private async reloadNow(metadataValue: JsonObject): Promise<void> {
     TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
     if (this.reloadPromise) return this.reloadPromise;
-    this.reloadPromise = TypeScriptSkillRuntime.loadSkillsFromSkillsDir(async () => {
-      const registryRevisionBefore = this.registry.revision;
-      const source = typeof metadataValue.source === "string" ? metadataValue.source : "unknown";
-      const scan = await this.reload.scan(this.rootRuntime.list({ enabledOnly: true, existingOnly: true }));
-      const revision = this.reload.commit(scan.scanId, this.registry.revision, metadataValue);
-      for (const skillId of revision.removed) this.resources.clear(skillId);
-      await this.refreshSearch();
-      const committedAt = this.timestamp();
-      const receiptBase = {
-        source,
-        rootRevision: this.rootRuntime.revision,
-        registryRevisionBefore,
-        registryRevisionAfter: revision.revision,
-        added: revision.added,
-        updated: revision.updated,
-        removed: revision.removed,
-        errorCount: scan.errors.length,
-        committedAt,
-        metadata: canonicalize({
-          ...metadataValue,
-          source_custody: "claude-code-best:loadSkillsFromSkillsDir",
-          source_owner: "TypeScriptSkillRuntime",
-        }) as JsonObject,
-      };
-      const receipt: SkillReloadReceipt = {
-        receiptId: deterministicId("skill-reload-receipt", receiptBase, 40),
-        ...receiptBase,
-        digest: digest(receiptBase),
-      };
-      this.reloadHistory.set(receipt.receiptId, receipt);
-      while (this.reloadHistory.size > 2_000) {
-        const oldest = [...this.reloadHistory.values()].sort((left, right) => left.committedAt.localeCompare(right.committedAt))[0];
-        if (!oldest) break;
-        this.reloadHistory.delete(oldest.receiptId);
-      }
+    const registryRevisionBefore = this.registry.revision;
+    const source = typeof metadataValue.source === "string" ? metadataValue.source : "unknown";
+    this.reloadPromise = TypeScriptSkillRuntime.loadSkillsFromSkillsDir({
+      discover: () => this.reload.scan(this.rootRuntime.list({ enabledOnly: true, existingOnly: true })),
+      validate: (scan) => {
+        if (scan.baseRevision !== registryRevisionBefore || this.registry.revision !== registryRevisionBefore) {
+          throw new Error(
+            `skill directory scan is stale: base ${scan.baseRevision}, expected ${registryRevisionBefore}, current ${this.registry.revision}`,
+          );
+        }
+        if (!scan.scanId || !scan.digest) throw new Error("skill directory scan has no durable identity");
+      },
+      register: async (scan) => {
+        const revision = this.reload.commit(scan.scanId, registryRevisionBefore, metadataValue);
+        for (const skillId of revision.removed) this.resources.clear(skillId);
+        await this.refreshSearch();
+        const committedAt = this.timestamp();
+        const receiptBase = {
+          source,
+          rootRevision: this.rootRuntime.revision,
+          registryRevisionBefore,
+          registryRevisionAfter: revision.revision,
+          added: revision.added,
+          updated: revision.updated,
+          removed: revision.removed,
+          errorCount: scan.errors.length,
+          committedAt,
+          metadata: canonicalize({
+            ...metadataValue,
+            source_custody: "claude-code-best:loadSkillsFromSkillsDir",
+            source_owner: "TypeScriptSkillRuntime",
+          }) as JsonObject,
+        };
+        const receipt: SkillReloadReceipt = {
+          receiptId: deterministicId("skill-reload-receipt", receiptBase, 40),
+          ...receiptBase,
+          digest: digest(receiptBase),
+        };
+        this.reloadHistory.set(receipt.receiptId, receipt);
+        while (this.reloadHistory.size > 2_000) {
+          const oldest = [...this.reloadHistory.values()].sort((left, right) => left.committedAt.localeCompare(right.committedAt))[0];
+          if (!oldest) break;
+          this.reloadHistory.delete(oldest.receiptId);
+        }
+      },
     });
     try {
       await this.reloadPromise;

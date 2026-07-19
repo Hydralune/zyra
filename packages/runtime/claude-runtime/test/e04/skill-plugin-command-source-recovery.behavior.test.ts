@@ -6,6 +6,7 @@ import { test } from "bun:test";
 import {
   PluginCoordinator,
   TypeScriptCapabilityRuntime,
+  TypeScriptSkillRuntime,
   type AgentExecutionContext,
   type JsonObject,
   type PluginManifest,
@@ -221,7 +222,19 @@ test("e04-skill-plugin-command", async () => {
     }, executionContext(input, childCalls), { toolCallId: "e04-invoke-skill-1" });
     assert.equal(childCalls.length, 1);
     assert.match(childCalls[0]!.taskId, /:skill:e04-fork-skill:/);
+    assert.equal(childCalls[0]!.config.maxTurns, 4);
     assert.equal((childCalls[0]!.config.runtimeConstraints as JsonObject).skill_network_allowed, false);
+    assert.equal(
+      ((childCalls[0]!.config.runtimeConstraints as JsonObject).skill_tool_scope as JsonObject).readOnly,
+      true,
+    );
+    assert.equal(childCalls[0]!.messages.at(-2)?.role, "system");
+    assert.equal(childCalls[0]!.messages.at(-1)?.role, "user");
+    assert.match(String(childCalls[0]!.messages.at(-1)?.content), /docs\/e04-evidence\.md/);
+    assert.equal(
+      ((childCalls[0]!.messages.at(-1)?.metadata as JsonObject).skill_arguments as JsonObject).target,
+      "docs/e04-evidence.md",
+    );
     const invocation = invoked.output.invocation as JsonObject;
     assert.equal(invocation.status, "completed");
     assert.equal((invocation.metadata as JsonObject).source_custody, "claude-code-best:executeForkedSkill");
@@ -251,6 +264,41 @@ test("e04-skill-plugin-command", async () => {
     await capabilities.close();
     await rm(fixture.workspace, { recursive: true, force: true });
   }
+});
+
+test("e04 skill directory loader owns discover validate register ordering", async () => {
+  const phases: string[] = [];
+  const result = await TypeScriptSkillRuntime.loadSkillsFromSkillsDir({
+    discover: async () => {
+      phases.push("discover");
+      return { scanId: "e04-scan", entries: ["SKILL.md"] };
+    },
+    validate: (scan) => {
+      phases.push(`validate:${scan.scanId}`);
+      assert.deepEqual(scan.entries, ["SKILL.md"]);
+    },
+    register: async (scan) => {
+      phases.push(`register:${scan.scanId}`);
+      return scan.entries.length;
+    },
+  });
+  assert.equal(result, 1);
+  assert.deepEqual(phases, ["discover", "validate:e04-scan", "register:e04-scan"]);
+
+  let registered = false;
+  await assert.rejects(
+    TypeScriptSkillRuntime.loadSkillsFromSkillsDir({
+      discover: async () => ({ scanId: "stale" }),
+      validate: () => {
+        throw new Error("stale skill directory scan");
+      },
+      register: async () => {
+        registered = true;
+      },
+    }),
+    /stale skill directory scan/,
+  );
+  assert.equal(registered, false);
 });
 
 test("e04-skill-fork-failure", async () => {

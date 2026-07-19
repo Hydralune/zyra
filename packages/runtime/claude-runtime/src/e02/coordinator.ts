@@ -1924,55 +1924,24 @@ export class E02CapabilityCoordinator {
     }
     const parent = context.parentInput;
     const childTaskId = `${parent.taskId}:skill:${plan.skillId}:${plan.invocationId.slice(-12)}`;
-    const childInput: RuntimeRunInput = {
-      ...parent,
-      taskId: childTaskId,
-      workerRequestId: `${parent.workerRequestId}:skill:${plan.invocationId.slice(-12)}`,
-      messages: [
-        ...parent.messages.map(cloneJson),
-        {
-          role: "system",
-          content: "Execute the bound Zyra Markdown skill under its exact tool scope and budgets.",
-          metadata: {
-            skill_id: plan.skillId,
-            skill_name: plan.skillName,
-            descriptor_digest: plan.descriptorDigest,
-          },
-        },
-        {
-          role: "user",
-          content: plan.renderedBody,
-          metadata: {
-            skill_context: cloneJson(plan.context),
-            skill_arguments: cloneJson(plan.arguments),
-            skill_resources: canonicalize(plan.resources),
-          },
-        },
-      ],
-      config: {
-        ...parent.config,
-        maxTurns: Math.min(
-          parent.config.maxTurns ?? plan.execution.maximumTurns,
-          plan.execution.maximumTurns,
-        ),
-        runtimeConstraints: {
-          ...asObject(parent.config.runtimeConstraints),
-          skill_invocation_id: plan.invocationId,
-          skill_id: plan.skillId,
-          skill_tool_scope: canonicalize(plan.effectiveToolScope),
-          skill_sandbox: plan.execution.sandbox,
-          skill_network_allowed: plan.execution.allowNetwork,
-        },
-      },
-      metadata: {
-        ...parent.metadata,
-        e02_skill_invocation: true,
-        skill_invocation_id: plan.invocationId,
-        parent_task_id: parent.taskId,
-      },
-    };
     const result = await TypeScriptSkillRuntime.executeForkedSkill(
-      childInput,
+      {
+        parentInput: parent,
+        childTaskId,
+        workerRequestId: `${parent.workerRequestId}:skill:${plan.invocationId.slice(-12)}`,
+        invocationId: plan.invocationId,
+        skillId: plan.skillId,
+        skillName: plan.skillName,
+        descriptorDigest: plan.descriptorDigest,
+        renderedBody: plan.renderedBody,
+        skillContext: cloneJson(plan.context),
+        skillArguments: cloneJson(plan.arguments),
+        skillResources: canonicalize(plan.resources),
+        effectiveToolScope: canonicalize(plan.effectiveToolScope),
+        maximumTurns: plan.execution.maximumTurns,
+        sandbox: plan.execution.sandbox,
+        allowNetwork: plan.execution.allowNetwork,
+      },
       context.runChild,
       executorContext.signal,
     );

@@ -403,7 +403,30 @@ export class ToolExecutionRuntime {
     const calls = callIds.map((id) => this.requireCall(id));
     if (calls.some((call) => call.turnId !== turnId)) throw new Error("tool batch spans multiple turns");
     if (calls.some((call) => call.state !== "queued")) throw new Error("tool batch contains unqueued call");
-    const partitions = calls.reduce<Array<{
+    const partitions = this.partitionToolCalls(calls);
+    const result: ToolBatch[] = [];
+    const concurrency = Math.max(1, Math.floor(maximumConcurrency));
+    for (const { isConcurrencySafe, blocks } of partitions) {
+      if (isConcurrencySafe) {
+        for (let index = 0; index < blocks.length; index += concurrency) {
+          const slice = blocks.slice(index, index + concurrency);
+          result.push(createBatch(turnId, slice, Math.min(concurrency, slice.length), true, this.specs));
+        }
+      } else {
+        // The host observes readOnly=false and executes these blocks serially.
+        result.push(createBatch(turnId, blocks, 1, false, this.specs));
+      }
+    }
+    this.batches.push(...result);
+    this.revision += 1;
+    return structuredClone(result);
+  }
+
+  private partitionToolCalls(calls: readonly ToolInvocation[]): Array<{
+    isConcurrencySafe: boolean;
+    blocks: ToolInvocation[];
+  }> {
+    return calls.reduce<Array<{
       isConcurrencySafe: boolean;
       blocks: ToolInvocation[];
     }>>((acc, call) => {
@@ -424,22 +447,6 @@ export class ToolExecutionRuntime {
       }
       return acc;
     }, []);
-    const result: ToolBatch[] = [];
-    const concurrency = Math.max(1, Math.floor(maximumConcurrency));
-    for (const { isConcurrencySafe, blocks } of partitions) {
-      if (isConcurrencySafe) {
-        for (let index = 0; index < blocks.length; index += concurrency) {
-          const slice = blocks.slice(index, index + concurrency);
-          result.push(createBatch(turnId, slice, Math.min(concurrency, slice.length), true, this.specs));
-        }
-      } else {
-        // The host observes readOnly=false and executes these blocks serially.
-        result.push(createBatch(turnId, blocks, 1, false, this.specs));
-      }
-    }
-    this.batches.push(...result);
-    this.revision += 1;
-    return structuredClone(result);
   }
 
   acquireLease(callId: string, owner: string, ttlMs = 30_000): ToolLease {

@@ -31,7 +31,7 @@ from typing import Any, Iterable
 
 SCHEMA_VERSION = "4.0"
 EXECUTION_ID = "E04"
-GENERATOR_VERSION = "1.1.0"
+GENERATOR_VERSION = "1.2.0"
 BASELINE_COMMIT = "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
 BASELINE_TREE = "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00"
 
@@ -193,7 +193,7 @@ SELECTIONS = (
     ),
     RecoverySelection(
         "execution-02-source-manifest.jsonl", "e02-src-1179", "skill_plugin_command",
-        "packages/runtime/claude-runtime/src/skills/reload-runtime.ts", "SkillReloadRuntime",
+        "packages/runtime/claude-runtime/src/plugins/coordinator.ts", "PluginCoordinator",
         "CodeWorkerApplication.runCapabilityApiPort", "SkillRegistryStore", "plugin_hook_dispatch",
         "Plugin hook reload swaps validated matchers atomically without duplicating active handlers.",
         "state_transition", "loadPluginHooks is the mature plugin-hook reload boundary.",
@@ -232,6 +232,57 @@ SELECTIONS = (
         "Replace process globals and UI notification with Zyra control receipts and process-supervision port.",
     ),
 )
+
+
+# Earlier execution manifests sometimes froze parser fragments that ended before
+# the executable body.  E04 recovery credit is intentionally narrower and is
+# bound to the mature branch that is actually migrated.
+SOURCE_RANGE_OVERRIDES = {
+    "e01-src-0006": (1211, 1320),
+    "e01-rej-0002": (1707, 1732),
+    "e01-src-0180": (241, 351),
+    "e01-src-0296": (409, 551),
+    "e02-src-0001": (26, 62),
+    "e02-src-0157": (1071, 1156),
+    "e02-src-0489": (1022, 1083),
+    "e02-src-1021": (407, 480),
+    "e02-src-1045": (205, 275),
+    "e02-src-1179": (91, 157),
+    "e03-src-0127": (368, 502),
+    "e03-src-0122": (42, 265),
+    "e03-src-0178": (235, 375),
+}
+
+SOURCE_SYMBOL_OVERRIDES = {
+    "e02-src-0157": "src/utils/permissions/permissions.ts::checkRuleBasedPermissions",
+    "e02-src-0489": "src/services/mcp/client.ts::connectToServer",
+    "e02-src-1021": "src/skills/loadSkillsDir.ts::loadSkillsFromSkillsDir",
+    "e02-src-1045": "src/tools/SkillTool/SkillTool.ts::executeForkedSkill",
+}
+
+# The target symbol frozen at G0 belongs to the immutable baseline inventory.
+# Candidate verification resolves these distinct executable symbols in the new
+# tree instead of reusing a whole-class range for several source mechanisms.
+CANDIDATE_TARGET_SYMBOLS = {
+    "e01-src-0006": "QueryLifecycleRuntime.ask",
+    "e01-rej-0002": "QueryLifecycleRuntime.advanceAfterObservation",
+    "e01-src-0180": "CompactionSourceCustodyRuntime.autoCompactIfNeeded",
+    "e01-src-0296": "CompactRestoreRuntime.processResumedConversation",
+    "e01-src-0231": "ToolExecutionRuntime.runTools",
+    "e01-src-0232": "ToolExecutionRuntime.partitionToolCalls",
+    "e01-src-0271": "ToolResultRuntime.enforceToolResultBudget",
+    "e02-src-0001": "PermissionEvaluator.evaluateAsync",
+    "e02-src-0157": "PermissionEvaluator.selectEffect",
+    "e02-src-0489": "McpConnectionRuntime.performConnect",
+    "e02-src-0540": "McpClientRuntime.ensureConnectedClient",
+    "e02-src-1021": "TypeScriptSkillRuntime.loadSkillsFromSkillsDir",
+    "e02-src-1045": "TypeScriptSkillRuntime.executeForkedSkill",
+    "e02-src-1179": "PluginCoordinator.replaceActiveHooks",
+    "e03-src-0127": "e03ChildRunInput",
+    "e03-src-0122": "AgentBackgroundSupervisor.resumeInput",
+    "e03-src-0178": "IsolationRequestRuntime.prepare",
+    "e03-src-0018": "TypeScriptControlRuntime.decideAgentTerminalMutation",
+}
 
 
 TARGET_EDGES = {
@@ -382,7 +433,10 @@ def source_recovery_records() -> list[dict[str, Any]]:
         actual_hash = sha256_bytes(blob)
         if actual_hash != legacy["source_sha256"]:
             raise ValueError(f"frozen source hash mismatch: {selection.legacy_mapping_id}")
-        start, end = int(legacy["start_line"]), int(legacy["end_line"])
+        start, end = SOURCE_RANGE_OVERRIDES.get(
+            selection.legacy_mapping_id,
+            (int(legacy["start_line"]), int(legacy["end_line"])),
+        )
         source_lines = blob.decode("utf-8", errors="strict").splitlines()
         if start < 1 or end < start or end > len(source_lines):
             raise ValueError(f"invalid source range: {selection.legacy_mapping_id}")
@@ -401,7 +455,10 @@ def source_recovery_records() -> list[dict[str, Any]]:
             "source_snapshot": snapshot,
             "source_path": path,
             "source_sha256": actual_hash,
-            "source_symbol": legacy["source_symbol"],
+            "source_symbol": SOURCE_SYMBOL_OVERRIDES.get(
+                selection.legacy_mapping_id,
+                legacy["source_symbol"],
+            ),
             "start_line": start,
             "end_line": end,
             "range_sha256": sha256_bytes(("\n".join(source_lines[start - 1:end]) + "\n").encode("utf-8")),
@@ -438,6 +495,7 @@ def target_provenance_records(source_records: list[dict[str, Any]], target_snaps
             "target_snapshot_commit": target_snapshot,
             "target_path": target_path,
             "target_symbol": selection.target_symbol,
+            "candidate_target_symbol": CANDIDATE_TARGET_SYMBOLS[selection.legacy_mapping_id],
             "target_start_line": target_start,
             "target_end_line": target_end,
             "target_sha256": sha256_bytes(target_bytes),
@@ -455,6 +513,7 @@ def target_provenance_records(source_records: list[dict[str, Any]], target_snaps
                 "source_end_line": source["end_line"],
                 "target_path": target_path,
                 "target_symbol": selection.target_symbol,
+                "candidate_target_symbol": CANDIDATE_TARGET_SYMBOLS[selection.legacy_mapping_id],
                 "target_start_line": target_start,
                 "target_end_line": target_end,
                 "anchor_kind": selection.anchor_kind,
@@ -796,7 +855,11 @@ def archive_abandoned_g0(
 ) -> Path:
     old_receipt_path = MANIFEST_ROOT / "execution-04-baseline-receipt.json"
     old_receipt = json.loads(old_receipt_path.read_text(encoding="utf-8"))
-    old_tooling = str(old_receipt.get("verified_zyra_head") or "unknown")
+    old_tooling = str(
+        old_receipt.get("g0_tooling_head")
+        or old_receipt.get("verified_zyra_head")
+        or "unknown"
+    )
     archive_root = MANIFEST_ROOT / "abandoned" / f"execution-04-g0-{old_tooling[:12]}"
     if archive_root.exists():
         raise RuntimeError(f"refusing to overwrite abandoned G0 archive: {archive_root}")
@@ -878,7 +941,12 @@ def freeze(*, refreeze_reason: str = "", failed_candidate: str = "") -> None:
     write_jsonl(mutation_path, mutations)
     write_json(profile_path, profile)
 
-    local_bun = ZYRA_ROOT / "node_modules" / ".bin" / "bun.exe"
+    local_bun = Path(os.environ.get(
+        "ZYRA_BUN_EXECUTABLE",
+        str(ZYRA_ROOT / "node_modules" / ".bin" / "bun.exe"),
+    )).resolve()
+    if not local_bun.is_file():
+        raise RuntimeError(f"Bun executable is required: {local_bun}")
     lockfile = ZYRA_ROOT / "bun.lock"
     if not lockfile.is_file():
         raise RuntimeError("bun.lock is required")
@@ -909,8 +977,10 @@ def freeze(*, refreeze_reason: str = "", failed_candidate: str = "") -> None:
         "record_id": "e04-baseline-receipt",
         "zyra_baseline_commit": BASELINE_COMMIT,
         "zyra_baseline_tree": BASELINE_TREE,
-        "verified_zyra_head": tooling_snapshot,
-        "verified_zyra_tree": git_text(ZYRA_ROOT, "rev-parse", "HEAD^{tree}"),
+        "verified_zyra_head": BASELINE_COMMIT,
+        "verified_zyra_tree": BASELINE_TREE,
+        "g0_tooling_head": tooling_snapshot,
+        "g0_tooling_tree": git_text(ZYRA_ROOT, "rev-parse", "HEAD^{tree}"),
         "target_inventory_commit": target_snapshot,
         "target_inventory_tree": BASELINE_TREE,
         "refreeze": {
@@ -997,6 +1067,12 @@ def verify() -> dict[str, Any]:
         ids.add(record_id)
     if receipt["zyra_baseline_commit"] != BASELINE_COMMIT or receipt["zyra_baseline_tree"] != BASELINE_TREE:
         raise ValueError("baseline identity mismatch")
+    if receipt.get("verified_zyra_head") != BASELINE_COMMIT or receipt.get("verified_zyra_tree") != BASELINE_TREE:
+        raise ValueError("verified baseline identity mismatch")
+    tooling_head = str(receipt.get("g0_tooling_head") or "")
+    tooling_tree = str(receipt.get("g0_tooling_tree") or "")
+    if not re.fullmatch(r"[0-9a-f]{40}", tooling_head) or not re.fullmatch(r"[0-9a-f]{40}", tooling_tree):
+        raise ValueError("G0 tooling identity is missing or malformed")
     for name, expected in receipt["manifest_sha256"].items():
         if sha256_file(MANIFEST_ROOT / name) != expected:
             raise ValueError(f"immutable G0 manifest changed: {name}")
@@ -1013,6 +1089,13 @@ def verify() -> dict[str, Any]:
             raise ValueError(f"source blob mismatch: {row['record_id']}")
         key = (row["source_repo"], row["source_path"])
         current = (row["start_line"], row["end_line"])
+        selected_text = "\n".join(blob.decode("utf-8", errors="strict").splitlines()[current[0] - 1:current[1]])
+        executable_tokens = re.sub(r"/\*.*?\*/|//[^\n]*", "", selected_text, flags=re.S)
+        if "{" not in executable_tokens or not re.search(
+            r"\b(?:await|return|if|for|while|try|catch|throw|const|let|var)\b|\.[A-Za-z_][A-Za-z0-9_]*\s*\(",
+            executable_tokens,
+        ):
+            raise ValueError(f"credited source range is not executable: {row['record_id']}")
         for start, end in seen_ranges.setdefault(key, []):
             if current[0] <= end and start <= current[1]:
                 raise ValueError(f"overlapping credited source ranges: {row['record_id']}")
@@ -1021,6 +1104,9 @@ def verify() -> dict[str, Any]:
     if domains != set(DOMAINS):
         raise ValueError(f"semantic-domain coverage mismatch: {domains}")
     mutation_ids = {row["record_id"] for row in mutations}
+    candidate_symbols = [str(target.get("candidate_target_symbol") or "") for target in targets]
+    if any(not symbol for symbol in candidate_symbols) or len(candidate_symbols) != len(set(candidate_symbols)):
+        raise ValueError("candidate target symbols must be present and unique")
     for target in targets:
         target_bytes = run(["git", "show", f"{target['target_snapshot_commit']}:{target['target_path']}"], ZYRA_ROOT).stdout
         if sha256_bytes(target_bytes) != target["target_sha256"]:

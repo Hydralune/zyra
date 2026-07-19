@@ -21,7 +21,10 @@ MANIFEST_ROOT = WORKSPACE / "docs" / "remediations" / "M1-R01-claude-source-cust
 DEFAULT_OUTPUT = REPO / "docs" / "reviews" / "evidence" / "M1-R01-v4" / "execution-04"
 BASELINE = "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
 SCHEMA = "4.0"
-BUN = REPO / "node_modules" / "bun" / "bin" / "bun.exe"
+BUN = Path(os.environ.get(
+    "ZYRA_BUN_EXECUTABLE",
+    str(REPO / "node_modules" / "bun" / "bin" / "bun.exe"),
+)).resolve()
 PYTHON = REPO / ".venv" / "Scripts" / "python.exe"
 SOURCE_REPOS = {
     "claude-code-best": WORKSPACE / "claude-code-best",
@@ -124,15 +127,14 @@ def write_jsonl(path: Path, values: Iterable[dict[str, Any]]) -> None:
 
 
 def binding(candidate: str, tree: str) -> dict[str, Any]:
+    receipt = json_file(MANIFEST_ROOT / "execution-04-baseline-receipt.json")
     return {
         "schema_version": SCHEMA,
         "execution_id": "E04",
         "candidate_commit": candidate,
         "candidate_tree": tree,
         "verified_zyra_head": BASELINE,
-        "g0_tooling_head": json_file(
-            MANIFEST_ROOT / "execution-04-baseline-receipt.json"
-        )["verified_zyra_head"],
+        "g0_tooling_head": receipt.get("g0_tooling_head", receipt["verified_zyra_head"]),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "toolchain": {
             "bun": run([str(BUN), "--version"])["stdout_tail"].strip(),
@@ -140,6 +142,69 @@ def binding(candidate: str, tree: str) -> dict[str, Any]:
             "python": run([str(PYTHON), "--version"])["stdout_tail"].strip(),
         },
     }
+
+
+def _brace_range(lines: list[str], start: int, limit: int | None = None) -> tuple[int, int] | None:
+    """Return the one-based brace-delimited range beginning at ``start``."""
+    depth = 0
+    opened = False
+    stop = len(lines) if limit is None else min(len(lines), limit)
+    for index in range(start - 1, stop):
+        line = re.sub(r"(['\"]).*?\1", "", lines[index])
+        depth += line.count("{") - line.count("}")
+        opened = opened or "{" in line
+        if opened and depth <= 0:
+            return start, index + 1
+    return None
+
+
+def typescript_symbol_range(text: str, qualified_symbol: str) -> tuple[int, int] | None:
+    """Resolve an exact TypeScript class method or top-level function range."""
+    lines = text.replace("\r", "").splitlines()
+    parts = qualified_symbol.split(".")
+    leaf = parts[-1]
+    search_start = 1
+    search_end = len(lines)
+    if len(parts) > 1:
+        owner = parts[-2]
+        owner_pattern = re.compile(rf"\bclass\s+{re.escape(owner)}\b")
+        owner_start = next(
+            (index for index, line in enumerate(lines, 1) if owner_pattern.search(line)),
+            None,
+        )
+        if owner_start is None:
+            return None
+        owner_range = _brace_range(lines, owner_start)
+        if owner_range is None:
+            return None
+        search_start, search_end = owner_range
+        definition = re.compile(
+            rf"^\s*(?:(?:public|private|protected|static|readonly|override|abstract|async)\s+)*"
+            rf"{re.escape(leaf)}(?:\s*<[^>]+>)?\s*\("
+        )
+    else:
+        definition = re.compile(
+            rf"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+{re.escape(leaf)}\b"
+        )
+    symbol_start = next(
+        (
+            index
+            for index in range(search_start, search_end + 1)
+            if definition.search(lines[index - 1])
+        ),
+        None,
+    )
+    if symbol_start is None:
+        return None
+    return _brace_range(lines, symbol_start, search_end)
+
+
+def executable_typescript(value: str) -> bool:
+    without_comments = re.sub(r"/\*.*?\*/|//[^\n]*", "", value, flags=re.S)
+    return "{" in without_comments and bool(re.search(
+        r"\b(?:await|return|if|for|while|try|catch|throw|const|let|var)\b|\.[A-Za-z_][A-Za-z0-9_]*\s*\(",
+        without_comments,
+    ))
 
 
 def parse_json_output(result: dict[str, Any]) -> dict[str, Any] | None:
@@ -162,23 +227,30 @@ def target_rows(candidate: str, tree: str) -> tuple[list[dict[str, Any]], list[d
     source_by_id = {row["record_id"]: row for row in sources}
     reports: list[dict[str, Any]] = []
     similarity_rows: list[dict[str, Any]] = []
+    seen_candidate_symbols: set[str] = set()
     for target in targets:
         blob = git_blob(candidate, target["target_path"])
         text = blob.decode("utf-8", errors="replace")
         lines = text.replace("\r", "").splitlines()
+        candidate_symbol = str(target.get("candidate_target_symbol") or target["target_symbol"])
+        candidate_range = typescript_symbol_range(text, candidate_symbol)
         anchors = []
         for anchor in target["retained_control_flow_anchors"]:
-            start = max(1, int(anchor["target_start_line"]))
-            end = min(len(lines), int(anchor["target_end_line"]))
-            selected = "\n".join(lines[start - 1 : end])
+            if candidate_range is None:
+                start = end = 0
+                selected = ""
+            else:
+                start, end = candidate_range
+                selected = "\n".join(lines[start - 1 : end])
             anchors.append({
                 **anchor,
+                "candidate_target_symbol": candidate_symbol,
                 "candidate_target_fingerprint": sha256(selected),
                 "candidate_start_line": start,
                 "candidate_end_line": end,
                 "nonempty": bool(selected.strip()),
+                "executable": executable_typescript(selected),
             })
-        symbol_leaf = str(target["target_symbol"]).split(".")[-1]
         source = source_by_id[target["source_record_id"]]
         source_blob = subprocess.run(
             ["git", "show", f"{source['source_snapshot']}:{source['source_path']}"],
@@ -196,16 +268,22 @@ def target_rows(candidate: str, tree: str) -> tuple[list[dict[str, Any]], list[d
             "semantic_domain": source["semantic_domain"],
             "target_path": target["target_path"],
             "target_symbol": target["target_symbol"],
+            "candidate_target_symbol": candidate_symbol,
             "candidate_sha256": sha256(blob),
-            "candidate_symbol_present": symbol_leaf in text,
+            "candidate_symbol_present": candidate_range is not None,
             "default_entry_id": target["default_entry_id"],
             "default_entry_edges": target["default_entry_edges"],
             "state_store": target["state_store"],
             "state_effect_kind": target["state_effect_kind"],
             "anchors": anchors,
             "source_token_coverage_diagnostic": round(overlap, 6),
-            "passed": symbol_leaf in text and all(item["nonempty"] for item in anchors),
+            "passed": (
+                candidate_range is not None
+                and candidate_symbol not in seen_candidate_symbols
+                and all(item["nonempty"] and item["executable"] for item in anchors)
+            ),
         }
+        seen_candidate_symbols.add(candidate_symbol)
         reports.append(report)
         similarity_rows.append({
             "record_id": target["record_id"],

@@ -5,7 +5,9 @@ import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:
 import {
   asObject,
   asString,
+  cloneJson,
   type JsonObject,
+  type JsonValue,
   type RuntimeRunInput,
   type RuntimeRunResult,
   type ToolSpecContract,
@@ -17,6 +19,30 @@ interface RuntimeRoot {
   path: string;
   kind: string;
   precedence: number;
+}
+
+export interface SkillDirectoryLoadOperations<TScan, TResult> {
+  discover: () => Promise<TScan>;
+  validate: (scan: TScan) => void;
+  register: (scan: TScan) => Promise<TResult>;
+}
+
+export interface ForkedSkillExecutionInput {
+  parentInput: RuntimeRunInput;
+  childTaskId: string;
+  workerRequestId: string;
+  invocationId: string;
+  skillId: string;
+  skillName: string;
+  descriptorDigest: string;
+  renderedBody: string;
+  skillContext: JsonObject;
+  skillArguments: JsonObject;
+  skillResources: JsonValue;
+  effectiveToolScope: JsonValue;
+  maximumTurns: number;
+  sandbox: string;
+  allowNetwork: boolean;
 }
 
 const SKILL_TOOLS = new Set([
@@ -44,15 +70,17 @@ export class TypeScriptSkillRuntime {
     }
   }
 
-  static loadSkillsFromSkillsDir<T>(
-    discoverValidateAndRegister: () => Promise<T>,
-  ): Promise<T> {
+  static async loadSkillsFromSkillsDir<TScan, TResult>(
+    operations: SkillDirectoryLoadOperations<TScan, TResult>,
+  ): Promise<TResult> {
     TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
-    return discoverValidateAndRegister();
+    const scan = await operations.discover();
+    operations.validate(scan);
+    return operations.register(scan);
   }
 
   static executeForkedSkill(
-    childInput: RuntimeRunInput,
+    input: ForkedSkillExecutionInput,
     runChild: (input: RuntimeRunInput) => Promise<RuntimeRunResult>,
     signal?: AbortSignal,
   ): Promise<RuntimeRunResult> {
@@ -62,6 +90,54 @@ export class TypeScriptSkillRuntime {
         ? signal.reason
         : new Error("forked skill execution was aborted");
     }
+    const parent = input.parentInput;
+    const childInput: RuntimeRunInput = {
+      ...parent,
+      taskId: input.childTaskId,
+      workerRequestId: input.workerRequestId,
+      messages: [
+        ...parent.messages.map(cloneJson),
+        {
+          role: "system",
+          content: "Execute the bound Zyra Markdown skill under its exact tool scope and budgets.",
+          metadata: {
+            skill_id: input.skillId,
+            skill_name: input.skillName,
+            descriptor_digest: input.descriptorDigest,
+          },
+        },
+        {
+          role: "user",
+          content: input.renderedBody,
+          metadata: {
+            skill_context: cloneJson(input.skillContext),
+            skill_arguments: cloneJson(input.skillArguments),
+            skill_resources: cloneJson(input.skillResources),
+          },
+        },
+      ],
+      config: {
+        ...parent.config,
+        maxTurns: Math.min(
+          parent.config.maxTurns ?? input.maximumTurns,
+          input.maximumTurns,
+        ),
+        runtimeConstraints: {
+          ...asObject(parent.config.runtimeConstraints),
+          skill_invocation_id: input.invocationId,
+          skill_id: input.skillId,
+          skill_tool_scope: cloneJson(input.effectiveToolScope),
+          skill_sandbox: input.sandbox,
+          skill_network_allowed: input.allowNetwork,
+        },
+      },
+      metadata: {
+        ...parent.metadata,
+        e02_skill_invocation: true,
+        skill_invocation_id: input.invocationId,
+        parent_task_id: parent.taskId,
+      },
+    };
     return runChild(childInput);
   }
 
