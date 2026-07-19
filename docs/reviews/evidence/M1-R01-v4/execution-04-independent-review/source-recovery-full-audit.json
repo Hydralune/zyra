@@ -1,0 +1,12 @@
+{
+  "schema_version": "4.0", "record_type": "source_recovery_full_audit", "timestamp_utc": "2026-07-18T23:59:56.2204761Z",
+  "reviewer_nonce_digest_sha256": "b940f0e6ea1837093be7ef0b8d54a3e971be08d76cb70bab3df1de8e08bb964f",
+  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65", "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "candidate_evidence_commit": "d1401f6ff980ede26d61968a5f20c5c90fc072ea", "candidate_evidence_tree": "f0dcd07bbf0aa362c9816159592404888235ac19",
+  "source_snapshots": {"claude_code_best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102", "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda", "openclaw": "b63e06f68aa0f5fc3dc809c37615b8b1012b180b"},
+  "toolchain": {"bun": "1.2.15", "node": "v22.17.0", "python": "Python 3.13.9"},
+  "commands": ["parse all 18 source-recovery and 18 target-provenance G0 records", "validate all 1619 Python owner census records against schema-v4 required field list"], "exit_code": 0,
+  "source_records_parsed": 18, "target_records_parsed": 18, "python_owner_records_parsed": 1619,
+  "blocking_manifest_error": "all Python owner records omit tests and callsites", "manual_full_file_samples_completed": 0,
+  "verdict": "FAIL_INVALID_G0_AND_INCOMPLETE_SAMPLING", "output_digest_sha256": "fead5facd70997ceb89be7137770098b60690eb0d30180e95bc048578f64fbb2"
+}

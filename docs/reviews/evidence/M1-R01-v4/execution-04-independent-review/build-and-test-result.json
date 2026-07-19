@@ -1,0 +1,11 @@
+{
+  "schema_version": "4.0", "record_type": "build_and_test_result", "timestamp_utc": "2026-07-18T23:59:56.2204761Z",
+  "reviewer_nonce_digest_sha256": "b940f0e6ea1837093be7ef0b8d54a3e971be08d76cb70bab3df1de8e08bb964f",
+  "candidate_commit": "a2c8b8e894f558974018d33416e010b95c7e6f65", "candidate_tree": "93460d639b3b539fd0253be70d488c7fffa41252",
+  "candidate_evidence_commit": "d1401f6ff980ede26d61968a5f20c5c90fc072ea", "candidate_evidence_tree": "f0dcd07bbf0aa362c9816159592404888235ac19",
+  "source_snapshots": {"claude_code_best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102", "opencode": "adf178a6b95c61506ddaadaf4dd062badb4a8fda", "openclaw": "b63e06f68aa0f5fc3dc809c37615b8b1012b180b"},
+  "toolchain": {"bun": "1.2.15", "node": "v22.17.0", "python": "Python 3.13.9"},
+  "commands": [".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp .tmp/e04-independent-review-pytest-b940f0e6 tests/integration/test_e01_typescript_runtime_cutover.py::test_default_code_worker_reaches_typescript_owner tests/integration/test_code_worker_clean_productized_runtime.py::CodeWorkerCleanProductizedRuntimeTests::test_default_runtime_runs_without_source_workspace_or_sidecar"],
+  "exit_code": 0, "passed": 2, "failed": 0, "unrun": ["locked install", "typecheck", "Bun build", "Node build", "E04 suite", "E01-E03 affected suites", "frozen mutation corpus"],
+  "verdict": "FAIL_INCOMPLETE_AFTER_AUTOMATIC_FAIL", "output_digest_sha256": "7bc9347aba82d692be60a69763606f3c08320000812143aa83c5bfd1bf31dd05"
+}
