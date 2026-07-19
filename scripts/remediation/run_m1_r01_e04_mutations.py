@@ -93,6 +93,37 @@ OPERATORS: dict[str, dict[str, Any]] = {
             "    const acknowledgement = await this.read(\"run.result.ack\", terminalId);"
         ),
     },
+    "e04-mutation-python-host-disconnect": {
+        "target": "packages/runtime/claude-runtime/src/stdio.ts",
+        "needle": (
+            "  private async read(kind: RuntimeFrameKind, correlationId: string): Promise<RuntimeFrame> {\n"
+            "    const selected = await this.lines.next();\n"
+            "    if (selected.done || typeof selected.value !== \"string\") {"
+        ),
+        "replacement": (
+            "  private async read(kind: RuntimeFrameKind, correlationId: string): Promise<RuntimeFrame> {\n"
+            "    const selected = await this.lines.next();\n"
+            "    if (!selected.done && typeof selected.value === \"string\") {\n"
+            "      this.aborted = true; // E04 mutation: disconnect the Python host transport\n"
+            "      throw new RuntimeProtocolError(\"host_disconnected\", \"mutated Python host disconnect\");\n"
+            "    }\n"
+            "    if (selected.done || typeof selected.value !== \"string\") {"
+        ),
+    },
+    "e04-mutation-typescript-disconnect": {
+        "target": "packages/runtime/claude-runtime/src/stdio.ts",
+        "needle": (
+            "    capabilities = null;\n"
+            "    await activeCapabilities.close();\n"
+            "    terminalResultSent = true;"
+        ),
+        "replacement": (
+            "    capabilities = null;\n"
+            "    await activeCapabilities.close();\n"
+            "    process.exit(86); // E04 mutation: kill TypeScript owner before terminal delivery\n"
+            "    terminalResultSent = true;"
+        ),
+    },
     "e04-mutation-python-fallback": {
         "target": "packages/workers/zyra_workers/typescript_claude_runtime.py",
         "needle": (
@@ -228,6 +259,16 @@ KILLERS: dict[str, tuple[str, ...]] = {
         "pytest",
         "-q",
         "tests/integration/test_e01_typescript_runtime_cutover.py::test_duplicate_terminal_delivery_is_acknowledged_idempotently",
+    ),
+    "e04-mutation-python-host-disconnect": (
+        "python",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "host-disconnect",
+    ),
+    "e04-mutation-typescript-disconnect": (
+        "python",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "typescript-disconnect",
     ),
     "e04-mutation-python-fallback": (
         "python",

@@ -28,7 +28,10 @@ for relative in (
 from zyra_runtime.workers import WorkerRequest  # noqa: E402
 from zyra_runtime.executor import ToolExecutor  # noqa: E402
 from zyra_workers import CodeWorkerRuntime  # noqa: E402
-from zyra_workers.typescript_claude_runtime import TypeScriptClaudeQueryEngine  # noqa: E402
+from zyra_workers.typescript_claude_runtime import (  # noqa: E402
+    TypeScriptClaudeQueryEngine,
+    TypeScriptRuntimeError,
+)
 
 
 def _runtime(tmp_path: Path) -> CodeWorkerRuntime:
@@ -574,3 +577,108 @@ def test_lost_tool_batch_ack_resumes_without_reexecution(tmp_path: Path) -> None
     receipts = session_snapshot["tool_effect_receipts"]
     assert isinstance(receipts, dict)
     assert len(receipts) == 1
+
+
+@pytest.mark.parametrize(
+    ("fault_point", "minimum_launches", "minimum_epochs"),
+    [
+        ("checkpoint_request_before_ack", 2, 2),
+        ("final_checkpoint_ack_before_terminal", 2, 2),
+        ("terminal_result_ack_lost", 1, 1),
+        ("python_host_terminal_disconnect", 2, 2),
+        ("typescript_process_terminal_disconnect", 2, 2),
+    ],
+)
+def test_real_process_terminal_fault_matrix_is_exactly_once(
+    tmp_path: Path,
+    fault_point: str,
+    minimum_launches: int,
+    minimum_epochs: int,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    (workspace / "terminal.txt").write_text("terminal effect", encoding="utf-8")
+    runtime = CodeWorkerRuntime(
+        project_root=REPO_ROOT,
+        workspace_root=workspace,
+        artifact_root=tmp_path / "artifacts",
+    )
+    run_id = f"e04-real-fault-{fault_point}"
+    session_id = f"{run_id}-session"
+    turns = [[{"tool_name": "file_read", "arguments": {"path": "terminal.txt"}}]]
+    original_execute = ToolExecutor.execute
+    executions = 0
+
+    def counting_execute(self: ToolExecutor, call: object, **kwargs: object) -> object:
+        nonlocal executions
+        executions += 1
+        return original_execute(self, call, **kwargs)
+
+    with (
+        mock.patch.object(ToolExecutor, "execute", counting_execute),
+        mock.patch(
+            "zyra_workers.typescript_claude_runtime.subprocess.Popen",
+            wraps=subprocess.Popen,
+        ) as runtime_launch,
+    ):
+        failed = runtime.run(
+            _request(
+                run_id,
+                session_id=session_id,
+                query_turns=turns,
+                typescript_fault_injection=fault_point,
+            )
+        )
+        recovered = runtime.run(
+            _request(run_id, session_id=session_id, query_turns=turns)
+        )
+
+    assert failed.worker_result.ok is False
+    assert recovered.worker_result.ok is True
+    assert executions == 1
+    assert runtime_launch.call_count >= minimum_launches
+    snapshot = _checkpoint(recovered)["session_snapshot"]
+    assert isinstance(snapshot, dict)
+    faults = [
+        item
+        for item in snapshot["runtime_fault_receipts"]
+        if item["point"] == fault_point
+    ]
+    assert len(faults) == 1
+    assert faults[0]["real_process_kill"] is True
+    assert isinstance(faults[0]["process_pid"], int)
+    assert isinstance(faults[0]["process_exit_code"], int)
+    trace = snapshot["protocol_frame_trace"]
+    assert isinstance(trace, list) and trace
+    assert [item["trace_index"] for item in trace] == list(range(1, len(trace) + 1))
+    assert {item["direction"] for item in trace} == {
+        "python-to-typescript",
+        "typescript-to-python",
+    }
+    epochs = {int(item["runtime_process_epoch"]) for item in trace}
+    assert len(epochs) >= minimum_epochs
+    assert len(snapshot["terminal_result_receipts"]) == 1
+
+
+def test_host_checkpoint_compare_and_swap_rejects_stale_writer(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    session_id = "e04-host-checkpoint-cas"
+    current = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    stale = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    assert current._load_incremental_checkpoint(session_id) == {}
+    assert stale._load_incremental_checkpoint(session_id) == {}
+    committed = current._persist_incremental_checkpoint(session_id, {"value": 1})
+    assert committed["host_checkpoint_revision"] == 1
+    with pytest.raises(TypeScriptRuntimeError) as captured:
+        stale._persist_incremental_checkpoint(session_id, {"value": 2})
+    assert captured.value.code == "typescript_runtime_checkpoint_stale_writer"
+
+
+def test_host_checkpoint_corruption_fails_closed(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    engine = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    session_id = "e04-host-checkpoint-corrupt"
+    engine._checkpoint_path(session_id).write_text("{not-json", encoding="utf-8")
+    with pytest.raises(TypeScriptRuntimeError) as captured:
+        engine._load_incremental_checkpoint(session_id)
+    assert captured.value.code == "typescript_runtime_checkpoint_corrupt"

@@ -43,6 +43,8 @@ from .subagents.typescript_port import TypeScriptAgentDurablePort
 
 RUNTIME_PROTOCOL_VERSION = "zyra.claude-runtime.v1"
 TYPESCRIPT_RUNTIME_ID = "zyra-typescript-claude-runtime"
+_CHECKPOINT_LOCKS: dict[str, threading.RLock] = {}
+_CHECKPOINT_LOCKS_GUARD = threading.RLock()
 
 
 class TypeScriptRuntimeError(RuntimeError):
@@ -96,6 +98,12 @@ class TypeScriptClaudeQueryEngine:
         self._tool_effect_receipts: dict[str, dict[str, Any]] = {}
         self._tool_effect_receipts_lock = threading.RLock()
         self._last_tool_batch_evidence: dict[str, Any] = {}
+        self._checkpoint_revision = 0
+        self._runtime_process_epoch = 0
+        self._protocol_frame_trace: list[dict[str, Any]] = []
+        self._checkpoint_writer_id = hashlib.sha256(
+            f"{os.getpid()}:{id(self)}:{time.time_ns()}".encode("utf-8")
+        ).hexdigest()
 
     def run(
         self,
@@ -239,11 +247,16 @@ class TypeScriptClaudeQueryEngine:
         )
         durable_checkpoint = self._load_incremental_checkpoint(session_id)
         provided_revision = int(
-            restored_runtime_state.get("revision")
+            restored_runtime_state.get("host_checkpoint_revision")
+            or restored_runtime_state.get("revision")
             or dict(restored_runtime_state.get("typescript_runtime_snapshot") or {}).get("revision")
             or 0
         )
-        durable_revision = int(durable_checkpoint.get("revision") or 0)
+        durable_revision = int(
+            durable_checkpoint.get("host_checkpoint_revision")
+            or durable_checkpoint.get("revision")
+            or 0
+        )
         if durable_checkpoint and durable_revision >= provided_revision:
             restored_runtime_state.update(durable_checkpoint)
         if constraints.get("permission_transport_queue_enabled") is True:
@@ -262,9 +275,28 @@ class TypeScriptClaudeQueryEngine:
                     ),
                     "permission_transport_resume": True,
                 }
-        self._latest_runtime_checkpoint = dict(
-            restored_runtime_state.get("typescript_runtime_snapshot") or restored_runtime_state
+        nested_typescript_snapshot = restored_runtime_state.get(
+            "typescript_runtime_snapshot"
         )
+        self._latest_runtime_checkpoint = dict(
+            restored_runtime_state
+            if "e02" in restored_runtime_state
+            or "host_checkpoint_revision" in restored_runtime_state
+            else nested_typescript_snapshot
+            if isinstance(nested_typescript_snapshot, Mapping)
+            else restored_runtime_state
+        )
+        self._runtime_process_epoch = int(
+            self._latest_runtime_checkpoint.get("runtime_process_epoch") or 0
+        )
+        raw_protocol_trace = self._latest_runtime_checkpoint.get(
+            "protocol_frame_trace"
+        )
+        self._protocol_frame_trace = [
+            dict(item)
+            for item in list(raw_protocol_trace or [])
+            if isinstance(item, Mapping)
+        ]
         self._tool_effect_receipts = {
             str(key): dict(value)
             for key, value in dict(restored_runtime_state.get("tool_effect_receipts") or {}).items()
@@ -348,6 +380,10 @@ class TypeScriptClaudeQueryEngine:
                 transport="durable-terminal-receipt",
                 terminal_recovered=True,
             )
+        self._runtime_process_epoch = max(
+            self._runtime_process_epoch,
+            int(restored_runtime_state.get("runtime_process_epoch") or 0),
+        ) + 1
         process = subprocess.Popen(
             command,
             cwd=self.project_root,
@@ -484,10 +520,42 @@ class TypeScriptClaudeQueryEngine:
                             int(checkpoint.get("checkpointEventSequence") or 0),
                         ),
                     }
+                for host_managed_key in (
+                    "runtime_fault_receipts",
+                    "terminal_result_receipts",
+                ):
+                    if host_managed_key in self._latest_runtime_checkpoint:
+                        checkpoint[host_managed_key] = to_jsonable(
+                            self._latest_runtime_checkpoint[host_managed_key]
+                        )
                 checkpoint["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
                 checkpoint["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
+                checkpoint["runtime_process_epoch"] = self._runtime_process_epoch
+                checkpoint["last_checkpoint_correlation_id"] = correlation_id
+                checkpoint = self._persist_incremental_checkpoint(session_id, checkpoint)
                 self._latest_runtime_checkpoint = checkpoint
-                self._persist_incremental_checkpoint(session_id, checkpoint)
+                fault_point = str(constraints.get("typescript_fault_injection") or "")
+                final_checkpoint = bool(
+                    isinstance(checkpoint.get("e02"), Mapping)
+                    and dict(checkpoint["e02"]).get("closing") is True
+                )
+                if fault_point == "checkpoint_request_before_ack":
+                    self._terminate(process)
+                    fault_receipts = list(checkpoint.get("runtime_fault_receipts") or [])
+                    fault_receipts.append({
+                        "point": fault_point,
+                        "runtime_process_epoch": self._runtime_process_epoch,
+                        "process_pid": process.pid,
+                        "process_exit_code": process.poll(),
+                        "real_process_kill": True,
+                        "checkpoint_correlation_id": correlation_id,
+                    })
+                    checkpoint["runtime_fault_receipts"] = fault_receipts
+                    self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(session_id, checkpoint)
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_fault_injected",
+                        f"Killed TypeScript owner at {fault_point} in epoch {self._runtime_process_epoch}.",
+                    )
                 self._write_frame(
                     process,
                     run_id=run_id,
@@ -497,6 +565,36 @@ class TypeScriptClaudeQueryEngine:
                     correlation_id=correlation_id,
                 )
                 outbound_sequence += 1
+                if final_checkpoint and fault_point in {
+                    "final_checkpoint_ack_before_terminal",
+                    "python_host_terminal_disconnect",
+                }:
+                    if fault_point == "python_host_terminal_disconnect" and process.stdin is not None:
+                        process.stdin.close()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            self._terminate(process)
+                    else:
+                        self._terminate(process)
+                    fault_receipts = list(self._latest_runtime_checkpoint.get("runtime_fault_receipts") or [])
+                    fault_receipts.append({
+                        "point": fault_point,
+                        "runtime_process_epoch": self._runtime_process_epoch,
+                        "process_pid": process.pid,
+                        "process_exit_code": process.poll(),
+                        "real_process_kill": True,
+                        "checkpoint_correlation_id": correlation_id,
+                    })
+                    fault_checkpoint = dict(self._latest_runtime_checkpoint)
+                    fault_checkpoint["runtime_fault_receipts"] = fault_receipts
+                    self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                        session_id, fault_checkpoint
+                    )
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_fault_injected",
+                        f"Disconnected terminal transition at {fault_point} in epoch {self._runtime_process_epoch}.",
+                    )
                 continue
             if kind == "tool.batch.request":
                 batch_started_at = time.perf_counter()
@@ -674,6 +772,27 @@ class TypeScriptClaudeQueryEngine:
                 terminal_id = str(payload.get("terminal_id") or "")
                 terminal_revision = int(payload.get("terminal_revision") or 0)
                 selected_result = dict(payload.get("result") or {})
+                fault_point = str(constraints.get("typescript_fault_injection") or "")
+                if fault_point == "typescript_process_terminal_disconnect":
+                    self._terminate(process)
+                    fault_checkpoint = dict(self._latest_runtime_checkpoint)
+                    fault_receipts = list(fault_checkpoint.get("runtime_fault_receipts") or [])
+                    fault_receipts.append({
+                        "point": fault_point,
+                        "runtime_process_epoch": self._runtime_process_epoch,
+                        "process_pid": process.pid,
+                        "process_exit_code": process.poll(),
+                        "real_process_kill": True,
+                        "terminal_id": str(payload.get("terminal_id") or ""),
+                    })
+                    fault_checkpoint["runtime_fault_receipts"] = fault_receipts
+                    self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                        session_id, fault_checkpoint
+                    )
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_fault_injected",
+                        f"Killed TypeScript owner at {fault_point} in epoch {self._runtime_process_epoch}.",
+                    )
                 if not terminal_id or terminal_revision != 1:
                     self._terminate(process)
                     raise TypeScriptRuntimeError(
@@ -698,6 +817,26 @@ class TypeScriptClaudeQueryEngine:
                     terminal_id=terminal_id,
                     result=selected_result,
                 )
+                if fault_point == "terminal_result_ack_lost":
+                    self._terminate(process)
+                    fault_checkpoint = dict(self._latest_runtime_checkpoint)
+                    fault_receipts = list(fault_checkpoint.get("runtime_fault_receipts") or [])
+                    fault_receipts.append({
+                        "point": fault_point,
+                        "runtime_process_epoch": self._runtime_process_epoch,
+                        "process_pid": process.pid,
+                        "process_exit_code": process.poll(),
+                        "real_process_kill": True,
+                        "terminal_id": terminal_id,
+                    })
+                    fault_checkpoint["runtime_fault_receipts"] = fault_receipts
+                    self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                        session_id, fault_checkpoint
+                    )
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_fault_injected",
+                        f"Lost terminal ACK after killing TypeScript owner in epoch {self._runtime_process_epoch}.",
+                    )
                 try:
                     self._write_frame(
                         process,
@@ -731,6 +870,10 @@ class TypeScriptClaudeQueryEngine:
                         "TypeScript runtime closed without the committed terminal result.",
                     )
                 result_payload = pending_terminal_payload
+                self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                    session_id,
+                    self._latest_runtime_checkpoint,
+                )
                 break
             self._terminate(process)
             raise TypeScriptRuntimeError(
@@ -807,6 +950,14 @@ class TypeScriptClaudeQueryEngine:
         )
         session_snapshot["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
         session_snapshot["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
+        session_snapshot["host_checkpoint_revision"] = self._checkpoint_revision
+        session_snapshot["runtime_process_epoch"] = self._runtime_process_epoch
+        session_snapshot["protocol_frame_trace"] = to_jsonable(
+            self._protocol_frame_trace
+        )
+        session_snapshot["runtime_fault_receipts"] = to_jsonable(
+            list(self._latest_runtime_checkpoint.get("runtime_fault_receipts") or [])
+        )
         raw_terminal_receipts = self._latest_runtime_checkpoint.get(
             "terminal_result_receipts"
         )
@@ -899,6 +1050,8 @@ class TypeScriptClaudeQueryEngine:
                 "runtime_protocol": RUNTIME_PROTOCOL_VERSION,
                 "runtime_transport": transport,
                 "terminal_result_recovered": str(terminal_recovered).lower(),
+                "host_checkpoint_revision": str(self._checkpoint_revision),
+                "runtime_process_epoch": str(self._runtime_process_epoch),
                 "python_query_engine_fallback": "false",
                 "python_session_projection_canonical": "false",
                 "query_session_id": session_id,
@@ -960,6 +1113,7 @@ class TypeScriptClaudeQueryEngine:
     def _load_incremental_checkpoint(self, session_id: str) -> dict[str, Any]:
         path = self._checkpoint_path(session_id)
         if not path.exists():
+            self._checkpoint_revision = 0
             return {}
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -973,20 +1127,72 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_runtime_checkpoint_identity",
                 "Durable TypeScript checkpoint does not match the logical session.",
             )
+        self._checkpoint_revision = int(
+            value.get("host_checkpoint_revision") or value.get("revision") or 0
+        )
         return value
 
     def _persist_incremental_checkpoint(
         self,
         session_id: str,
         checkpoint: Mapping[str, Any],
-    ) -> None:
+    ) -> dict[str, Any]:
         path = self._checkpoint_path(session_id)
         staged = path.with_suffix(path.suffix + ".tmp")
-        payload = dict(checkpoint)
-        payload["session_id"] = session_id
-        encoded = json.dumps(to_jsonable(payload), ensure_ascii=False, sort_keys=True)
-        staged.write_text(encoded, encoding="utf-8")
-        os.replace(staged, path)
+        lock_key = str(path)
+        with _CHECKPOINT_LOCKS_GUARD:
+            checkpoint_lock = _CHECKPOINT_LOCKS.setdefault(lock_key, threading.RLock())
+        with checkpoint_lock:
+            current_revision = 0
+            if path.exists():
+                try:
+                    current = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as error:
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_checkpoint_corrupt",
+                        f"Cannot compare-and-swap the durable TypeScript checkpoint: {error}",
+                    ) from error
+                if not isinstance(current, dict) or str(current.get("session_id") or "") != session_id:
+                    raise TypeScriptRuntimeError(
+                        "typescript_runtime_checkpoint_identity",
+                        "Durable TypeScript checkpoint changed logical session during compare-and-swap.",
+                    )
+                current_revision = int(
+                    current.get("host_checkpoint_revision") or current.get("revision") or 0
+                )
+            if current_revision != self._checkpoint_revision:
+                raise TypeScriptRuntimeError(
+                    "typescript_runtime_checkpoint_stale_writer",
+                    "Durable TypeScript checkpoint compare-and-swap rejected a stale writer: "
+                    f"expected {self._checkpoint_revision}, observed {current_revision}.",
+                )
+            payload = dict(checkpoint)
+            next_revision = current_revision + 1
+            payload["session_id"] = session_id
+            payload["protocol_frame_trace"] = to_jsonable(
+                self._protocol_frame_trace
+            )
+            payload["host_checkpoint_parent_revision"] = current_revision
+            payload["host_checkpoint_revision"] = next_revision
+            payload["host_checkpoint_writer_id"] = self._checkpoint_writer_id
+            commit_material = {
+                key: value
+                for key, value in payload.items()
+                if key != "host_checkpoint_commit_id"
+            }
+            payload["host_checkpoint_commit_id"] = hashlib.sha256(
+                json.dumps(
+                    to_jsonable(commit_material),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            encoded = json.dumps(to_jsonable(payload), ensure_ascii=False, sort_keys=True)
+            staged.write_text(encoded, encoding="utf-8")
+            os.replace(staged, path)
+            self._checkpoint_revision = next_revision
+            return payload
 
     def _persist_terminal_receipt(
         self,
@@ -1010,8 +1216,9 @@ class TypeScriptClaudeQueryEngine:
             # the checkpoint and must remain resumable after external approval.
             receipts.pop(worker_request_id, None)
             checkpoint["terminal_result_receipts"] = receipts
-            self._latest_runtime_checkpoint = checkpoint
-            self._persist_incremental_checkpoint(session_id, checkpoint)
+            self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                session_id, checkpoint
+            )
             return
         existing = receipts.get(worker_request_id)
         if existing and (
@@ -1034,8 +1241,9 @@ class TypeScriptClaudeQueryEngine:
                 "result": to_jsonable(dict(result)),
             }
         checkpoint["terminal_result_receipts"] = receipts
-        self._latest_runtime_checkpoint = checkpoint
-        self._persist_incremental_checkpoint(session_id, checkpoint)
+        self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+            session_id, checkpoint
+        )
 
     def _runtime_command(self) -> tuple[list[str], str]:
         if not self.entrypoint.exists():
@@ -1135,8 +1343,35 @@ class TypeScriptClaudeQueryEngine:
                 separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()
+        effect_key = hashlib.sha256(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "session_id": session_id,
+                    "worker_request_id": worker_request_id,
+                    "turn_index": int(payload.get("turn_index") or 0),
+                    "step_index": int(payload.get("step_index") or 0),
+                    "batch_index": int(payload.get("batch_index") or 0),
+                    "tool_name": tool_name,
+                    "arguments": arguments,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
         with receipt_lock:
             cached = tool_effect_receipts.get(tool_call_id)
+            if cached is None:
+                cached = next(
+                    (
+                        receipt
+                        for receipt in tool_effect_receipts.values()
+                        if str(receipt.get("effect_key") or "") == effect_key
+                    ),
+                    None,
+                )
             if cached is not None:
                 if str(cached.get("request_digest") or "") != request_digest:
                     return {
@@ -1155,6 +1390,11 @@ class TypeScriptClaudeQueryEngine:
                 replayed_metadata = dict(replayed.get("metadata") or {})
                 replayed_metadata["effect_replay_fenced"] = "true"
                 replayed_metadata["effect_replayed"] = "false"
+                replayed_metadata["effect_key"] = effect_key
+                replayed_metadata["original_tool_call_id"] = str(
+                    cached.get("original_tool_call_id") or replayed.get("tool_call_id") or ""
+                )
+                replayed["tool_call_id"] = tool_call_id
                 replayed["metadata"] = replayed_metadata
                 return replayed
         raw_binding = decision.get("requestBinding", decision.get("request_binding"))
@@ -1286,13 +1526,17 @@ class TypeScriptClaudeQueryEngine:
         with receipt_lock:
             tool_effect_receipts[tool_call_id] = {
                 "request_digest": request_digest,
+                "effect_key": effect_key,
+                "original_tool_call_id": tool_call_id,
                 "decision_id": permit.decision_id,
                 "receipt_digest": permit.receipt_digest,
                 "result": encoded_result,
             }
             checkpoint = dict(self._latest_runtime_checkpoint)
             checkpoint["tool_effect_receipts"] = to_jsonable(tool_effect_receipts)
-            self._persist_incremental_checkpoint(session_id, checkpoint)
+            self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
+                session_id, checkpoint
+            )
         self._host_artifacts.extend(result.artifacts)
         return encoded_result
 
@@ -1763,6 +2007,9 @@ class TypeScriptClaudeQueryEngine:
         failed_snapshot["tool_effect_receipts"] = to_jsonable(
             self._tool_effect_receipts
         )
+        failed_snapshot["protocol_frame_trace"] = to_jsonable(
+            self._protocol_frame_trace
+        )
         return ClaudeQueryEngineResult(
             ok=False,
             event_records=[*self._host_events, event],
@@ -1840,10 +2087,31 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_runtime_protocol_error",
                 "TypeScript runtime frame payload must be an object.",
             )
+        self._protocol_frame_trace.append(
+            {
+                "trace_index": len(self._protocol_frame_trace) + 1,
+                "direction": "typescript-to-python",
+                "runtime_process_epoch": self._runtime_process_epoch,
+                "process_pid": process.pid,
+                "protocol": str(frame.get("protocol") or ""),
+                "run_id": str(frame.get("run_id") or ""),
+                "sequence": int(frame.get("sequence") or 0),
+                "kind": str(frame.get("kind") or ""),
+                "correlation_id": str(frame.get("correlation_id") or ""),
+                "payload_digest": hashlib.sha256(
+                    json.dumps(
+                        to_jsonable(frame.get("payload") or {}),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest(),
+            }
+        )
         return frame
 
-    @staticmethod
     def _write_frame(
+        self,
         process: subprocess.Popen[str],
         *,
         run_id: str,
@@ -1869,6 +2137,27 @@ class TypeScriptClaudeQueryEngine:
         try:
             process.stdin.write(json.dumps(frame, ensure_ascii=False) + "\n")
             process.stdin.flush()
+            self._protocol_frame_trace.append(
+                {
+                    "trace_index": len(self._protocol_frame_trace) + 1,
+                    "direction": "python-to-typescript",
+                    "runtime_process_epoch": self._runtime_process_epoch,
+                    "process_pid": process.pid,
+                    "protocol": RUNTIME_PROTOCOL_VERSION,
+                    "run_id": run_id,
+                    "sequence": sequence,
+                    "kind": kind,
+                    "correlation_id": correlation_id,
+                    "payload_digest": hashlib.sha256(
+                        json.dumps(
+                            to_jsonable(dict(payload)),
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
         except (BrokenPipeError, OSError) as error:
             stderr = process.stderr.read().strip() if process.stderr is not None else ""
             raise TypeScriptRuntimeError(

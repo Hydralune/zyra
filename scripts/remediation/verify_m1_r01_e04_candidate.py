@@ -68,8 +68,8 @@ def run(
         "command": command,
         "exit_code": process.returncode,
         "duration_seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 3),
-        "stdout_tail": process.stdout[-65536:],
-        "stderr_tail": process.stderr[-65536:],
+        "stdout_tail": process.stdout[-262144:],
+        "stderr_tail": process.stderr[-262144:],
         "passed": process.returncode == 0,
     }
     if check and process.returncode:
@@ -374,6 +374,7 @@ def python_owner_report(candidate: str, tree: str) -> dict[str, Any]:
 
 def execute_evidence(candidate: str, tree: str, targets: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     e04_test = run([str(BUN), "test", "packages/runtime/claude-runtime/test/e04"], timeout=600)
+    prebuild = run([str(BUN), "run", "build"], timeout=600)
     test_text = e04_test["stdout_tail"] + e04_test["stderr_tail"]
     domain_ids: dict[str, set[str]] = defaultdict(set)
     source_rows = {row["record_id"]: row for row in jsonl(MANIFEST_ROOT / "execution-04-source-recovery-manifest.jsonl")}
@@ -397,6 +398,8 @@ def execute_evidence(candidate: str, tree: str, targets: list[dict[str, Any]]) -
         ["node", "dist/code-worker-node/main.js", "--stdio-probe"],
         [str(PYTHON), "scripts/remediation/probe_m1_r01_e04.py", "python-bridge"],
         [str(PYTHON), "scripts/remediation/probe_m1_r01_e04.py", "api-route"],
+        [str(PYTHON), "scripts/remediation/probe_m1_r01_e04.py", "source-ports"],
+        [str(PYTHON), "scripts/remediation/probe_m1_r01_e04.py", "built-ports"],
     ]
     default_results = []
     for command in default_commands:
@@ -421,7 +424,13 @@ def execute_evidence(candidate: str, tree: str, targets: list[dict[str, Any]]) -
         "host-disconnect",
         "typescript-disconnect",
     )
-    for mode in (*terminal_fault_modes, "duplicate-ack", "disable"):
+    for mode in (
+        *terminal_fault_modes,
+        "duplicate-ack",
+        "stale-writer",
+        "corrupt-checkpoint",
+        "disable",
+    ):
         result = run([str(PYTHON), "scripts/remediation/probe_m1_r01_e04.py", mode], timeout=300)
         result["mode"] = mode
         result["parsed"] = parse_json_output(result)
@@ -466,11 +475,10 @@ def execute_evidence(candidate: str, tree: str, targets: list[dict[str, Any]]) -
     }
     build_commands = [
         [str(BUN), "run", "typecheck"],
-        [str(BUN), "run", "build"],
         [str(BUN), "test", "packages/runtime/claude-runtime/test", "packages/integrations/claude-mcp/test"],
         [str(PYTHON), "-m", "pytest", "-q", "-p", "no:cacheprovider", "--basetemp", ".tmp/e04-candidate-pytest", "tests/integration/test_e04_candidate_closure.py", "tests/integration/test_e01_typescript_runtime_cutover.py", "tests/integration/test_code_worker_clean_productized_runtime.py", "tests/integration/test_workspace_worker_gateway.py"],
     ]
-    build_results = [e04_test]
+    build_results = [e04_test, prebuild]
     for command in build_commands:
         build_results.append(run(command, timeout=600))
     build_report = {
