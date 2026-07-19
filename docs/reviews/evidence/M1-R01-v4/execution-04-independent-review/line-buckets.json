@@ -3,6 +3,6 @@
   "reviewer_nonce_digest_sha256": "1b86f66a19265218a7615c2c395459d3af732749f84f518bf1559e3521caf973",
   "candidate_commit": "2340b792d184bc7625ba15fe7e9d958c3daa4c66", "candidate_tree": "27b5f17e87ee204acdc51240f1d5731fddab616d",
   "implementation_claim": {"production": 2432, "test": 2913, "adapter_only": 790, "audit_tooling": 3268},
-  "reviewer_adjustment": {"source_credit_rejected": ["TypeScriptSkillRuntime.loadSkillsFromSkillsDir", "TypeScriptSkillRuntime.executeForkedSkill", "SkillReloadRuntime.commitAtomicReplacement"], "reason": "thin forwarding or unreachable helper cannot count as migrated production control flow"},
+  "reviewer_adjustment": {"source_credit_rejected": ["TypeScriptSkillRuntime.loadSkillsFromSkillsDir", "TypeScriptSkillRuntime.executeForkedSkill", "SkillReloadRuntime.commitAtomicReplacement"], "production_callsites_confirmed": ["skills/coordinator.ts", "e02/coordinator.ts", "plugins/coordinator.ts"], "reason": "production reachability exists, but thin forwarding or a source/target mechanism mismatch cannot count as migrated source control flow"},
   "verdict": "FAIL", "exit_code": 1, "output_digest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }

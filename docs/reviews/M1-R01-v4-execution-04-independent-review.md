@@ -37,13 +37,13 @@ Get-Content -Raw docs\reviews\evidence\M1-R01-v4\execution-04\candidate-gate-res
 
 这正是任务书 7.4 明示的“多条 source range 机械轮转到 generic target”，违反 R2/R3。
 
-### E04-IR2-P1-004：技能/插件迁移方法未进入真实控制流
+### E04-IR2-P1-004：技能/插件 target 与 credited source 控制流不匹配
 
-- `TypeScriptSkillRuntime.loadSkillsFromSkillsDir` 只执行传入 callback，没有迁入 `readdir -> inaccessible handling -> directory filtering -> parse/register` 控制流。
-- `TypeScriptSkillRuntime.executeForkedSkill` 只检查 abort 后调用 `runChild(childInput)`，没有迁入 bounded child context 构建、agent identity、tool/permission scope 或 terminal settlement。
-- `SkillReloadRuntime.commitAtomicReplacement` 在候选 production 中无调用边；真实 `commit` 仍直接调用 `registry.commitRevision`。
+- `TypeScriptSkillRuntime.loadSkillsFromSkillsDir` 虽由 skills coordinator 调用，但只执行传入 callback，没有迁入 `readdir -> inaccessible handling -> directory filtering -> parse/register` 控制流。
+- `TypeScriptSkillRuntime.executeForkedSkill` 虽由 E02 coordinator 调用，但只检查 abort 后调用 `runChild(childInput)`，没有迁入 bounded child context 构建、agent identity、tool/permission scope 或 terminal settlement。
+- `SkillReloadRuntime.commitAtomicReplacement` 由 plugin coordinator 调用，但对应的 `e04-source-014` 只覆盖 hook matcher 列表初始化，并不包含 atomic revision/replace 控制流；source 与 target 不是同一成熟机制。
 
-存在性测试和 disable marker 不能证明动态可达或源码迁移，违反 R2、R3、R8。
+这些 helper 具有 production 调用边，但存在性测试、薄转发和 disable marker 仍不能证明所声明 source body 已迁移，违反 R2、R3、R8。
 
 ## 八域结论
 
