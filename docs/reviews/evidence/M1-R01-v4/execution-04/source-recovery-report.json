@@ -1,21 +1,21 @@
 {
-  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
   "candidate_target_records_passed": 18,
-  "candidate_tree": "af2f174ae9607fbcaebd33a691f1e1c5451fcadb",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
   "execution_id": "E04",
-  "g0_tooling_head": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "g0_tooling_head": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
   "g0_verification": {
     "command": [
       "G:\\agent-zoo\\zyra-e04-remediation\\.venv\\Scripts\\python.exe",
       "scripts/remediation/verify_m1_r01_e04_g0.py"
     ],
-    "duration_seconds": 131.362,
+    "duration_seconds": 127.795,
     "exit_code": 0,
     "passed": true,
     "stderr_tail": "",
     "stdout_tail": "{\n  \"baseline_commit\": \"299b708d3559da7a5da1f9d6d55d2d1f1b155249\",\n  \"domains\": [\n    \"agent_subagent\",\n    \"isolation_control\",\n    \"mcp\",\n    \"permission\",\n    \"query_loop\",\n    \"session_context_compact\",\n    \"skill_plugin_command\",\n    \"tool_orchestration\"\n  ],\n  \"mutation_points\": 15,\n  \"ok\": true,\n  \"python_owner_symbols\": 1619,\n  \"source_ranges\": 18,\n  \"target_records\": 18,\n  \"verified_zyra_head\": \"299b708d3559da7a5da1f9d6d55d2d1f1b155249\"\n}\n"
   },
-  "generated_at": "2026-07-19T04:34:37.436007+00:00",
+  "generated_at": "2026-07-19T08:49:05.102243+00:00",
   "passed": true,
   "record_type": "source_recovery_report",
   "schema_version": "4.0",
@@ -34,7 +34,7 @@
       "diagnostic_only": true,
       "record_id": "e04-target-001",
       "source_record_id": "e04-source-001",
-      "source_token_coverage": 0.345238
+      "source_token_coverage": 0.321429
     },
     {
       "diagnostic_only": true,
@@ -46,7 +46,7 @@
       "diagnostic_only": true,
       "record_id": "e04-target-003",
       "source_record_id": "e04-source-003",
-      "source_token_coverage": 0.279221
+      "source_token_coverage": 0.402597
     },
     {
       "diagnostic_only": true,
@@ -100,7 +100,7 @@
       "diagnostic_only": true,
       "record_id": "e04-target-012",
       "source_record_id": "e04-source-012",
-      "source_token_coverage": 0.432099
+      "source_token_coverage": 0.283951
     },
     {
       "diagnostic_only": true,

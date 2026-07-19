@@ -109,3 +109,11 @@ Python stdio/事件/API/workspace 接线、候选验证脚本和 cleanroom 编�
 复验得到 E04 专项 `37/37`、mutation `15/15`、candidate gate `10/10` 和 fresh cleanroom PASS；cleanroom 未复用原 node_modules/venv，forbidden dependency 与 dirty path 均为 0。最新 line bucket 把 production、test、adapter-only、audit-tooling、docs 和 data 分开，production 新增 `2,570`、test 新增 `2,961`、adapter-only 新增 `790`、audit-tooling 新增 `3,644`。
 
 由于本轮审查者执行了修复，本节只是 implementation self-review/repair handoff，不能构成独立 PASS。状态必须保持 `implementation_complete_review_pending`，由不同 reviewer 对新 implementation/evidence pair 重跑任务书。
+
+## 10. 2026-07-19 Reviewer B 复审后修复补充
+
+Reviewer B 对实现 `3d4a00d62e47264cc4ac8678de41af497be7aec8`、evidence `960eb829a9397f7b2d7f74ed9e2cdeeb47ab2617` 签发的历史结论为 FAIL，审查 commit 为 `920074f44115a43a25fd278b7ca5c31918862153`。三项 finding 分别指出 skill loader callback 假归属、query admission wrapper 假归属和 compact plan-only 假归属。
+
+最终实现候选 `fb23f8a8355e51046db1e7e85fa35eecebf59e21` 已把真实 owner 收紧到 `SkillReloadRuntime.loadSkillsFromSkillsDir`、`ClaudeRuntimeCore.run` 和 `ContextCompactionRuntime.autoCompactIfNeeded`，并相应更新精确 G0 target、baseline symbol、默认边、mutation anchor 和真实行为测试。skill 测试从临时 `SKILL.md` 做实际 discover/read/frontmatter parse/register 与 stale revision 拒绝；query 测试验证返回 E01 snapshot 已完成 settlement；compact 测试与 mutation 直接断开真实 auto-compact apply 路径。
+
+新候选 evidence 已在 detached cleanroom 和正式工作树分别验证：candidate gate `10/10`、mutation `15/15`、fresh cleanroom PASS、8/8 semantic domains、5/5 terminal fault points、Python logical owner `0`、forbidden dependency/dirty path 均为 `0`。当前状态仍只能是 `implementation_complete_review_pending`；必须以新的 evidence commit 和 reviewer-owned nonce 复审后才能关闭 E04。

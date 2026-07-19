@@ -1,6 +1,6 @@
 {
-  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
-  "candidate_tree": "af2f174ae9607fbcaebd33a691f1e1c5451fcadb",
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
   "canonical_owner": "typescript",
   "commands": [
     {
@@ -9,7 +9,7 @@
         "apps/code-worker/src/main.ts",
         "--stdio-probe"
       ],
-      "duration_seconds": 0.68,
+      "duration_seconds": 0.613,
       "exit_code": 0,
       "parsed": {
         "canonical_owner": "typescript",
@@ -35,7 +35,7 @@
         "dist/code-worker/main.js",
         "--stdio-probe"
       ],
-      "duration_seconds": 0.608,
+      "duration_seconds": 0.648,
       "exit_code": 0,
       "parsed": {
         "canonical_owner": "typescript",
@@ -61,7 +61,7 @@
         "dist/code-worker-node/main.js",
         "--stdio-probe"
       ],
-      "duration_seconds": 0.598,
+      "duration_seconds": 0.668,
       "exit_code": 0,
       "parsed": {
         "canonical_owner": "typescript",
@@ -87,7 +87,7 @@
         "scripts/remediation/probe_m1_r01_e04.py",
         "python-bridge"
       ],
-      "duration_seconds": 4.339,
+      "duration_seconds": 4.507,
       "exit_code": 0,
       "parsed": {
         "execution_id": "E04",
@@ -116,7 +116,7 @@
         "scripts/remediation/probe_m1_r01_e04.py",
         "api-route"
       ],
-      "duration_seconds": 8.589,
+      "duration_seconds": 8.388,
       "exit_code": 0,
       "parsed": {
         "execution_id": "E04",
@@ -129,7 +129,7 @@
             "event_count": 74,
             "mode": "api-route",
             "passed": true,
-            "task_id": "task_9b1cc177cc08",
+            "task_id": "task_87b8200ddafa",
             "task_status": "completed"
           }
         ],
@@ -137,7 +137,7 @@
       },
       "passed": true,
       "stderr_tail": "",
-      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"api-route\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"canonical_owner\": \"typescript\",\n      \"code_worker\": true,\n      \"event_count\": 74,\n      \"mode\": \"api-route\",\n      \"passed\": true,\n      \"task_id\": \"task_9b1cc177cc08\",\n      \"task_status\": \"completed\"\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"api-route\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"canonical_owner\": \"typescript\",\n      \"code_worker\": true,\n      \"event_count\": 74,\n      \"mode\": \"api-route\",\n      \"passed\": true,\n      \"task_id\": \"task_87b8200ddafa\",\n      \"task_status\": \"completed\"\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
     },
     {
       "command": [
@@ -145,7 +145,7 @@
         "scripts/remediation/probe_m1_r01_e04.py",
         "source-ports"
       ],
-      "duration_seconds": 1.679,
+      "duration_seconds": 1.735,
       "exit_code": 0,
       "parsed": {
         "execution_id": "E04",
@@ -177,7 +177,7 @@
         "scripts/remediation/probe_m1_r01_e04.py",
         "built-ports"
       ],
-      "duration_seconds": 1.601,
+      "duration_seconds": 1.668,
       "exit_code": 0,
       "parsed": {
         "execution_id": "E04",
@@ -327,8 +327,8 @@
     }
   },
   "execution_id": "E04",
-  "g0_tooling_head": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
-  "generated_at": "2026-07-19T04:35:46.364750+00:00",
+  "g0_tooling_head": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "generated_at": "2026-07-19T08:50:13.719496+00:00",
   "passed": true,
   "python_fallback": false,
   "record_type": "default_path_result",

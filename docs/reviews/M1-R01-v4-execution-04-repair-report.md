@@ -84,3 +84,19 @@ line bucket 将 `scripts/remediation/**` 单独归入 `audit-tooling`。最终�
 
 本轮审查者同时实施了上述修复，因此不能对新候选签发新的独立 PASS。新候选及随本报告提交的 evidence 必须由不同的独立审查运行重新验收；在此之前不得推进 M1-S05C-01。
 
+## 6. Reviewer B 独立审查后的精确控制流修复
+
+Reviewer B 对实现 `3d4a00d62e47264cc4ac8678de41af497be7aec8`、evidence `960eb829a9397f7b2d7f74ed9e2cdeeb47ab2617` 的审查结论保持为 `FAIL`。审查 commit/tree 为 `920074f44115a43a25fd278b7ca5c31918862153` / `d2d18e2002bae389911f022b8490940e8e81cfd2`，报告与 reviewer-owned evidence 分别保存在 `M1-R01-v4-execution-04-independent-rereview.md` 和 `execution-04-independent-review-3d4a00d/`。本次修复没有改写这些历史事实。
+
+Reviewer B 的三项发现及修复如下：
+
+1. skill source range 的 discover/parse/register 仍由旧 `SkillReloadRuntime.scan` 完成，而被计分的 `TypeScriptSkillRuntime.loadSkillsFromSkillsDir` 只是 callback 流程。现由 `SkillReloadRuntime.loadSkillsFromSkillsDir` 直接拥有 `SkillSourceRuntime.discover`、frontmatter parse、错误收集、revision/stale 校验、diff 和原子 commit；`SkillCoordinator.reloadNow` 直接调用该 owner，`scan` 仅委托同一真实实现。
+2. 上游 `QueryEngine.ask` 的完整 lifecycle 曾错误映射到 admission-only 的 `QueryLifecycleRuntime.ask`。现把 target 精确绑定到默认主路径的 `ClaudeRuntimeCore.run`，其外层 `try/catch/finally` 负责 query 成功/失败结果、canonical settlement 与返回 snapshot 刷新，覆盖真实 construct/execute/failure/finally 生命周期。
+3. 上游 `autoCompactIfNeeded` 曾映射到只生成计划的 `CompactionSourceCustodyRuntime.autoCompactIfNeeded`。现精确绑定到真实执行 `ContextCompactionRuntime.autoCompactIfNeeded`；定向 disable 测试和 mutation 都断开该方法中的 source-custody apply 路径，不能再由 plan-only 方法取得 credit。
+
+最终实现候选 commit/tree 为 `fb23f8a8355e51046db1e7e85fa35eecebf59e21` / `ff1e92473fd36fb61ec68bc984b3f68e4e1257fb`。G0 已按正式 refreeze 流程更新到同一 commit/tree，旧 `3d4a00d…` 和中间 `a91e5edd…` G0 均保留为归档。18 个 source ranges、18 个不同的精确 target symbols 和 15 个 mutation operators 均由冻结 manifest 约束。
+
+最终复验结果：candidate gate `10/10`；8 个 semantic domains 与 8 条默认路径全部通过；terminal fault points `5/5`；mutation `15/15` killed、恢复 SHA 一致且残留 `0`；Python logical owner `0`；forbidden dependency `0`；fresh cleanroom `independent_tooling=true`、dirty path `0`。分桶为 production `2,627/488`、test `2,984/112`、adapter-only `790/39`、audit-tooling `3,661/0`（新增/删除），审计工具和 adapter 不计入 production。
+
+本节由修复者记录，只能形成新的 `implementation_complete_review_pending` handoff，不能签发独立 PASS。Reviewer B 未参与本节实现修改，可用新 nonce、seed 和独立 evidence 目录复审这个不可变 implementation/evidence pair。
+
