@@ -9,6 +9,7 @@ overwrite a target that no longer matches the applied mutation.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -47,8 +48,14 @@ OPERATORS: dict[str, dict[str, Any]] = {
                 ),
             },
             {
-                "needle": "    } as unknown as JsonObject);",
+                "needle": (
+                    "        python_agent_fallback: \"false\",\n"
+                    "      },\n"
+                    "    } as unknown as JsonObject);"
+                ),
                 "replacement": (
+                    "        python_agent_fallback: \"false\",\n"
+                    "      },\n"
                     "    } as unknown as JsonObject);\n"
                     "    await activeCapabilities.close(); // E04 mutation: checkpoint after terminal close"
                 ),
@@ -350,7 +357,8 @@ def apply_operator(record_id: str) -> dict[str, object]:
         raise SystemExit(f"E04 mutation operator is not implemented in the current slice: {record_id}")
     target = resolve_target(operator["target"])
     current = target.read_bytes()
-    current_text = current.decode("utf-8")
+    newline = "\r\n" if b"\r\n" in current else "\n"
+    current_text = current.decode("utf-8").replace("\r\n", "\n")
     backup = backup_path(record_id)
     if backup.exists():
         state = json.loads(backup.read_text(encoding="utf-8"))
@@ -374,14 +382,14 @@ def apply_operator(record_id: str) -> dict[str, object]:
                 f"mutation anchor is not unique in {operator['target']}: {record_id}"
             )
         mutated_text = mutated_text.replace(needle, replacement, 1)
-    mutated = mutated_text.encode("utf-8")
+    mutated = mutated_text.replace("\n", newline).encode("utf-8")
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
     state = {
         "record_id": record_id,
         "target": operator["target"],
         "original_sha256": sha256(current),
         "mutated_sha256": sha256(mutated),
-        "original_content": current_text,
+        "original_content_b64": base64.b64encode(current).decode("ascii"),
     }
     backup.write_text(
         json.dumps(state, ensure_ascii=False, sort_keys=True),
@@ -413,7 +421,10 @@ def restore_operator(record_id: str) -> dict[str, object]:
     current = target.read_bytes()
     if sha256(current) != state["mutated_sha256"]:
         raise SystemExit(f"mutation target drifted; restore refused: {record_id}")
-    original = str(state["original_content"]).encode("utf-8")
+    if "original_content_b64" in state:
+        original = base64.b64decode(str(state["original_content_b64"]), validate=True)
+    else:
+        original = str(state["original_content"]).encode("utf-8")
     if sha256(original) != state["original_sha256"]:
         raise SystemExit(f"mutation backup checksum mismatch: {record_id}")
     target.write_bytes(original)
