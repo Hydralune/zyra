@@ -1,0 +1,29 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "terminal_crash_matrix",
+  "reviewer_run_id": "e04-irb2-0921a6d98bbf9b9e35191daf",
+  "reviewer_nonce_digest": "edbe3e68f1084f287e7e8949b466b344d203e7751fd99fcfb7e45d12a56d1089",
+  "binding_digest": "22caf435e5d498f12125c2bd8837d7065538c5ee51abfec0b3412639a6f7ee3f",
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
+  "seeded_order": ["lost-ack", "typescript-disconnect", "host-disconnect", "checkpoint-before-ack", "final-checkpoint-before-terminal"],
+  "cases": [
+    {"mode": "checkpoint-before-ack", "exit_code": 0, "recovered": true, "restart_epochs": 2},
+    {"mode": "final-checkpoint-before-terminal", "exit_code": 0, "recovered": true, "restart_epochs": 2},
+    {"mode": "lost-ack", "exit_code": 0, "recovered": true, "terminal_receipts": 1},
+    {"mode": "host-disconnect", "exit_code": 0, "recovered": true, "restart_epochs": 2},
+    {"mode": "typescript-disconnect", "exit_code": 0, "recovered": true, "restart_epochs": 2}
+  ],
+  "terminal_fault_points": 5,
+  "minimum_restart_epochs": 2,
+  "exactly_once_effect": true,
+  "monotonic_revision": true,
+  "stable_identity": true,
+  "duplicate_completion": false,
+  "command": "verify_m1_r01_e04_candidate.py terminal matrix plus bounded cleanroom regression",
+  "exit_code": 0,
+  "output_sha256": "16d1cbc07736eefcaada8eb222a139c803b931053af88999922adef37c5ec692",
+  "toolchain": {"python": "3.13.9", "bun": "1.2.15"},
+  "generated_at": "2026-07-19T09:36:55.0574931Z",
+  "passed": true
+}

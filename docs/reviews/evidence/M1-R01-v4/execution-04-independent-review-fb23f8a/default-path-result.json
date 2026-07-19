@@ -1,0 +1,26 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "reviewer_default_path_result",
+  "reviewer_run_id": "e04-irb2-0921a6d98bbf9b9e35191daf",
+  "reviewer_nonce_digest": "edbe3e68f1084f287e7e8949b466b344d203e7751fd99fcfb7e45d12a56d1089",
+  "binding_digest": "22caf435e5d498f12125c2bd8837d7065538c5ee51abfec0b3412639a6f7ee3f",
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
+  "command_output_sha256": "f92009c1a002063d76c5de3dced6b53a4c669403bce2475c9545d303461d6367",
+  "paths": [
+    {"entry": "TypeScript source stdio", "exit_code": 0, "runtime_frames": 35, "checkpoint_requests": 16, "terminal_results": 1, "requests_after_terminal": 0, "canonical_owner": "typescript"},
+    {"entry": "built Bun stdio", "exit_code": 0, "runtime_frames": 35, "checkpoint_requests": 16, "terminal_results": 1, "requests_after_terminal": 0, "canonical_owner": "typescript"},
+    {"entry": "built Node stdio", "exit_code": 0, "runtime_frames": 35, "checkpoint_requests": 16, "terminal_results": 1, "requests_after_terminal": 0, "canonical_owner": "typescript"},
+    {"entry": "Python CodeWorkerRuntime.run", "exit_code": 0, "physical_tool_receipts": 1, "terminal_protocol": "close-result-ack-closed", "python_fallback": false},
+    {"entry": "API task route", "exit_code": 0, "task_status": "completed", "event_count": 74, "code_worker": true, "canonical_owner": "typescript"},
+    {"entry": "E02 capability API port", "exit_code": 0, "protocol": "zyra.e02-api-port/v1", "canonical_owner": "typescript"},
+    {"entry": "E03 structured control port", "exit_code": 0, "command": "agent.list", "phase": "ack", "canonical_owner": "typescript"}
+  ],
+  "reviewer_owned_identity_run": {"exit_code": 0, "run_id": "e04-irb2-0921a6d98bbf9b9e35191daf", "session_id": "review-session-791a329d6f569791ad9df7d2", "task_id": "review-task-627730b8d2b00c7fa3c5bd23", "request_id": "review-request-160dc599a1f4ed3b76f7ec11", "canonical_owner": "typescript", "python_fallback": false, "tool_effect_receipts": 1, "terminal_receipts": 1, "output_sha256": "d4d5b57c83794feeeb5278dd62e91eeb736a28b319ac210b63e4ad13a9e079aa"},
+  "command": "verify_m1_r01_e04_candidate.py --candidate fb23f8a... --output-root .tmp/e04-irb2-verifier; reviewer-owned inline CodeWorkerRuntime.run",
+  "commands": ["verify_m1_r01_e04_candidate.py --candidate fb23f8a... --output-root .tmp/e04-irb2-verifier", "reviewer-owned inline CodeWorkerRuntime.run"],
+  "exit_code": 0,
+  "toolchain": {"python": "3.13.9", "bun": "1.2.15", "node": "v22.17.0"},
+  "generated_at": "2026-07-19T09:36:55.0574931Z",
+  "passed": true
+}

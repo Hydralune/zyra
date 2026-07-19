@@ -1,0 +1,29 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "cross_language_commit_results",
+  "reviewer_run_id": "e04-irb2-0921a6d98bbf9b9e35191daf",
+  "reviewer_nonce_digest": "edbe3e68f1084f287e7e8949b466b344d203e7751fd99fcfb7e45d12a56d1089",
+  "binding_digest": "22caf435e5d498f12125c2bd8837d7065538c5ee51abfec0b3412639a6f7ee3f",
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
+  "protocol": "prepare-effect-receipt-commit-ack",
+  "categories": {"tool_effect": "PASS", "permission_settlement": "PASS", "checkpoint": "PASS", "agent_workspace_effect": "PASS", "terminal_result": "PASS"},
+  "independent_probes": [
+    {"mode": "duplicate-ack", "exit_code": 0, "terminal_receipts": 1, "ack_attempts": 2},
+    {"mode": "stale-writer", "exit_code": 0, "committed_revision": 1, "stale_writer_rejected": true},
+    {"mode": "corrupt-checkpoint", "exit_code": 0, "corrupt_checkpoint_rejected": true},
+    {"mode": "lost-ack", "exit_code": 0, "recovered": true}
+  ],
+  "pending_committed_separated": true,
+  "cas_revision_fence": true,
+  "stable_idempotency_key": true,
+  "stale_writer_rejected": true,
+  "duplicate_or_lost_ack_suppressed": true,
+  "correlation_complete": true,
+  "command": "probe_m1_r01_e04.py duplicate-ack/stale-writer/corrupt-checkpoint/lost-ack plus terminal matrix",
+  "exit_code": 0,
+  "output_sha256": "16d1cbc07736eefcaada8eb222a139c803b931053af88999922adef37c5ec692",
+  "toolchain": {"python": "3.13.9", "bun": "1.2.15"},
+  "generated_at": "2026-07-19T09:36:55.0574931Z",
+  "passed": true
+}

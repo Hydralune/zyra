@@ -1,0 +1,343 @@
+{
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
+  "canonical_owner": "typescript",
+  "commands": [
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.tmp\\npm-cache\\_npx\\33dee62a24c72480\\node_modules\\@oven\\bun-windows-x64-baseline\\bin\\bun.exe",
+        "apps/code-worker/src/main.ts",
+        "--stdio-probe"
+      ],
+      "duration_seconds": 0.628,
+      "exit_code": 0,
+      "parsed": {
+        "canonical_owner": "typescript",
+        "checkpoint_requests": 16,
+        "closing_checkpoint_before_terminal": true,
+        "entry": "G:\\agent-zoo\\zyra-e04-review-b-fb23\\apps\\code-worker\\src\\main.ts",
+        "executable": "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.tmp\\npm-cache\\_npx\\33dee62a24c72480\\node_modules\\@oven\\bun-windows-x64-baseline\\bin\\bun.exe",
+        "ok": true,
+        "python_fallback": false,
+        "requests_after_terminal_result": 0,
+        "runtime_frames": 35,
+        "terminal_closed": 1,
+        "terminal_protocol": "close-result-ack-closed",
+        "terminal_results": 1
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\"ok\":true,\"entry\":\"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\apps\\\\code-worker\\\\src\\\\main.ts\",\"executable\":\"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\.tmp\\\\npm-cache\\\\_npx\\\\33dee62a24c72480\\\\node_modules\\\\@oven\\\\bun-windows-x64-baseline\\\\bin\\\\bun.exe\",\"runtime_frames\":35,\"checkpoint_requests\":16,\"closing_checkpoint_before_terminal\":true,\"terminal_results\":1,\"terminal_closed\":1,\"requests_after_terminal_result\":0,\"canonical_owner\":\"typescript\",\"terminal_protocol\":\"close-result-ack-closed\",\"python_fallback\":false}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.tmp\\npm-cache\\_npx\\33dee62a24c72480\\node_modules\\@oven\\bun-windows-x64-baseline\\bin\\bun.exe",
+        "dist/code-worker/main.js",
+        "--stdio-probe"
+      ],
+      "duration_seconds": 0.57,
+      "exit_code": 0,
+      "parsed": {
+        "canonical_owner": "typescript",
+        "checkpoint_requests": 16,
+        "closing_checkpoint_before_terminal": true,
+        "entry": "G:\\agent-zoo\\zyra-e04-review-b-fb23\\dist\\code-worker\\main.js",
+        "executable": "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.tmp\\npm-cache\\_npx\\33dee62a24c72480\\node_modules\\@oven\\bun-windows-x64-baseline\\bin\\bun.exe",
+        "ok": true,
+        "python_fallback": false,
+        "requests_after_terminal_result": 0,
+        "runtime_frames": 35,
+        "terminal_closed": 1,
+        "terminal_protocol": "close-result-ack-closed",
+        "terminal_results": 1
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\"ok\":true,\"entry\":\"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\dist\\\\code-worker\\\\main.js\",\"executable\":\"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\.tmp\\\\npm-cache\\\\_npx\\\\33dee62a24c72480\\\\node_modules\\\\@oven\\\\bun-windows-x64-baseline\\\\bin\\\\bun.exe\",\"runtime_frames\":35,\"checkpoint_requests\":16,\"closing_checkpoint_before_terminal\":true,\"terminal_results\":1,\"terminal_closed\":1,\"requests_after_terminal_result\":0,\"canonical_owner\":\"typescript\",\"terminal_protocol\":\"close-result-ack-closed\",\"python_fallback\":false}\n"
+    },
+    {
+      "command": [
+        "node",
+        "dist/code-worker-node/main.js",
+        "--stdio-probe"
+      ],
+      "duration_seconds": 0.596,
+      "exit_code": 0,
+      "parsed": {
+        "canonical_owner": "typescript",
+        "checkpoint_requests": 16,
+        "closing_checkpoint_before_terminal": true,
+        "entry": "G:\\agent-zoo\\zyra-e04-review-b-fb23\\dist\\code-worker-node\\main.js",
+        "executable": "D:\\nodejs\\node.exe",
+        "ok": true,
+        "python_fallback": false,
+        "requests_after_terminal_result": 0,
+        "runtime_frames": 35,
+        "terminal_closed": 1,
+        "terminal_protocol": "close-result-ack-closed",
+        "terminal_results": 1
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\"ok\":true,\"entry\":\"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\dist\\\\code-worker-node\\\\main.js\",\"executable\":\"D:\\\\nodejs\\\\node.exe\",\"runtime_frames\":35,\"checkpoint_requests\":16,\"closing_checkpoint_before_terminal\":true,\"terminal_results\":1,\"terminal_closed\":1,\"requests_after_terminal_result\":0,\"canonical_owner\":\"typescript\",\"terminal_protocol\":\"close-result-ack-closed\",\"python_fallback\":false}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "python-bridge"
+      ],
+      "duration_seconds": 5.653,
+      "exit_code": 0,
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "python-bridge",
+        "ok": true,
+        "results": [
+          {
+            "canonical_owner": "typescript",
+            "checkpoint_revision": null,
+            "mode": "python-bridge",
+            "passed": true,
+            "physical_tool_receipts": 1,
+            "python_fallback": false,
+            "terminal_protocol": "close-result-ack-closed"
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"python-bridge\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"canonical_owner\": \"typescript\",\n      \"checkpoint_revision\": null,\n      \"mode\": \"python-bridge\",\n      \"passed\": true,\n      \"physical_tool_receipts\": 1,\n      \"python_fallback\": false,\n      \"terminal_protocol\": \"close-result-ack-closed\"\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "api-route"
+      ],
+      "duration_seconds": 8.589,
+      "exit_code": 0,
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "api-route",
+        "ok": true,
+        "results": [
+          {
+            "canonical_owner": "typescript",
+            "code_worker": true,
+            "event_count": 74,
+            "mode": "api-route",
+            "passed": true,
+            "task_id": "task_cb9a6b88bc1b",
+            "task_status": "completed"
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"api-route\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"canonical_owner\": \"typescript\",\n      \"code_worker\": true,\n      \"event_count\": 74,\n      \"mode\": \"api-route\",\n      \"passed\": true,\n      \"task_id\": \"task_cb9a6b88bc1b\",\n      \"task_status\": \"completed\"\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "source-ports"
+      ],
+      "duration_seconds": 1.62,
+      "exit_code": 0,
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "source-ports",
+        "ok": true,
+        "results": [
+          {
+            "e02_canonical_owner": "typescript",
+            "e02_protocol": "zyra.e02-api-port/v1",
+            "e03_command": "agent.list",
+            "e03_phase": "ack",
+            "entrypoint": [
+              "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.tmp\\npm-cache\\_npx\\33dee62a24c72480\\node_modules\\@oven\\bun-windows-x64-baseline\\bin\\bun.exe",
+              "G:\\agent-zoo\\zyra-e04-review-b-fb23\\apps\\code-worker\\src\\main.ts"
+            ],
+            "mode": "source-ports",
+            "passed": true
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"source-ports\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"e02_canonical_owner\": \"typescript\",\n      \"e02_protocol\": \"zyra.e02-api-port/v1\",\n      \"e03_command\": \"agent.list\",\n      \"e03_phase\": \"ack\",\n      \"entrypoint\": [\n        \"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\.tmp\\\\npm-cache\\\\_npx\\\\33dee62a24c72480\\\\node_modules\\\\@oven\\\\bun-windows-x64-baseline\\\\bin\\\\bun.exe\",\n        \"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\apps\\\\code-worker\\\\src\\\\main.ts\"\n      ],\n      \"mode\": \"source-ports\",\n      \"passed\": true\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    },
+    {
+      "command": [
+        "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.venv\\Scripts\\python.exe",
+        "scripts/remediation/probe_m1_r01_e04.py",
+        "built-ports"
+      ],
+      "duration_seconds": 1.614,
+      "exit_code": 0,
+      "parsed": {
+        "execution_id": "E04",
+        "mode": "built-ports",
+        "ok": true,
+        "results": [
+          {
+            "e02_canonical_owner": "typescript",
+            "e02_protocol": "zyra.e02-api-port/v1",
+            "e03_command": "agent.list",
+            "e03_phase": "ack",
+            "entrypoint": [
+              "node",
+              "G:\\agent-zoo\\zyra-e04-review-b-fb23\\dist\\code-worker-node\\main.js"
+            ],
+            "mode": "built-ports",
+            "passed": true
+          }
+        ],
+        "schema_version": "4.0"
+      },
+      "passed": true,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"execution_id\": \"E04\",\n  \"mode\": \"built-ports\",\n  \"ok\": true,\n  \"results\": [\n    {\n      \"e02_canonical_owner\": \"typescript\",\n      \"e02_protocol\": \"zyra.e02-api-port/v1\",\n      \"e03_command\": \"agent.list\",\n      \"e03_phase\": \"ack\",\n      \"entrypoint\": [\n        \"node\",\n        \"G:\\\\agent-zoo\\\\zyra-e04-review-b-fb23\\\\dist\\\\code-worker-node\\\\main.js\"\n      ],\n      \"mode\": \"built-ports\",\n      \"passed\": true\n    }\n  ],\n  \"schema_version\": \"4.0\"\n}\n"
+    }
+  ],
+  "domain_closure": {
+    "agent_subagent": {
+      "observed_test_ids": [
+        "e04-agent-disable",
+        "e04-agent-failure",
+        "e04-agent-resume",
+        "e04-agent-run-resume"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-agent-disable",
+        "e04-agent-failure",
+        "e04-agent-resume",
+        "e04-agent-run-resume"
+      ]
+    },
+    "isolation_control": {
+      "observed_test_ids": [
+        "e04-isolation-control",
+        "e04-isolation-disable",
+        "e04-isolation-failure",
+        "e04-isolation-resume"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-isolation-control",
+        "e04-isolation-disable",
+        "e04-isolation-failure",
+        "e04-isolation-resume"
+      ]
+    },
+    "mcp": {
+      "observed_test_ids": [
+        "e04-mcp-connect-failure",
+        "e04-mcp-disable",
+        "e04-mcp-lifecycle",
+        "e04-mcp-resume"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-mcp-connect-failure",
+        "e04-mcp-disable",
+        "e04-mcp-lifecycle",
+        "e04-mcp-resume"
+      ]
+    },
+    "permission": {
+      "observed_test_ids": [
+        "e04-permission-allow-ask-deny",
+        "e04-permission-continuation",
+        "e04-permission-disable",
+        "e04-permission-hook-failure"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-permission-allow-ask-deny",
+        "e04-permission-continuation",
+        "e04-permission-disable",
+        "e04-permission-hook-failure"
+      ]
+    },
+    "query_loop": {
+      "observed_test_ids": [
+        "e04-query-disable",
+        "e04-query-model-failure",
+        "e04-query-reason-observe",
+        "e04-query-resume"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-query-disable",
+        "e04-query-model-failure",
+        "e04-query-reason-observe",
+        "e04-query-resume"
+      ]
+    },
+    "session_context_compact": {
+      "observed_test_ids": [
+        "e04-compact-boundary",
+        "e04-compact-disable",
+        "e04-compact-failure",
+        "e04-compact-restore"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-compact-boundary",
+        "e04-compact-disable",
+        "e04-compact-failure",
+        "e04-compact-restore"
+      ]
+    },
+    "skill_plugin_command": {
+      "observed_test_ids": [
+        "e04-skill-disable",
+        "e04-skill-hook-failure",
+        "e04-skill-plugin-command",
+        "e04-skill-reload"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-skill-disable",
+        "e04-skill-hook-failure",
+        "e04-skill-plugin-command",
+        "e04-skill-reload"
+      ]
+    },
+    "tool_orchestration": {
+      "observed_test_ids": [
+        "e04-tool-batch",
+        "e04-tool-disable",
+        "e04-tool-failure",
+        "e04-tool-resume"
+      ],
+      "passed": true,
+      "required_test_ids": [
+        "e04-tool-batch",
+        "e04-tool-disable",
+        "e04-tool-failure",
+        "e04-tool-resume"
+      ]
+    }
+  },
+  "execution_id": "E04",
+  "g0_tooling_head": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "generated_at": "2026-07-19T09:15:06.194941+00:00",
+  "passed": true,
+  "python_fallback": false,
+  "record_type": "default_path_result",
+  "schema_version": "4.0",
+  "semantic_domain_passes": 8,
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "python": "Python 3.13.9"
+  },
+  "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
+}

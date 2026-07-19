@@ -1,0 +1,22 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "terminal_order_probe",
+  "reviewer_run_id": "e04-irb2-0921a6d98bbf9b9e35191daf",
+  "reviewer_nonce_digest": "edbe3e68f1084f287e7e8949b466b344d203e7751fd99fcfb7e45d12a56d1089",
+  "binding_digest": "22caf435e5d498f12125c2bd8837d7065538c5ee51abfec0b3412639a6f7ee3f",
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
+  "source_stdio": {"runtime_frames": 35, "checkpoint_requests": 16, "closing_checkpoint_before_terminal": true, "terminal_results": 1, "terminal_closed": 1, "requests_after_terminal_result": 0, "exit_code": 0},
+  "built_bun_stdio": {"runtime_frames": 35, "checkpoint_requests": 16, "closing_checkpoint_before_terminal": true, "terminal_results": 1, "terminal_closed": 1, "requests_after_terminal_result": 0, "exit_code": 0},
+  "built_node_stdio": {"runtime_frames": 35, "checkpoint_requests": 16, "closing_checkpoint_before_terminal": true, "terminal_results": 1, "terminal_closed": 1, "requests_after_terminal_result": 0, "exit_code": 0},
+  "terminal_protocol": "close-result-ack-closed",
+  "all_preterminal_requests_acked": true,
+  "post_terminal_host_requests": 0,
+  "result_identity_stable": true,
+  "command": "source/built Bun/built Node --stdio-probe",
+  "exit_code": 0,
+  "output_sha256": "f92009c1a002063d76c5de3dced6b53a4c669403bce2475c9545d303461d6367",
+  "toolchain": {"bun": "1.2.15", "node": "v22.17.0"},
+  "generated_at": "2026-07-19T09:36:55.0574931Z",
+  "passed": true
+}

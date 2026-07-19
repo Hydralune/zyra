@@ -1,0 +1,21 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "identity_and_baseline",
+  "reviewer_run_id": "e04-irb2-0921a6d98bbf9b9e35191daf",
+  "reviewer_nonce_digest": "edbe3e68f1084f287e7e8949b466b344d203e7751fd99fcfb7e45d12a56d1089",
+  "binding_digest": "22caf435e5d498f12125c2bd8837d7065538c5ee51abfec0b3412639a6f7ee3f",
+  "implementation": {"commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21", "tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb"},
+  "evidence": {"commit": "2c2c216cc5a1ca148d8bbdbf63226af667a9054e", "tree": "7cb2eb4cedc5da55f2cfe03258c9c9133605a2f1", "parent_is_implementation": true},
+  "baseline": {"commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249", "tree": "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00", "unchanged": true},
+  "lockfile_sha256": "3bb068f8b80136b33dc507aaf337517840adc4cb9f37a5f6a744866819c1972e",
+  "g0_verifier": {"command": ".venv/Scripts/python.exe scripts/remediation/verify_m1_r01_e04_g0.py", "exit_code": 0, "source_ranges": 18, "target_records": 18, "mutation_points": 15, "python_owner_symbols": 1619, "domains": 8},
+  "implementation_worktree_dirty": false,
+  "review_worktree_isolated": true,
+  "main_worktree_user_dirty_path_preserved": "AGENTS.md",
+  "command": "git rev-parse/show/status plus verify_m1_r01_e04_g0.py",
+  "exit_code": 0,
+  "output_sha256": "e4e1910d7717f004c72d7ff7f55cd7fc4a8f0b751c2b65896492357747ad94bf",
+  "toolchain": {"python": "3.13.9", "bun": "1.2.15", "node": "v22.17.0", "typescript": "5.8.3"},
+  "generated_at": "2026-07-19T09:36:55.0574931Z",
+  "passed": true
+}

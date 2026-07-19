@@ -1,0 +1,150 @@
+{
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_target_records_passed": 18,
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
+  "execution_id": "E04",
+  "g0_tooling_head": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "g0_verification": {
+    "command": [
+      "G:\\agent-zoo\\zyra-e04-review-b-fb23\\.venv\\Scripts\\python.exe",
+      "scripts/remediation/verify_m1_r01_e04_g0.py"
+    ],
+    "duration_seconds": 128.707,
+    "exit_code": 0,
+    "passed": true,
+    "stderr_tail": "",
+    "stdout_tail": "{\n  \"baseline_commit\": \"299b708d3559da7a5da1f9d6d55d2d1f1b155249\",\n  \"domains\": [\n    \"agent_subagent\",\n    \"isolation_control\",\n    \"mcp\",\n    \"permission\",\n    \"query_loop\",\n    \"session_context_compact\",\n    \"skill_plugin_command\",\n    \"tool_orchestration\"\n  ],\n  \"mutation_points\": 15,\n  \"ok\": true,\n  \"python_owner_symbols\": 1619,\n  \"source_ranges\": 18,\n  \"target_records\": 18,\n  \"verified_zyra_head\": \"299b708d3559da7a5da1f9d6d55d2d1f1b155249\"\n}\n"
+  },
+  "generated_at": "2026-07-19T09:13:53.780616+00:00",
+  "passed": true,
+  "record_type": "source_recovery_report",
+  "schema_version": "4.0",
+  "semantic_domains": [
+    "agent_subagent",
+    "isolation_control",
+    "mcp",
+    "permission",
+    "query_loop",
+    "session_context_compact",
+    "skill_plugin_command",
+    "tool_orchestration"
+  ],
+  "similarity_diagnostics": [
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-001",
+      "source_record_id": "e04-source-001",
+      "source_token_coverage": 0.321429
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-002",
+      "source_record_id": "e04-source-002",
+      "source_token_coverage": 0.585366
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-003",
+      "source_record_id": "e04-source-003",
+      "source_token_coverage": 0.402597
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-004",
+      "source_record_id": "e04-source-004",
+      "source_token_coverage": 0.249084
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-005",
+      "source_record_id": "e04-source-005",
+      "source_token_coverage": 0.458333
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-006",
+      "source_record_id": "e04-source-006",
+      "source_token_coverage": 0.595238
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-007",
+      "source_record_id": "e04-source-007",
+      "source_token_coverage": 0.233766
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-008",
+      "source_record_id": "e04-source-008",
+      "source_token_coverage": 0.351351
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-009",
+      "source_record_id": "e04-source-009",
+      "source_token_coverage": 0.324074
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-010",
+      "source_record_id": "e04-source-010",
+      "source_token_coverage": 0.379747
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-011",
+      "source_record_id": "e04-source-011",
+      "source_token_coverage": 0.59375
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-012",
+      "source_record_id": "e04-source-012",
+      "source_token_coverage": 0.283951
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-013",
+      "source_record_id": "e04-source-013",
+      "source_token_coverage": 0.265957
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-014",
+      "source_record_id": "e04-source-014",
+      "source_token_coverage": 0.24
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-015",
+      "source_record_id": "e04-source-015",
+      "source_token_coverage": 0.100503
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-016",
+      "source_record_id": "e04-source-016",
+      "source_token_coverage": 0.213974
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-017",
+      "source_record_id": "e04-source-017",
+      "source_token_coverage": 0.309645
+    },
+    {
+      "diagnostic_only": true,
+      "record_id": "e04-target-018",
+      "source_record_id": "e04-source-018",
+      "source_token_coverage": 0.344828
+    }
+  ],
+  "source_range_count": 18,
+  "target_record_count": 18,
+  "toolchain": {
+    "bun": "1.2.15",
+    "node": "v22.17.0",
+    "python": "Python 3.13.9"
+  },
+  "verified_zyra_head": "299b708d3559da7a5da1f9d6d55d2d1f1b155249"
+}

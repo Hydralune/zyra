@@ -1,0 +1,27 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "domain_verdicts",
+  "reviewer_run_id": "e04-irb2-0921a6d98bbf9b9e35191daf",
+  "reviewer_nonce_digest": "edbe3e68f1084f287e7e8949b466b344d203e7751fd99fcfb7e45d12a56d1089",
+  "binding_digest": "22caf435e5d498f12125c2bd8837d7065538c5ee51abfec0b3412639a6f7ee3f",
+  "candidate_commit": "fb23f8a8355e51046db1e7e85fa35eecebf59e21",
+  "candidate_tree": "ff1e92473fd36fb61ec68bc984b3f68e4e1257fb",
+  "domains": {
+    "query_loop": {"dynamic_behavior": "PASS", "source_recovery": "PASS", "prior_finding": "E04-IRB-F002 closed by ClaudeRuntimeCore.run outer lifecycle"},
+    "session_context_compact": {"dynamic_behavior": "PASS", "source_recovery": "PASS", "prior_finding": "E04-IRB-F003 closed by executing ContextCompactionRuntime target"},
+    "tool_orchestration": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "permission": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "mcp": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "skill_plugin_command": {"dynamic_behavior": "PASS", "source_recovery": "PASS", "prior_finding": "E04-IRB-F001 closed by concrete SkillReloadRuntime loader"},
+    "agent_subagent": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "isolation_control": {"dynamic_behavior": "PASS", "source_recovery": "PASS"}
+  },
+  "dynamic_domains_passed": 8,
+  "source_recovery_domains_passed": 8,
+  "command": "18-record audit + 26 reviewer samples + 15 disconnect mutations",
+  "exit_code": 0,
+  "output_sha256": "d1aa271a4eaa56e7cb8850bd1856a8f47fa30fce255fe78dadfa6268269b4759",
+  "toolchain": {"python": "3.13.9", "bun": "1.2.15"},
+  "generated_at": "2026-07-19T09:36:55.0574931Z",
+  "overall": "PASS"
+}
