@@ -1,0 +1,22 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "build_and_test_result",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "commands": [
+    {"command": "npx --yes bun@1.2.15 install --frozen-lockfile", "exit_code": 0, "seconds": 91.380},
+    {"command": "bun run typecheck", "exit_code": 0, "seconds": 7.445},
+    {"command": "bun run build", "exit_code": 0, "seconds": 0.580},
+    {"command": "bun test packages/runtime/claude-runtime/test packages/integrations/claude-mcp/test", "exit_code": 0, "seconds": 14.905},
+    {"command": "pytest E04 closure + E01 cutover + clean productized + workspace gateway", "exit_code": 0, "seconds": 122.530},
+    {"command": "probe_m1_r01_e04.py all", "exit_code": 0, "seconds": 54.833}
+  ],
+  "exact_candidate_local_rebuild": true,
+  "bun_build": true,
+  "node_build": true,
+  "e04_tests": true,
+  "affected_e01_e03_tests": true,
+  "python_api_integration": true,
+  "passed": true
+}

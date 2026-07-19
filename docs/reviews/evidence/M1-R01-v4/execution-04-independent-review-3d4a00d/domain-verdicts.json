@@ -1,0 +1,19 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "domain_verdicts",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "domains": {
+    "query_loop": {"dynamic_behavior": "PASS", "source_recovery": "FAIL", "finding": "E04-IRB-F002"},
+    "session_context_compact": {"dynamic_behavior": "PASS", "source_recovery": "FAIL", "finding": "E04-IRB-F003"},
+    "tool_orchestration": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "permission": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "mcp": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "skill_plugin_command": {"dynamic_behavior": "PASS", "source_recovery": "FAIL", "finding": "E04-IRB-F001"},
+    "agent_subagent": {"dynamic_behavior": "PASS", "source_recovery": "PASS"},
+    "isolation_control": {"dynamic_behavior": "PASS", "source_recovery": "PASS"}
+  },
+  "dynamic_domains_passed": 8,
+  "source_recovery_domains_passed": 5,
+  "overall": "FAIL"
+}

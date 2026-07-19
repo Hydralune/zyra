@@ -1,0 +1,19 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "disconnect_mutation_results",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_evidence_commit": "960eb829f04799ff3ee797fe32f5c9912358f56e",
+  "candidate_evidence_tree": "f22112e56c310ecf6a70e26c517d3b573578cad3",
+  "toolchain": {"python": "3.13.9", "bun": "1.2.15"},
+  "total": 15,
+  "killed": 15,
+  "kill_rate": 1.0,
+  "failures": [],
+  "residual_backups": 0,
+  "all_original_sha256_restored": true,
+  "restored_exact_killers_passed": 15,
+  "raw_result": "disconnect-mutation-results.raw.json",
+  "note": "The first attempt used a system Python without pytest; it killed all 15 mutants and restored every hash but could not run four restored baselines. The bound candidate-local venv rerun shown here passed without failures.",
+  "passed": true
+}

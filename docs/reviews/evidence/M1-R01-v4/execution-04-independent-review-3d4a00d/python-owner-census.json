@@ -1,0 +1,19 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "python_owner_census",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "manifest_records": 1619,
+  "retain_port": 1619,
+  "default_reachable": 57,
+  "can_advance_logical_state": 0,
+  "can_select_policy_or_route": 0,
+  "can_fallback_for_typescript": 0,
+  "callsite_scan_incomplete": 0,
+  "missing_sha256": 0,
+  "missing_required_schema_fields": 0,
+  "g0_declaration_aware_verifier_exit_code": 0,
+  "canonical_logical_owner": "typescript",
+  "python_role": "durable/physical platform port",
+  "passed": true
+}

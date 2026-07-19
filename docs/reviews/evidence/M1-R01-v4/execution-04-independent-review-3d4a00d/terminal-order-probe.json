@@ -1,0 +1,15 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "terminal_order_probe",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "source_stdio": {"runtime_frames": 35, "checkpoint_requests": 16, "closing_checkpoint_before_terminal": true, "terminal_results": 1, "terminal_closed": 1, "requests_after_terminal_result": 0, "exit_code": 0},
+  "built_bun_stdio": {"runtime_frames": 35, "checkpoint_requests": 16, "closing_checkpoint_before_terminal": true, "terminal_results": 1, "terminal_closed": 1, "requests_after_terminal_result": 0, "exit_code": 0},
+  "built_node_stdio": {"runtime_frames": 35, "checkpoint_requests": 16, "closing_checkpoint_before_terminal": true, "terminal_results": 1, "terminal_closed": 1, "requests_after_terminal_result": 0, "exit_code": 0},
+  "terminal_protocol": "close-result-ack-closed",
+  "all_preterminal_requests_acked": true,
+  "post_terminal_host_requests": 0,
+  "result_identity_stable": true,
+  "passed": true
+}

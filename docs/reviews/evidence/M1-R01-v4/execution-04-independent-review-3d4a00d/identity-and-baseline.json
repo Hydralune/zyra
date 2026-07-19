@@ -1,0 +1,15 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "identity_and_baseline",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "implementation": {"commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8", "tree": "af2f174ae9607fbcaebd33a691f1e1c5451fcadb"},
+  "evidence": {"commit": "960eb829f04799ff3ee797fe32f5c9912358f56e", "tree": "f22112e56c310ecf6a70e26c517d3b573578cad3", "parent_is_implementation": true},
+  "baseline": {"commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249", "tree": "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00", "unchanged": true},
+  "g0_lock_sha256": "3bb068f8b80136b33dc507aaf337517840adc4cb9f37a5f6a744866819c1972e",
+  "g0_verifier": {"exit_code": 0, "source_ranges": 18, "target_records": 18, "mutation_points": 15, "python_owner_symbols": 1619, "domains": 8},
+  "implementation_worktree_dirty": false,
+  "review_worktree_isolated": true,
+  "main_worktree_user_dirty_path_preserved": "AGENTS.md",
+  "passed": true
+}

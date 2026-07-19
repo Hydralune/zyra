@@ -1,0 +1,22 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "line_buckets",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "baseline_commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "buckets": {
+    "production": {"added": 2570, "deleted": 487},
+    "test": {"added": 2961, "deleted": 112},
+    "adapter-only": {"added": 790, "deleted": 39},
+    "audit-tooling": {"added": 3644, "deleted": 0},
+    "docs": {"added": 27907, "deleted": 0},
+    "data": {"added": 3, "deleted": 0}
+  },
+  "total_added": 37875,
+  "total_deleted": 638,
+  "gross_loc_floor_for_e04": null,
+  "historical_absolute_line_protection_regressed": false,
+  "raw_verifier_result": "verifier/line-buckets.json",
+  "passed": true
+}

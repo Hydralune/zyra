@@ -1,0 +1,33 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "source_recovery_full_audit",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "source_snapshot": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+  "machine_validation": {"source_records": 18, "target_records": 18, "hash_symbol_range_valid": 18, "g0_exit_code": 0},
+  "manual_records": [
+    {"source": "e04-source-001", "target": "QueryLifecycleRuntime.ask", "verdict": "FAIL", "finding": "E04-IRB-F002", "reason": "target only stringifies and admits; selected submit/yield/loop/finally flow is absent"},
+    {"source": "e04-source-002", "target": "QueryLifecycleRuntime.advanceAfterObservation", "verdict": "PASS", "reason": "max-turn stop and observation-to-next-turn concatenation retained"},
+    {"source": "e04-source-003", "target": "CompactionSourceCustodyRuntime.autoCompactIfNeeded", "verdict": "FAIL", "finding": "E04-IRB-F003", "reason": "exact target only creates a plan; selected session-memory/legacy execution and failure route live elsewhere"},
+    {"source": "e04-source-004", "target": "CompactRestoreRuntime.processResumedConversation", "verdict": "PASS", "reason": "session/fork/workspace/agent/content replacement/context-collapse restore retained"},
+    {"source": "e04-source-005", "target": "ToolExecutionRuntime.runTools", "verdict": "PASS", "reason": "concurrency-safe batches precede serialized unsafe batches"},
+    {"source": "e04-source-006", "target": "ToolExecutionRuntime.partitionToolCalls", "verdict": "PASS", "reason": "classifier failure defaults unsafe and consecutive partition ordering is retained"},
+    {"source": "e04-source-007", "target": "ToolResultRuntime.enforceToolResultBudget", "verdict": "PASS", "reason": "prior replacement replay, in-flight dedupe, externalize-before-commit and spill replacement retained"},
+    {"source": "e04-source-008", "target": "PermissionEvaluator.evaluateAsync", "verdict": "PASS", "reason": "hook-first, conditional classifier and failed-closed ordering retained"},
+    {"source": "e04-source-009", "target": "PermissionEvaluator.selectEffect", "verdict": "PASS", "reason": "deny/ask/hook/grant/allow/default precedence retained"},
+    {"source": "e04-source-010", "target": "McpConnectionRuntime.performConnect", "verdict": "PASS", "reason": "transport start, initialize, ready and typed failure/reconnect route retained; timeout is adapted to transport/request ports"},
+    {"source": "e04-source-011", "target": "McpClientRuntime.ensureConnectedClient", "verdict": "PASS", "reason": "live-client guard, connect, initialized check and typed fail-closed retained"},
+    {"source": "e04-source-012", "target": "TypeScriptSkillRuntime.loadSkillsFromSkillsDir", "verdict": "FAIL", "finding": "E04-IRB-F001", "reason": "exact target is a discover/validate/register callback wrapper; upstream directory/read/parse body remains absent"},
+    {"source": "e04-source-013", "target": "TypeScriptSkillRuntime.executeForkedSkill", "verdict": "PASS", "reason": "bounded child context, scoped tools/resources, budget and child invocation retained"},
+    {"source": "e04-source-014", "target": "PluginCoordinator.replaceActiveHooks", "verdict": "PASS", "reason": "active hook flatten/sort and atomic replacement retained"},
+    {"source": "e04-source-015", "target": "e03ChildRunInput", "verdict": "PASS", "reason": "context/messages/tool scope/permission/budget/restore ownership data flow retained"},
+    {"source": "e04-source-016", "target": "AgentBackgroundSupervisor.resumeInput", "verdict": "PASS", "reason": "durable claim/lease/revision/attempt validation feeds the real coordinator execution edge"},
+    {"source": "e04-source-017", "target": "IsolationRequestRuntime.prepare", "verdict": "PASS", "reason": "scope/root/base/idempotency validation and create-versus-reuse request retained across the physical port"},
+    {"source": "e04-source-018", "target": "TypeScriptControlRuntime.decideAgentTerminalMutation", "verdict": "PASS", "reason": "terminal idempotency, revision, ownership and kill permission decision retained"}
+  ],
+  "manual_passed": 15,
+  "manual_failed": 3,
+  "reimplementation_exceptions": 0,
+  "overall": "FAIL"
+}

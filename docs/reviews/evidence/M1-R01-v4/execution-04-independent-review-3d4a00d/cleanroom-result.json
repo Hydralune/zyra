@@ -1,0 +1,20 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "cleanroom_result",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "candidate_tree": "af2f174ae9607fbcaebd33a691f1e1c5451fcadb",
+  "cleanroom_identity": "e04-irb-clean-5625a1b7efeab712da4e",
+  "independent_tooling": true,
+  "command_count": 8,
+  "commands_passed": 8,
+  "removed_preexisting_paths": ["vendor", "vendor-runtimes"],
+  "forbidden_exists": [],
+  "dirty_paths": [],
+  "source_repositories_accessed_at_runtime": false,
+  "original_node_modules_or_build_cache_used": false,
+  "fresh_install_build_test_probe": true,
+  "raw_result": "cleanroom-result.raw.json",
+  "passed": true
+}

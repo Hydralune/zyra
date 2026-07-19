@@ -1,0 +1,22 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "reviewer_default_path_result",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "paths": [
+    {"entry": "TypeScript source stdio", "exit_code": 0, "runtime_frames": 35, "checkpoint_requests": 16, "terminal_results": 1, "requests_after_terminal": 0, "canonical_owner": "typescript"},
+    {"entry": "built Bun stdio", "exit_code": 0, "runtime_frames": 35, "checkpoint_requests": 16, "terminal_results": 1, "requests_after_terminal": 0, "canonical_owner": "typescript"},
+    {"entry": "built Node stdio", "exit_code": 0, "runtime_frames": 35, "checkpoint_requests": 16, "terminal_results": 1, "requests_after_terminal": 0, "canonical_owner": "typescript"},
+    {"entry": "Python CodeWorkerRuntime.run", "exit_code": 0, "physical_tool_receipts": 1, "terminal_protocol": "close-result-ack-closed", "python_fallback": false},
+    {"entry": "API task route", "exit_code": 0, "task_status": "completed", "event_count": 74, "code_worker": true, "canonical_owner": "typescript"},
+    {"entry": "E02 capability API port", "exit_code": 0, "protocol": "zyra.e02-api-port/v1", "canonical_owner": "typescript"},
+    {"entry": "E03 structured control port", "exit_code": 0, "command": "agent.list", "phase": "ack", "canonical_owner": "typescript"}
+  ],
+  "frozen_regressions_ran_in_cleanroom": [
+    "tests/integration/test_e01_typescript_runtime_cutover.py",
+    "tests/integration/test_code_worker_clean_productized_runtime.py"
+  ],
+  "note": "A first local Python bridge attempt lacked ZYRA_BUN_EXECUTABLE and failed before candidate execution; the bound rerun and isolated cleanroom both passed.",
+  "passed": true
+}

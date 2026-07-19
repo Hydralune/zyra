@@ -1,0 +1,37 @@
+{
+  "schema_version": "4.0-reviewer",
+  "execution_id": "E04",
+  "record_type": "independent_reviewer_metadata",
+  "reviewer_role": "Reviewer B, fresh independent reviewer",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "reviewer_session_id": "review-session-ef6169e4dabba2cba8ad40b5",
+  "reviewer_task_id": "review-task-d942e3c94003d82dfd1784a8",
+  "reviewer_request_id": "review-request-8184c59f48fe8746063d2364",
+  "nonce_erased": true,
+  "nonce_sha256": "c8fb51591c634c40e2103044996bd06b92d3b4976ff3e10ac176375cad4faebc",
+  "sample_seed_sha256": "85c2430e9b4339435ccde743c6555241b8935ead76d14d99612d230e268fb6dc",
+  "terminal_fault_seed_sha256": "2a81bcfbdfc0036f0f19014c26ad357a7dbb4713d16d1aa7502435b2a0c4a840",
+  "mutation_seed_sha256": "0b02cd6fc8defc4a8599b8415b80e5cfe51725cf004a511310a5b8e52a868377",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "implementation_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "implementation_tree": "af2f174ae9607fbcaebd33a691f1e1c5451fcadb",
+  "evidence_commit": "960eb829f04799ff3ee797fe32f5c9912358f56e",
+  "evidence_tree": "f22112e56c310ecf6a70e26c517d3b573578cad3",
+  "baseline_commit": "299b708d3559da7a5da1f9d6d55d2d1f1b155249",
+  "baseline_tree": "897924b1d7b47fe5dcfdf6f0ea91d8b0a717fb00",
+  "source_snapshots": {
+    "claude-code-best": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+    "opencode": "adf178ac3ec555836899a6cbf27e903ab9c69224",
+    "OpenClaw": "b63e06afebaef07b4a038c9c967787cf48dfdf65"
+  },
+  "toolchain": {"python": "3.13.9", "bun": "1.2.15", "node": "v22.17.0"},
+  "review_commands": [
+    {"name": "g0_verifier", "exit_code": 0, "seconds": 130.7},
+    {"name": "isolated_cleanroom", "exit_code": 0, "seconds": 316.6},
+    {"name": "mutation_corpus_rerun", "exit_code": 0, "seconds": 162.7},
+    {"name": "terminal_and_commit_probes", "exit_code": 0, "seconds": 46.4},
+    {"name": "reviewer_default_paths", "exit_code": 0, "seconds": 21.7}
+  ],
+  "production_or_test_files_modified_by_reviewer": false,
+  "verdict": "FAIL"
+}

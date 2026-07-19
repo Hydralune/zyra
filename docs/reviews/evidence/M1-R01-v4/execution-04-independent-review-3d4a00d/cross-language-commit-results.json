@@ -1,0 +1,28 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "cross_language_commit_results",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "protocol": "prepare-effect-receipt-commit-ack",
+  "categories": {
+    "tool_effect": "PASS",
+    "permission_settlement": "PASS",
+    "checkpoint": "PASS",
+    "agent_workspace_effect": "PASS",
+    "terminal_result": "PASS"
+  },
+  "independent_probes": [
+    {"mode": "duplicate-ack", "exit_code": 0, "seconds": 2.920},
+    {"mode": "stale-writer", "exit_code": 0, "seconds": 1.187},
+    {"mode": "corrupt-checkpoint", "exit_code": 0, "seconds": 1.188},
+    {"mode": "lost-ack", "exit_code": 0, "seconds": 5.093}
+  ],
+  "pending_committed_separated": true,
+  "cas_revision_fence": true,
+  "stable_idempotency_key": true,
+  "stale_writer_rejected": true,
+  "duplicate_or_lost_ack_suppressed": true,
+  "correlation_complete": true,
+  "passed": true
+}

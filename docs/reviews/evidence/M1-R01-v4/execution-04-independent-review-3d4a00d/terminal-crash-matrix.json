@@ -1,0 +1,23 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "terminal_crash_matrix",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "candidate_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "cases": [
+    {"mode": "checkpoint-before-ack", "exit_code": 0, "seconds": 5.449, "recovered": true},
+    {"mode": "final-checkpoint-before-terminal", "exit_code": 0, "seconds": 9.868, "recovered": true},
+    {"mode": "lost-ack", "exit_code": 0, "seconds": 5.093, "recovered": true},
+    {"mode": "host-disconnect", "exit_code": 0, "seconds": 9.987, "recovered": true},
+    {"mode": "typescript-disconnect", "exit_code": 0, "seconds": 9.774, "recovered": true}
+  ],
+  "terminal_fault_points": 5,
+  "minimum_restart_epochs": 2,
+  "exactly_once_effect": true,
+  "monotonic_revision": true,
+  "stable_identity": true,
+  "duplicate_completion": false,
+  "full_frame_trace_inspected_from": "docs/reviews/evidence/M1-R01-v4/execution-04/terminal-protocol-crash-matrix.json",
+  "independently_reexecuted": true,
+  "passed": true
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "4.0-reviewer",
+  "record_type": "final_verdict",
+  "reviewer_run_id": "e04-irb-f356e4ada5165b888f8885a9",
+  "binding_digest": "57a2328722c1cdfcde90ee7c01f9d7747dad3f4ba73e41750f5dcc6878936873",
+  "implementation_commit": "3d4a00d62e47264cc4ac8678de41af497be7aec8",
+  "evidence_commit": "960eb829f04799ff3ee797fe32f5c9912358f56e",
+  "verdict": "FAIL",
+  "severity": "P0",
+  "findings": ["E04-IRB-F001", "E04-IRB-F002", "E04-IRB-F003"],
+  "passed_gates": ["identity", "default_paths", "terminal_protocol", "mutation", "python_owner", "cross_language_commit", "build_test", "cleanroom", "dependency", "line_buckets", "mainline_protection"],
+  "failed_gates": ["retained_upstream_source_control_flow", "exact_candidate_target_provenance"],
+  "core_question": "当前 E04 candidate 是否已经通过真实源码迁移、成熟语义保留、默认产品主路径、正确跨语言职责和独立 cleanroom 交付，充分达到了用户定义的核心补救目标？",
+  "answer": "否。动态行为、职责与独立交付门禁通过，但三条 Claude primary credited mapping 的精确目标符号没有保留申报的上游成熟控制流，因此不能无保留 PASS。",
+  "return_stage": "E04 source-recovery implementation (query, compact, skill loader)",
+  "production_fix_performed_by_reviewer": false
+}
