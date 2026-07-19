@@ -72,7 +72,8 @@ def main() -> int:
     parser.add_argument("--candidate")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
-    candidate = args.candidate or git(["rev-parse", "HEAD"])
+    requested_candidate = args.candidate or "HEAD"
+    candidate = git(["rev-parse", f"{requested_candidate}^{{commit}}"])
     tree = git(["rev-parse", f"{candidate}^{{tree}}"])
     temp_root = (REPO / ".tmp").resolve()
     temp_root.mkdir(parents=True, exist_ok=True)
