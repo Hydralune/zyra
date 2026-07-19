@@ -24,6 +24,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
@@ -312,6 +313,7 @@ def source_blob(repo: str, snapshot: str, path: str) -> bytes:
     return run(["git", "show", f"{snapshot}:{path}"], SOURCE_REPOS[repo]["root"]).stdout
 
 
+@lru_cache(maxsize=None)
 def target_blob(snapshot: str, path: str) -> bytes:
     safe_relative(path)
     return run(["git", "show", f"{snapshot}:{path}"], ZYRA_ROOT).stdout
