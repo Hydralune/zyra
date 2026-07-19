@@ -2,7 +2,15 @@
 
 from .archive_policy import ArchiveEntry, ArchiveInspection, ArchivePolicy
 from .artifact_port import GatewayFileArtifactPort
-from .backends import BackendSession, LocalProcessSandboxBackend, SandboxBackend
+from .backends import (
+    BackendSession,
+    ConnectorSandboxBackend,
+    DockerSandboxBackend,
+    LocalProcessSandboxBackend,
+    SandboxBackend,
+    SandboxBackendConnector,
+    SimulatedSandboxBackend,
+)
 from .canonical import (
     canonical_json,
     canonical_logical_path,
@@ -177,6 +185,8 @@ __all__ = [
     "IsolationWorkspace",
     "LifecycleTransition",
     "LocalProcessSandboxBackend",
+    "ConnectorSandboxBackend",
+    "DockerSandboxBackend",
     "MemoryGatewayEventSink",
     "NetworkPolicy",
     "NetworkPolicyResult",
@@ -210,6 +220,8 @@ __all__ = [
     "RedactionFinding",
     "RedactionReport",
     "SandboxBackend",
+    "SandboxBackendConnector",
+    "SimulatedSandboxBackend",
     "SandboxCommandExecution",
     "SandboxGatewayConfig",
     "SandboxGatewayError",

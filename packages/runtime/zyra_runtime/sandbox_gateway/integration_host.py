@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .models import CommandBudget, GatewayCommandEnvelope, ProcessTermination
-from .process_budget import OutputBudgetCollector
+from .process_budget import OutputBudgetCollector, ProcessStreamPump
 from .process_tree import ProcessTreeController
 from .redaction import SecretRedactor
 from .integration_models import canonical_value, content_digest, stable_identifier
@@ -84,7 +84,7 @@ class GatewayHostProcessRuntime:
         self.allowed_roots = tuple(Path(item).resolve() for item in allowed_roots)
         self.process_tree = ProcessTreeController()
         self._lock = threading.RLock()
-        self._active: dict[str, subprocess.Popen[bytes]] = {}
+        self._active: dict[str, subprocess.Popen[Any]] = {}
 
     def run(
         self,
@@ -153,19 +153,51 @@ class GatewayHostProcessRuntime:
             )
             with self._lock:
                 self._active[command_id] = process
-            try:
-                stdout, stderr = process.communicate(timeout=envelope.budget.timeout_seconds)
-                return_code = process.returncode
+            assert process.stdout is not None
+            assert process.stderr is not None
+            collector = OutputBudgetCollector(envelope.budget)
+            pump = ProcessStreamPump(process.stdout, process.stderr, collector)
+            pump.start()
+            deadline = time.monotonic() + envelope.budget.timeout_seconds
+            while process.poll() is None:
+                state = pump.drain(timeout_seconds=0.025)
+                if state.exceeded:
+                    self.process_tree.terminate(
+                        process,
+                        grace_seconds=envelope.budget.cancel_grace_seconds,
+                        reason="host process output budget exceeded",
+                    )
+                    termination = ProcessTermination.OUTPUT_LIMIT
+                    failure_code = "host_process_output_limit"
+                    break
+                if time.monotonic() >= deadline:
+                    self.process_tree.terminate(
+                        process,
+                        grace_seconds=envelope.budget.cancel_grace_seconds,
+                        reason="host process deadline exceeded",
+                    )
+                    termination = ProcessTermination.TIMED_OUT
+                    failure_code = "host_process_timeout"
+                    break
+                time.sleep(0.01)
+            output = pump.finish(
+                timeout_seconds=max(1.0, envelope.budget.cancel_grace_seconds)
+            )
+            stdout = output.stdout
+            stderr = output.stderr
+            return_code = process.poll()
+            if termination is ProcessTermination.FAILED_TO_START:
                 termination = ProcessTermination.EXITED
-            except subprocess.TimeoutExpired:
-                self.process_tree.terminate(
-                    process,
-                    grace_seconds=envelope.budget.cancel_grace_seconds,
+            if (
+                termination is ProcessTermination.EXITED
+                and (
+                    output.stdout_truncated
+                    or output.stderr_truncated
+                    or output.combined_truncated
                 )
-                stdout, stderr = process.communicate()
-                return_code = process.returncode
-                termination = ProcessTermination.TIMED_OUT
-                failure_code = "host_process_timeout"
+            ):
+                termination = ProcessTermination.OUTPUT_LIMIT
+                failure_code = "host_process_output_limit"
         except OSError as error:
             stdout = b""
             stderr = str(error).encode("utf-8", errors="replace")
@@ -173,6 +205,8 @@ class GatewayHostProcessRuntime:
         finally:
             with self._lock:
                 self._active.pop(command_id, None)
+            if process is not None:
+                self._close_pipes(process)
         stdout, stdout_truncated = _bounded(stdout, envelope.budget.stdout_limit_bytes)
         stderr, stderr_truncated = _bounded(stderr, envelope.budget.stderr_limit_bytes)
         stdout, stderr, findings = self._redact(stdout, stderr)
@@ -207,6 +241,64 @@ class GatewayHostProcessRuntime:
             },
         )
 
+    def start_interactive(
+        self,
+        *,
+        executable: str,
+        argv: Sequence[str],
+        cwd: str | Path,
+        environment: Mapping[str, str] | None = None,
+        operation_name: str = "zyra-control-interactive",
+    ) -> subprocess.Popen[str]:
+        """Start a fixed Zyra control runtime under gateway process custody."""
+
+        root = Path(cwd).resolve()
+        self._assert_root(root)
+        frozen_environment = self.policy_runtime.assert_environment(environment or {})
+        command_id = stable_identifier(
+            "gateway-host-command",
+            str(root),
+            executable,
+            tuple(str(item) for item in argv),
+            operation_name,
+            time.time_ns(),
+        )
+        process = subprocess.Popen(
+            [str(executable), *(str(item) for item in argv)],
+            cwd=root,
+            env={**_safe_base_environment(), **dict(frozen_environment)},
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+            creationflags=self.process_tree.creation_flags(),
+            start_new_session=self.process_tree.start_new_session(),
+        )
+        setattr(process, "_zyra_gateway_command_id", command_id)
+        with self._lock:
+            self._active[command_id] = process
+        return process
+
+    def release_interactive(
+        self,
+        process: subprocess.Popen[str],
+        *,
+        terminate: bool = False,
+        reason: str = "interactive runtime release",
+        close_pipes: bool = True,
+    ) -> None:
+        command_id = str(getattr(process, "_zyra_gateway_command_id", "") or "")
+        if terminate and process.poll() is None:
+            self.process_tree.terminate(process, grace_seconds=3.0, reason=reason)
+        if close_pipes:
+            with self._lock:
+                if command_id:
+                    self._active.pop(command_id, None)
+            self._close_pipes(process)
+
     def cancel(self, command_id: str, *, reason: str = "control cancellation") -> bool:
         with self._lock:
             process = self._active.get(command_id)
@@ -228,7 +320,19 @@ class GatewayHostProcessRuntime:
             "structured_argv": True,
             "bounded_output": True,
             "process_tree_controlled": True,
+            "interactive_control_supported": True,
         }
+
+    @staticmethod
+    def _close_pipes(process: subprocess.Popen[Any]) -> None:
+        for stream_name in ("stdin", "stdout", "stderr"):
+            stream = getattr(process, stream_name, None)
+            if stream is None or getattr(stream, "closed", False):
+                continue
+            try:
+                stream.close()
+            except OSError:
+                pass
 
     def _assert_root(self, root: Path) -> None:
         if not self.allowed_roots:
@@ -242,9 +346,9 @@ class GatewayHostProcessRuntime:
         raise RuntimeError("host process working directory is outside allowed roots")
 
     def _redact(self, stdout: bytes, stderr: bytes) -> tuple[bytes, bytes, tuple[Any, ...]]:
-        from .redaction import redact_terminal_output
-
-        return redact_terminal_output(stdout, stderr)
+        out = self.redactor.redact_bytes(stdout, source="stdout")
+        err = self.redactor.redact_bytes(stderr, source="stderr")
+        return bytes(out.value), bytes(err.value), (*out.findings, *err.findings)
 
 
 def _bounded(value: bytes, limit: int) -> tuple[bytes, bool]:
@@ -261,8 +365,6 @@ def _safe_base_environment() -> dict[str, str]:
         "WINDIR",
         "TEMP",
         "TMP",
-        "HOME",
-        "USERPROFILE",
         "LANG",
         "LC_ALL",
         "TERM",

@@ -53,6 +53,8 @@ class OutputBudgetCollector:
         self.on_chunk = on_chunk
         self._stdout = bytearray()
         self._stderr = bytearray()
+        self._stdout_overflow = bytearray()
+        self._stderr_overflow = bytearray()
         self._stdout_seen = 0
         self._stderr_seen = 0
         self._stdout_truncated = False
@@ -87,6 +89,12 @@ class OutputBudgetCollector:
             )
             accepted = data[: min(remaining_stream, remaining_combined)]
             buffer.extend(accepted)
+            overflow = data[len(accepted):]
+            if overflow:
+                overflow_buffer = (
+                    self._stdout_overflow if stream == "stdout" else self._stderr_overflow
+                )
+                overflow_buffer.extend(overflow)
             if len(data) > remaining_stream:
                 if stream == "stdout":
                     self._stdout_truncated = True
@@ -120,6 +128,8 @@ class OutputBudgetCollector:
             return ProcessOutput(
                 stdout=bytes(self._stdout),
                 stderr=bytes(self._stderr),
+                stdout_overflow=bytes(self._stdout_overflow),
+                stderr_overflow=bytes(self._stderr_overflow),
                 stdout_truncated=self._stdout_truncated,
                 stderr_truncated=self._stderr_truncated,
                 combined_truncated=self._combined_truncated,

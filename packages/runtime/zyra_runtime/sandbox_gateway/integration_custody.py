@@ -98,7 +98,7 @@ def integration_source_custody() -> tuple[Mapping[str, Any], ...]:
                 "zyra_runtime.executor.ToolExecutor",
             ),
             "target_language": "TypeScript and Python integration glue",
-            "canonical_owner": "TypeScriptClaudeQueryEngine and ToolPermissionRuntime",
+            "canonical_owner": "TypeScriptClaudeQueryEngine and typescript.PermissionCoordinator",
             "migration_mode": "conformance and production-path connection only",
             "production_owner": False,
         },
@@ -121,7 +121,7 @@ def integration_source_custody_manifest() -> Mapping[str, Any]:
     return {
         "schema": "zyra.gateway-integration-source-custody.v1",
         "canonical_gateway_owner": "SandboxGatewayRuntime",
-        "permission_owner": "ToolPermissionRuntime",
+        "permission_owner": "typescript.PermissionCoordinator",
         "workspace_owner": "WorkspaceManagerRuntime",
         "entries": [dict(item) for item in entries],
         "manifest_digest": content_digest(entries),

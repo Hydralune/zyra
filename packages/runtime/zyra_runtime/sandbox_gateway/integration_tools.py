@@ -364,6 +364,15 @@ class GatewayToolExecutionRouter:
         process = execution.result
         stdout = process.output.stdout.decode("utf-8", errors="replace")
         stderr = process.output.stderr.decode("utf-8", errors="replace")
+        spill_receipt = self._spill_command_output(call, identity, process.output)
+        artifact_refs = tuple(
+            dict.fromkeys(
+                (
+                    *execution.receipt.artifact_refs,
+                    *((spill_receipt.artifact_ref,) if spill_receipt and spill_receipt.artifact_ref else ()),
+                )
+            )
+        )
         succeeded = process.termination == ProcessTermination.EXITED and process.return_code == 0
         outcome = GatewayOutcome.COMMITTED if succeeded else GatewayOutcome.FAILED
         integration_receipt = GatewayExecutionReceipt(
@@ -385,10 +394,14 @@ class GatewayToolExecutionRouter:
             permission_consumption_id=execution.receipt.permission_consumption_id,
             command_receipt_id=execution.receipt.receipt_id,
             patch_receipt_id=execution.receipt.patch_receipt_id,
-            artifact_refs=execution.receipt.artifact_refs,
+            artifact_refs=artifact_refs,
             event_refs=execution.event_ids,
             owner_epoch_before=execution.receipt.owner_epoch_before,
-            owner_epoch_after=execution.receipt.owner_epoch_after,
+            owner_epoch_after=(
+                spill_receipt.owner_epoch_after
+                if spill_receipt is not None and spill_receipt.committed
+                else execution.receipt.owner_epoch_after
+            ),
             backend_generation=execution.record.generation,
             started_at=process.started_at,
             finished_at=process.finished_at,
@@ -400,6 +413,8 @@ class GatewayToolExecutionRouter:
                 "stderr_truncated": process.output.stderr_truncated,
                 "combined_truncated": process.output.combined_truncated,
                 "recovery_required": execution.recovery_required,
+                "output_spilled": spill_receipt is not None,
+                "output_spill_receipt_id": spill_receipt.receipt_id if spill_receipt else "",
             },
         )
         self.bundle.receipt_journal.append(
@@ -440,12 +455,58 @@ class GatewayToolExecutionRouter:
                 "stderr": stderr,
                 "return_code": process.return_code,
                 "termination": process.termination.value,
-                "artifact_refs": list(execution.receipt.artifact_refs),
+                "artifact_refs": list(artifact_refs),
                 "gateway_receipt": integration_receipt.safe_dict(),
             },
             error=None if succeeded else process.error_code or "sandbox_command_failed",
             metadata=metadata,
         )
+
+    def _spill_command_output(
+        self,
+        call: ToolCall,
+        identity: WorkerGatewayIdentity,
+        output: Any,
+    ) -> FileArtifactReceipt | None:
+        if not (
+            output.stdout_truncated
+            or output.stderr_truncated
+            or output.combined_truncated
+        ):
+            return None
+        artifact_port = self._require_artifact_port()
+        stdout = bytes(output.stdout) + bytes(output.stdout_overflow)
+        stderr = bytes(output.stderr) + bytes(output.stderr_overflow)
+        content = b"[stdout]\n" + stdout + b"\n[stderr]\n" + stderr
+        access = artifact_port.workspace_edit_port.current_access()
+        current_workspace_id = str(getattr(access, "workspace_id", "") or "")
+        current_owner_epoch = int(getattr(access, "owner_epoch", 0) or 0)
+        manager = getattr(artifact_port.workspace_edit_port, "manager", None)
+        store = getattr(manager, "store", None)
+        require_binding = getattr(store, "require_binding", None)
+        if callable(require_binding):
+            binding = require_binding(current_workspace_id)
+            current_owner_epoch = int(getattr(binding, "owner_epoch", 0) or current_owner_epoch)
+        provenance = self._internal_provenance(
+            identity,
+            call,
+            content,
+            kind=ProvenanceKind.GENERATED,
+        )
+        request = FileArtifactRequest.build(
+            session_id=identity.session_id,
+            logical_path=f"command-output/{call.tool_call_id}.log",
+            content=content,
+            content_type="text/plain",
+            provenance=provenance,
+            operation=OperationKind.ARTIFACT_EXPORT,
+            expected_workspace_id=current_workspace_id,
+            expected_owner_epoch=current_owner_epoch,
+            idempotency_key=stable_identifier("command-output-spill", call.tool_call_id),
+            causation_id=call.tool_call_id,
+            metadata={"gateway_output_spill": True},
+        )
+        return artifact_port.commit(request)
 
     def _execute_host_compatibility(
         self,
@@ -668,6 +729,8 @@ class GatewayToolExecutionRouter:
             operation=operation,
             expected_digest=str(call.arguments.get("expected_digest") or ""),
             expected_previous_digest=str(call.arguments.get("expected_previous_digest") or ""),
+            expected_workspace_id=identity.workspace_id,
+            expected_owner_epoch=identity.owner_epoch,
             mount_kind=str(call.arguments.get("mount_kind") or "task"),
             executable_allowed=False,
             archive_expansion_allowed=False,

@@ -73,10 +73,10 @@ class GatewayPermissionBridgeError(RuntimeError):
 
 
 class GatewayPermissionBridge:
-    """Adapts the existing ToolPermissionRuntime to GatewayPermissionRelay.
+    """Adapts the canonical TypeScript PermissionCoordinator to the gateway relay.
 
     The bridge owns no rules and mints no authority.  It presents exactly one
-    in-flight ToolPermissionRuntime grant to the 05B-01 relay, validates it at
+    in-flight PermissionCoordinator grant to the 05B-01 relay, validates it at
     the last side-effect boundary, and makes the resulting authorization
     single-use inside the gateway call.
     """
@@ -182,7 +182,7 @@ class GatewayPermissionBridge:
         authority = binding.authority
         validator = getattr(authority, "validate_and_consume", None)
         if not callable(validator):
-            receipt = self._receipt(binding, allowed=False, reason="ToolPermissionRuntime authority is unavailable")
+            receipt = self._receipt(binding, allowed=False, reason="typescript.PermissionCoordinator authority is unavailable")
             self._store_receipt(receipt)
             self._local.receipt = receipt
             return PermissionRuntimeDecision(
@@ -212,7 +212,7 @@ class GatewayPermissionBridge:
         receipt = self._receipt(
             binding,
             allowed=allowed,
-            reason="ToolPermissionRuntime consumed exact grant" if allowed else "exact grant was rejected or consumed",
+            reason="typescript.PermissionCoordinator consumed exact grant" if allowed else "exact grant was rejected or consumed",
         )
         self._store_receipt(receipt)
         self._local.receipt = receipt
@@ -230,7 +230,7 @@ class GatewayPermissionBridge:
             reason=receipt.reason,
             metadata={
                 "bridge_receipt_id": receipt.receipt_id,
-                "tool_permission_runtime_owner": True,
+                "typescript_permission_coordinator_owner": True,
             },
         )
 
@@ -306,12 +306,12 @@ class GatewayPermissionBridge:
             return receipt
         validator = getattr(authority, "validate_and_consume", None)
         if not callable(validator):
-            receipt = self._receipt(binding, allowed=False, reason="ToolPermissionRuntime authority is unavailable")
+            receipt = self._receipt(binding, allowed=False, reason="typescript.PermissionCoordinator authority is unavailable")
             self._store_receipt(receipt)
             return receipt
         try:
             allowed = bool(validator(call, grant, execution_context))
-            reason = "ToolPermissionRuntime consumed exact grant" if allowed else "exact grant was rejected or consumed"
+            reason = "typescript.PermissionCoordinator consumed exact grant" if allowed else "exact grant was rejected or consumed"
         except Exception as error:  # noqa: BLE001
             allowed = False
             reason = f"permission grant validation failed: {type(error).__name__}"
@@ -332,7 +332,7 @@ class GatewayPermissionBridge:
             count = len(self._consumed)
             allowed = sum(1 for item in self._consumed.values() if item.allowed)
         return {
-            "owner": "ToolPermissionRuntime",
+            "owner": "typescript.PermissionCoordinator",
             "bridge": "GatewayPermissionBridge",
             "mints_authority": False,
             "stores_raw_grants": False,

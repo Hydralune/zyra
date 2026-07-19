@@ -26,7 +26,7 @@ from .process_budget import (
     StreamChunk,
 )
 from .process_tree import ProcessTreeController
-from .redaction import SecretRedactor, redact_terminal_output
+from .redaction import SecretRedactor
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +70,236 @@ class SandboxBackend(Protocol):
 
     def cancel(self, command_id: str, reason: str) -> bool:
         ...
+
+    def descriptor(self) -> Mapping[str, Any]:
+        ...
+
+
+class SandboxBackendConnector(Protocol):
+    """Connector contract for isolated runtimes such as Docker or edge workers."""
+
+    def prepare(self, record: GatewaySessionRecord) -> Mapping[str, Any]:
+        ...
+
+    def execute(
+        self,
+        session: BackendSession,
+        envelope: GatewayCommandEnvelope,
+        cancellation: CancellationToken,
+        *,
+        on_chunk: Callable[[StreamChunk], None] | None = None,
+    ) -> ProcessResult:
+        ...
+
+    def cleanup(self, session: BackendSession) -> None:
+        ...
+
+    def cancel(self, command_id: str, reason: str) -> bool:
+        ...
+
+
+class ConnectorSandboxBackend:
+    """Canonical backend adapter for an injected, auditable isolation connector."""
+
+    def __init__(
+        self,
+        state_root: str | Path,
+        *,
+        backend_id: str,
+        connector: SandboxBackendConnector,
+    ) -> None:
+        if not backend_id or connector is None:
+            raise ValueError("connector backend requires backend_id and connector")
+        self.backend_id = str(backend_id)
+        self.connector = connector
+        self.state_root = Path(state_root).resolve()
+        self.session_root = self.state_root / "connector-sessions" / self.backend_id.replace("/", "_")
+        self.session_root.mkdir(parents=True, exist_ok=True)
+        self._sessions: dict[str, BackendSession] = {}
+        self._lock = threading.RLock()
+
+    def prepare(self, record: GatewaySessionRecord) -> BackendSession:
+        if record.backend_id != self.backend_id:
+            raise SandboxGatewayError(
+                GatewayErrorCode.BACKEND_PROTOCOL,
+                "session selected a different connector backend",
+                operation="connector_prepare",
+            )
+        metadata = dict(self.connector.prepare(record))
+        root = (self.session_root / record.session_id).resolve()
+        root.relative_to(self.session_root)
+        root.mkdir(parents=True, exist_ok=True)
+        session = BackendSession(
+            session_id=record.session_id,
+            backend_id=self.backend_id,
+            execution_root=root,
+            generation=record.generation,
+            prepared_at=time.time(),
+            metadata={
+                **metadata,
+                "connector_owned": True,
+                "workspace_direct_write": False,
+                "credential_inheritance": False,
+            },
+        )
+        with self._lock:
+            self._sessions[session.session_id] = session
+        return session
+
+    def execute(
+        self,
+        session: BackendSession,
+        envelope: GatewayCommandEnvelope,
+        cancellation: CancellationToken,
+        *,
+        on_chunk: Callable[[StreamChunk], None] | None = None,
+    ) -> ProcessResult:
+        self._assert_session(session, envelope)
+        result = self.connector.execute(session, envelope, cancellation, on_chunk=on_chunk)
+        if result.command_id != envelope.command_id or result.backend_id != self.backend_id:
+            raise SandboxGatewayError(
+                GatewayErrorCode.BACKEND_PROTOCOL,
+                "connector returned a result for different command or backend",
+                operation="connector_execute",
+            )
+        return result
+
+    def cleanup(self, session: BackendSession) -> None:
+        self.connector.cleanup(session)
+        with self._lock:
+            self._sessions.pop(session.session_id, None)
+        if session.execution_root.exists():
+            shutil.rmtree(session.execution_root)
+
+    def cancel(self, command_id: str, reason: str) -> bool:
+        return bool(self.connector.cancel(command_id, reason))
+
+    def descriptor(self) -> Mapping[str, Any]:
+        with self._lock:
+            sessions = sorted(self._sessions)
+        return {
+            "backend_id": self.backend_id,
+            "connector_type": type(self.connector).__name__,
+            "sessions": sessions,
+            "workspace_direct_write": False,
+            "credential_inheritance": False,
+        }
+
+    def _assert_session(self, session: BackendSession, envelope: GatewayCommandEnvelope) -> None:
+        with self._lock:
+            current = self._sessions.get(session.session_id)
+        if current != session or session.session_id != envelope.session_id:
+            raise SandboxGatewayError(
+                GatewayErrorCode.BACKEND_PROTOCOL,
+                "connector session is missing, stale, or cross-bound",
+                operation="connector_execute",
+            )
+
+
+class DockerSandboxBackend(ConnectorSandboxBackend):
+    """Docker/OCI connector contract; no implicit CLI or daemon fallback."""
+
+    def __init__(self, state_root: str | Path, connector: SandboxBackendConnector) -> None:
+        super().__init__(state_root, backend_id="zyra.docker-sandbox.v1", connector=connector)
+
+
+class SimulatedSandboxBackend:
+    """Deterministic backend for policy/recovery evaluation, never the default."""
+
+    backend_id = "zyra.simulated-sandbox.v1"
+
+    def __init__(
+        self,
+        state_root: str | Path,
+        *,
+        responder: Callable[[GatewayCommandEnvelope], ProcessResult] | None = None,
+    ) -> None:
+        self.state_root = Path(state_root).resolve()
+        self.session_root = self.state_root / "simulated-sessions"
+        self.session_root.mkdir(parents=True, exist_ok=True)
+        self.responder = responder
+        self._sessions: dict[str, BackendSession] = {}
+
+    def prepare(self, record: GatewaySessionRecord) -> BackendSession:
+        root = (self.session_root / record.session_id).resolve()
+        root.relative_to(self.session_root)
+        root.mkdir(parents=True, exist_ok=True)
+        session = BackendSession(
+            session_id=record.session_id,
+            backend_id=self.backend_id,
+            execution_root=root,
+            generation=record.generation,
+            prepared_at=time.time(),
+            metadata={"simulated": True, "workspace_direct_write": False},
+        )
+        self._sessions[record.session_id] = session
+        return session
+
+    def execute(
+        self,
+        session: BackendSession,
+        envelope: GatewayCommandEnvelope,
+        cancellation: CancellationToken,
+        *,
+        on_chunk: Callable[[StreamChunk], None] | None = None,
+    ) -> ProcessResult:
+        if self._sessions.get(session.session_id) != session or envelope.session_id != session.session_id:
+            raise SandboxGatewayError(
+                GatewayErrorCode.BACKEND_PROTOCOL,
+                "simulated backend session mismatch",
+                operation="simulated_execute",
+            )
+        if cancellation.cancelled:
+            return self._result(envelope, ProcessTermination.CANCELLED, cancellation.reason)
+        if self.responder is not None:
+            result = self.responder(envelope)
+            if result.command_id != envelope.command_id or result.backend_id != self.backend_id:
+                raise SandboxGatewayError(
+                    GatewayErrorCode.BACKEND_PROTOCOL,
+                    "simulated responder returned mismatched identity",
+                    operation="simulated_execute",
+                )
+            return result
+        return self._result(envelope, ProcessTermination.EXITED, "")
+
+    def cleanup(self, session: BackendSession) -> None:
+        self._sessions.pop(session.session_id, None)
+        if session.execution_root.exists():
+            shutil.rmtree(session.execution_root)
+
+    def cancel(self, command_id: str, reason: str) -> bool:
+        return False
+
+    def descriptor(self) -> Mapping[str, Any]:
+        return {
+            "backend_id": self.backend_id,
+            "sessions": sorted(self._sessions),
+            "simulated": True,
+            "default": False,
+            "workspace_direct_write": False,
+        }
+
+    def _result(
+        self,
+        envelope: GatewayCommandEnvelope,
+        termination: ProcessTermination,
+        reason: str,
+    ) -> ProcessResult:
+        now = time.time()
+        return ProcessResult(
+            command_id=envelope.command_id,
+            termination=termination,
+            return_code=0 if termination is ProcessTermination.EXITED else None,
+            started_at=now,
+            finished_at=now,
+            output=ProcessOutput(),
+            backend_id=self.backend_id,
+            cancellation_reason=reason,
+            error_code=(
+                "" if termination is ProcessTermination.EXITED else GatewayErrorCode.PROCESS_CANCELLED.value
+            ),
+            metadata={"simulated": True},
+        )
 
 
 class LocalProcessSandboxBackend:
@@ -206,13 +436,41 @@ class LocalProcessSandboxBackend:
             raw_output = pump.finish(
                 timeout_seconds=max(1.0, envelope.budget.cancel_grace_seconds)
             )
-            stdout, stderr, findings = redact_terminal_output(
-                raw_output.stdout,
-                raw_output.stderr,
+            if (
+                termination is ProcessTermination.EXITED
+                and (
+                    raw_output.stdout_truncated
+                    or raw_output.stderr_truncated
+                    or raw_output.combined_truncated
+                )
+            ):
+                termination = ProcessTermination.OUTPUT_LIMIT
+                cancellation_reason = "process output budget exceeded"
+            stdout_report = self.redactor.redact_bytes(raw_output.stdout, source="stdout")
+            stderr_report = self.redactor.redact_bytes(raw_output.stderr, source="stderr")
+            stdout_overflow_report = self.redactor.redact_bytes(
+                raw_output.stdout_overflow,
+                source="stdout_overflow",
+            )
+            stderr_overflow_report = self.redactor.redact_bytes(
+                raw_output.stderr_overflow,
+                source="stderr_overflow",
+            )
+            stdout = bytes(stdout_report.value)
+            stderr = bytes(stderr_report.value)
+            stdout_overflow = bytes(stdout_overflow_report.value)
+            stderr_overflow = bytes(stderr_overflow_report.value)
+            findings = (
+                *stdout_report.findings,
+                *stderr_report.findings,
+                *stdout_overflow_report.findings,
+                *stderr_overflow_report.findings,
             )
             output = ProcessOutput(
                 stdout=stdout,
                 stderr=stderr,
+                stdout_overflow=stdout_overflow,
+                stderr_overflow=stderr_overflow,
                 stdout_truncated=raw_output.stdout_truncated,
                 stderr_truncated=raw_output.stderr_truncated,
                 combined_truncated=raw_output.combined_truncated,
@@ -239,7 +497,9 @@ class LocalProcessSandboxBackend:
                 error_code=self._error_code(termination),
                 metadata={
                     "tree_termination": dict(tree_result),
-                    "redaction_findings": [item.to_dict() for item in findings],
+                    "redaction_findings": [
+                        item.to_dict() for item in findings
+                    ],
                     "shell": False,
                     "execution_root_digest": digest({"path": str(session.execution_root)}),
                 },

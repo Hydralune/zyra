@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from zyra_core import EventRecord, EventType, to_jsonable
 from zyra_runtime import LocalArtifactStore, WorkerRequest, WorkerResult
@@ -111,13 +111,22 @@ class BrowserActionApplication:
         session_start: Any,
         raw_plan: Sequence[Mapping[str, Any]],
         permission_gate: Any,
+        execution_fence: Callable[[], None] | None = None,
+        gateway_boundary: Any | None = None,
     ) -> BrowserSessionApplicationResult:
         validation = self._validate(request, session_start, raw_plan, permission_gate)
         if validation:
             return self._boundary_failure(request, session_start, validation)
         with self._lock:
             try:
-                return self._execute(request, session_start, raw_plan, permission_gate)
+                return self._execute(
+                    request,
+                    session_start,
+                    raw_plan,
+                    permission_gate,
+                    execution_fence=execution_fence,
+                    gateway_boundary=gateway_boundary,
+                )
             except Exception as exc:  # noqa: BLE001 - public application must fail closed.
                 self._failures += 1
                 return self._boundary_failure(
@@ -134,6 +143,9 @@ class BrowserActionApplication:
         session_start: Any,
         raw_plan: Sequence[Mapping[str, Any]],
         permission_gate: Any,
+        *,
+        execution_fence: Callable[[], None] | None = None,
+        gateway_boundary: Any | None = None,
     ) -> BrowserSessionApplicationResult:
         session = session_start.session
         target_runtime = self.browser_runtime.target_runtime(session.session_id)
@@ -153,6 +165,9 @@ class BrowserActionApplication:
             task_id=request.task_id,
             node_id=request.node_id or "",
             browser_session_id=session.session_id,
+            gateway_boundary=gateway_boundary,
+            worker_request=request,
+            gateway_required=bool(getattr(gateway_boundary, "bundle", None) is not None),
         )
         clipboard_port = CdpClipboardPort(transport)
         semantic_probe = CdpElementSemanticProbe(transport)
@@ -379,6 +394,7 @@ class BrowserActionApplication:
             artifact_port,
             writer,
             claimant=f"browser-worker:{request.request_id}",
+            execution_fence=execution_fence,
         )
         succeeded = all(outcome.ok for outcome in outcomes)
         phase = PlanPhase.COMPLETED if succeeded else (
@@ -474,6 +490,7 @@ class BrowserActionApplication:
         writer: BrowserActionEventWriter,
         *,
         claimant: str,
+        execution_fence: Callable[[], None] | None = None,
     ) -> tuple[StepOutcome, ...]:
         outcomes: list[StepOutcome] = []
         stop = False
@@ -504,6 +521,8 @@ class BrowserActionApplication:
                     claimant=claimant,
                 )
                 deadline.checkpoint(PlanPhase.DISPATCH)
+                if execution_fence is not None:
+                    execution_fence()
                 completed = foundation.gateway.execute(decision)
                 artifacts = _dedupe_artifacts(
                     (*completed.projection.artifacts, *artifact_port.artifacts[artifact_start:])

@@ -41,6 +41,7 @@ class WorkspaceEditPortLike(Protocol):
         mount_kind: WorkspaceKind = WorkspaceKind.TASK,
         idempotency_key: str,
         causation_id: str = "",
+        publish_artifact: bool = False,
     ) -> Any:
         ...
 
@@ -108,6 +109,7 @@ class GatewayFileArtifactPort:
                 reason=decision.provenance.reason,
                 metadata={"policy": decision.to_dict()},
             )
+        self._assert_workspace_fence(request)
         if request.expected_previous_digest:
             previous = self.workspace_edit_port.read_bytes(
                 request.logical_path,
@@ -134,10 +136,17 @@ class GatewayFileArtifactPort:
                 or stable_id("artifact-write", request.request_id, request.content_digest)
             ),
             causation_id=request.causation_id or request.request_id,
+            publish_artifact=request.operation is OperationKind.ARTIFACT_EXPORT,
         )
         after = result.access
         transaction = getattr(result, "transaction", None)
         transaction_id = str(getattr(transaction, "transaction_id", ""))
+        result_artifacts = tuple(getattr(result, "artifact_refs", ()) or ())
+        artifact_ref = ""
+        if result_artifacts:
+            first = result_artifacts[0]
+            artifact_id = str(getattr(first, "artifact_id", "") or "")
+            artifact_ref = f"artifact://{artifact_id}" if artifact_id else str(first)
         return FileArtifactReceipt(
             receipt_id=stable_id(
                 "artifact-receipt",
@@ -157,7 +166,7 @@ class GatewayFileArtifactPort:
             owner_epoch_before=int(getattr(before, "owner_epoch", 0)),
             owner_epoch_after=int(getattr(after, "owner_epoch", 0)),
             transaction_id=transaction_id,
-            artifact_ref=str(getattr(result, "artifact_ref", "")),
+            artifact_ref=artifact_ref,
             reason="artifact committed through WorkspaceEditPort",
             metadata={
                 "policy_digest": decision.policy_digest,
@@ -166,6 +175,42 @@ class GatewayFileArtifactPort:
                 "write_owner": "WorkspaceEditPort",
             },
         )
+
+    def _assert_workspace_fence(self, request: FileArtifactRequest) -> None:
+        """Revalidate the owner observed before permission at the write fence."""
+
+        if not request.expected_workspace_id and request.expected_owner_epoch <= 0:
+            return
+        access = self.workspace_edit_port.current_access()
+        actual_workspace_id = str(getattr(access, "workspace_id", "") or "")
+        actual_owner_epoch = int(getattr(access, "owner_epoch", 0) or 0)
+        manager = getattr(self.workspace_edit_port, "manager", None)
+        store = getattr(manager, "store", None)
+        require_binding = getattr(store, "require_binding", None)
+        if callable(require_binding):
+            binding = require_binding(actual_workspace_id)
+            actual_workspace_id = str(getattr(binding, "workspace_id", "") or actual_workspace_id)
+            actual_owner_epoch = int(getattr(binding, "owner_epoch", 0) or actual_owner_epoch)
+        if (
+            request.expected_workspace_id
+            and request.expected_workspace_id != actual_workspace_id
+        ) or (
+            request.expected_owner_epoch > 0
+            and request.expected_owner_epoch != actual_owner_epoch
+        ):
+            raise SandboxGatewayError(
+                GatewayErrorCode.WORKSPACE_STALE,
+                "workspace ownership changed after file transfer authorization",
+                operation="artifact_commit",
+                retryable=True,
+                recovery=("rebind the worker and request fresh authorization",),
+                metadata={
+                    "expected_workspace_id": request.expected_workspace_id,
+                    "actual_workspace_id": actual_workspace_id,
+                    "expected_owner_epoch": request.expected_owner_epoch,
+                    "actual_owner_epoch": actual_owner_epoch,
+                },
+            )
 
     def import_archive(
         self,

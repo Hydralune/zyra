@@ -342,7 +342,7 @@ class BrowserSessionProjectionRuntime:
             "runtime_handle_owner": "BrowserRuntimeRegistry",
             "profile_owner": "BrowserProfileStore",
             "action_receipt_owner": "BrowserSessionLeaseStore",
-            "permission_owner": "ToolPermissionRuntime/PermissionStateStore",
+            "permission_owner": "typescript.PermissionCoordinator",
             "artifact_owner": "LocalArtifactStore+BrowserArtifactHandoff",
             "physical_lease_owner": "M1-07A-deferred",
         }

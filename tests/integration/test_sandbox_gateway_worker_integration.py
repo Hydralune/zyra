@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 for package in ROOT.joinpath("packages").iterdir():
@@ -21,7 +22,9 @@ from zyra_runtime.executor import (  # noqa: E402
 from zyra_runtime.sandbox_gateway.integration_factory import (  # noqa: E402
     build_gateway_runtime_bundle,
 )
+from zyra_runtime.sandbox_gateway.integration_browser import BrowserGatewayBoundary  # noqa: E402
 from zyra_runtime.sandbox_gateway.integration_mcp import McpGatewayBoundary  # noqa: E402
+from zyra_runtime.sandbox_gateway.integration_tools import GatewayToolExecutionRouter  # noqa: E402
 from zyra_workers import BrowserWorkerRuntime, CodeWorkerRuntime  # noqa: E402
 from zyra_workspace import (  # noqa: E402
     WorkspaceEditPort,
@@ -207,6 +210,162 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertEqual(result.error, "mcp_result_policy_denied")
         self.assertNotIn("must-not-leak", json.dumps(result.output, default=str))
         self.assertEqual(len(boundary.exchanges()), 1)
+
+    def test_productized_browser_run_preflights_through_gateway(self) -> None:
+        state = create_task_state("Browser productized plan is gateway-owned")
+        port, workspace = self._port(state, "BrowserWorker")
+
+        class DenyingBoundary:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def preflight_plan(self, request, plan):
+                self.calls += 1
+                return SimpleNamespace(
+                    allowed=False,
+                    safe_dict=lambda: {
+                        "receipt_id": "denied-plan",
+                        "allowed": False,
+                        "action_count": len(plan),
+                    },
+                )
+
+        boundary = DenyingBoundary()
+        runtime = BrowserWorkerRuntime(
+            project_root=ROOT,
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            workspace_edit_port=port,
+            workspace_gateway_required=True,
+            sandbox_gateway_boundary=boundary,
+        )
+        run = runtime.run(
+            WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="BrowserWorker",
+                constraints={
+                    "browser_plan": [
+                        {"action": "navigate", "arguments": {"url": "https://example.com"}}
+                    ]
+                },
+            )
+        )
+
+        self.assertFalse(run.worker_result.ok)
+        self.assertEqual(run.worker_result.error, "sandbox_gateway_browser_plan_denied")
+        self.assertEqual(boundary.calls, 1)
+
+    def test_browser_plan_execution_fence_rejects_owner_rotation(self) -> None:
+        state = create_task_state("Browser plan owner epoch is execution-fenced")
+        port, workspace = self._port(state, "BrowserWorker")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="BrowserWorker",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        boundary = BrowserGatewayBoundary(bundle)
+        request = WorkerRequest(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            worker_name="BrowserWorker",
+            constraints={},
+        )
+        receipt = boundary.preflight_plan(
+            request,
+            ({"action": "list_targets", "arguments": {}},),
+        )
+        self.assertTrue(receipt.allowed)
+        self.manager.rotate_after_integration(
+            port.workspace_id,
+            worker_id="BrowserWorker",
+            reason="adversarial browser owner rotation",
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "browser_workspace_stale"):
+            boundary.assert_plan_receipt_current(receipt)
+
+    def test_browser_upload_is_gateway_export_bound_and_revalidated(self) -> None:
+        state = create_task_state("Browser upload crosses the gateway")
+        port, workspace = self._port(state, "BrowserWorker")
+        seeded = port.write_text(
+            "upload.txt",
+            "approved bytes",
+            idempotency_key="seed-browser-upload",
+        )
+        port.adopt_access(seeded.access)
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="BrowserWorker",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        boundary = BrowserGatewayBoundary(bundle)
+        request = WorkerRequest(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            worker_name="BrowserWorker",
+            constraints={},
+        )
+        receipt = boundary.preflight_plan(
+            request,
+            ({"action": "upload_file", "arguments": {"path": "upload.txt"}},),
+        )
+        self.assertTrue(receipt.allowed, receipt.findings)
+        self.assertTrue(receipt.upload_content_digests)
+        (workspace / "upload.txt").write_bytes(b"mutated outside gateway")
+
+        with self.assertRaisesRegex(RuntimeError, "browser_upload_changed"):
+            boundary.assert_plan_receipt_current(receipt)
+
+    def test_command_output_limit_spills_gateway_artifact(self) -> None:
+        state = create_task_state("Command output spill remains under gateway custody")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        call = ToolCall(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            tool_name="shell",
+            tool_call_id="gateway-output-spill-1",
+            arguments={
+                "executable": sys.executable,
+                "argv": ["-c", "print('x' * 200000)"],
+                "stdout_limit_bytes": 1024,
+                "stderr_limit_bytes": 1024,
+            },
+            metadata={"session_id": f"spill-{state.task_id}"},
+        )
+        result = router.execute(
+            call,
+            permission_grant={"grant_id": "spill-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.output["termination"], "output_limit")
+        self.assertTrue(result.output["artifact_refs"], (result.output, result.metadata))
+        self.assertTrue(port.read_bytes("command-output/gateway-output-spill-1.log").exists)
 
 
 if __name__ == "__main__":

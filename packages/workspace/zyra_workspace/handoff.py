@@ -220,34 +220,72 @@ class WorkspaceHandoffRuntime:
         audience: str,
         required_operation: IntegrationOperation,
     ) -> WorkspaceAccessHandle:
-        envelope = self.verify(
-            value,
-            audience=audience,
-            required_operation=required_operation,
-        )
-        binding = self.manager.store.require_binding(envelope.workspace_id)
-        # Transfer is deliberate.  The serialized lease is checked above,
-        # then a new audience-owned lease/epoch is issued.  The envelope and
-        # every previously cached capability become stale after consumption.
-        access = self.manager.acquire_for_worker(
-            task_id=binding.task_id,
-            session_id=binding.session_id,
-            worker_id=str(audience),
-            operations=_workspace_operations(envelope.operations),
-        )
-        self.store.audit_envelope(envelope, action="consumed", ok=True)
-        self.manager.emit_integration_event(
-            "workspace.handoff.consumed",
-            envelope.workspace_id,
-            metadata={
-                "envelope_id": envelope.envelope_id,
-                "audience": audience,
-                "required_operation": required_operation.value,
-                "new_owner_epoch": access.owner_epoch,
-                "old_owner_epoch": envelope.owner_epoch,
-            },
-        )
-        return access
+        candidate = value if isinstance(value, WorkspaceAccessEnvelope) else WorkspaceAccessEnvelope.from_dict(value)
+        lock_keys = (f"task:{candidate.task_id}", candidate.workspace_id)
+        with self.store.workspace_locks.acquire_many(lock_keys):
+            envelope = self.verify(
+                candidate,
+                audience=audience,
+                required_operation=required_operation,
+            )
+            claim, created = self.store.claim_idempotency(
+                namespace="workspace-handoff-consume",
+                key=envelope.envelope_id,
+                fingerprint=stable_digest(
+                    {
+                        "envelope_id": envelope.envelope_id,
+                        "nonce": envelope.nonce,
+                        "signature": envelope.signature,
+                        "audience": audience,
+                        "required_operation": required_operation.value,
+                    }
+                ),
+                workspace_id=envelope.workspace_id,
+                result_ref=envelope.nonce,
+            )
+            if not created:
+                self.store.audit_envelope(
+                    envelope,
+                    action="consumption_rejected",
+                    ok=False,
+                    reason_code=WorkspaceErrorCode.CAPABILITY_STALE.value,
+                )
+                raise WorkspaceError(
+                    WorkspaceErrorCode.CAPABILITY_STALE,
+                    "Workspace handoff envelope has already been consumed.",
+                    workspace_id=envelope.workspace_id,
+                    operation="consume_workspace_handoff",
+                    metadata={"claim_created_at": str(claim.get("claimed_at") or "")},
+                )
+            binding = self.manager.store.require_binding(envelope.workspace_id)
+            # Transfer is deliberate.  The serialized lease is checked and
+            # atomically claimed above, then a new audience-owned lease/epoch
+            # is issued under the same canonical workspace lock.
+            access = self.manager.acquire_for_worker(
+                task_id=binding.task_id,
+                session_id=binding.session_id,
+                worker_id=str(audience),
+                operations=_workspace_operations(envelope.operations),
+            )
+            self.store.complete_idempotency(
+                namespace="workspace-handoff-consume",
+                key=envelope.envelope_id,
+                fingerprint=str(claim["fingerprint"]),
+                result_ref=access.lease_id,
+            )
+            self.store.audit_envelope(envelope, action="consumed", ok=True)
+            self.manager.emit_integration_event(
+                "workspace.handoff.consumed",
+                envelope.workspace_id,
+                metadata={
+                    "envelope_id": envelope.envelope_id,
+                    "audience": audience,
+                    "required_operation": required_operation.value,
+                    "new_owner_epoch": access.owner_epoch,
+                    "old_owner_epoch": envelope.owner_epoch,
+                },
+            )
+            return access
 
     def serialize(self, envelope: WorkspaceAccessEnvelope) -> str:
         ensure_path_free_projection(envelope.to_dict())

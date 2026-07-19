@@ -121,7 +121,7 @@ export interface ApprovalGrant {
   readonly effect: Exclude<Effect, "deny">;
   readonly issuedAt: number;
   readonly expiresAt: number;
-  readonly permissionOwner: "ToolPermissionRuntime";
+  readonly permissionOwner: "typescript.PermissionCoordinator";
   readonly metadata: Readonly<Record<string, JsonValue>>;
 }
 

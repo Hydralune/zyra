@@ -227,6 +227,37 @@ class SandboxGatewayArtifactTests(unittest.TestCase):
             disabled.commit(request)
         self.assertFalse(self.port.read_bytes("must-not-exist.txt").exists)
 
+    def test_file_transfer_revalidates_owner_epoch_after_permission(self) -> None:
+        observed = self.port.current_access()
+        request = FileArtifactRequest.build(
+            session_id="session-artifact",
+            logical_path="must-not-commit-after-rotation.txt",
+            content="stale transfer",
+            content_type="text/plain",
+            provenance=self.trusted(),
+            expected_workspace_id=observed.workspace_id,
+            expected_owner_epoch=observed.owner_epoch,
+            idempotency_key="stale-file-transfer",
+        )
+        self.manager.rotate_after_integration(
+            observed.workspace_id,
+            worker_id="CodeWorkerRuntime",
+            reason="adversarial rotation after permission",
+        )
+
+        with self.assertRaises(SandboxGatewayError) as raised:
+            self.artifact_port.commit(request)
+
+        self.assertEqual(raised.exception.code.value, "workspace_stale")
+        root = self.manager.internal_task_root(
+            self.manager.acquire_for_worker(
+                task_id="task-artifact",
+                session_id="session-artifact",
+                worker_id="CodeWorkerRuntime",
+            )
+        )
+        self.assertFalse((root / "must-not-commit-after-rotation.txt").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

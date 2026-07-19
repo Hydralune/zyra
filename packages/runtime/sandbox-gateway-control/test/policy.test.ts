@@ -110,7 +110,7 @@ test("TypeScript policy is supplementary and names existing owners", () => {
 
   assert.equal(
     (descriptor as Record<string, unknown>).finalAuthority,
-    "ToolPermissionRuntime",
+    "typescript.PermissionCoordinator",
   );
   assert.equal(
     (descriptor as Record<string, unknown>).canonicalGatewayOwner,

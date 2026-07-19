@@ -41,10 +41,27 @@ IGNORED_DIRS = {
     ".pytest_cache",
     ".ruff_cache",
     ".venv",
+    ".tmp",
     "__pycache__",
+    "dist",
     "docs",
+    "node_modules",
     "tests",
     "tmp",
+}
+
+AUDIT_ONLY_FILENAMES = {
+    "claude_source_graph_crosswalk.py",
+    "integration_audit.py",
+    "integration_custody.py",
+    "source_audit.py",
+    "source_custody.py",
+    "vendor_manifest.py",
+    "verify_typescript_runtime_custody.py",
+}
+
+AUDIT_ONLY_DIRECTORIES = {
+    ("scripts", "remediation"),
 }
 
 IGNORED_FILENAMES = {
@@ -62,6 +79,14 @@ def iter_scanned_files() -> list[Path]:
         if relative_parts & IGNORED_DIRS:
             continue
         if path.name in IGNORED_FILENAMES:
+            continue
+        relative = path.relative_to(ROOT)
+        if path.name in AUDIT_ONLY_FILENAMES:
+            continue
+        if any(
+            relative.parts[: len(prefix)] == prefix
+            for prefix in AUDIT_ONLY_DIRECTORIES
+        ):
             continue
         if path.suffix not in SCANNED_SUFFIXES:
             continue

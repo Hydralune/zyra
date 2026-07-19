@@ -172,6 +172,7 @@ class WorkspaceManagerRuntime:
             binding_store=self.store,
             quota_runtime=self.quota_runtime,
             enabled=config.local_enabled,
+            coordination_locks=self.integration_store.workspace_locks,
         )
         self.snapshot_runtime = WorkspaceSnapshotRuntime(
             config.state_root / "snapshots",
@@ -192,6 +193,31 @@ class WorkspaceManagerRuntime:
         quota: WorkspaceQuota | None = None,
         idempotency_key: str = "",
         causation_id: str = "",
+    ) -> WorkspaceTaskBindingResult:
+        # The existence check and durable create must be one task-scoped
+        # operation.  Otherwise two callers without an idempotency key can
+        # both observe absence and create competing canonical workspaces.
+        with self.integration_store.workspace_locks.acquire_many((f"task:{task_id}",)):
+            return self._create_for_task_coordinated(
+                run_id=run_id,
+                task_id=task_id,
+                session_id=session_id,
+                worker_id=worker_id,
+                quota=quota,
+                idempotency_key=idempotency_key,
+                causation_id=causation_id,
+            )
+
+    def _create_for_task_coordinated(
+        self,
+        *,
+        run_id: str,
+        task_id: str,
+        session_id: str,
+        worker_id: str,
+        quota: WorkspaceQuota | None,
+        idempotency_key: str,
+        causation_id: str,
     ) -> WorkspaceTaskBindingResult:
         self._require_enabled()
         existing = self.store.find_binding(task_id=task_id, session_id=session_id, workspace_kind="task")

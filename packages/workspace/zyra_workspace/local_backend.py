@@ -158,6 +158,7 @@ class LocalWorkspaceBackend:
         quota_runtime: WorkspaceQuotaRuntime,
         enabled: bool = True,
         capabilities: WorkspaceCapabilities | None = None,
+        coordination_locks: KeyedLockPool | None = None,
     ) -> None:
         self.backend_id = backend_id
         self.data_root = Path(data_root).resolve()
@@ -173,6 +174,11 @@ class LocalWorkspaceBackend:
         self.mount_policy = WorkspaceArtifactMount()
         self.file_state = WorkspaceFileStateRuntime(binding_store)
         self._locks = KeyedLockPool()
+        # All canonical binding/lease rotations and local mutations must share
+        # one workspace lock.  A backend-private path lock alone permits an
+        # owner epoch to rotate after authorization but before os.replace(),
+        # which can make a rejected stale write visible on disk.
+        self._coordination_locks = coordination_locks or KeyedLockPool()
         if self.enabled:
             self.data_root.mkdir(parents=True, exist_ok=True)
 
@@ -418,6 +424,26 @@ class LocalWorkspaceBackend:
         precondition: FileWritePrecondition,
         service: str = "worker",
     ) -> WorkspaceWriteResult:
+        with self._coordination_locks.acquire_many((handle.workspace_id,)):
+            return self._write_coordinated(
+                handle,
+                mount_kind=mount_kind,
+                path=path,
+                content=content,
+                precondition=precondition,
+                service=service,
+            )
+
+    def _write_coordinated(
+        self,
+        handle: WorkspaceAccessHandle,
+        *,
+        mount_kind: WorkspaceKind,
+        path: str,
+        content: bytes,
+        precondition: FileWritePrecondition,
+        service: str,
+    ) -> WorkspaceWriteResult:
         binding, lease = self._authorize(handle, WorkspaceOperation.WRITE)
         mount = self._mount(binding.workspace_id, mount_kind)
         self.mount_policy.authorize_service_operation(mount, WorkspaceOperation.WRITE, service=service)
@@ -634,7 +660,26 @@ class LocalWorkspaceBackend:
         *,
         mount_kind: WorkspaceKind,
         path: str,
+        precondition: FileWritePrecondition,
         recursive: bool = False,
+    ) -> WorkspaceDeleteResult:
+        with self._coordination_locks.acquire_many((handle.workspace_id,)):
+            return self._delete_coordinated(
+                handle,
+                mount_kind=mount_kind,
+                path=path,
+                precondition=precondition,
+                recursive=recursive,
+            )
+
+    def _delete_coordinated(
+        self,
+        handle: WorkspaceAccessHandle,
+        *,
+        mount_kind: WorkspaceKind,
+        path: str,
+        precondition: FileWritePrecondition,
+        recursive: bool,
     ) -> WorkspaceDeleteResult:
         binding, _lease = self._authorize(handle, WorkspaceOperation.DELETE)
         mount = self._mount(binding.workspace_id, mount_kind)
@@ -646,8 +691,22 @@ class LocalWorkspaceBackend:
             mount=mount,
             require_exists=True,
         )
+        record_path = self._record_path(mount, resolved.logical_path)
+        if precondition.workspace_id != binding.workspace_id or precondition.path != record_path:
+            raise WorkspaceError(
+                WorkspaceErrorCode.READ_REQUIRED,
+                "The workspace delete precondition belongs to a different target.",
+                workspace_id=binding.workspace_id,
+                operation="delete_file",
+                path=resolved.logical_path,
+            )
         with self._locks.acquire_many((binding.workspace_id, f"path:{binding.workspace_id}:{path}")):
             self.path_policy.revalidate(resolved, root=root)
+            validation = self.file_state.validate_write(
+                precondition,
+                physical_path=resolved.physical_path,
+            )
+            validation.require_valid(workspace_id=binding.workspace_id, path=record_path)
             files, directories, total_bytes = self._measure_tree(resolved.physical_path)
             if resolved.physical_path.is_dir():
                 if not recursive:
@@ -656,7 +715,7 @@ class LocalWorkspaceBackend:
                     self._safe_remove_tree(resolved.physical_path, root=root)
             else:
                 resolved.physical_path.unlink()
-            self.file_state.invalidate(binding.workspace_id, paths=(self._record_path(mount, resolved.logical_path),))
+            self.file_state.invalidate(binding.workspace_id, paths=(record_path,))
             usage = self.scan_usage(binding)
             self.quota_runtime.reconcile_usage(binding.workspace_id, usage)
             return WorkspaceDeleteResult(

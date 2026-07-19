@@ -133,6 +133,21 @@ def get_runtime_event_api() -> RuntimeEventApiFacade:
     return RuntimeEventApiFacade(get_runtime_event_spine_bridge())
 
 
+def reset_runtime_event_spine_bridge() -> None:
+    """Close and forget the API-owned event sidecar and its SQLite handle."""
+
+    global _RUNTIME_EVENT_SPINE, _RUNTIME_EVENT_SPINE_KEY
+    with _RUNTIME_EVENT_SPINE_LOCK:
+        bridge = _RUNTIME_EVENT_SPINE
+        _RUNTIME_EVENT_SPINE = None
+        _RUNTIME_EVENT_SPINE_KEY = None
+    if bridge is not None:
+        bridge.close()
+    # The integration registry holds the same bridge by path.  Clear it so a
+    # later API runtime cannot receive the closed instance from the cache.
+    reset_runtime_event_spines()
+
+
 from zyra_runtime import (
     ContextSessionRuntime,
     JsonPermissionStore,
@@ -378,6 +393,10 @@ def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> N
             )
     with _WORKSPACE_EVENT_LOCK:
         _WORKSPACE_PENDING_EVENTS.clear()
+    # Workspace events are persisted by the API-owned runtime event spine.
+    # Resetting the workspace runtime is therefore also a lifecycle boundary
+    # for that child process and its SQLite connection.
+    reset_runtime_event_spine_bridge()
 
 
 def task_workspace_root(*, task_id: str, session_id: str, worker_id: str) -> Path:

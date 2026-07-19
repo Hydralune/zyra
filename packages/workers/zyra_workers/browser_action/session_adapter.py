@@ -375,6 +375,9 @@ class BrowserActionArtifactPort(ArtifactPort):
         browser_session_id: str,
         maximum_bytes: int = 128 * 1024 * 1024,
         disabled: bool = False,
+        gateway_boundary: Any | None = None,
+        worker_request: Any | None = None,
+        gateway_required: bool = False,
     ) -> None:
         self.store = store
         self.run_id = run_id
@@ -383,6 +386,9 @@ class BrowserActionArtifactPort(ArtifactPort):
         self.browser_session_id = browser_session_id
         self.maximum_bytes = maximum_bytes
         self.disabled = disabled
+        self.gateway_boundary = gateway_boundary
+        self.worker_request = worker_request
+        self.gateway_required = bool(gateway_required)
         self.artifacts: list[ArtifactRef] = []
         self._lock = threading.RLock()
 
@@ -430,6 +436,47 @@ class BrowserActionArtifactPort(ArtifactPort):
             )
         extension = artifact_extension(kind, title, content)
         safe_metadata = SecretRedactor().redact(dict(metadata))
+        gateway_receipt = None
+        if self.gateway_boundary is None:
+            if self.gateway_required:
+                raise BrowserActionIntegrationError(
+                    "sandbox_gateway_browser_artifact_unavailable",
+                    "browser artifact transfer requires SandboxGateway",
+                    phase=PlanPhase.RESULT_PROJECTION,
+                )
+        else:
+            safe_title = "".join(
+                character if character.isalnum() or character in {"-", "_", "."} else "_"
+                for character in str(title)
+            ).strip("._") or "artifact"
+            if safe_metadata.get("download_guid"):
+                gateway_receipt = self.gateway_boundary.ingest_download(
+                    self.worker_request,
+                    logical_path=f"browser-downloads/{self.browser_session_id}/{safe_title}",
+                    content=content,
+                    source_url=str(safe_metadata.get("source_url") or "browser-download://redacted"),
+                    content_type="application/octet-stream",
+                    idempotency_key=f"browser-download-{safe_metadata['download_guid']}",
+                )
+            else:
+                gateway_receipt = self.gateway_boundary.ingest_artifact(
+                    self.worker_request,
+                    logical_path=f"browser-artifacts/{self.browser_session_id}/{safe_title}{extension}",
+                    content=content,
+                    content_type="application/octet-stream",
+                    artifact_kind=str(getattr(kind, "value", kind)),
+                    idempotency_key=(
+                        f"browser-artifact-{self.browser_session_id}-"
+                        f"{safe_metadata.get('action_id')}-{safe_title}"
+                    ),
+                )
+            if not gateway_receipt.committed:
+                raise BrowserActionIntegrationError(
+                    "sandbox_gateway_browser_artifact_rejected",
+                    "SandboxGateway rejected the browser artifact transfer",
+                    phase=PlanPhase.RESULT_PROJECTION,
+                    details={"gateway_receipt_id": gateway_receipt.receipt_id},
+                )
         artifact = self.store.write_bytes(
             run_id=self.run_id,
             task_id=self.task_id,
@@ -444,6 +491,9 @@ class BrowserActionArtifactPort(ArtifactPort):
                 "sha256": hashlib.sha256(content).hexdigest(),
                 "storage_owner": "LocalArtifactStore",
                 "owner_unit": "M1-S04C-02",
+                "sandbox_gateway_receipt_id": (
+                    gateway_receipt.receipt_id if gateway_receipt is not None else ""
+                ),
             },
         )
         with self._lock:

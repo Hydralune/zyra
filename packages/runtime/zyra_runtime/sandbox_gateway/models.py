@@ -552,6 +552,8 @@ class PermissionBinding:
 class ProcessOutput:
     stdout: bytes = b""
     stderr: bytes = b""
+    stdout_overflow: bytes = field(default=b"", repr=False)
+    stderr_overflow: bytes = field(default=b"", repr=False)
     stdout_truncated: bool = False
     stderr_truncated: bool = False
     combined_truncated: bool = False
@@ -570,6 +572,10 @@ class ProcessOutput:
             "stderr_digest": content_digest(self.stderr),
             "stdout_bytes": len(self.stdout),
             "stderr_bytes": len(self.stderr),
+            "stdout_overflow_digest": content_digest(self.stdout_overflow),
+            "stderr_overflow_digest": content_digest(self.stderr_overflow),
+            "stdout_overflow_bytes": len(self.stdout_overflow),
+            "stderr_overflow_bytes": len(self.stderr_overflow),
             "stdout_truncated": self.stdout_truncated,
             "stderr_truncated": self.stderr_truncated,
             "combined_truncated": self.combined_truncated,
@@ -766,6 +772,8 @@ class FileArtifactRequest:
     operation: OperationKind = OperationKind.FILE_WRITE
     expected_digest: str = ""
     expected_previous_digest: str = ""
+    expected_workspace_id: str = ""
+    expected_owner_epoch: int = 0
     mount_kind: str = "task"
     executable_allowed: bool = False
     archive_expansion_allowed: bool = False
@@ -786,6 +794,8 @@ class FileArtifactRequest:
         operation: OperationKind | str = OperationKind.FILE_WRITE,
         expected_digest: str = "",
         expected_previous_digest: str = "",
+        expected_workspace_id: str = "",
+        expected_owner_epoch: int = 0,
         mount_kind: str = "task",
         executable_allowed: bool = False,
         archive_expansion_allowed: bool = False,
@@ -809,6 +819,8 @@ class FileArtifactRequest:
             calculated,
             provenance.provenance_id,
             idempotency_key,
+            expected_workspace_id,
+            expected_owner_epoch,
         )
         return cls(
             request_id=request_id,
@@ -820,6 +832,8 @@ class FileArtifactRequest:
             operation=operation if isinstance(operation, OperationKind) else OperationKind(str(operation)),
             expected_digest=expected_digest or calculated,
             expected_previous_digest=str(expected_previous_digest),
+            expected_workspace_id=str(expected_workspace_id),
+            expected_owner_epoch=int(expected_owner_epoch),
             mount_kind=str(mount_kind),
             executable_allowed=bool(executable_allowed),
             archive_expansion_allowed=bool(archive_expansion_allowed),
@@ -845,6 +859,8 @@ class FileArtifactRequest:
             "operation": self.operation.value,
             "expected_digest": self.expected_digest,
             "expected_previous_digest": self.expected_previous_digest,
+            "expected_workspace_id": self.expected_workspace_id,
+            "expected_owner_epoch": self.expected_owner_epoch,
             "mount_kind": self.mount_kind,
             "executable_allowed": self.executable_allowed,
             "archive_expansion_allowed": self.archive_expansion_allowed,

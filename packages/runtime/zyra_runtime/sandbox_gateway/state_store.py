@@ -488,7 +488,7 @@ class GatewayStateStore:
             "schema": state.get("schema"),
             "revision": state.get("revision"),
             "canonical_owner": "SandboxGatewayRuntime",
-            "permission_owner": "ToolPermissionRuntime",
+            "permission_owner": "typescript.PermissionCoordinator",
             "workspace_owner": "WorkspaceManagerRuntime",
             "stores_secret_material": False,
             "sessions": len(state["sessions"]),

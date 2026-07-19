@@ -12,9 +12,16 @@ for package in ROOT.joinpath("packages").iterdir():
 
 from zyra_runtime import LocalArtifactStore  # noqa: E402
 from zyra_runtime.sandbox_gateway import (  # noqa: E402
+    CancellationToken,
+    DockerSandboxBackend,
     GatewayCommandEnvelope,
+    GatewaySessionRecord,
     OperationKind,
+    ProcessOutput,
+    ProcessResult,
+    ProcessTermination,
     ProvenanceKind,
+    SimulatedSandboxBackend,
     TrustLevel,
 )
 from zyra_runtime.sandbox_gateway.integration_audit import (  # noqa: E402
@@ -172,6 +179,78 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
         self.assertIn("gateway_primitive_bypass", codes)
         self.assertIn("external_source_runtime_dependency", codes)
         self.assertFalse(report.passed)
+
+    def test_simulated_and_docker_backends_share_the_canonical_contract(self) -> None:
+        simulated = SimulatedSandboxBackend(self.root / "simulated")
+        simulated_record = GatewaySessionRecord.create(
+            session_id="session-simulated",
+            run_id="run-policy",
+            task_id="task-policy",
+            workspace_id=self.port.workspace_id,
+            worker_id="CodeWorkerRuntime",
+            backend_id=simulated.backend_id,
+        )
+        simulated_session = simulated.prepare(simulated_record)
+        simulated_envelope = GatewayCommandEnvelope.build(
+            session_id=simulated_record.session_id,
+            run_id=simulated_record.run_id,
+            task_id=simulated_record.task_id,
+            worker_id=simulated_record.worker_id,
+            executable="python",
+            argv=("-V",),
+            tool_use_id="simulated-tool",
+        )
+        simulated_result = simulated.execute(
+            simulated_session,
+            simulated_envelope,
+            CancellationToken(),
+        )
+        self.assertTrue(simulated_result.ok)
+        self.assertFalse(simulated.descriptor()["default"])
+
+        class Connector:
+            def prepare(self, record):
+                return {"container_id_digest": "sha256:test"}
+
+            def execute(self, session, envelope, cancellation, *, on_chunk=None):
+                return ProcessResult(
+                    command_id=envelope.command_id,
+                    termination=ProcessTermination.EXITED,
+                    return_code=0,
+                    started_at=1.0,
+                    finished_at=2.0,
+                    output=ProcessOutput(stdout=b"docker-contract"),
+                    backend_id="zyra.docker-sandbox.v1",
+                )
+
+            def cleanup(self, session):
+                return None
+
+            def cancel(self, command_id, reason):
+                return True
+
+        docker = DockerSandboxBackend(self.root / "docker", Connector())
+        docker_record = GatewaySessionRecord.create(
+            session_id="session-docker",
+            run_id="run-policy",
+            task_id="task-policy",
+            workspace_id=self.port.workspace_id,
+            worker_id="CodeWorkerRuntime",
+            backend_id=docker.backend_id,
+        )
+        docker_session = docker.prepare(docker_record)
+        docker_envelope = GatewayCommandEnvelope.build(
+            session_id=docker_record.session_id,
+            run_id=docker_record.run_id,
+            task_id=docker_record.task_id,
+            worker_id=docker_record.worker_id,
+            executable="python",
+            argv=("-V",),
+            tool_use_id="docker-tool",
+        )
+        docker_result = docker.execute(docker_session, docker_envelope, CancellationToken())
+        self.assertEqual(docker_result.output.stdout, b"docker-contract")
+        self.assertTrue(docker.cancel(docker_envelope.command_id, "test"))
 
 
 if __name__ == "__main__":

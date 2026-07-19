@@ -47,7 +47,7 @@ function fixture() {
       effect: Effects.allow,
       issuedAt: now,
       expiresAt: now + 60_000,
-      permissionOwner: "ToolPermissionRuntime",
+      permissionOwner: "typescript.PermissionCoordinator",
       metadata: {},
     }),
     validateAndConsume: (value, grant, replay) => {

@@ -412,6 +412,21 @@ class BrowserWorkerRuntime:
         if isinstance(permission_gate_or_failure, BrowserWorkerRun):
             return permission_gate_or_failure
         permission_gate = permission_gate_or_failure
+        boundary = self.sandbox_gateway_boundary
+        if self.workspace_gateway_required and boundary is None:
+            return _browser_productized_failure(
+                request,
+                code="sandbox_gateway_browser_boundary_unavailable",
+                summary="BrowserWorker requires the sandbox gateway browser boundary.",
+            )
+        plan_receipt = boundary.preflight_plan(request, plan) if boundary is not None else None
+        if plan_receipt is not None and not plan_receipt.allowed:
+            return _browser_productized_failure(
+                request,
+                code="sandbox_gateway_browser_plan_denied",
+                summary="SandboxGateway denied the browser plan before session execution.",
+                metadata={"sandbox_gateway_plan_receipt": plan_receipt.safe_dict()},
+            )
         command = self._browser_session_command(request)
         try:
             started = self.browser_session_runtime.ensure_started(command)
@@ -494,6 +509,12 @@ class BrowserWorkerRuntime:
                 started,
                 plan,
                 permission_gate,
+                execution_fence=(
+                    (lambda: boundary.assert_plan_receipt_current(plan_receipt))
+                    if boundary is not None and plan_receipt is not None
+                    else None
+                ),
+                gateway_boundary=boundary,
             )
         except Exception as error:  # noqa: BLE001 - fail closed at the productized action boundary.
             action_run = None

@@ -944,6 +944,8 @@ class WorkspaceReferenceMigration:
     snapshot_id: str
     artifact_refs: tuple[str, ...] = ()
     event_refs: tuple[str, ...] = ()
+    download_refs: tuple[str, ...] = ()
+    mount_snapshot_refs: Mapping[str, str] = field(default_factory=dict)
     completed_at: str = field(default_factory=utc_now)
 
     def __post_init__(self) -> None:
@@ -961,6 +963,8 @@ class WorkspaceReferenceMigration:
             "snapshot_id": self.snapshot_id,
             "artifact_refs": list(self.artifact_refs),
             "event_refs": list(self.event_refs),
+            "download_refs": list(self.download_refs),
+            "mount_snapshot_refs": dict(self.mount_snapshot_refs),
             "completed_at": self.completed_at,
             "physical_location_redacted": True,
         }

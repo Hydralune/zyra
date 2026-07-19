@@ -247,7 +247,32 @@ class WorkspaceBindingStore:
                                 "Workspace idempotency record references a missing binding.",
                                 operation="create_binding",
                             )
-                        return binding_from_dict(prior_binding)
+                        restored = binding_from_dict(prior_binding)
+                        if _binding_request_fingerprint(restored) != _binding_request_fingerprint(binding):
+                            raise WorkspaceStoreError(
+                                WorkspaceErrorCode.IDEMPOTENCY_CONFLICT,
+                                "Workspace create idempotency key was reused for a different task binding.",
+                                workspace_id=restored.workspace_id,
+                                operation="create_binding",
+                                expected=_binding_request_fingerprint(restored),
+                                actual=_binding_request_fingerprint(binding),
+                                metadata={"idempotency_key": idempotency_key},
+                            )
+                        return restored
+                for value in state.bindings.values():
+                    current = binding_from_dict(value)
+                    if (
+                        current.task_id == binding.task_id
+                        and current.workspace_kind is binding.workspace_kind
+                        and current.lifecycle_state.value != "deleted"
+                    ):
+                        raise WorkspaceStoreError(
+                            WorkspaceErrorCode.ALREADY_EXISTS,
+                            "Task already has a canonical active workspace binding.",
+                            workspace_id=current.workspace_id,
+                            operation="create_binding",
+                            metadata={"task_id": binding.task_id},
+                        )
                 state.bindings[binding.workspace_id] = binding.to_dict()
                 state.usages.setdefault(binding.workspace_id, WorkspaceUsage().to_dict())
                 if idempotency_key:
@@ -682,6 +707,21 @@ def _binding_fingerprint(binding: WorkspaceBinding) -> str:
     payload = binding.to_dict()
     payload.pop("created_at", None)
     payload.pop("updated_at", None)
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def _binding_request_fingerprint(binding: WorkspaceBinding) -> str:
+    """Fingerprint stable caller intent, excluding generated custody fields."""
+
+    payload = {
+        "run_id": binding.run_id,
+        "task_id": binding.task_id,
+        "session_id": binding.session_id,
+        "backend_id": binding.backend_id,
+        "backend_kind": binding.backend_kind.value,
+        "workspace_kind": binding.workspace_kind.value,
+        "quota": binding.quota.to_dict(),
+    }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 

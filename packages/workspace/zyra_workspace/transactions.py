@@ -406,6 +406,7 @@ class WorkspacePatchTransactionRuntime:
                     record=record,
                     snapshot_id=snapshot_id,
                     mutation_started=mutation_started,
+                    path_results=tuple(path_results),
                     ownership_before=ownership_before,
                     error=error,
                 )
@@ -687,10 +688,18 @@ class WorkspacePatchTransactionRuntime:
                     operation="apply_workspace_patch",
                     path=mutation.logical_path,
                 )
+            precondition = self.manager.backend.file_state.precondition_for_latest(
+                workspace_id=plan.workspace_id,
+                path=read.record.path,
+                owner_epoch=access.owner_epoch,
+                lease_id=access.lease_id,
+                require_full_read=True,
+            )
             deleted = self.manager.backend.delete(
                 access,
                 mount_kind=WorkspaceKind.TASK,
                 path=mutation.logical_path,
+                precondition=precondition,
                 recursive=False,
             )
             content = b""
@@ -867,6 +876,7 @@ class WorkspacePatchTransactionRuntime:
         record: WorkspaceTransactionRecord,
         snapshot_id: str,
         mutation_started: bool,
+        path_results: Sequence[MutationPathResult],
         ownership_before: Sequence[Any],
         error: Exception,
     ) -> GatewayMutationResult:
@@ -885,16 +895,51 @@ class WorkspacePatchTransactionRuntime:
             )
             latest_record = self.store.update_transaction(rolling, expected_revision=latest_record.revision)
             try:
-                self.manager.restore(
-                    plan.workspace_id,
-                    snapshot_id,
-                    causation_id=plan.causation_id or plan.transaction_id,
+                snapshot = self.manager.store.get_snapshot(snapshot_id) or self.manager.snapshot_runtime.load(snapshot_id)
+                binding_before_rollback = self.manager.store.require_binding(plan.workspace_id)
+                task_root = self.manager.backend.mount_root(
+                    binding_before_rollback,
+                    WorkspaceKind.TASK,
                 )
+                expected_live_hashes = {
+                    item.logical_path: (
+                        None if item.kind is MutationKind.DELETE_FILE else item.after_hash
+                    )
+                    for item in path_results
+                }
+                restored_paths, conflict_paths = self.manager.snapshot_runtime.restore_write_set(
+                    snapshot=snapshot,
+                    workspace_id=plan.workspace_id,
+                    owner_epoch=binding_before_rollback.owner_epoch,
+                    target_root=task_root,
+                    candidate_paths=tuple(item.logical_path for item in plan.mutations),
+                    expected_live_hashes=expected_live_hashes,
+                )
+                self.manager.backend.file_state.invalidate(plan.workspace_id)
+                next_access = self.manager.rotate_after_integration(
+                    plan.workspace_id,
+                    worker_id=plan.worker_id,
+                    active_snapshot_id=snapshot_id,
+                    causation_id=plan.causation_id or plan.transaction_id,
+                    reason="patch_write_set_rolled_back",
+                )
+                del next_access
                 self.manager.ownership_store.replace_workspace(
                     plan.workspace_id,
                     ownership_before,
                 )
                 binding = self.manager.store.require_binding(plan.workspace_id)
+                if conflict_paths:
+                    raise WorkspaceError(
+                        WorkspaceErrorCode.RESTORE_CONFLICT,
+                        "Workspace rollback retained concurrent changes for recovery.",
+                        workspace_id=plan.workspace_id,
+                        operation="rollback_workspace_patch",
+                        metadata={
+                            "conflict_paths": list(conflict_paths),
+                            "restored_paths": list(restored_paths),
+                        },
+                    )
                 rolled_back = latest_record.advance(
                     IntegrationPhase.ROLLED_BACK,
                     owner_epoch_after=binding.owner_epoch,
@@ -903,7 +948,13 @@ class WorkspacePatchTransactionRuntime:
                     completed_at=utc_now(),
                     error_code=normalized.code.value,
                     error_type=type(error).__name__,
-                    message="workspace patch rolled back to its committed undo snapshot",
+                    metadata={
+                        **dict(latest_record.metadata),
+                        "rollback_mode": "write_set",
+                        "restored_paths": list(restored_paths),
+                        "concurrent_paths_preserved": True,
+                    },
+                    message="workspace patch write-set rolled back; unrelated user changes were preserved",
                 )
                 latest_record = self.store.update_transaction(
                     rolled_back,
@@ -923,7 +974,13 @@ class WorkspacePatchTransactionRuntime:
                         logical_paths=tuple(item.logical_path for item in plan.mutations),
                         error_code=normalized.code.value,
                         summary="workspace patch failed and was rolled back",
-                        metadata={"snapshot_id": snapshot_id, "rolled_back": True},
+                        metadata={
+                            "snapshot_id": snapshot_id,
+                            "rolled_back": True,
+                            "rollback_mode": "write_set",
+                            "restored_paths": list(restored_paths),
+                            "concurrent_paths_preserved": True,
+                        },
                     )
                 )
                 self.manager.emit_integration_event(

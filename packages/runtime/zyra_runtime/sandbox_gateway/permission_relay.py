@@ -41,7 +41,7 @@ class PermissionRelayRequest:
             "interactive": self.interactive,
             "sealed": self.sealed,
             "created_at": self.created_at,
-            "final_authority": "ToolPermissionRuntime",
+            "final_authority": "typescript.PermissionCoordinator",
         }
 
 
@@ -143,7 +143,7 @@ class CallbackToolPermissionRuntimePort:
     def descriptor(self) -> Mapping[str, Any]:
         return {
             "adapter": "CallbackToolPermissionRuntimePort",
-            "final_authority": "ToolPermissionRuntime",
+            "final_authority": "typescript.PermissionCoordinator",
             "can_decide_without_callback": False,
             **self._descriptor,
         }
@@ -200,23 +200,23 @@ class GatewayPermissionRelay:
         except Exception as error:
             raise SandboxGatewayError(
                 GatewayErrorCode.PERMISSION_UNAVAILABLE,
-                f"ToolPermissionRuntime evaluation failed closed: {type(error).__name__}",
+                f"typescript.PermissionCoordinator evaluation failed closed: {type(error).__name__}",
                 operation="permission_issue",
                 retryable=True,
-                recovery=("restore the session-owned ToolPermissionRuntime",),
+                recovery=("restore the session-owned typescript.PermissionCoordinator",),
             ) from error
         self._validate_runtime_decision(request, decision)
         if not decision.allowed or decision.effect is CommandEffect.DENY:
             raise SandboxGatewayError(
                 GatewayErrorCode.POLICY_DENIED,
-                decision.reason or "ToolPermissionRuntime denied the command",
+                decision.reason or "typescript.PermissionCoordinator denied the command",
                 operation="permission_issue",
                 metadata={"request_fingerprint": fingerprint},
             )
         if decision.grant_material is None or not decision.grant_digest:
             raise SandboxGatewayError(
                 GatewayErrorCode.PERMISSION_UNAVAILABLE,
-                "ToolPermissionRuntime allowed without issuing an execution grant",
+                "typescript.PermissionCoordinator allowed without issuing an execution grant",
                 operation="permission_issue",
             )
         now = self.clock()
@@ -224,7 +224,7 @@ class GatewayPermissionRelay:
         if expires_at <= now:
             raise SandboxGatewayError(
                 GatewayErrorCode.APPROVAL_EXPIRED,
-                "ToolPermissionRuntime issued an already-expired execution grant",
+                "typescript.PermissionCoordinator issued an already-expired execution grant",
                 operation="permission_issue",
             )
         binding = PermissionBinding(
@@ -245,7 +245,7 @@ class GatewayPermissionRelay:
             issued_at=now,
             expires_at=expires_at,
             metadata={
-                "permission_owner": "ToolPermissionRuntime",
+                "permission_owner": "typescript.PermissionCoordinator",
                 "policy_digest": policy.policy_digest,
                 "interactive": interactive,
                 "sealed": sealed,
@@ -274,13 +274,13 @@ class GatewayPermissionRelay:
         except Exception as error:
             raise SandboxGatewayError(
                 GatewayErrorCode.APPROVAL_MISMATCH,
-                f"ToolPermissionRuntime grant validation failed: {type(error).__name__}",
+                f"typescript.PermissionCoordinator grant validation failed: {type(error).__name__}",
                 operation="permission_consume",
             ) from error
         if not accepted:
             raise SandboxGatewayError(
                 GatewayErrorCode.APPROVAL_MISMATCH,
-                "ToolPermissionRuntime rejected grant identity or replay",
+                "typescript.PermissionCoordinator rejected grant identity or replay",
                 operation="permission_consume",
             )
         consumption_id = stable_id(
@@ -335,19 +335,19 @@ class GatewayPermissionRelay:
         if decision.request_fingerprint != request.request_fingerprint:
             raise SandboxGatewayError(
                 GatewayErrorCode.APPROVAL_MISMATCH,
-                "ToolPermissionRuntime decision is bound to different request material",
+                "typescript.PermissionCoordinator decision is bound to different request material",
                 operation="permission_issue",
             )
         if decision.allowed and decision.effect is CommandEffect.DENY:
             raise SandboxGatewayError(
                 GatewayErrorCode.PERMISSION_UNAVAILABLE,
-                "ToolPermissionRuntime returned an internally inconsistent decision",
+                "typescript.PermissionCoordinator returned an internally inconsistent decision",
                 operation="permission_issue",
             )
         if not decision.allowed and decision.effect is CommandEffect.ALLOW:
             raise SandboxGatewayError(
                 GatewayErrorCode.PERMISSION_UNAVAILABLE,
-                "ToolPermissionRuntime returned an internally inconsistent decision",
+                "typescript.PermissionCoordinator returned an internally inconsistent decision",
                 operation="permission_issue",
             )
 

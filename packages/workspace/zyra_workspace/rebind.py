@@ -195,6 +195,7 @@ class WorkspaceRebindRuntime:
         committed = False
         source_root: Path | None = None
         snapshot_id = ""
+        mount_snapshots: dict[WorkspaceKind, Any] = {}
         with self.store.workspace_locks.acquire_many((binding.workspace_id,)):
             try:
                 current = self.manager.store.require_binding(binding.workspace_id)
@@ -221,11 +222,37 @@ class WorkspaceRebindRuntime:
                     include_dirty_state=True,
                 )
                 snapshot_id = snapshot.snapshot_id
+                refreshed = self.manager.store.require_binding(current.workspace_id)
+                for mount in self.manager.store.get_mounts(refreshed.workspace_id):
+                    if mount.kind is WorkspaceKind.TASK:
+                        continue
+                    mount_snapshot = self.manager.snapshot_runtime.create(
+                        workspace_id=refreshed.workspace_id,
+                        owner_epoch=refreshed.owner_epoch,
+                        lease_id=refreshed.lease_id,
+                        source_root=self.manager.backend.mount_root(refreshed, mount.kind),
+                        metadata={
+                            "rebind_id": rebind_id,
+                            "mount_kind": mount.kind.value,
+                            "mount_snapshot": True,
+                        },
+                    )
+                    self.manager.store.put_snapshot(mount_snapshot)
+                    mount_snapshots[mount.kind] = mount_snapshot
                 record = self.store.update_rebind(
-                    record.advance(RebindState.SNAPSHOTTED, snapshot_id=snapshot_id),
+                    record.advance(
+                        RebindState.SNAPSHOTTED,
+                        snapshot_id=snapshot_id,
+                        metadata={
+                            **dict(record.metadata),
+                            "mount_snapshot_refs": {
+                                kind.value: f"workspace-snapshot://{item.snapshot_id}"
+                                for kind, item in mount_snapshots.items()
+                            },
+                        },
+                    ),
                     expected_revision=record.revision,
                 )
-                refreshed = self.manager.store.require_binding(current.workspace_id)
                 task_root = self.manager.backend.mount_root(refreshed, WorkspaceKind.TASK)
                 dirty_runtime = WorkspaceDirtyStateRuntime(
                     workspace_id=refreshed.workspace_id,
@@ -291,6 +318,22 @@ class WorkspaceRebindRuntime:
                         workspace_id=refreshed.workspace_id,
                         operation="rebind_workspace",
                     )
+                for mount_kind, mount_snapshot in mount_snapshots.items():
+                    mount_restore = self.manager.snapshot_runtime.restore(
+                        snapshot=mount_snapshot,
+                        workspace_id=refreshed.workspace_id,
+                        owner_epoch=refreshed.owner_epoch,
+                        target_root=self.manager.backend.mount_root(provisional, mount_kind),
+                        preserve_displaced=False,
+                    )
+                    if mount_restore.cleanup_pending:
+                        raise WorkspaceError(
+                            WorkspaceErrorCode.RESTORE_FAILED,
+                            "Workspace rebind mount did not reach a clean restored state.",
+                            workspace_id=refreshed.workspace_id,
+                            operation="rebind_workspace",
+                            actual=mount_kind.value,
+                        )
                 record = self.store.update_rebind(
                     record.advance(RebindState.MATERIALIZED),
                     expected_revision=record.revision,
@@ -345,6 +388,15 @@ class WorkspaceRebindRuntime:
                     snapshot_id=snapshot_id,
                     artifact_refs=tuple(artifact_refs),
                     event_refs=tuple(event_refs),
+                    download_refs=tuple(
+                        f"workspace://download/{entry.relative_path}"
+                        for entry in mount_snapshots.get(WorkspaceKind.DOWNLOAD, snapshot).entries
+                        if WorkspaceKind.DOWNLOAD in mount_snapshots and entry.kind.value == "file"
+                    ),
+                    mount_snapshot_refs={
+                        kind.value: f"workspace-snapshot://{item.snapshot_id}"
+                        for kind, item in mount_snapshots.items()
+                    },
                 )
                 self.store.put_reference_migration(migration)
                 record = self.store.update_rebind(

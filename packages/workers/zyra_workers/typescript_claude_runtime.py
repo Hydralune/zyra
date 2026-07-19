@@ -36,6 +36,10 @@ from zyra_runtime.permission.models import (
 from zyra_runtime.permission.request_queue import PermissionRequestQueue
 from zyra_runtime.permission.store import PermissionStateStore
 from zyra_runtime.tools import ToolCall, ToolResult
+from zyra_runtime.sandbox_gateway.command_policy import StructuredCommandPolicy
+from zyra_runtime.sandbox_gateway.file_policy import GatewayFilePolicy
+from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRuntime
+from zyra_runtime.sandbox_gateway.integration_policy import GatewayPolicyConfig, GatewayPolicyRuntime
 
 from .code_worker_bridge import code_worker_entrypoint
 from .subagents.typescript_port import TypeScriptAgentDurablePort
@@ -104,6 +108,17 @@ class TypeScriptClaudeQueryEngine:
         self._checkpoint_writer_id = hashlib.sha256(
             f"{os.getpid()}:{id(self)}:{time.time_ns()}".encode("utf-8")
         ).hexdigest()
+        self._host_process_runtime = context.runtime_services.get(
+            "sandbox_gateway_host_runtime"
+        ) or GatewayHostProcessRuntime(
+            GatewayPolicyRuntime(
+                GatewayPolicyConfig(workspace_root=self.project_root),
+                command_policy=StructuredCommandPolicy(),
+                file_policy=GatewayFilePolicy(),
+            ),
+            allowed_roots=(self.project_root,),
+        )
+        self._active_runtime_process: subprocess.Popen[str] | None = None
 
     def run(
         self,
@@ -210,6 +225,15 @@ class TypeScriptClaudeQueryEngine:
                 session_id=session_id,
                 projection=projection,
             )
+        finally:
+            process = self._active_runtime_process
+            self._active_runtime_process = None
+            if process is not None:
+                self._host_process_runtime.release_interactive(
+                    process,
+                    terminate=process.poll() is None,
+                    reason="TypeScript query runtime completed or failed",
+                )
 
     def _run_process(
         self,
@@ -384,17 +408,14 @@ class TypeScriptClaudeQueryEngine:
             self._runtime_process_epoch,
             int(restored_runtime_state.get("runtime_process_epoch") or 0),
         ) + 1
-        process = subprocess.Popen(
-            command,
+        process = self._host_process_runtime.start_interactive(
+            executable=command[0],
+            argv=command[1:],
             cwd=self.project_root,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            bufsize=1,
-            env=self._runtime_environment(),
+            environment=self._runtime_environment(),
+            operation_name="typescript-claude-query-runtime",
         )
+        self._active_runtime_process = process
         if process.stdin is None or process.stdout is None or process.stderr is None:
             process.kill()
             raise TypeScriptRuntimeError(
@@ -450,7 +471,7 @@ class TypeScriptClaudeQueryEngine:
         )
         outbound_sequence += 1
         if constraints.get("kill_typescript_runtime_after_start") is True:
-            process.kill()
+            self._terminate(process)
 
         accepted = self._read_frame(
             reader,
@@ -1267,8 +1288,24 @@ class TypeScriptClaudeQueryEngine:
         )
 
     def _runtime_environment(self) -> dict[str, str]:
-        environment = dict(os.environ)
-        environment.pop("NODE_PATH", None)
+        allowed = {
+            "PATH",
+            "PATHEXT",
+            "SYSTEMROOT",
+            "WINDIR",
+            "COMSPEC",
+            "TEMP",
+            "TMP",
+            "LANG",
+            "LC_ALL",
+            "TERM",
+            "NO_COLOR",
+            "CI",
+            "TZ",
+        }
+        environment = {
+            key: value for key, value in os.environ.items() if key.upper() in allowed
+        }
         environment["ZYRA_TYPESCRIPT_RUNTIME_OWNER"] = "canonical"
         environment["ZYRA_TYPESCRIPT_RUNTIME_PROTOCOL"] = RUNTIME_PROTOCOL_VERSION
         return environment
@@ -2165,14 +2202,13 @@ class TypeScriptClaudeQueryEngine:
                 stderr or "TypeScript runtime process disconnected while receiving a frame.",
             ) from error
 
-    @staticmethod
-    def _terminate(process: subprocess.Popen[str]) -> None:
-        if process.poll() is None:
-            process.kill()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                pass
+    def _terminate(self, process: subprocess.Popen[str]) -> None:
+        self._host_process_runtime.release_interactive(
+            process,
+            terminate=True,
+            reason="TypeScript runtime termination",
+            close_pipes=False,
+        )
 
     def _session_id(
         self,

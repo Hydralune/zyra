@@ -22,6 +22,7 @@ from zyra_runtime.workers import WorkerRequest, WorkerResult
 from zyra_runtime.sandbox_gateway.integration_factory import (
     install_gateway_runtime_services,
 )
+from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRuntime
 
 from .code_worker_bridge import CodeWorkerSidecarClient
 from .typescript_claude_runtime import TypeScriptClaudeQueryEngine
@@ -111,6 +112,16 @@ class CodeWorkerRuntime:
             worker_id="CodeWorkerRuntime",
             workspace_edit_port=dict(runtime_services or {}).get("workspace_edit_port"),
         )
+        bundle = services.get("sandbox_gateway_bundle")
+        if bundle is not None:
+            services.setdefault(
+                "sandbox_gateway_host_runtime",
+                GatewayHostProcessRuntime(
+                    bundle.policy_runtime,
+                    redactor=bundle.backend.redactor,
+                    allowed_roots=(self.project_root,),
+                ),
+            )
         self.execution_context = ToolExecutionContext.for_workspace(
             workspace_root=workspace_root,
             artifact_root=artifact_root,

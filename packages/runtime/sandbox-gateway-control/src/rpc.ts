@@ -259,7 +259,7 @@ export function createGatewayControlRouter(options: {
       ownerSlice: "M1-S05B-01",
       role: "supplementary",
       canonicalGatewayOwner: "SandboxGatewayRuntime",
-      permissionOwner: "ToolPermissionRuntime",
+      permissionOwner: "typescript.PermissionCoordinator",
       policy: policy.descriptor(),
       hashline: hashline.descriptor(),
       vendorRuntimeRequired: false,
@@ -270,7 +270,7 @@ export function createGatewayControlRouter(options: {
       method: "policy.evaluate",
       description: "Evaluate structured command evidence",
       mutatesState: false,
-      permissionOwner: "ToolPermissionRuntime",
+      permissionOwner: "typescript.PermissionCoordinator",
     },
     (params) => {
       const record = assertJsonRecord(params, "params");

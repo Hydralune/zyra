@@ -9,7 +9,7 @@ import stat
 import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 from .atomic import atomic_write_bytes, atomic_write_json, file_identity, fsync_directory, sha256_file
 from .errors import WorkspaceError, WorkspaceErrorCode
@@ -368,6 +368,89 @@ class WorkspaceSnapshotRuntime:
                     operation="restore_snapshot",
                     metadata={"exception_type": type(error).__name__},
                 ) from error
+
+    def restore_write_set(
+        self,
+        *,
+        snapshot: WorkspaceSnapshot,
+        workspace_id: str,
+        owner_epoch: int,
+        target_root: str | Path,
+        candidate_paths: Sequence[str],
+        expected_live_hashes: Mapping[str, str | None],
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Restore only transaction-owned paths without erasing user changes.
+
+        ``expected_live_hashes`` binds each completed mutation to the bytes it
+        wrote; ``None`` means the transaction deleted the path.  Unknown or
+        externally changed live values are reported as conflicts and kept in
+        place for recovery instead of being overwritten by a whole-tree
+        snapshot restore.
+        """
+
+        if snapshot.workspace_id != workspace_id or snapshot.owner_epoch > owner_epoch:
+            raise WorkspaceError(
+                WorkspaceErrorCode.SNAPSHOT_OWNER_MISMATCH,
+                "The write-set rollback snapshot does not belong to the live workspace epoch.",
+                workspace_id=workspace_id,
+                operation="restore_workspace_write_set",
+            )
+        self.verify(snapshot).require_valid(workspace_id=workspace_id)
+        root = Path(target_root).resolve()
+        entries = {item.relative_path: item for item in snapshot.entries}
+        restored: list[str] = []
+        conflicts: list[str] = []
+        with self._lock:
+            for raw_path in dict.fromkeys(str(item) for item in candidate_paths):
+                logical_path, parts = self.path_policy.validate_logical_path(raw_path)
+                if not parts:
+                    conflicts.append(logical_path)
+                    continue
+                target = root.joinpath(*parts).resolve()
+                try:
+                    target.relative_to(root)
+                except ValueError:
+                    conflicts.append(logical_path)
+                    continue
+                snapshot_entry = entries.get(logical_path)
+                snapshot_hash = (
+                    snapshot_entry.content_hash
+                    if snapshot_entry is not None and snapshot_entry.kind is SnapshotEntryKind.FILE
+                    else None
+                )
+                if target.exists():
+                    if target.is_symlink() or not target.is_file():
+                        live_hash: str | None = "<non-regular>"
+                    else:
+                        live_hash = sha256_file(target)
+                else:
+                    live_hash = None
+                if logical_path not in expected_live_hashes:
+                    # The failed mutation may or may not have reached disk.
+                    # Only a value still equal to the undo snapshot is known
+                    # safe; everything else is retained as a conflict.
+                    if live_hash != snapshot_hash:
+                        conflicts.append(logical_path)
+                    continue
+                if live_hash != expected_live_hashes[logical_path]:
+                    conflicts.append(logical_path)
+                    continue
+                if snapshot_entry is None:
+                    if target.exists():
+                        target.unlink()
+                        fsync_directory(target.parent)
+                elif snapshot_entry.kind is SnapshotEntryKind.FILE:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    atomic_write_bytes(
+                        target,
+                        self._blob_path(snapshot_entry.content_hash).read_bytes(),
+                        mode=snapshot_entry.mode,
+                    )
+                else:
+                    conflicts.append(logical_path)
+                    continue
+                restored.append(logical_path)
+        return tuple(restored), tuple(conflicts)
 
     def prune_uncommitted(self) -> tuple[str, ...]:
         removed: list[str] = []

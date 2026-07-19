@@ -162,7 +162,7 @@ class SandboxGatewayRuntime:
             metadata={
                 **dict(metadata or {}),
                 "gateway_owner": "SandboxGatewayRuntime",
-                "permission_owner": "ToolPermissionRuntime",
+                "permission_owner": "typescript.PermissionCoordinator",
                 "workspace_owner": "WorkspaceManagerRuntime",
             },
         )

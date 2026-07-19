@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = ROOT / "packages" / "workspace"
@@ -69,6 +72,58 @@ class WorkspaceManagerFoundationTests(unittest.TestCase):
         self.assertEqual(first.projection.workspace_id, second.projection.workspace_id)
         self.assertFalse(second.created)
         self.assertEqual(len(self.runtime.store.list_bindings()), 1)
+
+    def test_concurrent_create_has_one_canonical_task_workspace(self) -> None:
+        barrier = threading.Barrier(2)
+        results = []
+        errors = []
+
+        def create() -> None:
+            try:
+                barrier.wait(timeout=5)
+                results.append(
+                    self.runtime.create_for_task(
+                        run_id="run-concurrent",
+                        task_id="task-concurrent",
+                        session_id="session-concurrent",
+                        worker_id="worker-concurrent",
+                    )
+                )
+            except Exception as error:  # noqa: BLE001 - thread result capture.
+                errors.append(error)
+
+        threads = [threading.Thread(target=create) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 2)
+        self.assertEqual(len({item.projection.workspace_id for item in results}), 1)
+        self.assertEqual(
+            len(self.runtime.store.list_bindings(task_id="task-concurrent")),
+            1,
+        )
+
+    def test_create_idempotency_conflict_leaves_no_orphan_mounts(self) -> None:
+        first = self.runtime.create_for_task(
+            run_id="run-one",
+            task_id="task-one",
+            session_id="session-one",
+            idempotency_key="shared-create-key",
+        )
+        with self.assertRaises(WorkspaceError) as conflict:
+            self.runtime.create_for_task(
+                run_id="run-two",
+                task_id="task-two",
+                session_id="session-two",
+                idempotency_key="shared-create-key",
+            )
+        self.assertEqual(conflict.exception.code, WorkspaceErrorCode.IDEMPOTENCY_CONFLICT)
+        state = json.loads(self.runtime.store.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(set(state["bindings"]), {first.projection.workspace_id})
+        self.assertEqual(set(state["mounts"]), {first.projection.workspace_id})
 
     def test_read_before_write_and_stale_base_hash_are_enforced(self) -> None:
         result = self.create()
@@ -187,6 +242,75 @@ class WorkspaceManagerFoundationTests(unittest.TestCase):
         )
         reread = self.runtime.backend.read(replacement, mount_kind=WorkspaceKind.TASK, path="shared.txt")
         self.assertEqual(reread.record.owner_epoch, replacement.owner_epoch)
+
+    def test_owner_epoch_rotation_serializes_with_inflight_local_write(self) -> None:
+        created = self.create(worker_id="writer")
+        self.runtime.backend.read(
+            created.access,
+            mount_kind=WorkspaceKind.TASK,
+            path="serialized.txt",
+        )
+        reserved = threading.Event()
+        release = threading.Event()
+        rotated = threading.Event()
+        errors = []
+        original_reserve = self.runtime.quota_runtime.reserve
+
+        def paused_reserve(*args, **kwargs):
+            reservation = original_reserve(*args, **kwargs)
+            reserved.set()
+            if not release.wait(timeout=5):
+                raise TimeoutError("test did not release quota reservation")
+            return reservation
+
+        def write() -> None:
+            try:
+                self.runtime.backend.write_after_read(
+                    created.access,
+                    mount_kind=WorkspaceKind.TASK,
+                    path="serialized.txt",
+                    content=b"linearized",
+                )
+            except Exception as error:  # noqa: BLE001 - thread result capture.
+                errors.append(error)
+
+        def rotate() -> None:
+            try:
+                self.runtime.acquire_for_worker(
+                    task_id="task-1",
+                    session_id="session-1",
+                    worker_id="replacement",
+                )
+                rotated.set()
+            except Exception as error:  # noqa: BLE001 - thread result capture.
+                errors.append(error)
+
+        with mock.patch.object(
+            self.runtime.quota_runtime,
+            "reserve",
+            side_effect=paused_reserve,
+        ):
+            writer = threading.Thread(target=write)
+            writer.start()
+            self.assertTrue(reserved.wait(timeout=5))
+            rotator = threading.Thread(target=rotate)
+            rotator.start()
+            time.sleep(0.1)
+            self.assertFalse(rotated.is_set())
+            release.set()
+            writer.join(timeout=10)
+            rotator.join(timeout=10)
+        self.assertEqual(errors, [])
+        self.assertTrue(rotated.is_set())
+        binding = self.runtime.store.require_binding(created.projection.workspace_id)
+        target = self.runtime.backend.mount_root(binding, WorkspaceKind.TASK) / "serialized.txt"
+        self.assertEqual(target.read_bytes(), b"linearized")
+        with self.assertRaises(WorkspaceError):
+            self.runtime.backend.read(
+                created.access,
+                mount_kind=WorkspaceKind.TASK,
+                path="serialized.txt",
+            )
 
     def test_snapshot_restore_verifies_and_restores_content(self) -> None:
         created = self.create()

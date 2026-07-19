@@ -43,7 +43,7 @@ export function createControlReceipt(input: {
     effect: input.effect,
     createdAt,
     metadata: Object.freeze({
-      permissionOwner: "ToolPermissionRuntime",
+      permissionOwner: "typescript.PermissionCoordinator",
       canonicalGatewayOwner: "SandboxGatewayRuntime",
       ...input.metadata,
     }),

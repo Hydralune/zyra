@@ -172,7 +172,7 @@ export class ApprovalLedger {
       consumptionId: "",
       revision: 1,
       metadata: Object.freeze({
-        permissionOwner: "ToolPermissionRuntime",
+        permissionOwner: "typescript.PermissionCoordinator",
         policyDigest: request.policy.policyDigest,
         interactive: request.interactive,
         sealed: request.sealed,
@@ -275,10 +275,10 @@ export class ApprovalLedger {
     request: ApprovalRequest,
     grant: ApprovalGrant,
   ): void {
-    if (grant.permissionOwner !== "ToolPermissionRuntime") {
+    if (grant.permissionOwner !== "typescript.PermissionCoordinator") {
       throw new GatewayProtocolError(
         "permission_owner_mismatch",
-        "Approval grant must be owned by ToolPermissionRuntime",
+        "Approval grant must be owned by typescript.PermissionCoordinator",
       );
     }
     if (grant.requestFingerprint !== request.requestFingerprint) {
@@ -345,7 +345,7 @@ export class CallbackToolPermissionApprovalPort
   descriptor(): JsonValue {
     return {
       port: "CallbackToolPermissionApprovalPort",
-      finalAuthority: "ToolPermissionRuntime",
+      finalAuthority: "typescript.PermissionCoordinator",
       decidesWithoutCallback: false,
     };
   }

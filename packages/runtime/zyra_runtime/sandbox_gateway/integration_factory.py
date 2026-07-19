@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .artifact_port import GatewayFileArtifactPort
-from .backends import LocalProcessSandboxBackend
+from .backends import LocalProcessSandboxBackend, SandboxBackend
 from .command_policy import CommandPolicyConfig, StructuredCommandPolicy
 from .event_port import GatewayEventPort, MemoryGatewayEventSink
 from .file_policy import FilePolicyConfig, GatewayFilePolicy
@@ -37,7 +37,7 @@ class GatewayRuntimeBundle:
     runtime: SandboxGatewayRuntime
     state_store: GatewayStateStore
     lifecycle: SandboxLifecycle
-    backend: LocalProcessSandboxBackend
+    backend: SandboxBackend
     command_policy: StructuredCommandPolicy
     file_policy: GatewayFilePolicy
     network_policy: NetworkPolicy
@@ -80,7 +80,7 @@ class GatewayRuntimeBundle:
             "required": self.required,
             "sealed": self.sealed,
             "canonical_gateway_owner": "SandboxGatewayRuntime",
-            "permission_owner": "ToolPermissionRuntime",
+            "permission_owner": "typescript.PermissionCoordinator",
             "workspace_owner": "WorkspaceManagerRuntime",
         }
 
@@ -294,11 +294,16 @@ def build_gateway_runtime_bundle(
             provenance_registry=provenance_registry,
             enabled=True,
         )
-    backend = LocalProcessSandboxBackend(
+    backend = services.get("sandbox_gateway_backend") or LocalProcessSandboxBackend(
         state_root / "backend",
         redactor=redactor,
         preserve_failed_roots=True,
     )
+    if not all(
+        callable(getattr(backend, name, None))
+        for name in ("prepare", "execute", "cleanup", "cancel", "descriptor")
+    ):
+        raise TypeError("sandbox_gateway_backend does not satisfy SandboxBackend")
     runtime = SandboxGatewayRuntime(
         SandboxGatewayConfig(
             state_root=state_root,

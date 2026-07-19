@@ -171,7 +171,7 @@ export class StructuredCommandPolicy {
       policyId: "zyra.typescript-command-policy.v1",
       ownerSlice: "M1-S05B-01",
       role: "supplementary",
-      finalAuthority: "ToolPermissionRuntime",
+      finalAuthority: "typescript.PermissionCoordinator",
       canonicalGatewayOwner: "SandboxGatewayRuntime",
       callerOverrides: false,
       allowedExecutables: [...this.options.allowedExecutables].sort(),
@@ -227,7 +227,7 @@ export class StructuredCommandPolicy {
       effect === Effects.deny
         ? "Command policy denied one or more high-risk mechanisms"
         : effect === Effects.ask
-          ? "Command requires an exact ToolPermissionRuntime grant"
+          ? "Command requires an exact typescript.PermissionCoordinator grant"
           : "Command satisfies deterministic gateway evidence rules";
     const recovery =
       effect === Effects.deny
@@ -252,7 +252,7 @@ export class StructuredCommandPolicy {
       metadata: Object.freeze({
         sealed,
         readOnly,
-        finalAuthority: "ToolPermissionRuntime",
+        finalAuthority: "typescript.PermissionCoordinator",
         canonicalGatewayOwner: "SandboxGatewayRuntime",
         gitApplicable: git.parsed.applicable,
         gitSubcommand: git.parsed.subcommand,

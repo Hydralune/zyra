@@ -75,6 +75,7 @@ class BrowserPlanReceipt:
     action_count: int
     network_targets: tuple[str, ...]
     upload_paths: tuple[str, ...]
+    upload_content_digests: tuple[tuple[str, str], ...]
     allowed: bool
     policy_digest: str
     findings: tuple[Mapping[str, Any], ...] = ()
@@ -88,6 +89,9 @@ class BrowserPlanReceipt:
             "action_count": self.action_count,
             "network_target_digests": [content_digest(item) for item in self.network_targets],
             "upload_paths": list(self.upload_paths),
+            "upload_content_digests": {
+                path: digest for path, digest in self.upload_content_digests
+            },
             "allowed": self.allowed,
             "policy_digest": self.policy_digest,
             "findings": [dict(item) for item in self.findings],
@@ -99,6 +103,7 @@ class BrowserGatewayBoundary:
     def __init__(self, bundle: "GatewayRuntimeBundle") -> None:
         self.bundle = bundle
         self._plan_receipts: dict[str, BrowserPlanReceipt] = {}
+        self._plan_owner_epochs: dict[str, int] = {}
 
     def identity_for_request(self, request: Any) -> WorkerGatewayIdentity:
         run_id = str(getattr(request, "run_id", "") or "")
@@ -140,6 +145,7 @@ class BrowserGatewayBoundary:
         findings: list[Mapping[str, Any]] = []
         targets: list[str] = []
         uploads: list[str] = []
+        upload_digests: list[tuple[str, str]] = []
         for index, step in enumerate(plan):
             action = str(step.get("action") or step.get("name") or "").casefold()
             arguments = dict(step.get("arguments") or {})
@@ -167,8 +173,17 @@ class BrowserGatewayBoundary:
                     values = (values,)
                 for value in values:
                     try:
-                        uploads.append(self.bundle.policy_runtime.assert_path(str(value)))
-                    except ValueError as error:
+                        logical_path = self.bundle.policy_runtime.assert_path(str(value))
+                        uploads.append(logical_path)
+                        if self.bundle.artifact_port is None:
+                            raise RuntimeError("sandbox_gateway_artifact_port_unavailable")
+                        content, _ = self.bundle.artifact_port.export(
+                            session_id=identity.session_id,
+                            logical_path=logical_path,
+                            source_id="BrowserWorkerUploadPreflight",
+                        )
+                        upload_digests.append((logical_path, content_digest(content)))
+                    except (ValueError, RuntimeError, OSError) as error:
                         findings.append(
                             {
                                 "index": index,
@@ -197,11 +212,13 @@ class BrowserGatewayBoundary:
             action_count=len(plan),
             network_targets=tuple(targets),
             upload_paths=tuple(uploads),
+            upload_content_digests=tuple(upload_digests),
             allowed=not findings,
             policy_digest=self.bundle.policy_runtime.policy_digest,
             findings=tuple(findings),
         )
         self._plan_receipts[receipt.receipt_id] = receipt
+        self._plan_owner_epochs[receipt.receipt_id] = receipt.identity.owner_epoch
         if findings:
             self.bundle.signal_emitter.emit(
                 identity,
@@ -215,6 +232,42 @@ class BrowserGatewayBoundary:
                 metadata={"plan_digest": receipt.plan_digest},
             )
         return receipt
+
+    def assert_plan_receipt_current(self, receipt: BrowserPlanReceipt) -> None:
+        """Fence browser dispatch to the workspace owner seen at preflight."""
+
+        stored = self._plan_receipts.get(receipt.receipt_id)
+        if stored != receipt or not receipt.allowed:
+            raise RuntimeError("sandbox_gateway_browser_plan_receipt_invalid")
+        access = _current_access(self.bundle.workspace_edit_port)
+        actual_workspace_id = str(getattr(access, "workspace_id", "") or "")
+        actual_owner_epoch = int(getattr(access, "owner_epoch", 0) or 0)
+        manager = getattr(self.bundle.workspace_edit_port, "manager", None)
+        store = getattr(manager, "store", None)
+        require_binding = getattr(store, "require_binding", None)
+        if callable(require_binding):
+            binding = require_binding(actual_workspace_id)
+            actual_workspace_id = str(getattr(binding, "workspace_id", "") or actual_workspace_id)
+            actual_owner_epoch = int(getattr(binding, "owner_epoch", 0) or actual_owner_epoch)
+        expected_owner_epoch = self._plan_owner_epochs.get(
+            receipt.receipt_id,
+            receipt.identity.owner_epoch,
+        )
+        if (
+            actual_workspace_id != receipt.identity.workspace_id
+            or actual_owner_epoch != expected_owner_epoch
+        ):
+            raise RuntimeError("sandbox_gateway_browser_workspace_stale")
+        if self.bundle.artifact_port is None and receipt.upload_content_digests:
+            raise RuntimeError("sandbox_gateway_artifact_port_unavailable")
+        for logical_path, expected_digest in receipt.upload_content_digests:
+            content, _ = self.bundle.artifact_port.export(
+                session_id=receipt.identity.session_id,
+                logical_path=logical_path,
+                source_id="BrowserWorkerUploadExecutionFence",
+            )
+            if content_digest(content) != expected_digest:
+                raise RuntimeError("sandbox_gateway_browser_upload_changed")
 
     def load_url(self, url: str, request: Any) -> str:
         parsed = urlparse(str(url))
@@ -435,6 +488,8 @@ class BrowserGatewayBoundary:
             content_type=content_type,
             provenance=provenance,
             operation=OperationKind.BROWSER_TRANSFER,
+            expected_workspace_id=identity.workspace_id,
+            expected_owner_epoch=identity.owner_epoch,
             mount_kind="download",
             executable_allowed=False,
             archive_expansion_allowed=False,
@@ -445,7 +500,68 @@ class BrowserGatewayBoundary:
         policy = self.bundle.policy_runtime.evaluate_file(file_request)
         if policy.hard_denied:
             raise RuntimeError(f"browser_download_denied:{policy.reason}")
-        return self.bundle.artifact_port.commit(file_request)
+        receipt = self.bundle.artifact_port.commit(file_request)
+        if receipt.committed:
+            self._advance_plan_epochs(identity.workspace_id, receipt.owner_epoch_after)
+        return receipt
+
+    def ingest_artifact(
+        self,
+        request: Any,
+        *,
+        logical_path: str,
+        content: bytes,
+        content_type: str,
+        artifact_kind: str,
+        idempotency_key: str,
+    ) -> FileArtifactReceipt:
+        if self.bundle.artifact_port is None:
+            raise RuntimeError("sandbox_gateway_artifact_port_unavailable")
+        identity = self.identity_for_request(request)
+        path = self.bundle.policy_runtime.assert_path(logical_path)
+        provenance = self.bundle.provenance_registry.derive(
+            kind=ProvenanceKind.GENERATED,
+            source_id="BrowserWorker",
+            parent_refs=(),
+            content=content,
+            trust=TrustLevel.CONSTRAINED,
+            metadata={
+                "browser_request_id": identity.request_id,
+                "artifact_kind": artifact_kind,
+            },
+        )
+        file_request = FileArtifactRequest(
+            request_id=stable_identifier(
+                "gateway-browser-artifact",
+                identity.binding_digest,
+                path,
+                content_digest(content),
+            ),
+            session_id=identity.session_id,
+            logical_path=path,
+            content=content,
+            content_type=content_type,
+            provenance=provenance,
+            operation=OperationKind.ARTIFACT_EXPORT,
+            expected_workspace_id=identity.workspace_id,
+            expected_owner_epoch=identity.owner_epoch,
+            mount_kind="task",
+            executable_allowed=False,
+            archive_expansion_allowed=False,
+            idempotency_key=idempotency_key,
+            causation_id=identity.request_id,
+            metadata={"artifact_kind": artifact_kind, "gateway_surface": "browser_worker"},
+        )
+        receipt = self.bundle.artifact_port.commit(file_request)
+        if not receipt.committed:
+            raise RuntimeError("sandbox_gateway_browser_artifact_not_committed")
+        self._advance_plan_epochs(identity.workspace_id, receipt.owner_epoch_after)
+        return receipt
+
+    def _advance_plan_epochs(self, workspace_id: str, owner_epoch: int) -> None:
+        for receipt_id, plan_receipt in self._plan_receipts.items():
+            if plan_receipt.allowed and plan_receipt.identity.workspace_id == workspace_id:
+                self._plan_owner_epochs[receipt_id] = int(owner_epoch)
 
     def export_upload(
         self,

@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -157,6 +158,11 @@ class WorkspaceManagerIntegrationTests(unittest.TestCase):
             nonlocal calls
             calls += 1
             if calls == 2:
+                binding = self.manager.store.require_binding(self.created.projection.workspace_id)
+                task_root = self.manager.backend.mount_root(binding, WorkspaceKind.TASK)
+                (task_root / "user-concurrent.txt").write_bytes(
+                    b"keep concurrent user state\n"
+                )
                 raise OSError("injected second write failure")
             return original(*args, **kwargs)
 
@@ -176,8 +182,14 @@ class WorkspaceManagerIntegrationTests(unittest.TestCase):
         verify = self.port(access)
         self.assertFalse(verify.read_bytes("a.txt").exists)
         self.assertFalse(verify.read_bytes("b.txt").exists)
+        self.assertEqual(
+            verify.read_text("user-concurrent.txt").text(),
+            "keep concurrent user state\n",
+        )
         transactions = self.manager.integration_store.list_transactions(binding.workspace_id)
         self.assertEqual(transactions[-1].phase.value, "rolled_back")
+        self.assertEqual(transactions[-1].metadata["rollback_mode"], "write_set")
+        self.assertTrue(transactions[-1].metadata["concurrent_paths_preserved"])
         self.assertEqual(self.manager.store.get_usage(binding.workspace_id).reserved_bytes, 0)
         self.assertEqual(self.manager.ownership_store.list(binding.workspace_id), ())
 
@@ -371,6 +383,94 @@ class WorkspaceManagerIntegrationTests(unittest.TestCase):
         with self.assertRaises(WorkspaceError) as replayed:
             handoff.verify(envelope, audience="BrowserWorker")
         self.assertEqual(replayed.exception.code, WorkspaceErrorCode.OWNER_EPOCH_STALE)
+
+    def test_delete_revalidates_read_precondition_and_preserves_external_replacement(self) -> None:
+        port = self.port()
+        created = port.write_text("delete-me.txt", "original\n", idempotency_key="delete-seed")
+        port.adopt_access(created.access)
+        task_root = self.manager.internal_task_root(created.access)
+        original_delete = self.manager.backend.delete
+
+        def replace_before_delete(*args, **kwargs):
+            (task_root / "delete-me.txt").write_text("external replacement\n", encoding="utf-8")
+            return original_delete(*args, **kwargs)
+
+        with mock.patch.object(self.manager.backend, "delete", side_effect=replace_before_delete):
+            with self.assertRaises(WorkspaceError):
+                port.delete_file("delete-me.txt", idempotency_key="delete-race")
+
+        self.assertEqual(
+            (task_root / "delete-me.txt").read_text(encoding="utf-8"),
+            "external replacement\n",
+        )
+        transaction = self.manager.integration_store.list_transactions(
+            self.created.projection.workspace_id
+        )[-1]
+        self.assertEqual(transaction.phase.value, "quarantined")
+        self.assertTrue(transaction.recovery_input_id)
+
+    def test_handoff_envelope_is_consumed_exactly_once_under_concurrency(self) -> None:
+        handoff = WorkspaceHandoffRuntime(self.manager)
+        envelope = handoff.issue(
+            self.created.access,
+            audience="BrowserWorker",
+            operations=(IntegrationOperation.READ,),
+        )
+        barrier = threading.Barrier(2)
+        successes = []
+        failures = []
+
+        def consume() -> None:
+            try:
+                barrier.wait(timeout=5)
+                successes.append(
+                    handoff.consume(
+                        envelope,
+                        audience="BrowserWorker",
+                        required_operation=IntegrationOperation.READ,
+                    )
+                )
+            except WorkspaceError as error:
+                failures.append(error.code)
+
+        threads = [threading.Thread(target=consume) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(failures), 1)
+        self.assertIn(
+            failures[0],
+            {WorkspaceErrorCode.CAPABILITY_STALE, WorkspaceErrorCode.OWNER_EPOCH_STALE},
+        )
+
+    def test_rebind_preserves_pending_download_mount_and_migration_refs(self) -> None:
+        port = self.port()
+        download = port.write_bytes(
+            "pending.bin",
+            b"pending-download",
+            mount_kind=WorkspaceKind.DOWNLOAD,
+            idempotency_key="pending-download",
+        )
+        runtime = WorkspaceRebindRuntime(self.manager)
+        runtime.register_endpoint("download-secondary", relative_root="endpoint-download")
+        result = runtime.rebind(
+            download.access,
+            target_endpoint_id="download-secondary",
+            worker_id="CodeWorkerRuntime",
+            idempotency_key="rebind-download",
+        )
+        verify = self.port(result.access)
+        self.assertEqual(
+            verify.read_bytes("pending.bin", mount_kind=WorkspaceKind.DOWNLOAD).content,
+            b"pending-download",
+        )
+        migration = self.manager.integration_store.list_reference_migrations(
+            self.created.projection.workspace_id
+        )[-1]
+        self.assertIn("workspace://download/pending.bin", migration["download_refs"])
+        self.assertIn("download", migration["mount_snapshot_refs"])
 
     def test_rebind_pre_cas_failure_rolls_back_to_source_and_restart_finishes_cleanup(self) -> None:
         port = self.port()

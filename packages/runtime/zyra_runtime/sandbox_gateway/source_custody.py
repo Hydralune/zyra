@@ -19,6 +19,12 @@ class SourceCustodyEntry:
     canonical_owner: str
     production_owner: bool
     notes: str = ""
+    source_language: str = ""
+    migration_mode: str = ""
+    source_symbols: tuple[str, ...] = ()
+    runtime_entries: tuple[str, ...] = ()
+    behavior_tests: tuple[str, ...] = ()
+    landing_status: str = "internalized"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -32,6 +38,12 @@ class SourceCustodyEntry:
             "canonical_owner": self.canonical_owner,
             "production_owner": self.production_owner,
             "notes": self.notes,
+            "source_language": self.source_language,
+            "migration_mode": self.migration_mode or self.adaptation,
+            "source_symbols": list(self.source_symbols),
+            "runtime_entries": list(self.runtime_entries),
+            "behavior_tests": list(self.behavior_tests),
+            "landing_status": self.landing_status,
         }
 
 
@@ -71,6 +83,11 @@ def source_custody_entries() -> tuple[SourceCustodyEntry, ...]:
             ),
             canonical_owner="SandboxGatewayRuntime",
             production_owner=True,
+            source_language="python",
+            migration_mode="same-language productized adaptation",
+            source_symbols=("SandboxService", "ProcessSandboxService", "WorkspaceArchive"),
+            runtime_entries=("zyra_runtime.sandbox_gateway.SandboxGatewayRuntime.execute",),
+            behavior_tests=("tests/integration/test_sandbox_gateway_runtime.py",),
         ),
         SourceCustodyEntry(
             source_repository="openclaw",
@@ -104,11 +121,16 @@ def source_custody_entries() -> tuple[SourceCustodyEntry, ...]:
             target_language="typescript",
             adaptation=(
                 "kept TypeScript mechanisms in a typed control package; Python relay "
-                "only binds them to existing ToolPermissionRuntime and durable Zyra state"
+                "only binds them to typescript.PermissionCoordinator and durable Zyra state"
             ),
-            canonical_owner="ToolPermissionRuntime",
+            canonical_owner="typescript.PermissionCoordinator",
             production_owner=False,
             notes="The supplement cannot create a second gateway or permission authority.",
+            source_language="typescript",
+            migration_mode="mechanism-level supplementary adaptation",
+            source_symbols=("ExecApprovalManager", "SessionActorQueue", "NodeCommandPolicy"),
+            runtime_entries=("packages/runtime/sandbox-gateway-control/src/rpc.ts",),
+            behavior_tests=("packages/runtime/sandbox-gateway-control/test/approval.test.ts",),
         ),
         SourceCustodyEntry(
             source_repository="oh-my-pi",
@@ -145,17 +167,26 @@ def source_custody_entries() -> tuple[SourceCustodyEntry, ...]:
             ),
             canonical_owner="WorkspaceManagerRuntime",
             production_owner=False,
+            source_language="typescript+python",
+            migration_mode="bounded supplementary adaptation",
+            source_symbols=("IsolationRunner", "HashlinePatcher", "Sandbox"),
+            runtime_entries=("zyra_runtime.sandbox_gateway.GatewayFileArtifactPort.commit",),
+            behavior_tests=("tests/unit/test_sandbox_gateway_integration_policy.py",),
         ),
         SourceCustodyEntry(
             source_repository="AgentScope",
             source_modules=("workspace and sandbox source graph entries",),
             role="conformance_only",
             mechanisms=("workspace lifecycle comparison",),
-            target_modules=("tests/unit/test_sandbox_gateway_runtime.py",),
+            target_modules=("tests/integration/test_sandbox_gateway_runtime.py",),
             target_language="python",
             adaptation="behavioral conformance only; no production control flow migrated",
             canonical_owner="none",
             production_owner=False,
+            source_language="python",
+            migration_mode="behavioral conformance",
+            behavior_tests=("tests/integration/test_sandbox_gateway_runtime.py",),
+            landing_status="conformance_only",
         ),
         SourceCustodyEntry(
             source_repository="Hermes",
@@ -167,6 +198,9 @@ def source_custody_entries() -> tuple[SourceCustodyEntry, ...]:
             adaptation="review evidence only",
             canonical_owner="none",
             production_owner=False,
+            source_language="mixed",
+            migration_mode="reference only",
+            landing_status="reference_only",
         ),
         SourceCustodyEntry(
             source_repository="opencode",
@@ -178,6 +212,10 @@ def source_custody_entries() -> tuple[SourceCustodyEntry, ...]:
             adaptation="contract conformance only; no duplicate runtime",
             canonical_owner="none",
             production_owner=False,
+            source_language="typescript",
+            migration_mode="typed contract conformance",
+            behavior_tests=("packages/runtime/sandbox-gateway-control/test/contracts.test.ts",),
+            landing_status="conformance_only",
         ),
         SourceCustodyEntry(
             source_repository="claude-code-best",
@@ -187,11 +225,14 @@ def source_custody_entries() -> tuple[SourceCustodyEntry, ...]:
             target_modules=("zyra_runtime.sandbox_gateway.permission_relay",),
             target_language="python",
             adaptation=(
-                "uses the already-internalized ToolPermissionRuntime contract rather "
+                "uses the canonical typescript.PermissionCoordinator contract rather "
                 "than migrating another command gateway"
             ),
-            canonical_owner="ToolPermissionRuntime",
+            canonical_owner="typescript.PermissionCoordinator",
             production_owner=False,
+            source_language="typescript",
+            migration_mode="reference only",
+            landing_status="reference_only",
         ),
     )
 
@@ -204,7 +245,7 @@ def source_custody_manifest() -> Mapping[str, Any]:
         "entries": [item.to_dict() for item in entries],
         "invariants": {
             "gateway_count": 1,
-            "permission_owner": "ToolPermissionRuntime",
+            "permission_owner": "typescript.PermissionCoordinator",
             "workspace_owner": "WorkspaceManagerRuntime",
             "artifact_write_owner": "WorkspaceEditPort",
             "vendor_runtime_required": False,
