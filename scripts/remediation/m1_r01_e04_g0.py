@@ -1020,8 +1020,8 @@ def verify() -> dict[str, Any]:
         raise ValueError(f"semantic-domain coverage mismatch: {domains}")
     mutation_ids = {row["record_id"] for row in mutations}
     for target in targets:
-        target_blob = run(["git", "show", f"{target['target_snapshot_commit']}:{target['target_path']}"], ZYRA_ROOT).stdout
-        if sha256_bytes(target_blob) != target["target_sha256"]:
+        target_bytes = run(["git", "show", f"{target['target_snapshot_commit']}:{target['target_path']}"], ZYRA_ROOT).stdout
+        if sha256_bytes(target_bytes) != target["target_sha256"]:
             raise ValueError(f"target baseline hash mismatch: {target['record_id']}")
         if not target["retained_control_flow_anchors"]:
             raise ValueError(f"missing retained control-flow anchors: {target['record_id']}")
