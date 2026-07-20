@@ -153,10 +153,12 @@ export interface ProviderRouteLease {
   readonly modelId: string;
   readonly credentialId: string;
   readonly credentialVersion: number;
+  readonly credentialFingerprint: string;
   readonly integrationId: string;
   readonly transportId: string;
   readonly protocol: TransportProtocol;
   readonly baseUrl: string;
+  readonly allowedHosts: readonly string[];
   readonly endpointPath: string;
   readonly requestHeaders: Readonly<Record<string, string>>;
   readonly requestDefaults: JsonRecord;
@@ -165,6 +167,21 @@ export interface ProviderRouteLease {
   readonly expiresAt: number;
   readonly previousRouteId: string | null;
   readonly reason: string;
+  readonly checksum: string;
+}
+
+export interface ProviderRouteCredentialSnapshot {
+  readonly routeId: string;
+  readonly credentialId: string;
+  readonly credentialVersion: number;
+  readonly credentialFingerprint: string;
+  readonly providerId: string;
+  readonly integrationId: string;
+  readonly integrationKind: IntegrationKind;
+  readonly secretRef: string;
+  readonly headerName: string | null;
+  readonly authorizationScheme: string | null;
+  readonly createdAt: number;
   readonly checksum: string;
 }
 

@@ -230,6 +230,42 @@ test("catalog revisions pin immutable route fields and V1 stays read-only", asyn
   assert.equal(compat.providers[0]?.models["alpha-model"]?.context, 32_000);
 });
 
+test("credential rotation preserves an acquired route snapshot and changes only the next route", async (t) => {
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  const credentialId = installProvider(controlPlane, secrets, {
+    providerId: "rotating-provider",
+    modelId: "rotating-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+    secret: "credential-v1",
+  });
+  const acquiredBeforeRotation = controlPlane.acquireRoute(routeRequest("rotating-provider", "rotating-model"));
+  const nextSecretRef = "memory://rotating-provider-v2";
+  secrets.put(nextSecretRef, { value: "credential-v2" });
+  const rotated = controlPlane.credentials.rotate(credentialId, acquiredBeforeRotation.credentialVersion, {
+    secretRef: nextSecretRef,
+    fingerprint: fingerprintSecret("credential-v2"),
+  });
+
+  await controlPlane.dispatch(dispatchRequest(acquiredBeforeRotation.routeId));
+  const acquiredAfterRotation = controlPlane.acquireRoute(
+    routeRequest("rotating-provider", "rotating-model", "turn-2"),
+  );
+  await controlPlane.dispatch(dispatchRequest(acquiredAfterRotation.routeId, "turn-2"));
+
+  assert.equal(rotated.version, acquiredBeforeRotation.credentialVersion + 1);
+  assert.equal(controlPlane.routes.require(acquiredBeforeRotation.routeId).credentialVersion, 1);
+  assert.equal(acquiredAfterRotation.credentialVersion, 2);
+  assert.equal(capture.requests.length, 2);
+  assert.equal(capture.requests[0]?.headers.authorization, "Bearer credential-v1");
+  assert.equal(capture.requests[1]?.headers.authorization, "Bearer credential-v2");
+});
+
 test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", async (t) => {
   const capture = await captureServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/event-stream" });
@@ -401,4 +437,172 @@ test("partial output followed by malformed stream is reconcile-only and never re
   assert.equal(primary.requests.length, 1);
   assert.equal(fallback.requests.length, 0);
   assert.equal(controlPlane.store.listAttempts("dispatch-turn-1").length, 1);
+});
+
+test("Anthropic thinking and fragmented tool JSON remain one normalized side-effect candidate", async (t) => {
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write('event: message_start\ndata: {"type":"message_start","message":{"id":"tool-message"}}\n\n');
+    response.write('event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"inspect first"}}\n\n');
+    response.write('event: content_block_start\ndata: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call-read","name":"read_file","input":{}}}\n\n');
+    response.write('event: content_block_delta\ndata: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"path\\":"}}\n\n');
+    response.write('event: content_block_delta\ndata: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\\"README.md\\"}"}}\n\n');
+    response.write('event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":12}}\n\n');
+    response.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "anthropic-tools",
+    modelId: "claude-tools",
+    baseUrl: capture.baseUrl,
+    protocol: "anthropic_messages",
+    endpointPath: "/v1/messages",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("anthropic-tools", "claude-tools"));
+  const request = dispatchRequest(route.routeId);
+  const result = await controlPlane.dispatch({
+    ...request,
+    tools: [{ name: "read_file", description: "Read a file", inputSchema: { type: "object" } }],
+  });
+
+  assert.equal(result.stopReason, "tool_use");
+  assert.equal(result.frames.filter((frame) => frame.kind === "thinking_delta").length, 1);
+  const toolFrames = result.frames.filter((frame) => frame.kind === "tool_call_delta");
+  assert.equal(toolFrames.length, 3);
+  assert.equal(toolFrames[0]?.toolCallId, "call-read");
+  assert.equal(toolFrames[0]?.toolName, "read_file");
+  assert.equal(toolFrames.slice(1).map((frame) => frame.jsonDelta).join(""), '{"path":"README.md"}');
+  assert.equal(result.metadata.streamReplaySafe, false);
+  assert.equal(result.attempts[0]?.metadata.streamToolCallCount, 1);
+  assert.equal(capture.requests.length, 1);
+});
+
+test("incomplete tool JSON after observable call is reconcile-only and blocks model fallback", async (t) => {
+  const primary = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-partial","function":{"name":"write_file","arguments":"{\\"path\\":\\"a.txt\\""}}]},"finish_reason":"tool_calls"}]}\n\n');
+    response.end("data: [DONE]\n\n");
+  });
+  const fallback = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"delta":{"content":"must-not-replay"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(async () => { await primary.close(); await fallback.close(); });
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "tool-primary",
+    modelId: "tool-model",
+    baseUrl: primary.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 20,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "tool-fallback",
+    modelId: "fallback-model",
+    baseUrl: fallback.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 10,
+  });
+  const route = controlPlane.acquireRoute(routeRequest("tool-primary", "tool-model"));
+  await assert.rejects(
+    () => controlPlane.dispatch({
+      ...dispatchRequest(route.routeId),
+      tools: [{ name: "write_file", description: "Write a file", inputSchema: { type: "object" } }],
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProviderControlPlaneError);
+      assert.equal(error.kind, "partial_response_observed");
+      assert.equal(error.outputObserved, true);
+      assert.equal(error.recoveryIntent, "reconcile_partial_response");
+      return true;
+    },
+  );
+  assert.equal(primary.requests.length, 1);
+  assert.equal(fallback.requests.length, 0);
+  const attempts = controlPlane.store.listAttempts("dispatch-turn-1");
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0]?.metadata.streamReplaySafe, false);
+  assert.equal(attempts[0]?.metadata.streamRecoveryAction, "reconcile_partial_response");
+});
+
+test("rate limit performs a second real request on a new provider route", async (t) => {
+  const primary = await captureServer((_request, response) => {
+    response.writeHead(429, { "content-type": "application/json", "retry-after": "0" });
+    response.end('{"error":{"message":"rate limited","type":"rate_limit_error"}}');
+  });
+  const fallback = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"delta":{"content":"rate-limit-recovered"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(async () => { await primary.close(); await fallback.close(); });
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "rate-primary",
+    modelId: "rate-model",
+    baseUrl: primary.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 30,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "rate-fallback",
+    modelId: "rate-fallback-model",
+    baseUrl: fallback.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 20,
+  });
+  const original = controlPlane.acquireRoute(routeRequest("rate-primary", "rate-model"));
+  const result = await controlPlane.dispatch(dispatchRequest(original.routeId));
+
+  assert.equal(result.text, "rate-limit-recovered");
+  assert.notEqual(result.routeId, original.routeId);
+  assert.equal(result.providerId, "rate-fallback");
+  assert.equal(result.attempts.length, 2);
+  assert.equal(result.attempts[0]?.failureKind, "rate_limited");
+  assert.equal(primary.requests.length, 1);
+  assert.equal(fallback.requests.length, 1);
+  assert.equal(controlPlane.routes.require(result.routeId).previousRouteId, original.routeId);
+});
+
+test("zero-output SSE stall changes provider route and performs one bounded recovery request", async (t) => {
+  const stalled = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.flushHeaders();
+    setTimeout(() => response.end(), 150);
+  });
+  const fallback = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"delta":{"content":"stall-recovered"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(async () => { await stalled.close(); await fallback.close(); });
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "stall-primary",
+    modelId: "stall-model",
+    baseUrl: stalled.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 30,
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "stall-fallback",
+    modelId: "stall-fallback-model",
+    baseUrl: fallback.baseUrl,
+    protocol: "openai_chat",
+    releasedAt: 20,
+  });
+  const original = controlPlane.acquireRoute(routeRequest("stall-primary", "stall-model"));
+  const result = await controlPlane.dispatch({
+    ...dispatchRequest(original.routeId),
+    timeoutMilliseconds: 500,
+    chunkTimeoutMilliseconds: 25,
+  });
+
+  assert.equal(result.text, "stall-recovered");
+  assert.notEqual(result.routeId, original.routeId);
+  assert.equal(result.providerId, "stall-fallback");
+  assert.equal(result.attempts.length, 2);
+  assert.equal(result.attempts[0]?.failureKind, "stream_timeout");
+  assert.equal(result.attempts[0]?.outputObserved, false);
+  assert.equal(stalled.requests.length, 1);
+  assert.equal(fallback.requests.length, 1);
 });

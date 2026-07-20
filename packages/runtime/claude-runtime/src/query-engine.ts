@@ -68,6 +68,9 @@ export class ClaudeRuntimeCore {
       e01.restore(restoredE01);
     }
     await e01.bootstrap();
+    const providerControlPlaneRequired = asBoolean(
+      config.runtimeConstraints.provider_control_plane_required,
+    );
     const modelTransport = asString(
       config.runtimeConstraints.model_transport
         || config.runtimeConstraints.model_transport_kind,
@@ -90,22 +93,24 @@ export class ClaudeRuntimeCore {
         maximumToolCalls: Math.max(1_000, (config.maxTurns ?? 1_000) * 32),
       });
     }
-    await e01.configureProviderRuntime({
-      providerId: modelTransport === "http_sse" ? "compatible" : "local",
-      modelId: config.modelName,
-      baseUrl: asString(config.runtimeConstraints.model_api_base_url),
-      apiKey: asString(
-        config.runtimeConstraints.model_api_key
-          || config.runtimeConstraints.api_key,
-      ),
-      timeoutMs: Math.max(
-        100,
-        Math.min(
-          3_600_000,
-          (Number(config.runtimeConstraints.model_api_timeout_seconds) || 30) * 1000,
+    if (!providerControlPlaneRequired) {
+      await e01.configureProviderRuntime({
+        providerId: modelTransport === "http_sse" ? "compatible" : "local",
+        modelId: config.modelName,
+        baseUrl: asString(config.runtimeConstraints.model_api_base_url),
+        apiKey: asString(
+          config.runtimeConstraints.model_api_key
+            || config.runtimeConstraints.api_key,
         ),
-      ),
-    });
+        timeoutMs: Math.max(
+          100,
+          Math.min(
+            3_600_000,
+            (Number(config.runtimeConstraints.model_api_timeout_seconds) || 30) * 1000,
+          ),
+        ),
+      });
+    }
     const registry = new RuntimeToolRegistry(input.tools);
     let turns = normalizeTurns(input.turns);
     const restored = selectRestoredSnapshot(input.restoredState);

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@zyra/claude-mcp": "workspace:*"
+    "@zyra/claude-mcp": "workspace:*",
+    "@zyra/provider-control-plane": "workspace:*"
   },
   "exports": {
     ".": "./src/index.ts"

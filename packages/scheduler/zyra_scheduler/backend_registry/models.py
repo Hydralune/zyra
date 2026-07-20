@@ -54,6 +54,39 @@ class BackendRecoveryIntent(StrEnum):
     RECONCILE = "reconcile"
 
 
+class BackendDispatchPhase(StrEnum):
+    CREATED = "created"
+    PREFLIGHT = "preflight"
+    ROUTED = "routed"
+    CONNECTING = "connecting"
+    RUNNING = "running"
+    CANCELLING = "cancelling"
+    REQUEUED = "requeued"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    RECONCILE_REQUIRED = "reconcile_required"
+
+
+class BackendControlAction(StrEnum):
+    CANCEL = "cancel"
+    REQUEUE = "requeue"
+    QUARANTINE = "quarantine"
+    RELEASE_QUARANTINE = "release_quarantine"
+    DRAIN = "drain"
+    RESUME = "resume"
+
+
+class RecoveryInputKind(StrEnum):
+    BACKEND_FAILOVER = "backend_failover"
+    TURN_TIMEOUT = "turn_timeout"
+    WORKSPACE_REBUILD = "workspace_rebuild"
+    PROVIDER_ROUTE_CHANGE = "provider_route_change"
+    STREAM_POLICY_CHANGE = "stream_policy_change"
+    CONTROL_CANCEL = "control_cancel"
+    RECONCILE_PARTIAL_OUTPUT = "reconcile_partial_output"
+
+
 @dataclass(frozen=True, slots=True)
 class BackendResourceLimits:
     maximum_concurrency: int = 1
@@ -178,6 +211,12 @@ class BackendSelectionRequest:
     workspace_root: str
     artifact_root: str
     provider_route_id: str | None
+    provider_route_checksum: str
+    provider_catalog_revision: int
+    provider_credential_version: int
+    provider_credential_fingerprint: str
+    provider_transport_id: str
+    m0_execution_ref: str
     turn_id: str
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
@@ -195,6 +234,13 @@ class BackendLease:
     workspace_root: str
     artifact_root: str
     provider_route_id: str | None
+    provider_route_checksum: str
+    provider_catalog_revision: int
+    provider_credential_version: int
+    provider_credential_fingerprint: str
+    provider_transport_id: str
+    m0_execution_ref: str
+    physical_worker_lease_ref: str | None
     turn_id: str
     acquired_at: float
     expires_at: float
@@ -223,6 +269,13 @@ class BackendDispatchEnvelope:
     workspace_root: str
     artifact_root: str
     provider_route_id: str | None
+    provider_route_checksum: str
+    provider_catalog_revision: int
+    provider_credential_version: int
+    provider_credential_fingerprint: str
+    provider_transport_id: str
+    m0_execution_ref: str
+    physical_worker_lease_ref: str | None
     idempotency_key: str
     deadline_at: float
     attempt: int
@@ -262,6 +315,191 @@ class BackendDispatchAttempt:
         value["failure_kind"] = None if self.failure_kind is None else self.failure_kind.value
         value["recovery_intent"] = None if self.recovery_intent is None else self.recovery_intent.value
         return value
+
+
+@dataclass(frozen=True, slots=True)
+class BackendDispatchSession:
+    session_id: str
+    run_id: str
+    task_id: str
+    node_id: str | None
+    turn_id: str
+    runtime_worker: str
+    phase: BackendDispatchPhase
+    current_backend_id: str | None
+    current_lease_id: str | None
+    current_envelope_id: str | None
+    provider_route_id: str
+    provider_route_checksum: str
+    provider_catalog_revision: int
+    provider_credential_version: int
+    provider_credential_fingerprint: str
+    provider_transport_id: str
+    m0_execution_ref: str
+    physical_worker_lease_ref: str | None
+    idempotency_key: str
+    attempt_count: int
+    failover_count: int
+    output_observed: bool
+    cancel_requested: bool
+    cancel_reason: str
+    deadline_at: float
+    created_at: float
+    updated_at: float
+    revision: int
+    terminal_reason: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def terminal(self) -> bool:
+        return self.phase in {
+            BackendDispatchPhase.SUCCEEDED,
+            BackendDispatchPhase.FAILED,
+            BackendDispatchPhase.CANCELLED,
+            BackendDispatchPhase.RECONCILE_REQUIRED,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["phase"] = self.phase.value
+        return value
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> BackendDispatchSession:
+        return cls(
+            session_id=str(value["session_id"]),
+            run_id=str(value["run_id"]),
+            task_id=str(value["task_id"]),
+            node_id=(str(value["node_id"]) if value.get("node_id") is not None else None),
+            turn_id=str(value["turn_id"]),
+            runtime_worker=str(value["runtime_worker"]),
+            phase=BackendDispatchPhase(str(value["phase"])),
+            current_backend_id=(str(value["current_backend_id"]) if value.get("current_backend_id") else None),
+            current_lease_id=(str(value["current_lease_id"]) if value.get("current_lease_id") else None),
+            current_envelope_id=(str(value["current_envelope_id"]) if value.get("current_envelope_id") else None),
+            provider_route_id=str(value["provider_route_id"]),
+            provider_route_checksum=str(value["provider_route_checksum"]),
+            provider_catalog_revision=int(value["provider_catalog_revision"]),
+            provider_credential_version=int(value["provider_credential_version"]),
+            provider_credential_fingerprint=str(value["provider_credential_fingerprint"]),
+            provider_transport_id=str(value["provider_transport_id"]),
+            m0_execution_ref=str(value["m0_execution_ref"]),
+            physical_worker_lease_ref=(
+                str(value["physical_worker_lease_ref"])
+                if value.get("physical_worker_lease_ref")
+                else None
+            ),
+            idempotency_key=str(value["idempotency_key"]),
+            attempt_count=int(value.get("attempt_count", 0)),
+            failover_count=int(value.get("failover_count", 0)),
+            output_observed=bool(value.get("output_observed", False)),
+            cancel_requested=bool(value.get("cancel_requested", False)),
+            cancel_reason=str(value.get("cancel_reason") or ""),
+            deadline_at=float(value["deadline_at"]),
+            created_at=float(value["created_at"]),
+            updated_at=float(value["updated_at"]),
+            revision=int(value["revision"]),
+            terminal_reason=str(value.get("terminal_reason") or ""),
+            metadata=dict(value.get("metadata") or {}),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BackendRecoveryInput:
+    recovery_input_id: str
+    kind: RecoveryInputKind
+    run_id: str
+    task_id: str
+    node_id: str | None
+    turn_id: str
+    dispatch_session_id: str
+    attempt_id: str | None
+    previous_backend_id: str | None
+    next_backend_id: str | None
+    previous_provider_route_id: str
+    next_provider_route_id: str
+    m0_execution_ref: str
+    workspace_root: str
+    reason_code: str
+    reason: str
+    replay_safe: bool
+    requires_reconcile: bool
+    consumed: bool
+    created_at: float
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["kind"] = self.kind.value
+        return value
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> BackendRecoveryInput:
+        return cls(
+            recovery_input_id=str(value["recovery_input_id"]),
+            kind=RecoveryInputKind(str(value["kind"])),
+            run_id=str(value["run_id"]),
+            task_id=str(value["task_id"]),
+            node_id=(str(value["node_id"]) if value.get("node_id") is not None else None),
+            turn_id=str(value["turn_id"]),
+            dispatch_session_id=str(value["dispatch_session_id"]),
+            attempt_id=(str(value["attempt_id"]) if value.get("attempt_id") else None),
+            previous_backend_id=(str(value["previous_backend_id"]) if value.get("previous_backend_id") else None),
+            next_backend_id=(str(value["next_backend_id"]) if value.get("next_backend_id") else None),
+            previous_provider_route_id=str(value["previous_provider_route_id"]),
+            next_provider_route_id=str(value["next_provider_route_id"]),
+            m0_execution_ref=str(value["m0_execution_ref"]),
+            workspace_root=str(value["workspace_root"]),
+            reason_code=str(value["reason_code"]),
+            reason=str(value["reason"]),
+            replay_safe=bool(value["replay_safe"]),
+            requires_reconcile=bool(value["requires_reconcile"]),
+            consumed=bool(value.get("consumed", False)),
+            created_at=float(value["created_at"]),
+            metadata=dict(value.get("metadata") or {}),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BackendControlRequest:
+    control_id: str
+    action: BackendControlAction
+    run_id: str
+    task_id: str
+    turn_id: str | None
+    dispatch_session_id: str | None
+    backend_id: str | None
+    reason: str
+    requested_at: float
+    requested_by: str
+    idempotency_key: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["action"] = self.action.value
+        return value
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> BackendControlRequest:
+        return cls(
+            control_id=str(value["control_id"]),
+            action=BackendControlAction(str(value["action"])),
+            run_id=str(value["run_id"]),
+            task_id=str(value["task_id"]),
+            turn_id=(str(value["turn_id"]) if value.get("turn_id") else None),
+            dispatch_session_id=(
+                str(value["dispatch_session_id"])
+                if value.get("dispatch_session_id")
+                else None
+            ),
+            backend_id=(str(value["backend_id"]) if value.get("backend_id") else None),
+            reason=str(value["reason"]),
+            requested_at=float(value["requested_at"]),
+            requested_by=str(value["requested_by"]),
+            idempotency_key=str(value["idempotency_key"]),
+            metadata=dict(value.get("metadata") or {}),
+        )
 
 
 @dataclass(frozen=True, slots=True)

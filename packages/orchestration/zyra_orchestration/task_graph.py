@@ -497,12 +497,63 @@ def _dispatch_selected_worker_callable(
     provider_route_id: str | None,
 ):
     from zyra_scheduler import dispatch_worker_callable, event_record_from_backend
+    from zyra_runtime.provider_control_plane import (
+        ProviderRouteBindingRuntime,
+        provider_database_path,
+    )
 
     turn_id = str(
         request.metadata.get("turn_id")
         or state.metadata.get("provider_turn_id")
         or f"{node.node_id}:worker-turn"
     )
+    provider_session_id = str(
+        request.metadata.get("provider_session_id")
+        or state.metadata.get("provider_session_id")
+        or f"provider:{state.run_id}:{state.task_id}"
+    )
+    provider_db = provider_database_path(execution_context.artifact_root)
+    route_ref = ProviderRouteBindingRuntime(
+        project_root=execution_context.project_root,
+        database_path=provider_db,
+        allow_explicit_sim_bootstrap=True,
+    ).bind(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=node.node_id,
+        session_id=provider_session_id,
+        turn_id=turn_id,
+        route_id=provider_route_id,
+        purpose=str(request.metadata.get("provider_purpose") or "general"),
+        preferred_provider_id=(
+            str(request.metadata.get("preferred_provider_id") or "") or None
+        ),
+        preferred_model_id=(
+            str(request.metadata.get("preferred_model_id") or "") or None
+        ),
+        require_tools=runtime_worker == "CodeWorkerRuntime",
+        require_streaming=True,
+        metadata={
+            "runtimeWorker": runtime_worker,
+            "m0ExecutionRef": f"worker_request:{request.request_id}",
+        },
+    )
+    provider_route_id = route_ref.route_id
+    request.constraints.update(route_ref.runtime_constraints(database_path=provider_db))
+    request.metadata.update(
+        {
+            "provider_route_id": route_ref.route_id,
+            "provider_route_checksum": route_ref.route_checksum,
+            "provider_catalog_revision": str(route_ref.catalog_revision),
+            "provider_credential_version": str(route_ref.credential_version),
+            "provider_credential_fingerprint": route_ref.credential_fingerprint,
+            "provider_transport_id": route_ref.transport_id,
+            "provider_session_id": route_ref.session_id,
+            "provider_turn_id": route_ref.turn_id,
+            "provider_state_embedded": "false",
+        }
+    )
+    node.metadata["provider_route_ref"] = route_ref.safe_dict()
 
     def execute(envelope: Any):
         request.metadata.update(
@@ -513,6 +564,12 @@ def _dispatch_selected_worker_callable(
                 "backend_kind": str(envelope.backend_kind),
                 "backend_location": str(envelope.backend_location),
                 "provider_route_id": str(envelope.provider_route_id or ""),
+                "provider_route_checksum": envelope.provider_route_checksum,
+                "provider_catalog_revision": str(envelope.provider_catalog_revision),
+                "provider_credential_version": str(envelope.provider_credential_version),
+                "provider_credential_fingerprint": envelope.provider_credential_fingerprint,
+                "provider_transport_id": envelope.provider_transport_id,
+                "m0_execution_ref": envelope.m0_execution_ref,
                 "provider_state_embedded": "false",
             }
         )
@@ -527,6 +584,12 @@ def _dispatch_selected_worker_callable(
         workspace_root=workspace_root,
         artifact_root=execution_context.artifact_root,
         provider_route_id=provider_route_id,
+        provider_route_checksum=route_ref.route_checksum,
+        provider_catalog_revision=route_ref.catalog_revision,
+        provider_credential_version=route_ref.credential_version,
+        provider_credential_fingerprint=route_ref.credential_fingerprint,
+        provider_transport_id=route_ref.transport_id,
+        m0_execution_ref=f"worker_request:{request.request_id}",
         turn_id=turn_id,
         operation=execute,
         idempotency_key=f"worker-dispatch:{request.request_id}",
@@ -543,6 +606,13 @@ def _dispatch_selected_worker_callable(
         "final_envelope": to_jsonable(outcome.final_envelope),
         "attempts": [to_jsonable(item) for item in outcome.attempts],
         "backend_changed": outcome.backend_changed,
+        "dispatch_session": to_jsonable(outcome.session),
+        "recovery_inputs": [to_jsonable(item) for item in outcome.recovery_inputs],
+        "transport_responses": [
+            to_jsonable(item) for item in outcome.transport_responses
+        ],
+        "provider_route_ref": route_ref.safe_dict(),
+        "m0_execution_ref": f"worker_request:{request.request_id}",
     }
     return worker_run, runtime_worker
 

@@ -173827,19 +173827,376 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "provider_route_worker_turn_binding_and_failover_dispatch",
+      "capability_summary": "Immutable provider route snapshots are acquired before worker execution, bound to one session/turn, consumed by CodeWorker and BrowserWorker without secret-environment reads, and changed independently from backend failover.",
+      "ledger_id": "ledger_b420fb1d89505c1e",
+      "license_notice": {
+        "license_hint": "MIT direct-port source; the Responses wire contract also records its openai-node Apache-2.0 derivation.",
+        "notes": "Source and revision are recorded; Zyra owns the modified package and has no runtime dependency on the parent repository.",
+        "notice_path": "packages/runtime/provider-control-plane/THIRD_PARTY_NOTICES.md",
+        "source_repo": "opencode",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /providers/health",
+          "POST /providers/routes",
+          "POST /providers/dispatch",
+          "GET /backends",
+          "POST /backends",
+          "POST /tasks"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "provider.route.acquired",
+          "provider.dispatch.completed",
+          "provider.dispatch.failed",
+          "backend.dispatch.started",
+          "backend.dispatch.completed",
+          "backend.dispatch.failed"
+        ],
+        "surfaces": [
+          "provider_control_plane",
+          "backend_registry",
+          "task_graph",
+          "task_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BackendDispatchRuntime.dispatch"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_backend_owner": "Python BackendRegistryStore",
+        "canonical_provider_owner": "TypeScript ProviderControlPlaneStore",
+        "dispatch_envelope_contains_credentials": false,
+        "owner_unit": "M1-S05D-02",
+        "provider_backend_state_separated": true,
+        "root_source_runtime_dependency": false,
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; The opencode provider/session mechanisms remain the sole primary implementation source for provider routing. Zyra owns the catalog, credential, route, transport and worker-turn bindings; no opencode package, process, credential store or session owner is loaded.",
+      "owner_unit": "M1-S05D-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/runtime/provider-control-plane/src/catalog.ts",
+          "packages/runtime/provider-control-plane/src/credentials.ts",
+          "packages/runtime/provider-control-plane/src/routing.ts",
+          "packages/runtime/provider-control-plane/src/transport/runtime.ts",
+          "packages/runtime/claude-runtime/src/provider-control-plane-runtime.ts",
+          "packages/runtime/claude-runtime/src/model-stream.ts",
+          "packages/runtime/zyra_runtime/provider_control_plane/lease.py",
+          "packages/workers/zyra_workers/browser_worker.py",
+          "packages/orchestration/zyra_orchestration/task_graph.py"
+        ],
+        "function": "ProviderControlPlane.dispatch",
+        "health_check": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/provider-control-plane.test.ts; python -m pytest tests/unit/test_backend_registry.py tests/integration/test_provider_backend_api.py -q",
+        "module": "@zyra/provider-control-plane",
+        "protocol": "zyra-provider-backend-dispatch-v1"
+      },
+      "source_path": "packages/core/src/provider/provider.ts;packages/core/src/provider/models.ts;packages/opencode/src/session/processor.ts;packages/opencode/src/session/prompt.ts",
+      "source_repo": "opencode",
+      "target_bindings": [
+        {
+          "path": "packages/runtime/provider-control-plane/src/catalog.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/runtime/provider-control-plane/src/credentials.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/provider-control-plane/src/routing.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/provider-control-plane/src/transport/runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/provider-control-plane-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/model-stream.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/zyra_runtime/provider_control_plane/lease.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_worker.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/orchestration/zyra_orchestration/task_graph.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+          "expected_signal": "real protocol bytes, route pinning, zero-byte auth fencing and retry separation",
+          "kind": "unit",
+          "path": "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_backend_registry.py -q",
+          "expected_signal": "actual backend dispatch, backend-only failover, timeout reconciliation and lease custody",
+          "kind": "unit",
+          "path": "tests/unit/test_backend_registry.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_provider_backend_api.py -q",
+          "expected_signal": "provider and backend owners are reachable through real API and task-graph paths",
+          "kind": "integration",
+          "path": "tests/integration/test_provider_backend_api.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "provider_route_resolution_lease_handoff",
+      "capability_summary": "Bounded provider/model resolution is projected into a strict route lease handoff before backend selection, while provider custody remains in the TypeScript control plane.",
+      "ledger_id": "ledger_86ce6dd27c07b46e",
+      "license_notice": null,
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /providers/health",
+          "POST /providers/routes",
+          "POST /providers/dispatch",
+          "GET /backends",
+          "POST /backends",
+          "POST /tasks"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "provider.route.acquired",
+          "provider.dispatch.completed",
+          "provider.dispatch.failed",
+          "backend.dispatch.started",
+          "backend.dispatch.completed",
+          "backend.dispatch.failed"
+        ],
+        "surfaces": [
+          "provider_control_plane",
+          "backend_registry",
+          "task_graph",
+          "task_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BackendDispatchRuntime.dispatch"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_backend_owner": "Python BackendRegistryStore",
+        "canonical_provider_owner": "TypeScript ProviderControlPlaneStore",
+        "dispatch_envelope_contains_credentials": false,
+        "owner_unit": "M1-S05D-02",
+        "provider_backend_state_separated": true,
+        "root_source_runtime_dependency": false,
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=supplementary_implementation; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; Only resolver precedence and normalized handoff semantics supplement the primary route owner. Hermes execution, CLI, environment mutation and provider storage are excluded.",
+      "owner_unit": "M1-S05D-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/runtime/zyra_runtime/provider_control_plane/lease.py",
+          "packages/orchestration/zyra_orchestration/task_graph.py"
+        ],
+        "function": "ProviderControlPlane.dispatch",
+        "health_check": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/provider-control-plane.test.ts; python -m pytest tests/unit/test_backend_registry.py tests/integration/test_provider_backend_api.py -q",
+        "module": "@zyra/provider-control-plane",
+        "protocol": "zyra-provider-backend-dispatch-v1"
+      },
+      "source_path": "hermes_cli/runtime_provider.py",
+      "source_repo": "hermes-agent",
+      "target_bindings": [
+        {
+          "path": "packages/runtime/zyra_runtime/provider_control_plane/lease.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/orchestration/zyra_orchestration/task_graph.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+          "expected_signal": "real protocol bytes, route pinning, zero-byte auth fencing and retry separation",
+          "kind": "unit",
+          "path": "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_backend_registry.py -q",
+          "expected_signal": "actual backend dispatch, backend-only failover, timeout reconciliation and lease custody",
+          "kind": "unit",
+          "path": "tests/unit/test_backend_registry.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_provider_backend_api.py -q",
+          "expected_signal": "provider and backend owners are reachable through real API and task-graph paths",
+          "kind": "integration",
+          "path": "tests/integration/test_provider_backend_api.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "provider_stream_supervision_and_replay_fencing",
+      "capability_summary": "Ordered stream frames, chunk/total deadlines, fragmented tool arguments, monotonic usage, partial-output reconciliation and bounded zero-output provider fallback.",
+      "ledger_id": "ledger_e157d2126c1b4ce1",
+      "license_notice": {
+        "license_hint": "MIT direct-port source; the Responses wire contract also records its openai-node Apache-2.0 derivation.",
+        "notes": "Source and revision are recorded; Zyra owns the modified package and has no runtime dependency on the parent repository.",
+        "notice_path": "packages/runtime/provider-control-plane/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /providers/health",
+          "POST /providers/routes",
+          "POST /providers/dispatch",
+          "GET /backends",
+          "POST /backends",
+          "POST /tasks"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "provider.route.acquired",
+          "provider.dispatch.completed",
+          "provider.dispatch.failed",
+          "backend.dispatch.started",
+          "backend.dispatch.completed",
+          "backend.dispatch.failed"
+        ],
+        "surfaces": [
+          "provider_control_plane",
+          "backend_registry",
+          "task_graph",
+          "task_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BackendDispatchRuntime.dispatch"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_backend_owner": "Python BackendRegistryStore",
+        "canonical_provider_owner": "TypeScript ProviderControlPlaneStore",
+        "dispatch_envelope_contains_credentials": false,
+        "owner_unit": "M1-S05D-02",
+        "provider_backend_state_separated": true,
+        "root_source_runtime_dependency": false,
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; Only the protocol stream and bounded retry mechanics supplement the opencode primary. The oh-my-pi agent loop, UI, provider registry and process runtime remain outside Zyra.",
+      "owner_unit": "M1-S05D-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/runtime/provider-control-plane/src/stream-supervisor.ts",
+          "packages/runtime/provider-control-plane/src/model-fallback-policy.ts",
+          "packages/runtime/provider-control-plane/src/transport/protocols.ts",
+          "packages/runtime/provider-control-plane/src/transport/runtime.ts"
+        ],
+        "function": "ProviderControlPlane.dispatch",
+        "health_check": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/provider-control-plane.test.ts; python -m pytest tests/unit/test_backend_registry.py tests/integration/test_provider_backend_api.py -q",
+        "module": "@zyra/provider-control-plane",
+        "protocol": "zyra-provider-backend-dispatch-v1"
+      },
+      "source_path": "packages/ai/src/providers/openai-completions.ts;packages/ai/src/providers/openai-responses.ts;packages/ai/src/providers/anthropic.ts;packages/ai/src/utils/auth-retry.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/runtime/provider-control-plane/src/stream-supervisor.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/runtime/provider-control-plane/src/model-fallback-policy.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/provider-control-plane/src/transport/protocols.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/provider-control-plane/src/transport/runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "node --experimental-strip-types --test packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+          "expected_signal": "real protocol bytes, route pinning, zero-byte auth fencing and retry separation",
+          "kind": "unit",
+          "path": "packages/runtime/provider-control-plane/test/provider-control-plane.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_backend_registry.py -q",
+          "expected_signal": "actual backend dispatch, backend-only failover, timeout reconciliation and lease custody",
+          "kind": "unit",
+          "path": "tests/unit/test_backend_registry.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_provider_backend_api.py -q",
+          "expected_signal": "provider and backend owners are reachable through real API and task-graph paths",
+          "kind": "integration",
+          "path": "tests/integration/test_provider_backend_api.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 432,
+    "active_or_internalized": 435,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 377
+      "productized": 380
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -173847,7 +174204,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 138,
+      "tested_main_path": 141,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -173881,6 +174238,7 @@
       "M1-S05A-01": 5,
       "M1-S05A-02": 3,
       "M1-S05D-01": 4,
+      "M1-S05D-02": 3,
       "M2-01A": 46,
       "M2-03B": 30
     },
@@ -173890,19 +174248,19 @@
       "agentscope": 101,
       "browser-use": 109,
       "claude-code-best": 509,
-      "hermes-agent": 81,
+      "hermes-agent": 82,
       "langgraph": 85,
-      "oh-my-pi": 9,
+      "oh-my-pi": 10,
       "openclaw": 86,
-      "opencode": 15
+      "opencode": 16
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 15,
+      "direct_port": 17,
       "not_selected": 14,
       "planned_adapter": 378,
-      "reimplemented_pattern": 234,
+      "reimplemented_pattern": 235,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 734,
@@ -173914,7 +174272,7 @@
       "packages/integrations": 78,
       "packages/memory": 184,
       "packages/orchestration": 59,
-      "packages/runtime": 165,
+      "packages/runtime": 168,
       "packages/scheduler": 79,
       "packages/skills": 48,
       "packages/symbolic": 1,
@@ -173923,6 +174281,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1174
+    "total_entries": 1177
   }
 }

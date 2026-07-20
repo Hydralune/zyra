@@ -161,6 +161,13 @@ class BackendRegistry:
                     reason=str(workspace_failure),
                 )
                 continue
+            if self.store.workspace_is_quarantined(
+                request.workspace_root,
+                backend_id=definition.backend_id,
+                worker_id=request.runtime_worker,
+                at=now_timestamp(),
+            ):
+                continue
             reasons: list[str] = []
             score = float(definition.priority) * 100.0
             if request.preferred_backend_id == definition.backend_id:
@@ -223,6 +230,13 @@ class BackendRegistry:
                 "workspace_root": str(Path(request.workspace_root).expanduser().resolve()),
                 "artifact_root": str(Path(request.artifact_root).expanduser().resolve()),
                 "provider_route_id": request.provider_route_id,
+                "provider_route_checksum": request.provider_route_checksum,
+                "provider_catalog_revision": request.provider_catalog_revision,
+                "provider_credential_version": request.provider_credential_version,
+                "provider_credential_fingerprint": request.provider_credential_fingerprint,
+                "provider_transport_id": request.provider_transport_id,
+                "m0_execution_ref": request.m0_execution_ref,
+                "physical_worker_lease_ref": None,
                 "turn_id": request.turn_id,
                 "acquired_at": acquired_at,
                 "expires_at": acquired_at + self.lease_seconds,
@@ -424,10 +438,22 @@ def validate_selection_request(request: BackendSelectionRequest) -> None:
     }.items():
         if not str(value).strip():
             raise ValueError(f"{name} is required")
-    # provider_route_id is an opaque immutable reference. BackendRegistry must
-    # never parse it into provider/model/credential/default fields.
-    if request.provider_route_id is not None and not request.provider_route_id.strip():
-        raise ValueError("provider_route_id must be null or non-empty")
+    # Provider route fields are an opaque immutable projection. BackendRegistry
+    # validates presence/digests only and never parses provider/model/defaults.
+    opaque_required = {
+        "provider_route_id": request.provider_route_id,
+        "provider_route_checksum": request.provider_route_checksum,
+        "provider_credential_fingerprint": request.provider_credential_fingerprint,
+        "provider_transport_id": request.provider_transport_id,
+        "m0_execution_ref": request.m0_execution_ref,
+    }
+    for name, value in opaque_required.items():
+        if not str(value or "").strip():
+            raise ValueError(f"{name} is required")
+    if request.provider_catalog_revision <= 0:
+        raise ValueError("provider_catalog_revision must be positive")
+    if request.provider_credential_version <= 0:
+        raise ValueError("provider_credential_version must be positive")
 
 
 def validate_workspace(

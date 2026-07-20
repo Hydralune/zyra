@@ -227,6 +227,11 @@ function decodeOpenAiChat(value: Record<string, unknown>, eventName: string | nu
           toolName: typeof fn.name === "string" ? fn.name : null,
           jsonDelta: typeof fn.arguments === "string" ? fn.arguments : null,
           providerEvent: eventName,
+          metadata: {
+            providerIndex: typeof tool.index === "number" || typeof tool.index === "string"
+              ? tool.index
+              : "",
+          },
         }));
       }
     }
@@ -248,6 +253,11 @@ function decodeOpenAiResponses(value: Record<string, unknown>, eventName: string
       toolName: typeof value.name === "string" ? value.name : null,
       jsonDelta: value.delta,
       providerEvent: type,
+      metadata: {
+        providerIndex: typeof value.output_index === "number" || typeof value.output_index === "string"
+          ? value.output_index
+          : typeof value.item_id === "string" ? value.item_id : "",
+      },
     })];
   }
   if (type === "response.completed") {
@@ -272,8 +282,15 @@ function decodeAnthropic(value: Record<string, unknown>, eventName: string | nul
     if (block.type === "tool_use") return [state.frame("tool_call_delta", {
       toolCallId: typeof block.id === "string" ? block.id : null,
       toolName: typeof block.name === "string" ? block.name : null,
-      jsonDelta: block.input ? JSON.stringify(block.input) : null,
+      jsonDelta: block.input && typeof block.input === "object" && Object.keys(block.input as object).length > 0
+        ? JSON.stringify(block.input)
+        : null,
       providerEvent: type,
+      metadata: {
+        providerIndex: typeof value.index === "number" || typeof value.index === "string"
+          ? value.index
+          : "",
+      },
     })];
     if (block.type === "text" && typeof block.text === "string" && block.text) return [state.frame("text_delta", { text: block.text, providerEvent: type })];
     return [];
@@ -282,7 +299,15 @@ function decodeAnthropic(value: Record<string, unknown>, eventName: string | nul
     const delta = value.delta && typeof value.delta === "object" ? value.delta as Record<string, unknown> : {};
     if (delta.type === "text_delta" && typeof delta.text === "string") return [state.frame("text_delta", { text: delta.text, providerEvent: type })];
     if (delta.type === "thinking_delta" && typeof delta.thinking === "string") return [state.frame("thinking_delta", { text: delta.thinking, providerEvent: type })];
-    if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") return [state.frame("tool_call_delta", { jsonDelta: delta.partial_json, providerEvent: type })];
+    if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") return [state.frame("tool_call_delta", {
+      jsonDelta: delta.partial_json,
+      providerEvent: type,
+      metadata: {
+        providerIndex: typeof value.index === "number" || typeof value.index === "string"
+          ? value.index
+          : "",
+      },
+    })];
     return [];
   }
   if (type === "message_delta") {

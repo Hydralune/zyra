@@ -54,7 +54,8 @@ class BackendRegistryTests(unittest.TestCase):
             self.assertEqual(envelope["provider_route_id"], "provider_route_immutable")
             serialized = str(envelope).lower()
             self.assertNotIn("api_key", serialized)
-            self.assertNotIn("credential", serialized)
+            self.assertNotIn("credential_secret", serialized)
+            self.assertNotIn("authorization", serialized)
             self.assertNotIn("model_id", serialized)
             self.assertNotIn("provider_id", serialized)
 
@@ -155,11 +156,11 @@ class BackendRegistryTests(unittest.TestCase):
             self.assertFalse(called)
 
     def test_partial_output_timeout_is_reconcile_only(self) -> None:
-        with self._runtime(turn_timeout_seconds=0.001) as fixture:
+        with self._runtime(turn_timeout_seconds=0.05) as fixture:
             def operation(_envelope):
                 import time
 
-                time.sleep(0.01)
+                time.sleep(0.1)
                 return "side effect already completed"
 
             with self.assertRaises(BackendDispatchError) as raised:
@@ -233,6 +234,12 @@ class _RuntimeFixture:
             workspace_root=str(self.workspace),
             artifact_root=str(self.artifacts),
             provider_route_id="provider_route_immutable",
+            provider_route_checksum="route-checksum-immutable",
+            provider_catalog_revision=7,
+            provider_credential_version=3,
+            provider_credential_fingerprint="credential-fingerprint-immutable",
+            provider_transport_id="transport-openai-sse",
+            m0_execution_ref="worker_request:request-1",
             turn_id="turn-1",
         )
 

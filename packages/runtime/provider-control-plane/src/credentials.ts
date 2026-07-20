@@ -8,6 +8,7 @@ import {
   assertNonEmpty,
   assertNonNegativeInteger,
   deepClone,
+  digestJson,
   fingerprintSecret,
   uniqueSorted,
 } from "./canonical.ts";
@@ -245,6 +246,110 @@ export class CredentialManager {
     }
     const updated = this.update(record, { lastUsedAt: this.clock.now() }, false);
     return { record: updated, material, headers };
+  }
+
+  async resolveRoutePinned(
+    routeId: string,
+    credentialId: string,
+    version: number,
+    signal?: AbortSignal,
+  ): Promise<ResolvedCredential> {
+    const current = this.requireUsable(this.require(credentialId));
+    const snapshot = this.store.getRouteCredentialSnapshot(routeId);
+    if (snapshot === null) {
+      throw new ProviderControlPlaneError({
+        layer: "credential",
+        kind: "credential_missing",
+        message: `route credential snapshot not found: ${routeId}`,
+        routeId,
+        credentialId,
+        recoveryIntent: "change_provider_route",
+      });
+    }
+    const { checksum, ...snapshotBody } = snapshot;
+    if (digestJson(snapshotBody) !== checksum) {
+      throw new ProviderControlPlaneError({
+        layer: "credential",
+        kind: "credential_version_conflict",
+        message: `route credential snapshot checksum mismatch: ${routeId}`,
+        routeId,
+        credentialId,
+        recoveryIntent: "surface_to_operator",
+      });
+    }
+    if (
+      snapshot.credentialId !== credentialId
+      || snapshot.credentialVersion !== version
+    ) {
+      throw new ProviderControlPlaneError({
+        layer: "credential",
+        kind: "credential_version_conflict",
+        message: "route credential snapshot identity mismatch",
+        routeId,
+        credentialId,
+        detail: {
+          expectedVersion: version,
+          snapshotVersion: snapshot.credentialVersion,
+        },
+      });
+    }
+    const material = snapshot.integrationKind === "anonymous"
+      ? null
+      : await this.secrets.resolve(snapshot.secretRef, signal);
+    if (snapshot.integrationKind !== "anonymous" && material === null) {
+      throw new ProviderControlPlaneError({
+        layer: "credential",
+        kind: "credential_blocked",
+        message: "pinned credential secret reference could not be resolved",
+        routeId,
+        credentialId,
+        providerId: snapshot.providerId,
+        recoveryIntent: "rotate_credential",
+      });
+    }
+    if (
+      material !== null
+      && fingerprintSecret(material.value) !== snapshot.credentialFingerprint
+    ) {
+      throw new ProviderControlPlaneError({
+        layer: "credential",
+        kind: "credential_blocked",
+        message: "pinned credential fingerprint mismatch",
+        routeId,
+        credentialId,
+        providerId: snapshot.providerId,
+        recoveryIntent: "surface_to_operator",
+      });
+    }
+    const headers: Record<string, string> = {};
+    if (material !== null) {
+      if (snapshot.integrationKind === "api_key") {
+        headers[snapshot.headerName ?? "x-api-key"] = material.value;
+      } else if (snapshot.integrationKind === "bearer" || snapshot.integrationKind === "oauth2") {
+        headers.authorization = `${snapshot.authorizationScheme ?? "Bearer"} ${material.value}`;
+      } else if (snapshot.integrationKind === "custom_header") {
+        headers[snapshot.headerName ?? "x-provider-token"] = material.value;
+      }
+    }
+    // Health/status remains a current overlay so revoke/block/expiry fences
+    // old routes before request bytes. Auth material stays pinned to the route.
+    return {
+      record: {
+        ...deepClone(current),
+        version: snapshot.credentialVersion,
+        fingerprint: snapshot.credentialFingerprint,
+        secretRef: snapshot.secretRef,
+        integrationId: snapshot.integrationId,
+      },
+      material,
+      headers,
+    };
+  }
+
+  recordSuccessIfCurrent(credentialId: string, expectedVersion: number): CredentialRecord | null {
+    const current = this.require(credentialId);
+    if (current.version !== expectedVersion) return null;
+    return this.recordSuccess(credentialId, expectedVersion);
   }
 
   recordSuccess(credentialId: string, expectedVersion: number): CredentialRecord {

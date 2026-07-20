@@ -119,6 +119,20 @@ export class ProviderCatalog {
     return this.store.snapshot(now);
   }
 
+  snapshotAt(revision: number): CatalogSnapshot {
+    assertPositiveInteger(revision, "revision");
+    const snapshot = this.store.getCatalogSnapshot(revision);
+    if (snapshot === null) {
+      throw new ProviderControlPlaneError({
+        layer: "catalog",
+        kind: "catalog_revision_conflict",
+        message: `catalog snapshot not found: ${revision}`,
+        detail: { revision },
+      });
+    }
+    return snapshot;
+  }
+
   compatibilityV1(): V1CompatibilitySnapshot {
     const snapshot = this.snapshot();
     const grouped = new Map<string, ModelDefinition[]>();

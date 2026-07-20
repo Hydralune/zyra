@@ -23,6 +23,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@zyra/claude-mcp": "workspace:*",
+        "@zyra/provider-control-plane": "workspace:*",
       },
     },
     "packages/runtime/provider-control-plane": {

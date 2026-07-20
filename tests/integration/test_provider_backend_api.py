@@ -206,6 +206,74 @@ class ProviderBackendApiTests(unittest.TestCase):
                 self.assertFalse(dispatch["provider_state_owned"])
                 self.assertEqual(dispatch["attempts"][0]["outcome"], "succeeded")
 
+                session = dispatch["dispatch_session"]
+                run_id = created["task"]["run_id"]
+                task_id = created["task"]["task_id"]
+                sessions = _get(
+                    base_url,
+                    f"/backends/dispatch-sessions?run_id={run_id}&task_id={task_id}",
+                )
+                self.assertTrue(
+                    any(
+                        item["session_id"] == session["session_id"]
+                        and item["phase"] == "succeeded"
+                        for item in sessions["result"]
+                    )
+                )
+                replay = _get(
+                    base_url,
+                    f"/backends/dispatch-sessions/{session['session_id']}/replay",
+                )
+                self.assertEqual(
+                    replay["result"]["route_refs"]["provider_before"],
+                    dispatch["provider_route_ref"]["route_id"],
+                )
+                self.assertEqual(
+                    replay["result"]["route_refs"]["provider_after"],
+                    dispatch["provider_route_ref"]["route_id"],
+                )
+                verification = _get(
+                    base_url,
+                    f"/backends/dispatch-sessions/{session['session_id']}/verify",
+                )
+                self.assertTrue(verification["result"]["valid"])
+                self.assertFalse(verification["result"]["provider_route_changed"])
+
+                control = _post(
+                    base_url,
+                    "/backends/control",
+                    {
+                        "action": "cancel",
+                        "run_id": run_id,
+                        "task_id": task_id,
+                        "dispatch_session_id": session["session_id"],
+                        "reason": "API control persistence verification",
+                        "requested_by": "provider-backend-api-test",
+                        "idempotency_key": f"api-control:{session['session_id']}",
+                    },
+                )
+                self.assertFalse(control["result"]["effective"])
+                control_requests = _get(
+                    base_url,
+                    f"/backends/control-requests?run_id={run_id}&task_id={task_id}",
+                )
+                self.assertTrue(
+                    any(
+                        item["idempotency_key"] == f"api-control:{session['session_id']}"
+                        for item in control_requests["result"]
+                    )
+                )
+
+                probe = _post(
+                    base_url,
+                    "/backends/probe",
+                    {"runtime_worker": "CodeWorkerRuntime"},
+                )
+                self.assertGreaterEqual(len(probe["result"]["samples"]), 1)
+                self.assertTrue(
+                    all(item["backend_id"] for item in probe["result"]["samples"])
+                )
+
                 compat = _get(base_url, "/providers/compat-v1")
                 self.assertFalse(compat["result"]["writable"])
                 self.assertIsNone(compat["result"]["defaultModel"])

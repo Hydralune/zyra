@@ -45,6 +45,20 @@ from .browser_session import (
 )
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_worker_runtime import CodeWorkerRun, CodeWorkerRuntime
+from .backend_dispatch_service import (
+    BackendDispatchHttpServer,
+    BackendDispatchServiceRuntime,
+    BackendOperationRegistry,
+    BackendServiceConfig,
+    RemoteDispatchRecord,
+    RemoteDispatchRejected,
+    RemoteDispatchRequest,
+    RemoteDispatchResult,
+    RemoteDispatchState,
+    RemoteOperationCancelled,
+    RemoteOperationContext,
+    RemoteOperationTimedOut,
+)
 from .runtime_scaffold import (
     BaseWorkerScaffold,
     BrowserWorkerScaffold,
@@ -90,6 +104,10 @@ from .scaffold_supervisor import (
 from .subagents.typescript_port import TypeScriptAgentDurablePort
 
 __all__ = [
+    "BackendDispatchHttpServer",
+    "BackendDispatchServiceRuntime",
+    "BackendOperationRegistry",
+    "BackendServiceConfig",
     "BrowserWorkerRun",
     "BrowserWorkerRuntime",
     "BrowserContextDeliveryBatch",
@@ -159,6 +177,14 @@ __all__ = [
     "load_browser_use_action_models",
     "load_browser_use_registered_actions",
     "RetryAction",
+    "RemoteDispatchRecord",
+    "RemoteDispatchRejected",
+    "RemoteDispatchRequest",
+    "RemoteDispatchResult",
+    "RemoteDispatchState",
+    "RemoteOperationCancelled",
+    "RemoteOperationContext",
+    "RemoteOperationTimedOut",
     "run_worker_bridge_probes",
     "run_supervised_scaffold_workers",
     "SupervisorFinding",

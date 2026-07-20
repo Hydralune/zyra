@@ -33,6 +33,9 @@ class BackendDispatchOutcome(Generic[T]):
     attempts: tuple[BackendDispatchAttempt, ...]
     events: tuple[BackendControlEvent, ...]
     backend_changed: bool
+    session: Any | None = None
+    recovery_inputs: tuple[Any, ...] = ()
+    transport_responses: tuple[Any, ...] = ()
 
 
 class BackendDispatchRuntime:
@@ -49,6 +52,35 @@ class BackendDispatchRuntime:
         idempotency_key: str,
         interruptible: bool = False,
     ) -> BackendDispatchOutcome[T]:
+        from .router import WorkerDispatchRouter
+
+        routed = WorkerDispatchRouter(self.registry).dispatch_callable(
+            request,
+            operation,
+            idempotency_key=idempotency_key,
+            interruptible=interruptible,
+        )
+        return BackendDispatchOutcome(
+            value=routed.value,
+            final_lease=routed.final_lease,
+            final_envelope=routed.final_envelope,
+            attempts=routed.attempts,
+            events=routed.events,
+            backend_changed=routed.backend_changed,
+            session=routed.session,
+            recovery_inputs=routed.recovery_inputs,
+            transport_responses=routed.transport_responses,
+        )
+
+    def _dispatch_callable_foundation(
+        self,
+        request: BackendSelectionRequest,
+        operation: Callable[[BackendDispatchEnvelope], T],
+        *,
+        idempotency_key: str,
+        interruptible: bool = False,
+    ) -> BackendDispatchOutcome[T]:
+        """05D-01 reference path retained for conformance, never the default."""
         if not idempotency_key.strip():
             raise ValueError("idempotency_key is required")
         attempts: list[BackendDispatchAttempt] = []
@@ -359,6 +391,13 @@ def build_backend_envelope(
         "workspace_root": lease.workspace_root,
         "artifact_root": lease.artifact_root,
         "provider_route_id": lease.provider_route_id,
+        "provider_route_checksum": lease.provider_route_checksum,
+        "provider_catalog_revision": lease.provider_catalog_revision,
+        "provider_credential_version": lease.provider_credential_version,
+        "provider_credential_fingerprint": lease.provider_credential_fingerprint,
+        "provider_transport_id": lease.provider_transport_id,
+        "m0_execution_ref": lease.m0_execution_ref,
+        "physical_worker_lease_ref": lease.physical_worker_lease_ref,
         "idempotency_key": idempotency_key,
         "deadline_at": created_at + timeout_seconds,
         "attempt": attempt,
@@ -369,6 +408,13 @@ def build_backend_envelope(
             "health_revision": lease.health_revision,
             "provider_state_embedded": False,
             "provider_route_is_opaque_reference": True,
+            "provider_route_checksum": lease.provider_route_checksum,
+            "provider_catalog_revision": lease.provider_catalog_revision,
+            "provider_credential_version": lease.provider_credential_version,
+            "provider_credential_fingerprint": lease.provider_credential_fingerprint,
+            "provider_transport_id": lease.provider_transport_id,
+            "m0_execution_ref": lease.m0_execution_ref,
+            "physical_worker_lease_ref": lease.physical_worker_lease_ref,
         },
     }
     digest_body = {

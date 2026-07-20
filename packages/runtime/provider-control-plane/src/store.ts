@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { RuntimeSqliteDatabase } from "./sqlite-runtime.ts";
 import type {
   CatalogSnapshot,
   CredentialRecord,
@@ -8,6 +8,7 @@ import type {
   ProviderDefinition,
   ProviderDispatchAttempt,
   ProviderRouteLease,
+  ProviderRouteCredentialSnapshot,
 } from "./contracts.ts";
 import { canonicalJson, deepClone, digestJson } from "./canonical.ts";
 import { ProviderControlPlaneError } from "./errors.ts";
@@ -31,12 +32,12 @@ export interface ProviderStoreHealth {
 
 export class ProviderControlPlaneStore {
   readonly path: string;
-  readonly db: DatabaseSync;
+  readonly db: RuntimeSqliteDatabase;
   private closed = false;
 
   constructor(path: string) {
     this.path = path;
-    this.db = new DatabaseSync(path);
+    this.db = new RuntimeSqliteDatabase(path);
     this.initialize();
   }
 
@@ -77,6 +78,13 @@ export class ProviderControlPlaneStore {
         checksum TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS provider_catalog_snapshots (
+        catalog_revision INTEGER PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        json TEXT NOT NULL,
+        checksum TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS provider_credentials (
         credential_id TEXT PRIMARY KEY,
         provider_id TEXT NOT NULL,
@@ -108,6 +116,16 @@ export class ProviderControlPlaneStore {
         UNIQUE(session_id, turn_id, route_id),
         FOREIGN KEY(provider_id, model_id) REFERENCES provider_catalog_models(provider_id, model_id) ON DELETE RESTRICT,
         FOREIGN KEY(credential_id) REFERENCES provider_credentials(credential_id) ON DELETE RESTRICT
+      );
+
+      CREATE TABLE IF NOT EXISTS provider_route_credential_snapshots (
+        route_id TEXT PRIMARY KEY,
+        credential_id TEXT NOT NULL,
+        credential_version INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        json TEXT NOT NULL,
+        checksum TEXT NOT NULL,
+        FOREIGN KEY(route_id) REFERENCES provider_route_leases(route_id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS provider_dispatch_attempts (
@@ -179,6 +197,8 @@ export class ProviderControlPlaneStore {
       const next = current + 1;
       callback(next);
       this.db.prepare("UPDATE provider_control_meta SET value = ? WHERE key = 'catalog_revision'").run(String(next));
+      const snapshot = this.snapshot(Date.now());
+      this.putCatalogSnapshot(snapshot);
       return next;
     });
   }
@@ -270,6 +290,36 @@ export class ProviderControlPlaneStore {
     return this.readJsonList<IntegrationDefinition>("SELECT json FROM provider_integrations ORDER BY integration_id");
   }
 
+  putCatalogSnapshot(snapshot: CatalogSnapshot): void {
+    const json = canonicalJson(snapshot);
+    this.db.prepare(`
+      INSERT INTO provider_catalog_snapshots(catalog_revision, created_at, json, checksum)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(catalog_revision) DO UPDATE SET
+        created_at = excluded.created_at,
+        json = excluded.json,
+        checksum = excluded.checksum
+    `).run(snapshot.revision, snapshot.createdAt, json, digestJson(snapshot));
+  }
+
+  getCatalogSnapshot(revision: number): CatalogSnapshot | null {
+    const snapshot = this.readJson<CatalogSnapshot>(
+      "SELECT json FROM provider_catalog_snapshots WHERE catalog_revision = ?",
+      revision,
+    );
+    if (snapshot === null) return null;
+    const { checksum, ...body } = snapshot;
+    if (digestJson(body) !== checksum) {
+      throw new ProviderControlPlaneError({
+        layer: "catalog",
+        kind: "catalog_revision_conflict",
+        message: `catalog snapshot checksum mismatch: ${revision}`,
+        detail: { revision },
+      });
+    }
+    return snapshot;
+  }
+
   putCredential(record: CredentialRecord): void {
     const json = canonicalJson(record);
     this.db.prepare(`
@@ -312,29 +362,54 @@ export class ProviderControlPlaneStore {
         );
   }
 
-  putRoute(lease: ProviderRouteLease): void {
+  putRoute(
+    lease: ProviderRouteLease,
+    credentialSnapshot: ProviderRouteCredentialSnapshot,
+  ): void {
     const json = canonicalJson(lease);
-    this.db.prepare(`
-      INSERT INTO provider_route_leases(
-        route_id, run_id, task_id, session_id, turn_id, catalog_revision,
-        provider_id, model_id, credential_id, credential_version,
-        created_at, expires_at, checksum, json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      lease.routeId,
-      lease.runId,
-      lease.taskId,
-      lease.sessionId,
-      lease.turnId,
-      lease.catalogRevision,
-      lease.providerId,
-      lease.modelId,
-      lease.credentialId,
-      lease.credentialVersion,
-      lease.createdAt,
-      lease.expiresAt,
-      lease.checksum,
-      json,
+    const snapshotJson = canonicalJson(credentialSnapshot);
+    this.transaction(() => {
+      this.db.prepare(`
+        INSERT INTO provider_route_leases(
+          route_id, run_id, task_id, session_id, turn_id, catalog_revision,
+          provider_id, model_id, credential_id, credential_version,
+          created_at, expires_at, checksum, json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        lease.routeId,
+        lease.runId,
+        lease.taskId,
+        lease.sessionId,
+        lease.turnId,
+        lease.catalogRevision,
+        lease.providerId,
+        lease.modelId,
+        lease.credentialId,
+        lease.credentialVersion,
+        lease.createdAt,
+        lease.expiresAt,
+        lease.checksum,
+        json,
+      );
+      this.db.prepare(`
+        INSERT INTO provider_route_credential_snapshots(
+          route_id, credential_id, credential_version, created_at, json, checksum
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        credentialSnapshot.routeId,
+        credentialSnapshot.credentialId,
+        credentialSnapshot.credentialVersion,
+        credentialSnapshot.createdAt,
+        snapshotJson,
+        credentialSnapshot.checksum,
+      );
+    });
+  }
+
+  getRouteCredentialSnapshot(routeId: string): ProviderRouteCredentialSnapshot | null {
+    return this.readJson<ProviderRouteCredentialSnapshot>(
+      "SELECT json FROM provider_route_credential_snapshots WHERE route_id = ?",
+      routeId,
     );
   }
 

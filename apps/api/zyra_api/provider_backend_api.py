@@ -11,6 +11,10 @@ from zyra_runtime.provider_control_plane import (
     ProviderControlPlanePortError,
 )
 from zyra_scheduler.backend_registry import (
+    BackendControlAction,
+    BackendControlRuntime,
+    BackendDispatchJournal,
+    BackendHealthSupervisor,
     BackendDefinition,
     BackendRegistry,
     BackendRegistryStore,
@@ -135,6 +139,36 @@ class ProviderBackendApi:
                                 task_id=str(query.get("task_id") or ""),
                             )
                         ]
+                    elif list(parts) == ["backends", "dispatch-sessions"]:
+                        result = [
+                            item.to_dict()
+                            for item in registry.store.dispatch_sessions(
+                                run_id=str(query.get("run_id") or ""),
+                                task_id=str(query.get("task_id") or ""),
+                                active_only=_truthy(query.get("active_only")),
+                            )
+                        ]
+                    elif list(parts) == ["backends", "recovery-inputs"]:
+                        result = [
+                            item.to_dict()
+                            for item in registry.store.recovery_inputs(
+                                run_id=str(query.get("run_id") or ""),
+                                task_id=str(query.get("task_id") or ""),
+                                unconsumed_only=_truthy(query.get("unconsumed_only")),
+                            )
+                        ]
+                    elif list(parts) == ["backends", "control-requests"]:
+                        result = [
+                            item.to_dict()
+                            for item in registry.store.control_requests(
+                                run_id=str(query.get("run_id") or ""),
+                                task_id=str(query.get("task_id") or ""),
+                            )
+                        ]
+                    elif len(parts) == 4 and list(parts[:2]) == ["backends", "dispatch-sessions"] and parts[3] == "replay":
+                        result = BackendDispatchJournal(registry.store).replay_plan(parts[2]).to_dict()
+                    elif len(parts) == 4 and list(parts[:2]) == ["backends", "dispatch-sessions"] and parts[3] == "verify":
+                        result = BackendDispatchJournal(registry.store).verify(parts[2])
                     else:
                         return None
                 return self._ok(result, state_owner="python.BackendRegistryStore")
@@ -215,6 +249,41 @@ class ProviderBackendApi:
                     )
                 return self._ok(
                     {"backend_id": definition.backend_id, "registry_revision": revision},
+                    state_owner="python.BackendRegistryStore",
+                )
+            if list(parts) == ["backends", "probe"]:
+                with self._backend_registry() as registry:
+                    batch = BackendHealthSupervisor(registry).probe_all(
+                        runtime_worker=str(payload.get("runtime_worker") or ""),
+                    )
+                return self._ok(
+                    batch.to_dict(),
+                    state_owner="python.BackendRegistryStore",
+                )
+            if list(parts) == ["backends", "control"]:
+                with self._backend_registry() as registry:
+                    receipt = BackendControlRuntime(registry.store).submit(
+                        action=BackendControlAction(str(payload.get("action") or "")),
+                        run_id=str(payload.get("run_id") or ""),
+                        task_id=str(payload.get("task_id") or ""),
+                        reason=str(payload.get("reason") or "backend control request"),
+                        requested_by=str(payload.get("requested_by") or "backend-control-api"),
+                        idempotency_key=str(payload.get("idempotency_key") or ""),
+                        turn_id=(str(payload["turn_id"]) if payload.get("turn_id") else None),
+                        dispatch_session_id=(
+                            str(payload["dispatch_session_id"])
+                            if payload.get("dispatch_session_id")
+                            else None
+                        ),
+                        backend_id=(
+                            str(payload["backend_id"])
+                            if payload.get("backend_id")
+                            else None
+                        ),
+                        metadata=_mapping(payload.get("metadata") or {}, "metadata"),
+                    )
+                return self._ok(
+                    receipt.to_dict(),
                     state_owner="python.BackendRegistryStore",
                 )
         except ProviderControlPlanePortError as error:

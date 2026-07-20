@@ -3043,102 +3043,39 @@ def _browser_use_agent_available_files(workspace_root: Path, constraints: dict[s
 
 
 def _create_browser_use_agent_llm(request: WorkerRequest) -> tuple[Any | None, dict[str, str], str | None]:
+    """Fail closed: provider defaults and credential bytes belong to PCP."""
     constraints = request.constraints
-    raw_model = str(
-        constraints.get("browser_use_agent_model")
-        or constraints.get("llm_model")
-        or os.environ.get("BROWSER_USE_LLM_MODEL")
-        or os.environ.get("DEFAULT_LLM")
-        or ""
-    ).strip()
-    provider = str(
-        constraints.get("browser_use_agent_provider")
-        or constraints.get("llm_provider")
-        or os.environ.get("BROWSER_USE_LLM_PROVIDER")
-        or os.environ.get("MODEL_PROVIDER")
-        or _infer_browser_use_agent_provider(raw_model)
-    ).strip().lower()
-    provider = provider.replace("_", "-")
-    custom_key_env = str(constraints.get("browser_use_agent_api_key_env") or "").strip()
-    base_url = str(constraints.get("base_url") or constraints.get("llm_base_url") or "").strip() or None
-    temperature = _optional_float(constraints.get("temperature"))
-
-    try:
-        if provider in {"openai", "openai-compatible"}:
-            key_env = custom_key_env or "OPENAI_API_KEY"
-            model = raw_model or "gpt-4.1-mini"
-            metadata = _browser_use_agent_llm_metadata(provider, model, key_env)
-            api_key = os.environ.get(key_env, "").strip()
-            if not api_key:
-                return None, metadata, f"{key_env} is not set"
-            from browser_use.llm.openai.chat import ChatOpenAI
-
-            kwargs: dict[str, Any] = {"model": model, "api_key": api_key}
-            if base_url:
-                kwargs["base_url"] = base_url
-            if temperature is not None:
-                kwargs["temperature"] = temperature
-            return ChatOpenAI(**kwargs), metadata, None
-
-        if provider == "anthropic":
-            key_env = custom_key_env or "ANTHROPIC_API_KEY"
-            model = raw_model or "claude-sonnet-4-5"
-            metadata = _browser_use_agent_llm_metadata(provider, model, key_env)
-            api_key = os.environ.get(key_env, "").strip()
-            if not api_key:
-                return None, metadata, f"{key_env} is not set"
-            from browser_use.llm.anthropic.chat import ChatAnthropic
-
-            kwargs = {"model": model, "api_key": api_key}
-            if base_url:
-                kwargs["base_url"] = base_url
-            if temperature is not None:
-                kwargs["temperature"] = temperature
-            return ChatAnthropic(**kwargs), metadata, None
-
-        if provider in {"google", "gemini"}:
-            key_env = custom_key_env or "GOOGLE_API_KEY"
-            model = raw_model or "gemini-2.5-flash"
-            metadata = _browser_use_agent_llm_metadata("google", model, key_env)
-            api_key = os.environ.get(key_env, "").strip()
-            if not api_key:
-                return None, metadata, f"{key_env} is not set"
-            from browser_use.llm.google.chat import ChatGoogle
-
-            kwargs = {"model": model, "api_key": api_key}
-            if temperature is not None:
-                kwargs["temperature"] = temperature
-            return ChatGoogle(**kwargs), metadata, None
-
-        if provider == "litellm":
-            key_env = custom_key_env or "LITELLM_API_KEY"
-            model = raw_model
-            metadata = _browser_use_agent_llm_metadata(provider, model, key_env)
-            if not model:
-                return None, metadata, "litellm provider requires browser_use_agent_model"
-            api_key = os.environ.get(key_env, "").strip() or None
-            from browser_use.llm.litellm.chat import ChatLiteLLM
-
-            kwargs = {"model": model, "api_key": api_key}
-            if temperature is not None:
-                kwargs["temperature"] = temperature
-            return ChatLiteLLM(**kwargs), metadata, None
-
-        if provider in {"browser-use-name", "named"}:
-            model = raw_model
-            key_env = custom_key_env or ""
-            metadata = _browser_use_agent_llm_metadata(provider, model, key_env)
-            if not model:
-                return None, metadata, "named provider requires browser_use_agent_model"
-            from browser_use.llm.models import get_llm_by_name
-
-            return get_llm_by_name(model), metadata, None
-
-        metadata = _browser_use_agent_llm_metadata(provider or "unknown", raw_model, custom_key_env)
-        return None, metadata, f"unsupported provider: {provider or 'missing'}"
-    except Exception as error:  # noqa: BLE001 - keep LLM setup errors traceable.
-        metadata = _browser_use_agent_llm_metadata(provider or "unknown", raw_model, custom_key_env)
-        return None, metadata, f"{type(error).__name__}: {error}"
+    route_id = str(constraints.get("provider_route_id") or "").strip()
+    route_checksum = str(constraints.get("provider_route_checksum") or "").strip()
+    fingerprint = str(constraints.get("provider_credential_fingerprint") or "").strip()
+    transport_id = str(constraints.get("provider_transport_id") or "").strip()
+    metadata = {
+        "browser_agent_llm_provider": "provider-control-plane",
+        "browser_agent_llm_model": "route-owned",
+        "browser_agent_llm_key_env": "",
+        "browser_agent_llm_key_configured": "false",
+        "provider_route_id": route_id,
+        "provider_route_checksum": route_checksum,
+        "provider_credential_fingerprint": fingerprint,
+        "provider_transport_id": transport_id,
+        "provider_state_embedded": "false",
+    }
+    missing = [
+        name
+        for name, value in {
+            "provider_route_id": route_id,
+            "provider_route_checksum": route_checksum,
+            "provider_credential_fingerprint": fingerprint,
+            "provider_transport_id": transport_id,
+        }.items()
+        if not value
+    ]
+    if missing:
+        return None, metadata, f"ProviderControlPlane route ref missing: {', '.join(missing)}"
+    return None, metadata, (
+        "BrowserWorker direct SDK LLM construction is disabled; "
+        "use the ProviderControlPlane browser agent port."
+    )
 
 
 def _infer_browser_use_agent_provider(model: str) -> str:
@@ -3157,7 +3094,7 @@ def _browser_use_agent_llm_metadata(provider: str, model: str, key_env: str) -> 
         "browser_agent_llm_provider": provider,
         "browser_agent_llm_model": model,
         "browser_agent_llm_key_env": key_env,
-        "browser_agent_llm_key_configured": str(bool(key_env and os.environ.get(key_env, "").strip())).lower(),
+        "browser_agent_llm_key_configured": "false",
     }
 
 

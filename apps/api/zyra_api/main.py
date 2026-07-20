@@ -64,6 +64,8 @@ from zyra_scheduler import (
     ResourceScheduler,
     RuntimeWatchdog,
     WorkerPool,
+    backend_registry_path,
+    cancel_pending_dispatches,
     source_to_target_ledger,
 )
 from zyra_commands import (
@@ -3134,6 +3136,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
             reason = str(payload.get("reason") or "Cancelled by control API.")
+            backend_cancel = cancel_pending_dispatches(
+                store_path=backend_registry_path(artifact_root_path()),
+                run_id=state.run_id,
+                task_id=state.task_id,
+                reason=reason,
+                requested_by="task-control-api",
+                idempotency_key=f"task-cancel:{state.run_id}:{state.task_id}:{reason}",
+            )
             events = cancel_task_graph(state, reason=reason)
             agent_port = get_typescript_agent_port()
             cancelled_subagents = []
@@ -3173,6 +3183,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "cancelled_subagents": [item.safe_dict() for item in cancelled_subagents],
                     "subagent_cancel_errors": subagent_cancel_errors,
                     "canonical_agent_owner": "typescript",
+                    "backend_dispatch_control": backend_cancel.to_dict(),
                 },
             )
             return

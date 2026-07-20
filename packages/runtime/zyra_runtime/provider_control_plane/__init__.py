@@ -3,6 +3,12 @@ from .client import ProviderControlPlaneClient
 from .compat_v1 import ProviderCompatV1Port
 from .credentials import ProviderCredentialPort
 from .integrations import ProviderIntegrationPort
+from .lease import (
+    ProviderRouteBindingError,
+    ProviderRouteBindingRuntime,
+    ProviderRouteLeaseRef,
+    provider_database_path,
+)
 from .models import (
     CredentialRegistration,
     CredentialStatus,
@@ -39,7 +45,11 @@ __all__ = [
     "ProviderDispatchRequest",
     "ProviderIntegrationPort",
     "ProviderProtocol",
+    "ProviderRouteBindingError",
+    "ProviderRouteBindingRuntime",
+    "ProviderRouteLeaseRef",
     "ProviderRoutingPort",
     "RouteConstraints",
     "RouteRequest",
+    "provider_database_path",
 ]

@@ -2,6 +2,7 @@ import type {
   ModelDefinition,
   ProviderDefinition,
   ProviderRouteLease,
+  ProviderRouteCredentialSnapshot,
   RetryPolicy,
   RouteRequest,
   TransportProtocol,
@@ -73,10 +74,14 @@ export class ProviderRoutePlanner {
     assertPositiveInteger(this.leaseMilliseconds, "leaseMilliseconds");
   }
 
-  acquire(request: RouteRequest, previousRouteId: string | null = null): ProviderRouteLease {
+  acquire(
+    request: RouteRequest,
+    previousRouteId: string | null = null,
+    pinnedCatalogRevision: number | null = null,
+  ): ProviderRouteLease {
     validateRouteRequest(request);
     if (previousRouteId !== null) this.require(previousRouteId);
-    const candidates = this.candidates(request, previousRouteId);
+    const candidates = this.candidates(request, previousRouteId, pinnedCatalogRevision);
     const selected = candidates[0];
     if (selected === undefined) {
       throw new ProviderControlPlaneError({
@@ -100,7 +105,11 @@ export class ProviderRoutePlanner {
       requiredScopes: request.constraints.requiredScopes,
       minimumValidityMilliseconds: this.leaseMilliseconds,
     });
-    const catalogRevision = this.store.catalogRevision();
+    const catalogRevision = pinnedCatalogRevision ?? this.store.catalogRevision();
+    const integration = snapshotIntegration(
+      pinnedCatalogRevision === null ? this.catalog.snapshot() : this.catalog.snapshotAt(catalogRevision),
+      credential.integrationId,
+    );
     const createdAt = this.clock.now();
     const protocol = (selected.model.protocol ?? selected.provider.protocol) as TransportProtocol;
     const endpointPath = selected.model.endpointPath ?? defaultEndpointPath(protocol);
@@ -117,10 +126,12 @@ export class ProviderRoutePlanner {
       modelId: selected.model.modelId,
       credentialId: credential.credentialId,
       credentialVersion: credential.version,
+      credentialFingerprint: credential.fingerprint,
       integrationId: credential.integrationId,
       transportId: `transport:${protocol}:v1`,
       protocol,
       baseUrl: selected.provider.baseUrl,
+      allowedHosts: [...selected.provider.allowedHosts],
       endpointPath,
       requestHeaders: normalizeHeaders(selected.provider.defaultHeaders),
       requestDefaults: {
@@ -134,13 +145,31 @@ export class ProviderRoutePlanner {
       reason: selected.reasons.join("; "),
     };
     const lease: ProviderRouteLease = { ...body, checksum: digestJson(body) };
-    this.store.putRoute(lease);
+    const credentialBody = {
+      routeId: lease.routeId,
+      credentialId: credential.credentialId,
+      credentialVersion: credential.version,
+      credentialFingerprint: credential.fingerprint,
+      providerId: credential.providerId,
+      integrationId: credential.integrationId,
+      integrationKind: integration.kind,
+      secretRef: credential.secretRef,
+      headerName: integration.headerName,
+      authorizationScheme: integration.authorizationScheme,
+      createdAt,
+    };
+    const credentialSnapshot: ProviderRouteCredentialSnapshot = {
+      ...credentialBody,
+      checksum: digestJson(credentialBody),
+    };
+    this.store.putRoute(lease, credentialSnapshot);
     return deepClone(lease);
   }
 
   failover(previousRouteId: string, reason: string): ProviderRouteLease {
     assertNonEmpty(reason, "reason");
     const previous = this.require(previousRouteId);
+    const credentialFailure = ["authentication_failed", "usage_limited", "credential_blocked", "credential_expired"].includes(reason);
     return this.acquire(
       {
         runId: previous.runId,
@@ -149,8 +178,8 @@ export class ProviderRoutePlanner {
         sessionId: previous.sessionId,
         turnId: previous.turnId,
         purpose: previous.purpose,
-        preferredProviderId: null,
-        preferredModelId: null,
+        preferredProviderId: credentialFailure ? previous.providerId : null,
+        preferredModelId: credentialFailure ? previous.modelId : null,
         routeHint: null,
         constraints: {
           providerIds: [],
@@ -165,9 +194,10 @@ export class ProviderRoutePlanner {
           excludedCredentialIds: [previous.credentialId],
           requiredScopes: [],
         },
-        metadata: { failoverReason: reason },
+        metadata: { failoverReason: reason, allowSameModelCredentialRotation: credentialFailure },
       },
       previousRouteId,
+      previous.catalogRevision,
     );
   }
 
@@ -210,15 +240,32 @@ export class ProviderRoutePlanner {
     return this.store.listRoutes(runId, taskId);
   }
 
-  private candidates(request: RouteRequest, previousRouteId: string | null): Candidate[] {
-    const providers = new Map(this.catalog.providers({ availableOnly: true }).map((provider) => [provider.providerId, provider]));
+  private candidates(
+    request: RouteRequest,
+    previousRouteId: string | null,
+    pinnedCatalogRevision: number | null,
+  ): Candidate[] {
+    const snapshot = pinnedCatalogRevision === null
+      ? this.catalog.snapshot()
+      : this.catalog.snapshotAt(pinnedCatalogRevision);
+    const providers = new Map(
+      snapshot.providers
+        .filter((provider) => provider.status === "active")
+        .map((provider) => [provider.providerId, provider]),
+    );
     const previous = previousRouteId === null ? null : this.require(previousRouteId);
     const results: Candidate[] = [];
-    for (const rawModel of this.catalog.models({ availableOnly: true })) {
+    const allowSameModel = request.metadata.allowSameModelCredentialRotation === true;
+    for (const rawModel of snapshot.models.filter((model) => model.enabled && model.status === "active")) {
       const provider = providers.get(rawModel.providerId);
       if (!provider) continue;
       const model = projectModel(rawModel, provider);
-      if (previous && provider.providerId === previous.providerId && model.modelId === previous.modelId) continue;
+      if (
+        previous
+        && !allowSameModel
+        && provider.providerId === previous.providerId
+        && model.modelId === previous.modelId
+      ) continue;
       if (!matchesConstraints(provider, model, request)) continue;
       const reasons: string[] = [];
       let score = model.releasedAt / 1_000_000_000;
@@ -235,6 +282,19 @@ export class ProviderRoutePlanner {
     }
     return results.sort((left, right) => right.score - left.score || left.provider.providerId.localeCompare(right.provider.providerId) || left.model.modelId.localeCompare(right.model.modelId));
   }
+}
+
+function snapshotIntegration(snapshot: import("./contracts.ts").CatalogSnapshot, integrationId: string) {
+  const integration = snapshot.integrations.find((candidate) => candidate.integrationId === integrationId);
+  if (!integration) {
+    throw new ProviderControlPlaneError({
+      layer: "catalog",
+      kind: "provider_not_found",
+      message: `integration missing from pinned catalog revision: ${integrationId}`,
+      detail: { integrationId, catalogRevision: snapshot.revision },
+    });
+  }
+  return integration;
 }
 
 function matchesConstraints(provider: ProviderDefinition, model: ModelDefinition, request: RouteRequest): boolean {

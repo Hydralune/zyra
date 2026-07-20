@@ -144,6 +144,87 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "runtime dependency, and provider route state remains opaque to this owner."
         ),
     },
+    {
+        "owner_unit": "M1-S05D-02",
+        "source_repo": "opencode",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_path": (
+            "packages/core/src/provider/provider.ts;packages/core/src/provider/models.ts;"
+            "packages/opencode/src/session/processor.ts;packages/opencode/src/session/prompt.ts"
+        ),
+        "capability_name": "provider_route_worker_turn_binding_and_failover_dispatch",
+        "capability_summary": (
+            "Immutable provider route snapshots are acquired before worker execution, bound to one "
+            "session/turn, consumed by CodeWorker and BrowserWorker without secret-environment reads, "
+            "and changed independently from backend failover."
+        ),
+        "target_paths": [
+            "packages/runtime/provider-control-plane/src/catalog.ts",
+            "packages/runtime/provider-control-plane/src/credentials.ts",
+            "packages/runtime/provider-control-plane/src/routing.ts",
+            "packages/runtime/provider-control-plane/src/transport/runtime.ts",
+            "packages/runtime/claude-runtime/src/provider-control-plane-runtime.ts",
+            "packages/runtime/claude-runtime/src/model-stream.ts",
+            "packages/runtime/zyra_runtime/provider_control_plane/lease.py",
+            "packages/workers/zyra_workers/browser_worker.py",
+            "packages/orchestration/zyra_orchestration/task_graph.py",
+        ],
+        "source_role": "primary_implementation",
+        "migration_strategy": "direct_port",
+        "rationale": (
+            "The opencode provider/session mechanisms remain the sole primary implementation source "
+            "for provider routing. Zyra owns the catalog, credential, route, transport and worker-turn "
+            "bindings; no opencode package, process, credential store or session owner is loaded."
+        ),
+    },
+    {
+        "owner_unit": "M1-S05D-02",
+        "source_repo": "hermes-agent",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_path": "hermes_cli/runtime_provider.py",
+        "capability_name": "provider_route_resolution_lease_handoff",
+        "capability_summary": (
+            "Bounded provider/model resolution is projected into a strict route lease handoff before "
+            "backend selection, while provider custody remains in the TypeScript control plane."
+        ),
+        "target_paths": [
+            "packages/runtime/zyra_runtime/provider_control_plane/lease.py",
+            "packages/orchestration/zyra_orchestration/task_graph.py",
+        ],
+        "source_role": "supplementary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "rationale": (
+            "Only resolver precedence and normalized handoff semantics supplement the primary route "
+            "owner. Hermes execution, CLI, environment mutation and provider storage are excluded."
+        ),
+    },
+    {
+        "owner_unit": "M1-S05D-02",
+        "source_repo": "oh-my-pi",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_path": (
+            "packages/ai/src/providers/openai-completions.ts;"
+            "packages/ai/src/providers/openai-responses.ts;"
+            "packages/ai/src/providers/anthropic.ts;packages/ai/src/utils/auth-retry.ts"
+        ),
+        "capability_name": "provider_stream_supervision_and_replay_fencing",
+        "capability_summary": (
+            "Ordered stream frames, chunk/total deadlines, fragmented tool arguments, monotonic usage, "
+            "partial-output reconciliation and bounded zero-output provider fallback."
+        ),
+        "target_paths": [
+            "packages/runtime/provider-control-plane/src/stream-supervisor.ts",
+            "packages/runtime/provider-control-plane/src/model-fallback-policy.ts",
+            "packages/runtime/provider-control-plane/src/transport/protocols.ts",
+            "packages/runtime/provider-control-plane/src/transport/runtime.ts",
+        ],
+        "source_role": "supplementary_implementation",
+        "migration_strategy": "direct_port",
+        "rationale": (
+            "Only the protocol stream and bounded retry mechanics supplement the opencode primary. "
+            "The oh-my-pi agent loop, UI, provider registry and process runtime remain outside Zyra."
+        ),
+    },
 )
 
 
@@ -156,6 +237,7 @@ def ledger_id(decision: dict[str, Any]) -> str:
 
 def entry(decision: dict[str, Any]) -> dict[str, Any]:
     targets = list(decision["target_paths"])
+    owner_unit = str(decision.get("owner_unit") or OWNER_UNIT)
     return {
         "ledger_id": ledger_id(decision),
         "source_repo": decision["source_repo"],
@@ -169,7 +251,7 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
         "migration_strategy": decision["migration_strategy"],
         "main_path_status": "tested_main_path",
         "lifecycle": "productized",
-        "owner_unit": OWNER_UNIT,
+        "owner_unit": owner_unit,
         "main_path": {
             "surfaces": ["provider_control_plane", "backend_registry", "task_graph", "task_api"],
             "event_types": [
@@ -262,7 +344,7 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             f"{decision['rationale']}"
         ),
         "metadata": {
-            "owner_unit": OWNER_UNIT,
+            "owner_unit": owner_unit,
             "source_role": decision["source_role"],
             "source_commit": decision["source_commit"],
             "canonical_provider_owner": "TypeScript ProviderControlPlaneStore",
@@ -315,7 +397,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     aligned, count = synchronize(args.ledger.resolve(), write=write)
     print(f"provider_backend_source_ledger_aligned={str(aligned).lower()}")
     print(f"provider_backend_source_decision_count={count}")
-    print(f"provider_backend_owner_unit={OWNER_UNIT}")
+    owner_units = sorted({str(decision.get("owner_unit") or OWNER_UNIT) for decision in DECISIONS})
+    print(f"provider_backend_owner_units={','.join(owner_units)}")
     print(f"ledger_path={args.ledger.resolve()}")
     return 0 if aligned or not args.check else 1
 

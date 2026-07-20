@@ -18,6 +18,8 @@ from .recovery import RecoveryPlanner
 from .scheduler import ResourceScheduler
 from .watchdog import RuntimeWatchdog
 from .backend_registry import (
+    BackendControlAction,
+    BackendControlRuntime,
     BackendDefinition,
     BackendDispatchError,
     BackendDispatchOutcome,
@@ -29,12 +31,17 @@ from .backend_registry import (
     BackendRecoveryIntent,
     BackendRegistry,
     BackendRegistryStore,
+    WorkerDispatchRouter,
+    backend_registry_path,
+    cancel_pending_dispatches,
     dispatch_worker_callable,
     event_record_from_backend,
 )
 
 __all__ = [
     "DispatchEnvelope",
+    "BackendControlAction",
+    "BackendControlRuntime",
     "BackendDefinition",
     "BackendDispatchError",
     "BackendDispatchOutcome",
@@ -46,6 +53,8 @@ __all__ = [
     "BackendRecoveryIntent",
     "BackendRegistry",
     "BackendRegistryStore",
+    "WorkerDispatchRouter",
+    "backend_registry_path",
     "FailureKind",
     "FailureSignal",
     "M5_SOURCE_TO_TARGET_LEDGER",
@@ -64,6 +73,7 @@ __all__ = [
     "WorkerManifest",
     "WorkerPool",
     "build_dispatch_envelope",
+    "cancel_pending_dispatches",
     "default_worker_manifests",
     "dispatch_worker_callable",
     "event_record_from_backend",

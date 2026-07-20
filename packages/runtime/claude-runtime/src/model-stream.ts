@@ -8,6 +8,10 @@ import {
   type ToolSpecContract,
   type ToolStep,
 } from "./contracts.ts";
+import {
+  providerControlPlaneRequired,
+  resolveProviderControlPlaneTurns,
+} from "./provider-control-plane-runtime.ts";
 
 type EmitRuntimeEvent = (phase: string, payload?: JsonObject) => Promise<void>;
 
@@ -232,6 +236,18 @@ export async function resolveModelTurns(
         retryCount: 0,
       }),
     };
+  }
+
+  if (providerControlPlaneRequired(config)) {
+    return resolveProviderControlPlaneTurns(
+      input,
+      config,
+      tools,
+      emit,
+      requestEpoch,
+      requestRound,
+      overrideMessages,
+    );
   }
 
   const baseUrl = asString(constraints.model_api_base_url).trim();

@@ -24,6 +24,8 @@ import { ProviderControlPlaneError, asProviderError } from "../errors.ts";
 import { classifyProviderResponse, classifyTransportException } from "../quirks/error-classifier.ts";
 import { ProviderControlPlaneStore } from "../store.ts";
 import { ProviderRoutePlanner, routeUrl } from "../routing.ts";
+import { ModelFallbackPolicy } from "../model-fallback-policy.ts";
+import { ProviderStreamSupervisor, type ProviderStreamCompletion } from "../stream-supervisor.ts";
 import { decodeProviderEvent, encodeProviderBody, protocolHeaders, ProtocolFrameState } from "./protocols.ts";
 import { readSse } from "./sse.ts";
 
@@ -42,6 +44,7 @@ export class ProviderTransportRuntime {
   private readonly store: ProviderControlPlaneStore;
   private readonly routes: ProviderRoutePlanner;
   private readonly credentials: CredentialManager;
+  private readonly fallback: ModelFallbackPolicy;
 
   constructor(
     store: ProviderControlPlaneStore,
@@ -57,6 +60,7 @@ export class ProviderTransportRuntime {
     this.clock = options.clock ?? new SystemClock();
     this.ids = options.ids ?? new RandomIdFactory();
     this.userAgent = options.userAgent ?? "Zyra-ProviderControlPlane/1";
+    this.fallback = new ModelFallbackPolicy();
   }
 
   async dispatch(request: ProviderDispatchRequest, signal?: AbortSignal): Promise<ProviderDispatchResult> {
@@ -70,19 +74,19 @@ export class ProviderTransportRuntime {
       let result: ProviderDispatchResult | null = null;
       try {
         result = await this.dispatchOnce(request, lease, attemptNumber, allAttempts, signal);
-        this.credentials.recordSuccess(lease.credentialId, lease.credentialVersion);
+        this.credentials.recordSuccessIfCurrent(lease.credentialId, lease.credentialVersion);
         return { ...result, attempts: deepClone(allAttempts) };
       } catch (error) {
         lastError = asProviderError(error);
         if (lastError.credentialId === lease.credentialId && lastError.kind !== "credential_version_conflict") {
           try { this.credentials.recordFailure(lease.credentialId, lease.credentialVersion, lastError.kind); } catch { /* preserve transport error */ }
         }
-        if (!shouldRetry(lastError, lease, attemptNumber)) throw lastError;
-        if (shouldChangeRoute(lastError, lease)) {
+        const decision = this.fallback.decide(lastError, lease, attemptNumber, allAttempts);
+        if (!decision.retry) throw lastError;
+        if (decision.changeRoute) {
           lease = this.routes.failover(lease.routeId, lastError.kind);
         }
-        const delay = retryDelay(lease, attemptNumber, lastError.retryAfterMilliseconds);
-        await sleep(delay, signal);
+        await sleep(decision.delayMilliseconds, signal);
       }
     }
     throw lastError ?? new ProviderControlPlaneError({
@@ -137,6 +141,12 @@ export class ProviderTransportRuntime {
       this.ids,
       () => this.clock.now(),
     );
+    const streamSupervisor = new ProviderStreamSupervisor(
+      { ...request, routeId: lease.routeId },
+      lease,
+      { now: () => this.clock.now() },
+    );
+    let streamCompletion: ProviderStreamCompletion | null = null;
     const frames = [];
     const controller = new AbortController();
     const timeout = setTimeout(
@@ -147,7 +157,12 @@ export class ProviderTransportRuntime {
     try {
       // Credential validity is checked before fetch. Revoked, expired, blocked,
       // unresolved, or version-conflicted records therefore send zero bytes.
-      const resolved = await this.credentials.resolvePinned(lease.credentialId, lease.credentialVersion, combinedSignal);
+      const resolved = await this.credentials.resolveRoutePinned(
+        lease.routeId,
+        lease.credentialId,
+        lease.credentialVersion,
+        combinedSignal,
+      );
       const headers = normalizeHeaders({
         ...lease.requestHeaders,
         ...protocolHeaders(lease),
@@ -156,6 +171,7 @@ export class ProviderTransportRuntime {
         "user-agent": this.userAgent,
         "idempotency-key": request.idempotencyKey,
       });
+      assertRouteEndpointAllowed(lease);
       bytesSent = preparedRequestBytes;
       attempt = { ...attempt, requestBytes: bytesSent };
       replaceAttempt(attempts, attempt);
@@ -165,7 +181,25 @@ export class ProviderTransportRuntime {
         headers,
         body,
         signal: combinedSignal,
+        redirect: "manual",
       });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location") ?? "";
+        throw new ProviderControlPlaneError({
+          layer: "transport",
+          kind: "response_protocol_error",
+          message: "provider redirect rejected by route host policy",
+          retryable: false,
+          recoveryIntent: "surface_to_operator",
+          httpStatus: response.status,
+          providerId: lease.providerId,
+          modelId: lease.modelId,
+          routeId: lease.routeId,
+          credentialId: lease.credentialId,
+          bytesSent,
+          detail: { location: redactLocation(location) },
+        });
+      }
       const contentType = response.headers.get("content-type") ?? "";
       if (!response.ok) {
         const errorBody = await response.text();
@@ -187,6 +221,7 @@ export class ProviderTransportRuntime {
         const text = await response.text();
         responseBytes = Buffer.byteLength(text);
         const decodedFrames = decodeProviderEvent(lease, text, "response.completed", frameState);
+        streamSupervisor.observe(decodedFrames);
         frames.push(...decodedFrames);
       } else {
         for await (const event of readSse(response, {
@@ -194,9 +229,14 @@ export class ProviderTransportRuntime {
           signal: combinedSignal,
         })) {
           responseBytes += Buffer.byteLength(event.data);
-          frames.push(...decodeProviderEvent(lease, event.data, event.event, frameState));
+          const decodedFrames = decodeProviderEvent(lease, event.data, event.event, frameState);
+          streamSupervisor.observe(decodedFrames);
+          frames.push(...decodedFrames);
         }
       }
+      streamCompletion = streamSupervisor.complete({
+        requireTerminalFrame: contentType.toLowerCase().includes("text/event-stream"),
+      });
       attempt = {
         ...attempt,
         completedAt: this.clock.now(),
@@ -205,7 +245,14 @@ export class ProviderTransportRuntime {
         outputObserved: frameState.outputObserved,
         outcome: "succeeded",
         responseDigest: digestText(frames.map((frame) => `${frame.sequence}:${frame.kind}:${frame.text ?? ""}`).join("\n")),
-        metadata: { ...attempt.metadata, requestHeaders: redactHeaders(headers) },
+        metadata: {
+          ...attempt.metadata,
+          requestHeaders: redactHeaders(headers),
+          streamEvidenceDigest: streamCompletion.snapshot.evidenceDigest,
+          streamFrameCount: streamCompletion.snapshot.frameCount,
+          streamToolCallCount: streamCompletion.snapshot.toolCalls.length,
+          streamReplaySafe: streamCompletion.replaySafe,
+        },
       };
       replaceAttempt(attempts, attempt);
       this.store.putAttempt(attempt);
@@ -226,6 +273,8 @@ export class ProviderTransportRuntime {
           credentialVersion: lease.credentialVersion,
           requestBytes: bytesSent,
           responseBytes,
+          streamEvidenceDigest: streamCompletion.snapshot.evidenceDigest,
+          streamReplaySafe: streamCompletion.replaySafe,
         },
       };
     } catch (error) {
@@ -238,18 +287,25 @@ export class ProviderTransportRuntime {
             credentialId: lease.credentialId,
             bytesSent,
             bytesReceived: responseBytes,
-            outputObserved: frameState.outputObserved,
+            outputObserved: frameState.outputObserved || streamSupervisor.outputObserved,
           });
       attempt = {
         ...attempt,
         completedAt: this.clock.now(),
         httpStatus: classified.httpStatus,
         responseBytes: classified.bytesReceived || responseBytes,
-        outputObserved: classified.outputObserved || frameState.outputObserved,
+        outputObserved: classified.outputObserved || frameState.outputObserved || streamSupervisor.outputObserved,
         outcome: classified.kind === "request_aborted" ? "aborted" : "failed",
         failureKind: classified.kind,
         recoveryIntent: classified.recoveryIntent,
         retryAfterMilliseconds: classified.retryAfterMilliseconds,
+        metadata: {
+          ...attempt.metadata,
+          streamEvidenceDigest: streamSupervisor.snapshot().evidenceDigest,
+          streamFrameCount: streamSupervisor.snapshot().frameCount,
+          streamReplaySafe: streamSupervisor.replaySafe,
+          streamRecoveryAction: streamSupervisor.recoveryFor(classified),
+        },
       };
       replaceAttempt(attempts, attempt);
       this.store.putAttempt(attempt);
@@ -298,23 +354,37 @@ function assertDispatchIdentity(request: ProviderDispatchRequest, lease: Provide
   }
 }
 
-function shouldRetry(error: ProviderControlPlaneError, lease: ProviderRouteLease, attempt: number): boolean {
-  if (!error.retryable || error.outputObserved || attempt >= lease.retryPolicy.maximumAttempts) return false;
-  if (error.kind === "authentication_failed" || error.kind === "usage_limited") return lease.retryPolicy.rotateCredentialOnAuthenticationFailure;
-  return error.httpStatus === null || lease.retryPolicy.retryStatuses.includes(error.httpStatus);
+function assertRouteEndpointAllowed(lease: ProviderRouteLease): void {
+  const target = new URL(routeUrl(lease));
+  const allowed = new Set(lease.allowedHosts.map((host) => host.toLowerCase()));
+  const base = new URL(lease.baseUrl);
+  allowed.add(base.hostname.toLowerCase());
+  if (!allowed.has(target.hostname.toLowerCase())) {
+    throw new ProviderControlPlaneError({
+      layer: "transport",
+      kind: "route_policy_rejected",
+      message: "provider endpoint host is outside the pinned allowlist",
+      providerId: lease.providerId,
+      modelId: lease.modelId,
+      routeId: lease.routeId,
+      credentialId: lease.credentialId,
+      detail: { host: target.hostname, allowedHosts: [...allowed].sort() },
+    });
+  }
 }
 
-function shouldChangeRoute(error: ProviderControlPlaneError, lease: ProviderRouteLease): boolean {
-  if (error.kind === "authentication_failed" || error.kind === "usage_limited") return lease.retryPolicy.rotateCredentialOnAuthenticationFailure;
-  return ["provider_unavailable", "provider_timeout", "stream_timeout"].includes(error.kind) && lease.retryPolicy.rotateRouteOnProviderUnavailable;
-}
-
-function retryDelay(lease: ProviderRouteLease, attempt: number, retryAfter: number | null): number {
-  if (retryAfter !== null) return Math.min(retryAfter, lease.retryPolicy.maximumDelayMilliseconds);
-  return Math.min(
-    lease.retryPolicy.maximumDelayMilliseconds,
-    lease.retryPolicy.baseDelayMilliseconds * 2 ** Math.max(0, attempt - 1),
-  );
+function redactLocation(value: string): string {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "[invalid redirect location]";
+  }
 }
 
 function replaceAttempt(attempts: ProviderDispatchAttempt[], attempt: ProviderDispatchAttempt): void {
