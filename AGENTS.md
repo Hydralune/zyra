@@ -6,7 +6,7 @@
 
 - 第一阶段目标是完整集成版系统，不是最小演示或概念验证。
 - 系统应覆盖赛题要求：超长程上下文连续性、动态异构拓扑、低熵通信、神经符号协同推理、端-边-云资源调度、动态异常/需求变更/节点失效注入、可视化中间决策与推理轨迹。
-- 第二阶段再围绕赛题评分点做定向重写、优化、鲁棒性增强和前端完善。
+- 第二阶段再围绕赛题评分点做定向优化、鲁棒性增强、前端完善，以及确有必要且范围有界的重写；不得借“第二阶段重写”推翻第一阶段已经裁决的原语言 primary、canonical owner 或 runtime custody。
 
 ## 赛题退出门禁
 
@@ -55,6 +55,7 @@
 ## 代码复用约定
 
 - 本项目建议优先复用、代码级迁移、裁剪改造或封装接入 `../claude-code-best`、`../browser-use`、`../langgraph`、`../agentscope`、`../OpenHands`、`../openclaw`、`../hermes-agent`、`../agent-framework`、`../opencode` 中成熟的代码、模块和架构。主来源仓库不是“仅供参考”的资料库；默认应先判断哪些源码可以进入 Zyra 正式模块。
+- 默认工作方式是优先保留原语言直接复用、裁剪迁移、同语言模块融合或大模块接入，而不是从零重写或统一改成 Python。`Zyra-owned` 表示源码、构建、入口、状态、事件、权限、错误处理、测试和维护责任进入 Zyra 正式边界，不表示必须使用 Python；primary/supplementary 的成熟关键控制流应按 source-role 裁决保留，跨语言实现只能用于有界适配或符合例外门禁的明确缺口。
 - 不要替用户做“是否复用代码”的保守决策；默认先评估直接复用、大模块接入或 adapter 封装，再判断是否需要重写。
 - 只有在接口冲突、运行环境不适配、耦合成本过高、维护成本明显高于重写，或与赛题目标明显不匹配时，才应选择重写；选择重写时需要说明原因。
 - 代码级复用和大模块级接入都应作为优先选项；接入时应说明来源、用途、边界和替换方式。
@@ -77,13 +78,13 @@
 - 如果某项能力的主要实现仍保持上游仓库原始目录结构，并通过单一 adapter/sidecar 作为黑箱调用，则不得计为深度内化；只能计为 vendored dependency、source pool 或 reference runtime。无论目录名是 `vendor`、`vendor-runtimes`、`third_party`、`runtime-sources`、`productized` 或其它名字，原样源码池、inventory、manifest、source map、seed、JSON/YAML/CSV、文档和只扫描源码得到的 contract 都不得计入有效新增代码。
 - 真正的内化必须同时满足结构内化、语义内化、裁剪内化、改造内化和维护内化：上游机制要被拆入 `zyra/packages`、`zyra/apps`、`zyra/skills`、`zyra/scripts` 等 Zyra 模块边界，转化为 Zyra schema、event log、artifact、permission、memory、scheduler、recovery、control command、API 或 UI 的一等能力，而不是保留为上游目录形状的黑箱。
 - “能被调用”不是充分条件。即使 vendored runtime 能启动、能被 adapter 调用、能通过 smoke test，只要主要实现仍是上游原样目录加薄封装，就不能把其物理行数计为深度内化；最多只能把 Zyra 侧 adapter、port、schema 转换、错误处理、状态接入、观测接入和行为测试计入有效实现。
-- 每个执行单元自审必须回答：外部成熟机制被拆成了哪些 Zyra 模块；哪些上游代码被裁剪或重写；哪些 Zyra 数据结构、事件、权限、状态、错误处理和测试边界承担了该能力；如果删除或断开对应 Zyra 模块，哪条真实行为测试会失败。只能证明文件存在、源码被扫描、manifest 可读或 sidecar 返回固定 contract 的，不算内化。
+- 每个执行单元自审必须回答：外部成熟机制被拆成了哪些 Zyra 模块；哪些上游代码被原语言裁剪、同语言改造，或在符合例外门禁时进行有界跨语言实现；哪些 Zyra 数据结构、事件、权限、状态、错误处理和测试边界承担了该能力；如果删除或断开对应 Zyra 模块，哪条真实行为测试会失败。只能证明文件存在、源码被扫描、manifest 可读或 sidecar 返回固定 contract 的，不算内化。
 
 ## 反伪内化对抗验收
 
-- 目录位置不能证明内化。把上游整仓、上游主要目录或保持上游模块边界的源码改名放入 `packages/**`、`apps/**`、`runtime/**`、`productized/**`、`third_party/**`、`runtime-sources/**`、`source-pool/**` 等任何目录，只要仍保留上游目录结构、入口、依赖图、状态模型或核心控制流，就只能计为 migration pool/source pool/reference runtime，不得计为深度内化有效代码。
+- 目录位置不能证明内化。把上游整仓、上游主要目录或保持上游模块边界的源码仅改名放入 `packages/**`、`apps/**`、`runtime/**`、`productized/**`、`third_party/**`、`runtime-sources/**`、`source-pool/**` 等任何目录，并且仍由上游原入口、原状态 owner、原依赖图和未裁剪的整体实现承担运行责任时，只能计为 migration pool/source pool/reference runtime，不得计为深度内化有效代码。保留 primary 来源中已经成熟的关键控制流本身不是伪内化；来源源码按原语言裁剪进入 Zyra 正式模块，并由 Zyra 接管构建、入口、状态/事件/权限映射、错误处理、测试和维护责任后，保留该控制流属于有效内化。
 - 多个薄 adapter 不能拆散黑箱。多个 adapter、manager、service、bridge、gateway、panel 或 API route 如果最终都委托同一个上游 CLI、sidecar、Docker 镜像、npm/pip package、外部进程或原样 runtime 执行核心决策，应整体视为一个黑箱依赖；只有 Zyra 侧协议转换、状态接管、错误处理、事件写入、权限裁决、预算控制、测试和主路径接入代码可以计入有效实现。
-- 机械改写不是内化。批量改名、改 import、格式化、语言转换、生成式 port、bundle/minify、wheel/tarball 打包、把 JSON/YAML 伪装成 `.py`/`.ts` 常量、把上游示例或品牌 UI 搬入正式目录，都不能证明内化；只要语义边界和运行责任没有被 Zyra 接管，应按原样迁移池或生成物排除。
+- 机械改写不是内化。批量改名、改 import、格式化、未经 source-role 裁决且未接管语义边界的跨语言机械转写、生成式 port、bundle/minify、wheel/tarball 打包、把 JSON/YAML 伪装成 `.py`/`.ts` 常量、把上游示例或品牌 UI 搬入正式目录，都不能证明内化；只要语义边界和运行责任没有被 Zyra 接管，应按原样迁移池或生成物排除。
 - 必须具备干净目录可复现性。每个 slice 先对当前 diff 做增量依赖/路径检查；完整 cleanroom 默认在同一数字阶段聚合审查（例如 M1-04A 到 04D）、里程碑退出或高风险 slice 中执行。任何已经确认依赖根目录来源仓库、npm link、pip editable path、外部 Docker build context、缓存或残留状态的能力，不能因尚未到聚合审查而判定完成。
 - 必须做动态可达性验证。声称内化的模块必须能从真实任务流、API route、CLI command、worker runtime、event type、artifact kind、control command 或 UI panel 触发；只被 import smoke、ledger 查询、source map、health 固定返回、示例脚本或 fixture replay 触发的代码，不得计入主路径内化。
 - 必须做断开即失败验证。对每个声称完成的核心能力，应有测试或审计说明证明：禁用、删除或断开对应 Zyra 模块后，相关真实行为会失败或明显改变。只证明禁用 vendor/sidecar 后失败，不能证明 Zyra 已经完成深度内化。
@@ -93,7 +94,7 @@
 
 ## 运行责任与验证分层
 
-- M1/M2 当前执行单元必须把第二轮对抗发现的问题作为红线自证，而不是等到 M3 才判断：默认主路径必须使用新能力；新增 `pip/npm` 依赖、MCP server、插件、子进程、本地端口服务、Docker 镜像、动态 import 不能承担核心决策；session、permission、memory、scheduler、recovery、artifact 等状态必须说明由哪个 Zyra schema/store 持久化和恢复；event log/trace 必须能追溯到真实 span、tool call、artifact、worker route 或 state mutation；核心测试不得依赖 `.cache`、SQLite、artifact 残留、构建产物或预录轨迹；LLM 只能参与建议、分类和解释，不能替代 permission、scheduler、fault recovery、compact restore 的 Zyra-owned 约束、状态机或可审计规则；fallback 不能掩盖被验收模块失效。
+- M1/M2 当前执行单元必须把第二轮对抗发现的问题作为红线自证，而不是等到 M3 才判断：默认主路径必须使用新能力；正式迁入 Zyra 源码、构建、锁定依赖、状态/事件/权限和行为测试边界的 Python、TypeScript/Bun/Node、Rust/native package 或 runtime 可以承担经 source-role 裁决的核心实现，只有未迁入源码、不可审计的上游 package、CLI、服务、进程或镜像独占核心决策时才按黑箱失败；session、permission、memory、scheduler、recovery、artifact 等状态必须说明由哪个 Zyra schema/store 持久化和恢复；event log/trace 必须能追溯到真实 span、tool call、artifact、worker route 或 state mutation；核心测试不得依赖 `.cache`、SQLite、artifact 残留、构建产物或预录轨迹；LLM 只能参与建议、分类和解释，不能替代 permission、scheduler、fault recovery、compact restore 的 Zyra-owned 约束、状态机或可审计规则；fallback 不能掩盖被验收模块失效。
 - 上述红线在 M1/M2 中主要通过自审、针对性测试和证据说明落实；不要求每个执行单元都实现完整自动化审计系统。但只要当前单元已经违反这些红线，就不得以“后续 M3 工具化”作为通过理由。
 - M3 负责把这些红线工具化和收束：依赖/进程审计、默认配置主路径 trace、干净缓存/干净目录场景、state custody map、event 因果校验、有效行数分桶报告、opaque bundle/binary 检查、source similarity 或 semantic port 风险提示，都应在 M3 source map、测试评测、打包健康检查和冻结报告中落地。
 - 第二阶段再强化为 CI 级质量门禁：更严格的 AST/call graph 相似度审查、mutation/disable 测试、长期依赖治理、鲁棒性矩阵、安全边界和性能回归。第二阶段强化不能替代第一阶段对明显伪内化的即时失败判定。
@@ -126,7 +127,7 @@
 - 例外：`M1-01A` 和 `M1-01B` 用户已明确不要拆分。后续不得回头把这两个文档拆成 slice；如复审发现问题，应在原单元文档、`docs/plans/M1-01A-ledger-schema-audit.md` 或 `docs/plans/M1-01B-extraction-runtime-scaffold.md` 中回补记录、代码和验证。
 - 当前 `M1-01B` 的 `vendor-runtimes/claude-code-runtime/pilot` 只能视为 source-pool 证据，`required_for_main_path=false`，不得计入有效内化代码。`M1-02A` 以后必须继续把 QueryEngine/tool loop/session lifecycle 等主体迁入正式 Zyra 模块，不能把该 pilot 当作产品化 runtime。
 - 代码行数下限是失败线，不是完成线。即使超过目标行数，只要执行单元目标、详细任务、主路径接入、验证或批判式审查没有完成，仍然视为失败。
-- 低于执行单元行数下限默认失败，除非能给出非常强的工程理由，例如目标上游模块已经完整内化、裁剪、重构并强化，再增加只会制造废代码。
+- 低于执行单元行数下限默认失败，除非能给出非常强的工程理由，例如目标上游模块已经按原语言完整迁移、裁剪、产品化并强化；确需重写的部分也已通过 source-role 与例外门禁，再增加只会制造废代码。
 - 文档、注释、mock、死代码、未接入 vendor 堆放、无关上游外壳、原样 vendor/source pool 不得计入有效新增代码。
 - 大型 seed、索引、清单、source-to-target 账本记录、JSON/YAML/CSV 数据文件、生成型 inventory、manifest、source map 或原样 vendor/source pool 不能计入“有效新增代码”来证明重型内化；只能单独报告为数据规模、账本覆盖规模或依赖规模。可计入的只限真正让这些数据或依赖参与运行时加载、审计、更新、API/CLI 查询、event log 或测试验证的 Zyra 实现代码。
 - Markdown skill body、prompt template、frontmatter、metadata 和资源索引归入 `runtime-assets` 桶，不计 production 源码最低线；loader/parser/policy/invocation/versioning/restore/event 实现按源码审查。
