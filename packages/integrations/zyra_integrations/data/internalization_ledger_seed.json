@@ -174215,10 +174215,13 @@
           "/memory"
         ],
         "event_types": [
-          "index.job.enqueued",
-          "index.job.leased",
-          "index.job.stale",
-          "index.generation.published"
+          "index.queued",
+          "index.leased",
+          "index.building",
+          "index.stale",
+          "index.requeued",
+          "index.publishing",
+          "index.ready"
         ],
         "surfaces": [
           "memory_fabric",
@@ -174360,10 +174363,13 @@
           "/memory"
         ],
         "event_types": [
-          "index.job.enqueued",
-          "index.job.leased",
-          "index.job.stale",
-          "index.generation.published"
+          "index.queued",
+          "index.leased",
+          "index.building",
+          "index.stale",
+          "index.requeued",
+          "index.publishing",
+          "index.ready"
         ],
         "surfaces": [
           "memory_fabric",

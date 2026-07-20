@@ -135,10 +135,13 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
                 "workspace_patch_invalidation",
             ],
             "event_types": [
-                "index.job.enqueued",
-                "index.job.leased",
-                "index.job.stale",
-                "index.generation.published",
+                "index.queued",
+                "index.leased",
+                "index.building",
+                "index.stale",
+                "index.requeued",
+                "index.publishing",
+                "index.ready",
             ],
             "api_routes": [
                 "GET /tasks/{task_id}/memory",
