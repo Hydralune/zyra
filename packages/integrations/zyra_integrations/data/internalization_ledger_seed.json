@@ -173348,6 +173348,13 @@
       "capability_name": "provider_catalog_integration_credential_control_plane",
       "capability_summary": "Versioned provider/model catalog, explicit provider integration records, secret-reference credential lifecycle, route resolution, transport selection and read-only V1 compatibility.",
       "ledger_id": "ledger_bacf20416a2c50b6",
+      "license_notice": {
+        "license_hint": "MIT direct-port source; the Responses wire contract also records its openai-node Apache-2.0 derivation.",
+        "notes": "Source and revision are recorded; Zyra owns the modified package and has no runtime dependency on the parent repository.",
+        "notice_path": "packages/runtime/provider-control-plane/THIRD_PARTY_NOTICES.md",
+        "source_repo": "opencode",
+        "status": "recorded"
+      },
       "lifecycle": "productized",
       "line_count_policy": "counts_as_runtime",
       "main_path": {
@@ -173474,6 +173481,7 @@
       "capability_name": "provider_environment_resolution_precedence",
       "capability_summary": "Deterministic environment/config resolution precedence and provider normalization without moving catalog, credential or route ownership out of the TypeScript control plane.",
       "ledger_id": "ledger_e412b510ed1730a9",
+      "license_notice": null,
       "lifecycle": "productized",
       "line_count_policy": "counts_as_runtime",
       "main_path": {
@@ -173570,6 +173578,13 @@
       "capability_name": "provider_protocol_wire_stream_and_auth_retry",
       "capability_summary": "Typed OpenAI Chat, OpenAI Responses and Anthropic Messages wire contracts, incremental SSE decoding, structured provider error classification and credential-scoped auth retry.",
       "ledger_id": "ledger_576ce66983125d3d",
+      "license_notice": {
+        "license_hint": "MIT direct-port source; the Responses wire contract also records its openai-node Apache-2.0 derivation.",
+        "notes": "Source and revision are recorded; Zyra owns the modified package and has no runtime dependency on the parent repository.",
+        "notice_path": "packages/runtime/provider-control-plane/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
       "lifecycle": "productized",
       "line_count_policy": "counts_as_runtime",
       "main_path": {
@@ -173696,6 +173711,7 @@
       "capability_name": "backend_lifecycle_health_dispatch_failover",
       "capability_summary": "Explicit local, container, edge and cloud backend definitions, readiness state, immutable dispatch leases, actual worker invocation, timeout reconciliation and backend-only failover.",
       "ledger_id": "ledger_2e356aa94bafe631",
+      "license_notice": null,
       "lifecycle": "productized",
       "line_count_policy": "counts_as_runtime",
       "main_path": {

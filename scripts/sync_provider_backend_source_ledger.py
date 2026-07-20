@@ -194,6 +194,23 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             "ui_panels": [],
         },
         "line_count_policy": "counts_as_runtime",
+        "license_notice": (
+            {
+                "source_repo": decision["source_repo"],
+                "status": "recorded",
+                "license_hint": (
+                    "MIT direct-port source; the Responses wire contract also records its "
+                    "openai-node Apache-2.0 derivation."
+                ),
+                "notice_path": "packages/runtime/provider-control-plane/THIRD_PARTY_NOTICES.md",
+                "notes": (
+                    "Source and revision are recorded; Zyra owns the modified package and has no "
+                    "runtime dependency on the parent repository."
+                ),
+            }
+            if decision["migration_strategy"] == "direct_port"
+            else None
+        ),
         "runtime_entry": {
             "module": (
                 "@zyra/provider-control-plane"
