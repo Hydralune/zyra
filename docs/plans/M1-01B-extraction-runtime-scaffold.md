@@ -8,7 +8,7 @@ Baseline for this unit: `ad985a0e563bf8dc8f5529ebb96c0668b34da362`.
 
 ## Subagents Used
 
-The unit was started with the three required `gpt-5.5 xhigh` subagents:
+The unit was started with the three required `gpt-5.6-sol xhigh` subagents:
 
 - `extraction-rule-designer`: selected the safe Claude Code pilot scope and exclude rules.
 - `runtime-scaffold-designer`: reviewed the session/tool/permission/MCP/skill/subagent/worker bridge contracts.
