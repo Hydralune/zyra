@@ -1,0 +1,175 @@
+{
+  "review_id": "M1-S06A-01-retrieval-index-adapters-foundation",
+  "slice": "M1-S06A-01",
+  "date": "2026-07-20",
+  "measurement_baseline_commit": "733f9a7d05530c241e3dba3b765be6033ba54769",
+  "implementation_commits": [
+    "8441ee94493ad34c601499f15f9b8f9a953fa587",
+    "55e73117db4029af94b3e6ae34c2a7b3c4f8756c",
+    "fd861890284bc707a69bfe0b40850d972f684aa7",
+    "b1086e064731ee87baa030e3d3de30405acc6972"
+  ],
+  "final_implementation_commit": "b1086e064731ee87baa030e3d3de30405acc6972",
+  "verdict": "PASS",
+  "parent_status": "M1-06A_IN_PROGRESS",
+  "next_slice": "M1-S06A-02",
+  "blocking_findings_after_fix": 0,
+  "canonical_owners": {
+    "memory_records_revisions": "SQLiteStore and MemoryRecordStore",
+    "retrieval_derived_state_jobs_leases_publication": "RetrievalIndexStore, IndexJobRuntime and IndexWorker",
+    "memory_query_path": "MemoryFabric through MemoryIndexRuntime",
+    "workspace_identity_files_patch_transactions": "WorkspaceManagerRuntime and WorkspaceFileRevision/transaction records",
+    "code_derived_state": "CodeIndexRuntime and CodeIndexStore",
+    "events_artifacts": "existing event-log and artifact owners",
+    "vector_and_lsp": "explicitly injected non-owner adapters"
+  },
+  "index_invariants": {
+    "canonical_memory_moved": false,
+    "canonical_workspace_moved": false,
+    "derived_state_rebuildable": true,
+    "generation_token_owner_expiry_checked": true,
+    "staging_before_publication": true,
+    "atomic_active_pointer": true,
+    "late_worker_publish_allowed": false,
+    "event_payload_paths_trusted": false,
+    "raw_query_persisted": false,
+    "vector_auto_download_or_network": false,
+    "lsp_auto_install_or_process_start": false
+  },
+  "source_roles": {
+    "agentscope": {
+      "role": "primary_implementation",
+      "commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+      "migration": "reimplemented_pattern",
+      "canonical_owner": false
+    },
+    "oh-my-pi": {
+      "role": "supplementary_implementation",
+      "commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "migration": "reimplemented_pattern",
+      "bounded_mechanisms": "MMR, query intent, temporal parsing, deterministic fusion and vector diagnostics",
+      "canonical_owner": false
+    },
+    "langgraph": {
+      "role": "conformance_only",
+      "production_migration_quota": false,
+      "canonical_owner": false
+    },
+    "hermes-agent": {
+      "role": "reference_only",
+      "production_migration_quota": false,
+      "canonical_owner": false
+    },
+    "opencode_and_claude_derived": {
+      "role": "reference_only",
+      "production_migration_quota": false,
+      "canonical_owner": false
+    },
+    "openclaw": {
+      "role": "excluded_forward_only",
+      "source_read": false,
+      "ledger_entry": false,
+      "production_migration_quota": false,
+      "runtime_dependency": false
+    }
+  },
+  "ledger_readiness": {
+    "owner_unit": "M1-S06A-01",
+    "entries": 2,
+    "connected": 2,
+    "blocked": 0,
+    "ready_for_productization": 2,
+    "missing_targets": 0,
+    "missing_runtime": 0,
+    "missing_tests": 0,
+    "policy_errors": 0,
+    "policy_warnings": 0,
+    "policy_blockers": 0,
+    "ok": true,
+    "global_legacy_audit_clean": false,
+    "global_legacy_audit_note": "protected earlier-unit target-path debt and obsolete global source-set assumptions remain outside the owner filter"
+  },
+  "line_buckets": {
+    "memory_runtime_effective": 4619,
+    "memory_runtime_raw": 5040,
+    "code_index_runtime_effective": 3890,
+    "code_index_runtime_raw": 4225,
+    "api_integration_effective": 129,
+    "api_integration_raw": 137,
+    "conservative_counted_production": 8638,
+    "raw_production_additions": 9402,
+    "slice_minimum": 8500,
+    "slice_shortfall": 0,
+    "tests_effective_excluded": 847,
+    "tests_raw_excluded": 949,
+    "ledger_sync_script_raw_excluded": 282,
+    "ledger_data_added_excluded": 299,
+    "package_exports_added_excluded": 189,
+    "docs_notices_added_excluded": 25,
+    "generated_data_mock_fixture_vendor_source_pool_counted": 0
+  },
+  "verification": [
+    {
+      "suite": "retrieval_code_index_api_and_memory_fabric_targeted",
+      "result": "14 passed, 8 subtests passed in 16.09s"
+    },
+    {
+      "suite": "python_compileall_memory_code_index_api",
+      "result": "passed"
+    },
+    {
+      "suite": "retrieval_index_source_ledger_sync",
+      "result": "aligned=true, decisions=2"
+    },
+    {
+      "suite": "owner_filtered_ledger_readiness",
+      "result": "2 connected, 0 blocked, ok=true"
+    },
+    {
+      "suite": "owner_filtered_policy_matrix",
+      "result": "0 errors, 0 warnings, 0 blockers, ok=true"
+    },
+    {
+      "suite": "git_diff_check",
+      "result": "passed"
+    }
+  ],
+  "behavior_coverage": [
+    "safe FTS5 exact-token and hostile-query handling",
+    "pre-limit scope/kind/time/privacy/confidence filters",
+    "deterministic concurrent RRF/MMR retrieval and output budgets",
+    "explicit vector-unavailable diagnostics and injected vector path",
+    "privacy-minimized query receipts",
+    "real worker process kill, lease expiry, stale/requeue takeover and old-lease fencing",
+    "restart retrieval and persisted audit trail",
+    "workspace-safe discovery, ignore policy and bounded content search",
+    "Python AST and TypeScript structural symbol queries",
+    "runtime-reachable injected LSP and adversarial outside-workspace URI fallback",
+    "canonical patch transaction dereference and idempotent invalidation",
+    "real memory and code-index HTTP paths and code-index disable effect"
+  ],
+  "submission_boundary": {
+    "new_vendor_or_source_pool_additions": 0,
+    "added_openclaw_hits": 0,
+    "added_parent_source_runtime_path_hits": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "external_upstream_runtime_owner": false,
+    "preexisting_user_agents_change_touched": false
+  },
+  "risk_trigger": {
+    "triggered": false,
+    "reason": "implementation stays within the newly assigned derived-index owners and adds no external dependency, default subprocess/server/port, owner transfer or incompatible persistence migration",
+    "verification_level": "focused real behavior plus adjacent MemoryFabric/API regression; numeric-stage aggregate retains cleanroom and broad regression",
+    "canonical_owner_transfer": false
+  },
+  "environment_notes": {
+    "pytest_cache_warning": "Windows sandbox denied .pytest_cache creation; test behavior and temporary databases were unaffected"
+  },
+  "unclaimed": [
+    "embedding provider or model ownership",
+    "language-server install/start lifecycle",
+    "M1-S06A-02 and M1-06A parent completion",
+    "M1-06 numeric-stage aggregate cleanroom",
+    "milestone exit and competition live-scenario gates"
+  ]
+}
