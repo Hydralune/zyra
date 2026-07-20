@@ -103,6 +103,6 @@ ASK terminal ACK lost red probe 在修复前稳定得到：durable WorkerResult 
 - 最终 target `b77a644` exact-target cleanroom：未执行；用户明确停止重复 Bun clean install。本轮只保留 `23e9f70` fresh Python install 成功事实。
 - 独立复审：未执行；本记录由修复实施者生成。
 - `execution-state.yaml`：未修改。
-- 临时 detached cleanroom worktree：仍位于 `G:\agent-zoo\.tmp\m1-medium-risk-23e9f70-cleanroom`，不属于 Git 提交或运行依赖。
+- 临时 detached cleanroom worktree：已按用户指示删除，Git worktree 记录与残留目录均已清理。
 
 结构化明细见 `docs/reviews/evidence/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective/remediation-verification.json`。

@@ -193,7 +193,8 @@
     "partial_python_install_commit": "23e9f700396411d8c06ab5e5d6cbef1b8997ca94",
     "partial_python_install_result": "pass",
     "bun_clean_install_result": "aborted_by_user_as_out_of_scope",
-    "worktree": "G:/agent-zoo/.tmp/m1-medium-risk-23e9f70-cleanroom"
+    "worktree": null,
+    "worktree_cleanup": "removed_by_user_request_on_2026-07-20"
   },
   "remaining_gates": [
     "exact-target cleanroom was not executed for b77a644",
