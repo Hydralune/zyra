@@ -1,0 +1,166 @@
+{
+  "review_id": "M1-S05C-02-runtime-event-message-bus-integration",
+  "slice": "M1-S05C-02",
+  "date": "2026-07-20",
+  "measurement_baseline_commit": "439860b222bde3b85b9eefac669b00f1a4314246",
+  "implementation_commit": "156b6e80b11558a11f29328e17191a210299fba0",
+  "verdict": "PASS",
+  "parent_status": "M1-05C_COMPLETE",
+  "blocking_findings_after_fix": 0,
+  "canonical_owners": {
+    "runtime_event_facts": "TypeScript RuntimeEventSqliteStore",
+    "business_route": "TypeScript RuntimeEventSqliteStore persisted route decision",
+    "delivery_lease_ack_retry_dead_letter": "TypeScript DurableConsumerRuntime and delivery tables",
+    "projection_history_stream_cursor": "TypeScript ProjectionDeliveryRuntime",
+    "artifact_bytes": "Zyra content-addressed artifact store referenced by canonical event",
+    "query_session_permission_compact": "existing protected Claude-derived runtime owners",
+    "python_role": "typed worker ingress and supervised stdio/API protocol only"
+  },
+  "source_roles": {
+    "opencode": {
+      "role": "primary",
+      "mechanisms": [
+        "versioned source and event contracts",
+        "durable message delivery",
+        "projected task history and stream cursors",
+        "typed runtime transport"
+      ]
+    },
+    "OpenHands": {
+      "role": "supplementary",
+      "mechanisms": [
+        "subscription and event-service behavior",
+        "UI/session derivative folding"
+      ],
+      "canonical_owner": false
+    },
+    "oh-my-pi": {
+      "role": "supplementary",
+      "mechanisms": [
+        "RPC agent frames",
+        "tool progress and final correlation",
+        "subagent and cancellation lifecycle"
+      ],
+      "canonical_owner": false
+    },
+    "claude-code-best": {
+      "role": "conformance_reference",
+      "mechanisms": [
+        "query session tool permission compact lifecycle"
+      ],
+      "canonical_owner": false
+    },
+    "LangGraph": {
+      "role": "conformance_reference",
+      "mechanisms": [
+        "stable identity",
+        "pending committed separation",
+        "replay and exact-resume checks"
+      ],
+      "production_migration": false,
+      "stategraph_channel_pregel_store_toolnode_owner": false
+    }
+  },
+  "line_buckets": {
+    "conservative_core_production_nonblank_additions": 7045,
+    "slice_minimum": 7000,
+    "adapter_api_protocol_nonblank_additions_excluded": 463,
+    "governance_nonblank_additions_excluded": 1,
+    "test_nonblank_additions_excluded": 491,
+    "generated_data_docs_fixture_mock_vendor_source_pool_counted": 0,
+    "parent_previous_conservative_production": 9201,
+    "parent_cumulative_conservative_production": 16246,
+    "parent_minimum": 16000
+  },
+  "worktree_verification": [
+    {
+      "suite": "runtime_event_spine_typescript_typecheck",
+      "result": "passed"
+    },
+    {
+      "suite": "runtime_event_spine_typescript_behavior",
+      "result": "22/22 passed"
+    },
+    {
+      "suite": "runtime_event_python_api_worker_adjacent_behavior",
+      "result": "39/39 passed"
+    },
+    {
+      "suite": "changed_python_ruff",
+      "result": "passed"
+    },
+    {
+      "suite": "python_compileall",
+      "result": "passed"
+    },
+    {
+      "suite": "git_diff_check",
+      "result": "passed"
+    }
+  ],
+  "cleanroom_verification": {
+    "path": ".tmp/cleanroom-M1-S05C-02-156b6e80b115",
+    "exact_commit": "156b6e80b11558a11f29328e17191a210299fba0",
+    "toolchain_source": "locked compiler and Bun executable from repository node_modules; no source or state shared",
+    "pytest_cache_disabled": true,
+    "pytest_basetemp": ".tmp/pytest-M1-S05C-02-156b6e80b115-run3",
+    "typescript_typecheck": "passed",
+    "typescript_tests": "22/22 passed",
+    "python_tests": "39/39 passed in 113.49s",
+    "forbidden_runtime_dependency_hits": 0,
+    "root_source_repositories_copied": 0,
+    "diagnostic_attempts": [
+      {
+        "result": "20 passed, 19 failed before runtime because archived tree omitted Bun",
+        "classification": "toolchain setup"
+      },
+      {
+        "result": "14 passed, 25 setup errors from Windows ACL denial in default pytest temp/cache roots",
+        "classification": "test environment setup"
+      }
+    ]
+  },
+  "behavior_coverage": [
+    "versioned no-fallback source mapping across runtime producer families",
+    "real CodeWorker typed-frame ingress without stdout parsing",
+    "canonical commit before durable delivery and projection",
+    "consumer checkpoints idempotence lease ack retry and dead letter",
+    "duplicate delivery-gap repair without duplicate canonical fact",
+    "persisted-route catch-up without recipient expansion",
+    "dedicated durable projector subscription and global cursor",
+    "projection coverage detection rebuild and online equivalence",
+    "projector-only task projection history and stream APIs",
+    "artifact digest size and range verification",
+    "OMP RPC tool progress result cancellation and subagent correlation",
+    "bus and projector disable matrix without hidden fallback",
+    "common baseline verifier denominator completion and p95 gate",
+    "reconciliation across canonical delivery and derivative high-watermarks"
+  ],
+  "submission_boundary": {
+    "new_vendor_or_source_pool_additions": 0,
+    "root_source_runtime_dependencies": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "new_external_dependencies": 0,
+    "new_container_or_external_service_owner": false,
+    "new_subprocess_kind": false,
+    "preexisting_user_agents_change_staged_or_committed": false
+  },
+  "risk_trigger": {
+    "triggered": true,
+    "reasons": [
+      "default CodeWorker runtime event ingress",
+      "persistent delivery and projector behavior",
+      "API removal of raw projection fallback"
+    ],
+    "upgraded_verification": "exact-implementation-commit cleanroom typecheck plus runtime/API/worker suites and dependency scan",
+    "canonical_owner_transfer": false
+  },
+  "unclaimed": [
+    "M1 numeric-stage aggregate review",
+    "M1 milestone exit review",
+    "M2 visual runtime console",
+    "real local edge cloud dispatch gate",
+    "two cross-domain live task gate",
+    "2000-transition sealed-autonomy gate"
+  ]
+}
