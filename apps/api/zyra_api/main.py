@@ -4800,11 +4800,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 ),
             }
             contract_runtime = CodeWorkerTaskApiContractRuntime()
+            contract_events = _code_worker_route_contract_events(
+                store,
+                task_id=state.task_id,
+                session_id=codeworker_api_projection.session.session_id,
+                worker_request_id=codeworker_api_projection.session.worker_request_id,
+                current_events=response_payload["events"],
+                terminal_result_recovered=(
+                    str(
+                        run_result.worker_result.metadata.get(
+                            "terminal_result_recovered",
+                            "false",
+                        )
+                    ).lower()
+                    == "true"
+                ),
+            )
             route_contract = contract_runtime.build_report(
                 route_kind=TaskApiRouteKind.POST_CODE_WORKER,
                 task_id=state.task_id,
                 payload=response_payload,
-                events=response_payload["events"],
+                events=contract_events,
                 projection=codeworker_api_projection,
             )
             contract_event = contract_runtime.event_for_report(
@@ -6188,6 +6204,50 @@ def _record_compaction_metadata(state: Any, result: Any, *, source_event_id: str
     )
 
 
+def _code_worker_route_contract_events(
+    store: SQLiteStore,
+    *,
+    task_id: str,
+    session_id: str,
+    worker_request_id: str,
+    current_events: list[dict[str, Any]],
+    terminal_result_recovered: bool,
+) -> list[dict[str, Any]]:
+    """Recover prior route phases only for the exact durable terminal binding."""
+
+    current = [dict(event) for event in current_events if isinstance(event, dict)]
+    if not terminal_result_recovered or not session_id or not worker_request_id:
+        return current
+
+    recovered: list[dict[str, Any]] = []
+    seen_event_ids: set[str] = set()
+    for event in store.task_events(task_id):
+        payload = event.get("payload")
+        query_session = payload.get("query_session") if isinstance(payload, dict) else None
+        if not isinstance(query_session, dict):
+            continue
+        if (
+            str(query_session.get("session_id") or "") != session_id
+            or str(query_session.get("worker_request_id") or "") != worker_request_id
+        ):
+            continue
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in seen_event_ids:
+            continue
+        if event_id:
+            seen_event_ids.add(event_id)
+        recovered.append(dict(event))
+
+    for event in current:
+        event_id = str(event.get("event_id") or "")
+        if event_id and event_id in seen_event_ids:
+            continue
+        if event_id:
+            seen_event_ids.add(event_id)
+        recovered.append(event)
+    return recovered
+
+
 def _record_code_worker_session_metadata(state: Any, run_result: Any) -> None:
     metadata = dict(getattr(run_result.worker_result, "metadata", {}) or {})
     session_id = metadata.get("query_session_id")
@@ -6215,7 +6275,10 @@ def _record_code_worker_session_metadata(state: Any, run_result: Any) -> None:
         "transcript_entry_count": metadata.get("query_session_transcript_entries", "0"),
         "consistent": metadata.get("query_session_consistent", "false"),
         "leaf_uuid": metadata.get("query_session_leaf_uuid", ""),
-        "worker_request_id": run_result.worker_result.request_id,
+        "worker_request_id": str(
+            metadata.get("logical_worker_request_id")
+            or run_result.worker_result.request_id
+        ),
         "event_ids": [event.event_id for event in session_events],
         "snapshot_event": latest_snapshot,
         "compact_restore": {

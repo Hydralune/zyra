@@ -1419,6 +1419,131 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
+    def test_code_worker_permission_approval_recovers_lost_terminal_ack_via_api(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(root / "workspace")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STORE"] = str(root / "legacy-permissions.json")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+
+            ZyraRequestHandler = _fresh_api_handler()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(
+                    base_url,
+                    "/tasks",
+                    {"goal": "Recover an approved effect after terminal ACK loss.", "auto_run": False},
+                )
+                task = created["task"]
+                session_id = "api-code-permission-lost-ack-session"
+                command = subprocess.list2cmdline(
+                    [
+                        sys.executable,
+                        "-c",
+                        (
+                            "from pathlib import Path; "
+                            "Path('approved-once.txt').open('a', encoding='utf-8').write('once')"
+                        ),
+                    ]
+                )
+                plan = [
+                    {
+                        "tool_name": "shell",
+                        "tool_call_id": "api-code-lost-ack-shell-1",
+                        "arguments": {"command": command},
+                    }
+                ]
+                first_status, first = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {"constraints": {"session_id": session_id, "tool_plan": plan}},
+                )
+                self.assertEqual(first_status, 409, first)
+                self.assertEqual(first["worker_result"]["error"], "permission_suspended")
+                token = first["permission_session"]["session_custody_token"]
+                headers = {"Authorization": f"Bearer {token}"}
+                identity = {
+                    "session_id": session_id,
+                    "run_id": task["run_id"],
+                    "task_id": task["task_id"],
+                }
+                pending = _get(
+                    base_url,
+                    (
+                        "/permissions/requests"
+                        f"?session_id={session_id}&run_id={task['run_id']}"
+                        f"&task_id={task['task_id']}&pending_only=true"
+                    ),
+                    headers=headers,
+                )["requests"]["items"]
+                self.assertEqual(len(pending), 1)
+                _post(
+                    base_url,
+                    f"/permissions/requests/{pending[0]['request_id']}/resolve",
+                    {**identity, "effect": "allow", "idempotency_key": "approve-lost-ack"},
+                    headers=headers,
+                )
+
+                fault_status, faulted = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {
+                        "constraints": {
+                            "session_id": session_id,
+                            "session_custody_token": token,
+                            "tool_plan": plan,
+                            "typescript_fault_injection": "terminal_result_ack_lost",
+                        }
+                    },
+                )
+                self.assertEqual(fault_status, 409, faulted)
+                self.assertEqual(
+                    faulted["worker_result"]["metadata"]["typescript_runtime_error"],
+                    "typescript_runtime_fault_injected",
+                )
+
+                recovered_status, recovered = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {
+                        "constraints": {
+                            "session_id": session_id,
+                            "session_custody_token": token,
+                            "tool_plan": plan,
+                        }
+                    },
+                )
+                self.assertEqual(recovered_status, 201, recovered)
+                self.assertTrue(recovered["worker_result"]["ok"])
+                self.assertTrue(recovered["route_contract"]["ok"])
+                self.assertEqual(
+                    recovered["worker_result"]["metadata"]["terminal_result_recovered"],
+                    "true",
+                )
+                self.assertEqual(
+                    recovered["worker_result"]["metadata"]["runtime_transport"],
+                    "durable-terminal-receipt",
+                )
+                workspace_id = task["metadata"]["workspace_ref"]["workspace_id"]
+                workspace_file = _get(
+                    base_url,
+                    (
+                        f"/workspaces/{workspace_id}/files"
+                        "?path=approved-once.txt&read=true&encoding=utf-8"
+                    ),
+                )
+                self.assertEqual(workspace_file["content"], "once")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
     def test_code_worker_permission_batch_fences_partial_effects_and_denial_across_processes(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

@@ -364,6 +364,7 @@ class CodeWorkerRuntime:
             "canonical_runtime_owner": "typescript",
             "python_runtime_role": "process-durability-side-effect-host",
             "python_policy_fallback": "false",
+            "logical_worker_request_id": logical_worker_request_id,
             "runtime_protocol": "zyra.claude-runtime.v1",
             "query_session_id": str(
                 loop_result.metadata.get("query_session_id") or session_id
