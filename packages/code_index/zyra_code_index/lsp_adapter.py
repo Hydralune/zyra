@@ -9,6 +9,7 @@ from typing import Any, Mapping, Protocol, Sequence
 from .models import (
     CallEdge,
     CodeSymbol,
+    PathPolicyError,
     SourceLocation,
     SymbolCapability,
     SymbolKind,
@@ -218,7 +219,7 @@ class InjectedLspAdapter(LspAdapter):
                     calls.append(self._call(raw))
                 else:
                     symbols.append(self._symbol(raw, identity))
-            except (KeyError, TypeError, ValueError, OSError) as error:
+            except (KeyError, TypeError, ValueError, OSError, PathPolicyError) as error:
                 warnings.append(f"invalid_lsp_result:{type(error).__name__}")
         return SymbolQueryResult(
             query=query,

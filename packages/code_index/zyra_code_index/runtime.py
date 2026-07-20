@@ -4,6 +4,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .lsp_adapter import LspAdapter, UnavailableLspAdapter
 from .models import (
     CodeIndexBuildResult,
     ContentSearchQuery,
@@ -77,10 +78,17 @@ class CodeIndexRuntime:
     test constructor is labelled and never used by the API path.
     """
 
-    def __init__(self, source: BoundWorkspaceSource, *, index_path: str | Path) -> None:
+    def __init__(
+        self,
+        source: BoundWorkspaceSource,
+        *,
+        index_path: str | Path,
+        lsp_adapter: LspAdapter | None = None,
+    ) -> None:
         self.source = source
         self.store = CodeIndexStore(index_path)
         self.discovery = FileDiscoveryRuntime(source)
+        self.lsp_adapter = lsp_adapter or UnavailableLspAdapter()
 
     @classmethod
     def from_workspace_manager(
@@ -215,6 +223,24 @@ class CodeIndexRuntime:
 
     def symbols(self, query: SymbolQuery) -> SymbolQueryResult:
         self._require_current_revision()
+        status = self.lsp_adapter.status()
+        if status.available and query.capability in status.capabilities:
+            lsp_result = self.lsp_adapter.query(self.source.identity, query)
+            state = self.store.workspace_state(self.source.identity.workspace_id)
+            if not lsp_result.degraded:
+                return replace(
+                    lsp_result,
+                    generation=int(state.get("active_generation") or 0),
+                )
+            fallback = self.store.query_symbols(self.source.identity, query)
+            return replace(
+                fallback,
+                degraded=True,
+                degradation_reason=(
+                    f"lsp_degraded:{lsp_result.degradation_reason};"
+                    f"fallback:{fallback.provenance.value}"
+                ),
+            )
         return self.store.query_symbols(self.source.identity, query)
 
     def context(
@@ -325,6 +351,8 @@ class CodeIndexRuntime:
 
     def status(self) -> Mapping[str, Any]:
         state = dict(self.store.workspace_state(self.source.identity.workspace_id))
+        lsp_status = self.lsp_adapter.status().to_dict()
+        lsp_status["fallback"] = "python_ast_or_bounded_structural_parser"
         return {
             "workspace": self.source.identity.to_public_dict(),
             "index": state,
@@ -334,11 +362,7 @@ class CodeIndexRuntime:
             "canonical_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
             "derived_state": True,
             "rebuildable": True,
-            "lsp": {
-                "configured": False,
-                "auto_install": False,
-                "fallback": "python_ast_or_bounded_structural_parser",
-            },
+            "lsp": lsp_status,
         }
 
     def _require_current_revision(self) -> None:

@@ -10,6 +10,7 @@ from zyra_code_index import (
     CodeIndexRuntime,
     ContentSearchMode,
     ContentSearchQuery,
+    InjectedLspAdapter,
     PathPolicyError,
     SearchBudget,
     StaleWorkspaceError,
@@ -160,6 +161,71 @@ def test_recovery_service():
         self.assertTrue(
             all(item.provenance is SymbolProvenance.STRUCTURAL_FALLBACK for item in typescript.symbols)
         )
+
+    def test_injected_lsp_is_runtime_reachable_and_degrades_to_local_index(self) -> None:
+        source = BoundWorkspaceSource.for_test(self.root, binding_revision=1)
+
+        class Client:
+            server_id = "test-language-server"
+
+            def __init__(self) -> None:
+                self.outside_workspace = False
+
+            def request(self, method, params):
+                self.last_request = (method, params)
+                target = (
+                    self.root.parent / "outside.py"
+                    if self.outside_workspace
+                    else self.root / "src" / "app.py"
+                )
+                return [
+                    {
+                        "name": "helper",
+                        "kind": 12,
+                        "location": {
+                            "uri": target.as_uri(),
+                            "range": {
+                                "start": {"line": 8, "character": 0},
+                                "end": {"line": 8, "character": 6},
+                            },
+                        },
+                    }
+                ]
+
+            def notify(self, method, params):
+                del method, params
+
+        client = Client()
+        client.root = self.root
+        runtime = CodeIndexRuntime(
+            source,
+            index_path=self.root / "state" / "lsp-code-index.sqlite3",
+            lsp_adapter=InjectedLspAdapter(
+                source,
+                client,
+                capabilities=(SymbolCapability.DEFINITION,),
+            ),
+        )
+        runtime.rebuild()
+        result = runtime.symbols(
+            SymbolQuery(capability=SymbolCapability.DEFINITION, name="helper")
+        )
+        self.assertEqual(result.provenance, SymbolProvenance.LSP)
+        self.assertEqual(result.symbols[0].location.logical_path, "src/app.py")
+        self.assertGreater(result.generation, 0)
+        self.assertTrue(runtime.status()["lsp"]["available"])
+        self.assertFalse(runtime.status()["lsp"]["auto_install"])
+        self.assertFalse(runtime.status()["lsp"]["auto_start_process"])
+
+        client.outside_workspace = True
+        degraded = runtime.symbols(
+            SymbolQuery(capability=SymbolCapability.DEFINITION, name="helper")
+        )
+        self.assertEqual(degraded.provenance, SymbolProvenance.PYTHON_AST)
+        self.assertTrue(degraded.degraded)
+        self.assertIn("invalid_lsp_result", degraded.degradation_reason)
+        self.assertIn("fallback:python_ast", degraded.degradation_reason)
+        self.assertEqual(degraded.symbols[0].qualified_name, "helper")
 
     def test_patch_invalidation_rebuilds_revision_and_changes_test_selection(self) -> None:
         selected = self.runtime.select_tests(("src/app.py",))
