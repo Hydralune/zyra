@@ -22,12 +22,13 @@ from .retrieval_models import (
     RetrievalFilter,
     RetrievalHit,
     RetrievalQuery,
+    RetrievalResult,
     stable_digest,
 )
 from .retrieval_query import enrich_query, fts_match_expression
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SQLiteRetrievalIndex:
@@ -199,6 +200,27 @@ class SQLiteRetrievalIndex:
 
                     CREATE INDEX IF NOT EXISTS idx_retrieval_publications_scope
                         ON retrieval_publications(scope_key, generation DESC);
+
+                    CREATE TABLE IF NOT EXISTS retrieval_query_receipts (
+                        query_id TEXT PRIMARY KEY,
+                        scope_key TEXT NOT NULL,
+                        generation INTEGER NOT NULL,
+                        query_digest TEXT NOT NULL,
+                        filters_digest TEXT NOT NULL,
+                        candidate_count INTEGER NOT NULL,
+                        returned_count INTEGER NOT NULL,
+                        filtered_count INTEGER NOT NULL,
+                        truncated INTEGER NOT NULL,
+                        fts_used INTEGER NOT NULL,
+                        vector_status TEXT NOT NULL,
+                        vector_reason TEXT NOT NULL,
+                        elapsed_ms REAL NOT NULL,
+                        warnings_json TEXT NOT NULL,
+                        created_at REAL NOT NULL
+                    );
+
+                    CREATE INDEX IF NOT EXISTS idx_retrieval_query_receipts_scope
+                        ON retrieval_query_receipts(scope_key, generation, created_at DESC);
 
                     CREATE TABLE IF NOT EXISTS retrieval_audit_events (
                         sequence INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -749,6 +771,100 @@ class SQLiteRetrievalIndex:
             for row in rows
         )
 
+    def record_query(self, result: RetrievalResult) -> None:
+        """Persist a privacy-minimized receipt for one actual retrieval.
+
+        Raw query text and returned document content are deliberately omitted.
+        The receipt is derived observability state and is removed by the same
+        clean-rebuild operation as documents and worker audit events.
+        """
+
+        self.initialize()
+        diagnostics = result.diagnostics
+        if not diagnostics.index_scope:
+            raise ValueError("retrieval diagnostics require an index scope")
+        with self.transaction(immediate=True) as connection:
+            connection.execute(
+                """
+                INSERT INTO retrieval_query_receipts (
+                    query_id, scope_key, generation, query_digest, filters_digest,
+                    candidate_count, returned_count, filtered_count, truncated,
+                    fts_used, vector_status, vector_reason, elapsed_ms,
+                    warnings_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(query_id) DO UPDATE SET
+                    scope_key = excluded.scope_key,
+                    generation = excluded.generation,
+                    query_digest = excluded.query_digest,
+                    filters_digest = excluded.filters_digest,
+                    candidate_count = excluded.candidate_count,
+                    returned_count = excluded.returned_count,
+                    filtered_count = excluded.filtered_count,
+                    truncated = excluded.truncated,
+                    fts_used = excluded.fts_used,
+                    vector_status = excluded.vector_status,
+                    vector_reason = excluded.vector_reason,
+                    elapsed_ms = excluded.elapsed_ms,
+                    warnings_json = excluded.warnings_json,
+                    created_at = excluded.created_at
+                """,
+                (
+                    diagnostics.query_id,
+                    diagnostics.index_scope,
+                    diagnostics.index_generation,
+                    stable_digest(result.query.text),
+                    stable_digest(result.query.filters.to_dict()),
+                    diagnostics.candidate_count,
+                    diagnostics.returned_count,
+                    diagnostics.filtered_count,
+                    int(diagnostics.truncated),
+                    int(diagnostics.fts_used),
+                    diagnostics.vector_status.value,
+                    diagnostics.vector_reason,
+                    diagnostics.elapsed_ms,
+                    json.dumps(list(diagnostics.warnings), ensure_ascii=False, sort_keys=True),
+                    self.clock(),
+                ),
+            )
+
+    def query_receipts(
+        self,
+        *,
+        scope_key: str = "",
+        limit: int = 100,
+    ) -> tuple[dict[str, Any], ...]:
+        self.initialize()
+        bounded_limit = max(0, min(int(limit), 10_000))
+        where = "WHERE scope_key = ?" if scope_key else ""
+        params: list[Any] = [scope_key] if scope_key else []
+        params.append(bounded_limit)
+        with self.connection() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT query_id, scope_key, generation, query_digest, filters_digest,
+                       candidate_count, returned_count, filtered_count, truncated,
+                       fts_used, vector_status, vector_reason, elapsed_ms,
+                       warnings_json, created_at
+                FROM retrieval_query_receipts
+                {where}
+                ORDER BY created_at DESC, query_id ASC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        return tuple(
+            {
+                **dict(row),
+                "truncated": bool(row["truncated"]),
+                "fts_used": bool(row["fts_used"]),
+                "warnings": json.loads(str(row["warnings_json"])),
+                "created_at_iso": self._timestamp_iso(float(row["created_at"])),
+                "raw_query_persisted": False,
+                "result_content_persisted": False,
+            }
+            for row in rows
+        )
+
     def health(self) -> IndexHealth:
         self.initialize()
         states = {state.value: 0 for state in IndexJobState}
@@ -797,6 +913,7 @@ class SQLiteRetrievalIndex:
                 "retrieval_staging_documents",
                 "retrieval_cursors",
                 "retrieval_publications",
+                "retrieval_query_receipts",
                 "retrieval_audit_events",
                 "retrieval_scopes",
             ):

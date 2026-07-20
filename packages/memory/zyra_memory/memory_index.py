@@ -301,6 +301,7 @@ class MemoryIndexRuntime:
             elapsed_ms=(time.perf_counter() - started) * 1000.0,
             warnings=warnings,
         )
+        self.index.record_query(retrieval)
         return self._hydrate(task_id, retrieval)
 
     def retrieve_layers(

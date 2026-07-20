@@ -86,6 +86,12 @@ class RetrievalIndexFoundationTests(unittest.TestCase):
             VectorAvailability.UNAVAILABLE,
         )
         self.assertIn("no vector provider", cat.retrieval.diagnostics.vector_reason)
+        receipt = self.runtime.index.query_receipts(scope_key="memory:task-1", limit=1)[0]
+        self.assertEqual(receipt["query_id"], cat.retrieval.diagnostics.query_id)
+        self.assertEqual(receipt["vector_status"], "unavailable")
+        self.assertEqual(receipt["returned_count"], len(cat.retrieval.hits))
+        self.assertFalse(receipt["raw_query_persisted"])
+        self.assertNotIn("cat", receipt.values())
 
         filtered = self.runtime.retrieve(
             "task-1",
