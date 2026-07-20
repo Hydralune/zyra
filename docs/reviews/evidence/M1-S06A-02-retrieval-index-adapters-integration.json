@@ -1,0 +1,214 @@
+{
+  "review_id": "M1-S06A-02-retrieval-index-adapters-integration",
+  "slice": "M1-S06A-02",
+  "date": "2026-07-20",
+  "measurement_baseline_commit": "6d58fc74819f437f7bdac697403a2b8e96e5b4e5",
+  "implementation_commits": [
+    "e04317e11a71dbed9336d5c9823500ec985f16f5"
+  ],
+  "final_implementation_commit": "e04317e11a71dbed9336d5c9823500ec985f16f5",
+  "verdict": "PASS",
+  "parent_status": "M1-06A_COMPLETE",
+  "next_slice": "M1-S06B-01",
+  "blocking_findings_after_fix": 0,
+  "canonical_owners": {
+    "memory_records_revisions": "SQLiteStore and MemoryRecordStore",
+    "workspace_identity_files_patch_transactions": "WorkspaceManagerRuntime, workspace file revisions and committed integration transactions",
+    "memory_derived_index": "MemoryIndexRuntime and retrieval SQLite store",
+    "code_derived_index": "CodeIndexRuntime and CodeIndexStore",
+    "delivery_journal": "WorkerRetrievalContextRuntime integration stores",
+    "query_loop_session": "TypeScript QueryEngine and existing CodeWorker session runtime",
+    "events": "existing event-log and runtime-event spine owners",
+    "checkpoint_recovery": "existing checkpoint owner; 06A references only"
+  },
+  "invariants": {
+    "canonical_memory_moved": false,
+    "canonical_workspace_moved": false,
+    "derived_indexes_rebuildable": true,
+    "job_generation_token_owner_expiry_fenced": true,
+    "actual_child_processes": true,
+    "killed_process_requeued": true,
+    "late_generation_publish_allowed": false,
+    "event_payload_paths_trusted": false,
+    "workspace_lease_rotated_by_index_registry": false,
+    "checkpoint_cache_can_replace_canonical_source": false,
+    "failed_host_delivery_committed": false,
+    "exact_retry_reclaims_same_digest": true,
+    "legacy_retrieval_fallback": false
+  },
+  "source_roles": {
+    "agentscope": {
+      "role": "primary_implementation",
+      "commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+      "mechanisms": [
+        "RAG and knowledge-base index lifecycle",
+        "durable task consumer",
+        "worker heartbeat and sweeper"
+      ],
+      "runtime_dependency": false
+    },
+    "oh_my_pi_mnemopi": {
+      "role": "supplementary_implementation",
+      "commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "mechanisms": [
+        "MMR",
+        "query intent",
+        "temporal filtering",
+        "polyphonic comparison"
+      ],
+      "owns_storage_or_worker_control": false,
+      "runtime_dependency": false
+    },
+    "langgraph": {
+      "role": "conformance_only",
+      "production_owner": false,
+      "scope": "checkpoint identity, pending/committed and exact-resume reference semantics"
+    },
+    "openclaw": {
+      "role": "excluded_forward_only",
+      "source_read": false,
+      "ledger_entry": false,
+      "runtime_dependency": false
+    }
+  },
+  "production_targets": [
+    "packages/memory/zyra_memory/query_contract.py",
+    "packages/memory/zyra_memory/integration_store.py",
+    "packages/memory/zyra_memory/integration_runtime.py",
+    "packages/memory/zyra_memory/process_supervisor.py",
+    "packages/memory/zyra_memory/conformance.py",
+    "packages/code_index/zyra_code_index/job_models.py",
+    "packages/code_index/zyra_code_index/jobs.py",
+    "packages/code_index/zyra_code_index/worker.py",
+    "packages/code_index/zyra_code_index/worker_cli.py",
+    "packages/code_index/zyra_code_index/process_supervisor.py",
+    "packages/code_index/zyra_code_index/integration.py",
+    "packages/code_index/zyra_code_index/conformance.py",
+    "packages/code_index/zyra_code_index/service.py",
+    "packages/code_index/zyra_code_index/workspace_source.py",
+    "packages/workers/zyra_workers/retrieval_context_runtime.py",
+    "packages/workers/zyra_workers/code_worker_runtime.py",
+    "apps/api/zyra_api/main.py"
+  ],
+  "main_path": {
+    "api_routes": [
+      "POST /tasks/{task_id}/workers/code",
+      "POST /tasks/{task_id}/agents"
+    ],
+    "worker_entry": "WorkerRetrievalContextRuntime.prepare",
+    "query_engine_boundary": "preprocessed_messages plus file/test constraints",
+    "patch_event": "workspace.patch.committed",
+    "memory_process": "zyra_memory.index_worker_cli",
+    "code_process": "zyra_code_index.worker_cli",
+    "event_schema": "zyra.retrieval-index-integration-event.v1"
+  },
+  "semantic_effects": {
+    "memory_retrieval_changes_query_engine_messages": true,
+    "code_index_changes_file_selection": true,
+    "code_index_changes_test_selection": true,
+    "patch_commit_changes_next_context": true,
+    "memory_disable_removes_memory_context": true,
+    "code_disable_removes_code_context": true,
+    "worker_disable_leaves_queued_work": true,
+    "sweeper_disable_leaves_stale_work": true,
+    "delete_rebuild_from_canonical_equivalent": true
+  },
+  "verification": {
+    "cleanroom": {
+      "path": "G:\\agent-zoo\\.tmp\\m1-06a02-cleanroom",
+      "commit": "e04317e11a71dbed9336d5c9823500ec985f16f5",
+      "locked_dependencies": "bun 1.2.15 install --frozen-lockfile",
+      "result": "pass"
+    },
+    "focused_pytest": {
+      "tests_passed": 28,
+      "subtests_passed": 8,
+      "duration_seconds": 35.41,
+      "result": "pass"
+    },
+    "ruff_changed_python_excluding_protected_baseline_files": "pass",
+    "compileall": "pass",
+    "git_diff_check": "pass",
+    "foundation_ledger_sync": "aligned",
+    "integration_ledger_sync": "aligned",
+    "forbidden_source_path_scan": "pass"
+  },
+  "ledger": {
+    "owner_unit": "M1-S06A-02",
+    "entries": 2,
+    "connected": 2,
+    "blocked": 0,
+    "ready_for_internalization": 2,
+    "ready_for_productization": 2,
+    "readiness_ok": true,
+    "policy_matrix_ok": true,
+    "policy_errors": 0,
+    "policy_warnings": 0,
+    "policy_blockers": 0
+  },
+  "line_buckets": {
+    "method": "nonblank non-comment additions from measurement baseline",
+    "memory_production_effective": 2702,
+    "memory_production_raw": 2911,
+    "code_index_production_effective": 3255,
+    "code_index_production_raw": 3505,
+    "codeworker_production_effective": 443,
+    "codeworker_production_raw": 472,
+    "api_main_path_effective": 166,
+    "api_main_path_raw": 175,
+    "counted_production_effective": 6566,
+    "counted_production_raw": 7063,
+    "slice_minimum": 6500,
+    "slice_shortfall": 0,
+    "foundation_effective": 8638,
+    "parent_cumulative_effective": 15204,
+    "parent_minimum": 15000,
+    "tests_effective_excluded": 964,
+    "tests_raw_excluded": 1034,
+    "exports_excluded": 106,
+    "ledger_script_effective_excluded": 209,
+    "ledger_script_raw_excluded": 228,
+    "ledger_data_excluded": 323,
+    "generated_counted": 0,
+    "vendor_or_source_pool_counted": 0,
+    "mock_or_fixture_only_counted": 0,
+    "thin_unconnected_adapter_counted": 0
+  },
+  "adversarial_fixes": [
+    "reuse current WorkspaceManager access instead of rotating the worker lease",
+    "use deterministic retrieval message IDs and reclaim released delivery on exact retry",
+    "dereference canonical patch transactions instead of trusting event paths",
+    "record patch-admission failure and reconcile committed transactions later",
+    "validate generation, lease token, owner and expiry in atomic code-index publication",
+    "fail when canonical source is unavailable instead of restoring success from cache"
+  ],
+  "known_non_gating_baseline_debt": {
+    "exploratory_legacy_codeworker_session_group": "16 failed, 8 passed",
+    "signals": [
+      "permission_suspended",
+      "trace_reader_missing",
+      "existing undefined API inventory builders"
+    ],
+    "retrieval_service_present_in_those_tests": false,
+    "changed_by_slice": false,
+    "mandatory_followup": "M1-06 numeric-stage aggregate regression"
+  },
+  "external_dependencies": {
+    "root_source_repository_path": false,
+    "npm_link": false,
+    "pip_editable_source_path": false,
+    "external_docker_context": false,
+    "external_mcp_server": false,
+    "new_local_port": false,
+    "upstream_black_box_process": false
+  },
+  "claims_not_made": [
+    "M1-06 numeric-stage aggregate complete",
+    "M1 milestone exit complete",
+    "06B MemoryCurator or skill-memory owner complete",
+    "06C procedure-memory owner complete",
+    "07C recovery planner complete",
+    "2,000 canonical transitions evidence complete",
+    "real local edge cloud evidence complete"
+  ]
+}
