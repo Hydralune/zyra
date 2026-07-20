@@ -53,7 +53,10 @@ class SchedulerApiTests(unittest.TestCase):
                 thread.join(timeout=5)
 
 
-HTTP_TIMEOUT_SECONDS = 15
+# Auto-run waits for the real worker, canonical event projection and scheduler
+# state to commit.  Fifteen seconds was below the observed cold/combined-process
+# envelope and caused client cleanup to race an otherwise successful request.
+HTTP_TIMEOUT_SECONDS = 30
 
 
 def _get(base_url: str, path: str) -> dict[str, Any]:

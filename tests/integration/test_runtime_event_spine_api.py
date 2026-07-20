@@ -32,6 +32,103 @@ for package_path in (
 
 
 class RuntimeEventSpineApiTests(unittest.TestCase):
+    def test_server_close_drains_active_handler_before_sidecar_shutdown(self) -> None:
+        previous = os.environ.get("ZYRA_SQLITE_PATH")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            from apps.api.zyra_api.main import (  # noqa: PLC0415
+                ZyraRequestHandler,
+                get_runtime_event_spine_bridge,
+                reset_runtime_event_spine_bridge,
+            )
+
+            entered = threading.Event()
+            release = threading.Event()
+
+            class BlockingHandler(ZyraRequestHandler):
+                def do_GET(self) -> None:  # noqa: N802
+                    entered.set()
+                    if not release.wait(timeout=5):
+                        raise TimeoutError("test handler was not released")
+                    self._send_json(200, {"ok": True})
+
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "drain.sqlite3")
+            reset_runtime_event_spine_bridge()
+            bridge = get_runtime_event_spine_bridge()
+            self.assertTrue(bridge.health().ok)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), BlockingHandler)
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+            client_errors: list[BaseException] = []
+
+            def request() -> None:
+                try:
+                    with urllib.request.urlopen(
+                        f"http://127.0.0.1:{server.server_address[1]}/block",
+                        timeout=10,
+                    ) as response:
+                        self.assertEqual(json.loads(response.read()), {"ok": True})
+                except BaseException as error:  # pragma: no cover - asserted below
+                    client_errors.append(error)
+
+            client_thread = threading.Thread(target=request, daemon=True)
+            client_thread.start()
+            self.assertTrue(entered.wait(timeout=5))
+            server.shutdown()
+            close_done = threading.Event()
+            close_thread = threading.Thread(
+                target=lambda: (server.server_close(), close_done.set()),
+                daemon=True,
+            )
+            close_thread.start()
+            try:
+                self.assertFalse(close_done.wait(timeout=0.2))
+                self.assertTrue(bridge.port.diagnostics().running)
+            finally:
+                release.set()
+                client_thread.join(timeout=10)
+                close_thread.join(timeout=10)
+                server_thread.join(timeout=5)
+                reset_runtime_event_spine_bridge()
+                if previous is None:
+                    os.environ.pop("ZYRA_SQLITE_PATH", None)
+                else:
+                    os.environ["ZYRA_SQLITE_PATH"] = previous
+            self.assertTrue(close_done.is_set())
+            self.assertFalse(bridge.port.diagnostics().running)
+            self.assertEqual(client_errors, [])
+
+    def test_database_key_rotation_evicts_closed_cached_bridge(self) -> None:
+        previous = os.environ.get("ZYRA_SQLITE_PATH")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            from apps.api.zyra_api.main import (  # noqa: PLC0415
+                get_runtime_event_spine_bridge,
+                reset_runtime_event_spine_bridge,
+            )
+
+            try:
+                reset_runtime_event_spine_bridge()
+                os.environ["ZYRA_SQLITE_PATH"] = str(root / "first.sqlite3")
+                first = get_runtime_event_spine_bridge()
+                self.assertTrue(first.health().ok)
+
+                os.environ["ZYRA_SQLITE_PATH"] = str(root / "second.sqlite3")
+                second = get_runtime_event_spine_bridge()
+                self.assertIsNot(first, second)
+                self.assertTrue(second.health().ok)
+
+                os.environ["ZYRA_SQLITE_PATH"] = str(root / "first.sqlite3")
+                replacement = get_runtime_event_spine_bridge()
+                self.assertIsNot(first, replacement)
+                self.assertTrue(replacement.health().ok)
+            finally:
+                reset_runtime_event_spine_bridge()
+                if previous is None:
+                    os.environ.pop("ZYRA_SQLITE_PATH", None)
+                else:
+                    os.environ["ZYRA_SQLITE_PATH"] = previous
+
     def test_real_task_creation_reaches_canonical_query_and_projection_routes(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

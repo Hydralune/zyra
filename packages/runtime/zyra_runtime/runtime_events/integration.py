@@ -761,6 +761,26 @@ def get_runtime_event_spine(
         return bridge
 
 
+def release_runtime_event_spine(bridge: RuntimeEventSpineBridge) -> bool:
+    """Release one registry-owned bridge without closing unrelated owners.
+
+    API servers have a shorter lifecycle than the Python process. Clearing the
+    entire registry when one server stops can close a bridge that belongs to a
+    different database, test server, or runtime owner. Remove by object
+    identity so a stale caller cannot evict a replacement registered under the
+    same path after a concurrent lifecycle transition.
+    """
+
+    with _BRIDGE_LOCK:
+        owned_keys = tuple(key for key, candidate in _BRIDGES.items() if candidate is bridge)
+        for key in owned_keys:
+            _BRIDGES.pop(key, None)
+    if not owned_keys:
+        return False
+    bridge.close()
+    return True
+
+
 def reset_runtime_event_spines() -> None:
     with _BRIDGE_LOCK:
         bridges = tuple(_BRIDGES.values())

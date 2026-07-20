@@ -5,6 +5,7 @@ import json
 import os
 import threading
 import sys
+import time
 from dataclasses import replace
 from types import SimpleNamespace
 from http import HTTPStatus
@@ -104,7 +105,7 @@ from zyra_runtime.runtime_events import (
     RuntimeEventApiFacade,
     RuntimeEventProcessError,
     get_runtime_event_spine,
-    reset_runtime_event_spines,
+    release_runtime_event_spine,
 )
 
 _RUNTIME_EVENT_SPINE_LOCK = _runtime_event_threading.RLock()
@@ -122,7 +123,7 @@ def get_runtime_event_spine_bridge():
     with _RUNTIME_EVENT_SPINE_LOCK:
         if _RUNTIME_EVENT_SPINE is None or _RUNTIME_EVENT_SPINE_KEY != key:
             if _RUNTIME_EVENT_SPINE is not None:
-                _RUNTIME_EVENT_SPINE.close()
+                release_runtime_event_spine(_RUNTIME_EVENT_SPINE)
             _RUNTIME_EVENT_SPINE = get_runtime_event_spine(
                 database_path=database,
                 artifact_root=artifact_root,
@@ -144,10 +145,10 @@ def reset_runtime_event_spine_bridge() -> None:
         _RUNTIME_EVENT_SPINE = None
         _RUNTIME_EVENT_SPINE_KEY = None
     if bridge is not None:
-        bridge.close()
-    # The integration registry holds the same bridge by path.  Clear it so a
-    # later API runtime cannot receive the closed instance from the cache.
-    reset_runtime_event_spines()
+        # The integration registry holds the same bridge by path. Release only
+        # this API-owned instance: a process-global reset can close unrelated
+        # scheduler/test/runtime owners that use another database.
+        release_runtime_event_spine(bridge)
 
 
 from zyra_runtime import (
@@ -1215,21 +1216,52 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         super().setup()
         server = self.server
         with _RUNTIME_EVENT_SPINE_LOCK:
+            drain_condition = getattr(server, "_zyra_request_drain_condition", None)
+            if drain_condition is None:
+                drain_condition = threading.Condition()
+                setattr(server, "_zyra_request_drain_condition", drain_condition)
+                setattr(server, "_zyra_active_request_count", 0)
+            with drain_condition:
+                active = int(getattr(server, "_zyra_active_request_count", 0))
+                setattr(server, "_zyra_active_request_count", active + 1)
             if getattr(server, "_zyra_runtime_event_close_bound", False):
                 return
             original_server_close = server.server_close
 
             def close_with_runtime_event_spine() -> None:
                 try:
-                    reset_runtime_event_spine_bridge()
+                    original_server_close()
                 finally:
+                    # ThreadingHTTPServer uses daemon request threads. Drain
+                    # them explicitly before closing shared sidecars so a
+                    # timed-out client cannot make an in-flight canonical
+                    # event append fail with a closed process port.
+                    deadline = time.monotonic() + 30.0
+                    with drain_condition:
+                        while int(getattr(server, "_zyra_active_request_count", 0)) > 0:
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                break
+                            drain_condition.wait(timeout=remaining)
                     try:
-                        reset_provider_control_client()
+                        reset_runtime_event_spine_bridge()
                     finally:
-                        original_server_close()
+                        reset_provider_control_client()
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)
+
+    def finish(self) -> None:
+        server = self.server
+        try:
+            super().finish()
+        finally:
+            drain_condition = getattr(server, "_zyra_request_drain_condition", None)
+            if drain_condition is not None:
+                with drain_condition:
+                    active = int(getattr(server, "_zyra_active_request_count", 0))
+                    setattr(server, "_zyra_active_request_count", max(0, active - 1))
+                    drain_condition.notify_all()
 
     def _permission_actor_id(self) -> str:
         # The current development API has no end-user authentication layer.

@@ -1029,6 +1029,7 @@ from .runtime_events import (
     TypeScriptRuntimeEventPort,
     assert_runtime_event_custody,
     get_runtime_event_spine,
+    release_runtime_event_spine,
     reset_runtime_event_spines,
 )
 

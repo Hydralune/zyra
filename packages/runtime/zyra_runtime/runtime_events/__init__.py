@@ -13,6 +13,7 @@ from .integration import (
     NormalizedLegacyEvent,
     RuntimeEventSpineBridge,
     get_runtime_event_spine,
+    release_runtime_event_spine,
     reset_runtime_event_spines,
 )
 from .models import (
@@ -93,5 +94,6 @@ __all__ = [
     "WorkerIngressReceipt",
     "assert_runtime_event_custody",
     "get_runtime_event_spine",
+    "release_runtime_event_spine",
     "reset_runtime_event_spines",
 ]

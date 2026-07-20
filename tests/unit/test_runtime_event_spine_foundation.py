@@ -13,12 +13,41 @@ for package_path in (ROOT / "packages" / "core", ROOT / "packages" / "runtime"):
 
 from zyra_runtime.runtime_events import (  # noqa: E402
     RuntimeEventCustodyAudit,
+    RuntimeEventProcessError,
     RuntimeEventQuery,
     RuntimeEventSpineBridge,
+    get_runtime_event_spine,
+    release_runtime_event_spine,
+    reset_runtime_event_spines,
 )
 
 
 class RuntimeEventSpineFoundationTests(unittest.TestCase):
+    def test_releasing_one_cached_bridge_does_not_close_another_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            first = get_runtime_event_spine(
+                database_path=root / "first.sqlite3",
+                artifact_root=root / "first-artifacts",
+            )
+            second = get_runtime_event_spine(
+                database_path=root / "second.sqlite3",
+                artifact_root=root / "second-artifacts",
+            )
+            try:
+                self.assertTrue(first.health().ok)
+                self.assertTrue(second.health().ok)
+
+                self.assertTrue(release_runtime_event_spine(first))
+                self.assertFalse(release_runtime_event_spine(first))
+                with self.assertRaisesRegex(RuntimeEventProcessError, "port is closed"):
+                    first.health()
+
+                self.assertTrue(second.health().ok)
+                self.assertTrue(second.port.diagnostics().running)
+            finally:
+                reset_runtime_event_spines()
+
     def test_python_port_exercises_query_projection_delivery_and_ack(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
