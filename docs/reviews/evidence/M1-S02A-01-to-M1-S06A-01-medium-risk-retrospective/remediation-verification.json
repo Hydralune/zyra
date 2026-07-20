@@ -1,0 +1,203 @@
+{
+  "schema": "zyra.medium-risk-retrospective-remediation.v1",
+  "created_on": "2026-07-20",
+  "review_report": "docs/reviews/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective-review.md",
+  "review_target_commit": "752a2636d2038c20a80bb79d2484f61874e5e796",
+  "review_evidence_commit": "b581c17be20e4e8dcb5bf369b545f92f759d1475",
+  "review_evidence_tree": "821aa04fa009e5c8f6833cbe046df0da2cbb29d9",
+  "primary_remediation_commit": "23e9f700396411d8c06ab5e5d6cbef1b8997ca94",
+  "primary_remediation_tree": "161ade90885f6549c4dd89dbdcec2ba019f5d57d",
+  "final_implementation_commit": "b77a6444717827f5de2d10e99666dc787eb83160",
+  "final_implementation_tree": "9c1a77fa0f241fb794190c94de19b1a7e875d9d6",
+  "closure_status": "IMPLEMENTATION_AND_TARGETED_VERIFICATION_COMPLETE",
+  "retrospective_review_pass": false,
+  "execution_state_updated": false,
+  "findings": [
+    {
+      "finding_id": "MR-P1-001",
+      "status": "remediated_targeted_verified",
+      "summary": "Public ASK projection, exact suspended batch resume, denial, expiry, sibling effect fence and terminal ACK-loss recovery work through the task API.",
+      "canonical_policy_owner": "typescript.E02CapabilityCoordinator",
+      "python_role": "authenticated approval transport, physical effect host and durable receipt projection",
+      "disconnect_effect": "Pending ASK disappears, scheduled batch cannot resume, sibling effects execute early, or recovered WorkerResult remains HTTP 409.",
+      "tests": [
+        "test_code_worker_permission_approval_resumes_exact_parked_call_via_api",
+        "test_code_worker_permission_approval_recovers_lost_terminal_ack_via_api",
+        "test_code_worker_permission_batch_fences_partial_effects_and_denial_across_processes",
+        "test_code_worker_expired_approval_stays_fail_closed_after_restart"
+      ]
+    },
+    {
+      "finding_id": "MR-P1-002",
+      "status": "remediated_targeted_verified",
+      "summary": "Browser disclosure provenance is preserved in normalized TypeScript provider messages and emitted provider envelopes.",
+      "canonical_browser_owner": "zyra_workers browser runtime",
+      "provider_consumption_owner": "typescript E01 model stream",
+      "disconnect_effect": "Browser-to-02D isolated integration reports provider_context_missing and provider_envelope_event_missing.",
+      "tests": [
+        "test_api_browser_checkpoint_is_delivered_to_real_02d_provider_once"
+      ]
+    },
+    {
+      "finding_id": "MR-P2-001",
+      "status": "remediated_targeted_verified",
+      "summary": "Root pyproject declares build backend, Zyra package discovery, package data, Browser runtime dependency and test extra.",
+      "install_owner": "root pyproject.toml",
+      "disconnect_effect": "Root editable installation and import test fail without package discovery or declared Browser dependencies.",
+      "tests": [
+        "test_root_pyproject_is_the_authoritative_python_workspace",
+        "test_declared_workspace_packages_are_importable_without_test_path_bootstrap"
+      ]
+    }
+  ],
+  "ask_lost_ack": {
+    "red_probe": {
+      "result": "failed_as_expected",
+      "http_status": 409,
+      "worker_result_recovered": true,
+      "route_contract_ok": false,
+      "missing_phases": [
+        "model_stream_report",
+        "compact_restore_report",
+        "codeworker_restore_integration"
+      ]
+    },
+    "green_probe": {
+      "result": "pass",
+      "http_status": 201,
+      "route_contract_ok": true,
+      "runtime_transport": "durable-terminal-receipt",
+      "terminal_result_recovered": true,
+      "physical_effect_observation": "append target contained exactly 'once'",
+      "reexecution": false
+    },
+    "binding": [
+      "task_id",
+      "session_id",
+      "logical_worker_request_id",
+      "permission_request_id",
+      "approval_response_id",
+      "tool_call_id",
+      "permit_id",
+      "terminal_id"
+    ]
+  },
+  "verification": [
+    {
+      "group": "typescript_runtime_full",
+      "command": "npx --yes bun@1.2.15 test packages/runtime/claude-runtime/test",
+      "result": "pass",
+      "count": "1258/1258"
+    },
+    {
+      "group": "typescript_typecheck",
+      "command": "npx --yes bun@1.2.15 run typecheck",
+      "result": "pass"
+    },
+    {
+      "group": "g1_python",
+      "command": "pytest tests/integration/test_e01_typescript_runtime_cutover.py",
+      "result": "pass",
+      "count": "23"
+    },
+    {
+      "group": "g2_python",
+      "command": "pytest tests/integration/test_e02_typescript_api_cutover.py tests/integration/test_permission_continuation.py",
+      "result": "pass",
+      "count": "11 tests + 14 subtests"
+    },
+    {
+      "group": "g4_workspace_gateway",
+      "result": "pass",
+      "count": "71 tests + 9 subtests"
+    },
+    {
+      "group": "browser_to_02d_isolated",
+      "command": "pytest tests/integration/test_browser_message_state_compression_integration.py::BrowserMessageStateCompressionIntegrationTests::test_api_browser_checkpoint_is_delivered_to_real_02d_provider_once",
+      "result": "pass",
+      "count": "1"
+    },
+    {
+      "group": "ask_public_api_final_four",
+      "command": "pytest four selected ASK API behavior tests",
+      "result": "pass",
+      "count": "4/4",
+      "duration_seconds": 127.96
+    },
+    {
+      "group": "adjacent_generic_ack_loss",
+      "command": "pytest test_lost_terminal_ack_resumes_without_tool_reexecution test_lost_tool_batch_ack_resumes_without_reexecution",
+      "result": "pass",
+      "count": "2/2"
+    },
+    {
+      "group": "python_packaging",
+      "command": "pytest tests/unit/test_python_workspace_packaging.py",
+      "result": "pass",
+      "count": "2/2"
+    },
+    {
+      "group": "python_dependency_integrity",
+      "command": "pip check and imports for all zyra_* packages, browser_use, cdp_use and psutil",
+      "result": "pass"
+    },
+    {
+      "group": "diff_integrity",
+      "command": "git diff --check",
+      "result": "pass_with_line_ending_warnings_only"
+    }
+  ],
+  "line_buckets": {
+    "base": "b581c17be20e4e8dcb5bf369b545f92f759d1475",
+    "target": "b77a6444717827f5de2d10e99666dc787eb83160",
+    "production": {
+      "added": 587,
+      "deleted": 76,
+      "effective_production": true
+    },
+    "behavior_tests": {
+      "added": 524,
+      "deleted": 4,
+      "effective_production": false
+    },
+    "build_config": {
+      "added": 38,
+      "deleted": 1,
+      "effective_production": false
+    },
+    "docs": {
+      "added": 13,
+      "deleted": 0,
+      "effective_production": false
+    },
+    "generated": 0,
+    "data_as_code": 0,
+    "vendor_like_source_pool": 0,
+    "adapter_only": 0,
+    "mock_fixture_only": 0
+  },
+  "dependency_boundary": {
+    "new_parent_repository_runtime_paths": [],
+    "new_npm_links": [],
+    "new_pip_editable_vendor_paths": [],
+    "new_mcp_servers": [],
+    "new_local_ports": [],
+    "new_docker_dependencies": [],
+    "declared_external_dependency": "browser-use[core]==0.13.3",
+    "external_dependency_lines_counted_as_internalized": false,
+    "openclaw_touched": false
+  },
+  "cleanroom": {
+    "required_by_original_review": true,
+    "final_target_executed": false,
+    "partial_python_install_commit": "23e9f700396411d8c06ab5e5d6cbef1b8997ca94",
+    "partial_python_install_result": "pass",
+    "bun_clean_install_result": "aborted_by_user_as_out_of_scope",
+    "worktree": "G:/agent-zoo/.tmp/m1-medium-risk-23e9f70-cleanroom"
+  },
+  "remaining_gates": [
+    "exact-target cleanroom was not executed for b77a644",
+    "independent rereview was not executed",
+    "execution-state.yaml was not updated"
+  ]
+}
