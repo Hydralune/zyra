@@ -1,0 +1,191 @@
+{
+  "review_id": "M1-S05C-S05D-aggregate-review-2026-07-20",
+  "scope": [
+    "M1-S05C-01",
+    "M1-S05C-02",
+    "M1-S05D-01",
+    "M1-S05D-02"
+  ],
+  "date": "2026-07-20",
+  "review_baseline_commit": "8e0662ff6a5809390817641d05e9d73905022618",
+  "reviewed_head_before_fix": "22795ee81139bb02fea2d6dcb1dce935fe3dcd0f",
+  "review_fix_commit": "11740ae0d618cc580209de51df8213180b926432",
+  "verdict": "PASS_AFTER_REMEDIATION",
+  "blocking_findings_after_fix": 0,
+  "historical_commits": {
+    "M1-S05C-01": {
+      "implementation": "62d355675c0656c5714636c962a42746d7ad734a",
+      "evidence": "439860b222bde3b85b9eefac669b00f1a4314246",
+      "conservative_production_lines": 9201,
+      "minimum": 9000
+    },
+    "M1-S05C-02": {
+      "implementation": "156b6e80b11558a11f29328e17191a210299fba0",
+      "evidence": "deb2c5a569f118862be1506a5749d4579a47be11",
+      "conservative_production_lines": 7045,
+      "minimum": 7000
+    },
+    "M1-S05D-01": {
+      "implementation": [
+        "63616b446f3aa01c54fd8922d45d14a964068d22",
+        "009c9329e767ba864141dc15ee23160df9af55a0",
+        "ef0ea831e2551429bea1a8029865cd7407eae91c"
+      ],
+      "evidence": "f0700258840da4514b0090e7851e8abff4879409",
+      "conservative_production_lines": 13281,
+      "minimum": 9000
+    },
+    "M1-S05D-02": {
+      "implementation": "dc010d102ca4b74d7f13e42952706014e2fc40e2",
+      "evidence": "22795ee81139bb02fea2d6dcb1dce935fe3dcd0f",
+      "conservative_production_lines": 9752,
+      "minimum": 9000
+    }
+  },
+  "parent_conservative_production_lines": {
+    "M1-05C": {
+      "actual": 16246,
+      "minimum": 16000
+    },
+    "M1-05D": {
+      "actual": 23033,
+      "minimum": 18000
+    }
+  },
+  "review_fix_buckets": {
+    "production": {
+      "insertions": 64,
+      "deletions": 9
+    },
+    "test": {
+      "insertions": 130,
+      "deletions": 1
+    },
+    "generated_data_docs_vendor_source_pool": {
+      "insertions": 0,
+      "deletions": 0
+    }
+  },
+  "fixed_findings": [
+    "global_runtime_event_reset_closed_unrelated_cached_bridges",
+    "api_database_key_rotation_reused_closed_cached_bridge",
+    "api_server_close_closed_sidecars_before_active_handlers_drained",
+    "scheduler_http_client_timeout_below_combined_cold_start_envelope"
+  ],
+  "regression_tests_added": [
+    "targeted_bridge_release_keeps_other_sqlite_bridge_healthy",
+    "api_database_a_b_a_rotation_returns_fresh_healthy_bridge",
+    "api_server_close_waits_for_active_handler_before_sidecar_close"
+  ],
+  "canonical_owners": {
+    "runtime_events": "TypeScript RuntimeEventSqliteStore",
+    "delivery_and_projection": "TypeScript DurableConsumerRuntime and ProjectionDeliveryRuntime",
+    "provider_control": "TypeScript ProviderControlPlaneStore and ProviderControlPlane",
+    "backend_control": "Python BackendRegistryStore, BackendDispatchJournal, WorkerDispatchRouter and BackendDispatchControl",
+    "task_workspace_artifact": "existing Zyra task graph, workspace and artifact owners"
+  },
+  "source_roles": {
+    "M1-05C": {
+      "primary": ["opencode"],
+      "supplementary": ["OpenHands", "oh-my-pi"],
+      "conformance_reference": ["claude-code-best", "LangGraph"]
+    },
+    "M1-05D": {
+      "primary_provider_domain": ["opencode"],
+      "supplementary": ["hermes-agent", "oh-my-pi"],
+      "backend_owner": "Zyra-owned",
+      "openhands_forward_role_at_D02": "conformance_reference_only",
+      "openclaw": "historical_provenance_only_through_D02; no runtime dependency"
+    }
+  },
+  "line_count_audit": {
+    "M1-S05C-01": {
+      "whole_final_commit_additions": 1599,
+      "owned_path_raw_production_candidate": 9745,
+      "conservative": 9201,
+      "note": "event-spine implementation began in historical checkpoint 0cd21bff; unrelated intervening R01 changes were path-filtered"
+    },
+    "M1-S05C-02": {
+      "whole_commit_additions": 8459,
+      "raw_production_candidate": 7933,
+      "conservative": 7045
+    },
+    "M1-S05D-01": {
+      "whole_commit_additions": 16160,
+      "raw_production_candidate": 14224,
+      "conservative": 13281
+    },
+    "M1-S05D-02": {
+      "whole_commit_additions": 11794,
+      "raw_production_candidate": 10524,
+      "conservative": 9752
+    },
+    "wire_contract_sensitivity": {
+      "file_lines": 6401,
+      "current_policy": "counted compiled direct-port contract in formal TypeScript runtime package",
+      "if_excluded_D01": 6880,
+      "if_excluded_D_parent": 16632,
+      "disposition": "non-blocking policy sensitivity; M3 automated bucket policy must make treatment explicit"
+    }
+  },
+  "cleanroom_validation": {
+    "path": "G:/agent-zoo/.tmp/cleanroom-M1-05CD-11740ae",
+    "exact_commit": "11740ae0d618cc580209de51df8213180b926432",
+    "git_status_clean_after_tests": true,
+    "frozen_install": "passed; 14 installs across 24 packages; no lockfile changes",
+    "runtime_event_typescript_typecheck": "passed",
+    "runtime_event_node_tests": "22/22 passed",
+    "provider_typescript_typecheck": "passed",
+    "provider_node_tests": "11/11 passed",
+    "provider_bun_1_2_15_tests": "11/11 passed",
+    "claude_runtime_typescript_typecheck": "passed",
+    "python_core_aggregate": "29/29 passed in 63.64s",
+    "provider_backend_source_ledger": "aligned=true; 7 decisions; owners M1-S05D-01,M1-S05D-02",
+    "submission_boundary_verifier": "passed",
+    "forbidden_parent_source_dependency_hits": 0,
+    "worker_direct_common_provider_secret_reads": 0
+  },
+  "lifecycle_diagnostics": {
+    "pre_fix_ordered_reproduction": "runtime event port is closed and scheduler timeout after earlier API shutdown",
+    "post_fix_killer_tests": "3/3 passed",
+    "post_fix_adjacent_order": "9/9 passed in 34.61s",
+    "post_fix_original_D02_combination": "20/20 passed in 63.69s"
+  },
+  "broad_repository_diagnostics": {
+    "stale_collection_import_files": 6,
+    "unit_current": "272 passed; 11 independent failures",
+    "unit_baseline": "same 11 failures",
+    "integration_current": "35 passed; 4 failed",
+    "integration_baseline": "same 4 failures",
+    "browser_control_current": "58 passed; 24 failed; current failure nodes subset of baseline; new backend failover 4 passed",
+    "codeworker_adjacent_current": "47 passed; 29 failed; current failure nodes subset of baseline 30",
+    "scenarios_current": "3 passed; 1 failed; same failure at baseline",
+    "new_failure_nodes_vs_baseline": 0,
+    "ruff": "not installed in current venv; not claimed",
+    "changed_path_compileall": "passed",
+    "git_diff_check": "passed"
+  },
+  "remaining_non_blocking_risks": [
+    "protected historical Python-only pytest collection debt",
+    "protected global legacy ledger blockers and warnings outside D owner filters",
+    "M1-05C current slice mappings exist in review evidence rather than rewritten legacy seed rows",
+    "wire contract line-count policy sensitivity",
+    "Docker daemon unavailable and external cloud dispatch not validated"
+  ],
+  "submission_boundary": {
+    "root_source_runtime_dependencies": 0,
+    "vendor_source_pool_runtime_dependencies": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "openclaw_runtime_dependencies": 0,
+    "preexisting_user_agents_change_touched_or_staged": false,
+    "root_docs_commit_boundary": "execution-state.yaml is outside Zyra git and updated only after evidence commit"
+  },
+  "competition_evidence": {
+    "engineering_internalization_gate": "closed for reviewed scope after remediation",
+    "two_cross_domain_live_tasks_status_change": "none",
+    "sealed_2000_transition_status_change": "none",
+    "real_isolated_edge_cloud_status_change": "none",
+    "external_cloud_dispatch_claimed": false
+  },
+  "next_entry": "docs/milestones/M1-runtime-memory-scheduler-fault/slice-06a-01-retrieval-index-adapters-foundation.md"
+}
