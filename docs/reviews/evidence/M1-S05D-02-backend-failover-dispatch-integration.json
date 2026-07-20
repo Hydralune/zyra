@@ -1,0 +1,190 @@
+{
+  "review_id": "M1-S05D-02-backend-failover-dispatch-integration",
+  "slice": "M1-S05D-02",
+  "date": "2026-07-20",
+  "measurement_baseline_commit": "f0700258840da4514b0090e7851e8abff4879409",
+  "implementation_commits": [
+    "dc010d102ca4b74d7f13e42952706014e2fc40e2"
+  ],
+  "final_implementation_commit": "dc010d102ca4b74d7f13e42952706014e2fc40e2",
+  "verdict": "PASS",
+  "parent_status": "M1-05D_COMPLETE",
+  "next_slice": "M1-S06A-01",
+  "blocking_findings_after_fix": 0,
+  "canonical_owners": {
+    "provider_catalog_credentials_routes_attempts_streams": "TypeScript ProviderControlPlaneStore and ProviderControlPlane",
+    "backend_definitions_health_leases_attempts": "Python BackendRegistryStore",
+    "dispatch_session_failover_control_recovery": "Python WorkerDispatchRouter and BackendDispatchControl",
+    "dispatch_journal_idempotency_materialization_outbox": "Python BackendDispatchJournal and BackendRegistryStore",
+    "workspace_attestation_quarantine": "Python WorkspaceAttestationRuntime",
+    "worker_result_artifact_event": "existing worker, artifact and event owners"
+  },
+  "separation_invariants": {
+    "backend_failure_changes_provider_route": false,
+    "provider_failure_changes_backend": false,
+    "both_change_requires_explicit_escalation": true,
+    "worker_receives_plaintext_provider_secret": false,
+    "partial_or_side_effect_output_replayed": false,
+    "physical_worker_lease_fabricated_before_07A": false
+  },
+  "source_roles": {
+    "opencode": {
+      "role": "primary_implementation",
+      "commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+      "migration": "direct_port",
+      "canonical_owner": false
+    },
+    "hermes-agent": {
+      "role": "supplementary_implementation",
+      "commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "mechanism": "bounded resolver and lease handoff precedence",
+      "canonical_owner": false
+    },
+    "oh-my-pi": {
+      "role": "supplementary_implementation",
+      "commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "migration": "direct_port",
+      "canonical_owner": false
+    },
+    "OpenHands": {
+      "role": "conformance_reference_only",
+      "production_migration_quota": false,
+      "canonical_owner": false
+    }
+  },
+  "ledger_readiness": {
+    "owner_unit": "M1-S05D-02",
+    "entries": 3,
+    "connected": 3,
+    "blocked": 0,
+    "missing_targets": 0,
+    "missing_runtime": 0,
+    "missing_tests": 0,
+    "policy_errors": 0,
+    "policy_warnings": 0,
+    "ok": true,
+    "global_legacy_audit_clean": false,
+    "global_legacy_audit_note": "protected historical seed blockers/warnings remain outside the owner filter"
+  },
+  "line_buckets": {
+    "python_backend_runtime_effective": 7281,
+    "typescript_provider_and_codeworker_runtime_effective": 1914,
+    "api_task_graph_provider_lease_browser_integration_effective": 557,
+    "conservative_counted_production": 9752,
+    "raw_production_additions": 10524,
+    "slice_minimum": 9000,
+    "slice_shortfall": 0,
+    "parent_previous_conservative": 13281,
+    "parent_cumulative_conservative": 23033,
+    "parent_minimum": 18000,
+    "tests_effective_excluded": 425,
+    "tests_raw_excluded": 462,
+    "ordinary_ledger_script_excluded": 86,
+    "ledger_data_excluded": 368,
+    "exports_manifests_lock_excluded": 344,
+    "generated_data_mock_fixture_vendor_source_pool_counted": 0
+  },
+  "worktree_verification": [
+    {
+      "suite": "repository_typescript_typecheck",
+      "result": "passed"
+    },
+    {
+      "suite": "provider_control_plane_node_behavior",
+      "result": "11/11 passed"
+    },
+    {
+      "suite": "provider_control_plane_bun_behavior",
+      "result": "11/11 passed"
+    },
+    {
+      "suite": "provider_backend_task_graph_api_python_core",
+      "result": "18/18 passed in 41.08s"
+    },
+    {
+      "suite": "scheduler_and_e02_adjacent",
+      "result": "2/2 passed in 22.16s"
+    },
+    {
+      "suite": "claude_runtime_protocol_adjacent",
+      "result": "4 passed across 6 files, 0 failed"
+    }
+  ],
+  "clean_source_tree_verification": {
+    "path": ".tmp/zyra-cleanroom-05d02-dc010d1",
+    "exact_commit": "dc010d102ca4b74d7f13e42952706014e2fc40e2",
+    "package_lock_frozen": true,
+    "project_local_bun_version": "1.2.15",
+    "locked_packages_installed": 14,
+    "typescript_typechecks": "passed",
+    "node_provider_tests": "11/11 passed",
+    "bun_provider_tests": "11/11 passed",
+    "python_core_tests": "18/18 passed in 44.51s",
+    "scheduler_api_isolated": "1/1 passed in 18.19s",
+    "e02_api_isolated": "1/1 passed in 3.61s",
+    "claude_protocol_tests": "4/4 passed",
+    "ledger_readiness": "3 connected, 0 blocked, ok=true",
+    "ledger_policy": "0 errors, 0 warnings",
+    "forbidden_runtime_dependency_hits": 0,
+    "worker_secret_environment_read_hits": 0,
+    "root_source_repositories_present": 0,
+    "git_status_clean": true,
+    "combined_process_diagnostic": "19 passed, scheduler API timed out after earlier API suite closed the global runtime-event port; unchanged tests passed 18+1+1 in fresh processes"
+  },
+  "behavior_coverage": [
+    "immutable provider catalog and credential route snapshots",
+    "credential rotation uses old material for acquired route and new material for next route",
+    "real OpenAI and Anthropic loopback bytes and SSE",
+    "thinking and fragmented tool JSON normalization",
+    "zero-byte revoked credential rejection",
+    "503, 429 and zero-output stream-stall provider-route changes with second real requests",
+    "partial output and side-effect candidate reconciliation fencing",
+    "real HTTP backend failover preserving provider route and M0 execution ref",
+    "pending remote dispatch cancellation",
+    "remote drain and resume acceptance changes",
+    "workspace root replacement quarantine",
+    "durable session, attempt, recovery, journal, replay, hash, outbox and materialization state",
+    "task-graph, API, event and control-command reachability"
+  ],
+  "baseline_diagnostics": {
+    "control_command_suite_current": "5 passed, 17 failed",
+    "browser_expanded_current": "116 passed, 17 nested subtests passed, 7 failed",
+    "representative_failures_reproduced_at_baseline": true,
+    "baseline_commit": "f0700258840da4514b0090e7851e8abff4879409",
+    "disposition": "protected baseline defects retained as numeric-stage aggregate diagnostics; not current-slice regressions"
+  },
+  "submission_boundary": {
+    "new_vendor_or_source_pool_additions": 0,
+    "root_source_runtime_dependencies": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "external_upstream_runtime_owner": false,
+    "preexisting_user_agents_change_touched": false
+  },
+  "risk_trigger": {
+    "triggered": true,
+    "reasons": [
+      "default worker dispatch path changed",
+      "persistent dispatch/journal/control/workspace state added",
+      "real local process, Docker and edge/cloud HTTP transport kinds added",
+      "Provider Control Plane bound directly into both worker paths",
+      "task cancellation and API control semantics changed"
+    ],
+    "upgraded_verification": "exact-final-commit frozen-install cleanroom, dual Node/Bun provider behavior, affected Python/API/task-graph suites, owner ledger readiness, dependency and secret scans",
+    "canonical_owner_transfer": false
+  },
+  "environment_limitations": {
+    "docker_cli_version": "29.1.3",
+    "docker_daemon_available": false,
+    "docker_transport_live_claimed": false,
+    "loopback_edge_http_live_tested": true,
+    "external_cloud_live_tested": false
+  },
+  "unclaimed": [
+    "M1-05 numeric-stage aggregate review",
+    "real Docker, isolated edge and external cloud competition dispatch gate",
+    "two live cross-domain scenarios",
+    "2000-transition sealed-autonomy competition gate",
+    "dynamic sparse topology and low-entropy comparison closure",
+    "full multi-model and delivery freeze evidence"
+  ]
+}
