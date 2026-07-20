@@ -297,6 +297,52 @@ class BoundWorkspaceSource:
         return cls(identity=identity, policy=WorkspacePathPolicy(root))
 
     @classmethod
+    def from_manager_snapshot(
+        cls,
+        manager: Any,
+        workspace_id: str,
+        *,
+        expected_revision: str = "",
+    ) -> "BoundWorkspaceSource":
+        """Open a fenced, read-only view without acquiring or rotating a lease.
+
+        Code indexing is derived work admitted from an already-authorized 05B
+        workspace revision.  A worker process must therefore validate that
+        revision, but it must not become the canonical workspace owner merely
+        because it needs to read files.  The physical root is reconstructed
+        from the manager backend and is never written to a code-index job or
+        checkpoint reference.
+        """
+
+        workspace = workspace_id.strip()
+        if not workspace:
+            raise StaleWorkspaceError("workspace_id is required for an index snapshot")
+        binding = manager.store.require_binding(workspace)
+        if str(getattr(binding.lifecycle_state, "value", binding.lifecycle_state)) in {
+            "deleted",
+            "cleanup_pending",
+            "recovery_required",
+        }:
+            raise StaleWorkspaceError("workspace is not readable for code indexing")
+        root = manager.backend.mount_root(binding, getattr(binding, "workspace_kind"))
+        identity = WorkspaceIdentity(
+            workspace_id=binding.workspace_id,
+            task_id=binding.task_id,
+            run_id=binding.run_id,
+            session_id=binding.session_id,
+            root=str(root),
+            owner_epoch=int(binding.owner_epoch),
+            binding_revision=int(binding.binding_revision),
+            lease_id=str(binding.lease_id),
+            backend_id=str(binding.backend_id),
+        )
+        if expected_revision and identity.revision != expected_revision:
+            raise StaleWorkspaceError(
+                "canonical workspace revision changed before the index snapshot opened"
+            )
+        return cls(identity=identity, policy=WorkspacePathPolicy(root))
+
+    @classmethod
     def for_test(
         cls,
         root: str | Path,

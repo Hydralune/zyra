@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -15,10 +15,10 @@ from .models import (
     SymbolCapability,
     SymbolQuery,
     SymbolQueryResult,
-    WorkspaceIdentity,
     stable_digest,
 )
 from .store import CodeIndexStore
+from .job_models import CodeIndexBuildCandidate, CodeIndexBuildLease
 from .symbols import analyze_symbols
 from .workspace_source import BoundWorkspaceSource, FileDiscoveryRuntime
 
@@ -108,6 +108,26 @@ class CodeIndexRuntime:
         deleted_paths: Sequence[str] = (),
     ) -> CodeIndexBuildResult:
         generation = self.store.next_generation(self.source.identity)
+        candidate = self.prepare_candidate(
+            generation=generation,
+            query=query,
+            changed_paths=changed_paths,
+            deleted_paths=deleted_paths,
+        )
+        return self.publish_candidate(candidate)
+
+    def prepare_candidate(
+        self,
+        *,
+        generation: int,
+        query: FileDiscoveryQuery | None = None,
+        changed_paths: Sequence[str] = (),
+        deleted_paths: Sequence[str] = (),
+    ) -> CodeIndexBuildCandidate:
+        """Build an immutable candidate without mutating the active index."""
+
+        if generation < 1:
+            raise ValueError("generation must be positive")
         request = query or FileDiscoveryQuery(page_size=2_000)
         files_with_content: list[tuple[Any, str]] = []
         symbols: list[Any] = []
@@ -146,29 +166,64 @@ class CodeIndexRuntime:
             [(file.logical_path, file.content_hash, file.source_revision) for file, _ in files_with_content],
             [(symbol.symbol_id, symbol.source_revision) for symbol in symbols],
         )
-        self.store.publish(
-            self.source.identity,
-            generation,
-            files_with_content,
-            symbols,
-            references,
-            calls,
-            content_digest=digest,
-        )
-        self.store.mark_invalidations_applied(self.source.identity.workspace_id, generation)
-        return CodeIndexBuildResult(
-            workspace_id=self.source.identity.workspace_id,
+        return CodeIndexBuildCandidate(
+            identity=self.source.identity,
             generation=generation,
-            workspace_revision=self.source.identity.revision,
-            file_count=len(files_with_content),
-            symbol_count=len(symbols),
-            reference_count=len(references),
-            call_edge_count=len(calls),
-            ignored_count=ignored,
+            files=tuple(files_with_content),
+            symbols=tuple(symbols),
+            references=tuple(references),
+            calls=tuple(calls),
             content_digest=digest,
+            ignored_count=ignored,
+            warnings=tuple(dict.fromkeys(warnings)),
             changed_paths=tuple(sorted(set(changed_paths))),
             deleted_paths=tuple(sorted(set(deleted_paths))),
-            warnings=tuple(dict.fromkeys(warnings)),
+        )
+
+    def publish_candidate(
+        self,
+        candidate: CodeIndexBuildCandidate,
+        *,
+        lease: CodeIndexBuildLease | None = None,
+    ) -> CodeIndexBuildResult:
+        if candidate.identity.workspace_id != self.source.identity.workspace_id:
+            raise StaleWorkspaceError("code index candidate belongs to another workspace")
+        if candidate.identity.revision != self.source.identity.revision:
+            raise StaleWorkspaceError("code index candidate belongs to a stale workspace revision")
+        publication = {
+            "job_id": lease.job_id if lease else "",
+            "lease_owner": lease.worker_id if lease else "",
+            "lease_token": lease.token if lease else "",
+            "lease_epoch": lease.epoch if lease else 0,
+            "source_revision": lease.source_revision if lease else "",
+        }
+        self.store.publish(
+            candidate.identity,
+            candidate.generation,
+            candidate.files,
+            candidate.symbols,
+            candidate.references,
+            candidate.calls,
+            content_digest=candidate.content_digest,
+            **publication,
+        )
+        self.store.mark_invalidations_applied(
+            candidate.identity.workspace_id,
+            candidate.generation,
+        )
+        return CodeIndexBuildResult(
+            workspace_id=self.source.identity.workspace_id,
+            generation=candidate.generation,
+            workspace_revision=self.source.identity.revision,
+            file_count=len(candidate.files),
+            symbol_count=len(candidate.symbols),
+            reference_count=len(candidate.references),
+            call_edge_count=len(candidate.calls),
+            ignored_count=candidate.ignored_count,
+            content_digest=candidate.content_digest,
+            changed_paths=candidate.changed_paths,
+            deleted_paths=candidate.deleted_paths,
+            warnings=candidate.warnings,
         )
 
     def ensure_current(self) -> CodeIndexBuildResult | None:

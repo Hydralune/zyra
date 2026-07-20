@@ -45,6 +45,11 @@ from .browser_session import (
 )
 from .code_worker_bridge import CodeWorkerSidecarClient, code_worker_entrypoint
 from .code_worker_runtime import CodeWorkerRun, CodeWorkerRuntime
+from .retrieval_context_runtime import (
+    WorkerRetrievalContext,
+    WorkerRetrievalContextRuntime,
+    WorkerRetrievalRecoveryReference,
+)
 from .backend_dispatch_service import (
     BackendDispatchHttpServer,
     BackendDispatchServiceRuntime,
@@ -146,6 +151,9 @@ __all__ = [
     "BrowserUseRuntimePaths",
     "CodeWorkerRun",
     "CodeWorkerRuntime",
+    "WorkerRetrievalContext",
+    "WorkerRetrievalContextRuntime",
+    "WorkerRetrievalRecoveryReference",
     "CodeWorkerScaffold",
     "CodeWorkerSidecarClient",
     "MemoryWorkerScaffold",

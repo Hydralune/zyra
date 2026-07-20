@@ -174474,19 +174474,333 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "retrieval_index_durable_admission_worker_context_integration",
+      "capability_summary": "Durable source admission, claim/heartbeat/sweep, fenced process publication and current-snapshot delivery are integrated into CodeWorker context and API paths.",
+      "ledger_id": "ledger_c34d64d29dcc0694",
+      "license_notice": {
+        "license_hint": "Apache-2.0",
+        "notes": "Selected mechanisms are modified and maintained inside Zyra-owned packages.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "agentscope",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/code",
+          "POST /tasks/{task_id}/agents"
+        ],
+        "artifact_kinds": [
+          "memory_source_ref",
+          "code_source_ref",
+          "test_selection"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "retrieval_index.source_admitted",
+          "retrieval_index.query_snapshot",
+          "code_index.queued",
+          "code_index.leased",
+          "code_index.building",
+          "code_index.publishing",
+          "code_index.ready"
+        ],
+        "surfaces": [
+          "memory_index_process_worker",
+          "code_index_process_worker",
+          "workspace_patch_invalidation",
+          "code_worker_preprocessed_messages",
+          "code_worker_file_test_selection",
+          "runtime_event_spine"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "WorkerRetrievalContextRuntime.prepare"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
+        "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
+        "checkpoint_reference_only": true,
+        "derived_index_owner": "MemoryIndexRuntime+CodeIndexRuntime",
+        "langgraph_production_owner": false,
+        "owner_unit": "M1-S06A-02",
+        "root_source_runtime_dependency": false,
+        "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=primary_implementation; source_commit=b6698c5dbaa1aa916925e27402767f45e2405fa4; AgentScope remains the single primary RAG/KB job-lifecycle source. Zyra adds atomic generation fencing, WorkspaceManager revision guards and QueryEngine message delivery; no AgentScope service, database or process is a runtime dependency.",
+      "owner_unit": "M1-S06A-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/zyra_memory/integration_runtime.py",
+          "packages/memory/zyra_memory/integration_store.py",
+          "packages/memory/zyra_memory/process_supervisor.py",
+          "packages/code_index/zyra_code_index/jobs.py",
+          "packages/code_index/zyra_code_index/worker.py",
+          "packages/code_index/zyra_code_index/process_supervisor.py",
+          "packages/code_index/zyra_code_index/integration.py",
+          "packages/code_index/zyra_code_index/service.py",
+          "packages/workers/zyra_workers/retrieval_context_runtime.py",
+          "packages/workers/zyra_workers/code_worker_runtime.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "WorkerRetrievalContextRuntime.prepare",
+        "health_check": "python -m pytest tests/unit/test_retrieval_index_adapters_integration.py tests/unit/test_code_index_adapters_integration.py tests/integration/test_code_index_process_worker.py tests/integration/test_code_index_patch_event_integration.py tests/integration/test_code_worker_retrieval_context_main_path.py -q",
+        "module": "zyra_workers.retrieval_context_runtime",
+        "protocol": "zyra-retrieval-index-integration-v1"
+      },
+      "source_path": "src/agentscope/app/_service/_index_worker.py;src/agentscope/app/_service/_index_task_consumer.py;src/agentscope/app/_service/_index_sweeper.py;src/agentscope/rag/_knowledge_base.py",
+      "source_repo": "agentscope",
+      "target_bindings": [
+        {
+          "path": "packages/memory/zyra_memory/integration_runtime.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/zyra_memory/integration_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/process_supervisor.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/jobs.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/worker.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/process_supervisor.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/integration.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/service.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/retrieval_context_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/code_worker_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/unit/test_retrieval_index_adapters_integration.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "unit",
+          "path": "tests/unit/test_retrieval_index_adapters_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_code_index_adapters_integration.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "unit",
+          "path": "tests/unit/test_code_index_adapters_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_index_process_worker.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "integration",
+          "path": "tests/integration/test_code_index_process_worker.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_index_patch_event_integration.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "integration",
+          "path": "tests/integration/test_code_index_patch_event_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_worker_retrieval_context_main_path.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "integration",
+          "path": "tests/integration/test_code_worker_retrieval_context_main_path.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "retrieval_filter_polyphonic_conformance_and_recovery_refs",
+      "capability_summary": "Bounded filter contracts, lexical/FTS+MMR/polyphonic comparison, deterministic conformance and reference-only recovery checkpoints supplement the primary lifecycle.",
+      "ledger_id": "ledger_dd2658b774019e82",
+      "license_notice": {
+        "license_hint": "MIT",
+        "notes": "Selected mechanisms are modified and maintained inside Zyra-owned packages.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/code",
+          "POST /tasks/{task_id}/agents"
+        ],
+        "artifact_kinds": [
+          "memory_source_ref",
+          "code_source_ref",
+          "test_selection"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "retrieval_index.source_admitted",
+          "retrieval_index.query_snapshot",
+          "code_index.queued",
+          "code_index.leased",
+          "code_index.building",
+          "code_index.publishing",
+          "code_index.ready"
+        ],
+        "surfaces": [
+          "memory_index_process_worker",
+          "code_index_process_worker",
+          "workspace_patch_invalidation",
+          "code_worker_preprocessed_messages",
+          "code_worker_file_test_selection",
+          "runtime_event_spine"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "RetrievalIntegrationRuntime.execute"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
+        "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
+        "checkpoint_reference_only": true,
+        "derived_index_owner": "MemoryIndexRuntime+CodeIndexRuntime",
+        "langgraph_production_owner": false,
+        "owner_unit": "M1-S06A-02",
+        "root_source_runtime_dependency": false,
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; Only ranking/filter/recovery-reference gaps supplement AgentScope. OMP storage, embedding ownership and agent/runtime control flow are excluded, so no second canonical memory or worker owner is introduced.",
+      "owner_unit": "M1-S06A-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/zyra_memory/query_contract.py",
+          "packages/memory/zyra_memory/integration_runtime.py",
+          "packages/memory/zyra_memory/conformance.py",
+          "packages/code_index/zyra_code_index/conformance.py",
+          "packages/workers/zyra_workers/retrieval_context_runtime.py"
+        ],
+        "function": "RetrievalIntegrationRuntime.execute",
+        "health_check": "python -m pytest tests/unit/test_retrieval_index_adapters_integration.py tests/unit/test_code_index_adapters_integration.py tests/integration/test_code_index_process_worker.py tests/integration/test_code_index_patch_event_integration.py tests/integration/test_code_worker_retrieval_context_main_path.py -q",
+        "module": "zyra_memory.integration_runtime",
+        "protocol": "zyra-retrieval-index-integration-v1"
+      },
+      "source_path": "packages/mnemopi/src/core/mmr.ts;packages/mnemopi/src/core/query-intent.ts;packages/mnemopi/src/core/temporal-parser.ts;packages/mnemopi/src/core/polyphonic-recall.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/memory/zyra_memory/query_contract.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/zyra_memory/integration_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/conformance.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/conformance.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/retrieval_context_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/unit/test_retrieval_index_adapters_integration.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "unit",
+          "path": "tests/unit/test_retrieval_index_adapters_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_code_index_adapters_integration.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "unit",
+          "path": "tests/unit/test_code_index_adapters_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_index_process_worker.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "integration",
+          "path": "tests/integration/test_code_index_process_worker.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_index_patch_event_integration.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "integration",
+          "path": "tests/integration/test_code_index_patch_event_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_worker_retrieval_context_main_path.py -q",
+          "expected_signal": "durable current-revision retrieval changes worker context and fails closed when disconnected",
+          "kind": "integration",
+          "path": "tests/integration/test_code_worker_retrieval_context_main_path.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 437,
+    "active_or_internalized": 439,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 382
+      "productized": 384
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -174494,7 +174808,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 143,
+      "tested_main_path": 145,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -174530,18 +174844,19 @@
       "M1-S05D-01": 4,
       "M1-S05D-02": 3,
       "M1-S06A-01": 2,
+      "M1-S06A-02": 2,
       "M2-01A": 46,
       "M2-03B": 30
     },
     "by_source_repo": {
       "OpenHands": 86,
       "agent-framework": 93,
-      "agentscope": 102,
+      "agentscope": 103,
       "browser-use": 109,
       "claude-code-best": 509,
       "hermes-agent": 82,
       "langgraph": 85,
-      "oh-my-pi": 11,
+      "oh-my-pi": 12,
       "openclaw": 86,
       "opencode": 16
     },
@@ -174551,7 +174866,7 @@
       "direct_port": 17,
       "not_selected": 14,
       "planned_adapter": 378,
-      "reimplemented_pattern": 237,
+      "reimplemented_pattern": 239,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 734,
@@ -174561,7 +174876,7 @@
       "apps/web": 46,
       "packages/evaluation": 34,
       "packages/integrations": 78,
-      "packages/memory": 186,
+      "packages/memory": 188,
       "packages/orchestration": 59,
       "packages/runtime": 168,
       "packages/scheduler": 79,
@@ -174572,6 +174887,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1179
+    "total_entries": 1181
   }
 }

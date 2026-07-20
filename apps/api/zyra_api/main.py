@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -59,13 +59,22 @@ from zyra_workspace import (
     WorkspaceManagerRuntime,
     workspace_error_response,
 )
-from zyra_memory import CompactPolicy, MemoryFabric, MemoryIndexRuntime, SQLiteStore
+from zyra_memory import (
+    CompactPolicy,
+    MemoryFabric,
+    MemoryIndexRuntime,
+    MemoryIndexWorkerProcessSupervisor,
+    RetrievalIntegrationRuntime,
+    SQLiteStore,
+)
 from zyra_code_index import (
     CodeIndexApiService,
     CodeIndexError,
+    CodeIndexIntegrationRuntime,
     CodeIndexOperation,
     CodeIndexRuntimeRegistry,
     CodeIndexServiceError,
+    CodeIndexWorkerProcessSupervisor,
 )
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
@@ -217,6 +226,7 @@ from zyra_workers import (
     BrowserContextApiProjectionRuntime,
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
+    WorkerRetrievalContextRuntime,
     browser_use_health_summary,
     default_browser_action_registry,
     inspect_browser_use_runtime,
@@ -399,7 +409,73 @@ def persist_workspace_events(
     events = drain_workspace_events(selected_task_id) if selected_task_id else []
     if events:
         persist_events(store, events)
+        for event in events:
+            workspace_event = event.payload.get("workspace_event", {})
+            if str(workspace_event.get("event_type") or "") != "workspace.patch.committed":
+                continue
+            try:
+                _admit_code_index_patch_event(store, workspace_event)
+            except Exception as error:  # noqa: BLE001 - canonical patch is already committed.
+                persist_events(
+                    store,
+                    [
+                        EventRecord(
+                            run_id=event.run_id,
+                            task_id=event.task_id,
+                            event_type=EventType.SYSTEM_NOTICE,
+                            payload={
+                                "code_index": {
+                                    "schema": "zyra.code-index-event.v1",
+                                    "phase": "patch_admission_failed",
+                                    "workspace_id": str(workspace_event.get("workspace_id") or ""),
+                                    "transaction_id": str(
+                                        (workspace_event.get("metadata") or {}).get("transaction_id")
+                                        or ""
+                                    ),
+                                    "error_code": str(getattr(error, "code", type(error).__name__)),
+                                    "message": str(error)[:1_000],
+                                    "canonical_patch_committed": True,
+                                    "fallback": False,
+                                    "reconcile_on_next_worker_context": True,
+                                }
+                            },
+                        )
+                    ],
+                )
     return events
+
+
+def _admit_code_index_patch_event(store: SQLiteStore, workspace_event: Mapping[str, Any]) -> None:
+    metadata = workspace_event.get("metadata")
+    metadata = metadata if isinstance(metadata, Mapping) else {}
+    transaction_id = str(metadata.get("transaction_id") or "").strip()
+    workspace_id = str(workspace_event.get("workspace_id") or "").strip()
+    if not transaction_id or not workspace_id:
+        raise ValueError("workspace patch event requires transaction_id and workspace_id")
+    manager = get_workspace_manager()
+    runtime = get_code_index_service().registry.runtime_for_snapshot(workspace_id)
+    supervisor = CodeIndexWorkerProcessSupervisor(
+        identity=runtime.source.identity,
+        index_db=runtime.store.path,
+        workspace_state_root=manager.config.state_root,
+        workspace_data_root=manager.config.data_root,
+        project_root=PROJECT_ROOT,
+    )
+    integration = CodeIndexIntegrationRuntime(
+        runtime,
+        transaction_resolver=manager.integration_store,
+        process_worker=lambda selected_workspace, maximum_jobs: supervisor.drain(
+            maximum_jobs=maximum_jobs
+        ).outcomes,
+        event_sink=lambda event: persist_events(store, [event]),
+        enabled=os.environ.get("ZYRA_CODE_INDEX_DISABLED", "").strip().casefold()
+        not in {"1", "true", "yes", "on"},
+    )
+    integration.admit_patch_transaction(
+        transaction_id,
+        process=True,
+        causation_id=str(workspace_event.get("causation_id") or transaction_id),
+    )
 
 
 def get_workspace_manager() -> WorkspaceManagerRuntime:
@@ -997,6 +1073,14 @@ def _run_typescript_agent_request(
             "canonical_agent_owner": "typescript",
         },
     )
+    canonical_store = SQLiteStore(sqlite_path())
+    canonical_store.initialize()
+    retrieval_context = _worker_retrieval_context(
+        canonical_store,
+        task_id=state.task_id,
+        workspace_manager=workspace_manager,
+        workspace_access=workspace_access,
+    )
     return CodeWorkerRuntime(
         project_root=PROJECT_ROOT,
         workspace_root=worker_workspace_root,
@@ -1021,6 +1105,7 @@ def _run_typescript_agent_request(
             "workspace_gateway_required": True,
             "typescript_agent_state_path": str(subagent_state_path()),
         },
+        retrieval_context_runtime=retrieval_context,
     ).run(request)
 
 
@@ -1195,6 +1280,87 @@ def _memory_fabric(store: SQLiteStore) -> MemoryFabric:
             worker_id=f"api-memory-index:{os.getpid()}",
         ),
     )
+
+
+def _worker_retrieval_context(
+    store: SQLiteStore,
+    *,
+    task_id: str,
+    workspace_manager: WorkspaceManagerRuntime,
+    workspace_access: Any,
+) -> WorkerRetrievalContextRuntime:
+    """Synchronize derived indexes and bind them to the next CodeWorker run."""
+
+    artifacts = LocalArtifactStore(artifact_root_path())
+    memory_runtime = MemoryIndexRuntime(
+        canonical_store=store,
+        index_path=memory_index_path(),
+        artifact_store=artifacts,
+        worker_id=f"api-memory-index:{os.getpid()}",
+    )
+    memory_supervisor = MemoryIndexWorkerProcessSupervisor(
+        canonical_db=store.path,
+        index_db=memory_index_path(),
+        project_root=PROJECT_ROOT,
+    )
+    memory = RetrievalIntegrationRuntime(
+        memory_runtime,
+        worker_supervisor=memory_supervisor,
+        event_sink=lambda event: persist_events(store, [event]),
+        enabled=os.environ.get("ZYRA_RETRIEVAL_INDEX_DISABLED", "").strip().casefold()
+        not in {"1", "true", "yes", "on"},
+    )
+    memory.admit_canonical_records(
+        task_id,
+        event_id=f"worker-context:{task_id}",
+        causation_id=f"worker-context:{task_id}",
+        process_worker=True,
+    )
+
+    code_runtime = get_code_index_service().registry.runtime_for_access(workspace_access)
+    if code_runtime.source.identity.workspace_id != str(workspace_access.workspace_id):
+        raise RuntimeError("code index registry returned another task workspace")
+    config = workspace_manager.config
+    code_supervisor = CodeIndexWorkerProcessSupervisor(
+        identity=code_runtime.source.identity,
+        index_db=code_runtime.store.path,
+        workspace_state_root=config.state_root,
+        workspace_data_root=config.data_root,
+        project_root=PROJECT_ROOT,
+    )
+    code = CodeIndexIntegrationRuntime(
+        code_runtime,
+        transaction_resolver=workspace_manager.integration_store,
+        process_worker=lambda workspace_id, maximum_jobs: code_supervisor.drain(
+            maximum_jobs=maximum_jobs
+        ).outcomes,
+        event_sink=lambda event: persist_events(store, [event]),
+        enabled=os.environ.get("ZYRA_CODE_INDEX_DISABLED", "").strip().casefold()
+        not in {"1", "true", "yes", "on"},
+    )
+    code.admit_initial(process=True, causation_id=f"worker-context:{task_id}")
+    # Reconcile durable 05B patch transactions even if an in-process event was
+    # lost.  The transaction is dereferenced from WorkspaceIntegrationStore;
+    # no event payload is trusted as file truth.
+    for transaction in workspace_manager.integration_store.list_transactions(
+        code_runtime.source.identity.workspace_id
+    ):
+        transaction_id = str(getattr(transaction, "transaction_id", ""))
+        phase = str(getattr(transaction, "phase", "")).casefold()
+        if (
+            transaction_id
+            and "commit" in phase
+            and not code_runtime.store.has_invalidation(
+                code_runtime.source.identity.workspace_id,
+                transaction_id,
+            )
+        ):
+            code.admit_patch_transaction(
+                transaction_id,
+                process=True,
+                causation_id=transaction_id,
+            )
+    return WorkerRetrievalContextRuntime(memory=memory, code=code)
 
 
 def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
@@ -4678,6 +4844,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             try:
+                retrieval_context = _worker_retrieval_context(
+                    store,
+                    task_id=state.task_id,
+                    workspace_manager=workspace_manager,
+                    workspace_access=workspace_access,
+                )
                 run_result = CodeWorkerRuntime(
                     project_root=PROJECT_ROOT,
                     workspace_root=worker_workspace_root,
@@ -4701,6 +4873,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         ),
                         "workspace_gateway_required": True,
                     },
+                    retrieval_context_runtime=retrieval_context,
                 ).run(request)
             except Exception as error:  # noqa: BLE001 - keep internal exception details out of API responses.
                 persist_workspace_events(store, task_id=state.task_id)

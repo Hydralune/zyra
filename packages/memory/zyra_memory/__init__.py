@@ -37,6 +37,29 @@ from .vector_adapter import (
     UnavailableVectorAdapter,
     VectorAdapterStatus,
 )
+from .query_contract import (
+    IndexCheckpointRef,
+    MemoryFilterQuery,
+    RecoveryIndexReference,
+    RetrievalConsumer,
+    RetrievalMode,
+    RetrievalSnapshotRef,
+)
+from .integration_runtime import (
+    CanonicalAdmissionResult,
+    RecoveryRecallResult,
+    RetrievalComparison,
+    RetrievalExecution,
+    RetrievalIndexAdapter,
+    RetrievalIntegrationError,
+    RetrievalIntegrationRuntime,
+)
+from .process_supervisor import (
+    IndexWorkerProcessError,
+    IndexWorkerProcessReceipt,
+    MemoryIndexWorkerProcessSupervisor,
+)
+from .conformance import RetrievalConformanceSuite
 
 __all__ = [
     "CompactPolicy",
@@ -86,6 +109,23 @@ __all__ = [
     "VectorAdapterStatus",
     "VectorAvailability",
     "WorkerOutcome",
+    "CanonicalAdmissionResult",
+    "IndexCheckpointRef",
+    "IndexWorkerProcessError",
+    "IndexWorkerProcessReceipt",
+    "MemoryFilterQuery",
+    "MemoryIndexWorkerProcessSupervisor",
+    "RecoveryIndexReference",
+    "RecoveryRecallResult",
+    "RetrievalComparison",
+    "RetrievalConformanceSuite",
+    "RetrievalConsumer",
+    "RetrievalExecution",
+    "RetrievalIndexAdapter",
+    "RetrievalIntegrationError",
+    "RetrievalIntegrationRuntime",
+    "RetrievalMode",
+    "RetrievalSnapshotRef",
     "approx_tokens",
     "search_memory_records",
 ]

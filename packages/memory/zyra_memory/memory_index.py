@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -14,13 +14,11 @@ from .retrieval_models import (
     IndexDocument,
     IndexJob,
     IndexOperation,
-    IndexSourceKind,
     RetrievalBudget,
     RetrievalFilter,
     RetrievalQuery,
     RetrievalResult,
     VectorAvailability,
-    canonical_json,
     stable_digest,
 )
 from .retrieval_query import combine_retrieval_hits, enrich_query, filter_hit_in_memory
@@ -249,6 +247,7 @@ class MemoryIndexRuntime:
         budget: RetrievalBudget | None = None,
         vector_enabled: bool = True,
         synchronize: bool = False,
+        query_id: str = "",
     ) -> HydratedMemoryResult:
         if synchronize:
             self.synchronize_task(task_id)
@@ -264,6 +263,7 @@ class MemoryIndexRuntime:
                 filters=query_filter,
                 budget=budget or RetrievalBudget(),
                 vector_enabled=vector_enabled,
+                query_id=str(query_id).strip(),
             )
         )
         started = time.perf_counter()

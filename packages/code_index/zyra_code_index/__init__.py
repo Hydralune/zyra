@@ -54,6 +54,39 @@ from .workspace_source import (
     WorkspacePathPolicy,
     is_binary,
 )
+from .job_models import (
+    CodeIndexBuildCandidate,
+    CodeIndexBuildJob,
+    CodeIndexBuildLease,
+    CodeIndexJobOperation,
+    CodeIndexJobState,
+    CodeIndexPublicationFenced,
+    CodeIndexWorkerOutcome,
+)
+from .jobs import CodeIndexBuildQueue
+from .worker import CodeIndexWorkerRuntime
+from .integration import (
+    CodeIndexAdmissionResult,
+    CodeIndexConsumer,
+    CodeIndexIntegrationError,
+    CodeIndexIntegrationRuntime,
+    CodeIndexQuery,
+    CodeIndexQueryJournal,
+    CodeIndexSelection,
+    CodeSearchPlanner,
+    CodeSourceRef,
+)
+from .process_supervisor import (
+    CodeIndexProcessReceipt,
+    CodeIndexWorkerProcessError,
+    CodeIndexWorkerProcessSupervisor,
+)
+from .conformance import (
+    CodeConformanceCheck,
+    CodeConformanceStatus,
+    CodeIndexConformanceReport,
+    CodeIndexConformanceSuite,
+)
 
 __all__ = [
     "BoundWorkspaceSource",
@@ -111,4 +144,29 @@ __all__ = [
     "analyze_structural",
     "analyze_symbols",
     "is_binary",
+    "CodeIndexAdmissionResult",
+    "CodeIndexBuildCandidate",
+    "CodeIndexBuildJob",
+    "CodeIndexBuildLease",
+    "CodeIndexBuildQueue",
+    "CodeIndexConsumer",
+    "CodeIndexIntegrationError",
+    "CodeIndexIntegrationRuntime",
+    "CodeIndexJobOperation",
+    "CodeIndexJobState",
+    "CodeIndexPublicationFenced",
+    "CodeIndexProcessReceipt",
+    "CodeIndexQuery",
+    "CodeIndexQueryJournal",
+    "CodeIndexSelection",
+    "CodeIndexWorkerOutcome",
+    "CodeIndexWorkerProcessError",
+    "CodeIndexWorkerProcessSupervisor",
+    "CodeIndexWorkerRuntime",
+    "CodeSearchPlanner",
+    "CodeSourceRef",
+    "CodeConformanceCheck",
+    "CodeConformanceStatus",
+    "CodeIndexConformanceReport",
+    "CodeIndexConformanceSuite",
 ]

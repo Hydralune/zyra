@@ -172,7 +172,46 @@ class CodeIndexStore:
                 );
                 """
             )
-        self._initialized = True
+            self._initialized = True
+
+    def drop_active_workspace_index(self, workspace_id: str) -> Mapping[str, int]:
+        """Delete rebuildable search rows while preserving durable job audit.
+
+        This is intentionally narrower than deleting the database: generation
+        fences, job receipts, query provenance and delivery journals remain as
+        evidence that the active derived projection became unavailable and was
+        subsequently rebuilt.
+        """
+
+        workspace = str(workspace_id).strip()
+        if not workspace:
+            raise ValueError("workspace_id is required")
+        removed: dict[str, int] = {}
+        with self.transaction(immediate=True) as connection:
+            file_rows = connection.execute(
+                "SELECT rowid FROM code_index_files WHERE workspace_id = ?",
+                (workspace,),
+            ).fetchall()
+            row_ids = tuple(int(row["rowid"]) for row in file_rows)
+            connection.executemany(
+                "DELETE FROM code_index_fts WHERE rowid = ?",
+                [(row_id,) for row_id in row_ids],
+            )
+            removed["fts"] = len(row_ids)
+            for table, key in (
+                ("code_index_calls", "calls"),
+                ("code_index_references", "references"),
+                ("code_index_symbols", "symbols"),
+                ("code_index_files", "files"),
+                ("code_index_invalidations", "invalidations"),
+                ("code_index_workspaces", "workspace"),
+            ):
+                cursor = connection.execute(
+                    f"DELETE FROM {table} WHERE workspace_id = ?",  # noqa: S608 - fixed internal table names.
+                    (workspace,),
+                )
+                removed[key] = max(0, int(cursor.rowcount))
+        return removed
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -228,6 +267,11 @@ class CodeIndexStore:
         calls: Sequence[CallEdge],
         *,
         content_digest: str,
+        job_id: str = "",
+        lease_owner: str = "",
+        lease_token: str = "",
+        lease_epoch: int = 0,
+        source_revision: str = "",
     ) -> None:
         if generation < 1:
             raise ValueError("generation must be positive")
@@ -235,6 +279,38 @@ class CodeIndexStore:
             raise ValueError("file batch contains another workspace")
         now = time.time()
         with self.transaction(immediate=True) as connection:
+            if job_id:
+                job = connection.execute(
+                    "SELECT * FROM code_index_jobs WHERE job_id = ?",
+                    (job_id,),
+                ).fetchone()
+                fence = connection.execute(
+                    "SELECT * FROM code_index_generation_fences WHERE workspace_id = ?",
+                    (identity.workspace_id,),
+                ).fetchone()
+                expected_revision = source_revision or identity.revision
+                valid = (
+                    job is not None
+                    and fence is not None
+                    and str(job["workspace_id"]) == identity.workspace_id
+                    and str(job["state"]) == "publishing"
+                    and str(job["lease_owner"]) == lease_owner
+                    and str(job["lease_token"]) == lease_token
+                    and int(job["lease_epoch"]) == int(lease_epoch)
+                    and int(job["generation"]) == generation
+                    and str(job["source_revision"]) == expected_revision
+                    and float(job["lease_expires_at"]) > now
+                    and int(fence["desired_generation"]) == generation
+                    and str(fence["source_revision"]) == expected_revision
+                    and str(fence["active_job_id"]) == job_id
+                )
+                if not valid:
+                    from .job_models import CodeIndexPublicationFenced
+
+                    raise CodeIndexPublicationFenced(
+                        "code_index_atomic_publish_fenced",
+                        "job lease or desired generation changed before atomic code-index publication",
+                    )
             old_files = connection.execute(
                 "SELECT rowid FROM code_index_files WHERE workspace_id = ?",
                 (identity.workspace_id,),

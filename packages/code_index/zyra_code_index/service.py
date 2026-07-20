@@ -18,6 +18,7 @@ from .models import (
     stable_digest,
 )
 from .runtime import CodeIndexRuntime
+from .workspace_source import BoundWorkspaceSource
 
 
 class CodeIndexServiceError(RuntimeError):
@@ -182,16 +183,46 @@ class CodeIndexRuntimeRegistry:
             session_id="",
             worker_id=self.worker_id,
         )
-        workspace_id = _required_text(access.workspace_id, "workspace_id", maximum=512)
-        public = access.to_public_dict()
-        revision = str(public.get("revision") or "")
-        if not revision:
-            revision = stable_digest(
-                workspace_id,
-                public.get("owner_epoch"),
-                public.get("binding_revision"),
-                public.get("lease_id"),
-            )
+        return self.runtime_for_access(access)
+
+    def runtime_for_access(self, access: Any) -> CodeIndexRuntime:
+        """Reuse an already-fenced worker access without transferring custody.
+
+        CodeWorker/API integration obtains its workspace handle before
+        assembling context.  Acquiring again under the registry worker id
+        would rotate the lease and invalidate the handle about to be used by
+        the worker.  This entrypoint validates that handle through
+        ``BoundWorkspaceSource.from_manager`` and only caches the derived
+        runtime.
+        """
+
+        _required_text(
+            str(getattr(access, "workspace_id", "")),
+            "workspace_id",
+            maximum=512,
+        )
+        source = BoundWorkspaceSource.from_manager(self.manager, access)
+        return self._runtime_for_source(source)
+
+    def runtime_for_snapshot(
+        self,
+        workspace_id: str,
+        *,
+        expected_revision: str = "",
+    ) -> CodeIndexRuntime:
+        """Open derived indexing from an already-committed workspace event."""
+
+        workspace = _required_text(workspace_id, "workspace_id", maximum=512)
+        source = BoundWorkspaceSource.from_manager_snapshot(
+            self.manager,
+            workspace,
+            expected_revision=expected_revision,
+        )
+        return self._runtime_for_source(source)
+
+    def _runtime_for_source(self, source: BoundWorkspaceSource) -> CodeIndexRuntime:
+        workspace_id = source.identity.workspace_id
+        revision = source.identity.revision
         key = (workspace_id, revision)
         with self._lock:
             existing = self._runtimes.get(key)
@@ -199,11 +230,7 @@ class CodeIndexRuntimeRegistry:
                 return existing
             self.index_root.mkdir(parents=True, exist_ok=True)
             database = self.index_root / f"workspace-{stable_digest(workspace_id)[:32]}.sqlite3"
-            runtime = CodeIndexRuntime.from_workspace_manager(
-                self.manager,
-                access,
-                index_path=database,
-            )
+            runtime = CodeIndexRuntime(source, index_path=database)
             self._runtimes[key] = runtime
             self._remove_stale_workspace_entries(workspace_id, keep=key)
             return runtime

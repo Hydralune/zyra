@@ -27,6 +27,7 @@ from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRunt
 
 from .code_worker_bridge import CodeWorkerSidecarClient
 from .typescript_claude_runtime import TypeScriptClaudeQueryEngine
+from .retrieval_context_runtime import WorkerRetrievalContext, WorkerRetrievalContextRuntime
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +90,7 @@ class CodeWorkerRuntime:
         dynamic_handlers: Mapping[str, Any] | None = None,
         runtime_services: Mapping[str, Any] | None = None,
         skill_fork_port: Any | None = None,
+        retrieval_context_runtime: WorkerRetrievalContextRuntime | None = None,
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.workspace_root = Path(workspace_root).resolve()
@@ -99,6 +101,7 @@ class CodeWorkerRuntime:
         self.permission_accept_edits_available = bool(permission_accept_edits_available)
         self.permission_extension_registry = permission_extension_registry
         self.skill_fork_port = skill_fork_port
+        self.retrieval_context_runtime = retrieval_context_runtime
         supplied_services = dict(runtime_services or {})
         self.managed_workspace_custody = bool(
             supplied_services.get(
@@ -199,6 +202,23 @@ class CodeWorkerRuntime:
             "canonical_runtime_owner": "typescript",
             "python_runtime_role": "process-durability-side-effect-host",
         }
+        retrieval_context: WorkerRetrievalContext | None = None
+        if self.retrieval_context_runtime is not None and constraints.get("disable_retrieval_context") is not True:
+            try:
+                retrieval_context = self.retrieval_context_runtime.prepare(
+                    request,
+                    session_id=session_id,
+                )
+            except Exception as error:  # noqa: BLE001 - current-context retrieval fails closed.
+                return self._failure(
+                    request,
+                    error="retrieval_context_prepare_failed",
+                    summary=f"CodeWorkerRuntime could not prove current retrieval context: {type(error).__name__}: {error}",
+                    session_id=session_id,
+                )
+            request_messages = (*request_messages, *retrieval_context.messages)
+            constraints.update(retrieval_context.constraint_delta)
+            request_metadata.update(retrieval_context.metadata)
         try:
             engine = self.query_engine_factory(
                 self.execution_context,
@@ -331,6 +351,13 @@ class CodeWorkerRuntime:
                 request_metadata=request_metadata,
             )
         except Exception as error:  # noqa: BLE001 - process boundary fails closed.
+            if retrieval_context is not None:
+                self.retrieval_context_runtime.finish(
+                    retrieval_context,
+                    committed=False,
+                    terminal_event_ids=(),
+                    reason=f"typescript_runtime_host_failed:{type(error).__name__}",
+                )
             return self._failure(
                 request,
                 error="typescript_runtime_host_failed",
@@ -397,9 +424,21 @@ class CodeWorkerRuntime:
             metadata=metadata,
         )
         result_event = _worker_result_event(request, worker_result)
+        retrieval_events = list(retrieval_context.events) if retrieval_context is not None else []
+        if retrieval_context is not None:
+            terminal_ids = tuple(
+                event.event_id for event in (*loop_result.event_records, result_event)
+            )
+            self.retrieval_context_runtime.finish(
+                retrieval_context,
+                committed=bool(loop_result.ok),
+                terminal_event_ids=terminal_ids,
+                reason=("provider_runtime_completed" if loop_result.ok else (error or "provider_runtime_failed")),
+            )
+            metadata.update(retrieval_context.metadata)
         return CodeWorkerRun(
             worker_result=worker_result,
-            event_records=[*loop_result.event_records, result_event],
+            event_records=[*retrieval_events, *loop_result.event_records, result_event],
             session_custody_token=custody.token if custody is not None else "",
             session_id=metadata["query_session_id"],
             session_custody_id=custody.custody_id if custody is not None else "",
