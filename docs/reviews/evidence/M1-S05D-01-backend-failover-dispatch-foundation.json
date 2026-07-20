@@ -1,0 +1,158 @@
+{
+  "review_id": "M1-S05D-01-backend-failover-dispatch-foundation",
+  "slice": "M1-S05D-01",
+  "date": "2026-07-20",
+  "measurement_baseline_commit": "deb2c5a569f118862be1506a5749d4579a47be11",
+  "implementation_commits": [
+    "63616b446f3aa01c54fd8922d45d14a964068d22",
+    "009c9329e767ba864141dc15ee23160df9af55a0",
+    "ef0ea831e2551429bea1a8029865cd7407eae91c"
+  ],
+  "final_implementation_commit": "ef0ea831e2551429bea1a8029865cd7407eae91c",
+  "verdict": "PASS",
+  "parent_status": "M1-05D_IN_PROGRESS",
+  "next_slice": "M1-S05D-02",
+  "blocking_findings_after_fix": 0,
+  "canonical_owners": {
+    "provider_catalog_integrations_credentials_routes_attempts_events": "TypeScript ProviderControlPlaneStore",
+    "provider_transport_and_failover": "TypeScript ProviderControlPlane",
+    "backend_definitions_health_leases_attempts_events": "Python BackendRegistryStore",
+    "backend_dispatch_and_failover": "Python BackendDispatchRuntime",
+    "python_provider_facade_role": "process supervision and schema/error mapping only",
+    "legacy_dispatch_envelope_role": "compatibility projection only"
+  },
+  "separation_invariants": {
+    "backend_envelope_provider_field": "opaque provider_route_id only",
+    "provider_state_embedded_in_backend": false,
+    "credentials_embedded_in_backend": false,
+    "provider_failure_rotates_backend": false,
+    "backend_failure_rotates_provider_route": false,
+    "partial_output_replayed": false
+  },
+  "source_roles": {
+    "opencode": {
+      "role": "primary_implementation",
+      "commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+      "migration": "direct_port",
+      "canonical_owner": false
+    },
+    "hermes-agent": {
+      "role": "supplementary_implementation",
+      "commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "mechanism": "bounded resolver precedence",
+      "canonical_owner": false
+    },
+    "oh-my-pi": {
+      "role": "supplementary_implementation",
+      "commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "migration": "direct_port",
+      "canonical_owner": false
+    },
+    "OpenHands": {
+      "role": "primary_implementation_for_separate_backend_domain",
+      "commit": "c105a82387898e744423c8831d412e26495b38a9",
+      "migration": "reimplemented_pattern",
+      "canonical_owner": false
+    }
+  },
+  "ledger_readiness": {
+    "owner_unit": "M1-S05D-01",
+    "entries": 4,
+    "connected": 4,
+    "blocked": 0,
+    "missing_targets": 0,
+    "missing_runtime": 0,
+    "missing_tests": 0,
+    "policy_errors": 0,
+    "policy_warnings": 0,
+    "ok": true
+  },
+  "line_buckets": {
+    "typescript_control_plane_runtime": 3447,
+    "typescript_hand_maintained_wire_contracts": 7575,
+    "python_backend_registry": 1797,
+    "api_task_graph_dispatch_integration": 462,
+    "conservative_counted_production": 13281,
+    "slice_minimum": 9000,
+    "shortfall": 0,
+    "adjacent_command_fix_excluded": 6,
+    "python_provider_adapter_only_excluded": 801,
+    "package_exports_excluded": 136,
+    "tests_excluded": 996,
+    "generated_data_mock_fixture_vendor_source_pool_counted": 0
+  },
+  "worktree_verification": [
+    {
+      "suite": "repository_typescript_typecheck",
+      "result": "passed"
+    },
+    {
+      "suite": "provider_control_plane_typescript_behavior",
+      "result": "6/6 passed"
+    },
+    {
+      "suite": "provider_backend_task_graph_api_scheduler_fault_python",
+      "result": "17/17 passed"
+    },
+    {
+      "suite": "provider_backend_source_ledger_sync",
+      "result": "aligned"
+    }
+  ],
+  "clean_source_tree_verification": {
+    "path": ".tmp/cleanroom-M1-S05D-009c932",
+    "exact_commit": "ef0ea831e2551429bea1a8029865cd7407eae91c",
+    "package_lock_frozen": true,
+    "project_local_bun_version": "1.2.15",
+    "typescript_typechecks": "passed",
+    "typescript_tests": "6/6 passed",
+    "python_tests": "17/17 passed in 39.19s",
+    "ledger_readiness": "4 connected, 0 blocked, ok=true",
+    "forbidden_runtime_dependency_hits": 0,
+    "root_source_repositories_present": 0,
+    "git_status_clean": true
+  },
+  "behavior_coverage": [
+    "catalog revision and immutable route pinning",
+    "secret-reference credential custody with zero-byte rejection",
+    "real OpenAI Chat request and SSE",
+    "real Anthropic Messages request and SSE",
+    "provider-route failover without backend mutation",
+    "backend failover without provider-route mutation",
+    "provider failure without backend rotation",
+    "partial-output and late-output reconciliation fencing",
+    "actual worker callable under backend lease",
+    "provider and backend API state-owner separation",
+    "task-graph CodeWorker and BrowserWorker dispatch integration",
+    "source notice and exact-seed ledger readiness",
+    "clean-install local Bun discovery"
+  ],
+  "submission_boundary": {
+    "new_vendor_or_source_pool_additions": 0,
+    "root_source_runtime_dependencies": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "external_source_cli_service_or_container_owner": false,
+    "preexisting_user_agents_change_touched": false
+  },
+  "risk_trigger": {
+    "triggered": true,
+    "reasons": [
+      "new persistent provider SQLite owner",
+      "new persistent backend SQLite owner",
+      "new long-lived TypeScript subprocess",
+      "default task-graph worker dispatch integration",
+      "frozen toolchain dependency change"
+    ],
+    "upgraded_verification": "exact-final-commit cleanroom, frozen install, affected adjacent suites, owner ledger readiness and dependency scan",
+    "canonical_owner_transfer": false
+  },
+  "unclaimed": [
+    "M1-05D parent completion",
+    "M1-S05D-02 live backend integration",
+    "M1-05 numeric-stage aggregate review",
+    "real isolated edge and cloud dispatch competition gate",
+    "two live cross-domain scenarios",
+    "2000-transition sealed-autonomy competition gate",
+    "dynamic topology and low-entropy comparison closure"
+  ]
+}
