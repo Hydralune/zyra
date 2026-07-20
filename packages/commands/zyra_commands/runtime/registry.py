@@ -237,6 +237,7 @@ def built_in_control_descriptors() -> tuple[ControlCommandDescriptor, ...]:
         remote: bool = True,
         agent: bool = False,
         permission_action: str = "inspect",
+        event_hint: str = "control_command",
     ) -> ControlCommandDescriptor:
         return ControlCommandDescriptor(
             canonical_name=name,
@@ -251,7 +252,7 @@ def built_in_control_descriptors() -> tuple[ControlCommandDescriptor, ...]:
             immediate=immediate,
             permission_action=permission_action,
             category=category,
-            metadata={"event_hint": "control_command", "requires_task": True},
+            metadata={"event_hint": event_hint, "requires_task": True},
         )
 
     return (
@@ -281,10 +282,10 @@ def built_in_control_descriptors() -> tuple[ControlCommandDescriptor, ...]:
         descriptor("/artifacts", "Inspect task artifacts.", "artifact.list", source=zyra, category="observability"),
         descriptor("/skills", "Inspect M1-03C skill registry and invocation state.", "skill.list", category="extensions"),
         descriptor("/tools", "Inspect the executable tool registry.", "tool.list", category="runtime"),
-        descriptor("/inject", "Inject a failure through the task graph owner.", "task.inject", source=zyra, scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition", permission_action="task.inject"),
-        descriptor("/change", "Inject a requirement change through the task graph owner.", "task.change", source=zyra, aliases=("/需求变更",), scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition", permission_action="task.change"),
-        descriptor("/verify", "Run the task verifier.", "task.verify", source=zyra, scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition"),
-        descriptor("/eval", "Run trace evaluation.", "task.evaluate", source=zyra, scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition", permission_action="task.evaluate"),
+        descriptor("/inject", "Inject a failure through the task graph owner.", "task.inject", source=zyra, scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition", permission_action="task.inject", event_hint="failure_injected"),
+        descriptor("/change", "Inject a requirement change through the task graph owner.", "task.change", source=zyra, aliases=("/需求变更",), scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition", permission_action="task.change", event_hint="requirement_change"),
+        descriptor("/verify", "Run the task verifier.", "task.verify", source=zyra, scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition", event_hint="evaluation"),
+        descriptor("/eval", "Run trace evaluation.", "task.evaluate", source=zyra, scope=CommandMutationScope.TASK_GRAPH, concurrency=CommandConcurrency.SESSION_SERIAL, immediate=False, category="competition", permission_action="task.evaluate", event_hint="evaluation"),
         descriptor("/help", "List commands, sources and availability.", "registry.help", source=zyra, category="runtime"),
     )
 

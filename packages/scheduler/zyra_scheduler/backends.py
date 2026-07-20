@@ -24,6 +24,7 @@ class DispatchEnvelope:
     gateway: str
     workspace_root: str
     artifact_root: str
+    provider_route_id: str = ""
     gateway_receipt_id: str = ""
     gateway_receipt_digest: str = ""
     gateway_policy_digest: str = ""
@@ -57,6 +58,7 @@ class WorkerBackendGateway:
         *,
         node_id: str | None = None,
         decision_id: str = "",
+        provider_route_id: str = "",
     ) -> DispatchEnvelope:
         envelope = DispatchEnvelope(
             envelope_id=new_id("dispatch"),
@@ -71,11 +73,14 @@ class WorkerBackendGateway:
             gateway=manifest.gateway,
             workspace_root=str(self.workspace_root),
             artifact_root=str(self.artifact_root),
+            provider_route_id=str(provider_route_id or ""),
             metadata={
                 "decision_id": decision_id,
                 "workspace_scope": manifest.workspace_scope,
                 "privacy_level": manifest.privacy_level,
                 "source_modules": manifest.source_modules,
+                "provider_route_is_opaque_reference": bool(provider_route_id),
+                "provider_state_embedded": False,
             },
         )
         attestation = self.gateway_attestor.attest(
@@ -109,10 +114,12 @@ def build_dispatch_envelope(
     artifact_root: str | Path,
     node_id: str | None = None,
     decision_id: str = "",
+    provider_route_id: str = "",
 ) -> DispatchEnvelope:
     return WorkerBackendGateway(workspace_root, artifact_root).envelope(
         state,
         manifest,
         node_id=node_id,
         decision_id=decision_id,
+        provider_route_id=provider_route_id,
     )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
@@ -427,15 +427,23 @@ def _run_selected_worker(
             constraints=constraints,
             metadata=request_metadata,
         )
-        return (
-            BrowserWorkerRuntime(
-                project_root=execution_context.project_root,
-                workspace_root=workspace_root,
-                artifact_root=execution_context.artifact_root,
-                workspace_edit_port=runtime_services.get("workspace_edit_port"),
-                workspace_gateway_required=bool(runtime_services.get("workspace_gateway_required", False)),
-            ).run(request),
-            "BrowserWorker",
+        runtime = BrowserWorkerRuntime(
+            project_root=execution_context.project_root,
+            workspace_root=workspace_root,
+            artifact_root=execution_context.artifact_root,
+            workspace_edit_port=runtime_services.get("workspace_edit_port"),
+            workspace_gateway_required=bool(runtime_services.get("workspace_gateway_required", False)),
+        )
+        return _dispatch_selected_worker_callable(
+            state,
+            node,
+            execution_context,
+            request=request,
+            runtime=runtime,
+            runtime_worker="BrowserWorker",
+            workspace_root=workspace_root,
+            preferred_backend_id=str(request_metadata.get("worker_manifest_id") or "") or None,
+            provider_route_id=str(request_metadata.get("provider_route_id") or "") or None,
         )
 
     workspace_root, runtime_services = _resolve_worker_runtime(
@@ -452,20 +460,91 @@ def _run_selected_worker(
         constraints=_code_constraints(state, hints),
         metadata=request_metadata,
     )
-    return (
-        CodeWorkerRuntime(
-            project_root=execution_context.project_root,
-            workspace_root=workspace_root,
-            artifact_root=execution_context.artifact_root,
-            permission_store=(
-                JsonPermissionStore(execution_context.permission_store_path)
-                if execution_context.permission_store_path is not None
-                else None
-            ),
-            runtime_services=runtime_services,
-        ).run(request),
-        "CodeWorkerRuntime",
+    runtime = CodeWorkerRuntime(
+        project_root=execution_context.project_root,
+        workspace_root=workspace_root,
+        artifact_root=execution_context.artifact_root,
+        permission_store=(
+            JsonPermissionStore(execution_context.permission_store_path)
+            if execution_context.permission_store_path is not None
+            else None
+        ),
+        runtime_services=runtime_services,
     )
+    return _dispatch_selected_worker_callable(
+        state,
+        node,
+        execution_context,
+        request=request,
+        runtime=runtime,
+        runtime_worker="CodeWorkerRuntime",
+        workspace_root=workspace_root,
+        preferred_backend_id=str(request_metadata.get("worker_manifest_id") or "") or None,
+        provider_route_id=str(request_metadata.get("provider_route_id") or "") or None,
+    )
+
+
+def _dispatch_selected_worker_callable(
+    state: TaskState,
+    node: PlanNode,
+    execution_context: GraphExecutionContext,
+    *,
+    request: Any,
+    runtime: Any,
+    runtime_worker: str,
+    workspace_root: Path,
+    preferred_backend_id: str | None,
+    provider_route_id: str | None,
+):
+    from zyra_scheduler import dispatch_worker_callable, event_record_from_backend
+
+    turn_id = str(
+        request.metadata.get("turn_id")
+        or state.metadata.get("provider_turn_id")
+        or f"{node.node_id}:worker-turn"
+    )
+
+    def execute(envelope: Any):
+        request.metadata.update(
+            {
+                "backend_dispatch_envelope_id": str(envelope.envelope_id),
+                "backend_lease_id": str(envelope.backend_lease_id),
+                "backend_id": str(envelope.backend_id),
+                "backend_kind": str(envelope.backend_kind),
+                "backend_location": str(envelope.backend_location),
+                "provider_route_id": str(envelope.provider_route_id or ""),
+                "provider_state_embedded": "false",
+            }
+        )
+        return runtime.run(request)
+
+    outcome = dispatch_worker_callable(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=node.node_id,
+        runtime_worker=runtime_worker,
+        preferred_backend_id=preferred_backend_id,
+        workspace_root=workspace_root,
+        artifact_root=execution_context.artifact_root,
+        provider_route_id=provider_route_id,
+        turn_id=turn_id,
+        operation=execute,
+        idempotency_key=f"worker-dispatch:{request.request_id}",
+    )
+    backend_events = [event_record_from_backend(event) for event in outcome.events]
+    worker_run = replace(
+        outcome.value,
+        event_records=[*backend_events, *outcome.value.event_records],
+    )
+    node.metadata["backend_dispatch"] = {
+        "state_owner": "python.BackendRegistryStore",
+        "provider_state_owned": False,
+        "final_lease": to_jsonable(outcome.final_lease),
+        "final_envelope": to_jsonable(outcome.final_envelope),
+        "attempts": [to_jsonable(item) for item in outcome.attempts],
+        "backend_changed": outcome.backend_changed,
+    }
+    return worker_run, runtime_worker
 
 
 def _resolve_worker_runtime(
@@ -595,6 +674,13 @@ def _worker_request_metadata(
     resource_decision: dict[str, Any],
     selected_manifest: dict[str, str],
 ) -> dict[str, str]:
+    hints = _runtime_hints(state)
+    provider_route_id = str(
+        hints.get("provider_route_id")
+        or state.metadata.get("provider_route_id")
+        or resource_decision.get("provider_route_id")
+        or ""
+    )
     metadata = {
         "scheduler": "m5-resource-scheduler" if resource_decision else "",
         "resource_decision_id": str(resource_decision.get("decision_id") or ""),
@@ -602,6 +688,7 @@ def _worker_request_metadata(
         "backend": str(resource_decision.get("selected_backend") or selected_manifest.get("backend") or ""),
         "location": str(resource_decision.get("selected_location") or selected_manifest.get("location") or ""),
         "model_split": json.dumps(resource_decision.get("model_split") or {}, ensure_ascii=False, sort_keys=True),
+        "provider_route_id": provider_route_id,
     }
     try:
         from zyra_scheduler import WorkerPool, build_dispatch_envelope
@@ -617,6 +704,7 @@ def _worker_request_metadata(
         artifact_root=execution_context.artifact_root,
         node_id=node.node_id,
         decision_id=metadata["resource_decision_id"],
+        provider_route_id=provider_route_id,
     )
     node.metadata["dispatch_envelope"] = to_jsonable(envelope)
     metadata.update(
@@ -625,6 +713,7 @@ def _worker_request_metadata(
             "sandbox": envelope.sandbox,
             "gateway": envelope.gateway,
             "workspace_scope": str(envelope.metadata.get("workspace_scope") or ""),
+            "provider_route_id": envelope.provider_route_id,
         }
     )
     return metadata

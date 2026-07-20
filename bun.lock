@@ -24,6 +24,10 @@
         "@zyra/claude-mcp": "workspace:*",
       },
     },
+    "packages/runtime/provider-control-plane": {
+      "name": "@zyra/provider-control-plane",
+      "version": "0.1.0",
+    },
     "packages/runtime/runtime-event-spine": {
       "name": "@zyra/runtime-event-spine",
       "version": "0.1.0",
@@ -41,6 +45,8 @@
     "@zyra/claude-mcp": ["@zyra/claude-mcp@workspace:packages/integrations/claude-mcp"],
 
     "@zyra/claude-runtime": ["@zyra/claude-runtime@workspace:packages/runtime/claude-runtime"],
+
+    "@zyra/provider-control-plane": ["@zyra/provider-control-plane@workspace:packages/runtime/provider-control-plane"],
 
     "@zyra/runtime-event-spine": ["@zyra/runtime-event-spine@workspace:packages/runtime/runtime-event-spine"],
 

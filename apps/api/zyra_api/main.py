@@ -271,10 +271,12 @@ if __package__:
     from .mcp_api import (
         McpApiFacade,
     )
+    from .provider_backend_api import ProviderBackendApi, reset_provider_control_client
 else:  # pragma: no cover - direct development script entry.
     from mcp_api import (
         McpApiFacade,
     )
+    from provider_backend_api import ProviderBackendApi, reset_provider_control_client
 
 
 def event_log_path() -> Path:
@@ -1219,7 +1221,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 try:
                     reset_runtime_event_spine_bridge()
                 finally:
-                    original_server_close()
+                    try:
+                        reset_provider_control_client()
+                    finally:
+                        original_server_close()
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)
@@ -1623,6 +1628,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         store = get_store()
 
         if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
+            return
+
+        provider_backend_response = ProviderBackendApi(
+            project_root=PROJECT_ROOT,
+            artifact_root=artifact_root_path(),
+        ).handle_get(
+            parts,
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if provider_backend_response is not None:
+            self._send_json(
+                provider_backend_response.status,
+                provider_backend_response.body,
+                headers=dict(provider_backend_response.headers),
+            )
             return
 
         mcp_response = McpApiFacade(get_mcp_runtime()).handle_get(
@@ -3006,6 +3026,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self._handle_permission_post(parts=parts, payload=payload, store=store):
+            return
+
+        provider_backend_response = ProviderBackendApi(
+            project_root=PROJECT_ROOT,
+            artifact_root=artifact_root_path(),
+        ).handle_post(parts, payload)
+        if provider_backend_response is not None:
+            self._send_json(
+                provider_backend_response.status,
+                provider_backend_response.body,
+                headers=dict(provider_backend_response.headers),
+            )
             return
 
         mcp_runtime = get_mcp_runtime()
@@ -5481,6 +5513,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
                 "handler_id": str(getattr(descriptor, "handler_id", "")),
                 "runtime_status": "stateful",
                 "canonical_command_registry_owner": "typescript",
+                "event_hint": str(getattr(descriptor, "event_hint", "control_command")),
             },
         )
         event = control_event_from_command(command, node_id=state.root_node_id)

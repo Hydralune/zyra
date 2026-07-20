@@ -17,9 +17,35 @@ from .pool import WorkerPool, default_worker_manifests
 from .recovery import RecoveryPlanner
 from .scheduler import ResourceScheduler
 from .watchdog import RuntimeWatchdog
+from .backend_registry import (
+    BackendDefinition,
+    BackendDispatchError,
+    BackendDispatchOutcome,
+    BackendDispatchRuntime,
+    BackendFailureKind,
+    BackendHealthStatus,
+    BackendKind,
+    BackendLocation,
+    BackendRecoveryIntent,
+    BackendRegistry,
+    BackendRegistryStore,
+    dispatch_worker_callable,
+    event_record_from_backend,
+)
 
 __all__ = [
     "DispatchEnvelope",
+    "BackendDefinition",
+    "BackendDispatchError",
+    "BackendDispatchOutcome",
+    "BackendDispatchRuntime",
+    "BackendFailureKind",
+    "BackendHealthStatus",
+    "BackendKind",
+    "BackendLocation",
+    "BackendRecoveryIntent",
+    "BackendRegistry",
+    "BackendRegistryStore",
     "FailureKind",
     "FailureSignal",
     "M5_SOURCE_TO_TARGET_LEDGER",
@@ -39,5 +65,7 @@ __all__ = [
     "WorkerPool",
     "build_dispatch_envelope",
     "default_worker_manifests",
+    "dispatch_worker_callable",
+    "event_record_from_backend",
     "source_to_target_ledger",
 ]
