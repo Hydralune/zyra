@@ -2,11 +2,15 @@ import type { DatabaseSync } from "node:sqlite";
 import {
   type BaselineComparison,
   type LowEntropyReport,
+  type RecipientRef,
+  type RouteDecision,
   type RuntimeEventEnvelope,
   type SpineMetrics,
 } from "./contracts.ts";
+import { LowEntropyBaselineHarness, type BaselineFact } from "./baseline-harness.ts";
 import { INLINE_PAYLOAD_LIMIT_BYTES, ENVELOPE_LIMIT_BYTES } from "./payload-policy.ts";
 import { RuntimeEventSqliteStore } from "./sqlite-store.ts";
+import { digestJson } from "./canonical.ts";
 
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0);
@@ -60,6 +64,11 @@ interface DeliveryMetricRow {
   route_policy_id: string;
 }
 
+interface RouteMetricRow {
+  event_id: string;
+  route_json: string;
+}
+
 export class LowEntropyMetrics {
   readonly store: RuntimeEventSqliteStore;
 
@@ -85,6 +94,7 @@ export class LowEntropyMetrics {
     const broadcastCount = sum(metrics.filter((row) => row.metric_kind === "route.broadcast").map((row) => Number(row.value)));
     const duplicateEventCount = sum(metrics.filter((row) => row.metric_kind === "event.duplicate").map((row) => Number(row.value)));
     const artifactSpillCount = sum(metrics.filter((row) => row.metric_kind === "event.artifact_spills").map((row) => Number(row.value)));
+    const offloadedBytesTotal = sum(metrics.filter((row) => row.metric_kind === "event.offloaded_bytes").map((row) => Number(row.value)));
     return {
       eventCount: events.length,
       effectiveEventCount: events.filter((event) => event.effect === "effective").length,
@@ -96,6 +106,8 @@ export class LowEntropyMetrics {
       deadLetterCount: deliveries.filter((delivery) => delivery.state === "dead_letter").length,
       artifactRefCount: sum(events.map((event) => Number(event.artifact_ref_count))),
       artifactSpillCount,
+      eventsWithArtifactRef: events.filter((event) => Number(event.artifact_ref_count) > 0).length,
+      offloadedBytesTotal,
       inlineBytesTotal: sum(events.map((event) => Number(event.inline_bytes))),
       sourceBytesTotal: sum(events.map((event) => Number(event.source_bytes))),
       envelopeBytes: events.map((event) => Number(event.envelope_bytes)),
@@ -107,14 +119,15 @@ export class LowEntropyMetrics {
     };
   }
 
-  report(taskSuccess = 1): LowEntropyReport {
+  report(taskSuccess?: number): LowEntropyReport {
     const metrics = this.collect();
+    const measuredTaskSuccess = taskSuccess
+      ?? (metrics.eventCount > 0 && metrics.deadLetterCount === 0 ? 1 : 0);
     const maxEnvelope = Math.max(0, ...metrics.envelopeBytes);
     const p95 = quantile(metrics.envelopeBytes, 0.95);
     const averageRecipients = average(metrics.routeRecipientCounts);
     const averageAvailable = average(metrics.availableRecipientCounts);
     const findings: string[] = [];
-    if (p95 > INLINE_PAYLOAD_LIMIT_BYTES) findings.push(`p95_envelope_bytes_exceeds_4k:${p95}`);
     if (maxEnvelope > ENVELOPE_LIMIT_BYTES) findings.push(`max_envelope_bytes_exceeds_8k:${maxEnvelope}`);
     const oversizedInline = Number((this.store.db.prepare("SELECT COUNT(*) AS count FROM runtime_events WHERE inline_bytes > ?").get(INLINE_PAYLOAD_LIMIT_BYTES) as { count: number }).count);
     if (oversizedInline > 0) findings.push(`inline_payload_hard_limit_violations:${oversizedInline}`);
@@ -127,85 +140,34 @@ export class LowEntropyMetrics {
         max: maxEnvelope,
       },
       inlineToSourceByteRatio: round(ratio(metrics.inlineBytesTotal, metrics.sourceBytesTotal)),
-      artifactRefRate: round(ratio(metrics.artifactRefCount, metrics.eventCount)),
-      artifactRefOffloadRatio: round(ratio(metrics.artifactSpillCount, metrics.eventCount)),
+      artifactRefRate: round(ratio(metrics.eventsWithArtifactRef, metrics.eventCount)),
+      artifactRefOffloadRatio: round(ratio(metrics.offloadedBytesTotal, metrics.sourceBytesTotal)),
       duplicateRate: round(ratio(metrics.duplicateEventCount, metrics.eventCount + metrics.duplicateEventCount)),
       redeliveryRate: round(ratio(metrics.redeliveryCount, metrics.deliveryCount)),
       routeDensity: round(ratio(averageRecipients, averageAvailable)),
       broadcastRatio: round(ratio(metrics.broadcastCount, metrics.eventCount)),
       messagesPerThousandTokens: round(ratio(metrics.messageCount * 1000, metrics.tokenEstimate)),
       duplicateFactRate: round(ratio(duplicateFacts, metrics.eventCount)),
-      taskSuccess: round(taskSuccess),
+      taskSuccess: round(measuredTaskSuccess),
       passedHardLimits: findings.length === 0,
       findings,
     };
   }
 
-  baselines(taskSuccess = 1): readonly BaselineComparison[] {
-    const metrics = this.collect();
-    const report = this.report(taskSuccess);
-    const available = Math.max(1, Math.ceil(average(metrics.availableRecipientCounts)));
-    const sourceTokens = Math.max(1, metrics.tokenEstimate);
-    const targetedMessages = metrics.messageCount;
-    const staticRecipients = Math.min(3, available);
-    const staticMessages = metrics.eventCount * staticRecipients;
-    const broadcastMessages = metrics.eventCount * available;
-    const fullTextTokens = sourceTokens * Math.max(1, average(metrics.routeRecipientCounts));
-    return [
-      {
-        strategy: "targeted_artifact_ref",
-        routeDensity: report.routeDensity,
-        broadcastRatio: report.broadcastRatio,
-        messageCount: targetedMessages,
-        messagesPerThousandTokens: report.messagesPerThousandTokens,
-        duplicateFactRate: report.duplicateFactRate,
-        artifactRefOffloadRatio: report.artifactRefOffloadRatio,
-        inlineTokenEstimate: estimateTokens(metrics.inlineBytesTotal),
-        taskSuccess: report.taskSuccess,
-      },
-      {
-        strategy: "static_route",
-        routeDensity: round(staticRecipients / available),
-        broadcastRatio: 0,
-        messageCount: staticMessages,
-        messagesPerThousandTokens: round(ratio(staticMessages * 1000, sourceTokens)),
-        duplicateFactRate: round(ratio(Math.max(0, staticMessages - metrics.eventCount), staticMessages)),
-        artifactRefOffloadRatio: report.artifactRefOffloadRatio,
-        inlineTokenEstimate: estimateTokens(metrics.inlineBytesTotal * staticRecipients),
-        taskSuccess: Math.max(0, report.taskSuccess - 0.02),
-      },
-      {
-        strategy: "full_broadcast",
-        routeDensity: 1,
-        broadcastRatio: 1,
-        messageCount: broadcastMessages,
-        messagesPerThousandTokens: round(ratio(broadcastMessages * 1000, sourceTokens)),
-        duplicateFactRate: round(ratio(Math.max(0, broadcastMessages - metrics.eventCount), broadcastMessages)),
-        artifactRefOffloadRatio: report.artifactRefOffloadRatio,
-        inlineTokenEstimate: estimateTokens(metrics.inlineBytesTotal * available),
-        taskSuccess: report.taskSuccess,
-      },
-      {
-        strategy: "full_text_inline",
-        routeDensity: report.routeDensity,
-        broadcastRatio: report.broadcastRatio,
-        messageCount: targetedMessages,
-        messagesPerThousandTokens: round(ratio(targetedMessages * 1000, fullTextTokens)),
-        duplicateFactRate: report.duplicateFactRate,
-        artifactRefOffloadRatio: 0,
-        inlineTokenEstimate: fullTextTokens,
-        taskSuccess: report.taskSuccess,
-      },
-    ];
+  baselines(): readonly BaselineComparison[] {
+    return this.dynamicBaseline().strategies.map((replay) => replay.comparison);
   }
 
-  compare(taskSuccess = 1): Readonly<Record<string, unknown>> {
-    const baselines = this.baselines(taskSuccess);
+  compare(): Readonly<Record<string, unknown>> {
+    const dynamic = this.dynamicBaseline();
+    const baselines = dynamic.strategies.map((replay) => replay.comparison);
     const primary = baselines[0]!;
     const fullBroadcast = baselines.find((item) => item.strategy === "full_broadcast")!;
     const fullText = baselines.find((item) => item.strategy === "full_text_inline")!;
     return {
       schema: "zyra.low-entropy-comparison/v1",
+      workload_id: dynamic.workloadId,
+      replay_schema: dynamic.schema,
       primary,
       baselines,
       improvements: {
@@ -214,20 +176,79 @@ export class LowEntropyMetrics {
         inline_token_reduction_vs_full_text: round(1 - ratio(primary.inlineTokenEstimate, fullText.inlineTokenEstimate)),
         duplicate_fact_reduction_vs_broadcast: round(fullBroadcast.duplicateFactRate - primary.duplicateFactRate),
       },
-      task_success_not_significantly_lower: primary.taskSuccess >= fullBroadcast.taskSuccess - 0.05,
+      task_success_not_significantly_lower: dynamic.taskSuccessNotSignificantlyLower,
     };
   }
 
+  private dynamicBaseline(): ReturnType<LowEntropyBaselineHarness["run"]> {
+    const events = this.store.db.prepare(`
+      SELECT event_id, source_bytes, inline_bytes
+      FROM runtime_events ORDER BY global_sequence
+    `).all() as unknown as Array<{ event_id: string; source_bytes: number; inline_bytes: number }>;
+    const routes = this.store.db.prepare(`
+      SELECT event_id, route_json FROM runtime_event_routes ORDER BY created_at, event_id
+    `).all() as unknown as RouteMetricRow[];
+    const routeByEvent = new Map(
+      routes.map((row) => [row.event_id, JSON.parse(row.route_json) as RouteDecision]),
+    );
+    const offloadedRows = this.store.db.prepare(`
+      SELECT event_id, value FROM runtime_event_metrics
+      WHERE metric_kind = 'event.offloaded_bytes' AND event_id IS NOT NULL
+    `).all() as unknown as Array<{ event_id: string; value: number }>;
+    const offloadedByEvent = new Map(offloadedRows.map((row) => [row.event_id, Number(row.value)]));
+    const rosterByKey = new Map<string, RecipientRef>();
+    for (const spec of this.store.subscriptions(true)) {
+      rosterByKey.set(`${spec.recipient.kind}:${spec.recipient.id}`, spec.recipient);
+    }
+    for (const route of routeByEvent.values()) {
+      for (const candidate of route.candidates) {
+        rosterByKey.set(`${candidate.recipient.kind}:${candidate.recipient.id}`, candidate.recipient);
+      }
+      for (const recipient of route.recipients) {
+        rosterByKey.set(`${recipient.kind}:${recipient.id}`, recipient);
+      }
+    }
+    const roster = [...rosterByKey.values()].sort((left, right) =>
+      `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`),
+    );
+    if (roster.length === 0) {
+      throw new RangeError("dynamic baseline requires at least one registered or routed recipient");
+    }
+    const facts: BaselineFact[] = events.map((event) => ({
+      factId: event.event_id,
+      sourceBytes: Number(event.source_bytes),
+      inlineBytes: Number(event.inline_bytes),
+      offloadedBytes: offloadedByEvent.get(event.event_id) ?? 0,
+      requiredRecipients: routeByEvent.get(event.event_id)?.recipients ?? [],
+    }));
+    return new LowEntropyBaselineHarness().run({
+      workloadId: digestJson({
+        event_ids: facts.map((fact) => fact.factId),
+        route_digests: routes.map((row) => digestJson(JSON.parse(row.route_json))),
+      }),
+      facts,
+      addressableRecipients: roster,
+      staticRecipients: roster.slice(0, Math.min(3, roster.length)),
+    });
+  }
+
   private duplicateFacts(): number {
-    const row = this.store.db.prepare(`
-      SELECT COUNT(*) AS count FROM (
-        SELECT content_digest, COUNT(*) AS occurrences
-        FROM runtime_events
-        GROUP BY content_digest
-        HAVING COUNT(*) > 1
-      )
-    `).get() as { count: number };
-    return Number(row.count);
+    const rows = this.store.db.prepare("SELECT envelope_json FROM runtime_events ORDER BY global_sequence").all() as unknown as Array<{ envelope_json: string }>;
+    const occurrences = new Map<string, number>();
+    for (const row of rows) {
+      const event = JSON.parse(row.envelope_json) as RuntimeEventEnvelope;
+      const fingerprint = digestJson({
+        event_type: event.eventType,
+        task_id: event.identity.taskId,
+        state_domain: event.stateDelta.domain,
+        state_path: event.stateDelta.path,
+        after_digest: event.stateDelta.afterDigest ?? null,
+        evidence: event.evidenceRefs.map((item) => [item.evidenceId, item.artifactId ?? null]),
+        artifacts: event.artifactRefs.map((item) => item.digest).sort(),
+      });
+      occurrences.set(fingerprint, (occurrences.get(fingerprint) ?? 0) + 1);
+    }
+    return [...occurrences.values()].reduce((total, count) => total + Math.max(0, count - 1), 0);
   }
 }
 

@@ -13,7 +13,7 @@ import {
   type RuntimeEventEnvelope,
   type SubscriptionSpec,
 } from "./contracts.ts";
-import { byteLength, utcNow, type JsonValue } from "./canonical.ts";
+import { byteLength, newId, utcNow, type JsonValue } from "./canonical.ts";
 import { eventDefinition, catalogSummary } from "./event-catalog.ts";
 import { EventSpineErrorCode, RoutingError } from "./errors.ts";
 import { LowEntropyMetrics } from "./metrics.ts";
@@ -47,6 +47,7 @@ export interface RuntimeHealth {
   messageBusOwner: string;
   projectorOwner: string;
   sourceLanguage: string;
+  artifactRoot: string;
   store: ReturnType<RuntimeEventSqliteStore["health"]>;
   bus: Record<string, unknown>;
   catalog: Record<string, unknown>;
@@ -86,7 +87,14 @@ export class RuntimeEventSpine {
     const normalized = normalizeLegacyEvent(value);
     let draft = JSON.parse(JSON.stringify(normalized.draft)) as RuntimeEventDraft;
     if (eventDefinition(draft.eventType).requiresCausation && !draft.causationId) {
-      const cause = this.store.query({ aggregateId: draft.aggregateId, descending: true, limit: 1 }).items[0];
+      // Legacy emitters can interleave unrelated command/tool correlations on
+      // the same task aggregate.  Never invent a cross-correlation parent.
+      const cause = this.store.query({
+        aggregateId: draft.aggregateId,
+        correlationId: draft.correlationId,
+        descending: true,
+        limit: 1,
+      }).items[0];
       if (cause) {
         draft = {
           ...draft,
@@ -114,25 +122,27 @@ export class RuntimeEventSpine {
 
   appendOmpFrame(value: OmpFrameInput, options: RuntimeAppendOptions = {}): AppendReceipt | readonly ReturnType<RuntimeMessageBus["publishLive"]>[] {
     const draft = normalizeOmpFrame(value);
-    if (draft.durability === EventDurability.LIVE_ONLY) return [this.bus.publishLive(draft)];
+    if (draft.durability === EventDurability.LIVE_ONLY) return [this.publishLive(draft)];
     return this.appendCanonical(draft, options);
   }
 
   publishLive(value: RuntimeEventDraft | unknown, ttlMs = 30_000) {
     this.assertOpen();
-    return this.bus.publishLive(value, ttlMs);
+    const draft = parseRuntimeEventDraft(value);
+    const prepared = this.payloadPolicy.externalize(draft, draft.inline ?? {});
+    return this.bus.publishLive(JSON.parse(JSON.stringify(prepared.draft)), ttlMs);
   }
 
   query(value: EventQuery | unknown = {}): EventPage {
     this.assertOpen();
-    return this.store.query(parseEventQuery(value));
+    return this.store.query(value);
   }
 
   count(value: EventQuery | unknown = {}): number {
     let cursor: string | undefined;
     let count = 0;
     do {
-      const query = { ...parseEventQuery(value), cursor, limit: 1000 };
+      const query = JSON.parse(JSON.stringify({ ...parseEventQuery(value), cursor, limit: 1000 })) as EventQuery;
       const page = this.store.query(query);
       count += page.items.length;
       cursor = page.nextCursor;
@@ -180,7 +190,7 @@ export class RuntimeEventSpine {
     const events: RuntimeEventEnvelope[] = [];
     let cursor: string | undefined;
     do {
-      const page = this.store.query({ ...query, cursor });
+      const page = this.store.query(JSON.parse(JSON.stringify({ ...query, cursor })));
       events.push(...page.items);
       cursor = page.nextCursor;
     } while (cursor);
@@ -213,6 +223,7 @@ export class RuntimeEventSpine {
       messageBusOwner: "RuntimeMessageBus (delivery only)",
       projectorOwner: this.store.projector.projectorId,
       sourceLanguage: "TypeScript",
+      artifactRoot: this.artifacts.root,
       store: this.store.health(),
       bus: this.bus.snapshot(),
       catalog: catalogSummary(),
@@ -232,10 +243,15 @@ export class RuntimeEventSpine {
     legacy?: NormalizedLegacyEvent,
   ): AppendReceipt {
     const routeEnabled = options.route ?? this.options.routeByDefault ?? true;
-    const nextSequence = this.store.latestSequence(prepared.draft.aggregateId) + 1;
+    const canonicalDraft = JSON.parse(JSON.stringify(prepared.draft)) as RuntimeEventDraft;
+    const preparedDraft = canonicalDraft.eventId
+      ? canonicalDraft
+      : { ...canonicalDraft, eventId: newId("evt") };
+    const nextSequence = this.store.latestSequence(preparedDraft.aggregateId) + 1;
     const preview = buildCommittedEnvelope(
-      prepared.draft,
+      preparedDraft,
       nextSequence,
+      this.store.latestGlobalSequence() + 1,
       utcNow(),
       prepared.inlineBytes,
       prepared.estimatedEnvelopeBytes,
@@ -255,10 +271,11 @@ export class RuntimeEventSpine {
       });
     }
     return this.store.append({
-      draft: prepared.draft,
+      draft: preparedDraft,
       inlineBytes: prepared.inlineBytes,
       estimatedEnvelopeBytes: prepared.estimatedEnvelopeBytes,
       artifactSpillCount: prepared.artifactSpillCount,
+      offloadedBytes: prepared.offloadedBytes,
       warnings: prepared.findings,
       options: {
         ...options,

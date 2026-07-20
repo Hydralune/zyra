@@ -69,11 +69,14 @@ class CustodyReport:
 class RuntimeEventCustodyAudit:
     REQUIRED_TABLES = (
         "runtime_events",
-        "runtime_aggregate_heads",
-        "runtime_idempotency",
-        "runtime_projection_cursors",
-        "runtime_subscriptions",
-        "runtime_deliveries",
+        "runtime_event_aggregates",
+        "runtime_event_global_sequence",
+        "runtime_event_routes",
+        "runtime_projector_cursors",
+        "runtime_event_subscriptions",
+        "runtime_event_deliveries",
+        "runtime_event_dead_letters",
+        "runtime_event_metrics",
     )
 
     def __init__(self, *, workspace_root: str | Path, database_path: str | Path) -> None:
@@ -203,7 +206,7 @@ class RuntimeEventCustodyAudit:
             table
             for table in tables
             if table.startswith("runtime_event") and table not in self.REQUIRED_TABLES
-            and table not in {"runtime_event_artifact_refs", "runtime_event_routes"}
+            and table not in {"runtime_event_artifact_refs"}
         )
         for table in suspicious:
             findings.append(
@@ -222,4 +225,3 @@ def assert_runtime_event_custody(report: CustodyReport) -> None:
         return
     errors = [finding.message for finding in report.findings if finding.severity == "error"]
     raise RuntimeError("runtime event custody audit failed: " + "; ".join(errors))
-

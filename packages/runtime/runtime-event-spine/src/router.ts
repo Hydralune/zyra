@@ -1,6 +1,7 @@
 import {
   MessageIntent,
   RecipientKind,
+  TrustLevel,
   type RecipientKindValue,
   type RecipientRef,
   type RouteCandidate,
@@ -100,8 +101,8 @@ function recipientKey(recipient: RecipientRef): string {
 
 function matchesPattern(value: string, pattern: string): boolean {
   if (pattern === "*") return true;
-  if (pattern.endsWith("*")) return value.startsWith(pattern.slice(0, -1));
-  return value === pattern;
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", ".*");
+  return new RegExp(`^${escaped}$`).test(value);
 }
 
 function matchesSubscription(event: RuntimeEventEnvelope, subscription: SubscriptionSpec): boolean {
@@ -122,7 +123,7 @@ function registrationFor(subscriptions: readonly SubscriptionSpec[]): readonly R
       grouped.set(key, {
         recipient: subscription.recipient,
         subscriptionIds: [subscription.subscriptionId],
-        capabilities: [...new Set([...subscription.capabilityRefs, ...subscription.recipient.requiredCapabilities])],
+        capabilities: [...new Set(subscription.capabilityRefs)],
         taskIds: [...subscription.taskIds],
         aggregatePrefixes: [...subscription.aggregatePrefixes],
         priority: subscription.priority,
@@ -133,7 +134,7 @@ function registrationFor(subscriptions: readonly SubscriptionSpec[]): readonly R
     grouped.set(key, {
       recipient: existing.recipient,
       subscriptionIds: [...existing.subscriptionIds, subscription.subscriptionId],
-      capabilities: [...new Set([...existing.capabilities, ...subscription.capabilityRefs, ...subscription.recipient.requiredCapabilities])],
+      capabilities: [...new Set([...existing.capabilities, ...subscription.capabilityRefs])],
       taskIds: [...new Set([...existing.taskIds, ...subscription.taskIds])],
       aggregatePrefixes: [...new Set([...existing.aggregatePrefixes, ...subscription.aggregatePrefixes])],
       priority: Math.min(existing.priority, subscription.priority),
@@ -151,7 +152,16 @@ export class AgentMessageRouter {
   }
 
   route(event: RuntimeEventEnvelope, context: RouterContext): RouteDecision {
-    eventDefinition(event.eventType);
+    const definition = eventDefinition(event.eventType);
+    if (event.sender.kind !== definition.senderKind || event.intent !== definition.intent) {
+      throw new RoutingError(EventSpineErrorCode.ROUTE_NOT_FOUND, "event catalog authority mismatch", {
+        event_type: event.eventType,
+        sender_kind: event.sender.kind,
+        expected_sender_kind: definition.senderKind,
+        intent: event.intent,
+        expected_intent: definition.intent,
+      });
+    }
     const subscriptions = context.subscriptions.filter((subscription) => matchesSubscription(event, subscription));
     const registrations = registrationFor(subscriptions);
     const requestedBroadcast = context.broadcast === true;
@@ -159,6 +169,20 @@ export class AgentMessageRouter {
       throw new RoutingError(EventSpineErrorCode.BROADCAST_FORBIDDEN, "event type is not allowed to broadcast", {
         event_id: event.eventId,
         event_type: event.eventType,
+      });
+    }
+    if (requestedBroadcast && !context.fanoutReason?.trim()) {
+      throw new RoutingError(EventSpineErrorCode.BROADCAST_FORBIDDEN, "system broadcast requires an explicit fanout reason", {
+        event_id: event.eventId,
+        event_type: event.eventType,
+      });
+    }
+    const broadcastTrust = new Set<string>([TrustLevel.INTERNAL, TrustLevel.VERIFIED, TrustLevel.SYSTEM]);
+    if (requestedBroadcast && !broadcastTrust.has(event.provenance.trust)) {
+      throw new RoutingError(EventSpineErrorCode.BROADCAST_FORBIDDEN, "untrusted event cannot use system broadcast", {
+        event_id: event.eventId,
+        event_type: event.eventType,
+        trust: event.provenance.trust,
       });
     }
     const candidates = registrations.map((registration) => this.score(event, registration, context));
@@ -205,7 +229,7 @@ export class AgentMessageRouter {
       policyId: this.policy.policyId,
       explicitTarget,
       broadcast: requestedBroadcast,
-      fanoutReason: requestedBroadcast ? context.fanoutReason ?? "system_critical_allowlist" : undefined,
+      fanoutReason: requestedBroadcast ? context.fanoutReason!.trim() : undefined,
       recipients,
       candidates,
       routeDensity: recipients.length / availableRecipientCount,
@@ -233,8 +257,7 @@ export class AgentMessageRouter {
     reasons.push(`intent:${event.intent}`);
     const required = new Set(registration.recipient.requiredCapabilities);
     const provided = new Set(registration.capabilities);
-    const senderCapabilities = new Set(event.sender.capabilityRefs);
-    const requiredMatches = [...required].filter((capability) => provided.has(capability) || senderCapabilities.has(capability));
+    const requiredMatches = [...required].filter((capability) => provided.has(capability));
     if (required.size > 0 && requiredMatches.length === 0 && this.policy.requireCapabilityIntersection) {
       rejected.push("required_capability_missing");
     } else if (requiredMatches.length > 0) {
@@ -256,11 +279,12 @@ export class AgentMessageRouter {
     const pending = registration.subscriptionIds.reduce((total, id) => total + (context.pendingBySubscription.get(id) ?? 0), 0);
     const matchingSubscriptions = context.subscriptions.filter((item) => recipientKey(item.recipient) === key);
     const totalCapacity = matchingSubscriptions.reduce((total, item) => total + item.capacity, 0);
-    if (totalCapacity > 0 && pending >= totalCapacity) rejected.push("recipient_backpressure");
-    else if (totalCapacity > 0) {
+    if (totalCapacity > 0 && pending < totalCapacity) {
       const availability = 1 - pending / totalCapacity;
       score += availability * 5;
       reasons.push(`capacity:${availability.toFixed(3)}`);
+    } else if (totalCapacity > 0) {
+      reasons.push("capacity:0.000");
     }
     score += Math.max(0, 1000 - registration.priority) * this.policy.subscriptionPriorityWeight;
     return {
@@ -304,7 +328,7 @@ export function builtInSubscriptions(): readonly SubscriptionSpec[] {
   });
   return [
     create("api-projection", RecipientKind.API, [MessageIntent.STATUS, MessageIntent.OBSERVATION, MessageIntent.CONTROL, MessageIntent.ARTIFACT], ["runtime.task.*", "runtime.turn.*", "runtime.agent.*", "runtime.browser.*", "runtime.control.*", "runtime.artifact.*"], ["api.read-model"], 50),
-    create("worker-runtime", RecipientKind.WORKER, [MessageIntent.QUERY, MessageIntent.PLAN, MessageIntent.OBSERVATION, MessageIntent.STATUS, MessageIntent.CONTROL, MessageIntent.TOOL_CALL, MessageIntent.TOOL_RESULT, MessageIntent.PERMISSION, MessageIntent.MCP, MessageIntent.SKILL, MessageIntent.SUBAGENT, MessageIntent.COMPACT, MessageIntent.DISPATCH, MessageIntent.RECOVERY], ["runtime.query.*", "runtime.node.*", "runtime.topology.*", "runtime.agent.*", "runtime.tool.*", "runtime.permission.*", "runtime.mcp.*", "runtime.skill.*", "runtime.subagent.*", "runtime.compact.*", "runtime.backend.*", "runtime.recovery.*"], ["worker.execute"], 10),
+    create("worker-runtime", RecipientKind.WORKER, [MessageIntent.QUERY, MessageIntent.PLAN, MessageIntent.OBSERVATION, MessageIntent.STATUS, MessageIntent.CONTROL, MessageIntent.TOOL_CALL, MessageIntent.TOOL_RESULT, MessageIntent.PERMISSION, MessageIntent.MCP, MessageIntent.SKILL, MessageIntent.SUBAGENT, MessageIntent.COMPACT, MessageIntent.DISPATCH, MessageIntent.RECOVERY], ["runtime.query.*", "runtime.node.*", "runtime.topology.*", "runtime.agent.*", "runtime.tool.*", "runtime.permission.*", "runtime.control.*", "runtime.mcp.*", "runtime.skill.*", "runtime.subagent.*", "runtime.compact.*", "runtime.backend.*", "runtime.recovery.*"], ["worker.execute"], 10),
     create("resource-scheduler", RecipientKind.SCHEDULER, [MessageIntent.PLAN, MessageIntent.DISPATCH, MessageIntent.RECOVERY, MessageIntent.STATUS, MessageIntent.SUBAGENT], ["runtime.task.*", "runtime.node.*", "runtime.topology.*", "runtime.backend.*", "runtime.subagent.*"], ["scheduler.route"], 10),
     create("artifact-store", RecipientKind.ARTIFACT_STORE, [MessageIntent.ARTIFACT, MessageIntent.TOOL_RESULT, MessageIntent.MCP, MessageIntent.SUBAGENT], ["runtime.artifact.*", "runtime.tool.succeeded", "runtime.mcp.tool.result", "runtime.subagent.yield"], ["artifact.commit"], 20),
     create("recovery-planner", RecipientKind.RECOVERY, [MessageIntent.RECOVERY, MessageIntent.TOOL_RESULT, MessageIntent.PERMISSION, MessageIntent.STATUS], ["runtime.*.failed", "runtime.node.failed", "runtime.backend.*", "runtime.permission.denied", "runtime.artifact.quarantined", "runtime.api.stream.disconnected", "runtime.recovery.*"], ["recovery.plan"], 5),

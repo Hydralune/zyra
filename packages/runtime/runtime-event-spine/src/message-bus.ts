@@ -147,6 +147,7 @@ export class RuntimeMessageBus {
       eventVersion: draft.eventVersion ?? 1,
       aggregateId: draft.aggregateId,
       aggregateSequence: -1,
+      globalSequence: -1,
       producerSequence: draft.producerSequence ?? 0,
       idempotencyKey: draft.idempotencyKey,
       correlationId: draft.correlationId,
@@ -213,17 +214,25 @@ export class RuntimeMessageBus {
     if (!spec || !spec.enabled) {
       throw new DeliveryError(EventSpineErrorCode.SUBSCRIBER_NOT_FOUND, "subscription not found", { subscription_id: subscriptionId });
     }
-    const page = this.store.query({
+    const page = this.store.query(JSON.parse(JSON.stringify({
       aggregateId: options.aggregateId,
       taskId: options.taskId,
-      afterSequence: options.afterSequence,
+      afterGlobalSequence: options.afterSequence,
       limit: Math.min(options.limit ?? 1000, 1000),
-    });
+    })));
     let matched = 0;
     for (const event of page.items) {
       const route = this.planRoute(event, { topK: 8 });
       if (!route.recipients.some((recipient) => recipient.kind === spec.recipient.kind && recipient.id === spec.recipient.id)) continue;
       if (this.store.deliveriesForEvent(event.eventId).some((delivery) => delivery.subscriptionId === subscriptionId)) continue;
+      this.store.enqueueDeliveries(event, {
+        ...route,
+        recipients: [spec.recipient],
+        explicitTarget: true,
+        broadcast: false,
+        fanoutReason: undefined,
+        routeDensity: 1 / Math.max(1, route.availableRecipientCount),
+      }, new Map([[`${spec.recipient.kind}:${spec.recipient.id}`, [spec]]]));
       matched += 1;
     }
     return matched;

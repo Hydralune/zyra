@@ -93,11 +93,19 @@ function command(runtime: RuntimeEventSpine, request: RpcRequest): unknown {
       return runtime.rebuildProjection(params.aggregate_id === undefined ? undefined : requireString(params.aggregate_id, "params.aggregate_id", 512));
     case "register_subscription":
       return runtime.registerSubscription(params.subscription);
-    case "poll":
+    case "poll": {
+      const subscriptionId = requireString(params.subscription_id, "params.subscription_id", 256);
       return runtime.poll(
-        requireString(params.subscription_id, "params.subscription_id", 256),
+        subscriptionId,
         params.limit === undefined ? 1 : requireInteger(params.limit, "params.limit", 1),
-      );
+      ).map(({ delivery, message }) => ({
+        ...delivery,
+        consumerId: subscriptionId,
+        event: runtime.get(delivery.eventId),
+        message,
+        firstAvailableAt: delivery.createdAt,
+      }));
+    }
     case "poll_live":
       return runtime.bus.pollLive(
         requireString(params.subscription_id, "params.subscription_id", 256),
@@ -120,9 +128,24 @@ function command(runtime: RuntimeEventSpine, request: RpcRequest): unknown {
     case "bus_snapshot":
       return runtime.bus.snapshot();
     case "metrics":
-      return runtime.metrics.report(typeof params.task_success === "number" ? params.task_success : 1);
+      return runtime.metrics.report();
     case "baselines":
-      return runtime.metrics.compare(typeof params.task_success === "number" ? params.task_success : 1);
+      return runtime.metrics.compare();
+    case "replay": {
+      const eventId = requireString(params.event_id, "params.event_id", 256);
+      const event = runtime.get(eventId);
+      if (!event) throw new EventSpineError({ code: EventSpineErrorCode.INVALID_ARGUMENT, message: "replay event not found", details: { event_id: eventId } });
+      return {
+        event,
+        committed: false,
+        duplicate: true,
+        projected: true,
+        routed: false,
+        deliveryIds: runtime.store.deliveriesForEvent(eventId).map((delivery) => delivery.deliveryId),
+        artifactSpillCount: 0,
+        warnings: ["replay_existing_event"],
+      };
+    }
     case "close":
       runtime.close();
       return { closed: true };

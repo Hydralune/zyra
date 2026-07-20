@@ -408,6 +408,7 @@ class RuntimeEventQuery:
     event_types: tuple[str, ...] = ()
     aggregate_type: str | None = None
     aggregate_id: str | None = None
+    task_id: str | None = None
     correlation_id: str | None = None
     causation_id: str | None = None
     producer: str | None = None
@@ -427,7 +428,7 @@ class RuntimeEventQuery:
 
     def to_jsonable(self) -> dict[str, JsonValue]:
         result: dict[str, JsonValue] = {
-            "afterSequence": self.after_sequence,
+            "afterGlobalSequence": self.after_sequence,
             "limit": self.limit,
             "descending": self.descending,
         }
@@ -435,6 +436,7 @@ class RuntimeEventQuery:
             ("eventTypes", list(self.event_types) if self.event_types else None),
             ("aggregateType", self.aggregate_type),
             ("aggregateId", self.aggregate_id),
+            ("taskId", self.task_id),
             ("correlationId", self.correlation_id),
             ("causationId", self.causation_id),
             ("producer", self.producer),
@@ -468,6 +470,7 @@ class RuntimeEventQuery:
             event_types=types,
             aggregate_type=optional_string(params.get("aggregate_type", params.get("aggregateType")), "aggregate_type"),
             aggregate_id=optional_string(params.get("aggregate_id", params.get("aggregateId")), "aggregate_id"),
+            task_id=optional_string(params.get("task_id", params.get("taskId")), "task_id"),
             correlation_id=optional_string(params.get("correlation_id", params.get("correlationId")), "correlation_id"),
             causation_id=optional_string(params.get("causation_id", params.get("causationId")), "causation_id"),
             producer=optional_string(params.get("producer"), "producer"),
@@ -587,19 +590,24 @@ class SpineHealth:
     @classmethod
     def from_json(cls, value: Any) -> "SpineHealth":
         data = require_mapping(value, "spine health")
-        high = require_integer(data.get("highWatermark", 0), "highWatermark", minimum=0)
+        store = require_mapping(data.get("store", {}), "spine store health")
+        high = require_integer(
+            data.get("highWatermark", store.get("highWatermark", 0)),
+            "highWatermark",
+            minimum=0,
+        )
         cursor = require_integer(data.get("projectionCursor", high), "projectionCursor", minimum=0)
-        details_raw = require_mapping(data.get("details", {}), "details")
+        details_raw = require_mapping(data.get("details", data), "details")
         return cls(
             ok=require_bool(data.get("ok", True), "ok"),
-            database_path=require_string(data.get("databasePath", "unknown"), "databasePath"),
+            database_path=require_string(data.get("databasePath", store.get("path", "unknown")), "databasePath"),
             artifact_root=require_string(data.get("artifactRoot", "unknown"), "artifactRoot"),
             high_watermark=high,
             projection_cursor=cursor,
             projection_lag=require_integer(data.get("projectionLag", max(0, high - cursor)), "projectionLag", minimum=0),
-            pending_deliveries=require_integer(data.get("pendingDeliveries", 0), "pendingDeliveries", minimum=0),
+            pending_deliveries=require_integer(data.get("pendingDeliveries", store.get("pendingDeliveryCount", 0)), "pendingDeliveries", minimum=0),
             leased_deliveries=require_integer(data.get("leasedDeliveries", 0), "leasedDeliveries", minimum=0),
-            dead_letters=require_integer(data.get("deadLetters", 0), "deadLetters", minimum=0),
+            dead_letters=require_integer(data.get("deadLetters", store.get("deadLetterCount", 0)), "deadLetters", minimum=0),
             process_pid=optional_integer(data.get("processPid"), "processPid", minimum=1),
             schema_version=require_integer(data.get("schemaVersion", 1), "schemaVersion", minimum=1),
             details={key: coerce_json(item) for key, item in details_raw.items()},

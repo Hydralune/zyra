@@ -419,7 +419,10 @@ class RuntimeEventSpineBridge:
         event_id = event_id.strip()
         if not event_id:
             raise RuntimeEventContractError("event_id must not be empty")
-        result = self.port.call("getEvent", {"eventId": event_id})
+        result = require_mapping(
+            self.port.call("get", {"event_id": event_id}),
+            "runtime event lookup",
+        ).get("event")
         if result is None:
             return None
         return RuntimeEventEnvelope.from_json(result)
@@ -427,13 +430,50 @@ class RuntimeEventSpineBridge:
     def get_projection(self, projection: str, key: str) -> ProjectionSnapshot | None:
         if not projection.strip() or not key.strip():
             raise RuntimeEventContractError("projection and key must not be empty")
-        result = self.port.call(
-            "getProjection",
-            {"projection": projection.strip(), "key": key.strip()},
+        lookup_key = key.strip()
+        raw = require_mapping(
+            self.port.call("projection", {"aggregate_id": lookup_key}),
+            "runtime projection",
         )
-        if result is None:
+        if raw.get("session") is None:
+            page = require_mapping(
+                self.port.call(
+                    "query",
+                    {"query": {"taskId": lookup_key, "descending": True, "limit": 1}},
+                ),
+                "runtime task projection lookup",
+            )
+            items = require_sequence(page.get("items", []), "runtime task projection events")
+            if not items:
+                return None
+            aggregate_id = str(require_mapping(items[0], "runtime task projection event").get("aggregateId") or "")
+            if not aggregate_id:
+                return None
+            raw = require_mapping(
+                self.port.call("projection", {"aggregate_id": aggregate_id}),
+                "runtime projection",
+            )
+        cursor = require_mapping(raw.get("cursor", {}), "runtime projection cursor")
+        projection_name = projection.strip()
+        if projection_name == "session":
+            state = raw.get("session")
+        elif projection_name in {"task", "runtime"}:
+            state = raw
+        else:
+            state = raw.get(projection_name)
+        if state is None:
             return None
-        return ProjectionSnapshot.from_json(result)
+        return ProjectionSnapshot.from_json(
+            {
+                "projection": projection_name,
+                "key": lookup_key,
+                "cursor": int(cursor.get("sequence", 0) or 0),
+                "version": 1,
+                "state": require_mapping(state, "runtime projection state"),
+                "updatedAt": cursor.get("updatedAt") or datetime.now(timezone.utc).isoformat(),
+                "status": "current",
+            }
+        )
 
     def health(self) -> SpineHealth:
         result = self.port.call("health", {})
@@ -442,6 +482,10 @@ class RuntimeEventSpineBridge:
     def metrics(self) -> Mapping[str, JsonValue]:
         result = self.port.call("metrics", {})
         return require_mapping(result, "runtime event metrics")
+
+    def baselines(self) -> Mapping[str, JsonValue]:
+        result = self.port.call("baselines", {})
+        return require_mapping(result, "runtime event baselines")
 
     def lease(
         self,
@@ -455,8 +499,8 @@ class RuntimeEventSpineBridge:
         if not 1 <= lease_seconds <= 3600:
             raise RuntimeEventContractError("lease_seconds must be between 1 and 3600")
         result = self.port.call(
-            "lease",
-            {"consumerId": consumer_id, "limit": limit, "leaseSeconds": lease_seconds},
+            "poll",
+            {"subscription_id": consumer_id, "limit": limit},
         )
         return tuple(
             DeliveryLease.from_json(item)
@@ -465,11 +509,11 @@ class RuntimeEventSpineBridge:
 
     def acknowledge(self, *, delivery_id: str, lease_token: str) -> bool:
         result = self.port.call(
-            "acknowledge",
-            {"deliveryId": delivery_id, "leaseToken": lease_token},
+            "ack",
+            {"delivery_id": delivery_id, "lease_token": lease_token},
         )
         if isinstance(result, Mapping):
-            return bool(result.get("acknowledged", result.get("ok", False)))
+            return result.get("state") == "acknowledged"
         return bool(result)
 
     def reject(
@@ -481,12 +525,12 @@ class RuntimeEventSpineBridge:
         retry_delay_seconds: int = 1,
     ) -> Mapping[str, JsonValue]:
         result = self.port.call(
-            "reject",
+            "nack",
             {
-                "deliveryId": delivery_id,
-                "leaseToken": lease_token,
-                "reason": reason,
-                "retryDelaySeconds": retry_delay_seconds,
+                "delivery_id": delivery_id,
+                "lease_token": lease_token,
+                "error": reason,
+                "delay_ms": retry_delay_seconds * 1000,
             },
         )
         return require_mapping(result, "delivery rejection")
@@ -494,7 +538,7 @@ class RuntimeEventSpineBridge:
     def replay(self, event_id: str, *, idempotency_key: str | None = None) -> AppendReceipt:
         result = self.port.call(
             "replay",
-            {"eventId": event_id, "idempotencyKey": idempotency_key},
+            {"event_id": event_id, "idempotency_key": idempotency_key},
         )
         return AppendReceipt.from_json(result)
 

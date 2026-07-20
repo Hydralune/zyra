@@ -168,8 +168,18 @@ export function validateEventKind(
   durability: EventDurabilityValue,
   effect: EventEffectValue,
   causationId?: string,
+  senderKind?: SenderKindValue,
+  intent?: MessageIntentValue,
+  eventVersion?: number,
 ): EventKindDefinition {
   const definition = eventDefinition(type);
+  if (eventVersion !== undefined && eventVersion !== definition.version) {
+    throw new EnvelopeValidationError("event version does not match event catalog", {
+      event_type: type,
+      expected: definition.version,
+      actual: eventVersion,
+    });
+  }
   if (durability !== definition.durability) {
     throw new EnvelopeValidationError("event durability does not match event catalog", {
       event_type: type,
@@ -182,6 +192,20 @@ export function validateEventKind(
   }
   if (definition.requiresCausation && !causationId) {
     throw new EnvelopeValidationError("event requires causation id", { event_type: type });
+  }
+  if (senderKind !== undefined && senderKind !== definition.senderKind) {
+    throw new EnvelopeValidationError("event sender kind does not match event catalog", {
+      event_type: type,
+      expected: definition.senderKind,
+      actual: senderKind,
+    });
+  }
+  if (intent !== undefined && intent !== definition.intent) {
+    throw new EnvelopeValidationError("event intent does not match event catalog", {
+      event_type: type,
+      expected: definition.intent,
+      actual: intent,
+    });
   }
   const allowed = new Set([...definition.requiredInlineKeys, ...definition.optionalInlineKeys]);
   for (const key of definition.requiredInlineKeys) {

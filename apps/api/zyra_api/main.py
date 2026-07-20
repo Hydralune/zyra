@@ -1140,11 +1140,17 @@ def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
 
 
 def persist_events(store: SQLiteStore, events: list[EventRecord]) -> None:
+    # The TypeScript spine owns sequence/idempotency and derives the legacy
+    # `events` compatibility rows from the committed fact.  The JSONL trajectory is
+    # appended only after canonical admission so a failed canonical append can
+    # never manufacture a competing fact.
+    bridge = get_runtime_event_spine_bridge()
     for event in events:
+        # Legacy EventLog batches were never atomic.  Project each successful
+        # canonical commit immediately so a later rejected item cannot leave
+        # an already-committed fact missing from the compatibility trajectory.
+        bridge.append_legacy_events([event])
         append_jsonl_event(event, event_log_path())
-    # The TypeScript spine owns sequence/idempotency/projection and atomically
-    # writes the legacy `events` compatibility rows in the same SQLite commit.
-    get_runtime_event_spine_bridge().append_legacy_events(events)
 
 
 class JsonRequestError(ValueError):
@@ -1199,6 +1205,23 @@ def _task_node_ids(state: Any) -> set[str]:
 
 class ZyraRequestHandler(BaseHTTPRequestHandler):
     server_version = "ZyraDevAPI/0.2"
+
+    def setup(self) -> None:
+        super().setup()
+        server = self.server
+        with _RUNTIME_EVENT_SPINE_LOCK:
+            if getattr(server, "_zyra_runtime_event_close_bound", False):
+                return
+            original_server_close = server.server_close
+
+            def close_with_runtime_event_spine() -> None:
+                try:
+                    reset_runtime_event_spine_bridge()
+                finally:
+                    original_server_close()
+
+            server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
+            setattr(server, "_zyra_runtime_event_close_bound", True)
 
     def _permission_actor_id(self) -> str:
         # The current development API has no end-user authentication layer.
@@ -1750,6 +1773,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if parts == ["runtime-events", "metrics"]:
             try:
                 result = get_runtime_event_api().metrics()
+            except RuntimeEventProcessError as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": error.code, "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if parts == ["runtime-events", "baselines"]:
+            try:
+                result = get_runtime_event_api().baselines()
             except RuntimeEventProcessError as error:
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,

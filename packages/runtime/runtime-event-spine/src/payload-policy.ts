@@ -19,6 +19,7 @@ import {
   stableId,
   type JsonValue,
 } from "./canonical.ts";
+import { eventDefinition } from "./event-catalog.ts";
 import { EventSpineErrorCode, PayloadBudgetError } from "./errors.ts";
 
 export const INLINE_PAYLOAD_LIMIT_BYTES = 4 * 1024;
@@ -114,21 +115,22 @@ export class LocalContentAddressedArtifactStore implements ArtifactContentStore 
       }
     }
     const relativePath = relative(this.root, target).replaceAll("\\", "/");
+    const artifactId = stableId(
+      "artifact",
+      digest,
+      request.runId,
+      request.taskId,
+      request.producerNodeId ?? "",
+      request.title,
+    );
     return {
       schema: ARTIFACT_REF_SCHEMA_VERSION,
-      artifactId: stableId(
-        "artifact",
-        digest,
-        request.runId,
-        request.taskId,
-        request.producerNodeId ?? "",
-        request.title,
-      ),
+      artifactId,
       digest,
       mediaType: request.mediaType,
       sizeBytes: request.content.byteLength,
       title: boundedText(request.title, 512),
-      uri: target,
+      uri: `artifact://${artifactId}`,
       producerNodeId: request.producerNodeId,
       metadata: {
         storage: "zyra-content-addressed-local",
@@ -278,21 +280,42 @@ export class LowEntropyPayloadPolicy {
       ? (selectedInline as Record<string, JsonValue>)
       : { value: selectedInline };
     const requiredInline = draft.inline ?? {};
+    const sanitizedRequired = this.walk(
+      requiredInline as JsonValue,
+      { ...context, path: ["canonical_inline"] },
+      0,
+      "canonical_inline",
+    );
+    const normalizedRequired = isPlainObject(sanitizedRequired)
+      ? sanitizedRequired as Record<string, JsonValue>
+      : {};
     let inline: Record<string, JsonValue> = {
       ...normalizedInline,
-      ...requiredInline,
+      ...normalizedRequired,
     };
     let inlineBytes = byteLength(inline);
     if (inlineBytes > this.inlineLimitBytes) {
       const spill = this.writeArtifact(context, "inline-payload", normalizedInline, "application/json", ".json", "inline_budget_spill");
+      const requiredKeys = eventDefinition(draft.eventType).requiredInlineKeys;
+      const requiredFacts = Object.fromEntries(
+        requiredKeys
+          .filter((key) => key in normalizedRequired)
+          .map((key) => [key, normalizedRequired[key]!]),
+      ) as Record<string, JsonValue>;
       inline = {
-        ...requiredInline,
+        ...requiredFacts,
         spilled: true,
         artifact_id: spill.artifactId,
         digest: spill.digest,
         original_bytes: inlineBytes,
       };
       inlineBytes = byteLength(inline);
+    }
+    if (inlineBytes > this.inlineLimitBytes) {
+      throw new PayloadBudgetError(EventSpineErrorCode.INLINE_PAYLOAD_TOO_LARGE, "inline payload exceeds hard limit after spill", {
+        inline_bytes: inlineBytes,
+        maximum: this.inlineLimitBytes,
+      });
     }
     if (context.artifacts.length > this.artifactRefLimit) {
       throw new PayloadBudgetError(EventSpineErrorCode.TOO_MANY_REFS, "artifact ref limit exceeded", {
@@ -390,7 +413,7 @@ export class LowEntropyPayloadPolicy {
       const nextContext = { ...context, path: [...context.path, childKey] };
       if (this.forbiddenInlineKeys.has(lowered)) {
         const pointer = this.writeArtifact(nextContext, childKey, child, this.mediaType(child), this.extension(child), "forbidden_inline_key");
-        output[childKey] = this.pointerPlaceholder(pointer, "forbidden_inline_content");
+        output[`${childKey}_ref`] = this.pointerPlaceholder(pointer, "forbidden_inline_content");
         continue;
       }
       output[childKey] = this.walk(child, nextContext, depth + 1, childKey);
@@ -507,6 +530,7 @@ export class LowEntropyPayloadPolicy {
       eventVersion: draft.eventVersion ?? 1,
       aggregateId: draft.aggregateId,
       aggregateSequence: draft.expectedSequence ?? 9_999_999,
+      globalSequence: 9_999_999,
       producerSequence: draft.producerSequence ?? 9_999_999,
       idempotencyKey: draft.idempotencyKey,
       correlationId: draft.correlationId,

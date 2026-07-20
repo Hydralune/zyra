@@ -36,14 +36,9 @@ class RuntimeEventApiFacade:
         if not task_id:
             raise RuntimeEventContractError("task_id must not be empty")
         mutable = dict(params)
-        mutable.setdefault("correlation_id", task_id)
+        mutable.setdefault("task_id", task_id)
         query = RuntimeEventQuery.from_params(mutable)
         page = self.bridge.query(query)
-        if not page.events and not params.get("correlation_id") and not params.get("correlationId"):
-            mutable.pop("correlation_id", None)
-            mutable["aggregate_type"] = "task"
-            mutable["aggregate_id"] = task_id
-            page = self.bridge.query(RuntimeEventQuery.from_params(mutable))
         return RuntimeEventApiResult(
             status=200,
             body={"taskId": task_id, **page.to_jsonable()},
@@ -117,6 +112,14 @@ class RuntimeEventApiFacade:
             headers={},
         )
 
+    def baselines(self) -> RuntimeEventApiResult:
+        comparison = self.bridge.baselines()
+        return RuntimeEventApiResult(
+            status=200,
+            body={key: coerce_json(item) for key, item in comparison.items()},
+            headers={"Cache-Control": "no-store"},
+        )
+
     def causal_chain(self, event_id: str, *, max_depth: int = 256) -> RuntimeEventApiResult:
         chain = self.history.causal_chain(event_id, max_depth=max_depth)
         if not chain:
@@ -141,4 +144,3 @@ class RuntimeEventApiFacade:
             "X-Zyra-Event-High-Watermark": str(high_watermark),
             "Cache-Control": "no-store",
         }
-

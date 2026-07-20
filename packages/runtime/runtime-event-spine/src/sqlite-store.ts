@@ -40,6 +40,7 @@ import {
   DeliveryError,
   EventSpineErrorCode,
   EventSpineError,
+  PayloadBudgetError,
   RoutingError,
   asEventSpineError,
 } from "./errors.ts";
@@ -58,6 +59,7 @@ interface EventRow {
   event_id: string;
   aggregate_id: string;
   sequence: number;
+  global_sequence: number;
   event_type: string;
   event_version: number;
   run_id: string;
@@ -122,6 +124,7 @@ export interface StoreAppendInput {
   inlineBytes: number;
   estimatedEnvelopeBytes: number;
   artifactSpillCount: number;
+  offloadedBytes?: number;
   warnings: readonly string[];
   options?: AppendOptions;
   route?: RouteDecision;
@@ -141,6 +144,7 @@ export interface StoreHealth {
   open: boolean;
   path: string;
   eventCount: number;
+  highWatermark: number;
   aggregateCount: number;
   subscriptionCount: number;
   pendingDeliveryCount: number;
@@ -149,7 +153,13 @@ export interface StoreHealth {
 }
 
 function parseEventRow(row: EventRow): RuntimeEventEnvelope {
-  return eventFromJson(JSON.parse(row.envelope_json));
+  const stored = JSON.parse(row.envelope_json) as Record<string, unknown>;
+  if (stored.globalSequence === undefined) {
+    delete stored.contentDigest;
+    stored.globalSequence = Number(row.global_sequence);
+    stored.contentDigest = digestJson(stored as Record<string, JsonValue>);
+  }
+  return eventFromJson(stored);
 }
 
 function parseSubscriptionRow(row: SubscriptionRow): SubscriptionSpec {
@@ -184,8 +194,8 @@ function recipientKey(kind: string, id: string): string {
 
 function matchesPattern(value: string, pattern: string): boolean {
   if (pattern === "*") return true;
-  if (pattern.endsWith("*")) return value.startsWith(pattern.slice(0, -1));
-  return value === pattern;
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", ".*");
+  return new RegExp(`^${escaped}$`).test(value);
 }
 
 function subscriptionMatchesEvent(spec: SubscriptionSpec, event: RuntimeEventEnvelope): boolean {
@@ -230,6 +240,7 @@ export class RuntimeEventSqliteStore {
         event_id TEXT PRIMARY KEY,
         aggregate_id TEXT NOT NULL,
         sequence INTEGER NOT NULL,
+        global_sequence INTEGER NOT NULL,
         event_type TEXT NOT NULL,
         event_version INTEGER NOT NULL,
         run_id TEXT NOT NULL,
@@ -252,7 +263,13 @@ export class RuntimeEventSqliteStore {
         artifact_ref_count INTEGER NOT NULL,
         FOREIGN KEY (aggregate_id) REFERENCES runtime_event_aggregates(aggregate_id),
         UNIQUE (aggregate_id, sequence),
-        UNIQUE (aggregate_id, idempotency_key)
+        UNIQUE (aggregate_id, idempotency_key),
+        UNIQUE (global_sequence)
+      );
+
+      CREATE TABLE IF NOT EXISTS runtime_event_global_sequence (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        latest_sequence INTEGER NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_runtime_events_task_sequence
@@ -265,6 +282,19 @@ export class RuntimeEventSqliteStore {
         ON runtime_events(correlation_id, aggregate_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_runtime_events_causation
         ON runtime_events(causation_id);
+
+      CREATE TABLE IF NOT EXISTS runtime_event_routes (
+        event_id TEXT PRIMARY KEY,
+        policy_id TEXT NOT NULL,
+        broadcast INTEGER NOT NULL,
+        fanout_reason TEXT,
+        recipient_count INTEGER NOT NULL,
+        available_recipient_count INTEGER NOT NULL,
+        route_digest TEXT NOT NULL,
+        route_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (event_id) REFERENCES runtime_events(event_id)
+      );
 
       CREATE TABLE IF NOT EXISTS runtime_event_subscriptions (
         subscription_id TEXT PRIMARY KEY,
@@ -345,6 +375,7 @@ export class RuntimeEventSqliteStore {
         payload_json TEXT NOT NULL
       );
     `);
+    this.ensureGlobalSequenceSchema();
     this.projector.initialize(this.db);
   }
 
@@ -373,6 +404,7 @@ export class RuntimeEventSqliteStore {
         }
         const event = parseEventRow(duplicate);
         this.db.exec("COMMIT");
+        this.recordMetric(event.eventId, "event.duplicate", 1, { event_type: event.eventType });
         return {
           event,
           committed: false,
@@ -404,20 +436,54 @@ export class RuntimeEventSqliteStore {
       }
       this.assertCausation(draft);
       const committedAt = utcNow();
-      let envelope = buildCommittedEnvelope(draft, expectedSequence, committedAt, input.inlineBytes, input.estimatedEnvelopeBytes);
-      const actualBytes = Buffer.byteLength(canonicalJson(envelope), "utf8");
-      if (actualBytes !== envelope.envelopeBytes) envelope = buildCommittedEnvelope(draft, expectedSequence, committedAt, input.inlineBytes, actualBytes);
-      validateEventKind(envelope.eventType, envelope.inline, envelope.durability, envelope.effect, envelope.causationId);
+      const globalSequence = this.allocateGlobalSequence();
+      let envelope = buildCommittedEnvelope(draft, expectedSequence, globalSequence, committedAt, input.inlineBytes, input.estimatedEnvelopeBytes);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const actualBytes = Buffer.byteLength(canonicalJson(envelope), "utf8");
+        if (actualBytes === envelope.envelopeBytes) break;
+        envelope = buildCommittedEnvelope(draft, expectedSequence, globalSequence, committedAt, input.inlineBytes, actualBytes);
+      }
+      this.assertEnvelopeBudgets(envelope);
+      validateEventKind(
+        envelope.eventType,
+        envelope.inline,
+        envelope.durability,
+        envelope.effect,
+        envelope.causationId,
+        envelope.sender.kind,
+        envelope.intent,
+        envelope.eventVersion,
+      );
       this.upsertAggregate(draft.aggregateId, options.ownerId, aggregate, expectedSequence, envelope.eventId, committedAt);
       this.insertEvent(envelope, draftDigest);
-      let projection: ProjectionApplyReceipt | undefined;
-      if (options.project !== false) projection = this.projector.apply(this.db, envelope);
-      if (options.publishLegacyProjection !== false && input.legacyProjection) this.insertLegacyProjection(input.legacyProjection);
-      const deliveryIds = input.route && input.subscriptionsByRecipient
-        ? this.insertDeliveries(envelope, input.route, input.subscriptionsByRecipient)
-        : [];
-      this.recordAppendMetrics(envelope, input.route, input.artifactSpillCount, false);
+      if (input.route) this.insertRouteDecision(input.route);
       this.db.exec("COMMIT");
+      const maintenanceWarnings = [...input.warnings];
+      let projection: ProjectionApplyReceipt | undefined;
+      if (options.project !== false || (options.publishLegacyProjection !== false && input.legacyProjection)) {
+        this.db.exec("BEGIN IMMEDIATE");
+        try {
+          if (options.project !== false) projection = this.projector.apply(this.db, envelope);
+          if (options.publishLegacyProjection !== false && input.legacyProjection) this.insertLegacyProjection(input.legacyProjection);
+          this.db.exec("COMMIT");
+        } catch (error) {
+          try { this.db.exec("ROLLBACK"); } catch { /* preserve maintenance error */ }
+          maintenanceWarnings.push(`projector_pending:${asEventSpineError(error).code}`);
+        }
+      }
+      let deliveryIds: readonly string[] = [];
+      if (input.route && input.subscriptionsByRecipient) {
+        try {
+          deliveryIds = this.enqueueDeliveries(envelope, input.route, input.subscriptionsByRecipient);
+        } catch (error) {
+          maintenanceWarnings.push(`delivery_pending:${asEventSpineError(error).code}`);
+        }
+      }
+      try {
+        this.recordAppendMetrics(envelope, input.route, input.artifactSpillCount, input.offloadedBytes ?? 0, false);
+      } catch (error) {
+        maintenanceWarnings.push(`metrics_pending:${asEventSpineError(error).code}`);
+      }
       return {
         event: envelope,
         committed: true,
@@ -427,7 +493,7 @@ export class RuntimeEventSqliteStore {
         route: input.route,
         deliveryIds,
         artifactSpillCount: input.artifactSpillCount,
-        warnings: input.warnings,
+        warnings: maintenanceWarnings,
       };
     } catch (error) {
       try {
@@ -531,6 +597,8 @@ export class RuntimeEventSqliteStore {
     }
     if (query.afterSequence !== undefined) { clauses.push("sequence > ?"); params.push(query.afterSequence); }
     if (query.beforeSequence !== undefined) { clauses.push("sequence < ?"); params.push(query.beforeSequence); }
+    if (query.afterGlobalSequence !== undefined) { clauses.push("global_sequence > ?"); params.push(query.afterGlobalSequence); }
+    if (query.beforeGlobalSequence !== undefined) { clauses.push("global_sequence < ?"); params.push(query.beforeGlobalSequence); }
     if (query.createdAtGte) { clauses.push("created_at >= ?"); params.push(query.createdAtGte); }
     if (query.createdAtLt) { clauses.push("created_at < ?"); params.push(query.createdAtLt); }
     if (query.correlationId) { clauses.push("correlation_id = ?"); params.push(query.correlationId); }
@@ -538,10 +606,9 @@ export class RuntimeEventSqliteStore {
     if (query.artifactId) { clauses.push("envelope_json LIKE ?"); params.push(`%\"artifactId\":\"${query.artifactId.replaceAll("%", "\\%").replaceAll("_", "\\_")}\"%`); }
     if (query.cursor) {
       const cursor = decodeCursor(query.cursor);
-      const sequence = requireInteger(cursor.sequence, "cursor.sequence", 0);
-      const aggregateId = requireString(cursor.aggregate_id, "cursor.aggregate_id", 512);
-      clauses.push(query.descending ? "(aggregate_id < ? OR (aggregate_id = ? AND sequence < ?))" : "(aggregate_id > ? OR (aggregate_id = ? AND sequence > ?))");
-      params.push(aggregateId, aggregateId, sequence);
+      const sequence = requireInteger(cursor.global_sequence, "cursor.global_sequence", 1);
+      clauses.push(query.descending ? "global_sequence < ?" : "global_sequence > ?");
+      params.push(sequence);
     }
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
     const order = query.descending ? "DESC" : "ASC";
@@ -549,7 +616,7 @@ export class RuntimeEventSqliteStore {
     const rows = this.db.prepare(`
       SELECT * FROM runtime_events
       ${where}
-      ORDER BY aggregate_id ${order}, sequence ${order}
+      ORDER BY global_sequence ${order}
       LIMIT ?
     `).all(...params, limit + 1) as unknown as EventRow[];
     const page = rows.slice(0, limit);
@@ -558,8 +625,10 @@ export class RuntimeEventSqliteStore {
     return {
       items,
       hasMore: rows.length > limit,
-      nextCursor: rows.length > limit && last ? encodeCursor({ aggregate_id: last.aggregate_id, sequence: Number(last.sequence) }) : undefined,
+      nextCursor: rows.length > limit && last ? encodeCursor({ global_sequence: Number(last.global_sequence) }) : undefined,
+      nextSequence: Number(last?.global_sequence ?? query.afterGlobalSequence ?? 0),
       scanned: rows.length,
+      highWatermark: this.latestGlobalSequence(),
     };
   }
 
@@ -570,6 +639,11 @@ export class RuntimeEventSqliteStore {
 
   latestSequence(aggregateId: string): number {
     return Number(this.aggregateRow(aggregateId)?.latest_sequence ?? -1);
+  }
+
+  latestGlobalSequence(): number {
+    const row = this.db.prepare("SELECT latest_sequence FROM runtime_event_global_sequence WHERE singleton = 1").get() as { latest_sequence: number } | undefined;
+    return Number(row?.latest_sequence ?? 0);
   }
 
   claim(aggregateId: string, ownerId: string, strict = true): void {
@@ -813,6 +887,24 @@ export class RuntimeEventSqliteStore {
     return rows.map(deliveryFromRow);
   }
 
+  /** Persist delivery work for an already committed canonical event. */
+  enqueueDeliveries(
+    event: RuntimeEventEnvelope,
+    route: RouteDecision,
+    subscriptionsByRecipient: ReadonlyMap<string, readonly SubscriptionSpec[]>,
+  ): readonly string[] {
+    this.assertOpen();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const deliveryIds = this.insertDeliveries(event, route, subscriptionsByRecipient);
+      this.db.exec("COMMIT");
+      return deliveryIds;
+    } catch (error) {
+      try { this.db.exec("ROLLBACK"); } catch { /* preserve delivery failure */ }
+      throw asEventSpineError(error, "runtime event delivery enqueue failed");
+    }
+  }
+
   deliveryIdsForEvent(eventId: string): readonly string[] {
     return this.deliveriesForEvent(eventId).map((item) => item.deliveryId);
   }
@@ -846,6 +938,7 @@ export class RuntimeEventSqliteStore {
       open: !this.closed,
       path: this.path,
       eventCount: scalar("SELECT COUNT(*) AS count FROM runtime_events"),
+      highWatermark: this.latestGlobalSequence(),
       aggregateCount: scalar("SELECT COUNT(*) AS count FROM runtime_event_aggregates"),
       subscriptionCount: scalar("SELECT COUNT(*) AS count FROM runtime_event_subscriptions WHERE enabled = 1"),
       pendingDeliveryCount: scalar(`SELECT COUNT(*) AS count FROM runtime_event_deliveries WHERE state IN ('pending','leased','retry_wait')`),
@@ -858,6 +951,60 @@ export class RuntimeEventSqliteStore {
     if (this.closed) return;
     this.db.close();
     this.closed = true;
+  }
+
+  private ensureGlobalSequenceSchema(): void {
+    const columns = this.db.prepare("PRAGMA table_info(runtime_events)").all() as unknown as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "global_sequence")) {
+      this.db.exec("ALTER TABLE runtime_events ADD COLUMN global_sequence INTEGER");
+    }
+    this.db.exec(`
+      UPDATE runtime_events SET global_sequence = rowid WHERE global_sequence IS NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_runtime_events_global_sequence
+        ON runtime_events(global_sequence);
+      INSERT INTO runtime_event_global_sequence (singleton, latest_sequence)
+      VALUES (1, COALESCE((SELECT MAX(global_sequence) FROM runtime_events), 0))
+      ON CONFLICT(singleton) DO UPDATE SET latest_sequence = MAX(
+        runtime_event_global_sequence.latest_sequence,
+        excluded.latest_sequence
+      );
+    `);
+  }
+
+  private assertEnvelopeBudgets(event: RuntimeEventEnvelope): void {
+    const actualEnvelopeBytes = Buffer.byteLength(canonicalJson(event), "utf8");
+    const actualInlineBytes = Buffer.byteLength(canonicalJson(event.inline), "utf8");
+    const summaryBytes = Buffer.byteLength(event.summary, "utf8");
+    if (actualInlineBytes > 4 * 1024 || event.inlineBytes !== actualInlineBytes) {
+      throw new PayloadBudgetError(EventSpineErrorCode.INLINE_PAYLOAD_TOO_LARGE, "inline payload exceeds 4 KiB canonical limit", {
+        inline_bytes: actualInlineBytes,
+        declared_inline_bytes: event.inlineBytes,
+      });
+    }
+    if (summaryBytes > 1024) {
+      throw new PayloadBudgetError(EventSpineErrorCode.SUMMARY_TOO_LARGE, "event summary exceeds 1 KiB canonical limit", {
+        summary_bytes: summaryBytes,
+      });
+    }
+    if (event.artifactRefs.length + event.evidenceRefs.length > 64) {
+      throw new PayloadBudgetError(EventSpineErrorCode.TOO_MANY_REFS, "event reference count exceeds canonical limit", {
+        reference_count: event.artifactRefs.length + event.evidenceRefs.length,
+      });
+    }
+    if (actualEnvelopeBytes > 8 * 1024) {
+      throw new PayloadBudgetError(EventSpineErrorCode.EVENT_TOO_LARGE, "serialized event exceeds 8 KiB canonical limit", {
+        envelope_bytes: actualEnvelopeBytes,
+      });
+    }
+  }
+
+  private allocateGlobalSequence(): number {
+    this.db.prepare(`
+      INSERT INTO runtime_event_global_sequence (singleton, latest_sequence)
+      VALUES (1, 1)
+      ON CONFLICT(singleton) DO UPDATE SET latest_sequence = latest_sequence + 1
+    `).run();
+    return this.latestGlobalSequence();
   }
 
   private assertOpen(): void {
@@ -939,16 +1086,17 @@ export class RuntimeEventSqliteStore {
   private insertEvent(event: RuntimeEventEnvelope, draftDigest: string): void {
     this.db.prepare(`
       INSERT INTO runtime_events (
-        event_id, aggregate_id, sequence, event_type, event_version, run_id,
+        event_id, aggregate_id, sequence, global_sequence, event_type, event_version, run_id,
         session_id, task_id, worker_id, intent, effect, idempotency_key,
         correlation_id, causation_id, created_at, committed_at, draft_digest,
         content_digest, envelope_json, source_bytes, inline_bytes, envelope_bytes,
         artifact_ref_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       event.eventId,
       event.aggregateId,
       event.aggregateSequence,
+      event.globalSequence,
       event.eventType,
       event.eventVersion,
       event.identity.runId,
@@ -992,6 +1140,29 @@ export class RuntimeEventSqliteStore {
       value.eventType,
       value.createdAt,
       canonicalJson(value.payload),
+    );
+  }
+
+  private insertRouteDecision(route: RouteDecision): void {
+    // Route decisions contain optional fields; persist the JSON wire form so
+    // undefined process-local properties cannot leak into the canonical fact.
+    const routeJson = canonicalJson(JSON.parse(JSON.stringify(route)));
+    this.db.prepare(`
+      INSERT INTO runtime_event_routes (
+        event_id, policy_id, broadcast, fanout_reason, recipient_count,
+        available_recipient_count, route_digest, route_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(event_id) DO NOTHING
+    `).run(
+      route.eventId,
+      route.policyId,
+      route.broadcast ? 1 : 0,
+      route.fanoutReason ?? null,
+      route.recipients.length,
+      route.availableRecipientCount,
+      digestJson(JSON.parse(routeJson)),
+      routeJson,
+      route.createdAt,
     );
   }
 
@@ -1100,7 +1271,7 @@ export class RuntimeEventSqliteStore {
     return this.delivery(row.delivery_id)!;
   }
 
-  private recordAppendMetrics(event: RuntimeEventEnvelope, route: RouteDecision | undefined, spillCount: number, duplicate: boolean): void {
+  private recordAppendMetrics(event: RuntimeEventEnvelope, route: RouteDecision | undefined, spillCount: number, offloadedBytes: number, duplicate: boolean): void {
     const values: Array<[string, number, Record<string, JsonValue>]> = [
       ["event.append", 1, { event_type: event.eventType, effect: event.effect }],
       ["event.envelope_bytes", event.envelopeBytes, { event_type: event.eventType }],
@@ -1108,6 +1279,7 @@ export class RuntimeEventSqliteStore {
       ["event.source_bytes", event.sourceBytes, { event_type: event.eventType }],
       ["event.artifact_refs", event.artifactRefs.length, { event_type: event.eventType }],
       ["event.artifact_spills", spillCount, { event_type: event.eventType }],
+      ["event.offloaded_bytes", offloadedBytes, { event_type: event.eventType }],
       ["event.duplicate", duplicate ? 1 : 0, { event_type: event.eventType }],
     ];
     if (route) {

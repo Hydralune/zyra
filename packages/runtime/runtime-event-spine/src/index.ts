@@ -1,4 +1,5 @@
 export * from "./canonical.ts";
+export * from "./baseline-harness.ts";
 export * from "./contracts.ts";
 export * from "./errors.ts";
 export * from "./event-catalog.ts";

@@ -335,7 +335,7 @@ class TypeScriptRuntimeEventPort:
         if process is not None and process.poll() is None:
             try:
                 self.call(
-                    "shutdown",
+                    "close",
                     {},
                     timeout=self.config.shutdown_timeout_seconds,
                     _already_started=True,

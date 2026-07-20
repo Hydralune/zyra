@@ -191,6 +191,8 @@ export interface RuntimeEventEnvelope {
   eventVersion: number;
   aggregateId: string;
   aggregateSequence: number;
+  /** Monotonic commit cursor across every aggregate in the canonical store. */
+  globalSequence: number;
   producerSequence: number;
   idempotencyKey: string;
   correlationId: string;
@@ -254,6 +256,7 @@ export interface AgentMessageEnvelope {
   eventType: string;
   aggregateId: string;
   aggregateSequence: number;
+  globalSequence: number;
   producerSequence: number;
   idempotencyKey: string;
   correlationId: string;
@@ -384,6 +387,8 @@ export interface EventQuery {
   effects?: readonly EventEffectValue[];
   afterSequence?: number;
   beforeSequence?: number;
+  afterGlobalSequence?: number;
+  beforeGlobalSequence?: number;
   createdAtGte?: string;
   createdAtLt?: string;
   correlationId?: string;
@@ -397,8 +402,10 @@ export interface EventQuery {
 export interface EventPage {
   items: readonly RuntimeEventEnvelope[];
   nextCursor?: string;
+  nextSequence: number;
   hasMore: boolean;
   scanned: number;
+  highWatermark: number;
 }
 
 export interface ProjectionCursor {
@@ -480,6 +487,8 @@ export interface SpineMetrics {
   deadLetterCount: number;
   artifactRefCount: number;
   artifactSpillCount: number;
+  eventsWithArtifactRef: number;
+  offloadedBytesTotal: number;
   inlineBytesTotal: number;
   sourceBytesTotal: number;
   envelopeBytes: readonly number[];
@@ -723,6 +732,8 @@ export function parseEventQuery(value: unknown): EventQuery {
     effects,
     afterSequence: optionalInteger(input.afterSequence, "query.afterSequence", 0),
     beforeSequence: optionalInteger(input.beforeSequence, "query.beforeSequence", 0),
+    afterGlobalSequence: optionalInteger(input.afterGlobalSequence, "query.afterGlobalSequence", 0),
+    beforeGlobalSequence: optionalInteger(input.beforeGlobalSequence, "query.beforeGlobalSequence", 0),
     createdAtGte: input.createdAtGte === undefined ? undefined : parseTimestamp(input.createdAtGte, "query.createdAtGte"),
     createdAtLt: input.createdAtLt === undefined ? undefined : parseTimestamp(input.createdAtLt, "query.createdAtLt"),
     correlationId: optionalString(input.correlationId, "query.correlationId", 512),
@@ -737,6 +748,7 @@ export function parseEventQuery(value: unknown): EventQuery {
 export function buildCommittedEnvelope(
   draft: RuntimeEventDraft,
   sequence: number,
+  globalSequence: number,
   committedAt: string,
   inlineBytes: number,
   envelopeBytes: number,
@@ -748,6 +760,7 @@ export function buildCommittedEnvelope(
     eventVersion: draft.eventVersion ?? 1,
     aggregateId: draft.aggregateId,
     aggregateSequence: sequence,
+    globalSequence,
     producerSequence: draft.producerSequence ?? sequence,
     idempotencyKey: draft.idempotencyKey,
     correlationId: draft.correlationId,
@@ -791,6 +804,7 @@ export function messageFromEvent(event: RuntimeEventEnvelope, messageId = newId(
     eventType: event.eventType,
     aggregateId: event.aggregateId,
     aggregateSequence: event.aggregateSequence,
+    globalSequence: event.globalSequence,
     producerSequence: event.producerSequence,
     idempotencyKey: event.idempotencyKey,
     correlationId: event.correlationId,
@@ -843,6 +857,7 @@ export function eventFromJson(value: unknown): RuntimeEventEnvelope {
   const event = buildCommittedEnvelope(
     { ...draft, eventId: requireString(input.eventId, "event.eventId", 256) },
     requireInteger(input.aggregateSequence, "event.aggregateSequence", 0),
+    requireInteger(input.globalSequence, "event.globalSequence", 1),
     parseTimestamp(input.committedAt, "event.committedAt"),
     requireInteger(input.inlineBytes, "event.inlineBytes", 0),
     requireInteger(input.envelopeBytes, "event.envelopeBytes", 0),
@@ -877,10 +892,18 @@ export function normalizeLegacyRecord(value: unknown): LegacyEventRecord {
   if (!isPlainObject(value)) throw new EnvelopeValidationError("legacy event must be an object");
   const payload = isPlainObject(value.payload) ? value.payload : {};
   assertJsonValue(payload, "legacy.payload");
+  const runId = typeof (value.run_id ?? value.runId) === "string"
+    && String(value.run_id ?? value.runId).trim().length > 0
+    ? String(value.run_id ?? value.runId).trim()
+    : "runtime-global";
+  const taskId = typeof (value.task_id ?? value.taskId) === "string"
+    && String(value.task_id ?? value.taskId).trim().length > 0
+    ? String(value.task_id ?? value.taskId).trim()
+    : "runtime-global";
   return {
     event_id: optionalString(value.event_id ?? value.eventId, "legacy.event_id", 256),
-    run_id: requireString(value.run_id ?? value.runId, "legacy.run_id", 256),
-    task_id: requireString(value.task_id ?? value.taskId, "legacy.task_id", 256),
+    run_id: requireString(runId, "legacy.run_id", 256),
+    task_id: requireString(taskId, "legacy.task_id", 256),
     node_id: optionalString(value.node_id ?? value.nodeId, "legacy.node_id", 256),
     event_type: requireString(value.event_type ?? value.eventType, "legacy.event_type", 256),
     created_at: value.created_at ?? value.createdAt ? parseTimestamp(value.created_at ?? value.createdAt, "legacy.created_at") : utcNow(),

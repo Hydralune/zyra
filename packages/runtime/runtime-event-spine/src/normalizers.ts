@@ -42,9 +42,9 @@ const LEGACY_MAP: Record<string, LegacyMapping> = {
   artifact_written: { eventType: "runtime.artifact.committed", intent: MessageIntent.ARTIFACT, senderKind: SenderKind.ARTIFACT_STORE, senderId: "artifact-store", effective: true, stateDomain: "artifact", stateOperation: "append", targetKind: RecipientKind.ARTIFACT_STORE, targetId: "artifact-store" },
   skill_invoked: { eventType: "runtime.skill.invocation.started", intent: MessageIntent.SKILL, senderKind: SenderKind.WORKER, senderId: "code-worker", effective: true, stateDomain: "skill", stateOperation: "transition" },
   control_command: { eventType: "runtime.control.requested", intent: MessageIntent.CONTROL, senderKind: SenderKind.API, senderId: "zyra-api", effective: true, stateDomain: "control", stateOperation: "append", targetKind: RecipientKind.CONTROL, targetId: "control-runtime" },
-  requirement_change: { eventType: "runtime.task.updated", intent: MessageIntent.PLAN, senderKind: SenderKind.API, senderId: "zyra-api", effective: true, stateDomain: "requirement", stateOperation: "merge" },
-  failure_injected: { eventType: "runtime.recovery.requested", intent: MessageIntent.RECOVERY, senderKind: SenderKind.SYSTEM, senderId: "fault-injector", effective: true, stateDomain: "recovery", stateOperation: "append", targetKind: RecipientKind.RECOVERY, targetId: "recovery-planner" },
-  node_failed: { eventType: "runtime.recovery.requested", intent: MessageIntent.RECOVERY, senderKind: SenderKind.WORKER, senderId: "worker-runtime", effective: true, stateDomain: "recovery", stateOperation: "append", targetKind: RecipientKind.RECOVERY, targetId: "recovery-planner" },
+  requirement_change: { eventType: "runtime.task.updated", intent: MessageIntent.STATUS, senderKind: SenderKind.RUNTIME, senderId: "requirement-runtime", effective: true, stateDomain: "requirement", stateOperation: "merge" },
+  failure_injected: { eventType: "runtime.recovery.requested", intent: MessageIntent.RECOVERY, senderKind: SenderKind.RUNTIME, senderId: "fault-injector", effective: true, stateDomain: "recovery", stateOperation: "append", targetKind: RecipientKind.RECOVERY, targetId: "recovery-planner" },
+  node_failed: { eventType: "runtime.node.failed", intent: MessageIntent.RECOVERY, senderKind: SenderKind.WORKER, senderId: "worker-runtime", effective: true, stateDomain: "topology", stateOperation: "transition", targetKind: RecipientKind.RECOVERY, targetId: "recovery-planner" },
   constraint_check: { eventType: "runtime.audit.finding", intent: MessageIntent.AUDIT, senderKind: SenderKind.SYSTEM, senderId: "constraint-runtime", effective: false, stateDomain: "audit", stateOperation: "none", targetKind: RecipientKind.AUDITOR, targetId: "runtime-auditor" },
   topology_route: { eventType: "runtime.topology.route", intent: MessageIntent.DISPATCH, senderKind: SenderKind.SCHEDULER, senderId: "resource-scheduler", effective: true, stateDomain: "topology", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
   resource_decision: { eventType: "runtime.backend.dispatch.requested", intent: MessageIntent.DISPATCH, senderKind: SenderKind.SCHEDULER, senderId: "resource-scheduler", effective: true, stateDomain: "dispatch", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
@@ -59,28 +59,28 @@ const LEGACY_MAP: Record<string, LegacyMapping> = {
   mcp_elicitation: { eventType: "runtime.mcp.elicitation.requested", intent: MessageIntent.MCP, senderKind: SenderKind.MCP, senderId: "mcp-runtime", effective: true, stateDomain: "mcp", stateOperation: "append", targetKind: RecipientKind.CONTROL, targetId: "control-runtime" },
   mcp_task_updated: { eventType: "runtime.mcp.connection", intent: MessageIntent.MCP, senderKind: SenderKind.MCP, senderId: "mcp-runtime", effective: true, stateDomain: "mcp", stateOperation: "merge" },
   mcp_instructions_changed: { eventType: "runtime.mcp.connection", intent: MessageIntent.MCP, senderKind: SenderKind.MCP, senderId: "mcp-runtime", effective: true, stateDomain: "mcp", stateOperation: "merge" },
-  mcp_tool_result: { eventType: "runtime.agent.message", intent: MessageIntent.MCP, senderKind: SenderKind.MCP, senderId: "mcp-runtime", effective: true, stateDomain: "mcp", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  mcp_tool_result: { eventType: "runtime.mcp.tool.result", intent: MessageIntent.MCP, senderKind: SenderKind.MCP, senderId: "mcp-runtime", effective: true, stateDomain: "mcp", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
   subagent_task_created: { eventType: "runtime.subagent.created", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.WORKER, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "append", targetKind: RecipientKind.SCHEDULER, targetId: "resource-scheduler" },
-  subagent_task_updated: { eventType: "runtime.agent.message", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  subagent_dispatched: { eventType: "runtime.subagent.created", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SCHEDULER, senderId: "resource-scheduler", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  subagent_progress: { eventType: "runtime.agent.message", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: false, stateDomain: "subagent", stateOperation: "none", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  subagent_completed: { eventType: "runtime.agent.message", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  subagent_failed: { eventType: "runtime.recovery.requested", intent: MessageIntent.RECOVERY, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: true, stateDomain: "recovery", stateOperation: "append", targetKind: RecipientKind.RECOVERY, targetId: "recovery-planner" },
-  subagent_cancelled: { eventType: "runtime.agent.message", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.RUNTIME, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  subagent_resumed: { eventType: "runtime.agent.message", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.RUNTIME, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  subagent_message: { eventType: "runtime.agent.message", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: true, stateDomain: "message", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  subagent_isolation: { eventType: "runtime.agent.message", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.RUNTIME, senderId: "subagent-runtime", effective: true, stateDomain: "workspace", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_task_updated: { eventType: "runtime.subagent.progress", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: false, stateDomain: "subagent", stateOperation: "none", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_dispatched: { eventType: "runtime.subagent.dispatched", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SCHEDULER, senderId: "resource-scheduler", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_progress: { eventType: "runtime.subagent.progress", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: false, stateDomain: "subagent", stateOperation: "none", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_completed: { eventType: "runtime.subagent.completed", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_failed: { eventType: "runtime.subagent.failed", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.RECOVERY, targetId: "recovery-planner" },
+  subagent_cancelled: { eventType: "runtime.subagent.cancelled", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.RUNTIME, senderId: "subagent-runtime", effective: true, stateDomain: "subagent", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_resumed: { eventType: "runtime.subagent.progress", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: false, stateDomain: "subagent", stateOperation: "none", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_message: { eventType: "runtime.subagent.progress", intent: MessageIntent.SUBAGENT, senderKind: SenderKind.SUBAGENT, senderId: "subagent-runtime", effective: false, stateDomain: "message", stateOperation: "none", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  subagent_isolation: { eventType: "runtime.agent.message", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.RUNTIME, senderId: "subagent-runtime", effective: true, stateDomain: "workspace", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
   command_requested: { eventType: "runtime.control.requested", intent: MessageIntent.CONTROL, senderKind: SenderKind.API, senderId: "zyra-api", effective: true, stateDomain: "control", stateOperation: "append", targetKind: RecipientKind.CONTROL, targetId: "control-runtime" },
-  command_validated: { eventType: "runtime.agent.message", intent: MessageIntent.CONTROL, senderKind: SenderKind.CONTROL, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  command_queued: { eventType: "runtime.agent.message", intent: MessageIntent.CONTROL, senderKind: SenderKind.CONTROL, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  command_started: { eventType: "runtime.agent.message", intent: MessageIntent.CONTROL, senderKind: SenderKind.CONTROL, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  command_succeeded: { eventType: "runtime.agent.message", intent: MessageIntent.CONTROL, senderKind: SenderKind.RUNTIME, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
+  command_validated: { eventType: "runtime.control.accepted", intent: MessageIntent.CONTROL, senderKind: SenderKind.CONTROL, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  command_queued: { eventType: "runtime.control.accepted", intent: MessageIntent.CONTROL, senderKind: SenderKind.CONTROL, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  command_started: { eventType: "runtime.control.accepted", intent: MessageIntent.CONTROL, senderKind: SenderKind.CONTROL, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  command_succeeded: { eventType: "runtime.control.completed", intent: MessageIntent.CONTROL, senderKind: SenderKind.RUNTIME, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
   command_failed: { eventType: "runtime.recovery.requested", intent: MessageIntent.RECOVERY, senderKind: SenderKind.RUNTIME, senderId: "control-runtime", effective: true, stateDomain: "recovery", stateOperation: "append", targetKind: RecipientKind.RECOVERY, targetId: "recovery-planner" },
-  command_cancelled: { eventType: "runtime.agent.message", intent: MessageIntent.CONTROL, senderKind: SenderKind.RUNTIME, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
-  command_registry_refreshed: { eventType: "runtime.agent.message", intent: MessageIntent.CONTROL, senderKind: SenderKind.CONTROL, senderId: "control-runtime", effective: false, stateDomain: "control", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
-  prompt_queue_updated: { eventType: "runtime.agent.message", intent: MessageIntent.QUERY, senderKind: SenderKind.RUNTIME, senderId: "query-runtime", effective: true, stateDomain: "session", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  side_question: { eventType: "runtime.agent.message", intent: MessageIntent.QUERY, senderKind: SenderKind.API, senderId: "zyra-api", effective: true, stateDomain: "message", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
-  system_notice: { eventType: "runtime.agent.message", intent: MessageIntent.STATUS, senderKind: SenderKind.SYSTEM, senderId: "zyra-system", effective: false, stateDomain: "message", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
+  command_cancelled: { eventType: "runtime.control.completed", intent: MessageIntent.CONTROL, senderKind: SenderKind.RUNTIME, senderId: "control-runtime", effective: true, stateDomain: "control", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
+  command_registry_refreshed: { eventType: "runtime.agent.message", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.RUNTIME, senderId: "control-runtime", effective: false, stateDomain: "control", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
+  prompt_queue_updated: { eventType: "runtime.query.queued", intent: MessageIntent.QUERY, senderKind: SenderKind.RUNTIME, senderId: "query-runtime", effective: true, stateDomain: "session", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  side_question: { eventType: "runtime.agent.message", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.RUNTIME, senderId: "zyra-api", effective: true, stateDomain: "message", stateOperation: "append", targetKind: RecipientKind.WORKER, targetId: "worker-runtime" },
+  system_notice: { eventType: "runtime.agent.message", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.RUNTIME, senderId: "zyra-system", effective: false, stateDomain: "message", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
   browser_session_lifecycle: { eventType: "runtime.browser.observation", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.WORKER, senderId: "browser-worker", effective: true, stateDomain: "browser", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
   browser_target_lifecycle: { eventType: "runtime.browser.observation", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.WORKER, senderId: "browser-worker", effective: true, stateDomain: "browser", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
   browser_cdp_request: { eventType: "runtime.browser.observation", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.WORKER, senderId: "browser-worker", effective: false, stateDomain: "browser", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
@@ -114,7 +114,7 @@ function payloadString(payload: Readonly<Record<string, JsonValue>>, ...keys: st
 function legacyMapping(eventType: string): LegacyMapping {
   return LEGACY_MAP[eventType] ?? {
     eventType: "runtime.agent.message",
-    intent: MessageIntent.STATUS,
+    intent: MessageIntent.OBSERVATION,
     senderKind: SenderKind.RUNTIME,
     senderId: "legacy-runtime",
     effective: false,
@@ -249,30 +249,62 @@ export function normalizeOmpFrame(value: OmpFrameInput): RuntimeEventDraft {
   const correlationId = String(value.request_id ?? sessionId ?? runId);
   const parentId = value.parent_id ? String(value.parent_id) : undefined;
   let eventType = "runtime.agent.message";
-  let intent: MessageIntentValue = MessageIntent.STATUS;
+  let intent: MessageIntentValue = MessageIntent.OBSERVATION;
   let effect: EventEffectValue = EventEffect.NON_EFFECTIVE;
-  if (frameType.includes("tool") && (frameType.includes("call") || frameType.includes("start"))) {
+  if (frameType === "turn_start" || frameType === "agent_start") {
+    eventType = "runtime.turn.started";
+    intent = MessageIntent.STATUS;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType === "turn_end" || frameType === "agent_end" || frameType === "final") {
+    eventType = "runtime.turn.completed";
+    intent = MessageIntent.STATUS;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("tool") && (frameType.includes("call") || frameType.includes("start"))) {
     eventType = "runtime.tool.called";
     intent = MessageIntent.TOOL_CALL;
     effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("tool") && (frameType.includes("progress") || frameType.includes("update"))) {
+    eventType = "runtime.tool.progress";
+    intent = MessageIntent.STATUS;
   } else if (frameType.includes("tool") && (frameType.includes("result") || frameType.includes("end"))) {
-    eventType = "runtime.agent.message";
+    const failed = sourcePayload.error !== undefined || sourcePayload.is_error === true || sourcePayload.status === "failed";
+    eventType = failed ? "runtime.tool.failed" : "runtime.tool.succeeded";
     intent = MessageIntent.TOOL_RESULT;
     effect = EventEffect.EFFECTIVE;
   } else if (frameType.includes("subagent") && frameType.includes("progress")) {
-    eventType = "runtime.agent.message";
+    eventType = "runtime.subagent.progress";
     intent = MessageIntent.SUBAGENT;
-  } else if (frameType.includes("subagent") && (frameType.includes("yield") || frameType.includes("result"))) {
-    eventType = "runtime.agent.message";
+  } else if (frameType.includes("subagent") && frameType.includes("yield")) {
+    eventType = "runtime.subagent.yield";
     intent = MessageIntent.SUBAGENT;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("subagent") && frameType.includes("late")) {
+    eventType = "runtime.subagent.late_result";
+    intent = MessageIntent.SUBAGENT;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("subagent") && (frameType.includes("fail") || frameType.includes("error"))) {
+    eventType = "runtime.subagent.failed";
+    intent = MessageIntent.SUBAGENT;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("subagent") && (frameType.includes("cancel") || frameType.includes("abort"))) {
+    eventType = "runtime.subagent.cancelled";
+    intent = MessageIntent.SUBAGENT;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("subagent") && (frameType.includes("result") || frameType.includes("complete") || frameType.includes("end"))) {
+    eventType = "runtime.subagent.completed";
+    intent = MessageIntent.SUBAGENT;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("compact") && frameType.includes("start")) {
+    eventType = "runtime.compact.started";
+    intent = MessageIntent.COMPACT;
+    effect = EventEffect.EFFECTIVE;
+  } else if (frameType.includes("compact") && (frameType.includes("end") || frameType.includes("complete"))) {
+    eventType = "runtime.compact.completed";
+    intent = MessageIntent.COMPACT;
     effect = EventEffect.EFFECTIVE;
   } else if (frameType.includes("partial") || frameType.includes("delta")) {
     eventType = "runtime.text.delta";
     intent = MessageIntent.OBSERVATION;
-  } else if (frameType.includes("final") || frameType.includes("agent_end")) {
-    eventType = "runtime.agent.message";
-    intent = MessageIntent.STATUS;
-    effect = EventEffect.EFFECTIVE;
   }
   const toolCallId = value.tool_call_id ? String(value.tool_call_id) : payloadString(sourcePayload as Record<string, JsonValue>, "tool_call_id", "call_id");
   const inline: Record<string, JsonValue> = {
@@ -285,6 +317,12 @@ export function normalizeOmpFrame(value: OmpFrameInput): RuntimeEventDraft {
     inline.input_digest = digestJson(sourcePayload);
     inline.tool_call_id = toolCallId ?? stableId("call", eventId);
   }
+  if (["runtime.tool.progress", "runtime.tool.succeeded", "runtime.tool.failed"].includes(eventType)) {
+    inline.tool_name = payloadString(sourcePayload as Record<string, JsonValue>, "tool_name", "name") ?? "unknown";
+    inline.tool_call_id = toolCallId ?? stableId("call", parentId ?? eventId);
+  }
+  if (eventType === "runtime.tool.succeeded") inline.result_digest = digestJson(sourcePayload);
+  if (eventType === "runtime.tool.failed") inline.error_code = payloadString(sourcePayload as Record<string, JsonValue>, "error_code", "error", "message") ?? "tool_failed";
   if (eventType === "runtime.text.delta") {
     inline.stream_id = payloadString(sourcePayload as Record<string, JsonValue>, "stream_id", "message_id") ?? correlationId;
     inline.delta = payloadString(sourcePayload as Record<string, JsonValue>, "delta", "text") ?? "";
@@ -295,7 +333,7 @@ export function normalizeOmpFrame(value: OmpFrameInput): RuntimeEventDraft {
     aggregateId: `run:${runId}:task:${taskId}`,
     idempotencyKey: `omp:${eventId}`,
     correlationId,
-    causationId: undefined,
+    causationId: parentId,
     createdAt: typeof value.timestamp === "string" ? value.timestamp : undefined,
     durability: eventType.endsWith(".delta") ? EventDurability.LIVE_ONLY : EventDurability.DURABLE,
     effect,
@@ -307,7 +345,13 @@ export function normalizeOmpFrame(value: OmpFrameInput): RuntimeEventDraft {
       toolCallId: toolCallId ?? (eventType === "runtime.tool.called" ? String(inline.tool_call_id) : undefined),
     },
     sender: {
-      kind: frameType.includes("subagent") ? SenderKind.SUBAGENT : SenderKind.RUNTIME,
+      kind: eventType.startsWith("runtime.subagent.")
+        ? (eventType === "runtime.subagent.cancelled" ? SenderKind.RUNTIME : SenderKind.SUBAGENT)
+        : eventType.startsWith("runtime.tool.") && eventType !== "runtime.tool.called"
+          ? SenderKind.TOOL
+          : eventType.startsWith("runtime.turn.") || eventType === "runtime.tool.called" || eventType === "runtime.text.delta"
+            ? SenderKind.WORKER
+            : SenderKind.RUNTIME,
       id: value.agent_id ? String(value.agent_id) : "omp-frame",
       capabilityRefs: ["omp.typed-frame"],
     },
