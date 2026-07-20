@@ -147,13 +147,19 @@ export class PermissionedCapabilityHost implements RuntimeHost {
             : null,
       );
     }
-    this.settlement.beginDelegation(
-      batch.batchId,
-      enriched
-        .filter((request) => (request.permissionDecision as unknown as { effect?: string }).effect === "allow")
-        .map((request) => request.toolCallId),
+    const awaitingApproval = enriched.some(
+      (request) => (request.permissionDecision as unknown as { effect?: string }).effect === "ask",
     );
+    if (!awaitingApproval) {
+      this.settlement.beginDelegation(
+        batch.batchId,
+        enriched
+          .filter((request) => (request.permissionDecision as unknown as { effect?: string }).effect === "allow")
+          .map((request) => request.toolCallId),
+      );
+    }
     const committed = await this.delegate.executeBatch(batch, enriched);
+    if (awaitingApproval) return committed;
     for (let index = 0; index < committed.length; index += 1) {
       const request = enriched[index];
       const receipt = committed[index];

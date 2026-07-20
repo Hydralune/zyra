@@ -906,6 +906,13 @@ function assertSecretFree(value: unknown, path: string): void {
   }
   if (!value || typeof value !== "object") return;
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (
+      key === "secret_redaction_state"
+      && typeof item === "string"
+      && ["clean", "redacted", "unknown"].includes(item)
+    ) {
+      continue;
+    }
     if (/api.?key|authorization|access.?token|secret|password|cookie/i.test(key)) {
       if (typeof item === "string" && item && !/digest|fingerprint/i.test(key)) {
         throw new Error(`model iteration snapshot contains secret-like field: ${path}.${key}`);

@@ -98,7 +98,9 @@ export async function resolveModelTurns(
     constraints.model_transport || constraints.model_transport_kind,
     "scripted",
   );
-  const requestMessages = overrideMessages ? [...overrideMessages] : normalizeMessages(input);
+  const requestMessages = normalizeProviderMessages(
+    overrideMessages ? [...overrideMessages] : normalizeMessages(input),
+  );
   const requestTools = tools.map(openAiTool);
   const requestScope = `${input.workerRequestId}:epoch${Math.max(0, Math.floor(requestEpoch))}:round${Math.max(0, Math.floor(requestRound))}:model`;
   if (asBoolean(constraints.simulate_model_error)) {
@@ -141,6 +143,14 @@ export async function resolveModelTurns(
         usage: emptyUsage(),
         recovery_context_id: requestScope,
         recovery_plan: recoveryPlan as unknown as JsonObject | null,
+        envelope: providerEnvelope(
+          input,
+          config,
+          requestId,
+          requestMessages,
+          requestRound,
+          config.modelName,
+        ),
       },
     });
     await emitFinalReports(emit, [], false, "simulated_failure", config.modelName, false);
@@ -198,6 +208,14 @@ export async function resolveModelTurns(
           cache_creation_input_tokens: 0,
           server_tool_use_tokens: 0,
         },
+        envelope: providerEnvelope(
+          input,
+          config,
+          requestId,
+          requestMessages,
+          requestRound,
+          config.modelName,
+        ),
       },
     });
     await emit("api_retry_report", {
@@ -345,6 +363,14 @@ export async function resolveModelTurns(
               usage: owned.usage,
               recovery_context_id: recoveryContextId,
               recovery_plan: recoveryPlan as unknown as JsonObject | null,
+              envelope: providerEnvelope(
+                input,
+                config,
+                requestId,
+                requestMessages,
+                requestRound,
+                model,
+              ),
             },
           });
           if (!retrying) break;
@@ -385,6 +411,14 @@ export async function resolveModelTurns(
             frame_count: 1,
             tool_call_count: owned.steps.length,
             usage: owned.usage,
+            envelope: providerEnvelope(
+              input,
+              config,
+              requestId,
+              requestMessages,
+              requestRound,
+              model,
+            ),
           },
         });
         const fallbackUsed = model !== config.modelName;
@@ -462,6 +496,14 @@ export async function resolveModelTurns(
             usage: emptyUsage(),
             recovery_context_id: recoveryContextId,
             recovery_plan: recoveryPlan as unknown as JsonObject | null,
+            envelope: providerEnvelope(
+              input,
+              config,
+              requestId,
+              requestMessages,
+              requestRound,
+              model,
+            ),
           },
         });
         if (!retrying) break;
@@ -491,6 +533,14 @@ export async function resolveModelTurns(
           frame_count: parsed.frameCount,
           tool_call_count: parsed.steps.length,
           usage: parsed.usage,
+          envelope: providerEnvelope(
+            input,
+            config,
+            requestId,
+            requestMessages,
+            requestRound,
+            model,
+          ),
         },
       });
       const fallbackUsed = model !== config.modelName;
@@ -554,12 +604,20 @@ export async function resolveModelTurns(
       await emit("model_stream_report", {
         model_stream: {
           ...record,
-            request_id: requestId,
-            provider: "compatible",
-            transport: "http_sse",
-            usage: emptyUsage(),
+          request_id: requestId,
+          provider: "compatible",
+          transport: "http_sse",
+          usage: emptyUsage(),
           recovery_context_id: recoveryContextId,
           recovery_plan: recoveryPlan as unknown as JsonObject | null,
+          envelope: providerEnvelope(
+            input,
+            config,
+            requestId,
+            requestMessages,
+            requestRound,
+            model,
+          ),
         },
       });
       if (!retrying) break;
@@ -760,6 +818,74 @@ export function normalizeMessages(input: RuntimeRunInput): JsonObject[] {
     role: "user",
     content: asString(asObject(input.metadata).raw_input, "Execute the requested coding task."),
   }];
+}
+
+function normalizeProviderMessages(messages: readonly JsonObject[]): JsonObject[] {
+  return messages.map((value) => {
+    const message = structuredClone(value);
+    const metadata = {
+      ...asObject(message.metadata),
+    };
+    for (const key of [
+      "browser_disclosure_id",
+      "browser_context_source_id",
+      "browser_capture_id",
+      "browser_selector_revision_id",
+      "browser_action_receipt_ids",
+      "browser_artifact_ids",
+      "source_provenance",
+      "trust_level",
+      "secret_redaction_state",
+      "external",
+      "read_once",
+      "canonical_context_owner",
+    ]) {
+      if (message[key] !== undefined && metadata[key] === undefined) metadata[key] = message[key];
+    }
+    const external = asBoolean(metadata.external)
+      || asString(metadata.trust_level) === "external_untrusted";
+    if (external) {
+      metadata.external = true;
+      metadata.trust_level = "external_untrusted";
+      metadata.secret_redaction_state = asString(metadata.secret_redaction_state, "clean");
+      message.role = "user";
+    }
+    message.metadata = metadata;
+    return message;
+  });
+}
+
+function providerEnvelope(
+  input: RuntimeRunInput,
+  config: RuntimeConfig,
+  requestId: string,
+  messages: readonly JsonObject[],
+  requestRound: number,
+  model: string,
+): JsonObject {
+  const contextChars = messages.reduce(
+    (total, message) => total + asString(message.content).length,
+    0,
+  );
+  return {
+    request_id: requestId,
+    session_id: input.sessionId,
+    worker_request_id: input.workerRequestId,
+    turn_id: `${input.workerRequestId}:provider-turn:${Math.max(0, Math.floor(requestRound)) + 1}`,
+    turn_index: Math.max(0, Math.floor(requestRound)) + 1,
+    model,
+    messages: messages.map((message) => structuredClone(message)),
+    context_chars: contextChars,
+    context_limit_chars: config.maxQueryContextChars,
+    tool_call_count: 0,
+    metadata: {
+      canonical_owner: "typescript",
+      provider_message_count: String(messages.length),
+      browser_context_message_count: String(messages.filter((message) => (
+        Boolean(asString(asObject(message.metadata).browser_context_source_id))
+      )).length),
+    },
+  };
 }
 
 function openAiTool(tool: ToolSpecContract): JsonObject {

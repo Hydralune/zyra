@@ -401,7 +401,31 @@ export class ToolExecutionSettlementRuntime {
         { call_id: callId },
       );
     }
-    if (call.permissionEffect !== "unknown") {
+    if (call.permissionEffect === "ask" && normalized !== "ask") {
+      const from = call.state;
+      call.permissionEffect = "unknown";
+      call.permissionReason = "";
+      call.permissionRuleId = null;
+      call.state = "planned";
+      call.summary = "";
+      call.output = {};
+      call.outputDigest = null;
+      call.error = null;
+      call.completedAt = null;
+      call.revision += 1;
+      batch.blockedCallIds = batch.blockedCallIds.filter((item) => item !== callId);
+      batch.settledCallIds = batch.settledCallIds.filter((item) => item !== callId);
+      batch.state = "planned";
+      batch.completedAt = null;
+      batch.error = null;
+      batch.revision += 1;
+      batch.digest = batchDigest(batch);
+      this.transition(batch, call, "permission.resumed", from, "planned", {
+        effect: normalized,
+        reason: reason.trim(),
+        rule_id: ruleId?.trim() || null,
+      });
+    } else if (call.permissionEffect !== "unknown") {
       if (
         call.permissionEffect === normalized
         && call.permissionReason === reason.trim()

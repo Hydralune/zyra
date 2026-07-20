@@ -81,8 +81,14 @@ export class TypeScriptCapabilityRuntime {
     try {
       authorization = this.e02.resumePermission(response);
     } catch (error) {
-      const replay = restoredApprovalReplay(this.e02.snapshot(), response);
-      if (!replay) throw error;
+      const snapshot = this.e02.snapshot();
+      const replay = restoredApprovalReplay(snapshot, response);
+      if (!replay) {
+        const replayState = approvalReplayState(snapshot, response);
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)}; exact replay rejected (${replayState})`,
+        );
+      }
       authorization = replay;
     }
     this.resumedAuthorizations.set(response.toolCallId, cloneJson(authorization));
@@ -161,6 +167,34 @@ function assertResumedAuthorizationBinding(
   }
 }
 
+function approvalReplayState(
+  snapshot: E02CapabilityCoordinatorSnapshot,
+  response: PermissionApprovalResponse,
+): string {
+  const envelope = snapshot.permission.approvals.envelopes.find(
+    (item) => item.requestId === response.requestId,
+  );
+  const evaluator = snapshot.permission.evaluator;
+  const continuationSnapshot = evaluator.continuations as unknown as {
+    records?: PermissionContinuationRecord[];
+  };
+  const continuation = continuationSnapshot.records?.find(
+    (item) => item.requestId === response.requestId,
+  );
+  const permits = snapshot.executionLedger.permits.filter(
+    (item) => item.toolCallId === response.toolCallId,
+  );
+  return [
+    `envelope=${envelope?.status ?? "missing"}`,
+    `envelope_response=${String(envelope?.metadata.response_id === response.responseId)}`,
+    `continuation=${continuation?.status ?? "missing"}`,
+    `continuation_response=${String(continuation?.responseId === response.responseId)}`,
+    `tool_call=${String(continuation?.toolCallId === response.toolCallId)}`,
+    `permits=${permits.map((item) => item.status).join(",") || "missing"}`,
+    `decisions=${Array.isArray(evaluator.decisions) ? evaluator.decisions.length : 0}`,
+  ].join(";");
+}
+
 function restoredApprovalReplay(
   snapshot: E02CapabilityCoordinatorSnapshot,
   response: PermissionApprovalResponse,
@@ -169,9 +203,14 @@ function restoredApprovalReplay(
     (item) => item.requestId === response.requestId,
   );
   const evaluator = snapshot.permission.evaluator;
+  const continuationSnapshot = evaluator.continuations as unknown as {
+    records?: PermissionContinuationRecord[];
+  };
   const continuations = Array.isArray(evaluator.continuations)
     ? evaluator.continuations as PermissionContinuationRecord[]
-    : [];
+    : Array.isArray(continuationSnapshot?.records)
+      ? continuationSnapshot.records
+      : [];
   const decisions = Array.isArray(evaluator.decisions)
     ? evaluator.decisions as PermissionDecisionRecord[]
     : [];
@@ -187,18 +226,30 @@ function restoredApprovalReplay(
     || !continuation
     || continuation.responseId !== response.responseId
     || continuation.toolCallId !== response.toolCallId
-    || continuation.status !== (response.effect === "allow" ? "approved" : "denied")
+    || !new Set([
+      response.effect === "allow" ? "approved" : "denied",
+      "consumed",
+    ]).has(continuation.status)
   ) {
     return null;
   }
+  const permit = response.effect === "allow"
+    ? snapshot.executionLedger.permits.find(
+      (item) => item.status === "issued"
+        && item.toolCallId === response.toolCallId
+        && item.metadata.continuation_request_id === response.requestId
+        && item.metadata.resumed_approval_response_id === response.responseId,
+    ) ?? null
+    : null;
+  if (response.effect === "allow" && !permit) return null;
   const decision = decisions.find(
-    (item) => item.continuationRequestId === response.requestId && item.effect === response.effect,
+    (item) => item.decisionId === permit?.decisionId,
+  ) ?? decisions.find(
+    (item) => item.continuationRequestId === response.requestId
+      && item.effect === response.effect
+      && item.metadata.approval_response_id === response.responseId,
   );
   if (!decision) return null;
-  const permit = snapshot.executionLedger.permits.find(
-    (item) => item.decisionId === decision.decisionId && item.status === "issued",
-  ) ?? null;
-  if (response.effect === "allow" && !permit) return null;
   const enforcement = {
     decision: cloneJson(decision),
     allowed: decision.effect === "allow",

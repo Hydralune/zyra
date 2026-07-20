@@ -311,7 +311,12 @@ class TypeScriptClaudeQueryEngine:
                         "permission_transport_checkpoint_missing",
                         "A resolved approval has no matching durable TypeScript E02 checkpoint.",
                     )
+                # Approval resumes the *same* parked E01 batch.  Keep the whole
+                # durable checkpoint here: reducing it to the E02 permission
+                # snapshot discards the scheduled batch/tool-call graph and
+                # makes the resumed call impossible to correlate or fence.
                 restored_runtime_state = {
+                    **restored_runtime_state,
                     "e02": e02_snapshot,
                     "tool_effect_receipts": to_jsonable(
                         restored_runtime_state.get("tool_effect_receipts") or {}
@@ -666,7 +671,37 @@ class TypeScriptClaudeQueryEngine:
 
                 execution_mode = str(payload.get("execution_mode") or "serial_non_read_only")
                 timeout_seconds = max(0.001, min(600.0, float(payload.get("timeout_ms") or 30000) / 1000.0))
-                if execution_mode == "concurrent_read_only" and len(request_payloads) > 1:
+                def permission_effect(item: Mapping[str, Any]) -> str:
+                    raw_decision = item.get("permission_decision")
+                    decision = raw_decision if isinstance(raw_decision, Mapping) else {}
+                    return str(decision.get("effect") or "").lower()
+
+                permission_effects = {permission_effect(item) for item in request_payloads}
+                if "ask" in permission_effects:
+                    # Authorize the complete batch before executing any sibling.
+                    # ASK requests still pass through _execute_tool_request so
+                    # their exact TypeScript binding is projected atomically,
+                    # while allowed siblings remain physically untouched.
+                    results = []
+                    for item in request_payloads:
+                        decision_effect = permission_effect(item)
+                        if decision_effect == "ask":
+                            results.append(execute_one(item))
+                            continue
+                        results.append({
+                            "tool_call_id": str(item.get("tool_call_id") or ""),
+                            "ok": False,
+                            "summary": "Tool batch is parked pending exact approval.",
+                            "output": {},
+                            "artifacts": [],
+                            "error": "permission_batch_parked",
+                            "metadata": {
+                                "canonical_owner": "typescript",
+                                "physical_effect_executed": "false",
+                                "batch_permission_fenced": "true",
+                            },
+                        })
+                elif execution_mode == "concurrent_read_only" and len(request_payloads) > 1:
                     configured_concurrency = int(
                         self.config.runtime_constraints.get("max_read_only_concurrency") or 10
                     )
@@ -1663,6 +1698,7 @@ class TypeScriptClaudeQueryEngine:
                         "transport": record.resolution_channel,
                         "python_role": "approval-transport-only",
                         "canonical_policy_owner": "typescript",
+                        "restart_safe_suspended_batch": True,
                         "permission_request_fingerprint": record.request_fingerprint,
                     },
                 }

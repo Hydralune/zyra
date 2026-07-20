@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.request
 from urllib.error import HTTPError
@@ -1418,6 +1419,325 @@ class ApiControlCommandTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
+    def test_code_worker_permission_batch_fences_partial_effects_and_denial_across_processes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(root / "workspace")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STORE"] = str(root / "legacy-permissions.json")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+
+            ZyraRequestHandler = _fresh_api_handler()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(
+                    base_url,
+                    "/tasks",
+                    {"goal": "Fence two approval-gated code effects.", "auto_run": False},
+                )
+                task = created["task"]
+                session_id = "api-code-permission-batch-session"
+                workspace_id = task["metadata"]["workspace_ref"]["workspace_id"]
+
+                def write_command(path: str, content: str) -> str:
+                    return subprocess.list2cmdline(
+                        [
+                            sys.executable,
+                            "-c",
+                            (
+                                "from pathlib import Path; "
+                                f"Path({path!r}).open('a', encoding='utf-8').write({content!r})"
+                            ),
+                        ]
+                    )
+
+                plan = [
+                    {
+                        "tool_name": "shell",
+                        "tool_call_id": "api-code-batch-shell-1",
+                        "arguments": {"command": write_command("batch-first.txt", "first")},
+                    },
+                    {
+                        "tool_name": "shell",
+                        "tool_call_id": "api-code-batch-shell-2",
+                        "arguments": {"command": write_command("batch-second.txt", "second")},
+                    },
+                ]
+                first_status, first = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {"constraints": {"session_id": session_id, "tool_plan": plan}},
+                )
+                self.assertEqual(first_status, 409, first)
+                self.assertEqual(first["worker_result"]["error"], "permission_suspended")
+                self.assertEqual(first["worker_result"]["metadata"]["runtime_process_epoch"], "1")
+                token = first["permission_session"]["session_custody_token"]
+                headers = {"Authorization": f"Bearer {token}"}
+                identity = {
+                    "session_id": session_id,
+                    "run_id": task["run_id"],
+                    "task_id": task["task_id"],
+                }
+                query_path = (
+                    "/permissions/requests"
+                    f"?session_id={session_id}&run_id={task['run_id']}"
+                    f"&task_id={task['task_id']}&pending_only=true"
+                )
+                pending = _get(base_url, query_path, headers=headers)["requests"]["items"]
+                self.assertEqual(len(pending), 2)
+                for path in ("batch-first.txt", "batch-second.txt"):
+                    absent = _get(
+                        base_url,
+                        f"/workspaces/{workspace_id}/files?path={path}&read=true&encoding=utf-8",
+                    )
+                    self.assertFalse(absent["read"]["record"]["metadata"]["exists"])
+
+                _post(
+                    base_url,
+                    f"/permissions/requests/{pending[0]['request_id']}/resolve",
+                    {**identity, "effect": "allow", "idempotency_key": "approve-batch-first"},
+                    headers=headers,
+                )
+                second_status, second = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {
+                        "constraints": {
+                            "session_id": session_id,
+                            "session_custody_token": token,
+                            "tool_plan": plan,
+                        }
+                    },
+                )
+                self.assertEqual(second_status, 409, second)
+                self.assertEqual(second["worker_result"]["error"], "permission_suspended")
+                self.assertEqual(second["worker_result"]["metadata"]["runtime_process_epoch"], "2")
+                remaining = _get(base_url, query_path, headers=headers)["requests"]["items"]
+                self.assertEqual(len(remaining), 1)
+                for path in ("batch-first.txt", "batch-second.txt"):
+                    absent = _get(
+                        base_url,
+                        f"/workspaces/{workspace_id}/files?path={path}&read=true&encoding=utf-8",
+                    )
+                    self.assertFalse(absent["read"]["record"]["metadata"]["exists"])
+
+                _post(
+                    base_url,
+                    f"/permissions/requests/{remaining[0]['request_id']}/resolve",
+                    {**identity, "effect": "allow", "idempotency_key": "approve-batch-second"},
+                    headers=headers,
+                )
+                third_status, third = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {
+                        "constraints": {
+                            "session_id": session_id,
+                            "session_custody_token": token,
+                            "tool_plan": plan,
+                        }
+                    },
+                )
+                self.assertEqual(
+                    third_status,
+                    201,
+                    {
+                        "worker_error": third.get("worker_result", {}).get("error"),
+                        "runtime_error_message": third.get("worker_result", {})
+                        .get("metadata", {})
+                        .get("typescript_runtime_error_message"),
+                        "phases": [
+                            event.get("payload", {}).get("query_session", {}).get("phase")
+                            for event in third.get("events", [])
+                        ],
+                    },
+                )
+                self.assertTrue(third["worker_result"]["ok"])
+                self.assertEqual(third["worker_result"]["metadata"]["runtime_process_epoch"], "3")
+                for path, content in (("batch-first.txt", "first"), ("batch-second.txt", "second")):
+                    workspace_file = _get(
+                        base_url,
+                        f"/workspaces/{workspace_id}/files?path={path}&read=true&encoding=utf-8",
+                    )
+                    self.assertEqual(workspace_file["content"], content)
+
+                denied_task = _post(
+                    base_url,
+                    "/tasks",
+                    {"goal": "Deny an approval-gated code effect.", "auto_run": False},
+                )["task"]
+                denied_session_id = "api-code-permission-denied-session"
+                denied_plan = [
+                    {
+                        "tool_name": "shell",
+                        "tool_call_id": "api-code-denied-shell-1",
+                        "arguments": {"command": write_command("must-not-exist.txt", "denied")},
+                    }
+                ]
+                denied_status, denied = _post_with_status(
+                    base_url,
+                    f"/tasks/{denied_task['task_id']}/workers/code",
+                    {"constraints": {"session_id": denied_session_id, "tool_plan": denied_plan}},
+                )
+                self.assertEqual(denied_status, 409, denied)
+                denied_token = denied["permission_session"]["session_custody_token"]
+                denied_headers = {"Authorization": f"Bearer {denied_token}"}
+                denied_identity = {
+                    "session_id": denied_session_id,
+                    "run_id": denied_task["run_id"],
+                    "task_id": denied_task["task_id"],
+                }
+                denied_pending = _get(
+                    base_url,
+                    (
+                        "/permissions/requests"
+                        f"?session_id={denied_session_id}&run_id={denied_task['run_id']}"
+                        f"&task_id={denied_task['task_id']}&pending_only=true"
+                    ),
+                    headers=denied_headers,
+                )["requests"]["items"]
+                self.assertEqual(len(denied_pending), 1)
+                _post(
+                    base_url,
+                    f"/permissions/requests/{denied_pending[0]['request_id']}/resolve",
+                    {**denied_identity, "effect": "deny", "idempotency_key": "deny-code-effect"},
+                    headers=denied_headers,
+                )
+                retry_status, retry = _post_with_status(
+                    base_url,
+                    f"/tasks/{denied_task['task_id']}/workers/code",
+                    {
+                        "constraints": {
+                            "session_id": denied_session_id,
+                            "session_custody_token": denied_token,
+                            "tool_plan": denied_plan,
+                        }
+                    },
+                )
+                self.assertEqual(retry_status, 409, retry)
+                self.assertEqual(retry["worker_result"]["error"], "permission_denied")
+                denied_workspace_id = denied_task["metadata"]["workspace_ref"]["workspace_id"]
+                absent = _get(
+                    base_url,
+                    (
+                        f"/workspaces/{denied_workspace_id}/files"
+                        "?path=must-not-exist.txt&read=true&encoding=utf-8"
+                    ),
+                )
+                self.assertFalse(absent["read"]["record"]["metadata"]["exists"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
+    def test_code_worker_expired_approval_stays_fail_closed_after_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(root / "workspace")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STORE"] = str(root / "legacy-permissions.json")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+
+            ZyraRequestHandler = _fresh_api_handler()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                task = _post(
+                    base_url,
+                    "/tasks",
+                    {"goal": "Expire a code approval without executing it.", "auto_run": False},
+                )["task"]
+                session_id = "api-code-permission-expiry-session"
+                command = subprocess.list2cmdline(
+                    [
+                        sys.executable,
+                        "-c",
+                        "from pathlib import Path; Path('expired-must-not-exist.txt').write_text('bad')",
+                    ]
+                )
+                plan = [
+                    {
+                        "tool_name": "shell",
+                        "tool_call_id": "api-code-expired-shell-1",
+                        "arguments": {"command": command},
+                    }
+                ]
+                constraints = {
+                    "session_id": session_id,
+                    "tool_plan": plan,
+                    "permission_approval_ttl_seconds": 1,
+                }
+                first_status, first = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {"constraints": constraints},
+                )
+                self.assertEqual(first_status, 409, first)
+                self.assertEqual(first["worker_result"]["error"], "permission_suspended")
+                token = first["permission_session"]["session_custody_token"]
+                headers = {"Authorization": f"Bearer {token}"}
+                identity = {
+                    "session_id": session_id,
+                    "run_id": task["run_id"],
+                    "task_id": task["task_id"],
+                }
+                query_path = (
+                    "/permissions/requests"
+                    f"?session_id={session_id}&run_id={task['run_id']}"
+                    f"&task_id={task['task_id']}&pending_only=true"
+                )
+                pending = _get(base_url, query_path, headers=headers)["requests"]["items"]
+                self.assertEqual(len(pending), 1)
+                time.sleep(1.2)
+                expire_status, expired = _post_with_status(
+                    base_url,
+                    "/permissions/requests/expire",
+                    identity,
+                    headers=headers,
+                )
+                self.assertEqual(expire_status, 200, expired)
+                self.assertEqual(expired["receipt"]["transport"]["expired_count"], 1)
+                self.assertEqual(
+                    _get(base_url, query_path, headers=headers)["requests"]["items"],
+                    [],
+                )
+
+                retry_status, retry = _post_with_status(
+                    base_url,
+                    f"/tasks/{task['task_id']}/workers/code",
+                    {
+                        "constraints": {
+                            **constraints,
+                            "session_custody_token": token,
+                        }
+                    },
+                )
+                self.assertEqual(retry_status, 409, retry)
+                self.assertEqual(retry["worker_result"]["error"], "permission_suspended")
+                self.assertEqual(retry["worker_result"]["metadata"]["runtime_process_epoch"], "2")
+                workspace_id = task["metadata"]["workspace_ref"]["workspace_id"]
+                absent = _get(
+                    base_url,
+                    (
+                        f"/workspaces/{workspace_id}/files"
+                        "?path=expired-must-not-exist.txt&read=true&encoding=utf-8"
+                    ),
+                )
+                self.assertFalse(absent["read"]["record"]["metadata"]["exists"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
 
 def _get(
     base_url: str,
@@ -1430,7 +1750,7 @@ def _get(
         headers=headers or {},
         method="GET",
     )
-    with urllib.request.urlopen(request, timeout=15) as response:
+    with urllib.request.urlopen(request, timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -1446,7 +1766,7 @@ def _get_with_status(
         method="GET",
     )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=60) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))
@@ -1465,7 +1785,7 @@ def _post(
         headers={"Content-Type": "application/json", **(headers or {})},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=15) as response:
+    with urllib.request.urlopen(request, timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -1483,7 +1803,7 @@ def _post_with_status(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=60) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))

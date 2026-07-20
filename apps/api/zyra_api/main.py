@@ -1448,6 +1448,34 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 status=str(parameters.get("status") or ""),
                 limit=_bounded_permission_limit(parameters.get("limit")),
             )
+            transport_requests: list[dict[str, Any]] = []
+            if authority is not None and view in {"summary", "requests", "request"}:
+                transport_parameters = dict(parameters)
+                if view == "request":
+                    transport_parameters["request_id"] = parts[2]
+                transport_status = str(transport_parameters.get("status") or "")
+                if transport_status in {"created", "delivered", "resolved"}:
+                    # E02 projects approval-envelope lifecycle as ``status``;
+                    # the transport store models the same values as ``phase``.
+                    transport_parameters.pop("status", None)
+                    transport_parameters["phase"] = transport_status
+                transport_response = facade.query_requests(authority, transport_parameters)
+                transport_page = transport_response.body.get("requests", {})
+                if isinstance(transport_page, dict):
+                    transport_requests = [
+                        dict(item)
+                        for item in transport_page.get("items", [])
+                        if isinstance(item, dict)
+                    ]
+            projected_requests = [
+                dict(item)
+                for item in projection.get("requests", [])
+                if isinstance(item, dict)
+            ]
+            visible_requests = _merge_permission_request_projections(
+                transport_requests,
+                projected_requests,
+            )
             body = {
                 "schema": "zyra.permission-api.v2",
                 "ok": True,
@@ -1459,7 +1487,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 "health": projection.get("health", {}),
             }
             if view == "summary":
-                visible_requests = projection.get("requests", []) if authority is not None else []
+                visible_requests = visible_requests if authority is not None else []
                 visible_rules = projection.get("rules", []) if authority is not None else []
                 visible_decisions = projection.get("decisions", []) if authority is not None else []
                 body.update(
@@ -1472,9 +1500,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     }
                 )
             elif view == "requests":
-                body["requests"] = {"items": projection.get("requests", []), "total": len(projection.get("requests", []))}
+                body["requests"] = {"items": visible_requests, "total": len(visible_requests)}
             elif view == "request":
-                body["request"] = (projection.get("requests") or [None])[0]
+                body["request"] = (visible_requests or [None])[0]
             elif view == "rules":
                 body["rules"] = projection.get("rules", [])
             elif view == "mode":
@@ -1570,6 +1598,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 authority = self._permission_authority(facade, payload)
                 receipt: dict[str, Any]
+                response_events: tuple[EventRecord, ...] = ()
                 status = HTTPStatus.OK
                 if parts == ["permissions", "requests"]:
                     operation = PermissionApiOperation.REQUEST_CREATE
@@ -1580,46 +1609,73 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     }
                 elif parts == ["permissions", "requests", "expire"]:
                     operation = PermissionApiOperation.REQUEST_EXPIRE
-                    receipt = get_mcp_runtime().permission_expire()
+                    transport_response = facade.expire_requests(authority)
+                    response_events = transport_response.events
+                    receipt = {
+                        "typescript": get_mcp_runtime().permission_expire(),
+                        "transport": dict(transport_response.body),
+                    }
                 elif len(parts) == 4 and parts[:2] == ["permissions", "requests"]:
                     request_id = parts[2]
                     action = parts[3]
+                    transport_request = facade.control_plane.state_store.get_request(request_id)
                     if action == "deliver":
                         operation = PermissionApiOperation.REQUEST_DELIVER
-                        projection = get_mcp_runtime().permission_get(
-                            view="request",
-                            request_id=request_id,
-                        )
-                        receipt = {
-                            "request": (projection.get("requests") or [None])[0],
-                            "transport": "e02-api-poll",
-                            "logical_state_changed": False,
-                        }
+                        if transport_request is not None:
+                            transport_response = facade.deliver_request(authority, request_id, payload)
+                            response_events = transport_response.events
+                            receipt = dict(transport_response.body.get("result") or {})
+                        else:
+                            projection = get_mcp_runtime().permission_get(
+                                view="request",
+                                request_id=request_id,
+                            )
+                            receipt = {
+                                "request": (projection.get("requests") or [None])[0],
+                                "transport": "e02-api-poll",
+                                "logical_state_changed": False,
+                            }
                     elif action == "resolve":
                         operation = PermissionApiOperation.REQUEST_RESOLVE
-                        receipt = get_mcp_runtime().permission_respond(
-                            request_id,
-                            str(payload.get("effect") or ""),
-                            responder=authority.actor_id,
-                            response_id=str(payload.get("response_id") or payload.get("idempotency_key") or ""),
-                            metadata={
-                                "authority_id": authority.authority_id,
-                                "channel": str(authority.channel),
-                                "custody_verified": True,
-                            },
-                        )
+                        if transport_request is not None:
+                            transport_response = facade.resolve_request(authority, request_id, payload)
+                            status = HTTPStatus(transport_response.status)
+                            response_events = transport_response.events
+                            receipt = dict(transport_response.body.get("result") or {})
+                        else:
+                            receipt = get_mcp_runtime().permission_respond(
+                                request_id,
+                                str(payload.get("effect") or ""),
+                                responder=authority.actor_id,
+                                response_id=str(payload.get("response_id") or payload.get("idempotency_key") or ""),
+                                metadata={
+                                    "authority_id": authority.authority_id,
+                                    "channel": str(authority.channel),
+                                    "custody_verified": True,
+                                },
+                            )
                     elif action == "cancel":
                         operation = PermissionApiOperation.REQUEST_CANCEL
-                        receipt = get_mcp_runtime().permission_cancel(
-                            request_id,
-                            reason=str(payload.get("reason") or "cancelled by operator"),
-                        )
+                        if transport_request is not None:
+                            transport_response = facade.cancel_request(authority, request_id, payload)
+                            response_events = transport_response.events
+                            receipt = dict(transport_response.body.get("result") or {})
+                        else:
+                            receipt = get_mcp_runtime().permission_cancel(
+                                request_id,
+                                reason=str(payload.get("reason") or "cancelled by operator"),
+                            )
                     elif action == "abort":
                         operation = PermissionApiOperation.REQUEST_ABORT
-                        receipt = get_mcp_runtime().permission_cancel(
-                            request_id,
-                            reason=str(payload.get("reason") or "aborted by operator"),
-                        )
+                        if transport_request is not None:
+                            transport_response = facade.abort_request(authority, request_id, payload)
+                            response_events = transport_response.events
+                            receipt = dict(transport_response.body.get("result") or {})
+                        else:
+                            receipt = get_mcp_runtime().permission_cancel(
+                                request_id,
+                                reason=str(payload.get("reason") or "aborted by operator"),
+                            )
                     elif action == "retry":
                         operation = PermissionApiOperation.REQUEST_RETRY
                         status = HTTPStatus.CONFLICT
@@ -1681,6 +1737,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "receipt": receipt,
                         **({"error": receipt.get("error"), "message": receipt.get("message")} if receipt.get("error") else {}),
                     },
+                    events=response_events,
                     headers={
                         "Cache-Control": "no-store, max-age=0",
                         "Pragma": "no-cache",
@@ -4897,6 +4954,23 @@ def _bounded_permission_limit(value: Any) -> int:
     except (TypeError, ValueError):
         parsed = 100
     return min(1000, max(1, parsed))
+
+
+def _merge_permission_request_projections(
+    *sources: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge E02 state with CodeWorker's policy-free approval transport view."""
+
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for source in sources:
+        for item in source:
+            request_id = str(item.get("request_id") or "")
+            if not request_id or request_id in merged:
+                continue
+            order.append(request_id)
+            merged[request_id] = dict(item)
+    return [merged[request_id] for request_id in order]
 
 
 def _is_ledger_list_path(parts: list[str]) -> bool:

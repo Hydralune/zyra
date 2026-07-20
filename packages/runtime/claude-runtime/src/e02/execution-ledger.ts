@@ -705,19 +705,30 @@ export class CapabilityExecutionLedger {
     this.sequence = snapshot.sequence;
     this.headHash = snapshot.headHash;
     let revokedActivePermits = 0;
+    let preservedExactApprovalPermits = 0;
     let preservedExternalApprovalPermits = 0;
     const restoreObservedAt = this.now().getTime();
     for (const permitValue of snapshot.permits.slice(-this.maximumPermits)) {
       const permit = cloneJson(permitValue);
       if (permit.status === "issued") {
-        const preserveExactExternalApproval = (
-          permit.metadata.external_permission_subject === true
-          && permit.metadata.restart_safe_exact_approval === true
+        const executionStarted = snapshot.executions.some(
+          (record) => record.permitId === permit.permitId,
+        );
+        const preserveExactApproval = (
+          permit.metadata.restart_safe_exact_approval === true
+          && (
+            permit.metadata.external_permission_subject === true
+            || permit.metadata.restart_safe_suspended_batch === true
+          )
           && permit.metadata.host_runtime_id === this.runtime.runtimeId
           && Date.parse(permit.expiresAt) > restoreObservedAt
+          && !executionStarted
         );
-        if (preserveExactExternalApproval) {
-          preservedExternalApprovalPermits += 1;
+        if (preserveExactApproval) {
+          preservedExactApprovalPermits += 1;
+          if (permit.metadata.external_permission_subject === true) {
+            preservedExternalApprovalPermits += 1;
+          }
           permit.metadata = {
             ...permit.metadata,
             restored_source_epoch: snapshot.runtime.epoch,
@@ -766,6 +777,7 @@ export class CapabilityExecutionLedger {
       source_epoch: snapshot.runtime.epoch,
       target_epoch: this.runtime.epoch,
       revoked_active_permits: revokedActivePermits,
+      preserved_exact_approval_permits: preservedExactApprovalPermits,
       preserved_external_approval_permits: preservedExternalApprovalPermits,
       recovery_required: this.recoveryRequired().length,
     });

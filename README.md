@@ -58,6 +58,19 @@ The current execution unit is selected from `../docs/milestones/**/unit-*.md`. D
 
 ## Local Commands
 
+Create a Python 3.12+ virtual environment and install the complete editable
+workspace from the repository root:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+```
+
+The root project is the authoritative Python install boundary. It installs all
+`zyra_*` packages under `packages/**`, the API package, and the pinned
+`browser-use[core]` live/process runtime. A separate editable install from
+`vendor/browser-use` is not required.
+
 Run the consolidated M0 foundation verification:
 
 ```powershell

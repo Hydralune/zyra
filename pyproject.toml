@@ -3,7 +3,44 @@ name = "zyra"
 version = "0.1.0"
 description = "Dynamic heterogeneous multi-agent system for long-horizon complex tasks."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "browser-use[core]==0.13.3",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8,<10",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = [
+    "apps/api",
+    "packages/code_index",
+    "packages/commands",
+    "packages/core",
+    "packages/evaluation",
+    "packages/integrations",
+    "packages/memory",
+    "packages/orchestration",
+    "packages/runtime",
+    "packages/scheduler",
+    "packages/skills",
+    "packages/symbolic",
+    "packages/workers",
+    "packages/workspace",
+]
+include = ["zyra_*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+zyra_integrations = ["data/*.json"]
 
 [tool.zyra]
 phase = "m3-symbolic-collaboration"

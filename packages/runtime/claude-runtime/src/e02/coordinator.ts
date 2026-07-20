@@ -387,11 +387,12 @@ export class E02CapabilityCoordinator {
       });
     }
     const policy = asObject(input.config.permissionPolicy);
+    const runtimeConstraints = asObject(input.config.runtimeConstraints);
     const mode = permissionMode(policy.mode);
     const interactive = !(
       mode === "sealed"
-      || asBoolean(asObject(input.config.runtimeConstraints).sealedAutonomous)
-      || asBoolean(asObject(input.config.runtimeConstraints).sealed_autonomous)
+      || asBoolean(runtimeConstraints.sealedAutonomous)
+      || asBoolean(runtimeConstraints.sealed_autonomous)
     );
     this.permission = new PermissionCoordinator({
       runtime: this.runtime,
@@ -408,6 +409,12 @@ export class E02CapabilityCoordinator {
           || policy.autoClassifierEnabled === true,
       },
       rules: permissionRules(policy),
+      askTtlMs: boundedSecondsAsMilliseconds(
+        runtimeConstraints.permission_approval_ttl_seconds,
+        15 * 60_000,
+        1_000,
+        86_400_000,
+      ),
       approvalTransport: ports.approvalTransport,
       interactive,
       now: this.now,
@@ -906,6 +913,7 @@ export class E02CapabilityCoordinator {
           continuation_request_id: response.requestId,
           responder: response.responder,
           permission_request_binding: cloneJson(binding),
+          restart_safe_suspended_batch: response.metadata.restart_safe_suspended_batch === true,
           external_permission_subject: !runtimeSubjectMatches(this.runtime, {
             runId: stringField(binding, "run_id", response.runId),
             taskId: stringField(binding, "task_id", this.runtime.taskId),
@@ -4068,6 +4076,17 @@ function projectionDomains(value: JsonValue | undefined): E02ProjectionDomain[] 
 
 function signedInteger(value: JsonValue | undefined, fallback: number): number {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : fallback;
+}
+
+function boundedSecondsAsMilliseconds(
+  value: JsonValue | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const milliseconds = Math.trunc(value * 1_000);
+  return milliseconds >= minimum && milliseconds <= maximum ? milliseconds : fallback;
 }
 
 function numberMetadata(value: Record<string, string>, key: string): number {

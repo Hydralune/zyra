@@ -1883,6 +1883,7 @@ def default_api_capabilities() -> frozenset[PermissionControlCapability]:
             PermissionControlCapability.DELIVER,
             PermissionControlCapability.RESOLVE,
             PermissionControlCapability.CANCEL,
+            PermissionControlCapability.EXPIRE,
             PermissionControlCapability.RETRY,
             PermissionControlCapability.RULE_READ,
             PermissionControlCapability.RULE_WRITE,

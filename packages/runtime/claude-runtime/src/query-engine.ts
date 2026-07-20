@@ -542,6 +542,16 @@ export class ClaudeRuntimeCore {
         const byCallId = new Map<string, ToolExecutionResponse>(
           hostResults.map((result) => [result.tool_call_id, result]),
         );
+        const approvalRequired = hostResults.find(
+          (result) => result.error === "permission_approval_required",
+        );
+        if (approvalRequired) {
+          permissionSuspended = true;
+          turnOk = false;
+          turnError = "permission_suspended";
+          continuedFailureReason = turnError;
+          toolFailureSignals += 1;
+        }
 
         for (const step of batch.steps) {
           const toolCallId = callIds.get(step) || "";
@@ -558,6 +568,36 @@ export class ClaudeRuntimeCore {
                 canonical_owner: "typescript",
               },
             };
+          }
+
+          // ASK is a durable pause, not a failed tool effect.  Keep every call
+          // in this batch running and leave its E01 lease/effect/result binding
+          // intact so an approval can resume the exact scheduled batch.  No
+          // sibling result may be committed while one member awaits approval.
+          if (approvalRequired) {
+            if (result.error === "permission_approval_required") {
+              stepSummaries.push(result.tool_call_id + ":permission_suspended");
+              await emit("tool_call_suspended", {
+                turn_id: turn.turn_id,
+                turn_index: turnIndex,
+                batch_id: batch.batchId,
+                tool_call_id: result.tool_call_id,
+                tool_name: step.tool_name,
+                reason: "permission_suspended",
+              });
+              await emit("tool_failure_signal", {
+                turn_id: turn.turn_id,
+                turn_index: turnIndex,
+                tool_call_id: result.tool_call_id,
+                tool_name: step.tool_name,
+                signal: {
+                  kind: "permission_pending",
+                  route: "permission_runtime",
+                  error: "permission_approval_required",
+                },
+              });
+            }
+            continue;
           }
 
           const remainingTurnBudget = config.maxTurnToolResultChars === null
@@ -699,28 +739,48 @@ export class ClaudeRuntimeCore {
           }
         }
 
-        await emit("tool_batch_completed", {
-          turn_id: turn.turn_id,
-          turn_index: turnIndex,
-          batch_id: batch.batchId,
-          execution_mode: batch.executionMode,
-          tool_count: batch.steps.length,
-          ok: turnOk,
-          conflict_protected: String(conflictProtected),
-        });
-        if (config.emitToolUseSummaries) {
-          await emit("tool_use_summary", {
+        if (permissionSuspended) {
+          await emit("tool_batch_suspended", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            batch_id: batch.batchId,
+            execution_mode: batch.executionMode,
+            tool_count: batch.steps.length,
+            reason: "permission_suspended",
+          });
+        } else {
+          await emit("tool_batch_completed", {
             turn_id: turn.turn_id,
             turn_index: turnIndex,
             batch_id: batch.batchId,
             execution_mode: batch.executionMode,
             tool_count: batch.steps.length,
             ok: turnOk,
+            conflict_protected: String(conflictProtected),
           });
+          if (config.emitToolUseSummaries) {
+            await emit("tool_use_summary", {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              batch_id: batch.batchId,
+              execution_mode: batch.executionMode,
+              tool_count: batch.steps.length,
+              ok: turnOk,
+            });
+          }
         }
         if (!turnOk && (!config.continueOnError || permissionSuspended)) {
           break;
         }
+      }
+
+      if (permissionSuspended) {
+        await emit("turn_suspended", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          reason: "permission_suspended",
+        });
+        break;
       }
 
       const continuationDecision = e01.decideContinuationBudget(
@@ -1005,8 +1065,8 @@ export class ClaudeRuntimeCore {
     });
     sourceQueryOk = ok;
     sourceQueryStopReason = stoppedReason;
-    session.finish(ok);
-    await emit(ok ? "session_completed" : "session_failed", {
+    if (!permissionSuspended) session.finish(ok);
+    await emit(permissionSuspended ? "session_suspended" : ok ? "session_completed" : "session_failed", {
       ok,
       stopped_reason: stoppedReason,
       turn_count: turnCount,
@@ -1081,7 +1141,9 @@ export class ClaudeRuntimeCore {
       sourceQueryStopReason = error instanceof Error ? error.message : String(error);
       throw error;
     } finally {
-      sourceQuery?.finishCanonicalQuery(sourceQueryOk, sourceQueryStopReason);
+      if (sourceQueryStopReason !== "permission_suspended") {
+        sourceQuery?.finishCanonicalQuery(sourceQueryOk, sourceQueryStopReason);
+      }
       if (sourceQuery && sourceResult) {
         sourceResult.sessionSnapshot.e01Runtime = sourceQuery.snapshot() as unknown as JsonObject;
       }

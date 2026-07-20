@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -262,6 +263,18 @@ class CodeWorkerRuntime:
                         constraints.get("disable_permission_continuation_runtime") is True
                     ),
                     permission_mode=str(constraints.get("permission_mode") or "default"),
+                    permission_approval_ttl_seconds=_bounded_positive_float(
+                        constraints.get("permission_approval_ttl_seconds"),
+                        default=300.0,
+                        minimum=1.0,
+                        maximum=86_400.0,
+                    ),
+                    permission_execution_grant_ttl_seconds=_bounded_positive_float(
+                        constraints.get("permission_execution_grant_ttl_seconds"),
+                        default=30.0,
+                        minimum=1.0,
+                        maximum=3_600.0,
+                    ),
                     permission_interactive=(
                         constraints.get("permission_interactive") is not False
                     ),
@@ -525,6 +538,22 @@ def _optional_int(value: Any) -> int | None:
 def _positive_int(value: Any, default: int) -> int:
     parsed = _optional_int(value)
     return parsed if parsed is not None and parsed > 0 else default
+
+
+def _bounded_positive_float(
+    value: Any,
+    *,
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(parsed) or parsed < minimum or parsed > maximum:
+        return default
+    return parsed
 
 
 def _mapping(value: Any) -> dict[str, Any]:
