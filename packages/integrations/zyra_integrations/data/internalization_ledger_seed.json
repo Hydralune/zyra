@@ -174184,19 +174184,303 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "retrieval_index_document_job_worker_lifecycle",
+      "capability_summary": "Typed index documents, chunk/index boundaries and durable worker-task lifecycle are adapted into MemoryIndex, staged publication, generation fencing and expired-lease recovery.",
+      "ledger_id": "ledger_291a05473a54e850",
+      "license_notice": {
+        "license_hint": "Apache-2.0",
+        "notes": "Selected mechanisms and revisions are recorded; Zyra owns the modified runtime and has no runtime dependency on the parent repository.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "agentscope",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/memory",
+          "POST /tasks/{task_id}/memory/ingest",
+          "GET /tasks/{task_id}/code-index",
+          "POST /tasks/{task_id}/code-index/rebuild",
+          "POST /tasks/{task_id}/code-index/search",
+          "POST /tasks/{task_id}/code-index/symbols"
+        ],
+        "artifact_kinds": [
+          "memory_artifact_link",
+          "code_source_ref"
+        ],
+        "control_commands": [
+          "/memory"
+        ],
+        "event_types": [
+          "index.job.enqueued",
+          "index.job.leased",
+          "index.job.stale",
+          "index.generation.published"
+        ],
+        "surfaces": [
+          "memory_fabric",
+          "memory_index_worker",
+          "retrieval_api",
+          "code_index_api",
+          "workspace_patch_invalidation"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "MemoryIndexRuntime.synchronize_task"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "atomic_generation_publication": true,
+        "canonical_index_owner": "Zyra MemoryIndexRuntime+CodeIndexRuntime",
+        "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
+        "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
+        "index_is_derived": true,
+        "owner_unit": "M1-S06A-01",
+        "root_source_runtime_dependency": false,
+        "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=primary_implementation; source_commit=b6698c5dbaa1aa916925e27402767f45e2405fa4; AgentScope supplies the primary RAG/index-job lifecycle shape. Zyra replaces live-vector writes with staging plus atomic publication, adds lease epoch/token fences and retains SQLiteStore/MemoryRecordStore as canonical memory owner. No AgentScope service or store runs.",
+      "owner_unit": "M1-S06A-01",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/zyra_memory/retrieval_models.py",
+          "packages/memory/zyra_memory/retrieval_store.py",
+          "packages/memory/zyra_memory/index_jobs.py",
+          "packages/memory/zyra_memory/index_worker.py",
+          "packages/memory/zyra_memory/memory_index.py",
+          "packages/memory/zyra_memory/incremental_index.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "MemoryIndexRuntime.synchronize_task",
+        "health_check": "python -m pytest tests/unit/test_retrieval_index_adapters_foundation.py tests/integration/test_index_worker_process_recovery.py tests/unit/test_code_index_foundation.py tests/integration/test_retrieval_api_main_path.py tests/integration/test_code_index_api_main_path.py -q",
+        "module": "zyra_memory.memory_index",
+        "protocol": "zyra-retrieval-index-v1"
+      },
+      "source_path": "src/agentscope/rag/_document.py;src/agentscope/rag/_knowledge.py;src/agentscope/rag/_chunker/_base.py;src/agentscope/app/_service/_index_worker.py;src/agentscope/app/_service/_index_task_consumer.py;src/agentscope/app/_service/_index_sweeper.py",
+      "source_repo": "agentscope",
+      "target_bindings": [
+        {
+          "path": "packages/memory/zyra_memory/retrieval_models.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/zyra_memory/retrieval_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/index_jobs.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/index_worker.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/memory_index.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/incremental_index.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/unit/test_retrieval_index_adapters_foundation.py -q",
+          "expected_signal": "real FTS5 filters, deterministic retrieval, budgets and vector degradation",
+          "kind": "unit",
+          "path": "tests/unit/test_retrieval_index_adapters_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_index_worker_process_recovery.py -q",
+          "expected_signal": "real process kill, lease expiry, stale fencing and restart rebuild",
+          "kind": "integration",
+          "path": "tests/integration/test_index_worker_process_recovery.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_code_index_foundation.py -q",
+          "expected_signal": "workspace-safe discovery, content/symbol queries, budgets and patch invalidation",
+          "kind": "unit",
+          "path": "tests/unit/test_code_index_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_index_api_main_path.py -q",
+          "expected_signal": "real WorkspaceManager-bound code index API and fail-closed disable effect",
+          "kind": "integration",
+          "path": "tests/integration/test_code_index_api_main_path.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "retrieval_fusion_temporal_intent_and_rebuild_recovery",
+      "capability_summary": "Deterministic RRF/MMR fusion, query-intent and temporal signals, explicit vector degradation and interrupted derived-index rebuild recovery supplement the AgentScope lifecycle.",
+      "ledger_id": "ledger_51b40ed45bc602da",
+      "license_notice": {
+        "license_hint": "MIT",
+        "notes": "Selected mechanisms and revisions are recorded; Zyra owns the modified runtime and has no runtime dependency on the parent repository.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/memory",
+          "POST /tasks/{task_id}/memory/ingest",
+          "GET /tasks/{task_id}/code-index",
+          "POST /tasks/{task_id}/code-index/rebuild",
+          "POST /tasks/{task_id}/code-index/search",
+          "POST /tasks/{task_id}/code-index/symbols"
+        ],
+        "artifact_kinds": [
+          "memory_artifact_link",
+          "code_source_ref"
+        ],
+        "control_commands": [
+          "/memory"
+        ],
+        "event_types": [
+          "index.job.enqueued",
+          "index.job.leased",
+          "index.job.stale",
+          "index.generation.published"
+        ],
+        "surfaces": [
+          "memory_fabric",
+          "memory_index_worker",
+          "retrieval_api",
+          "code_index_api",
+          "workspace_patch_invalidation"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "combine_retrieval_hits"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "atomic_generation_publication": true,
+        "canonical_index_owner": "Zyra MemoryIndexRuntime+CodeIndexRuntime",
+        "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
+        "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
+        "index_is_derived": true,
+        "owner_unit": "M1-S06A-01",
+        "root_source_runtime_dependency": false,
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; Only bounded ranking, temporal/intent interpretation and rebuild-safety mechanisms fill specific primary gaps. OMP memory storage, embedding ownership, agent loop and process runtime are not copied and do not become a second canonical owner.",
+      "owner_unit": "M1-S06A-01",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/zyra_memory/retrieval_query.py",
+          "packages/memory/zyra_memory/vector_adapter.py",
+          "packages/memory/zyra_memory/retrieval_context.py",
+          "packages/memory/zyra_memory/skill_memory_index.py",
+          "packages/code_index/zyra_code_index/symbols.py",
+          "packages/code_index/zyra_code_index/service.py"
+        ],
+        "function": "combine_retrieval_hits",
+        "health_check": "python -m pytest tests/unit/test_retrieval_index_adapters_foundation.py tests/integration/test_index_worker_process_recovery.py tests/unit/test_code_index_foundation.py tests/integration/test_retrieval_api_main_path.py tests/integration/test_code_index_api_main_path.py -q",
+        "module": "zyra_memory.retrieval_query",
+        "protocol": "zyra-retrieval-index-v1"
+      },
+      "source_path": "packages/mnemopi/src/core/mmr.ts;packages/mnemopi/src/core/query-intent.ts;packages/mnemopi/src/core/temporal-parser.ts;packages/mnemopi/src/core/polyphonic-recall.ts;packages/mnemopi/src/core/vector-index.ts;packages/mnemopi/src/core/memory.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/memory/zyra_memory/retrieval_query.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/zyra_memory/vector_adapter.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/retrieval_context.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/skill_memory_index.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/symbols.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/code_index/zyra_code_index/service.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/unit/test_retrieval_index_adapters_foundation.py -q",
+          "expected_signal": "real FTS5 filters, deterministic retrieval, budgets and vector degradation",
+          "kind": "unit",
+          "path": "tests/unit/test_retrieval_index_adapters_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_index_worker_process_recovery.py -q",
+          "expected_signal": "real process kill, lease expiry, stale fencing and restart rebuild",
+          "kind": "integration",
+          "path": "tests/integration/test_index_worker_process_recovery.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_code_index_foundation.py -q",
+          "expected_signal": "workspace-safe discovery, content/symbol queries, budgets and patch invalidation",
+          "kind": "unit",
+          "path": "tests/unit/test_code_index_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_code_index_api_main_path.py -q",
+          "expected_signal": "real WorkspaceManager-bound code index API and fail-closed disable effect",
+          "kind": "integration",
+          "path": "tests/integration/test_code_index_api_main_path.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 435,
+    "active_or_internalized": 437,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 380
+      "productized": 382
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -174204,7 +174488,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 141,
+      "tested_main_path": 143,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -174239,18 +174523,19 @@
       "M1-S05A-02": 3,
       "M1-S05D-01": 4,
       "M1-S05D-02": 3,
+      "M1-S06A-01": 2,
       "M2-01A": 46,
       "M2-03B": 30
     },
     "by_source_repo": {
       "OpenHands": 86,
       "agent-framework": 93,
-      "agentscope": 101,
+      "agentscope": 102,
       "browser-use": 109,
       "claude-code-best": 509,
       "hermes-agent": 82,
       "langgraph": 85,
-      "oh-my-pi": 10,
+      "oh-my-pi": 11,
       "openclaw": 86,
       "opencode": 16
     },
@@ -174260,7 +174545,7 @@
       "direct_port": 17,
       "not_selected": 14,
       "planned_adapter": 378,
-      "reimplemented_pattern": 235,
+      "reimplemented_pattern": 237,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 734,
@@ -174270,7 +174555,7 @@
       "apps/web": 46,
       "packages/evaluation": 34,
       "packages/integrations": 78,
-      "packages/memory": 184,
+      "packages/memory": 186,
       "packages/orchestration": 59,
       "packages/runtime": 168,
       "packages/scheduler": 79,
@@ -174281,6 +174566,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1177
+    "total_entries": 1179
   }
 }

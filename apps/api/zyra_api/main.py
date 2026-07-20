@@ -28,6 +28,7 @@ PACKAGE_PATHS = [
     PROJECT_ROOT / "packages" / "scheduler",
     PROJECT_ROOT / "packages" / "evaluation",
     PROJECT_ROOT / "packages" / "workspace",
+    PROJECT_ROOT / "packages" / "code_index",
 ]
 for package_path in PACKAGE_PATHS:
     if str(package_path) not in sys.path:
@@ -58,7 +59,14 @@ from zyra_workspace import (
     WorkspaceManagerRuntime,
     workspace_error_response,
 )
-from zyra_memory import CompactPolicy, MemoryFabric, SQLiteStore
+from zyra_memory import CompactPolicy, MemoryFabric, MemoryIndexRuntime, SQLiteStore
+from zyra_code_index import (
+    CodeIndexApiService,
+    CodeIndexError,
+    CodeIndexOperation,
+    CodeIndexRuntimeRegistry,
+    CodeIndexServiceError,
+)
 from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_default_graph, run_task_graph
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
 from zyra_scheduler import (
@@ -296,6 +304,28 @@ def sqlite_path() -> Path:
     return PROJECT_ROOT / configured
 
 
+def memory_index_path() -> Path:
+    configured_value = os.environ.get("ZYRA_MEMORY_INDEX_PATH", "").strip()
+    if configured_value:
+        configured = Path(configured_value)
+        if configured.is_absolute():
+            return configured
+        return PROJECT_ROOT / configured
+    canonical = sqlite_path()
+    return canonical.with_name(f"{canonical.stem}.memory-index.sqlite3")
+
+
+def code_index_root_path() -> Path:
+    configured_value = os.environ.get("ZYRA_CODE_INDEX_ROOT", "").strip()
+    if configured_value:
+        configured = Path(configured_value)
+        if configured.is_absolute():
+            return configured
+        return PROJECT_ROOT / configured
+    canonical = sqlite_path()
+    return canonical.with_name(f"{canonical.stem}-code-index")
+
+
 def tool_workspace_path() -> Path:
     """Legacy non-task tooling root.
 
@@ -314,6 +344,9 @@ _WORKSPACE_RUNTIME_INSTANCE: WorkspaceManagerRuntime | None = None
 _WORKSPACE_RUNTIME_KEY: tuple[str, str, bool] | None = None
 _WORKSPACE_EVENT_LOCK = threading.RLock()
 _WORKSPACE_PENDING_EVENTS: dict[str, list[EventRecord]] = {}
+_CODE_INDEX_SERVICE_LOCK = threading.RLock()
+_CODE_INDEX_SERVICE_INSTANCE: CodeIndexApiService | None = None
+_CODE_INDEX_SERVICE_KEY: tuple[int, str, bool] | None = None
 
 
 def workspace_manager_config() -> WorkspaceManagerConfig:
@@ -402,6 +435,27 @@ def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> N
     # Resetting the workspace runtime is therefore also a lifecycle boundary
     # for that child process and its SQLite connection.
     reset_runtime_event_spine_bridge()
+
+
+def get_code_index_service() -> CodeIndexApiService:
+    global _CODE_INDEX_SERVICE_INSTANCE, _CODE_INDEX_SERVICE_KEY
+    manager = get_workspace_manager()
+    root = code_index_root_path()
+    disabled = os.environ.get("ZYRA_CODE_INDEX_DISABLED", "").strip().casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    key = (id(manager), str(root.resolve()), disabled)
+    with _CODE_INDEX_SERVICE_LOCK:
+        if _CODE_INDEX_SERVICE_INSTANCE is None or _CODE_INDEX_SERVICE_KEY != key:
+            _CODE_INDEX_SERVICE_INSTANCE = CodeIndexApiService(
+                CodeIndexRuntimeRegistry(manager, index_root=root),
+                enabled=not disabled,
+            )
+            _CODE_INDEX_SERVICE_KEY = key
+        return _CODE_INDEX_SERVICE_INSTANCE
 
 
 def task_workspace_root(*, task_id: str, session_id: str, worker_id: str) -> Path:
@@ -1130,7 +1184,17 @@ def get_permission_store() -> JsonPermissionStore:
 
 
 def _memory_fabric(store: SQLiteStore) -> MemoryFabric:
-    return MemoryFabric(store=store, artifact_store=LocalArtifactStore(artifact_root_path()))
+    artifacts = LocalArtifactStore(artifact_root_path())
+    return MemoryFabric(
+        store=store,
+        artifact_store=artifacts,
+        index_runtime=MemoryIndexRuntime(
+            canonical_store=store,
+            index_path=memory_index_path(),
+            artifact_store=artifacts,
+            worker_id=f"api-memory-index:{os.getpid()}",
+        ),
+    )
 
 
 def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
@@ -1662,6 +1726,32 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         store = get_store()
 
         if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "code-index":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            try:
+                response = get_code_index_service().status(
+                    state.task_id,
+                    request_id=self.headers.get("X-Request-Id", ""),
+                )
+            except CodeIndexServiceError as error:
+                self._send_json(error.status, error.to_dict())
+                return
+            except WorkspaceError as error:
+                mapped = workspace_error_response(error)
+                self._send_json(mapped.status, mapped.body, headers=dict(mapped.headers))
+                return
+            except (CodeIndexError, ValueError) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "code_index_status_failed", "message": str(error), "fallback": False},
+                )
+                return
+            self._send_json(response.status, response.to_dict())
             return
 
         provider_backend_response = ProviderBackendApi(
@@ -3060,6 +3150,51 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self._handle_permission_post(parts=parts, payload=payload, store=store):
+            return
+
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "code-index":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            operations = {
+                "rebuild": CodeIndexOperation.REBUILD,
+                "search": CodeIndexOperation.SEARCH,
+                "symbols": CodeIndexOperation.SYMBOLS,
+                "context": CodeIndexOperation.CONTEXT,
+                "select-tests": CodeIndexOperation.SELECT_TESTS,
+                "invalidate": CodeIndexOperation.INVALIDATE,
+                "reconcile": CodeIndexOperation.RECONCILE,
+            }
+            operation = operations.get(parts[3])
+            if operation is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "code_index_operation_not_found", "operation": parts[3]},
+                )
+                return
+            try:
+                response = get_code_index_service().execute(
+                    state.task_id,
+                    operation,
+                    payload,
+                    request_id=self.headers.get("X-Request-Id", ""),
+                    causation_id=str(payload.get("causation_id") or ""),
+                )
+            except CodeIndexServiceError as error:
+                self._send_json(error.status, error.to_dict())
+                return
+            except WorkspaceError as error:
+                mapped = workspace_error_response(error)
+                self._send_json(mapped.status, mapped.body, headers=dict(mapped.headers))
+                return
+            except (CodeIndexError, ValueError) as error:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "code_index_operation_failed", "message": str(error), "fallback": False},
+                )
+                return
+            self._send_json(response.status, response.to_dict())
             return
 
         provider_backend_response = ProviderBackendApi(

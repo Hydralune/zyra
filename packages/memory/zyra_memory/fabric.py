@@ -39,9 +39,25 @@ class MemoryFabric:
     - LangGraph: checkpoint/store style separation between durable state and replayable event history.
     """
 
-    def __init__(self, store: Any | None = None, artifact_store: Any | None = None) -> None:
+    def __init__(
+        self,
+        store: Any | None = None,
+        artifact_store: Any | None = None,
+        index_runtime: Any | None = None,
+    ) -> None:
         self.store = store
         self.artifact_store = artifact_store
+        self.index_runtime = index_runtime
+        if self.index_runtime is None and store is not None and getattr(store, "path", None) is not None:
+            from .memory_index import MemoryIndexRuntime
+
+            canonical_path = store.path
+            index_path = canonical_path.with_name(f"{canonical_path.stem}.memory-index.sqlite3")
+            self.index_runtime = MemoryIndexRuntime(
+                canonical_store=store,
+                index_path=index_path,
+                artifact_store=artifact_store,
+            )
 
     def refresh_task_memory(
         self,
@@ -79,7 +95,13 @@ class MemoryFabric:
     ) -> dict[str, Any]:
         snapshot = self.refresh_task_memory(state, events, persist=True)
         stored = self.store.task_memory_records(state.task_id) if self.store is not None else snapshot.records
-        search_results = search_memory_records(stored, query, limit=limit) if query.strip() else []
+        search_results: list[MemoryRecord] = []
+        retrieval: dict[str, Any] | None = None
+        if query.strip() and self.index_runtime is not None:
+            self.index_runtime.synchronize_task(state.task_id, records=stored, process=True)
+            hydrated = self.index_runtime.retrieve(state.task_id, query)
+            search_results = list(hydrated.records[:limit])
+            retrieval = hydrated.to_dict()
         return {
             "summary": "MemoryFabric task memory view.",
             "data": {
@@ -93,6 +115,9 @@ class MemoryFabric:
                 "semantic": [to_jsonable(record) for record in _records_for_layer(stored, MemoryLayer.SEMANTIC)[:limit]],
                 "skill": [to_jsonable(record) for record in _records_for_layer(stored, MemoryLayer.SKILL)[:limit]],
                 "search_results": [to_jsonable(record) for record in search_results],
+                "retrieval": retrieval,
+                "retrieval_runtime": "MemoryIndexRuntime" if self.index_runtime is not None else "disabled",
+                "legacy_substring_fallback": False,
                 "compactions": (
                     [to_jsonable(item) for item in self.store.task_compactions(state.task_id)]
                     if self.store is not None
