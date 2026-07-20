@@ -1,0 +1,118 @@
+{
+  "schema": "zyra.medium-risk-retrospective.state-custody-matrix/v1",
+  "target_commit": "752a2636d2038c20a80bb79d2484f61874e5e796",
+  "domains": [
+    {
+      "domain":"query-session-turn-tool-budget-compact-provider",
+      "canonical_owner":"TypeScript Claude runtime E01/E04",
+      "owner_paths":["packages/runtime/claude-runtime/src/e01","packages/runtime/claude-runtime/src/query-engine.ts","packages/runtime/claude-runtime/src/compact","packages/runtime/claude-runtime/src/provider"],
+      "persistence_restore":"TypeScript snapshot/journal carried through the Python process-durability host into .runtime-checkpoints with checksum, revision and CAS",
+      "default_entry":"POST /tasks/{task_id}/workers/code -> CodeWorkerRuntime -> TypeScriptClaudeRuntime -> apps/code-worker",
+      "fallback":"No Python query/policy fallback",
+      "disable_semantics":"Explicit typescript_runtime_disabled or component-specific fail-closed errors",
+      "probe_status":"PASS",
+      "evidence":"423 Bun E01 tests and 23 Python real-process tests"
+    },
+    {
+      "domain":"permission-policy-rule-request-continuation",
+      "canonical_owner":"TypeScript E02CapabilityCoordinator for policy/decision/journal; Python PermissionRequestQueue only for public approval transport projection",
+      "owner_paths":["packages/runtime/claude-runtime/src/e02","packages/runtime/claude-runtime/src/permission","packages/workers/zyra_workers/typescript_claude_runtime.py","packages/runtime/zyra_runtime/permission"],
+      "persistence_restore":"E02 snapshot in TypeScript checkpoint plus exact projected request/response identities in PermissionStateStore",
+      "default_entry":"CodeWorker tool batch and /permissions/requests API",
+      "fallback":"No Python policy decision fallback",
+      "disable_semantics":"Rule store, request queue, decision log, continuation runtime and coordinator disable independently fail closed",
+      "probe_status":"FAIL_P1",
+      "finding":"MR-P1-001",
+      "evidence":"808 Bun permission/MCP/skill/agent tests and low-level Python continuation tests pass, but repository-owned public one-ASK and reviewer-owned two-ASK API probes fail at the projection/resume bridge"
+    },
+    {
+      "domain":"mcp-skill-plugin-command-agenttool",
+      "canonical_owner":"TypeScript E02/E03/E04 runtime domains",
+      "owner_paths":["packages/integrations/claude-mcp","packages/runtime/claude-runtime/src/skills","packages/runtime/claude-runtime/src/plugins","packages/runtime/claude-runtime/src/commands","packages/runtime/claude-runtime/src/agents","packages/runtime/claude-runtime/src/tasks","packages/runtime/claude-runtime/src/team"],
+      "persistence_restore":"Revisioned registries, journals, task/team state and runtime checkpoint snapshots",
+      "default_entry":"E02 capability host, SkillTool/command dispatch and AgentTool child QueryEngine",
+      "fallback":"No Python child loop or Python capability owner",
+      "disable_semantics":"Unknown/disabled capability fails closed; background tasks are durably drained/cancelled",
+      "probe_status":"PASS_WITH_CROSS_LINK",
+      "evidence":"808 Bun tests; public approval transport cross-link fails under MR-P1-001"
+    },
+    {
+      "domain":"browser-session-message-context-action-observability",
+      "canonical_owner":"Zyra Python browser productization modules",
+      "owner_paths":["packages/integrations/zyra_integrations/browser_use","packages/workers/zyra_workers/browser_worker.py","packages/workers/zyra_workers/browser_context","packages/workers/zyra_workers/browser_state"],
+      "persistence_restore":"Browser JSON state, session/profile/process markers, context claims, artifacts and canonical events",
+      "default_entry":"POST /tasks/{task_id}/workers/browser and BrowserWorkerRuntime",
+      "fallback":"Live/memory transports are explicit; permission and process loss fail closed",
+      "disable_semantics":"Action permission, process custody and browser context components are individually observable",
+      "probe_status":"FAIL_P1",
+      "finding":"MR-P1-002",
+      "evidence":"65 browser tests plus 2 subtests pass after dependencies are present; isolated Browser disclosure to CodeWorker provider-envelope test fails"
+    },
+    {
+      "domain":"workspace-manager",
+      "canonical_owner":"zyra_workspace",
+      "owner_paths":["packages/workspace/zyra_workspace"],
+      "persistence_restore":"Workspace store, owner/epoch records, snapshots, atomic filesystem transactions and git dirty state",
+      "default_entry":"Workspace API plus CodeWorker/BrowserWorker gateway attachments",
+      "fallback":"No unmanaged direct-root fallback",
+      "disable_semantics":"Stale base, stale lease/epoch, path escape and owner rotation reject before commit",
+      "probe_status":"PASS",
+      "evidence":"Workspace/gateway combined 71 tests plus 9 subtests"
+    },
+    {
+      "domain":"sandbox-gateway",
+      "canonical_owner":"zyra_runtime.sandbox_gateway",
+      "owner_paths":["packages/runtime/zyra_runtime/sandbox_gateway"],
+      "persistence_restore":"State store, session queue, receipts, artifact/provenance records and supervised process lifecycle",
+      "default_entry":"CodeWorker, BrowserWorker and MCP integration factories",
+      "fallback":"No raw Popen/direct file/direct artifact bypass on verified paths",
+      "disable_semantics":"Policy, credential relay, process budget, network, path and artifact boundaries fail closed",
+      "probe_status":"PASS_WITH_CROSS_LINK",
+      "evidence":"71 tests plus 9 subtests; permission continuation cross-link is separately MR-P1-001"
+    },
+    {
+      "domain":"runtime-event-spine",
+      "canonical_owner":"Node TypeScript runtime-event-spine",
+      "owner_paths":["packages/runtime/runtime-event-spine","packages/runtime/zyra_runtime/runtime_event_bridge.py"],
+      "persistence_restore":"SQLite canonical store, global cursor, durable projector/subscriber delivery and Python bridge cache keyed by database identity",
+      "default_entry":"Worker ingress and API event routes",
+      "fallback":"No log parsing fallback for canonical admission",
+      "disable_semantics":"Bus/projector disable is explicit; server close drains handlers before sidecar shutdown",
+      "probe_status":"PASS",
+      "evidence":"22 Node tests and the applicable Python event tests within the 21-test group"
+    },
+    {
+      "domain":"provider-control-plane-and-backend-dispatch",
+      "canonical_owner":"TypeScript provider-control-plane for provider/model/credential route; Python scheduler backend_registry for execution placement",
+      "owner_paths":["packages/runtime/provider-control-plane","packages/scheduler/zyra_scheduler/backend_registry","packages/workers/zyra_workers/backend_dispatch_service.py"],
+      "persistence_restore":"Separate provider SQLite route store and backend registry/lease/journal stores",
+      "default_entry":"Provider API port and backend dispatch service",
+      "fallback":"Provider failures may change provider route only; backend failures may change backend only; partial output is reconcile-only",
+      "disable_semantics":"Drain/cancel/replacement and route revocation are explicit",
+      "probe_status":"PASS",
+      "evidence":"11 Node provider tests plus provider/backend cases in the 21-test Python group"
+    },
+    {
+      "domain":"retrieval-memory-skill-index",
+      "canonical_owner":"zyra_memory",
+      "owner_paths":["packages/memory/zyra_memory"],
+      "persistence_restore":"SQLite retrieval/index/job state, lease owner, generation and query receipts",
+      "default_entry":"MemoryFabric and retrieval API",
+      "fallback":"No substring fallback when semantic retrieval is required",
+      "disable_semantics":"Disabled index/retrieval path fails explicitly",
+      "probe_status":"PASS",
+      "evidence":"14 tests plus 8 subtests across retrieval, MemoryFabric and worker recovery"
+    },
+    {
+      "domain":"code-index",
+      "canonical_owner":"zyra_code_index",
+      "owner_paths":["packages/code_index/zyra_code_index"],
+      "persistence_restore":"Rebuildable SQLite symbol index, workspace source generation and invalidation receipts",
+      "default_entry":"Code-index API with optional bounded LSP adapter",
+      "fallback":"No stale-generation result promotion; LSP is optional and bounded",
+      "disable_semantics":"Disabled code index returns 503",
+      "probe_status":"PASS",
+      "evidence":"Included in retrieval/index 14 tests plus 8 subtests"
+    }
+  ]
+}

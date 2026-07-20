@@ -1,0 +1,41 @@
+{
+  "schema": "zyra.medium-risk.second-ask-probe-result/v1",
+  "target_commit": "752a2636d2038c20a80bb79d2484f61874e5e796",
+  "cleanroom_tree": "7037433dfdc09a3f579c095880eec64a608a5377",
+  "process_exit_code": 1,
+  "attempts": [
+    {
+      "ordinal": 1,
+      "http_status": 409,
+      "worker_error": "permission_suspended",
+      "query_plan_tool_steps": 2,
+      "tool_runtime_completed": 2,
+      "tool_failure_signals": 2,
+      "pending_public_requests": [],
+      "all_public_requests": [],
+      "python_policy_fallback": false,
+      "canonical_permission_owner": "typescript"
+    },
+    {
+      "ordinal": 2,
+      "http_status": 409,
+      "worker_error": "typescript_runtime_error",
+      "typescript_runtime_error_message": "restored tool call is missing its scheduled batch",
+      "pending_public_requests": [],
+      "python_policy_fallback": false,
+      "canonical_permission_owner": "typescript"
+    }
+  ],
+  "effect_counts": {
+    "first-count.txt": 0,
+    "second-count.txt": 0
+  },
+  "legacy_permission_store_exists": false,
+  "single_ask_ab_control": {
+    "test": "tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_code_worker_permission_approval_resumes_exact_parked_call_via_api",
+    "result": "FAIL",
+    "expected_pending_requests": 1,
+    "actual_pending_requests": 0
+  },
+  "interpretation": "The reviewer-owned two-ASK probe and the repository-owned one-ASK A/B control fail at the same public request projection boundary. No side effect executes and no Python policy fallback occurs, but an ordinary interactive CodeWorker approval cannot be completed through the public API."
+}

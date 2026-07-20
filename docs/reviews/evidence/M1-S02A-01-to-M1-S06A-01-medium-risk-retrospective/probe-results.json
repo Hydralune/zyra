@@ -1,0 +1,88 @@
+{
+  "schema": "zyra.medium-risk-retrospective.probe-results/v1",
+  "target_commit": "752a2636d2038c20a80bb79d2484f61874e5e796",
+  "target_tree": "7037433dfdc09a3f579c095880eec64a608a5377",
+  "cleanroom": {
+    "path": "G:/agent-zoo/.audit-cleanrooms/m1-medium-risk-752a2636",
+    "detached_head": true,
+    "tracked_diff_exit": 0,
+    "source_dependencies_copied_from_working_tree": false,
+    "bun": "1.2.15",
+    "node": "22.17.0",
+    "python": "3.13.9",
+    "pytest": "9.1.1",
+    "bun_install": "PASS: 14 locked packages installed",
+    "python_root_editable_install": "FAIL_ENV_MANIFEST: setuptools rejected multiple top-level packages in flat layout",
+    "python_test_install": "PASS: pytest installed into a new venv",
+    "browser_use_followup_install": "PASS: editable vendor/browser-use[core] installed only to classify three dependency-caused browser failures",
+    "root_python_dependency_manifest_complete": false
+  },
+  "build": [
+    {"command":"bun run typecheck","result":"PASS"},
+    {"command":"bun run build","result":"PASS","targets":["bun","node"]}
+  ],
+  "probe_groups": [
+    {
+      "id": "G1-typescript-runtime-default-path",
+      "results": [
+        {"command":"bun test packages/runtime/claude-runtime/test/e01 packages/runtime/claude-runtime/test/runtime.test.ts","passed":423,"failed":0,"seconds":6.92},
+        {"command":"pytest tests/integration/test_e01_typescript_runtime_cutover.py","passed":23,"failed":0,"seconds":78.47,"covers":["default TypeScript owner","disable fail-closed","durable checkpoint","lost terminal ACK","lost batch ACK","read-only concurrency","real process fault matrix","checkpoint CAS/corruption"]}
+      ],
+      "environment_note": "The first pytest attempt could not access the user-profile pytest temp root. Re-running with --basetemp inside the cleanroom passed all 23 tests."
+    },
+    {
+      "id": "G2-permission-mcp-skill-agent",
+      "results": [
+        {"command":"bun test E02 plus permission/skill/agent suites","passed":808,"failed":0,"seconds":11.18},
+        {"command":"pytest test_e02_typescript_api_cutover.py test_permission_continuation.py","passed":11,"subtests_passed":14,"failed":0,"seconds":6.86},
+        {"command":"repository-owned public one-ASK API control","passed":0,"failed":1,"failure":"pending request count expected 1, observed 0"},
+        {"command":"reviewer-owned public two-ASK continuation probe","passed":0,"failed":1,"failure":"first suspension projected no public request; retry failed with restored tool call is missing its scheduled batch"}
+      ],
+      "status": "FAIL_P1"
+    },
+    {
+      "id": "G3-browser-cross-domain-causality",
+      "results": [
+        {"command":"browser session/message/permission/observability/process custody bundle","passed":62,"subtests_passed":2,"failed":4,"seconds":118.43},
+        {"command":"three dependency-caused failures after browser-use core install","passed":3,"failed":0,"seconds":8.33},
+        {"command":"isolated Browser context to 02D provider delivery","passed":0,"failed":1,"seconds":15.95,"failure":"CodeWorker returned 409; selected source ids and provider request/turn ids were empty; provider envelope event missing"}
+      ],
+      "normalized_result": {"passed":65,"subtests_passed":2,"product_failures":1,"dependency_manifest_failures":3},
+      "status": "FAIL_P1"
+    },
+    {
+      "id": "G4-workspace-sandbox-gateway",
+      "results": [
+        {"command":"workspace manager, gateway policy/state/artifact, CodeWorker and BrowserWorker entry suites","passed":71,"subtests_passed":9,"failed":0,"seconds":132.61}
+      ],
+      "status": "PASS_EXCEPT_PERMISSION_CONTINUATION_CROSS_LINK_RECORDED_IN_G2"
+    },
+    {
+      "id": "G5-event-provider-backend-lifecycle",
+      "results": [
+        {"command":"Python event/provider/backend suites","passed":21,"failed":0,"seconds":45.43},
+        {"command":"npm --workspace @zyra/provider-control-plane test","passed":11,"failed":0,"seconds":2.45},
+        {"command":"npm --workspace @zyra/runtime-event-spine test","passed":22,"failed":0,"seconds":6.27}
+      ],
+      "covers":["server-close handler drain","database-key cache rotation","A/B owner coexistence","partial-stream reconcile-only","provider route failover","backend failover","control drain/resume"],
+      "runner_note":"A diagnostic Bun invocation was invalid for the Node node:sqlite package. The package-declared Node test commands passed 11/11 and 22/22 and are authoritative.",
+      "status": "PASS"
+    },
+    {
+      "id": "G6-retrieval-index",
+      "results": [
+        {"command":"retrieval/code index/worker recovery/API suites","passed":13,"subtests_passed":8,"failed":0,"seconds":13.95},
+        {"command":"MemoryFabric semantic retrieval suite","passed":1,"failed":0,"seconds":1.25}
+      ],
+      "normalized_result":{"passed":14,"subtests_passed":8,"failed":0},
+      "covers":["real index worker kill","stale lease requeue","generation increment","old lease fence","retrieval receipt","no substring fallback","code-index invalidation","disabled 503"],
+      "status": "PASS"
+    }
+  ],
+  "findings": [
+    {"id":"MR-P1-001","severity":"P1","title":"Public CodeWorker ASK projection and resume path is broken at the current cumulative target"},
+    {"id":"MR-P1-002","severity":"P1","title":"Browser disclosure is not delivered into the current CodeWorker 02D provider envelope"},
+    {"id":"MR-P2-001","severity":"P2","title":"Root Python dependency/install manifest cannot reproduce the tested browser runtime"}
+  ],
+  "verdict": "FAIL_REMEDIATION_REQUIRED"
+}

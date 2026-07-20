@@ -1,0 +1,100 @@
+{
+  "schema": "zyra.medium-risk-retrospective.review/v1",
+  "review_id": "M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective",
+  "review_date": "2026-07-20",
+  "verdict": "FAIL_REMEDIATION_REQUIRED",
+  "highest_severity": "P1",
+  "audit_identity": {
+    "scope_base_commit": "55d78f0002f9e98f3eef93f33cbb856ed62f7e25",
+    "target_commit": "752a2636d2038c20a80bb79d2484f61874e5e796",
+    "target_tree": "7037433dfdc09a3f579c095880eec64a608a5377",
+    "target_contains_m1_s06a_implementation": true,
+    "target_contains_m1_s06a_evidence": true,
+    "slice_count": 33,
+    "production_code_changed": false,
+    "tests_changed": false,
+    "execution_state_changed": false
+  },
+  "inputs": {
+    "document_manifest": "docs/reviews/evidence/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective/input-document-manifest.json",
+    "document_count": 109,
+    "all_required_scopes_read": true,
+    "slice_census": "docs/reviews/evidence/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective/slice-census.json",
+    "state_custody_matrix": "docs/reviews/evidence/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective/state-custody-and-reachability-matrix.json",
+    "probe_results": "docs/reviews/evidence/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective/probe-results.json"
+  },
+  "r01_baseline": {
+    "execution_01": "independent PASS",
+    "execution_02": "user-accepted remediation; not an independent PASS",
+    "execution_03": "independent PASS",
+    "execution_04": "independent PASS",
+    "interpretation": "The audit treats the latest accepted cumulative chain as baseline without rewriting its acceptance kinds. Current behavior is tested at the later target commit rather than inferred from historical reports."
+  },
+  "findings": [
+    {
+      "id": "MR-P1-001",
+      "severity": "P1",
+      "title": "Public CodeWorker ASK projection and resume path is broken",
+      "affected_domains": ["permission request transport projection", "CodeWorker public API", "TypeScript checkpoint restore", "multi-tool batch scheduling"],
+      "affected_historical_scope": ["M1-S03A-02", "M1-S05B-02", "M1-R01 execution-02", "M1-R01 execution-04"],
+      "expected": "A default interactive tool call that returns ASK is visible through /permissions/requests; exact approval resumes the parked call once. A second ASK in the same logical batch can be approved and resumed without replaying the first effect.",
+      "actual": "The repository-owned one-ASK test receives permission_suspended but the public pending queue is empty. The reviewer-owned two-ASK probe observes the same empty queue; retry then fails with 'restored tool call is missing its scheduled batch'. No side effect executes and no Python policy fallback occurs.",
+      "reproduction": [
+        "pytest tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_code_worker_permission_approval_resumes_exact_parked_call_via_api",
+        "python docs/reviews/evidence/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective/second_ask_continuation_probe.py (executed from exact-target cleanroom)"
+      ],
+      "evidence": "docs/reviews/evidence/M1-S02A-01-to-M1-S06A-01-medium-risk-retrospective/second_ask_continuation_probe_result.json",
+      "risk": "Normal interactive CodeWorker work that requires approval cannot proceed through the public API. This is P1 under the taskbook because it blocks the ordinary continuous batch path; fail-closed behavior limits unauthorized side effects but does not make the workflow usable.",
+      "root_cause_status": "not fully localized; the failure is at the cumulative TypeScript-owner/public-transport/checkpoint bridge, not in the low-level E02 decision tests",
+      "repair_authorization_required": true
+    },
+    {
+      "id": "MR-P1-002",
+      "severity": "P1",
+      "title": "Browser disclosure is not delivered into the current CodeWorker 02D provider envelope",
+      "affected_domains": ["Browser message/context state", "02D context/provider envelope", "CodeWorker TypeScript provider path"],
+      "affected_historical_scope": ["M1-S02D-02", "M1-S04B-02", "M1-R01 execution-01", "M1-R01 execution-04"],
+      "expected": "A BrowserWorker disclosure claimed for the task is selected exactly once and appears in the real CodeWorker provider request/envelope with causal event ids.",
+      "actual": "Browser execution succeeds and reports one pending context item, but CodeWorker returns 409. selected_source_ids, provider_request_ids, provider_turn_ids and event_ids are empty; findings include provider_context_missing and provider_envelope_event_missing.",
+      "reproduction": [
+        "pytest tests/integration/test_browser_message_state_compression_integration.py::BrowserMessageStateCompressionIntegrationTests::test_api_browser_checkpoint_is_delivered_to_real_02d_provider_once"
+      ],
+      "risk": "The user-visible cross-worker context handoff can silently stop the downstream CodeWorker path even though Browser-local tests and state creation pass. This is an ordinary cross-domain main-path blocker.",
+      "root_cause_status": "not fully localized; isolated reproduction rules out test-order contamination",
+      "repair_authorization_required": true
+    },
+    {
+      "id": "MR-P2-001",
+      "severity": "P2",
+      "title": "Root Python dependency/install manifest does not reproduce the tested browser runtime",
+      "affected_domains": ["cleanroom", "Python packaging", "browser-use and psutil"],
+      "expected": "A clean checkout can install project Python dependencies from an authoritative root manifest and run the applicable browser tests.",
+      "actual": "The root pyproject has no dependencies and editable installation fails because setuptools discovers multiple top-level packages. Three browser tests fail until vendor/browser-use[core] is explicitly installed into the fresh venv; all three pass afterward.",
+      "risk": "Environment reconstruction depends on undocumented prior state. This did not cause the two P1 semantic failures, but weakens reproducibility and release confidence.",
+      "repair_authorization_required": true
+    }
+  ],
+  "passed_boundaries": [
+    "TypeScript E01 default runtime, lost ACK, read-only concurrency, real process fault matrix and disable semantics",
+    "Low-level E02 permission/MCP/Skill/AgentTool ownership and durability suites",
+    "Workspace stale-base, owner/epoch lease, rollback, path and process cleanup boundaries",
+    "Sandbox gateway CodeWorker/BrowserWorker entry points apart from the permission continuation cross-link",
+    "Runtime-event server-close drain and database-key cache lifecycle",
+    "Provider versus backend ownership, partial-stream reconcile-only behavior and failover",
+    "S06A retrieval/index worker kill, stale lease generation fencing, query receipts, no substring fallback and code-index disable/invalidation"
+  ],
+  "subagent_planning_assessment": {
+    "historical_pattern": "Parent units M1-03A through M1-05D prescribe fixed role/prompt matrices. M1-06A uses the later generic optional subagent wording with gpt-5.6-sol xhigh only.",
+    "causality_limit": "No durable delegation transcript links either P1 directly to a particular subagent or to gpt-5.5. Model version and subagent-plan wording therefore cannot be named as the direct cause.",
+    "evidence_based_conclusion": "The fixed decomposition created a credible integration blind spot: local and owner-specific suites are strong, while two older public cross-domain tests regress after cumulative custody cutovers. Aggregate reviews previously caught several similar cross-boundary issues. The risk is fragmentation and missing cumulative regression selection, not proof that individual subagents produced low-quality code.",
+    "model_version_assessment": "No evidence supports a material gpt-5.5-specific failure. The observed defects are deterministic state/projection integration failures on the current code."
+  },
+  "required_remediation_scope": [
+    "Restore atomic/public projection of TypeScript ASK requests and exact response consumption; make the repository one-ASK test pass before addressing second-ASK continuation.",
+    "Repair exact restored batch scheduling so one or multiple sequential ASK points resume without replay, partial effects or lost pending state.",
+    "Reconnect Browser disclosure claims to the current TypeScript CodeWorker provider envelope and canonical event ids.",
+    "Add an authoritative Python install/dependency boundary for cleanroom reproduction instead of relying on a pre-populated .venv.",
+    "After authorized repairs, rerun G2, the isolated Browser-to-02D test, adjacent G1/G4 paths, exact-target cleanroom and an independent rereview."
+  ],
+  "next_action": "Await explicit repair authorization. Do not update docs/milestones/execution-state.yaml and do not mark M1-S02A-01 through M1-S06A-01 revalidated."
+}

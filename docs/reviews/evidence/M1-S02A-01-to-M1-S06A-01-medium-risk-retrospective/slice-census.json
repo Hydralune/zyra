@@ -1,0 +1,50 @@
+{
+  "schema": "zyra.medium-risk-retrospective.slice-census/v1",
+  "target_commit": "752a2636d2038c20a80bb79d2484f61874e5e796",
+  "scope_base_commit": "55d78f0002f9e98f3eef93f33cbb856ed62f7e25",
+  "slice_count": 33,
+  "r01_cumulative_baseline": {
+    "execution_01": {"implementation": "80d8feef121cebe7cc5f127851f0d606b49ac6cc", "evidence": "f07fd239dd768f399a36329314da82e90ddce6a4", "acceptance": "independent_pass"},
+    "execution_02": {"implementation": "9de572bb993ce154ed588fe12f80870e849493e9", "evidence": "bad500f642d71eacd84b77d1ecd9ab09258c2f00", "acceptance": "user_accepted_remediation_not_independent_pass"},
+    "execution_03": {"implementation": "62c514d14b720060479ae5f673c45a9b273bae52", "evidence": "c723a20b5fbc516de97ae606de9c4d2bf9738327", "acceptance": "independent_pass"},
+    "execution_04": {"implementation": "fb23f8a8355e51046db1e7e85fa35eecebf59e21", "evidence": "2c2c216cc5a1ca148d8bbdbf63226af667a9054e", "review": "6242f33870beaa241145bf54a29c475e678797ba", "acceptance": "independent_pass"}
+  },
+  "slices": [
+    {"slice":"M1-S02A-01","status":"completed","implementation":["9121227d25a0209945fe1193b24fd2ffebbd0410"],"evidence":["9121227d25a0209945fe1193b24fd2ffebbd0410"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+    {"slice":"M1-S02A-02","status":"completed","implementation":["f63120253f7da7178655c1fe531bbe0d66d2514b","719c0755d62cd4bd1ef60d105a6866f0dd8bf363"],"evidence":["f63120253f7da7178655c1fe531bbe0d66d2514b"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+    {"slice":"M1-S02B-01","status":"completed","implementation":["21975e9e9208dcb97ba85b79f1236630533ace58","d107f5fb79be28cdec31e425971493a090523c7d"],"evidence":["d107f5fb79be28cdec31e425971493a090523c7d"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+    {"slice":"M1-S02B-02","status":"completed","implementation":["3da11b2d0f0c65e39aca63599b88eaf4f66f374c"],"evidence":["3da11b2d0f0c65e39aca63599b88eaf4f66f374c"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+    {"slice":"M1-S02C-01","status":"completed","implementation":["a9cc4916e10622ef3d3de9a701b0a825f6d3230e"],"evidence":["a9cc4916e10622ef3d3de9a701b0a825f6d3230e"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+    {"slice":"M1-S02C-02","status":"completed","implementation":["e1fbe5bb245acc432bcfceee5c51f3a68e470a9f","7d8bb3e5559b25eca06cf2c5d0b1bb3a1168856c"],"evidence":["e1fbe5bb245acc432bcfceee5c51f3a68e470a9f","7d8bb3e5559b25eca06cf2c5d0b1bb3a1168856c"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+    {"slice":"M1-S02D-01","status":"completed","implementation":["935dd93c09c9e62ae13dc7daee667882b683511d"],"evidence":["935dd93c09c9e62ae13dc7daee667882b683511d"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+    {"slice":"M1-S02D-02","status":"completed","implementation":["4becfed04bb633bfb3a134ccbb9513f3b632b576","1a4aa10dacf00cf11f213c8bde13ee438120fcb2","e7f679f04f6a043bf99618eddb4198a2e1c4e721"],"evidence":["4becfed04bb633bfb3a134ccbb9513f3b632b576","1a4aa10dacf00cf11f213c8bde13ee438120fcb2"],"subagent_plan_pattern":"no_material_fixed_role_matrix_found"},
+
+    {"slice":"M1-S03A-01","status":"completed","implementation":["46790d8a0d6682eed14550efa83c073824908def","c17c528f098773a586558e02c66c42f1cb92bd78"],"evidence":["7470c74ca2f3584591659f678b8452108d185ca2"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S03A-02","status":"completed","implementation":["544f8ee1e5a99fec80929f60b29464b04e996955"],"evidence":["17aaacfb5695727768b91b6bbe5ef95df689d651"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S03B-01","status":"completed","implementation":["786729b2ba955177b9371c23dc130857f5d70d0f"],"evidence":["7a8a0a0031cc36565ab8ee6640974aba16e8d014"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S03B-02","status":"completed","implementation":["16717f272d8f43000bbbe4d0fc0feeac0429cb97"],"evidence":["3fc23e56b1b5ea6060d5b7921f8c3f36af8942c8"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S03C-01","status":"completed","implementation":["f9d60b88fcaf584aff203d7fea2d1f3a2f814f25"],"evidence":["deb3061a062b49cc696d0396a6e3ecd921071987"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S03C-02","status":"completed","implementation":["85136f9d62ba064b5971748cdd4feb1ab8123a3d"],"evidence":["228fc1fe9e87e936061bb792599498cf63fd9aae"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S03D-01","status":"completed","implementation":["12996fde5f9df94ae69e70d24aab081463b221e1"],"evidence":["0ecd643e4e2d0bd0afed8d968ea7a289bee32463"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S03D-02","status":"completed","implementation":["6bce2f01208fc7a6675f5104b42acf3dc088ff80"],"evidence":["aca0fc5a5b33af4ea6b6e9c434c3b30f759f50df"],"subagent_plan_pattern":"fixed_role_matrix","aggregate_fix":"3367825a3c1185effa5f3e2e5827c2af3e2d67e8","aggregate_evidence":"476bc372134b06c12e63b5f25e902a8cc10e882d"},
+
+    {"slice":"M1-S04A-01","status":"completed","implementation":["65d02c3adce858760884dddd602af48be7bc72c7"],"evidence":["65d02c3adce858760884dddd602af48be7bc72c7"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S04A-02","status":"completed","implementation":["86937955ce65963e789a6f576d85725261d1e609"],"evidence":["aaac57db6220834f3e0e8c08eec3095121caf8ef"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S04B-01","status":"completed","implementation":["0cd61adc9fe6a1f444cb43a436784a1d859e28d7"],"evidence":["6897ac7beef1e9fc006ec5e02e04c108180b8b6f"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S04B-02","status":"completed","implementation":["d1ce095f191b6c5db38db988418c132dd24da947"],"evidence":["dfc740804323f60c8d3af1998a74475e4ae6ae84"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S04C-01","status":"completed","implementation":["fbc6faf9c8c2482704de8bb822bc6bcb193fea12"],"evidence":["33de078e73352bc9b51d35addf802b145e4ee4a4"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S04C-02","status":"completed","implementation":["b5e3a676acf1f907885d680764e32feadda8e504"],"evidence":["46d84fac4804ca6dcf2c880a360f0c8449d8abc3"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S04D-01","status":"completed","implementation":["e7b94a84a367316d013c88a7fce6313893a3921d"],"evidence":["6a3fdd740eb76e30120c768272cfe037b2be7271"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S04D-02","status":"completed","implementation":["3ce93b1b6562a0e53ad7a1b403a7a9c6c48add8a"],"evidence":["0360542b0b4827aae9efd0cf13d07e1178f1a553"],"subagent_plan_pattern":"fixed_role_matrix","aggregate_fix":"66c883c64808f8a8e17a9baae5fa20a1207964f4","aggregate_evidence":"dbff7f19e2b34b03fc598584891c7a78cc88b01b"},
+
+    {"slice":"M1-S05A-01","status":"completed","implementation":["788186401e69fdc87fb7b472f1cfc7fbd1644272"],"evidence":["5e232ca3a9c9185ea7c8ec557610094b1fa7af06"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S05A-02","status":"completed","implementation":["afb5654488f285a8e3fa549bcfc74d12e8b5095c"],"evidence":["e7b204d682315a28c922a1a61a219ccb276fe3c8"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S05B-01","status":"completed","implementation":["9dc178def127cc4bc19f595b82c362e1c2863195"],"evidence":["7880aaa3e4e7207585735d3298a10c177fccc2e8"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S05B-02","status":"completed","implementation":["4497e21e437f757cef3bf7b4de7fe704b3870b26"],"evidence":["c34535a783e88f9481387ced89cba4fbc333dc74"],"subagent_plan_pattern":"fixed_role_matrix","aggregate_fix":"59a0581f8b5063f904a368c49cf7121f95cd67e1","aggregate_evidence":"8e0662ff6a5809390817641d05e9d73905022618"},
+    {"slice":"M1-S05C-01","status":"completed","implementation":["62d355675c0656c5714636c962a42746d7ad734a"],"evidence":["439860b222bde3b85b9eefac669b00f1a4314246"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S05C-02","status":"completed","implementation":["156b6e80b11558a11f29328e17191a210299fba0"],"evidence":["deb2c5a569f118862be1506a5749d4579a47be11"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S05D-01","status":"completed","implementation":["ef0ea831e2551429bea1a8029865cd7407eae91c"],"evidence":["f0700258840da4514b0090e7851e8abff4879409"],"subagent_plan_pattern":"fixed_role_matrix"},
+    {"slice":"M1-S05D-02","status":"completed","implementation":["dc010d102ca4b74d7f13e42952706014e2fc40e2"],"evidence":["22795ee81139bb02fea2d6dcb1dce935fe3dcd0f"],"subagent_plan_pattern":"fixed_role_matrix","aggregate_fix":"11740ae0d618cc580209de51df8213180b926432","aggregate_evidence":"67acc5cf027fc7f22f0e31120b8f89ced5dfecd1"},
+    {"slice":"M1-S06A-01","status":"completed","implementation":["8441ee94493ad34c601499f15f9b8f9a953fa587","55e73117db4029af94b3e6ae34c2a7b3c4f8756c","fd861890284bc707a69bfe0b40850d972f684aa7","b1086e064731ee87baa030e3d3de30405acc6972"],"evidence":["f98b3005feba7b51408f80654057709799a62929"],"subagent_plan_pattern":"generic_optional_xhigh_only"}
+  ]
+}
