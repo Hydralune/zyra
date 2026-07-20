@@ -1,0 +1,148 @@
+{
+  "review_id": "M1-S05C-01-runtime-event-message-bus-foundation",
+  "slice": "M1-S05C-01",
+  "date": "2026-07-20",
+  "measurement_baseline_commit": "c34535a783e88f9481387ced89cba4fbc333dc74",
+  "historical_uncredited_checkpoint": "0cd21bff",
+  "implementation_commit": "62d355675c0656c5714636c962a42746d7ad734a",
+  "verdict": "PASS",
+  "parent_status": "M1-05C_IN_PROGRESS",
+  "next_slice": "M1-S05C-02",
+  "blocking_findings_after_fix": 0,
+  "canonical_owners": {
+    "runtime_event_facts": "TypeScript RuntimeEventSqliteStore",
+    "global_ordering": "TypeScript RuntimeEventSqliteStore.global_sequence",
+    "route_decision": "TypeScript RuntimeEventSqliteStore.route_decisions",
+    "projection_cursor": "TypeScript projector persistence",
+    "delivery_ack_replay": "TypeScript delivery persistence",
+    "payload_policy": "TypeScript PayloadPolicy",
+    "python_role": "supervised process/schema/error/fold integration only",
+    "legacy_jsonl_role": "post-canonical compatibility projection only"
+  },
+  "source_roles": {
+    "opencode": {
+      "role": "primary",
+      "mechanisms": [
+        "typed event contracts",
+        "durable session event history",
+        "projection",
+        "session message schema"
+      ]
+    },
+    "OpenHands": {
+      "role": "supplementary",
+      "mechanisms": [
+        "event folding",
+        "stream/final observation handling",
+        "UI-compatible projection"
+      ],
+      "canonical_owner": false
+    },
+    "oh-my-pi": {
+      "role": "supplementary",
+      "mechanisms": [
+        "typed stream frames",
+        "tool call/result pairing",
+        "subagent and compact lifecycle",
+        "RPC correlation"
+      ],
+      "canonical_owner": false
+    },
+    "claude-code-best": {
+      "role": "conformance_reference",
+      "canonical_owner": false
+    },
+    "LangGraph": {
+      "role": "conformance_reference",
+      "production_migration": false,
+      "stategraph_or_pregel_owner": false
+    }
+  },
+  "line_buckets": {
+    "typescript_production_additions": 6914,
+    "python_production_boundary_additions": 2831,
+    "gross_production_additions": 9745,
+    "production_deletions": 0,
+    "adapter_only_excluded": 455,
+    "package_export_excluded": 89,
+    "conservative_counted_production": 9201,
+    "slice_minimum": 9000,
+    "test_additions": 755,
+    "generated_data_fixture_mock_vendor_source_pool_counted": 0,
+    "mixed_shared_api_file_counted": false
+  },
+  "worktree_verification": [
+    {
+      "suite": "runtime_event_spine_typescript_typecheck",
+      "result": "passed"
+    },
+    {
+      "suite": "runtime_event_spine_typescript_behavior",
+      "result": "16/16 passed"
+    },
+    {
+      "suite": "runtime_event_spine_python_api_behavior",
+      "result": "4 passed"
+    },
+    {
+      "suite": "git_diff_check",
+      "result": "passed"
+    }
+  ],
+  "clean_source_tree_verification": {
+    "path": ".tmp/cleanroom-M1-S05C-62d3556",
+    "exact_commit": "62d355675c0656c5714636c962a42746d7ad734a",
+    "package_lock_frozen": true,
+    "bun_version": "1.2.15",
+    "typescript_typecheck": "passed",
+    "typescript_tests": "16/16 passed",
+    "python_tests": "4 passed in 9.07s",
+    "forbidden_runtime_dependency_hits": 0,
+    "root_source_repositories_present": 0,
+    "runtime_event_sqlite_residue_before_test": 0
+  },
+  "behavior_coverage": [
+    "canonical global cursor across aggregates",
+    "event-id and idempotency duplicate fencing",
+    "route-decision persistence",
+    "catalog version and sender authority",
+    "targeted body privacy",
+    "critical broadcast trust",
+    "recipient capability anti-spoofing",
+    "canonical survival under subscriber backpressure",
+    "durable delivery catch-up",
+    "projector failure and rebuild",
+    "actual byte-budget enforcement and content-addressed spill",
+    "same-workload four-policy low-entropy baseline",
+    "OMP typed turn/tool/partial/final/subagent/compact lifecycle",
+    "bounded malformed MCP result",
+    "backend-owned control record",
+    "real Python RPC query/projection/poll/ack/replay",
+    "real API task creation and JSONL partial-batch fencing",
+    "API subprocess and SQLite shutdown"
+  ],
+  "submission_boundary": {
+    "new_vendor_or_source_pool_additions": 0,
+    "root_source_runtime_dependencies": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "external_cli_service_or_container_owner": false,
+    "preexisting_user_agents_change_touched": false
+  },
+  "risk_trigger": {
+    "triggered": true,
+    "reasons": [
+      "public runtime event schema",
+      "persistent SQLite event state",
+      "supervised TypeScript subprocess"
+    ],
+    "upgraded_verification": "exact-implementation-commit clean-source-tree targeted suite and dependency scan",
+    "canonical_owner_transfer": false
+  },
+  "unclaimed": [
+    "M1-05C parent completion",
+    "M1-S05C-02 API/worker stream and subscription integration",
+    "numeric-stage full-repository aggregate review",
+    "real edge/cloud dispatch competition gate",
+    "2000-transition sealed-autonomy competition gate"
+  ]
+}
