@@ -129,6 +129,7 @@ export class LowEntropyMetrics {
     const averageAvailable = average(metrics.availableRecipientCounts);
     const findings: string[] = [];
     if (maxEnvelope > ENVELOPE_LIMIT_BYTES) findings.push(`max_envelope_bytes_exceeds_8k:${maxEnvelope}`);
+    if (p95 > 4 * 1024) findings.push(`p95_envelope_bytes_exceeds_4k:${p95}`);
     const oversizedInline = Number((this.store.db.prepare("SELECT COUNT(*) AS count FROM runtime_events WHERE inline_bytes > ?").get(INLINE_PAYLOAD_LIMIT_BYTES) as { count: number }).count);
     if (oversizedInline > 0) findings.push(`inline_payload_hard_limit_violations:${oversizedInline}`);
     const duplicateFacts = this.duplicateFacts();
@@ -182,9 +183,9 @@ export class LowEntropyMetrics {
 
   private dynamicBaseline(): ReturnType<LowEntropyBaselineHarness["run"]> {
     const events = this.store.db.prepare(`
-      SELECT event_id, source_bytes, inline_bytes
+      SELECT event_id, event_type, source_bytes, inline_bytes
       FROM runtime_events ORDER BY global_sequence
-    `).all() as unknown as Array<{ event_id: string; source_bytes: number; inline_bytes: number }>;
+    `).all() as unknown as Array<{ event_id: string; event_type: string; source_bytes: number; inline_bytes: number }>;
     const routes = this.store.db.prepare(`
       SELECT event_id, route_json FROM runtime_event_routes ORDER BY created_at, event_id
     `).all() as unknown as RouteMetricRow[];
@@ -221,6 +222,12 @@ export class LowEntropyMetrics {
       offloadedBytes: offloadedByEvent.get(event.event_id) ?? 0,
       requiredRecipients: routeByEvent.get(event.event_id)?.recipients ?? [],
     }));
+    const terminalSuccessIds = new Set(
+      events.filter((event) => event.event_type === "runtime.task.completed").map((event) => event.event_id),
+    );
+    const terminalFailureIds = new Set(
+      events.filter((event) => event.event_type === "runtime.task.failed").map((event) => event.event_id),
+    );
     return new LowEntropyBaselineHarness().run({
       workloadId: digestJson({
         event_ids: facts.map((fact) => fact.factId),
@@ -229,6 +236,17 @@ export class LowEntropyMetrics {
       facts,
       addressableRecipients: roster,
       staticRecipients: roster.slice(0, Math.min(3, roster.length)),
+      taskTokenCount: Math.max(1, Math.ceil(events.reduce((sum, event) => sum + Number(event.source_bytes), 0) / 4)),
+      verify: (deliveries) => {
+        if (terminalSuccessIds.size === 0 || terminalFailureIds.size > 0) return 0;
+        for (const fact of facts) {
+          const delivered = deliveries.get(fact.factId) ?? new Set<string>();
+          for (const recipient of fact.requiredRecipients) {
+            if (!delivered.has(`${recipient.kind}:${recipient.id}`)) return 0;
+          }
+        }
+        return 1;
+      },
     });
   }
 

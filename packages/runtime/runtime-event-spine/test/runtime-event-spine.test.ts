@@ -120,7 +120,7 @@ test("canonical store assigns a stable global cursor across aggregates", () => {
     assert.match(comparison.workload_id, /^sha256:/);
     assert.equal(comparison.baselines.length, 4);
     assert.equal(comparison.baselines[0]?.strategy, "targeted_artifact_ref");
-    assert.equal(comparison.baselines[0]?.taskSuccess, 1);
+    assert.equal(comparison.baselines[0]?.taskSuccess, 0);
     assert.ok(comparison.baselines[0]!.messageCount < comparison.baselines[2]!.messageCount);
 
     const duplicate = spine.appendCanonical(draft("evt-a", "task:a"));
@@ -147,6 +147,11 @@ test("dynamic low-entropy baseline replays the same facts under four real polici
     workloadId: "workload:baseline",
     addressableRecipients: [workerA, workerB, auditor],
     staticRecipients: [workerA],
+    taskTokenCount: 2000,
+    verify: (deliveries) => {
+      const delivered = deliveries.get("fact:1") ?? new Set<string>();
+      return delivered.has("worker:worker-a") && delivered.has("worker:worker-b") ? 1 : 0;
+    },
     facts: [{
       factId: "fact:1",
       sourceBytes: 8_000,
@@ -244,7 +249,9 @@ test("durable catch-up repairs a missed delivery after canonical commit", () => 
     spine.registerSubscription(subscription("sub-catchup", "worker-catchup"));
     spine.appendCanonical(draft("evt-catchup", "task:catchup", {
       target: { kind: "worker", id: "worker-catchup", requiredCapabilities: ["worker.execute"] },
-    }), { route: false });
+    }));
+    spine.store.db.prepare("DELETE FROM runtime_event_deliveries WHERE event_id = ? AND subscription_id = ?")
+      .run("evt-catchup", "sub-catchup");
     assert.equal(spine.poll("sub-catchup", 1).length, 0);
     assert.equal(spine.bus.catchUp("sub-catchup", { afterSequence: 0 }), 1);
     assert.equal(spine.bus.catchUp("sub-catchup", { afterSequence: 0 }), 0);

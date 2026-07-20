@@ -874,8 +874,30 @@ export function subscriptionToJson(spec: SubscriptionSpec): Record<string, JsonV
 }
 
 export function deliveryToJson(record: DeliveryRecord): Record<string, JsonValue> {
-  assertJsonValue(record);
-  return cloneJson(record as unknown as JsonValue) as Record<string, JsonValue>;
+  // Optional process-local properties are represented by SQL NULL.  Omit them
+  // from the durable dead-letter snapshot instead of feeding `undefined` into
+  // canonical JSON validation.
+  const value: Record<string, JsonValue> = {
+    deliveryId: record.deliveryId,
+    eventId: record.eventId,
+    subscriptionId: record.subscriptionId,
+    recipient: cloneJson(record.recipient as unknown as JsonValue),
+    state: record.state,
+    attempt: record.attempt,
+    availableAt: record.availableAt,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    redelivered: record.redelivered,
+    routePolicyId: record.routePolicyId,
+    routeReason: record.routeReason,
+  };
+  if (record.leasedAt !== undefined) value.leasedAt = record.leasedAt;
+  if (record.leaseExpiresAt !== undefined) value.leaseExpiresAt = record.leaseExpiresAt;
+  if (record.leaseToken !== undefined) value.leaseToken = record.leaseToken;
+  if (record.acknowledgedAt !== undefined) value.acknowledgedAt = record.acknowledgedAt;
+  if (record.lastError !== undefined) value.lastError = record.lastError;
+  assertJsonValue(value);
+  return cloneJson(value);
 }
 
 export function assertRuntimeIdentityMatchesAggregate(identity: RuntimeIdentity, aggregateId: string): void {

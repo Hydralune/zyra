@@ -43,6 +43,10 @@ from zyra_runtime.sandbox_gateway.integration_policy import GatewayPolicyConfig,
 
 from .code_worker_bridge import code_worker_entrypoint
 from .subagents.typescript_port import TypeScriptAgentDurablePort
+from zyra_runtime.runtime_events.worker_ingress import (
+    CodeWorkerRuntimeEventIngress,
+    WorkerIngressIdentity,
+)
 
 
 RUNTIME_PROTOCOL_VERSION = "zyra.claude-runtime.v1"
@@ -119,6 +123,8 @@ class TypeScriptClaudeQueryEngine:
             allowed_roots=(self.project_root,),
         )
         self._active_runtime_process: subprocess.Popen[str] | None = None
+        self._runtime_event_bridge = context.runtime_services.get("runtime_event_bridge")
+        self._runtime_event_ingress: CodeWorkerRuntimeEventIngress | None = None
 
     def run(
         self,
@@ -132,6 +138,19 @@ class TypeScriptClaudeQueryEngine:
         request_metadata: Mapping[str, Any] | None = None,
     ) -> ClaudeQueryEngineResult:
         session_id = self._session_id(run_id, request_metadata)
+        if self._runtime_event_bridge is not None:
+            self._runtime_event_ingress = CodeWorkerRuntimeEventIngress(
+                self._runtime_event_bridge,
+                WorkerIngressIdentity(
+                    run_id=run_id,
+                    task_id=task_id,
+                    session_id=session_id,
+                    worker_request_id=worker_request_id,
+                    node_id=node_id,
+                ),
+                fail_closed=True,
+            )
+            self._runtime_event_ingress.admit_query(sequence=0)
         projection = QuerySession(
             run_id=run_id,
             task_id=task_id,
@@ -163,7 +182,7 @@ class TypeScriptClaudeQueryEngine:
             "",
         )
         if disabled_component:
-            self._host_events.append(
+            self._append_host_event(
                 EventRecord(
                     run_id=run_id,
                     task_id=task_id,
@@ -341,7 +360,7 @@ class TypeScriptClaudeQueryEngine:
         agent_port = TypeScriptAgentDurablePort(
             raw_agent_state_root,
             workspace_root=self.context.workspace_root,
-            event_sink=self._host_events.append,
+            event_sink=self._append_host_event,
         )
         receipt_port = TypeScriptPermissionReceiptPort(
             run_id=run_id,
@@ -373,7 +392,7 @@ class TypeScriptClaudeQueryEngine:
                     "typescript_runtime_terminal_receipt_invalid",
                     "The durable terminal receipt does not match this logical request.",
                 )
-            self._host_events.append(
+            self._append_host_event(
                 EventRecord(
                     run_id=run_id,
                     task_id=task_id,
@@ -426,7 +445,7 @@ class TypeScriptClaudeQueryEngine:
         deadline = time.monotonic() + timeout_seconds
         outbound_sequence = 1
         inbound_sequence = 1
-        self._host_events.append(
+        self._append_host_event(
             EventRecord(
                 run_id=run_id,
                 task_id=task_id,
@@ -505,14 +524,20 @@ class TypeScriptClaudeQueryEngine:
             correlation_id = str(frame.get("correlation_id") or "")
             payload = dict(frame.get("payload") or {})
             if kind == "runtime.event":
-                self._host_events.append(
+                if self._runtime_event_ingress is not None:
+                    self._runtime_event_ingress.emit_payload(
+                        payload,
+                        transport_sequence=int(frame["sequence"]),
+                    )
+                self._append_host_event(
                     self._event_record(
                         run_id=run_id,
                         task_id=task_id,
                         node_id=node_id,
                         parent_session_id=session_id,
                         payload=payload,
-                    )
+                    ),
+                    mirror_to_spine=False,
                 )
                 payload_session_id = str(payload.get("session_id") or "")
                 is_child_event = bool(
@@ -1850,6 +1875,19 @@ class TypeScriptClaudeQueryEngine:
             "cross_repository": not inside,
             "explicit_path_unsafe": not inside,
         }
+
+    def _append_host_event(
+        self,
+        event: EventRecord,
+        *,
+        mirror_to_spine: bool = True,
+    ) -> None:
+        self._host_events.append(event)
+        if (
+            mirror_to_spine
+            and self._runtime_event_ingress is not None
+        ):
+            self._runtime_event_ingress.emit_legacy_host_event(event)
 
     def _write_artifact(
         self,

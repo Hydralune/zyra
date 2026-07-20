@@ -6,7 +6,6 @@ import atexit
 from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 import hashlib
-import json
 from pathlib import Path
 import threading
 from typing import Any, Iterable, Mapping, Sequence
@@ -26,7 +25,6 @@ from .models import (
     SpineHealth,
     canonical_json,
     coerce_json,
-    optional_string,
     require_mapping,
     require_sequence,
 )
@@ -410,6 +408,47 @@ class RuntimeEventSpineBridge:
                 ) from error
         return AppendBatchResult.from_receipts(receipts)
 
+    def append_canonical(
+        self,
+        event: Mapping[str, Any],
+        *,
+        options: Mapping[str, Any] | None = None,
+    ) -> AppendReceipt:
+        result = self.port.call(
+            "append_canonical",
+            {"event": coerce_json(event), "options": coerce_json(options or {})},
+        )
+        return AppendReceipt.from_json(result)
+
+    def append_source_record(self, source: Mapping[str, Any]) -> Mapping[str, JsonValue]:
+        result = self.port.call(
+            "append_source_record",
+            {"source": coerce_json(source)},
+        )
+        return require_mapping(result, "runtime source append")
+
+    def append_source_batch(self, batch: Mapping[str, Any]) -> Mapping[str, JsonValue]:
+        result = self.port.call(
+            "append_source_batch",
+            {"batch": coerce_json(batch)},
+        )
+        return require_mapping(result, "runtime source batch append")
+
+    def append_omp_frame(self, frame: Mapping[str, Any]) -> JsonValue:
+        return coerce_json(self.port.call("append_omp_frame", {"frame": coerce_json(frame)}))
+
+    def append_omp_rpc_frame(
+        self,
+        frame: Mapping[str, Any],
+        *,
+        context: Mapping[str, Any],
+    ) -> Mapping[str, JsonValue]:
+        result = self.port.call(
+            "append_omp_rpc_frame",
+            {"frame": coerce_json(frame), "context": coerce_json(context)},
+        )
+        return require_mapping(result, "OMP RPC frame append")
+
     def query(self, query: RuntimeEventQuery | None = None) -> RuntimeEventPage:
         effective = query or RuntimeEventQuery()
         result = self.port.call("query", {"query": effective.to_jsonable()})
@@ -473,6 +512,156 @@ class RuntimeEventSpineBridge:
                 "updatedAt": cursor.get("updatedAt") or datetime.now(timezone.utc).isoformat(),
                 "status": "current",
             }
+        )
+
+    def get_task_view(self, task_id: str) -> Mapping[str, JsonValue] | None:
+        task_id = task_id.strip()
+        if not task_id:
+            raise RuntimeEventContractError("task_id must not be empty")
+        result = require_mapping(
+            self.port.call("projection_task_view_by_task", {"task_id": task_id}),
+            "runtime projected task view",
+        )
+        state = result.get("task_view")
+        if state is None:
+            return None
+        return require_mapping(state, "runtime projected task view state")
+
+    def get_projected_history(
+        self,
+        aggregate_id: str,
+        *,
+        after_global_sequence: int = 0,
+        limit: int = 200,
+        event_types: Sequence[str] = (),
+    ) -> Mapping[str, JsonValue]:
+        if not aggregate_id.strip():
+            raise RuntimeEventContractError("aggregate_id must not be empty")
+        if after_global_sequence < 0:
+            raise RuntimeEventContractError("after_global_sequence must be non-negative")
+        if not 1 <= limit <= 1000:
+            raise RuntimeEventContractError("history limit must be between 1 and 1000")
+        result = self.port.call(
+            "projection_history",
+            {
+                "aggregate_id": aggregate_id.strip(),
+                "after_global_sequence": after_global_sequence,
+                "limit": limit,
+                "event_types": [str(item) for item in event_types],
+            },
+        )
+        return require_mapping(result, "runtime projected history")
+
+    def get_projection_stream(
+        self,
+        aggregate_id: str,
+        *,
+        cursor: Mapping[str, Any] | None = None,
+        limit: int = 200,
+    ) -> tuple[Mapping[str, JsonValue], ...]:
+        result = self.port.call(
+            "projection_stream",
+            {
+                "aggregate_id": aggregate_id.strip(),
+                "cursor": coerce_json(cursor or {}),
+                "limit": limit,
+            },
+        )
+        return tuple(
+            require_mapping(item, "runtime projection stream frame")
+            for item in require_sequence(result, "runtime projection stream")
+        )
+
+    def rebuild_projection(self, aggregate_id: str | None = None) -> Mapping[str, JsonValue]:
+        result = self.port.call(
+            "rebuild_projection",
+            {"aggregate_id": aggregate_id} if aggregate_id else {},
+        )
+        return require_mapping(result, "runtime projection rebuild")
+
+    def register_subscription(self, subscription: Mapping[str, Any]) -> Mapping[str, JsonValue]:
+        result = self.port.call(
+            "register_subscription",
+            {"subscription": coerce_json(subscription)},
+        )
+        return require_mapping(result, "runtime event subscription")
+
+    def catch_up(
+        self,
+        subscription_id: str,
+        *,
+        aggregate_id: str | None = None,
+        task_id: str | None = None,
+        after_global_sequence: int = 0,
+        limit: int = 100_000,
+    ) -> int:
+        parameters: dict[str, JsonValue] = {
+            "subscription_id": subscription_id,
+            "after_global_sequence": after_global_sequence,
+            "limit": limit,
+        }
+        if aggregate_id is not None:
+            parameters["aggregate_id"] = aggregate_id
+        if task_id is not None:
+            parameters["task_id"] = task_id
+        result = require_mapping(
+            self.port.call(
+                "catch_up",
+                parameters,
+            ),
+            "runtime event catch-up",
+        )
+        return int(result.get("enqueued", 0) or 0)
+
+    def integration_contract(self) -> Mapping[str, JsonValue]:
+        return require_mapping(
+            self.port.call("integration_contract", {}),
+            "runtime integration contract",
+        )
+
+    def source_outbox(self, *, limit: int = 1000) -> tuple[Mapping[str, JsonValue], ...]:
+        result = require_mapping(
+            self.port.call("source_outbox", {"limit": limit}),
+            "runtime source outbox",
+        )
+        return tuple(
+            require_mapping(item, "runtime source outbox item")
+            for item in require_sequence(result.get("items", []), "runtime source outbox items")
+        )
+
+    def reconcile(self, options: Mapping[str, Any] | None = None) -> Mapping[str, JsonValue]:
+        return require_mapping(
+            self.port.call("reconcile", {"options": coerce_json(options or {})}),
+            "runtime event reconciliation",
+        )
+
+    def read_artifact(
+        self,
+        artifact_id: str,
+        *,
+        expected_digest: str | None = None,
+        offset: int = 0,
+        length: int | None = None,
+        encoding: str = "base64",
+    ) -> Mapping[str, JsonValue]:
+        request: dict[str, Any] = {
+            "artifactId": artifact_id,
+            "offset": offset,
+            "encoding": encoding,
+        }
+        if expected_digest:
+            request["expectedDigest"] = expected_digest
+        if length is not None:
+            request["length"] = length
+        return require_mapping(
+            self.port.call("artifact_read", {"request": request}),
+            "runtime artifact read",
+        )
+
+    def audit_artifact(self, artifact_id: str) -> Mapping[str, JsonValue]:
+        return require_mapping(
+            self.port.call("artifact_audit", {"artifact_id": artifact_id}),
+            "runtime artifact audit",
         )
 
     def health(self) -> SpineHealth:

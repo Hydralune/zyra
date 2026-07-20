@@ -15,8 +15,10 @@ export interface BaselineWorkload {
   facts: readonly BaselineFact[];
   addressableRecipients: readonly RecipientRef[];
   staticRecipients: readonly RecipientRef[];
+  /** Immutable model/task token denominator shared by every strategy. */
+  taskTokenCount: number;
   /** The same verifier is invoked for every isolated strategy replay. */
-  verify?: (deliveries: ReadonlyMap<string, ReadonlySet<string>>) => number;
+  verify: (deliveries: ReadonlyMap<string, ReadonlySet<string>>) => number;
 }
 
 export interface BaselineReplay {
@@ -117,16 +119,16 @@ export class LowEntropyBaselineHarness {
       if (strategy !== "full_text_inline") offloadedBytes += fact.offloadedBytes * Math.max(1, keys.size);
       duplicateFacts += Math.max(0, keys.size - unique(fact.requiredRecipients).length);
     }
-    const taskSuccess = workload.verify
-      ? workload.verify(deliveries)
-      : defaultVerifier(workload.facts, deliveries);
+    // Success is always supplied by the real workload verifier.  Recipient
+    // presence is communication coverage, not proof that the task succeeded.
+    const taskSuccess = workload.verify(deliveries);
     const estimatedTokens = Math.max(1, Math.ceil(transmittedBytes / 4));
     const comparison: BaselineComparison = {
       strategy,
       routeDensity: round(ratio(routeDensity, workload.facts.length)),
       broadcastRatio: strategy === "full_broadcast" ? 1 : 0,
       messageCount,
-      messagesPerThousandTokens: round(ratio(messageCount * 1000, estimatedTokens)),
+      messagesPerThousandTokens: round(ratio(messageCount * 1000, Math.max(1, workload.taskTokenCount))),
       duplicateFactRate: round(ratio(duplicateFacts, messageCount)),
       artifactRefOffloadRatio: round(ratio(offloadedBytes, sourceBytes)),
       inlineTokenEstimate: estimatedTokens,

@@ -46,6 +46,11 @@ from .typescript_port import (
     TypeScriptPortConfig,
     TypeScriptRuntimeEventPort,
 )
+from .worker_ingress import (
+    CodeWorkerRuntimeEventIngress,
+    WorkerIngressIdentity,
+    WorkerIngressReceipt,
+)
 
 
 __all__ = [
@@ -83,6 +88,9 @@ __all__ = [
     "ToolExchange",
     "TypeScriptPortConfig",
     "TypeScriptRuntimeEventPort",
+    "CodeWorkerRuntimeEventIngress",
+    "WorkerIngressIdentity",
+    "WorkerIngressReceipt",
     "assert_runtime_event_custody",
     "get_runtime_event_spine",
     "reset_runtime_event_spines",

@@ -27,6 +27,8 @@ export interface BusCatchUpOptions {
   taskId?: string;
   afterSequence?: number;
   limit?: number;
+  /** Internal read-side maintenance may consume every canonical fact. */
+  projectorMaintenance?: boolean;
 }
 
 export interface LiveMessageRecord {
@@ -140,7 +142,11 @@ export class RuntimeMessageBus {
         event_type: draft.eventType,
       });
     }
-    const pseudoEvent: RuntimeEventEnvelope = {
+    // Parsers intentionally materialize optional fields as `undefined` for
+    // convenient typed access.  A live-only frame still crosses the same
+    // canonical JSON boundary as a durable fact, so strip those properties
+    // before routing and constructing the reference-only bus message.
+    const pseudoEvent = JSON.parse(JSON.stringify({
       schema: "zyra.runtime-event/v1",
       eventId: draft.eventId ?? newId("live"),
       eventType: draft.eventType,
@@ -173,7 +179,7 @@ export class RuntimeMessageBus {
       envelopeBytes: 0,
       contentDigest: "live-only",
       metadata: draft.metadata ?? {},
-    };
+    })) as RuntimeEventEnvelope;
     const route = this.planRoute(pseudoEvent);
     const subscriptions = this.store.subscriptionsByRecipient();
     const createdAt = utcNow();
@@ -214,28 +220,59 @@ export class RuntimeMessageBus {
     if (!spec || !spec.enabled) {
       throw new DeliveryError(EventSpineErrorCode.SUBSCRIBER_NOT_FOUND, "subscription not found", { subscription_id: subscriptionId });
     }
-    const page = this.store.query(JSON.parse(JSON.stringify({
-      aggregateId: options.aggregateId,
-      taskId: options.taskId,
-      afterGlobalSequence: options.afterSequence,
-      limit: Math.min(options.limit ?? 1000, 1000),
-    })));
     let matched = 0;
-    for (const event of page.items) {
-      const route = this.planRoute(event, { topK: 8 });
-      if (!route.recipients.some((recipient) => recipient.kind === spec.recipient.kind && recipient.id === spec.recipient.id)) continue;
-      if (this.store.deliveriesForEvent(event.eventId).some((delivery) => delivery.subscriptionId === subscriptionId)) continue;
-      this.store.enqueueDeliveries(event, {
-        ...route,
-        recipients: [spec.recipient],
-        explicitTarget: true,
-        broadcast: false,
-        fanoutReason: undefined,
-        routeDensity: 1 / Math.max(1, route.availableRecipientCount),
-      }, new Map([[`${spec.recipient.kind}:${spec.recipient.id}`, [spec]]]));
-      matched += 1;
-    }
+    let cursor: string | undefined;
+    let remaining = Math.max(1, Math.min(options.limit ?? 100_000, 100_000));
+    do {
+      const page = this.store.query(JSON.parse(JSON.stringify({
+        aggregateId: options.aggregateId,
+        taskId: options.taskId,
+        afterGlobalSequence: options.afterSequence,
+        cursor,
+        limit: Math.min(remaining, 1000),
+      })));
+      for (const event of page.items) {
+        const persisted = this.store.persistedRoute(event.eventId);
+        const routed = persisted?.recipients.some(
+          (recipient) => recipient.kind === spec.recipient.kind && recipient.id === spec.recipient.id,
+        ) ?? false;
+        if (!options.projectorMaintenance && !routed) continue;
+        const inserted = this.store.enqueueForSubscription(
+          event,
+          spec,
+          options.projectorMaintenance
+            ? "zyra.projector-maintenance/v1"
+            : persisted!.policyId,
+          options.projectorMaintenance ? "projector_catch_up" : "persisted_route_catch_up",
+        );
+        matched += inserted.length;
+      }
+      remaining -= page.items.length;
+      cursor = remaining > 0 ? page.nextCursor : undefined;
+    } while (cursor);
     return matched;
+  }
+
+  ensureDelivery(subscriptionId: string, event: RuntimeEventEnvelope, projectorMaintenance = false): readonly string[] {
+    const spec = this.store.subscription(subscriptionId);
+    if (!spec || !spec.enabled) {
+      throw new DeliveryError(EventSpineErrorCode.SUBSCRIBER_NOT_FOUND, "subscription not found", { subscription_id: subscriptionId });
+    }
+    const persisted = this.store.persistedRoute(event.eventId);
+    const routed = persisted?.recipients.some(
+      (recipient) => recipient.kind === spec.recipient.kind && recipient.id === spec.recipient.id,
+    ) ?? false;
+    if (!projectorMaintenance && !routed) return [];
+    const inserted = this.store.enqueueForSubscription(
+      event,
+      spec,
+      projectorMaintenance ? "zyra.projector-maintenance/v1" : persisted!.policyId,
+      projectorMaintenance ? "projector_delivery" : "persisted_route_delivery",
+    );
+    if (inserted.length === 0 && projectorMaintenance) {
+      this.store.reopenAcknowledgedDelivery(event.eventId, subscriptionId, "projector_cursor_gap_repair");
+    }
+    return inserted;
   }
 
   snapshot(): Record<string, unknown> {

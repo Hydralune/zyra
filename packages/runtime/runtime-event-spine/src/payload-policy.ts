@@ -317,9 +317,43 @@ export class LowEntropyPayloadPolicy {
         maximum: this.inlineLimitBytes,
       });
     }
-    if (context.artifacts.length > this.artifactRefLimit) {
+    if (context.artifacts.length + (draft.evidenceRefs?.length ?? 0) > this.artifactRefLimit) {
       throw new PayloadBudgetError(EventSpineErrorCode.TOO_MANY_REFS, "artifact ref limit exceeded", {
-        count: context.artifacts.length,
+        count: context.artifacts.length + (draft.evidenceRefs?.length ?? 0),
+        maximum: this.artifactRefLimit,
+      });
+    }
+    const sanitizedStateValue = draft.stateDelta?.value === undefined
+      ? undefined
+      : this.walk(
+          draft.stateDelta.value,
+          { ...context, path: ["state_delta", "value"] },
+          0,
+          "state_delta_value",
+        );
+    const sanitizedMetadata = this.walk(
+      (draft.metadata ?? {}) as JsonValue,
+      { ...context, path: ["metadata"] },
+      0,
+      "metadata",
+    );
+    const artifactCountBeforeMetadata = context.artifacts.length;
+    const sanitizedArtifactRefs = context.artifacts.slice(0, artifactCountBeforeMetadata).map((pointer) => {
+      const metadata = this.walk(
+        pointer.metadata as JsonValue,
+        { ...context, path: ["artifact_refs", pointer.artifactId, "metadata"] },
+        0,
+        "artifact_metadata",
+      );
+      return {
+        ...pointer,
+        metadata: isPlainObject(metadata) ? metadata : {},
+      };
+    });
+    sanitizedArtifactRefs.push(...context.artifacts.slice(artifactCountBeforeMetadata));
+    if (sanitizedArtifactRefs.length + (draft.evidenceRefs?.length ?? 0) > this.artifactRefLimit) {
+      throw new PayloadBudgetError(EventSpineErrorCode.TOO_MANY_REFS, "artifact ref limit exceeded after envelope metadata spill", {
+        count: sanitizedArtifactRefs.length + (draft.evidenceRefs?.length ?? 0),
         maximum: this.artifactRefLimit,
       });
     }
@@ -327,11 +361,14 @@ export class LowEntropyPayloadPolicy {
       ...draft,
       summary,
       inline,
-      artifactRefs: Object.freeze(context.artifacts),
+      stateDelta: draft.stateDelta
+        ? { ...draft.stateDelta, ...(sanitizedStateValue === undefined ? {} : { value: sanitizedStateValue }) }
+        : draft.stateDelta,
+      artifactRefs: Object.freeze(sanitizedArtifactRefs),
       sourceBytes,
       effect: draft.effect ?? (draft.stateDelta?.effective ? EventEffect.EFFECTIVE : EventEffect.UNKNOWN),
       metadata: {
-        ...(draft.metadata ?? {}),
+        ...(isPlainObject(sanitizedMetadata) ? sanitizedMetadata : {}),
         payload_policy: "zyra.low-entropy/v1",
         source_bytes: sourceBytes,
         inline_bytes: inlineBytes,

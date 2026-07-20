@@ -312,7 +312,7 @@ UNIT_BUDGETS: dict[str, UnitBudget] = {
     "M1-04D": UnitBudget(unit="M1-04D", minimum_effective_lines=15_000, description="watchdogs history and artifacts", requires_source_migration=True),
     "M1-05A": UnitBudget(unit="M1-05A", minimum_effective_lines=14_000, description="workspace manager", requires_source_migration=True),
     "M1-05B": UnitBudget(unit="M1-05B", minimum_effective_lines=14_000, description="sandbox gateway", requires_source_migration=True),
-    "M1-05C": UnitBudget(unit="M1-05C", minimum_effective_lines=14_000, description="runtime event and message bus", requires_source_migration=True),
+    "M1-05C": UnitBudget(unit="M1-05C", minimum_effective_lines=16_000, description="runtime event and message bus", requires_source_migration=True),
     "M1-05D": UnitBudget(unit="M1-05D", minimum_effective_lines=13_000, description="backend failover and dispatch", requires_source_migration=True),
     "M1-06A": UnitBudget(unit="M1-06A", minimum_effective_lines=15_000, description="retrieval and index adapters", requires_source_migration=True),
     "M1-06B": UnitBudget(unit="M1-06B", minimum_effective_lines=15_000, description="memory curator worker", requires_source_migration=True),

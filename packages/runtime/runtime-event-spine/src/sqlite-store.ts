@@ -44,7 +44,7 @@ import {
   RoutingError,
   asEventSpineError,
 } from "./errors.ts";
-import { RuntimeStateProjector, type ProjectionApplyReceipt } from "./projector.ts";
+import { RuntimeStateProjector } from "./projector.ts";
 
 interface AggregateRow {
   aggregate_id: string;
@@ -405,11 +405,12 @@ export class RuntimeEventSqliteStore {
         const event = parseEventRow(duplicate);
         this.db.exec("COMMIT");
         this.recordMetric(event.eventId, "event.duplicate", 1, { event_type: event.eventType });
+        const cursor = this.projector.cursor(this.db, event.aggregateId);
         return {
           event,
           committed: false,
           duplicate: true,
-          projected: true,
+          projected: Boolean(cursor && cursor.sequence >= event.aggregateSequence),
           routed: false,
           deliveryIds: this.deliveryIdsForEvent(event.eventId),
           artifactSpillCount: input.artifactSpillCount,
@@ -459,12 +460,13 @@ export class RuntimeEventSqliteStore {
       if (input.route) this.insertRouteDecision(input.route);
       this.db.exec("COMMIT");
       const maintenanceWarnings = [...input.warnings];
-      let projection: ProjectionApplyReceipt | undefined;
-      if (options.project !== false || (options.publishLegacyProjection !== false && input.legacyProjection)) {
+      // Projectors are durable message-bus consumers.  This store owns only
+      // canonical facts and the legacy compatibility row; it must never advance
+      // a query model ahead of delivery/ACK.
+      if (options.publishLegacyProjection !== false && input.legacyProjection) {
         this.db.exec("BEGIN IMMEDIATE");
         try {
-          if (options.project !== false) projection = this.projector.apply(this.db, envelope);
-          if (options.publishLegacyProjection !== false && input.legacyProjection) this.insertLegacyProjection(input.legacyProjection);
+          if (input.legacyProjection) this.insertLegacyProjection(input.legacyProjection);
           this.db.exec("COMMIT");
         } catch (error) {
           try { this.db.exec("ROLLBACK"); } catch { /* preserve maintenance error */ }
@@ -488,7 +490,7 @@ export class RuntimeEventSqliteStore {
         event: envelope,
         committed: true,
         duplicate: false,
-        projected: Boolean(projection),
+        projected: false,
         routed: deliveryIds.length > 0,
         route: input.route,
         deliveryIds,
@@ -603,7 +605,10 @@ export class RuntimeEventSqliteStore {
     if (query.createdAtLt) { clauses.push("created_at < ?"); params.push(query.createdAtLt); }
     if (query.correlationId) { clauses.push("correlation_id = ?"); params.push(query.correlationId); }
     if (query.causationId) { clauses.push("causation_id = ?"); params.push(query.causationId); }
-    if (query.artifactId) { clauses.push("envelope_json LIKE ?"); params.push(`%\"artifactId\":\"${query.artifactId.replaceAll("%", "\\%").replaceAll("_", "\\_")}\"%`); }
+    if (query.artifactId) {
+      clauses.push("envelope_json LIKE ? ESCAPE '\\'");
+      params.push(`%\"artifactId\":\"${query.artifactId.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}\"%`);
+    }
     if (query.cursor) {
       const cursor = decodeCursor(query.cursor);
       const sequence = requireInteger(cursor.global_sequence, "cursor.global_sequence", 1);
@@ -885,6 +890,66 @@ export class RuntimeEventSqliteStore {
   deliveriesForEvent(eventId: string): readonly DeliveryRecord[] {
     const rows = this.db.prepare("SELECT * FROM runtime_event_deliveries WHERE event_id = ? ORDER BY subscription_id").all(eventId) as unknown as DeliveryRow[];
     return rows.map(deliveryFromRow);
+  }
+
+  persistedRoute(eventId: string): RouteDecision | undefined {
+    const row = this.db.prepare(`
+      SELECT route_json FROM runtime_event_routes WHERE event_id = ?
+    `).get(eventId) as { route_json: string } | undefined;
+    return row ? JSON.parse(row.route_json) as RouteDecision : undefined;
+  }
+
+  /**
+   * Enqueue one delivery without changing the canonical route fact.  Normal
+   * catch-up must first verify the recipient against `persistedRoute`; the
+   * dedicated projector consumer is allowed to use `internalReason` because it
+   * is a read-side maintenance subscriber, never a business recipient.
+   */
+  enqueueForSubscription(
+    event: RuntimeEventEnvelope,
+    spec: SubscriptionSpec,
+    policyId: string,
+    internalReason: string,
+  ): readonly string[] {
+    if (this.deliveriesForEvent(event.eventId).some((item) => item.subscriptionId === spec.subscriptionId)) {
+      return [];
+    }
+    const route: RouteDecision = {
+      eventId: event.eventId,
+      policyId,
+      explicitTarget: true,
+      broadcast: false,
+      recipients: [spec.recipient],
+      candidates: [{ recipient: spec.recipient, score: 1, reasons: [internalReason], rejectedReasons: [] }],
+      routeDensity: 1,
+      availableRecipientCount: 1,
+      createdAt: utcNow(),
+    };
+    return this.enqueueDeliveries(
+      event,
+      route,
+      new Map([[recipientKey(spec.recipient.kind, spec.recipient.id), [spec]]]),
+    );
+  }
+
+  reopenAcknowledgedDelivery(eventId: string, subscriptionId: string, reason: string): boolean {
+    const now = utcNow();
+    const result = this.db.prepare(`
+      UPDATE runtime_event_deliveries
+      SET state = ?, available_at = ?, leased_at = NULL, lease_expires_at = NULL,
+          lease_token = NULL, acknowledged_at = NULL, last_error = ?,
+          updated_at = ?, redelivered = 1
+      WHERE event_id = ? AND subscription_id = ? AND state = ?
+    `).run(
+      DeliveryState.PENDING,
+      now,
+      reason.slice(0, 2000),
+      now,
+      eventId,
+      subscriptionId,
+      DeliveryState.ACKNOWLEDGED,
+    );
+    return Number(result.changes) > 0;
   }
 
   /** Persist delivery work for an already committed canonical event. */

@@ -23,6 +23,9 @@ import { LocalContentAddressedArtifactStore, LowEntropyPayloadPolicy, type Exter
 import { builtInSubscriptions, AgentMessageRouter } from "./router.ts";
 import { RuntimeEventSqliteStore } from "./sqlite-store.ts";
 import { verifyToolPairs } from "./tool-pair.ts";
+import { ProjectionDeliveryRuntime } from "./projection-delivery.ts";
+import { OmpRuntimeFrameMapper, RuntimeSourceMapper, type OmpAgentFrame } from "./source-mapper.ts";
+import type { SourceBatch, SourceRecord } from "./integration-contracts.ts";
 
 export interface RuntimeEventSpineOptions {
   sqlitePath: string;
@@ -30,6 +33,9 @@ export interface RuntimeEventSpineOptions {
   registerBuiltIns?: boolean;
   routeByDefault?: boolean;
   publishLegacyProjection?: boolean;
+  enableMessageBus?: boolean;
+  enableProjector?: boolean;
+  autoDrainProjector?: boolean;
 }
 
 export interface RuntimeAppendOptions extends AppendOptions {
@@ -52,6 +58,7 @@ export interface RuntimeHealth {
   bus: Record<string, unknown>;
   catalog: Record<string, unknown>;
   lowEntropy: ReturnType<LowEntropyMetrics["report"]>;
+  integration: Record<string, unknown>;
 }
 
 export class RuntimeEventSpine {
@@ -62,6 +69,9 @@ export class RuntimeEventSpine {
   readonly router: AgentMessageRouter;
   readonly bus: RuntimeMessageBus;
   readonly metrics: LowEntropyMetrics;
+  readonly sourceMapper: RuntimeSourceMapper;
+  readonly ompMapper: OmpRuntimeFrameMapper;
+  readonly projectionDelivery?: ProjectionDeliveryRuntime;
   private closed = false;
 
   constructor(options: RuntimeEventSpineOptions) {
@@ -70,6 +80,9 @@ export class RuntimeEventSpine {
       registerBuiltIns: options.registerBuiltIns ?? true,
       routeByDefault: options.routeByDefault ?? true,
       publishLegacyProjection: options.publishLegacyProjection ?? true,
+      enableMessageBus: options.enableMessageBus ?? true,
+      enableProjector: options.enableProjector ?? true,
+      autoDrainProjector: options.autoDrainProjector ?? true,
     });
     this.store = new RuntimeEventSqliteStore(options.sqlitePath);
     this.artifacts = new LocalContentAddressedArtifactStore(options.artifactRoot);
@@ -77,8 +90,20 @@ export class RuntimeEventSpine {
     this.router = new AgentMessageRouter();
     this.bus = new RuntimeMessageBus(this.store, this.router);
     this.metrics = new LowEntropyMetrics(this.store);
+    this.sourceMapper = new RuntimeSourceMapper();
+    this.ompMapper = new OmpRuntimeFrameMapper(this.sourceMapper);
     if (this.options.registerBuiltIns) {
       for (const subscription of builtInSubscriptions()) this.bus.register(subscription);
+    }
+    // The read model is itself a durable bus consumer.  Enabling it while the
+    // bus is disabled would silently create a direct store->projector path and
+    // make the fault-injection matrix lie about the component boundary.
+    if (this.options.enableProjector && this.options.enableMessageBus) {
+      this.projectionDelivery = new ProjectionDeliveryRuntime(this, {
+        autoDrain: this.options.autoDrainProjector,
+      });
+      this.projectionDelivery.reconcileAckGaps();
+      this.projectionDelivery.pump({ catchUp: true });
     }
   }
 
@@ -120,10 +145,35 @@ export class RuntimeEventSpine {
     return this.commitPrepared(prepared, options);
   }
 
+  appendSourceRecord(value: SourceRecord | unknown): AppendReceipt | ReturnType<RuntimeMessageBus["publishLive"]> {
+    const mapped = this.sourceMapper.map(value);
+    if (mapped.draft.durability === EventDurability.LIVE_ONLY) {
+      const prepared = this.payloadPolicy.externalize(mapped.draft, mapped.source.payload);
+      return this.bus.publishLive(JSON.parse(JSON.stringify(prepared.draft)), 30_000);
+    }
+    return this.commitPrepared(this.payloadPolicy.externalize(mapped.draft, mapped.source.payload), mapped.options);
+  }
+
+  appendSourceBatch(value: SourceBatch | unknown): readonly (AppendReceipt | ReturnType<RuntimeMessageBus["publishLive"]>)[] {
+    return this.sourceMapper.mapBatch(value).map((mapped) => {
+      const prepared = this.payloadPolicy.externalize(mapped.draft, mapped.source.payload);
+      if (mapped.draft.durability === EventDurability.LIVE_ONLY) return this.bus.publishLive(JSON.parse(JSON.stringify(prepared.draft)), 30_000);
+      return this.commitPrepared(prepared, mapped.options);
+    });
+  }
+
+  appendOmpAgentFrame(value: OmpAgentFrame | unknown): AppendReceipt | ReturnType<RuntimeMessageBus["publishLive"]> {
+    const mapped = this.ompMapper.map(value);
+    const prepared = this.payloadPolicy.externalize(mapped.draft, mapped.source.payload);
+    if (mapped.draft.durability === EventDurability.LIVE_ONLY) return this.bus.publishLive(JSON.parse(JSON.stringify(prepared.draft)), 30_000);
+    return this.commitPrepared(prepared, mapped.options);
+  }
+
   appendOmpFrame(value: OmpFrameInput, options: RuntimeAppendOptions = {}): AppendReceipt | readonly ReturnType<RuntimeMessageBus["publishLive"]>[] {
     const draft = normalizeOmpFrame(value);
-    if (draft.durability === EventDurability.LIVE_ONLY) return [this.publishLive(draft)];
-    return this.appendCanonical(draft, options);
+    const prepared = this.payloadPolicy.externalize(draft, JSON.parse(JSON.stringify(value)) as Record<string, JsonValue>);
+    if (draft.durability === EventDurability.LIVE_ONLY) return [this.bus.publishLive(JSON.parse(JSON.stringify(prepared.draft)), 30_000)];
+    return this.commitPrepared(prepared, options);
   }
 
   publishLive(value: RuntimeEventDraft | unknown, ttlMs = 30_000) {
@@ -180,11 +230,14 @@ export class RuntimeEventSpine {
       tools: this.store.projector.toolCalls(this.store.db, aggregateId),
       controls: this.store.projector.controls(this.store.db, aggregateId),
       artifacts: this.store.projector.artifacts(this.store.db, aggregateId),
+      task_view: this.projectionDelivery?.taskView(aggregateId) ?? null,
+      history: this.projectionDelivery?.history(aggregateId, { limit: 200 }) ?? null,
       tool_pair_audit: verifyToolPairs(this.store.db, aggregateId),
     };
   }
 
   rebuildProjection(aggregateId?: string): Record<string, unknown> {
+    if (this.projectionDelivery) return this.projectionDelivery.rebuild(aggregateId);
     this.assertOpen();
     const query = aggregateId ? { aggregateId, limit: 1000 } : { limit: 1000 };
     const events: RuntimeEventEnvelope[] = [];
@@ -228,6 +281,13 @@ export class RuntimeEventSpine {
       bus: this.bus.snapshot(),
       catalog: catalogSummary(),
       lowEntropy: this.metrics.report(),
+      integration: {
+        message_bus_enabled: this.options.enableMessageBus,
+        projector_enabled: this.options.enableProjector,
+        projector_cursor: this.projectionDelivery?.globalCursor() ?? null,
+        source_mapper: this.sourceMapper.describe(),
+        omp_mapper: this.ompMapper.describe(),
+      },
     };
   }
 
@@ -242,7 +302,8 @@ export class RuntimeEventSpine {
     options: RuntimeAppendOptions,
     legacy?: NormalizedLegacyEvent,
   ): AppendReceipt {
-    const routeEnabled = options.route ?? this.options.routeByDefault ?? true;
+    const routeRequested = options.route ?? this.options.routeByDefault ?? true;
+    const routeEnabled = routeRequested && this.options.enableMessageBus !== false;
     const canonicalDraft = JSON.parse(JSON.stringify(prepared.draft)) as RuntimeEventDraft;
     const preparedDraft = canonicalDraft.eventId
       ? canonicalDraft
@@ -270,7 +331,7 @@ export class RuntimeEventSpine {
         event_type: preview.eventType,
       });
     }
-    return this.store.append({
+    const receipt = this.store.append({
       draft: preparedDraft,
       inlineBytes: prepared.inlineBytes,
       estimatedEnvelopeBytes: prepared.estimatedEnvelopeBytes,
@@ -280,7 +341,7 @@ export class RuntimeEventSpine {
       options: {
         ...options,
         route: routeEnabled,
-        project: options.project ?? true,
+        project: false,
         publishLegacyProjection: options.publishLegacyProjection ?? this.options.publishLegacyProjection,
       },
       route,
@@ -299,6 +360,33 @@ export class RuntimeEventSpine {
           }
         : undefined,
     });
+    const warnings = [...receipt.warnings];
+    const deliveryIds = new Set(receipt.deliveryIds);
+    if (receipt.duplicate && routeEnabled) {
+      for (const subscription of this.store.subscriptions(true)) {
+        if (subscription.subscriptionId === this.projectionDelivery?.subscriptionId) continue;
+        for (const deliveryId of this.bus.ensureDelivery(subscription.subscriptionId, receipt.event, false)) {
+          deliveryIds.add(deliveryId);
+        }
+      }
+      if (deliveryIds.size > receipt.deliveryIds.length) warnings.push("duplicate_delivery_gap_repaired");
+    }
+    let projected = receipt.projected;
+    if (options.project !== false && this.projectionDelivery) {
+      try {
+        this.projectionDelivery.admit(receipt.event);
+        projected = Boolean(this.projectionDelivery.taskView(receipt.event.aggregateId));
+      } catch (error) {
+        warnings.push(`projector_pending:${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return {
+      ...receipt,
+      projected,
+      routed: deliveryIds.size > 0,
+      deliveryIds: Object.freeze([...deliveryIds]),
+      warnings,
+    };
   }
 
   private assertOpen(): void {

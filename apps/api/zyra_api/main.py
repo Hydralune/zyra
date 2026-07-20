@@ -1105,6 +1105,7 @@ def _graph_workspace_runtime_binding(
             artifact_store=LocalArtifactStore(artifact_root_path()),
         ),
         "workspace_gateway_required": True,
+        "runtime_event_bridge": get_runtime_event_spine_bridge(),
     }
     if worker_name == "CodeWorkerRuntime":
         services.update(
@@ -1794,6 +1795,39 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(result.status, dict(result.body), headers=dict(result.headers))
             return
 
+        if parts == ["runtime-events", "reconcile"]:
+            try:
+                result = get_runtime_event_api().reconciliation(
+                    _flatten_query(parse_qs(parsed.query, keep_blank_values=True))
+                )
+            except (ValueError, RuntimeEventProcessError) as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if isinstance(error, RuntimeEventProcessError)
+                    else HTTPStatus.BAD_REQUEST,
+                    {"error": getattr(error, "code", "runtime_reconciliation_failed"), "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if len(parts) == 2 and parts[0] == "runtime-event-artifacts":
+            try:
+                result = get_runtime_event_api().read_artifact(
+                    parts[1],
+                    _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+                )
+            except (ValueError, RuntimeEventProcessError) as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if isinstance(error, RuntimeEventProcessError)
+                    else HTTPStatus.BAD_REQUEST,
+                    {"error": getattr(error, "code", "runtime_artifact_read_failed"), "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
         if len(parts) == 2 and parts[0] == "runtime-events":
             try:
                 result = get_runtime_event_api().get_event(parts[1])
@@ -1865,6 +1899,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,
                     {"error": error.code, "message": str(error)},
+                )
+                return
+            self._send_json(result.status, dict(result.body), headers=dict(result.headers))
+            return
+
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "runtime-event-stream":
+            try:
+                result = get_runtime_event_api().get_task_projection_stream(
+                    parts[1],
+                    _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+                )
+            except (ValueError, RuntimeEventProcessError) as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if isinstance(error, RuntimeEventProcessError)
+                    else HTTPStatus.BAD_REQUEST,
+                    {"error": getattr(error, "code", "runtime_projection_stream_failed"), "message": str(error)},
                 )
                 return
             self._send_json(result.status, dict(result.body), headers=dict(result.headers))
