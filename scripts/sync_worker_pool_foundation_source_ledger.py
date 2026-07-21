@@ -38,6 +38,7 @@ TEST_COMMAND = (
 
 DECISIONS: tuple[dict[str, Any], ...] = (
     {
+        "ledger_id": "ledger_23d67419641adcd4",
         "source_repo": "agentscope",
         "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
         "source_path": (
@@ -49,7 +50,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "src/agentscope/app/_service/_session.py"
         ),
         "source_language": "python",
-        "target_language": "typescript",
+        "target_language": "python",
         "source_symbols": [
             "ChatRunRegistry",
             "WakeupDispatcher",
@@ -119,21 +120,25 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         ),
     },
     {
+        "ledger_id": "ledger_38a2f75c0e47f1b3",
         "source_repo": "oh-my-pi",
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
         "source_path": (
             "packages/coding-agent/src/task/index.ts;"
             "packages/coding-agent/src/task/executor.ts;"
+            "packages/coding-agent/src/task/parallel.ts;"
             "packages/coding-agent/src/task/provider-concurrency.ts;"
             "packages/coding-agent/src/async/job-manager.ts;"
             "packages/coding-agent/src/registry/agent-registry.ts;"
             "packages/coding-agent/test/task/**;packages/roboomp/src/**"
         ),
         "source_language": "typescript",
-        "target_language": "python",
+        "target_language": "typescript",
         "source_symbols": [
             "TaskTool.execute",
             "runSubprocess",
+            "Semaphore",
+            "mapWithConcurrencyLimit",
             "AsyncJobManager",
             "AgentRegistry",
             "WorkerPool claim",
@@ -145,7 +150,10 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "BEGIN IMMEDIATE external-worker claim and restart requeue",
         ],
         "source_tests": [
-            "packages/coding-agent/test/task/**",
+            "packages/coding-agent/test/task/task-batch.test.ts",
+            "packages/coding-agent/test/task/task-spawn.test.ts",
+            "packages/coding-agent/test/async-job-manager.test.ts",
+            "packages/coding-agent/test/sdk-async-job-manager-singleton.test.ts",
             "roboomp queue claim/restart behavior from source graph batch-06",
         ],
         "capability_name": "physical_attempt_progress_drain_takeover_and_independent_edge_protocol",
@@ -192,6 +200,9 @@ DECISIONS: tuple[dict[str, Any], ...] = (
 
 
 def _ledger_id(decision: Mapping[str, Any]) -> str:
+    explicit = str(decision.get("ledger_id") or "").strip()
+    if explicit:
+        return explicit
     identity = "|".join(
         (str(decision["source_repo"]), str(decision["source_path"]), str(decision["capability_name"]))
     )
@@ -320,7 +331,22 @@ def _canonical(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def _validate_decisions(decisions: Sequence[Mapping[str, Any]]) -> None:
+    """Reject self-consistent ledger data that violates its migration contract."""
+
+    for decision in decisions:
+        source_language = str(decision.get("source_language") or "").strip().lower()
+        target_language = str(decision.get("target_language") or "").strip().lower()
+        migration_mode = str(decision.get("migration_mode") or "").strip().lower()
+        if "same_language" in migration_mode and source_language != target_language:
+            raise ValueError(
+                "same-language source decision has mismatched custody: "
+                f"{decision.get('source_repo')} {source_language}->{target_language}"
+            )
+
+
 def synchronize(path: Path, *, write: bool) -> tuple[bool, int]:
+    _validate_decisions(DECISIONS)
     document = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(document, list):
         entries = document
@@ -329,7 +355,12 @@ def synchronize(path: Path, *, write: bool) -> tuple[bool, int]:
     else:
         raise ValueError("internalization ledger seed must be a list or contain entries")
     replacements = {item["ledger_id"]: item for item in (_entry(item) for item in DECISIONS)}
-    output = [replacements.pop(str(item.get("ledger_id") or ""), item) for item in entries]
+    output: list[dict[str, Any]] = []
+    for item in entries:
+        ledger_id = str(item.get("ledger_id") or "")
+        if str(item.get("owner_unit") or "") == OWNER_UNIT and ledger_id not in replacements:
+            continue
+        output.append(replacements.pop(ledger_id, item))
     output.extend(replacements.values())
     typed = [InternalizationLedgerEntry.from_dict(item) for item in output]
     expected = (

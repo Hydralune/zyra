@@ -176506,7 +176506,7 @@
           "tests/app/tool_offload_middleware_test.py"
         ],
         "state_owner": "WorkerPoolStore owns WorkerInstance, TaskAttempt, WorkerLease, heartbeat telemetry, inbox/wakeup and execution receipts; 03D remains logical AgentTask owner",
-        "target_language": "typescript",
+        "target_language": "python",
         "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
       },
       "migration_strategy": "direct_port",
@@ -176718,17 +176718,22 @@
         "source_symbols": [
           "TaskTool.execute",
           "runSubprocess",
+          "Semaphore",
+          "mapWithConcurrencyLimit",
           "AsyncJobManager",
           "AgentRegistry",
           "WorkerPool claim",
           "restart requeue"
         ],
         "source_tests": [
-          "packages/coding-agent/test/task/**",
+          "packages/coding-agent/test/task/task-batch.test.ts",
+          "packages/coding-agent/test/task/task-spawn.test.ts",
+          "packages/coding-agent/test/async-job-manager.test.ts",
+          "packages/coding-agent/test/sdk-async-job-manager-singleton.test.ts",
           "roboomp queue claim/restart behavior from source graph batch-06"
         ],
         "state_owner": "Python WorkerPoolStore owns physical attempt/lease/receipt durability; TypeScript OmpWorkerDispatchRuntime owns only process-local admission, semaphore and AsyncJob projection; no upstream OMP AgentRegistry, JSONL, SQLite, RPC process or global registry is a runtime dependency",
-        "target_language": "python",
+        "target_language": "typescript",
         "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
       },
       "migration_strategy": "direct_port",
@@ -176760,11 +176765,13 @@
           "exists_in_workspace": true,
           "reason": "Pinned source graph and concrete source files verified for M1-S07A-01.",
           "source_kind": "bounded_module_group",
-          "source_path": "packages/coding-agent/src/task/index.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/provider-concurrency.ts;packages/coding-agent/src/async/job-manager.ts;packages/coding-agent/src/registry/agent-registry.ts;packages/coding-agent/test/task/**;packages/roboomp/src/**",
+          "source_path": "packages/coding-agent/src/task/index.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/parallel.ts;packages/coding-agent/src/task/provider-concurrency.ts;packages/coding-agent/src/async/job-manager.ts;packages/coding-agent/src/registry/agent-registry.ts;packages/coding-agent/test/task/**;packages/roboomp/src/**",
           "source_repo": "oh-my-pi",
           "symbols": [
             "TaskTool.execute",
             "runSubprocess",
+            "Semaphore",
+            "mapWithConcurrencyLimit",
             "AsyncJobManager",
             "AgentRegistry",
             "WorkerPool claim",
@@ -176776,7 +176783,7 @@
           ]
         }
       ],
-      "source_path": "packages/coding-agent/src/task/index.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/provider-concurrency.ts;packages/coding-agent/src/async/job-manager.ts;packages/coding-agent/src/registry/agent-registry.ts;packages/coding-agent/test/task/**;packages/roboomp/src/**",
+      "source_path": "packages/coding-agent/src/task/index.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/parallel.ts;packages/coding-agent/src/task/provider-concurrency.ts;packages/coding-agent/src/async/job-manager.ts;packages/coding-agent/src/registry/agent-registry.ts;packages/coding-agent/test/task/**;packages/roboomp/src/**",
       "source_repo": "oh-my-pi",
       "target_bindings": [
         {

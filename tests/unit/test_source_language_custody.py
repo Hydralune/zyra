@@ -13,6 +13,14 @@ assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+LEDGER_SPEC = importlib.util.spec_from_file_location(
+    "sync_worker_pool_foundation_source_ledger",
+    ROOT / "scripts" / "sync_worker_pool_foundation_source_ledger.py",
+)
+assert LEDGER_SPEC is not None and LEDGER_SPEC.loader is not None
+LEDGER_MODULE = importlib.util.module_from_spec(LEDGER_SPEC)
+LEDGER_SPEC.loader.exec_module(LEDGER_MODULE)
+
 
 def _document(path: str, *, minimum: int = 1) -> dict[str, object]:
     return {
@@ -76,3 +84,19 @@ def test_cross_language_exception_requires_prior_decision_id(monkeypatch) -> Non
 
     assert report["ok"] is False
     assert any("lacks cross_language_decision_id" in item for item in report["violations"])
+
+
+def test_same_language_ledger_decision_rejects_inverted_target_language() -> None:
+    bad_decision = {
+        "source_repo": "oh-my-pi",
+        "source_language": "typescript",
+        "target_language": "python",
+        "migration_mode": "cropped_same_language_worker_control",
+    }
+
+    try:
+        LEDGER_MODULE._validate_decisions((bad_decision,))
+    except ValueError as exc:
+        assert "typescript->python" in str(exc)
+    else:
+        raise AssertionError("inverted same-language custody must fail closed")
