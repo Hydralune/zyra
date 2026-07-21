@@ -175927,14 +175927,30 @@
         "canonical_memory_owner": "SQLiteStore.memory_records",
         "canonical_procedure_owner": "ReusableProcedureStore",
         "experimental_default": false,
-        "migration_mode": "cropped_migration_retained_typescript_control_flow_cross_language_port",
+        "migration_mode": "cropped_migration_retained_typescript_control_flow_plus_bounded_python_context_port",
         "openclaw_forward_excluded": true,
         "owner_unit": "M1-S06C-02",
         "root_source_runtime_dependency": false,
         "skill_loader_owner": "03C SkillCoordinator",
+        "source_callsites": [
+          "QueryEngine compact/restore lifecycle",
+          "SkillTool invocation and post-compact restore"
+        ],
         "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+        "source_language": "typescript",
         "source_role": "primary_implementation",
-        "state_owner": "SkillMemoryApplication integration snapshot; 03C SkillCoordinator authority; 02B/02D context and compact owners remain canonical"
+        "source_symbols": [
+          "tryReactiveCompact",
+          "runPostCompactCleanup",
+          "compactConversation",
+          "createSkillAttachmentIfNeeded",
+          "SkillTool"
+        ],
+        "source_tests": [
+          "none_collocated_in_pinned_source_snapshot; Zyra behavior tests provide conformance evidence"
+        ],
+        "state_owner": "SkillMemoryApplication integration snapshot; 03C SkillCoordinator authority; 02B/02D context and compact owners remain canonical",
+        "target_language": "typescript+python"
       },
       "migration_strategy": "direct_port",
       "notes": "source_role=primary_implementation; source_commit=c57f5a29e88e9a814bea47abeb9a0a6f725dc102; The migration retains the high-cohesion compact/restore and current SkillTool resolution contracts. Historical outcome memory never restores an executable body or permission and BrowserWorker receives only digest-validated context projections.",
@@ -175964,7 +175980,11 @@
           "source_path": "src/services/compact/reactiveCompact.ts;src/services/compact/postCompactCleanup.ts;src/services/compact/compact.ts;src/tools/SkillTool/SkillTool.ts;src/tools/SkillTool/src/Tool.ts",
           "source_repo": "claude-code-best",
           "symbols": [
-            "SkillMemoryIntegrationRuntime"
+            "tryReactiveCompact",
+            "runPostCompactCleanup",
+            "compactConversation",
+            "createSkillAttachmentIfNeeded",
+            "SkillTool"
           ],
           "tags": [
             "primary_implementation",
@@ -176105,9 +176125,27 @@
         "owner_unit": "M1-S06C-02",
         "root_source_runtime_dependency": false,
         "skill_loader_owner": "03C SkillCoordinator",
+        "source_callsites": [
+          "session compact handler",
+          "frame-aware compact message projection"
+        ],
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
         "source_role": "supplementary_implementation",
-        "state_owner": "ProviderRestoreFidelityRuntime comparison/receipt state under 06C snapshot"
+        "source_symbols": [
+          "runExtensionCompact",
+          "COMPACT_MODES",
+          "planInlineSwaps",
+          "estimateInlineSavings",
+          "SnapcompactInlineTransformer"
+        ],
+        "source_tests": [
+          "packages/coding-agent/test/agent-session-compaction.test.ts",
+          "packages/coding-agent/test/compact-modes.test.ts",
+          "packages/coding-agent/test/snapcompact-inline.test.ts"
+        ],
+        "state_owner": "ProviderRestoreFidelityRuntime comparison/receipt state under 06C snapshot",
+        "target_language": "typescript"
       },
       "migration_strategy": "direct_port",
       "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; Snapcompact stays feature-gated and non-default. Unsupported vision, missing/corrupt frames, gateway image loss and provider changes emit explicit fallback evidence; no visual effectiveness claim is made.",
@@ -176132,7 +176170,11 @@
           "source_path": "packages/coding-agent/src/extensibility/extensions/compact-handler.ts;packages/coding-agent/src/session/compact-modes.ts;packages/coding-agent/src/session/messages.ts;packages/coding-agent/src/session/snapcompact-inline.ts",
           "source_repo": "oh-my-pi",
           "symbols": [
-            "ProviderRestoreFidelityRuntime"
+            "runExtensionCompact",
+            "COMPACT_MODES",
+            "planInlineSwaps",
+            "estimateInlineSavings",
+            "SnapcompactInlineTransformer"
           ],
           "tags": [
             "supplementary_implementation",
@@ -176250,9 +176292,25 @@
         "owner_unit": "M1-S06C-02",
         "root_source_runtime_dependency": false,
         "skill_loader_owner": "03C SkillCoordinator",
+        "source_callsites": [
+          "agent memory context assembly",
+          "memory tool retrieval and persistence"
+        ],
         "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_language": "python",
         "source_role": "supplementary_implementation",
-        "state_owner": "ReusableProcedureStore plus derived 06A/06C retrieval delivery receipts"
+        "source_symbols": [
+          "MemoryManager",
+          "MemoryProvider",
+          "memory_tool"
+        ],
+        "source_tests": [
+          "tests/agent/test_memory_provider.py",
+          "tests/tools/test_memory_tool.py",
+          "tests/run_agent/test_commit_memory_session_context_engine.py"
+        ],
+        "state_owner": "ReusableProcedureStore plus derived 06A/06C retrieval delivery receipts",
+        "target_language": "typescript+python"
       },
       "migration_strategy": "direct_port",
       "notes": "source_role=supplementary_implementation; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; Only validated procedures with curator and runtime evidence enter context. The projection cannot invoke skills/tools and every referenced skill requires a fresh 03C resolution after compact or resume.",
@@ -176279,7 +176337,9 @@
           "source_path": "agent/memory_manager.py;agent/memory_provider.py;tools/memory_tool.py",
           "source_repo": "hermes-agent",
           "symbols": [
-            "BrowserSkillMemoryContextRuntime"
+            "MemoryManager",
+            "MemoryProvider",
+            "memory_tool"
           ],
           "tags": [
             "supplementary_implementation",

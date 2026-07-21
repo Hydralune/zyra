@@ -46,6 +46,22 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "src/services/compact/compact.ts;src/tools/SkillTool/SkillTool.ts;"
             "src/tools/SkillTool/src/Tool.ts"
         ),
+        "source_language": "typescript",
+        "target_language": "typescript+python",
+        "source_symbols": [
+            "tryReactiveCompact",
+            "runPostCompactCleanup",
+            "compactConversation",
+            "createSkillAttachmentIfNeeded",
+            "SkillTool",
+        ],
+        "source_callsites": [
+            "QueryEngine compact/restore lifecycle",
+            "SkillTool invocation and post-compact restore",
+        ],
+        "source_tests": [
+            "none_collocated_in_pinned_source_snapshot; Zyra behavior tests provide conformance evidence",
+        ],
         "capability_name": "skill_memory_current_authority_resume_and_cross_worker_restore",
         "capability_summary": (
             "Claude compact/restore and SkillTool lifecycle mechanisms are cropped into a "
@@ -64,7 +80,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "apps/api/zyra_api/main.py",
         ],
         "source_role": "primary_implementation",
-        "migration_mode": "cropped_migration_retained_typescript_control_flow_cross_language_port",
+        "migration_mode": "cropped_migration_retained_typescript_control_flow_plus_bounded_python_context_port",
         "runtime_module": "@zyra/skill-memory-runtime",
         "runtime_function": "SkillMemoryIntegrationRuntime",
         "event_types": [
@@ -93,6 +109,24 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "packages/coding-agent/src/session/messages.ts;"
             "packages/coding-agent/src/session/snapcompact-inline.ts"
         ),
+        "source_language": "typescript",
+        "target_language": "typescript",
+        "source_symbols": [
+            "runExtensionCompact",
+            "COMPACT_MODES",
+            "planInlineSwaps",
+            "estimateInlineSavings",
+            "SnapcompactInlineTransformer",
+        ],
+        "source_callsites": [
+            "session compact handler",
+            "frame-aware compact message projection",
+        ],
+        "source_tests": [
+            "packages/coding-agent/test/agent-session-compaction.test.ts",
+            "packages/coding-agent/test/compact-modes.test.ts",
+            "packages/coding-agent/test/snapcompact-inline.test.ts",
+        ],
         "capability_name": "provider_restore_fidelity_and_snapcompact_ablation",
         "capability_summary": (
             "OMP compact modes and frame-aware restore contracts are adapted into three "
@@ -125,6 +159,18 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "source_repo": "hermes-agent",
         "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
         "source_path": "agent/memory_manager.py;agent/memory_provider.py;tools/memory_tool.py",
+        "source_language": "python",
+        "target_language": "typescript+python",
+        "source_symbols": ["MemoryManager", "MemoryProvider", "memory_tool"],
+        "source_callsites": [
+            "agent memory context assembly",
+            "memory tool retrieval and persistence",
+        ],
+        "source_tests": [
+            "tests/agent/test_memory_provider.py",
+            "tests/tools/test_memory_tool.py",
+            "tests/run_agent/test_commit_memory_session_context_engine.py",
+        ],
         "capability_name": "procedure_memory_retrieval_compact_context_composition",
         "capability_summary": (
             "Validated 06B procedure memory is joined with 06A canonical memory/code retrieval and "
@@ -196,7 +242,7 @@ def _entry(decision: dict[str, Any]) -> dict[str, Any]:
             "exists_in_workspace": True,
             "source_kind": "bounded_module_group",
             "reason": "Pinned source graph and concrete source files verified for M1-S06C-02.",
-            "symbols": [decision["runtime_function"]],
+            "symbols": list(decision["source_symbols"]),
             "tags": [decision["source_role"], OWNER_UNIT],
         }],
         "main_path": {
@@ -260,7 +306,12 @@ def _entry(decision: dict[str, Any]) -> dict[str, Any]:
             "owner_unit": OWNER_UNIT,
             "source_role": decision["source_role"],
             "source_commit": decision["source_commit"],
+            "source_language": decision["source_language"],
+            "target_language": decision["target_language"],
             "migration_mode": decision["migration_mode"],
+            "source_symbols": list(decision["source_symbols"]),
+            "source_callsites": list(decision["source_callsites"]),
+            "source_tests": list(decision["source_tests"]),
             "state_owner": decision["state_owner"],
             "skill_loader_owner": "03C SkillCoordinator",
             "canonical_compact_owner": "02D ContextCompactionRuntime",
