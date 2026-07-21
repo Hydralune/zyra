@@ -1,0 +1,208 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M1-S06C-02",
+  "date": "2026-07-21",
+  "status": "complete",
+  "parent_status": "complete_pending_numeric_stage_aggregate_review",
+  "next_entry": "M1-06 numeric-stage aggregate review",
+  "baseline_commit": "92185ba0a93e6e7468966b84807a517fec336b2c",
+  "implementation_commit": "dec6086b06146cbbcb47a7c71348c205856db01b",
+  "review_fix_commit": "a8d3b8049df771e69337dbb5f9e4f562e8e9a952",
+  "final_review_target": "a8d3b8049df771e69337dbb5f9e4f562e8e9a952",
+  "owners": {
+    "skill_loader_policy_version_invoke": "M1-S03C SkillCoordinator",
+    "skill_outcome_integration_snapshot": "SkillMemoryApplication",
+    "compact_boundary": "M1-S02D ContextCompactionRuntime",
+    "context_assembly": "M1-S02B ContextAssemblyRuntime and BrowserContextTaskIntegrationRuntime",
+    "canonical_memory": "SQLiteStore.memory_records",
+    "memory_code_retrieval": "M1-S06A retrieval journals",
+    "reusable_procedure": "ReusableProcedureStore",
+    "browser_projection_delivery": "BrowserSkillMemoryContextRuntime",
+    "downstream_execution": "M1-07C and M1-08"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "claude-code-best",
+      "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+      "role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript+python",
+      "migration_mode": "cropped_migration_retained_typescript_control_flow_plus_bounded_python_context_port",
+      "source_symbols": [
+        "tryReactiveCompact",
+        "runPostCompactCleanup",
+        "compactConversation",
+        "createSkillAttachmentIfNeeded",
+        "SkillTool"
+      ],
+      "runtime_owner": "SkillMemoryApplication with 03C/02B/02D owners preserved"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration_retained_typescript_protocol_ablation_adapt",
+      "runtime_owner": "ProviderRestoreFidelityRuntime"
+    },
+    {
+      "source_repo": "hermes-agent",
+      "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "typescript+python",
+      "migration_mode": "bounded_cross_language_projection_and_context_adapt",
+      "runtime_owner": "ReusableProcedureStore and derived delivery receipts"
+    }
+  ],
+  "non_implementation_roles": {
+    "experimental_default_off": [
+      "snapcompact"
+    ],
+    "excluded_forward_only": [
+      "openclaw"
+    ]
+  },
+  "main_paths": [
+    {
+      "name": "current_authority_restore",
+      "entry": "real M1-S03C SkillCoordinator resolve/invoke/reload",
+      "effect": "historical outcome context is admitted only with current authority receipts; revoked/tightened rights are not restored",
+      "disconnect_effect": "03C disabled or unavailable means no executable skill resolution"
+    },
+    {
+      "name": "codeworker_compact_restore",
+      "entry": "ClaudeRuntimeCore existing compact boundary",
+      "effect": "06A/06B/outcome/archive composition and fidelity projection change the next provider context",
+      "disconnect_effect": "06C integration disabled leaves the 02B/02D baseline but removes 06C memory/procedure context"
+    },
+    {
+      "name": "browserworker_restore",
+      "entry": "POST /tasks/{task_id}/workers/browser and BrowserWorkerRuntime",
+      "effect": "digest-validated context is seeded once and checkpointed without granting Browser tools",
+      "disconnect_effect": "06C projection is absent while BrowserWorker remains usable through its own permission owner"
+    },
+    {
+      "name": "failure_consumers",
+      "entry": "SkillContinuityFailureRuntime",
+      "effect": "retry/circuit/reroute/replan/deny-resume facts become context/routing/recovery/control directives",
+      "disconnect_effect": "07C/08 receive no 06C continuity directive"
+    }
+  ],
+  "dynamic_surfaces": {
+    "api_routes": [
+      "POST /tasks/{task_id}/workers/browser",
+      "POST /tasks/{task_id}/memory/procedures/context"
+    ],
+    "events": [
+      "skill_memory_restore_fidelity",
+      "skill_memory_restore_fidelity_failure",
+      "skill_memory_browser_context_exported",
+      "skill_memory_authority_revalidation_failed",
+      "skill_memory_integration_deferred",
+      "skill_memory_browser_context"
+    ],
+    "reachability": {
+      "entries": 3,
+      "reachable": 3,
+      "unreachable": 0
+    }
+  },
+  "line_buckets": {
+    "whole_commit_added": 9663,
+    "whole_commit_deleted": 41,
+    "raw_production_candidate": 7652,
+    "conservative_effective_production": 7209,
+    "minimum_required": 7000,
+    "shortfall": 0,
+    "test_raw_added_excluded": 1085,
+    "ledger_sync_script_raw_excluded": 379,
+    "ledger_seed_added_excluded": 547,
+    "ledger_seed_deleted": 9,
+    "export_only_glue_excluded": 19,
+    "blank_comment_only_production_excluded": 424,
+    "generated_counted": 0,
+    "vendor_like_counted": 0,
+    "mock_fixture_counted": 0,
+    "parent_foundation_effective": 8186,
+    "parent_cumulative_effective": 15395,
+    "parent_minimum_required": 15000,
+    "tool_report": {
+      "raw_added": 9663,
+      "effective_added_including_tests_and_tooling": 9116,
+      "excluded_added": 547,
+      "shortfall": 0,
+      "ok": true
+    }
+  },
+  "verification": {
+    "main_worktree": [
+      {
+        "command": "bun run typecheck",
+        "result": "pass"
+      },
+      {
+        "command": "bun test runtime/E01/skills/skill-memory targeted set",
+        "result": "68 passed, 0 failed, 350 assertions"
+      },
+      {
+        "command": "pytest Browser/reachability/06A/06B targeted set",
+        "result": "18 passed"
+      },
+      {
+        "command": "source ledger sync --check",
+        "result": "aligned, 3 decisions"
+      },
+      {
+        "command": "reachability contract",
+        "result": "3/3 reachable, 0 unreachable"
+      }
+    ],
+    "cleanroom": {
+      "target": "a8d3b8049df771e69337dbb5f9e4f562e8e9a952",
+      "frozen_install": true,
+      "python_isolated": true,
+      "python_import_origins_asserted": true,
+      "typescript_typecheck": "pass",
+      "bun_build": "pass, 243 modules, 5.0 MB",
+      "node_build": "pass, 243 modules, 5.0 MB",
+      "typescript_tests": "68 passed, 0 failed, 350 assertions",
+      "python_tests": "18 passed in 36.39 seconds",
+      "ledger_sync": "aligned, 3 decisions",
+      "linecount_gate": "pass",
+      "forbidden_dependency_scan": "0 matches",
+      "git_status_after_cache_cleanup": "clean"
+    }
+  },
+  "fixed_findings": [
+    "cross-language projection digest omitted source worker/epoch",
+    "replay compared mutable checkpoint state as immutable projection identity",
+    "camelCase/snake_case Browser metadata drift",
+    "06B procedure provenance attempted to change 06A delivery schema",
+    "dynamic Browser route missing from reachability manifest",
+    "CodeWorker tool names were incorrectly exported as Browser authority",
+    "ledger upstream symbols/languages/callsites/tests were incomplete"
+  ],
+  "adjacent_known_failures": {
+    "blocking_for_slice": false,
+    "baseline_reproduced_at": "92185ba0a93e6e7468966b84807a517fec336b2c",
+    "classification_owner": "M1-06 numeric-stage aggregate review",
+    "categories": [
+      "protected 02D tests expecting unconnected Python restore metadata",
+      "HTTP-SSE write path suspended by current permission policy",
+      "legacy Browser tests invoking gateway-owned actions without SandboxGateway",
+      "pre-existing Browser provider-selection assertion"
+    ]
+  },
+  "competition_requirements": {
+    "REQ-MEM-01": "advanced, overall gate remains partial",
+    "SCORE-ALGO": "implementation and ablation evidence advanced; no final score claimed",
+    "REQ-FAULT-01": "downstream contract advanced; 07C/08 and live evidence remain"
+  },
+  "root_document_boundary": {
+    "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "inside_zyra_git": false,
+    "update_after_evidence_commit": true
+  }
+}
