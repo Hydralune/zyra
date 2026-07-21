@@ -2,16 +2,34 @@
   "schema": "zyra.slice-evidence/v1",
   "slice_id": "M1-S07A-01",
   "date": "2026-07-21",
-  "status": "complete",
+  "status": "complete_after_review_remediation",
   "parent_status": "in_progress",
   "next_entry": "M1-S07A-02",
   "baseline_commit": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b",
-  "implementation_commit": "83251b198abe88e6b848f1095b6faed1005cd39d",
-  "final_review_target": "83251b198abe88e6b848f1095b6faed1005cd39d",
+  "superseded_implementation_commit": "83251b198abe88e6b848f1095b6faed1005cd39d",
+  "superseded_evidence_commit": "569ce4bcc98b975a01145449ff57bc7d01c4070c",
+  "implementation_commit": "150389567046f0cf43205b2e649e74f8543421ae",
+  "review_fix_commits": [
+    "31d4dac8748de88526e4936664905f41252b7b40",
+    "0e2826bedb420db4ef550a40532d758c92a1258c"
+  ],
+  "final_review_target": "0e2826bedb420db4ef550a40532d758c92a1258c",
+  "original_review_invalidation": {
+    "original_conclusion": "pass",
+    "corrected_conclusion": "superseded_then_remediated_pass",
+    "blocking_reasons": [
+      "The OMP supplementary role was planned as original-language TypeScript/native custody but the superseded implementation added no TypeScript production implementation for that role.",
+      "The physical lease was allocated after TypeScript child execution instead of gating the real dispatch.",
+      "The original review did not execute approval-to-retry, disabled-gate mutation, or fanout-to-one-lease-per-child through the real HTTP and child-process path.",
+      "The ledger generator and seed were self-consistently wrong: AgentScope target_language was TypeScript and OMP target_language was Python."
+    ]
+  },
   "owners": {
     "logical_task_identity": "M1-S03D TypeScript AgentTaskRuntime",
-    "worker_attempt_lease_receipt_inbox": "WorkerPoolStore",
-    "worker_lifecycle": "WorkerLifecycleRuntime",
+    "worker_attempt_lease_receipt_inbox": "Python WorkerPoolStore",
+    "worker_lifecycle": "Python WorkerLifecycleRuntime",
+    "typescript_dispatch_admission": "TypeScript OmpWorkerDispatchRuntime",
+    "typescript_process_local_job_projection": "TypeScript OmpAsyncJobProjectionManager",
     "heartbeat_health": "WorkerHeartbeatRuntime",
     "cancellation": "WorkerCancellationCoordinator",
     "takeover": "WorkerTakeoverRuntime",
@@ -29,6 +47,14 @@
       "source_language": "python",
       "target_language": "python",
       "migration_mode": "cropped_same_language_migration_with_zyra_schema_event_and_transaction_ownership",
+      "sampled_source_symbols": [
+        "ChatRunRegistry",
+        "WakeupDispatcher",
+        "CancelDispatcher",
+        "BackgroundTaskManager",
+        "InboxMiddleware",
+        "SessionService"
+      ],
       "runtime_owner": "WorkerPoolStore and lifecycle/inbox/heartbeat runtimes"
     },
     {
@@ -36,9 +62,29 @@
       "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
       "role": "supplementary_implementation",
       "source_language": "typescript",
-      "target_language": "python",
-      "migration_mode": "bounded_protocol_and_lifecycle_adaptation_without_omp_process_or_store",
-      "runtime_owner": "Zyra attempt/lease manager and edge connector"
+      "target_language": "typescript",
+      "migration_mode": "cropped_same_language_worker_control_with_python_canonical_lease_projection",
+      "sampled_source_paths": [
+        "packages/coding-agent/src/task/parallel.ts",
+        "packages/coding-agent/src/task/provider-concurrency.ts",
+        "packages/coding-agent/src/async/job-manager.ts",
+        "packages/coding-agent/src/task/executor.ts",
+        "packages/coding-agent/src/registry/agent-registry.ts"
+      ],
+      "sampled_source_symbols": [
+        "Semaphore",
+        "mapWithConcurrencyLimit",
+        "AsyncJobManager",
+        "AgentRegistry"
+      ],
+      "sampled_source_tests": [
+        "packages/coding-agent/test/task/task-batch.test.ts",
+        "packages/coding-agent/test/task/task-spawn.test.ts",
+        "packages/coding-agent/test/async-job-manager.test.ts",
+        "packages/coding-agent/test/sdk-async-job-manager-singleton.test.ts"
+      ],
+      "runtime_owner": "TypeScript OmpWorkerDispatchRuntime under Python WorkerPoolStore custody",
+      "native_scope_note": "The selected OMP control mechanisms are TypeScript. No additional native runtime owner was selected; PAL/native isolation remains owned by the earlier workspace/sandbox units."
     },
     {
       "source_repo": "zyra",
@@ -49,6 +95,58 @@
       "runtime_owner": "GraphStateStore and GraphStateCustody"
     }
   ],
+  "language_custody": [
+    {
+      "source_repo": "agentscope",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_same_language_migration_with_zyra_schema_event_and_transaction_ownership",
+      "expected_production_languages": [
+        "python"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1
+      },
+      "production_paths": [
+        "packages/scheduler/zyra_scheduler/worker_pool/store.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/lifecycle.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/leases.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/heartbeat.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/inbox.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/cancellation.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/recovery.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/application.py"
+      ]
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_worker_control_with_python_canonical_lease_projection",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "production_paths": [
+        "packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts",
+        "packages/runtime/claude-runtime/src/omp-worker-control/semaphore.ts",
+        "packages/runtime/claude-runtime/src/omp-worker-control/job-manager.ts",
+        "packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts"
+      ]
+    }
+  ],
+  "ledger_custody": {
+    "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+    "owner_unit": "M1-S07A-01",
+    "expected_entry_count": 2
+  },
+  "language_custody_result": {
+    "command_target": "0e2826bedb420db4ef550a40532d758c92a1258c",
+    "agentscope_python_production_added": 4304,
+    "oh_my_pi_typescript_production_added": 892,
+    "violations": [],
+    "ok": true
+  },
   "non_implementation_roles": {
     "conformance_only": [
       "langgraph checkpoint identity and exact-resume semantics"
@@ -64,20 +162,20 @@
     {
       "name": "default_task_physical_lease",
       "entry": "POST /tasks and POST /tasks/{task_id}/run",
-      "effect": "creates/reuses one fenced physical attempt and binds its refs to an immutable dynamic graph",
+      "effect": "creates or reuses one fenced physical attempt before execution and binds its references to immutable topology",
       "disconnect_effect": "task creation fails with fallback=false when worker-pool acquisition is unavailable"
+    },
+    {
+      "name": "subagent_omp_gated_dispatch",
+      "entry": "POST /subagents/spawn and POST /subagents/fanout",
+      "effect": "Python acquires and signs the canonical lease projection before TypeScript OMP admission gates the real E03 child execution; terminal state settles one Python receipt per child",
+      "disconnect_effect": "ZYRA_OMP_WORKER_CONTROL_DISABLED=1 prevents the child execution and records a failed physical receipt"
     },
     {
       "name": "task_cancel",
       "entry": "POST /tasks/{task_id}/cancel and worker-pool-cancel",
-      "effect": "cancels/fences the physical lease and records cancellation state",
-      "disconnect_effect": "physical attempt remains active and the behavior test fails"
-    },
-    {
-      "name": "subagent_mapping",
-      "entry": "existing 03D subagent spawn/cancel API",
-      "effect": "maps the stable logical task to a physical attempt/lease and capability requirement without copying it",
-      "disconnect_effect": "subagent has no physical lease projection"
+      "effect": "cancels and fences the physical lease while TypeScript cancels the process-local job projection",
+      "disconnect_effect": "physical attempt remains active and behavior tests fail"
     },
     {
       "name": "real_edge_worker",
@@ -88,105 +186,114 @@
     {
       "name": "dynamic_graph_mutation",
       "entry": "POST /worker-pool/graphs/{graph_id}/mutate and DynamicTopologyRuntime",
-      "effect": "commits immutable runtime node/edge/role/capability deltas with conflict receipts",
+      "effect": "commits immutable runtime node, edge, role and capability deltas with conflict receipts",
       "disconnect_effect": "topology head does not advance and graph behavior tests fail"
     }
   ],
-  "dynamic_surfaces": {
-    "api_route_count": 15,
-    "events": [
-      "worker_health",
-      "resource_decision",
-      "artifact_written",
-      "node_failed"
-    ],
-    "artifact_kinds": [
-      "execution_receipt",
-      "worker_artifact"
-    ],
-    "ledger": {
-      "decisions": 2,
-      "aligned": true,
-      "current_slice_blocking_findings": 0
-    }
-  },
   "line_buckets": {
-    "whole_commit_added": 11841,
-    "whole_commit_deleted": 9,
-    "raw_production_candidate": 9999,
-    "blank_comment_only_production_excluded": 759,
-    "conservative_effective_production": 9240,
+    "range": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b..0e2826bedb420db4ef550a40532d758c92a1258c",
+    "whole_commit_added": 14598,
+    "whole_commit_deleted": 86,
+    "raw_production_candidate": 11601,
+    "raw_production_by_language": {
+      "python_added": 10617,
+      "typescript_added": 984
+    },
+    "nonblank_noncomment_production": 10771,
+    "conservative_effective_production": 9970,
     "minimum_required": 9000,
     "shortfall": 0,
-    "tests_raw_added_excluded": 756,
-    "ledger_sync_script_raw_excluded": 346,
-    "ledger_seed_added_excluded": 436,
-    "ledger_seed_deleted": 8,
-    "export_only_glue_excluded": 290,
-    "third_party_notice_excluded": 14,
+    "tests_raw_added_excluded": 1330,
+    "scripts_raw_added_excluded": 718,
+    "docs_raw_added_excluded": 443,
+    "ledger_seed_data_added_excluded": 488,
+    "third_party_notice_added_excluded": 17,
+    "package_metadata_added_excluded": 1,
+    "conservative_production_adjustments_excluded": 1631,
     "generated_counted": 0,
     "vendor_like_counted": 0,
     "adapter_only_counted": 0,
     "mock_fixture_counted": 0,
-    "tool_report": {
-      "raw_added": 11841,
-      "effective_added_including_tests_and_tooling": 11391,
-      "excluded_added": 450,
+    "conservative_method": "Start from the previously audited 9240 production lines, subtract all 162 remediation deletions regardless of origin, then add only the 892 independently verified OMP TypeScript role lines; all other new integration code is ignored for the minimum.",
+    "repository_tool_report": {
+      "raw_added": 14155,
+      "raw_deleted": 86,
+      "effective_added_including_tests_and_tooling": 13649,
+      "excluded_added": 506,
       "minimum_effective_lines": 9000,
       "shortfall": 0,
-      "ok": true
+      "ok": true,
+      "acceptance_note": "The tool includes tests and scripts; the production-only conservative value is authoritative for this slice."
     }
   },
   "verification": {
     "main_worktree": [
       {
-        "command": "pytest slice behavior suite",
-        "result": "13 passed in 12.73s"
+        "command": "Bun OMP worker-control behavior tests",
+        "result": "6 passed"
       },
       {
-        "command": "pytest adjacent scheduler/backend/sandbox/API suite",
-        "result": "53 passed, 4 subtests passed in 54.18s"
+        "command": "Bun Agent execution path tests",
+        "result": "7 passed"
       },
       {
-        "command": "compileall new production modules",
+        "command": "TypeScript noEmit",
         "result": "pass"
+      },
+      {
+        "command": "Python worker pool, graph custody, TypeScript port, edge, HTTP main path and custody tests",
+        "result": "23 passed before review-fix; custody mutation subset 4 passed after review-fix"
       },
       {
         "command": "source ledger sync --check",
-        "result": "aligned, 2 decisions"
+        "result": "aligned, exactly 2 M1-S07A-01 decisions, Python->Python and TypeScript->TypeScript"
       },
       {
-        "command": "current production dependency/path scan",
-        "result": "0 forbidden matches"
+        "command": "source-language custody verifier",
+        "result": "pass, 4304 Python primary lines and 892 TypeScript supplementary lines"
       },
       {
-        "command": "git diff --check",
-        "result": "pass"
+        "command": "git diff --check and current production dependency scan",
+        "result": "pass, 0 forbidden runtime source dependencies"
       }
     ],
     "cleanroom": {
-      "target": "83251b198abe88e6b848f1095b6faed1005cd39d",
-      "frozen_install": "pass, Bun 1.2.15, 16 locked packages",
+      "target": "0e2826bedb420db4ef550a40532d758c92a1258c",
+      "contains_review_fix": true,
+      "frozen_install": "pass, Bun 1.2.15, 16 locked packages, fresh cleanroom package cache",
       "python_isolated_basetemp": true,
       "python_bytecode_and_pytest_cache_disabled": true,
-      "python_import_origins_asserted": true,
-      "tests": "66 passed, 4 subtests passed in 87.17s",
+      "python_tests": "25 passed in 92.80s",
+      "typescript_omp_tests": "6 passed",
+      "typescript_agent_tests": "7 passed",
+      "typescript_noemit": "pass",
+      "real_http_approval_retry": true,
+      "disabled_omp_mutation": true,
+      "fanout_one_physical_lease_per_child": true,
       "real_edge_child_process": true,
       "authenticated_localhost_ipc": true,
       "ledger_sync": "aligned, 2 decisions",
-      "linecount_gate": "pass, 11391 tool-effective >= 9000",
       "forbidden_dependency_scan": "0 matches",
       "git_status": "clean"
     }
   },
-  "baseline_known_failures": {
-    "blocking_for_slice": false,
-    "reproduced_at": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b",
-    "test": "test_audit_treats_planned_unmaterialized_targets_as_warnings_not_failure",
-    "reason": "protected historical productized ledger entries refer to superseded target paths",
-    "current_slice_added_findings": 0,
-    "classification_owner": "next applicable global ledger audit"
-  },
+  "baseline_known_failures": [
+    {
+      "blocking_for_slice": false,
+      "reproduced_at": "569ce4bcc98b975a01145449ff57bc7d01c4070c",
+      "tests": "test_code_worker_query_session_lifecycle.py and test_code_worker_query_session_integration.py",
+      "current_result": "11 failed with 23 surrounding tests passed",
+      "baseline_result": "the same 11 tests failed before remediation",
+      "classification_owner": "their protected owning unit or the next applicable aggregate review"
+    },
+    {
+      "blocking_for_slice": false,
+      "tool": "verify_internalization_ledger.py",
+      "global_blocker_count": 11,
+      "current_unit_blocker_count": 0,
+      "reason": "protected historical M1-01B target-path debt is outside this slice"
+    }
+  ],
   "residual_work": {
     "next_slice": "M1-S07A-02",
     "parent_complete": false,
@@ -196,6 +303,7 @@
   },
   "root_document_boundary": {
     "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "review_taskbook_path": "G:/agent-zoo/docs/执行单元完成后通用审查任务书.md",
     "inside_zyra_git": false,
     "update_after_evidence_commit": true
   }
