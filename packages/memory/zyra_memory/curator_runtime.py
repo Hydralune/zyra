@@ -102,11 +102,13 @@ class CuratorRunScheduler:
         canonical_store: Any,
         event_sink: Any | None = None,
         default_lease_seconds: float = 30.0,
+        trace_ingress: Any | None = None,
     ) -> None:
         self.candidate_store = candidate_store
         self.canonical_store = canonical_store
         self.event_sink = event_sink or canonical_store
         self.default_lease_seconds = default_lease_seconds
+        self.trace_ingress = trace_ingress
 
     def schedule_manual(
         self,
@@ -121,7 +123,7 @@ class CuratorRunScheduler:
     ) -> SchedulerReceipt:
         state = self._require_task(task_id)
         events = self.canonical_store.task_events(task_id)
-        input_watermark = self._input_watermark(events)
+        input_watermark = self._task_input_watermark(state, events)
         request = CuratorRunRequest.build(
             run_id=state.run_id,
             task_id=state.task_id,
@@ -155,7 +157,7 @@ class CuratorRunScheduler:
         if not force and state.status not in self.TERMINAL_STATUSES:
             return None
         events = self.canonical_store.task_events(task_id)
-        input_watermark = self._input_watermark(events)
+        input_watermark = self._task_input_watermark(state, events)
         key = f"curator-task-end:{task_id}:{input_watermark}:{state.updated_at}"
         request = CuratorRunRequest.build(
             run_id=state.run_id,
@@ -187,7 +189,7 @@ class CuratorRunScheduler:
     ) -> SchedulerReceipt:
         state = self._require_task(task_id)
         events = self.canonical_store.task_events(task_id)
-        input_watermark = self._input_watermark(events)
+        input_watermark = self._task_input_watermark(state, events)
         request = CuratorRunRequest.build(
             run_id=state.run_id,
             task_id=state.task_id,
@@ -262,6 +264,20 @@ class CuratorRunScheduler:
                 watermark = index + 1
         return watermark
 
+    def _task_input_watermark(
+        self,
+        state: TaskState,
+        events: Sequence[Mapping[str, Any]],
+    ) -> int:
+        if self.trace_ingress is None:
+            return self._input_watermark(events)
+        return int(
+            self.trace_ingress.current_watermark(
+                run_id=state.run_id,
+                task_id=state.task_id,
+            )
+        )
+
 
 class LeaseHeartbeat:
     """Hermes-style background isolation with OMP ownership fencing."""
@@ -297,6 +313,9 @@ class LeaseHeartbeat:
         if self._thread is not None:
             self._thread.join(timeout=max(1.0, self.interval_seconds * 2.0))
         if exc is None and self._error is not None:
+            job = self.store.job(self.lease.job_id)
+            if job is not None and job.terminal:
+                return
             raise self._error
 
     @property
@@ -342,6 +361,7 @@ class MemoryCuratorWorker:
         outbox_limit: int = 1000,
         typescript_port: Any | None = None,
         enable_typescript_supplement: bool = True,
+        trace_ingress: Any | None = None,
     ) -> None:
         self.candidate_store = candidate_store
         self.canonical_store = canonical_store
@@ -351,6 +371,7 @@ class MemoryCuratorWorker:
         self.lease_seconds = lease_seconds
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
         self.outbox_limit = outbox_limit
+        self.trace_ingress = trace_ingress
         self.extractor = EventArtifactTraceExtractor(
             store=candidate_store,
             artifact_reader=artifact_store,
@@ -470,6 +491,7 @@ class MemoryCuratorWorker:
             "store": dict(self.candidate_store.health()),
             "index_runtime_configured": self.index_runtime is not None,
             "artifact_store_configured": self.artifact_store is not None,
+            "runtime_event_ingress_configured": self.trace_ingress is not None,
             "canonical_memory_owner": "SQLiteStore.memory_records",
             "model_can_write": False,
             "typescript_supplement": (
@@ -492,10 +514,23 @@ class MemoryCuratorWorker:
             raise KeyError(f"task not found: {request.task_id}")
         if state.run_id != request.run_id:
             raise CuratorTaskMismatchError("curator request run does not match task checkpoint")
-        events = self.canonical_store.task_events(request.task_id)
-        if request.input_watermark > len(events):
-            raise CuratorTaskMismatchError("curator request watermark exceeds event log")
-        bounded_events = events[: request.input_watermark]
+        ingress_snapshot = None
+        if self.trace_ingress is not None:
+            ingress_snapshot = self.trace_ingress.prepare(
+                run_id=request.run_id,
+                task_id=request.task_id,
+                input_watermark=request.input_watermark,
+            )
+            bounded_events = tuple(ingress_snapshot.extraction_events)
+            if request.input_watermark != len(bounded_events):
+                raise CuratorTaskMismatchError(
+                    "runtime ingress does not cover the scheduled input watermark"
+                )
+        else:
+            events = self.canonical_store.task_events(request.task_id)
+            if request.input_watermark > len(events):
+                raise CuratorTaskMismatchError("curator request watermark exceeds event log")
+            bounded_events = events[: request.input_watermark]
         lease = heartbeat.assert_healthy()
         self.candidate_store.transition_job(
             lease,
@@ -597,6 +632,15 @@ class MemoryCuratorWorker:
                 "canonical_memory_owner": "SQLiteStore.memory_records",
                 "candidate_store_owner": "CuratorCandidateStore",
                 "model_can_write": False,
+                "runtime_event_ingress": (
+                    ingress_snapshot.to_dict(include_events=False)
+                    if ingress_snapshot is not None
+                    else {
+                        "direct_spine": False,
+                        "fallback_used": True,
+                        "source_mode": "legacy_event_projection",
+                    }
+                ),
             },
         )
 

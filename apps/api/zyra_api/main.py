@@ -1315,6 +1315,9 @@ def get_memory_curator_runtime(store: SQLiteStore | None = None) -> MemoryCurato
                 artifact_store=artifacts,
                 memory_index=memory_index,
                 worker_id=f"api-memory-curator:{os.getpid()}",
+                runtime_event_bridge=get_runtime_event_spine_bridge(),
+                allow_legacy_event_fallback=False,
+                auto_dispatch=True,
             )
             _MEMORY_CURATOR_KEY = key
         return _MEMORY_CURATOR_INSTANCE
@@ -3346,6 +3349,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             runtime = get_memory_curator_runtime(store)
             candidate_store = runtime.worker.candidate_store
+            integration = (
+                runtime.integration_application.status(task_id=state.task_id)
+                if runtime.integration_application is not None
+                else None
+            )
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -3358,6 +3366,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "canonical_memory_owner": "SQLiteStore.memory_records",
                     "candidate_store_is_separate": True,
                     "model_can_write": False,
+                    "integration": integration,
+                    "direct_runtime_event_input": runtime.integration_application is not None,
                 },
                 headers={"Cache-Control": "no-store, max-age=0"},
             )

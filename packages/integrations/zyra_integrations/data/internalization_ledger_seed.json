@@ -175082,19 +175082,345 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "memory_curator_worker_transactional_integration_and_recall",
+      "capability_summary": "Hermes-derived lifecycle curation is integrated with Zyra runtime-event ingress, immutable outcomes, canonical MemoryFabric commits, derived-index publication, worker-context recall verification and crash-resumable delivery.",
+      "dependencies": [
+        "M1-S02C",
+        "M1-S02D",
+        "M1-S04D",
+        "M1-S05C",
+        "M1-S06A",
+        "M1-S06B-01"
+      ],
+      "downstream_units": [
+        "M1-06C",
+        "M1-07B",
+        "M1-07C"
+      ],
+      "ledger_id": "ledger_695c813fac1b6145",
+      "license_notice": {
+        "license_hint": "MIT",
+        "notes": "Selected mechanisms and revisions are recorded; Zyra owns the modified runtime.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "hermes-agent",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/memory/curator",
+          "POST /tasks/{task_id}/memory/curator",
+          "POST /tasks/{task_id}/memory/curator/task-end",
+          "POST /tasks/{task_id}/memory/curator/recover"
+        ],
+        "artifact_kinds": [
+          "memory_evidence_bundle",
+          "skill_candidate",
+          "failure_pattern"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "memory_curator_candidate",
+          "memory_curator_accepted",
+          "memory_curator_committed",
+          "memory_curator_index_published"
+        ],
+        "surfaces": [
+          "runtime_event_curator_ingress",
+          "memory_curator_worker",
+          "curator_outcome_projection",
+          "worker_retrieval_context",
+          "curator_downstream_delivery"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "MemoryCuratorIntegrationApplication"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "candidate_owner": "CuratorCandidateStore",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "integration_owner": "CuratorIntegrationStore",
+        "migration_mode": "cropped_migration_same_language_module_integration",
+        "model_can_write": false,
+        "owner_unit": "M1-S06B-02",
+        "retrieval_index_is_derived": true,
+        "root_source_runtime_dependency": false,
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_role": "primary_implementation",
+        "typescript_has_database_access": false
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=primary_implementation; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; The prior productized Hermes worker remains the only candidate/validation/commit control flow. This slice adds Zyra-owned integration state and delivery around it; Hermes files, providers and sessions are not loaded at runtime.",
+      "owner_unit": "M1-S06B-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/workers/zyra_workers/memory_curator_integration.py",
+          "packages/workers/zyra_workers/memory_curator_ingress.py",
+          "packages/memory/zyra_memory/curator_outcomes.py",
+          "packages/memory/zyra_memory/curator_context.py",
+          "packages/memory/zyra_memory/curator_integration_store.py",
+          "packages/workers/zyra_workers/memory_curator.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "MemoryCuratorIntegrationApplication",
+        "health_check": "python -m pytest tests/unit/test_memory_curator_worker_foundation.py tests/integration/test_memory_curator_api_main_path.py tests/integration/test_memory_curator_worker_integration.py -q",
+        "module": "zyra_workers.memory_curator_integration",
+        "protocol": "zyra.memory-curator-integration.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Verified against the pinned workspace source graph and the concrete files used by the 06B primary/supplementary migration.",
+          "source_kind": "bounded_module_group",
+          "source_path": "agent/memory_provider.py;agent/memory_manager.py;agent/curator.py;agent/context_compressor.py;agent/conversation_compression.py;trajectory_compressor.py",
+          "source_repo": "hermes-agent",
+          "symbols": [
+            "MemoryCuratorIntegrationApplication"
+          ],
+          "tags": [
+            "primary_implementation",
+            "M1-S06B-02"
+          ]
+        }
+      ],
+      "source_path": "agent/memory_provider.py;agent/memory_manager.py;agent/curator.py;agent/context_compressor.py;agent/conversation_compression.py;trajectory_compressor.py",
+      "source_repo": "hermes-agent",
+      "target_bindings": [
+        {
+          "path": "packages/workers/zyra_workers/memory_curator_integration.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/workers/zyra_workers/memory_curator_ingress.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/curator_outcomes.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/curator_context.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/curator_integration_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/memory_curator.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/integration/test_memory_curator_worker_integration.py -q",
+          "expected_signal": "05C trace ingestion, transactional outcomes, real worker recall, versioned delivery, idempotent replay and lease fencing",
+          "kind": "integration",
+          "path": "tests/integration/test_memory_curator_worker_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_memory_curator_worker_foundation.py -q",
+          "expected_signal": "validator/committer, contradiction race, job lease and outbox recovery",
+          "kind": "unit",
+          "path": "tests/unit/test_memory_curator_worker_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_memory_curator_api_main_path.py -q",
+          "expected_signal": "API task lifecycle reaches canonical memory and derived index",
+          "kind": "integration",
+          "path": "tests/integration/test_memory_curator_api_main_path.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "memory_curator_outcome_delivery_lease_and_consolidation_integration",
+      "capability_summary": "The bounded OMP-derived candidate consolidation and ownership-token state machine is connected to versioned outcome fan-out, delivery leases, stale-owner fencing and idempotent consumer checkpoints without obtaining canonical memory ownership.",
+      "dependencies": [
+        "M1-S02C",
+        "M1-S02D",
+        "M1-S04D",
+        "M1-S05C",
+        "M1-S06A",
+        "M1-S06B-01"
+      ],
+      "downstream_units": [
+        "M1-06C",
+        "M1-07B",
+        "M1-07C"
+      ],
+      "ledger_id": "ledger_9c4d7100e1cdd65c",
+      "license_notice": {
+        "license_hint": "MIT",
+        "notes": "Selected mechanisms and revisions are recorded; Zyra owns the modified runtime.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/memory/curator",
+          "POST /tasks/{task_id}/memory/curator",
+          "POST /tasks/{task_id}/memory/curator/task-end",
+          "POST /tasks/{task_id}/memory/curator/recover"
+        ],
+        "artifact_kinds": [
+          "memory_evidence_bundle",
+          "skill_candidate",
+          "failure_pattern"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "memory_curator_candidate",
+          "memory_curator_accepted",
+          "memory_curator_committed",
+          "memory_curator_index_published"
+        ],
+        "surfaces": [
+          "runtime_event_curator_ingress",
+          "memory_curator_worker",
+          "curator_outcome_projection",
+          "worker_retrieval_context",
+          "curator_downstream_delivery"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "CuratorDownstreamDispatcher"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "candidate_owner": "CuratorCandidateStore",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "integration_owner": "CuratorIntegrationStore",
+        "migration_mode": "retained_typescript_with_zyra_python_protocol_integration",
+        "model_can_write": false,
+        "owner_unit": "M1-S06B-02",
+        "retrieval_index_is_derived": true,
+        "root_source_runtime_dependency": false,
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "supplementary_implementation",
+        "typescript_has_database_access": false
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; OMP remains restricted to candidate/consolidation and lease mechanics. Python owns the language-neutral delivery contract and rechecks durable outcomes; no OMP SQLite, MEMORY.md, MCP service, model write or parent-repository path participates.",
+      "owner_unit": "M1-S06B-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/curator-state-machine/src/job-state-machine.ts",
+          "packages/memory/curator-state-machine/src/consolidation.ts",
+          "packages/memory/zyra_memory/curator_delivery.py",
+          "packages/memory/zyra_memory/curator_integration_models.py",
+          "packages/memory/zyra_memory/curator_integration_store.py",
+          "packages/workers/zyra_workers/memory_curator_integration.py"
+        ],
+        "function": "CuratorDownstreamDispatcher",
+        "health_check": "python -m pytest tests/unit/test_memory_curator_worker_foundation.py tests/integration/test_memory_curator_api_main_path.py tests/integration/test_memory_curator_worker_integration.py -q",
+        "module": "zyra_memory.curator_delivery",
+        "protocol": "zyra.memory-curator-integration.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Verified against the pinned workspace source graph and the concrete files used by the 06B primary/supplementary migration.",
+          "source_kind": "bounded_module_group",
+          "source_path": "packages/coding-agent/src/memories/storage.ts;packages/coding-agent/src/memories/index.ts;packages/mnemopi/src/core/extraction.ts;packages/mnemopi/src/core/beam/consolidate.ts;packages/mnemopi/src/core/veracity-consolidation.ts;packages/mnemopi/src/core/episodic-graph.ts;packages/mnemopi/src/core/orchestrator.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [
+            "CuratorDownstreamDispatcher"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S06B-02"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/memories/storage.ts;packages/coding-agent/src/memories/index.ts;packages/mnemopi/src/core/extraction.ts;packages/mnemopi/src/core/beam/consolidate.ts;packages/mnemopi/src/core/veracity-consolidation.ts;packages/mnemopi/src/core/episodic-graph.ts;packages/mnemopi/src/core/orchestrator.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/memory/curator-state-machine/src/job-state-machine.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/curator-state-machine/src/consolidation.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/curator_delivery.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/curator_integration_models.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/curator_integration_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/memory_curator_integration.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest tests/integration/test_memory_curator_worker_integration.py -q",
+          "expected_signal": "05C trace ingestion, transactional outcomes, real worker recall, versioned delivery, idempotent replay and lease fencing",
+          "kind": "integration",
+          "path": "tests/integration/test_memory_curator_worker_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_memory_curator_worker_foundation.py -q",
+          "expected_signal": "validator/committer, contradiction race, job lease and outbox recovery",
+          "kind": "unit",
+          "path": "tests/unit/test_memory_curator_worker_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_memory_curator_api_main_path.py -q",
+          "expected_signal": "API task lifecycle reaches canonical memory and derived index",
+          "kind": "integration",
+          "path": "tests/integration/test_memory_curator_api_main_path.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 441,
+    "active_or_internalized": 443,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 386
+      "productized": 388
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -175102,7 +175428,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 147,
+      "tested_main_path": 149,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -175140,6 +175466,7 @@
       "M1-S06A-01": 2,
       "M1-S06A-02": 2,
       "M1-S06B-01": 2,
+      "M1-S06B-02": 2,
       "M2-01A": 46,
       "M2-03B": 30
     },
@@ -175149,16 +175476,16 @@
       "agentscope": 103,
       "browser-use": 109,
       "claude-code-best": 509,
-      "hermes-agent": 83,
+      "hermes-agent": 84,
       "langgraph": 85,
-      "oh-my-pi": 13,
+      "oh-my-pi": 14,
       "openclaw": 86,
       "opencode": 16
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 21,
+      "direct_port": 23,
       "not_selected": 14,
       "planned_adapter": 378,
       "reimplemented_pattern": 237,
@@ -175171,17 +175498,17 @@
       "apps/web": 46,
       "packages/evaluation": 34,
       "packages/integrations": 78,
-      "packages/memory": 190,
+      "packages/memory": 191,
       "packages/orchestration": 59,
       "packages/runtime": 168,
       "packages/scheduler": 79,
       "packages/skills": 48,
       "packages/symbolic": 1,
-      "packages/workers": 164,
+      "packages/workers": 165,
       "packages/workspace": 8,
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1183
+    "total_entries": 1185
   }
 }

@@ -1215,6 +1215,34 @@ class CuratorRunResult:
             "diagnostics": dict(self.diagnostics),
         }
 
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> CuratorRunResult:
+        return cls(
+            request_id=str(value.get("request_id") or ""),
+            job_id=str(value.get("job_id") or ""),
+            run_id=str(value.get("run_id") or ""),
+            task_id=str(value.get("task_id") or ""),
+            status=str(value.get("status") or ""),
+            input_watermark=int(value.get("input_watermark", 0)),
+            success_watermark=int(value.get("success_watermark", 0)),
+            evidence_bundle_id=str(value.get("evidence_bundle_id") or ""),
+            candidate_ids=unique_strings(value.get("candidate_ids") or ()),
+            decision_ids=unique_strings(value.get("decision_ids") or ()),
+            receipts=tuple(
+                MemoryCommitReceipt.from_dict(mapping(item))
+                for item in value.get("receipts") or ()
+                if isinstance(item, Mapping)
+            ),
+            rejected_candidate_ids=unique_strings(
+                value.get("rejected_candidate_ids") or ()
+            ),
+            model_status=str(value.get("model_status") or ""),
+            outbox_pending=int(value.get("outbox_pending", 0)),
+            started_at=str(value.get("started_at") or now_iso()),
+            finished_at=str(value.get("finished_at") or now_iso()),
+            diagnostics=mapping(value.get("diagnostics")),
+        )
+
 
 __all__ = [
     "COMMIT_PROTOCOL",

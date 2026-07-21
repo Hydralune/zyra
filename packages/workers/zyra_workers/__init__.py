@@ -114,6 +114,19 @@ from .memory_curator import (
     MemoryCuratorWorkerRuntime,
     build_memory_curator_runtime,
 )
+from .memory_curator_ingress import (
+    CuratorIngressSnapshot,
+    CuratorRuntimeEventDigestError,
+    CuratorRuntimeEventGapError,
+    CuratorRuntimeEventIngressError,
+    RuntimeEventCuratorIngress,
+)
+from .memory_curator_integration import (
+    CuratorIntegrationRecoveryReport,
+    IntegratedCuratorResult,
+    MemoryCuratorIntegrationApplication,
+    MemoryCuratorIntegrationError,
+)
 
 __all__ = [
     "BackendDispatchHttpServer",
@@ -216,4 +229,13 @@ __all__ = [
     "MemoryCuratorWorkerResponse",
     "MemoryCuratorWorkerRuntime",
     "build_memory_curator_runtime",
+    "CuratorIngressSnapshot",
+    "CuratorIntegrationRecoveryReport",
+    "CuratorRuntimeEventDigestError",
+    "CuratorRuntimeEventGapError",
+    "CuratorRuntimeEventIngressError",
+    "IntegratedCuratorResult",
+    "MemoryCuratorIntegrationApplication",
+    "MemoryCuratorIntegrationError",
+    "RuntimeEventCuratorIngress",
 ]

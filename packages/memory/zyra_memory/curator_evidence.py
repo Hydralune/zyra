@@ -88,7 +88,10 @@ USER_EVENT_TYPES = {
 SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "provider_token",
-        re.compile(r"\b(?:sk|pk|rk|tok|key|secret|token|password)[-_A-Za-z0-9]{12,}\b"),
+        re.compile(
+            r"\b(?:(?:sk|pk|rk)[-_][A-Za-z0-9]{12,}"
+            r"|(?:tok|key|secret|token|password)[-_][A-Za-z0-9]{12,})\b"
+        ),
     ),
     (
         "jwt",

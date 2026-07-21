@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from zyra_memory import MemoryIndexRuntime
+from zyra_memory.curator_integration_store import CuratorIntegrationStore
 from zyra_memory.curator_models import CuratorRunResult
 from zyra_memory.curator_runtime import (
     CuratorRunScheduler,
@@ -13,6 +14,9 @@ from zyra_memory.curator_runtime import (
     SchedulerReceipt,
 )
 from zyra_memory.curator_store import CuratorCandidateStore
+
+from .memory_curator_ingress import RuntimeEventCuratorIngress
+from .memory_curator_integration import MemoryCuratorIntegrationApplication
 
 
 class MemoryCuratorOperation(StrEnum):
@@ -110,6 +114,7 @@ class MemoryCuratorWorkerResponse:
     scheduled: SchedulerReceipt | None = None
     result: CuratorRunResult | None = None
     data: Mapping[str, Any] = field(default_factory=dict)
+    integration: Mapping[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -118,6 +123,7 @@ class MemoryCuratorWorkerResponse:
             "scheduled": self.scheduled.to_dict() if self.scheduled else None,
             "result": self.result.to_dict() if self.result else None,
             "data": dict(self.data),
+            "integration": dict(self.integration) if self.integration else None,
         }
 
 
@@ -129,9 +135,40 @@ class MemoryCuratorWorkerRuntime:
         *,
         scheduler: CuratorRunScheduler,
         worker: MemoryCuratorWorker,
+        integration_application: MemoryCuratorIntegrationApplication | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.worker = worker
+        self.integration_application = integration_application
+
+    @property
+    def integration_store(self) -> CuratorIntegrationStore | None:
+        return (
+            self.integration_application.store
+            if self.integration_application is not None
+            else None
+        )
+
+    def _process_job(
+        self,
+        job_id: str,
+    ) -> tuple[CuratorRunResult, Mapping[str, Any] | None]:
+        if self.integration_application is None:
+            return self.worker.process_job(job_id), None
+        integrated = self.integration_application.process_job(job_id)
+        return integrated.curator_result, integrated.to_dict()
+
+    def _process_one(
+        self,
+        *,
+        task_id: str,
+    ) -> tuple[CuratorRunResult | None, Mapping[str, Any] | None]:
+        if self.integration_application is None:
+            return self.worker.process_one(task_id=task_id), None
+        integrated = self.integration_application.process_one(task_id=task_id)
+        if integrated is None:
+            return None, None
+        return integrated.curator_result, integrated.to_dict()
 
     def execute(self, request: MemoryCuratorWorkerRequest) -> MemoryCuratorWorkerResponse:
         value = request.validated()
@@ -145,16 +182,16 @@ class MemoryCuratorWorkerRuntime:
                 max_candidates=value.max_candidates,
                 idempotency_key=value.idempotency_key,
             )
-            result = (
-                self.worker.process_job(scheduled.job.job_id)
-                if value.process_immediately
-                else None
-            )
+            result = None
+            integration = None
+            if value.process_immediately:
+                result, integration = self._process_job(scheduled.job.job_id)
             return MemoryCuratorWorkerResponse(
                 operation=value.operation,
                 status=result.status if result else "scheduled",
                 scheduled=scheduled,
                 result=result,
+                integration=integration,
             )
         if value.operation is MemoryCuratorOperation.SCHEDULE_TASK_END:
             scheduled = self.scheduler.schedule_task_end(
@@ -169,43 +206,57 @@ class MemoryCuratorWorkerRuntime:
                     status="not_terminal",
                     data={"scheduled": False},
                 )
-            result = (
-                self.worker.process_job(scheduled.job.job_id)
-                if value.process_immediately
-                else None
-            )
+            result = None
+            integration = None
+            if value.process_immediately:
+                result, integration = self._process_job(scheduled.job.job_id)
             return MemoryCuratorWorkerResponse(
                 operation=value.operation,
                 status=result.status if result else "scheduled",
                 scheduled=scheduled,
                 result=result,
+                integration=integration,
             )
         if value.operation is MemoryCuratorOperation.RUN_NEXT:
-            result = self.worker.process_one(task_id=value.task_id)
+            result, integration = self._process_one(task_id=value.task_id)
             return MemoryCuratorWorkerResponse(
                 operation=value.operation,
                 status=result.status if result else "idle",
                 result=result,
+                integration=integration,
             )
         if value.operation is MemoryCuratorOperation.RUN_JOB:
-            result = self.worker.process_job(value.job_id)
+            result, integration = self._process_job(value.job_id)
             return MemoryCuratorWorkerResponse(
                 operation=value.operation,
                 status=result.status,
                 result=result,
+                integration=integration,
             )
         if value.operation is MemoryCuratorOperation.RECOVER:
-            data = self.worker.recover()
+            if self.integration_application is not None:
+                integration_recovery = self.integration_application.recover()
+                data = {
+                    **dict(integration_recovery.worker),
+                    "integration": integration_recovery.to_dict(),
+                }
+            else:
+                data = self.worker.recover()
             return MemoryCuratorWorkerResponse(
                 operation=value.operation,
                 status="recovered",
                 data=data,
             )
         if value.operation is MemoryCuratorOperation.HEALTH:
+            health = (
+                self.integration_application.status(task_id=value.task_id)
+                if self.integration_application is not None
+                else self.worker.health()
+            )
             return MemoryCuratorWorkerResponse(
                 operation=value.operation,
                 status="ok",
-                data=self.worker.health(),
+                data=health,
             )
         raise ValueError(f"unsupported memory curator operation: {value.operation.value}")
 
@@ -217,15 +268,30 @@ def build_memory_curator_runtime(
     memory_index: MemoryIndexRuntime | None,
     worker_id: str = "",
     model: Any | None = None,
+    runtime_event_bridge: Any | None = None,
+    allow_legacy_event_fallback: bool = False,
+    auto_dispatch: bool = True,
 ) -> MemoryCuratorWorkerRuntime:
     path = getattr(canonical_store, "path", None)
     if path is None:
         raise ValueError("memory curator requires a path-backed canonical store")
     candidate_store = CuratorCandidateStore(Path(path))
+    integration_store = CuratorIntegrationStore(Path(path))
+    trace_ingress = (
+        RuntimeEventCuratorIngress(
+            bridge=runtime_event_bridge,
+            canonical_store=canonical_store,
+            integration_store=integration_store,
+            allow_legacy_fallback=allow_legacy_event_fallback,
+        )
+        if runtime_event_bridge is not None
+        else None
+    )
     scheduler = CuratorRunScheduler(
         candidate_store=candidate_store,
         canonical_store=canonical_store,
         event_sink=canonical_store,
+        trace_ingress=trace_ingress,
     )
     worker = MemoryCuratorWorker(
         candidate_store=candidate_store,
@@ -234,8 +300,26 @@ def build_memory_curator_runtime(
         index_runtime=memory_index,
         model=model,
         worker_id=worker_id,
+        trace_ingress=trace_ingress,
     )
-    return MemoryCuratorWorkerRuntime(scheduler=scheduler, worker=worker)
+    integration_application = (
+        MemoryCuratorIntegrationApplication(
+            worker=worker,
+            ingress=trace_ingress,
+            store=integration_store,
+            memory_index=memory_index,
+            event_sink=canonical_store,
+            worker_id=f"{worker_id or 'memory-curator'}:integration",
+            auto_dispatch=auto_dispatch,
+        )
+        if trace_ingress is not None and memory_index is not None
+        else None
+    )
+    return MemoryCuratorWorkerRuntime(
+        scheduler=scheduler,
+        worker=worker,
+        integration_application=integration_application,
+    )
 
 
 __all__ = [
