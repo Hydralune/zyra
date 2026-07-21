@@ -4,6 +4,8 @@ import argparse
 import ast
 import importlib
 import inspect
+import json
+import re
 import textwrap
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -297,7 +299,7 @@ def build_entry_reachability(
     route_probes = [_route_probe_for_binding(binding, route_lookup) for binding in entry.main_path.api_routes]
     cli_probes = [_cli_probe_for_binding(binding, cli_lookup) for binding in entry.main_path.control_commands]
     event_probes = [_event_probe_for_binding(binding, event_lookup) for binding in entry.main_path.event_types]
-    runtime_probe = build_runtime_probe(entry)
+    runtime_probe = build_runtime_probe(entry, project_root=project_root)
     test_probes = [build_test_probe(project_root, test_entry.path, test_entry.command, test_entry.kind, test_entry.expected_signal) for test_entry in entry.test_entries]
     target_probes = [build_target_probe(project_root, entry, target) for target in entry.target_paths]
     reasons: list[str] = []
@@ -382,6 +384,17 @@ def discover_api_routes(project_root: Path) -> list[RouteProbe]:
                         evidence=[f"{method_name}:{helper}", f"{helper}:{route}"],
                     )
                 )
+    for method, route in _route_manifest_from_source(text, "ZYRA_DYNAMIC_API_ROUTES"):
+        probes.append(
+            RouteProbe(
+                route=route,
+                method=method,
+                declared_by="apps/api/zyra_api/main.py",
+                implemented=True,
+                handler="ZyraRequestHandler",
+                evidence=[f"ZYRA_DYNAMIC_API_ROUTES:{method} {route}"],
+            )
+        )
     facade_path = project_root / "apps" / "api" / "zyra_api" / "mcp_api.py"
     facade_is_connected = (
         facade_path.exists()
@@ -466,6 +479,7 @@ def discover_event_producers(project_root: Path) -> list[EventProbe]:
         project_root / "packages" / "workers" / "zyra_workers" / "scaffold_bridge_runtime.py",
         project_root / "packages" / "integrations" / "zyra_integrations" / "mcp" / "events.py",
         project_root / "apps" / "api" / "zyra_api" / "main.py",
+        project_root / "packages" / "runtime" / "claude-runtime" / "src" / "query-engine.ts",
     ]:
         if not path.exists():
             continue
@@ -509,6 +523,16 @@ def discover_event_producers(project_root: Path) -> list[EventProbe]:
                     evidence=["EventRecord"],
                 )
             )
+        for event_type in _typescript_emit_event_names(text):
+            probes.append(
+                EventProbe(
+                    event_type=event_type,
+                    implemented=True,
+                    producer=_relative(project_root, path),
+                    payload_key=event_type,
+                    evidence=[f'emit("{event_type}")'],
+                )
+            )
         for member_name, event_type in event_enum_values.items():
             if member_name not in text:
                 continue
@@ -524,7 +548,11 @@ def discover_event_producers(project_root: Path) -> list[EventProbe]:
     return _dedupe_events(probes)
 
 
-def build_runtime_probe(entry: InternalizationLedgerEntry) -> RuntimeProbe:
+def build_runtime_probe(
+    entry: InternalizationLedgerEntry,
+    *,
+    project_root: Path | None = None,
+) -> RuntimeProbe:
     runtime = entry.runtime_entry
     if runtime.is_empty():
         return RuntimeProbe(
@@ -537,6 +565,23 @@ def build_runtime_probe(entry: InternalizationLedgerEntry) -> RuntimeProbe:
             error="runtime entry is empty",
         )
     if runtime.module:
+        if project_root is not None and runtime.module.startswith("@"):
+            workspace = _typescript_workspace_for_module(project_root, runtime.module)
+            if workspace is not None:
+                callable_export = _typescript_export_exists(workspace, runtime.function)
+                return RuntimeProbe(
+                    module=runtime.module,
+                    function=runtime.function,
+                    command=runtime.command,
+                    health_check=runtime.health_check,
+                    importable=True,
+                    callable=callable_export,
+                    error="" if callable_export or not runtime.function else "TypeScript export is not declared",
+                    evidence=[
+                        f"workspace:{_relative(project_root, workspace)}",
+                        f"export:{runtime.function}" if runtime.function else "module-only",
+                    ],
+                )
         try:
             module = importlib.import_module(runtime.module)
             target = getattr(module, runtime.function) if runtime.function else None
@@ -844,6 +889,48 @@ def re_route_literals(source: str) -> list[str]:
                 if route:
                     routes.append(route)
     return sorted(set(routes))
+
+
+def _typescript_emit_event_names(source: str) -> list[str]:
+    """Extract literal event names from the TypeScript runtime emit boundary."""
+
+    return sorted(
+        {
+            match.group(1)
+            for match in re.finditer(
+                r"\bemit\s*\(\s*[\"']([A-Za-z0-9_.:-]+)[\"']",
+                source,
+            )
+        }
+    )
+
+
+def _typescript_workspace_for_module(project_root: Path, module: str) -> Path | None:
+    for manifest in project_root.glob("packages/**/package.json"):
+        try:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            continue
+        if str(payload.get("name") or "") == module:
+            return manifest.parent
+    return None
+
+
+def _typescript_export_exists(workspace: Path, function: str) -> bool:
+    if not function:
+        return True
+    declaration = re.compile(
+        rf"\bexport\s+(?:default\s+)?(?:class|function|const|let|var)\s+{re.escape(function)}\b"
+    )
+    named_export = re.compile(rf"\bexport\s*\{{[^}}]*\b{re.escape(function)}\b", re.DOTALL)
+    for path in workspace.glob("src/**/*.ts"):
+        try:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if declaration.search(source) or named_export.search(source):
+            return True
+    return False
 
 
 def _route_from_list_literal(node: ast.AST) -> str:

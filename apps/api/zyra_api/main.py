@@ -30,6 +30,18 @@ PACKAGE_PATHS = [
     PROJECT_ROOT / "packages" / "workspace",
     PROJECT_ROOT / "packages" / "code_index",
 ]
+
+# Dynamic task identifiers make these routes invisible to literal path
+# comparisons.  This manifest is kept beside the handlers so submission and
+# reachability audits can verify the public surface without importing the API.
+ZYRA_DYNAMIC_API_ROUTES = (
+    ("GET", "/tasks/{task_id}/memory/procedures"),
+    ("POST", "/tasks/{task_id}/memory/procedures/mine"),
+    ("POST", "/tasks/{task_id}/memory/procedures/routing"),
+    ("POST", "/tasks/{task_id}/memory/procedures/recovery"),
+    ("POST", "/tasks/{task_id}/memory/procedures/context"),
+)
+
 for package_path in PACKAGE_PATHS:
     if str(package_path) not in sys.path:
         sys.path.insert(0, str(package_path))

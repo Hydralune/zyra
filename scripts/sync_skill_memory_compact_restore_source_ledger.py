@@ -63,6 +63,12 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "migration_mode": "cropped_migration_retained_typescript_control_flow_adapt",
         "runtime_module": "@zyra/skill-memory-runtime",
         "runtime_function": "SkillMemoryApplication",
+        "event_types": [
+            "skill_memory_updated",
+            "skill_memory_compact_trigger",
+            "skill_memory_compact_restored",
+        ],
+        "api_routes": [],
         "state_owner": "SkillMemoryApplication and CompactRestoreMemoryBridge",
         "rationale": (
             "03C remains the sole skill loader/version/policy/invocation owner. The migrated "
@@ -90,6 +96,14 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "migration_mode": "cropped_migration_same_language_procedure_adapt",
         "runtime_module": "zyra_memory.procedure_runtime",
         "runtime_function": "ReusableProcedureRuntime",
+        "event_types": ["system_notice"],
+        "api_routes": [
+            "GET /tasks/{task_id}/memory/procedures",
+            "POST /tasks/{task_id}/memory/procedures/mine",
+            "POST /tasks/{task_id}/memory/procedures/routing",
+            "POST /tasks/{task_id}/memory/procedures/recovery",
+            "POST /tasks/{task_id}/memory/procedures/context",
+        ],
         "state_owner": "ReusableProcedureStore",
         "rationale": (
             "Only validated 06B skill-candidate outcomes can activate procedures. Static skills, "
@@ -121,6 +135,11 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "migration_mode": "cropped_migration_retained_typescript_protocol_adapt",
         "runtime_module": "@zyra/skill-memory-runtime",
         "runtime_function": "CompactTriggerRuntime",
+        "event_types": [
+            "skill_memory_compact_trigger",
+            "skill_memory_compact_restored",
+        ],
+        "api_routes": [],
         "state_owner": "02D compact boundary plus 06C archive/projection state",
         "rationale": (
             "OMP session storage and Mnemopi stores are not restored as canonical state. Frame "
@@ -179,19 +198,8 @@ def _entry(decision: dict[str, Any]) -> dict[str, Any]:
                 "compact_restore_context_projection",
                 "reusable_procedure_api",
             ],
-            "event_types": [
-                "skill_memory_updated",
-                "procedure_mined",
-                "compact_triggered",
-                "compact_restored",
-            ],
-            "api_routes": [
-                "GET /tasks/{task_id}/memory/procedures",
-                "POST /tasks/{task_id}/memory/procedures/mine",
-                "POST /tasks/{task_id}/memory/procedures/routing",
-                "POST /tasks/{task_id}/memory/procedures/recovery",
-                "POST /tasks/{task_id}/memory/procedures/context",
-            ],
+            "event_types": list(decision["event_types"]),
+            "api_routes": list(decision["api_routes"]),
             "control_commands": [],
             "artifact_kinds": ["compact_archive", "skill_outcome", "reusable_procedure"],
             "worker_runtime": decision["runtime_function"],

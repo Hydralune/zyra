@@ -175435,13 +175435,7 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_as_runtime",
       "main_path": {
-        "api_routes": [
-          "GET /tasks/{task_id}/memory/procedures",
-          "POST /tasks/{task_id}/memory/procedures/mine",
-          "POST /tasks/{task_id}/memory/procedures/routing",
-          "POST /tasks/{task_id}/memory/procedures/recovery",
-          "POST /tasks/{task_id}/memory/procedures/context"
-        ],
+        "api_routes": [],
         "artifact_kinds": [
           "compact_archive",
           "skill_outcome",
@@ -175450,9 +175444,8 @@
         "control_commands": [],
         "event_types": [
           "skill_memory_updated",
-          "procedure_mined",
-          "compact_triggered",
-          "compact_restored"
+          "skill_memory_compact_trigger",
+          "skill_memory_compact_restored"
         ],
         "surfaces": [
           "skill_coordinator_outcome",
@@ -175620,10 +175613,7 @@
         ],
         "control_commands": [],
         "event_types": [
-          "skill_memory_updated",
-          "procedure_mined",
-          "compact_triggered",
-          "compact_restored"
+          "system_notice"
         ],
         "surfaces": [
           "skill_coordinator_outcome",
@@ -175759,13 +175749,7 @@
       "lifecycle": "productized",
       "line_count_policy": "counts_as_runtime",
       "main_path": {
-        "api_routes": [
-          "GET /tasks/{task_id}/memory/procedures",
-          "POST /tasks/{task_id}/memory/procedures/mine",
-          "POST /tasks/{task_id}/memory/procedures/routing",
-          "POST /tasks/{task_id}/memory/procedures/recovery",
-          "POST /tasks/{task_id}/memory/procedures/context"
-        ],
+        "api_routes": [],
         "artifact_kinds": [
           "compact_archive",
           "skill_outcome",
@@ -175773,10 +175757,8 @@
         ],
         "control_commands": [],
         "event_types": [
-          "skill_memory_updated",
-          "procedure_mined",
-          "compact_triggered",
-          "compact_restored"
+          "skill_memory_compact_trigger",
+          "skill_memory_compact_restored"
         ],
         "surfaces": [
           "skill_coordinator_outcome",
