@@ -1,0 +1,194 @@
+{
+  "schema": "zyra.numeric-stage-review-evidence/v1",
+  "review_id": "M1-06-memory-retrieval-curator-skill-memory-2026-07-21",
+  "date": "2026-07-21",
+  "status": "pass_after_remediation",
+  "requested_slices": [
+    "M1-S06B-01",
+    "M1-S06B-02",
+    "M1-S06C-01",
+    "M1-S06C-02"
+  ],
+  "adjacent_scope": [
+    "M1-S06A-01",
+    "M1-S06A-02"
+  ],
+  "baseline_commit": "9f3d04b9fa860980d86ad2aaa446bde1db26ad21",
+  "last_slice_evidence_commit": "da1611819588f343231b167ba3dbba9397f87701",
+  "review_fix_commits": [
+    "cb3b6241c80e983d10c2a041a6e411d46fdcd908",
+    "0f86ab7ec6e5c992284b220bb192a2bdd47c728a",
+    "c69785ba1bdbf50910a363a97bead93c71a400e3",
+    "1406e577281bbdc828ee1a1ba4a99a679228bac3"
+  ],
+  "final_review_target": "1406e577281bbdc828ee1a1ba4a99a679228bac3",
+  "next_entry": "M1-S07A-01",
+  "fixed_findings": [
+    {
+      "id": "M1-06-R01",
+      "severity": "high",
+      "summary": "retryable curator outcome-event failure became terminal and event replay was incomplete",
+      "status": "fixed"
+    },
+    {
+      "id": "M1-06-R02",
+      "severity": "high",
+      "summary": "completion event was emitted after terminal success commit",
+      "status": "fixed"
+    },
+    {
+      "id": "M1-06-R03",
+      "severity": "high",
+      "summary": "Browser projection delivery lacked release/retry, request and pending-seed fencing",
+      "status": "fixed"
+    },
+    {
+      "id": "M1-06-R04",
+      "severity": "high",
+      "summary": "curator integration initialization leaked SQLite and workspace reset retained a stale runtime",
+      "status": "fixed"
+    },
+    {
+      "id": "M1-06-R05",
+      "severity": "medium",
+      "summary": "dynamic curator routes and Python event producers were falsely unreachable",
+      "status": "fixed"
+    },
+    {
+      "id": "M1-06-R06",
+      "severity": "low",
+      "summary": "B01 strict line-count evidence differed by three raw, one effective and two excluded lines",
+      "status": "fixed"
+    },
+    {
+      "id": "M1-06-R07",
+      "severity": "low",
+      "summary": "31 unused imports remained in the new slice Python scope",
+      "status": "fixed"
+    }
+  ],
+  "line_counts": {
+    "M1-S06B-01": {
+      "conservative_production": 8957,
+      "minimum": 8500,
+      "tool_raw_added": 11434,
+      "tool_effective_added": 11086,
+      "tool_excluded_added": 348
+    },
+    "M1-S06B-02": {
+      "conservative_production": 7386,
+      "minimum": 6500,
+      "tool_raw_added": 9450,
+      "tool_effective_added": 9114,
+      "tool_excluded_added": 336
+    },
+    "M1-S06C-01": {
+      "conservative_production": 8186,
+      "minimum": 8000,
+      "tool_raw_added": 10919,
+      "tool_effective_added": 10430,
+      "tool_excluded_added": 489
+    },
+    "M1-S06C-02": {
+      "conservative_production": 7209,
+      "minimum": 7000,
+      "tool_raw_added": 9663,
+      "tool_effective_added": 9116,
+      "tool_excluded_added": 547
+    },
+    "requested_scope_conservative_production": 31738,
+    "requested_scope_minimum": 30000,
+    "final_aggregate_tool": {
+      "base": "9f3d04b9fa860980d86ad2aaa446bde1db26ad21",
+      "head": "1406e577281bbdc828ee1a1ba4a99a679228bac3",
+      "raw_added": 41755,
+      "effective_added": 40060,
+      "excluded_added": 1695,
+      "shortfall": 0,
+      "ok": true
+    }
+  },
+  "source_ledger": {
+    "explicit_seed": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+    "aligned_decision_counts": {
+      "M1-S06A-01": 2,
+      "M1-S06A-02": 2,
+      "M1-S06B-01": 2,
+      "M1-S06B-02": 2,
+      "M1-S06C-01": 3,
+      "M1-S06C-02": 3
+    },
+    "requested_scope_reachability": {
+      "reachable": 10,
+      "unreachable": 0
+    },
+    "requested_scope_policy_errors": 0,
+    "requested_scope_owner_blockers": 0,
+    "global_strict_audit": {
+      "ok": false,
+      "findings": 930,
+      "warnings": 755,
+      "errors": 164,
+      "blockers": 11,
+      "classification": "historical_repository_debt_not_reclassified"
+    }
+  },
+  "cleanroom": {
+    "target_commit": "1406e577281bbdc828ee1a1ba4a99a679228bac3",
+    "detached_worktree": true,
+    "frozen_bun_version": "1.2.15",
+    "frozen_install_packages": 16,
+    "python_import_origins_inside_cleanroom": true,
+    "requested_python": "35 passed, 2 subtests passed",
+    "adjacent_06a_python": "32 passed, 8 subtests passed",
+    "focused_typescript": "19 passed, 0 failed",
+    "full_claude_runtime_typescript": "1262 passed, 0 failed, 1489 assertions",
+    "typescript_typecheck": "pass",
+    "bun_build": "pass, 243 modules, 5.0 MB",
+    "node_build": "pass, 243 modules, 5.0 MB",
+    "ruff_new_slice_scope": "pass",
+    "compileall": "pass",
+    "source_sync": "pass",
+    "forbidden_parent_runtime_path_hits": 0,
+    "new_vendor_or_source_pool_paths": 0,
+    "openclaw_runtime_or_source_hits": 0,
+    "openclaw_exclusion_metadata_hits": 8,
+    "git_status": "clean"
+  },
+  "broad_python": {
+    "bare_pytest": "invalid recursive collection; 224 collection errors",
+    "tests_timeout_seconds": 1803.9,
+    "legacy_collection_blockers": 6,
+    "unit_without_four_collection_blockers": "308 passed, 52 failed",
+    "scenarios": "3 passed, 1 failed",
+    "selected_integration_collected": 231,
+    "baseline_reproduced_adjacent_failures": 7,
+    "baseline_reproduced_at": "9f3d04b9fa860980d86ad2aaa446bde1db26ad21",
+    "requested_scope_failures": 0,
+    "blocking_for_review": false
+  },
+  "state_custody": {
+    "canonical_memory": "SQLiteStore.memory_records",
+    "curator_candidate_job_outbox": "CuratorCandidateStore",
+    "curator_projection_delivery": "CuratorIntegrationStore",
+    "derived_memory_index": "MemoryIndexRuntime",
+    "reusable_procedure": "ReusableProcedureStore",
+    "skill_authority_and_invocation": "M1-S03C SkillCoordinator",
+    "compact_boundary": "M1-S02D ContextCompactionRuntime",
+    "browser_projection_delivery": "BrowserSkillMemoryContextRuntime"
+  },
+  "competition_requirements": {
+    "REQ-MEM-01": "advanced, remains partial",
+    "REQ-COMM-01": "structured context advanced, remains planned pending metrics",
+    "REQ-FAULT-01": "recovery contracts advanced, remains partial",
+    "REQ-TRACE-01": "causal events advanced, remains planned pending UI/live evidence",
+    "SCORE-ALGO": "implementation and ablation mechanisms advanced; no score claimed",
+    "SCORE-EFF": "bounded context mechanisms advanced; no metric gate closed"
+  },
+  "unresolved_blockers": [],
+  "root_document_boundary": {
+    "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "inside_zyra_git": false,
+    "update_after_evidence_commit": true
+  }
+}
