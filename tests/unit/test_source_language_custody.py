@@ -100,3 +100,46 @@ def test_same_language_ledger_decision_rejects_inverted_target_language() -> Non
         assert "typescript->python" in str(exc)
     else:
         raise AssertionError("inverted same-language custody must fail closed")
+
+
+def test_independent_policy_rejects_self_consistent_inverted_ledger(monkeypatch) -> None:
+    document = _document("packages/runtime/worker-control.ts")
+    document["slice_id"] = "M1-SAMPLE"
+    document["source_decisions"] = [
+        {
+            "source_repo": "oh-my-pi",
+            "role": "supplementary_implementation",
+            "source_language": "typescript",
+            "target_language": "typescript",
+            "migration_mode": "cropped_same_language_migration",
+        }
+    ]
+    document["ledger_custody"] = {
+        "path": "ledger.json",
+        "owner_unit": "M1-SAMPLE",
+        "expected_entry_count": 1,
+    }
+    inverted = {
+        "entries": [
+            {
+                "ledger_id": "ledger_sample",
+                "owner_unit": "M1-SAMPLE",
+                "source_repo": "oh-my-pi",
+                "metadata": {
+                    "source_role": "supplementary_implementation",
+                    "source_language": "typescript",
+                    "target_language": "python",
+                    "migration_mode": "cropped_same_language_migration",
+                },
+            }
+        ]
+    }
+    monkeypatch.setattr(MODULE, "_validate_production_path", lambda path: Path(path))
+    monkeypatch.setattr(MODULE, "_numstat_added", lambda path, base, target: 1)
+    monkeypatch.setattr(MODULE, "_load_ledger", lambda path, target: inverted)
+
+    report = MODULE.verify(document, base="baseline", target="target")
+
+    assert report["ok"] is False
+    assert any("ledger target_language disagrees" in item for item in report["violations"])
+    assert any("same-language ledger is inverted" in item for item in report["violations"])

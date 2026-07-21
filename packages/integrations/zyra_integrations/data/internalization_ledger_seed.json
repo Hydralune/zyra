@@ -176478,7 +176478,7 @@
         "graph_owner": "Zyra GraphStateCustody and DynamicTopologyRuntime",
         "langgraph_runtime_dependency": false,
         "logical_task_owner": "M1-S03D TypeScript AgentTaskRuntime",
-        "migration_mode": "cropped_same_language_migration_with_zyra_schema_and_event_ownership",
+        "migration_mode": "cropped_same_language_migration_with_zyra_schema_event_and_transaction_ownership",
         "omp_runtime_dependency": false,
         "openclaw_forward_excluded": true,
         "owner_unit": "M1-S07A-01",

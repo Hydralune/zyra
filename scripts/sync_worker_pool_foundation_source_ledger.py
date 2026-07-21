@@ -89,7 +89,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "apps/api/zyra_api/main.py",
         ],
         "source_role": "primary_implementation",
-        "migration_mode": "cropped_same_language_migration_with_zyra_schema_and_event_ownership",
+        "migration_mode": "cropped_same_language_migration_with_zyra_schema_event_and_transaction_ownership",
         "runtime_module": "zyra_scheduler.worker_pool",
         "runtime_function": "WorkerPoolFoundationRuntime",
         "event_types": [

@@ -114,6 +114,103 @@ def _numstat_added(path: str, *, base: str, target: str) -> int:
     return added
 
 
+def _load_ledger(path: str, *, target: str) -> Mapping[str, Any] | list[Any]:
+    relative = Path(path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise CustodyViolation(f"ledger path escapes repository: {path}")
+    normalized = relative.as_posix()
+    if target == "WORKTREE":
+        raw = (ROOT / relative).read_text(encoding="utf-8")
+    else:
+        raw = _git("show", f"{target}:{normalized}")
+    document = json.loads(raw)
+    if not isinstance(document, (Mapping, list)):
+        raise CustodyViolation("ledger root must be an object or list")
+    return document
+
+
+def _ledger_custody_violations(
+    document: Mapping[str, Any],
+    *,
+    target: str,
+) -> list[str]:
+    config = document.get("ledger_custody")
+    if config is None:
+        return []
+    if not isinstance(config, Mapping):
+        return ["ledger_custody must be an object"]
+    path = str(config.get("path") or "").strip()
+    owner_unit = str(config.get("owner_unit") or document.get("slice_id") or "").strip()
+    expected_count = int(config.get("expected_entry_count") or 0)
+    if not path or not owner_unit or expected_count <= 0:
+        return ["ledger_custody requires path, owner_unit and positive expected_entry_count"]
+    ledger = _load_ledger(path, target=target)
+    entries = ledger if isinstance(ledger, list) else ledger.get("entries")
+    if not isinstance(entries, list):
+        return ["ledger entries must be a list"]
+    owned = [
+        item
+        for item in entries
+        if isinstance(item, Mapping) and str(item.get("owner_unit") or "") == owner_unit
+    ]
+    violations: list[str] = []
+    if len(owned) != expected_count:
+        violations.append(
+            f"ledger owner {owner_unit} has {len(owned)} entries, expected {expected_count}"
+        )
+    decisions = {
+        (str(item.get("source_repo") or ""), str(item.get("role") or "")): item
+        for item in list(document.get("source_decisions") or [])
+        if isinstance(item, Mapping)
+    }
+    custody = {
+        (str(item.get("source_repo") or ""), str(item.get("source_role") or "")): item
+        for item in list(document.get("language_custody") or [])
+        if isinstance(item, Mapping)
+    }
+    seen: set[tuple[str, str]] = set()
+    for entry in owned:
+        metadata = entry.get("metadata")
+        if not isinstance(metadata, Mapping):
+            violations.append(f"ledger {entry.get('ledger_id')} lacks metadata")
+            continue
+        key = (str(entry.get("source_repo") or ""), str(metadata.get("source_role") or ""))
+        if key in seen:
+            violations.append(f"ledger has duplicate source role {key[0]}/{key[1]}")
+        seen.add(key)
+        decision = decisions.get(key)
+        policy = custody.get(key)
+        if decision is None or policy is None:
+            violations.append(f"ledger source role {key[0]}/{key[1]} lacks evidence policy")
+            continue
+        source_language = str(metadata.get("source_language") or "").casefold()
+        target_language = str(metadata.get("target_language") or "").casefold()
+        migration_mode = str(metadata.get("migration_mode") or "")
+        expected = {
+            str(item).casefold()
+            for item in list(policy.get("expected_production_languages") or [])
+        }
+        if source_language != str(decision.get("source_language") or "").casefold():
+            violations.append(f"{key[0]}/{key[1]} ledger source_language disagrees with evidence")
+        if target_language != str(decision.get("target_language") or "").casefold():
+            violations.append(f"{key[0]}/{key[1]} ledger target_language disagrees with evidence")
+        if migration_mode != str(decision.get("migration_mode") or ""):
+            violations.append(f"{key[0]}/{key[1]} ledger migration_mode disagrees with evidence")
+        if target_language not in expected:
+            violations.append(
+                f"{key[0]}/{key[1]} ledger target_language {target_language} is outside policy"
+            )
+        if "same_language" in migration_mode.casefold() and source_language != target_language:
+            violations.append(
+                f"{key[0]}/{key[1]} same-language ledger is inverted: "
+                f"{source_language}->{target_language}"
+            )
+    missing = sorted(set(custody) - seen)
+    for source_repo, source_role in missing:
+        violations.append(f"evidence source role {source_repo}/{source_role} is missing from ledger")
+    return violations
+
+
 def verify(document: Mapping[str, Any], *, base: str, target: str) -> dict[str, Any]:
     raw_entries = document.get("language_custody")
     if not isinstance(raw_entries, list) or not raw_entries:
@@ -186,6 +283,7 @@ def verify(document: Mapping[str, Any], *, base: str, target: str) -> dict[str, 
                 "production_paths": paths,
             }
         )
+    violations.extend(_ledger_custody_violations(document, target=target))
     return {
         "schema": "zyra.source-language-custody-report/v1",
         "base": base,
