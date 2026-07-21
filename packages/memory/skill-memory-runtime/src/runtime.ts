@@ -28,8 +28,9 @@ import { SkillOutcomeRuntime, type SkillOutcomeAdmissionReceipt, type SkillOutco
 import type { CompactRestorePort, ContextAssemblyPort, MemorySignalTransport } from "./ports.ts";
 import { CompactRestoreMemoryBridge, type CompactRestoreBridgeSnapshot } from "./restore-bridge.ts";
 import { SafeCutRuntime, type SafeCutRequest } from "./safe-cut-runtime.ts";
-import { MemorySignalEmitter, type MemorySignalSnapshot } from "./signal-emitter.ts";
+import { MemorySignalEmitter, type MemorySignalInput, type MemorySignalSnapshot } from "./signal-emitter.ts";
 import { SnapcompactExperimentalRuntime, type SnapcompactExperimentalSnapshot } from "./snapcompact-experimental.ts";
+import { SkillMemoryIntegrationRuntime, type SkillMemoryIntegrationSnapshot } from "./integration-runtime.ts";
 
 export interface SkillMemoryApplicationSnapshot {
   version: typeof SKILL_MEMORY_PROTOCOL;
@@ -44,6 +45,8 @@ export interface SkillMemoryApplicationSnapshot {
   restoreBridge: CompactRestoreBridgeSnapshot;
   signals: MemorySignalSnapshot;
   snapcompact: SnapcompactExperimentalSnapshot;
+  /** Absent only on snapshots produced before M1-S06C-02. */
+  integration?: SkillMemoryIntegrationSnapshot;
   procedures: ReusableProcedure[];
   capturedAt: string;
   checksum: string;
@@ -70,6 +73,7 @@ export class SkillMemoryApplication {
   readonly snapcompact: SnapcompactExperimentalRuntime;
   readonly projector: SkillContextProjector;
   readonly restoreBridge: CompactRestoreMemoryBridge;
+  readonly integration: SkillMemoryIntegrationRuntime;
   private skillMemoryPolicy: SkillMemoryPolicy;
   private compactPolicy: CompactPolicy;
   private readonly procedures = new Map<string, ReusableProcedure>();
@@ -119,6 +123,11 @@ export class SkillMemoryApplication {
       now: this.now,
       snapshot: snapshot?.restoreBridge ?? null,
     });
+    this.integration = new SkillMemoryIntegrationRuntime({
+      identity: this.identity,
+      now: this.now,
+      snapshot: snapshot?.integration ?? null,
+    });
     if (snapshot) {
       this.validateSnapshot(snapshot);
       for (const procedure of snapshot.procedures) this.admitProcedureInternal(procedure);
@@ -131,7 +140,7 @@ export class SkillMemoryApplication {
     const receipt = this.outcomes.admit(input);
     if (receipt.disposition === "accepted") {
       const record = this.outcomes.get(receipt.memoryId)!;
-      this.signals.emit({
+      this.emitAndRoute({
         kind: "skill_memory_updated",
         identity: this.identity,
         aggregateId: record.memoryId,
@@ -153,7 +162,7 @@ export class SkillMemoryApplication {
         },
       });
     } else if (receipt.disposition === "quarantined") {
-      this.signals.emit({
+      this.emitAndRoute({
         kind: "skill_memory_rejected",
         identity: this.identity,
         aggregateId: receipt.invocationId || this.identity.sessionId,
@@ -174,7 +183,7 @@ export class SkillMemoryApplication {
   admitProcedure(procedure: ReusableProcedure): ReusableProcedure {
     this.assertEnabled();
     const admitted = this.admitProcedureInternal(procedure);
-    this.signals.emit({
+    this.emitAndRoute({
       kind: admitted.state === "validated" ? "procedure_mined" : "procedure_rejected",
       identity: this.identity,
       aggregateId: admitted.procedureId,
@@ -200,7 +209,7 @@ export class SkillMemoryApplication {
   observeCompactTrigger(input: CompactTriggerObservation): CompactTriggerReceipt {
     this.assertEnabled();
     const receipt = this.compactTriggers.observe(input);
-    this.signals.emit({
+    this.emitAndRoute({
       kind: receipt.decision === "compact" ? "compact_triggered" : "compact_deferred",
       identity: this.identity,
       aggregateId: receipt.triggerId,
@@ -263,7 +272,7 @@ export class SkillMemoryApplication {
   applyRestore(projectionId: string): { projection: CompactRestoreProjection; providerMessage: JsonObject } {
     this.assertEnabled();
     const applied = this.restoreBridge.apply(projectionId);
-    this.signals.emit({
+    this.emitAndRoute({
       kind: "compact_restored",
       identity: this.identity,
       aggregateId: applied.projection.projectionId,
@@ -284,7 +293,7 @@ export class SkillMemoryApplication {
         tool_scope_widened: false,
       },
     });
-    this.signals.emit({
+    this.emitAndRoute({
       kind: "context_epoch_advanced",
       identity: this.identity,
       aggregateId: this.identity.sessionId,
@@ -340,6 +349,7 @@ export class SkillMemoryApplication {
       restore_bridge: this.restoreBridge.health(),
       signals: this.signals.health(),
       snapcompact: this.snapcompact.health(),
+      integration: cloneJson(this.integration.health()) as unknown as JsonObject,
       "03c_loader_owner_preserved": true,
       invokes_skills: false,
       owns_skill_catalog: false,
@@ -362,6 +372,7 @@ export class SkillMemoryApplication {
       restoreBridge: this.restoreBridge.snapshot(),
       signals: this.signals.snapshot(),
       snapcompact: this.snapcompact.snapshot(),
+      integration: this.integration.snapshot(),
       procedures: this.listProcedures({ limit: 100_000 }),
       capturedAt: nowIso(this.now),
     };
@@ -377,6 +388,7 @@ export class SkillMemoryApplication {
     this.restoreBridge.restore(snapshot.restoreBridge);
     this.signals.restore(snapshot.signals);
     this.snapcompact.restore(snapshot.snapcompact);
+    if (snapshot.integration) this.integration.restore(snapshot.integration);
     this.procedures.clear();
     for (const procedure of snapshot.procedures) this.admitProcedureInternal(procedure);
     this.revision = snapshot.revision;
@@ -391,6 +403,11 @@ export class SkillMemoryApplication {
     }
     this.procedures.set(procedure.procedureId, procedure);
     return cloneJson(procedure);
+  }
+
+  private emitAndRoute(input: MemorySignalInput): void {
+    const signal = this.signals.emit(input);
+    this.integration.consumeSignals([signal]);
   }
 
   private validateSnapshot(snapshot: SkillMemoryApplicationSnapshot): void {

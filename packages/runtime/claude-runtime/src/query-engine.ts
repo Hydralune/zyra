@@ -31,7 +31,10 @@ import {
 import {
   compactBlocksFromMessages,
   digest as skillMemoryDigest,
+  type CurrentSkillAuthority,
   type JsonObject as SkillMemoryJsonObject,
+  type RestoreProviderKind,
+  type SkillAuthorityRevalidationReceipt,
 } from "@zyra/skill-memory-runtime";
 
 const DEFAULT_CONFIG: RuntimeConfig = {
@@ -1039,22 +1042,140 @@ export class ClaudeRuntimeCore {
               context_chars_after: session.contextChars(),
             },
           });
+          const identity = {
+            runId: input.runId,
+            taskId: input.taskId,
+            sessionId: input.sessionId,
+            workerRequestId: input.workerRequestId,
+            epoch: e01.journal.restartEpoch,
+          };
+          const history = compactBlocksFromMessages(compactSource);
+          const allowedTools = registry.list().map((tool) => tool.name);
+          const deniedTools = runtimeStringArray(config.runtimeConstraints.denied_tools);
+          // A CodeWorker registry scope is not a BrowserWorker grant. Only an
+          // explicitly declared browser scope may cross this context handoff;
+          // an empty scope restores no authority and leaves the BrowserWorker
+          // permission runtime to decide every requested action.
+          const browserAllowedTools = runtimeStringArray(
+            config.runtimeConstraints.browser_allowed_tools,
+          );
+          const browserDeniedTools = runtimeStringArray(
+            config.runtimeConstraints.browser_denied_tools,
+          );
+          const skillMemories = e01.skillMemory.outcomes.reusable({
+            taskId: input.taskId,
+            sessionId: input.sessionId,
+            limit: 64,
+          });
+          const procedures = e01.skillMemory.listProcedures({
+            consumers: ["context", "routing", "recovery"],
+            validatedOnly: true,
+            limit: 64,
+          });
+          const providerId = asString(
+            config.runtimeConstraints.provider_id,
+            modelTransport === "http_sse" ? "compatible" : "local",
+          );
+          const providerKind = restoreProviderKind(
+            asString(config.runtimeConstraints.provider_kind),
+            providerId,
+          );
+          const authorityReceipts: SkillAuthorityRevalidationReceipt[] = [];
+          for (const memory of skillMemories) {
+            const currentAuthority = currentAuthorityFromMemory(memory.metadata);
+            if (!currentAuthority) continue;
+            try {
+              authorityReceipts.push(e01.skillMemory.integration.revalidateMemory({
+                memory,
+                current: currentAuthority,
+                parentAllowedTools: allowedTools,
+                parentDeniedTools: deniedTools,
+                causationId: boundaryId,
+                metadata: {
+                  compact_boundary_id: boundaryId,
+                  runtime_resolution_required_on_next_invoke: true,
+                },
+              }));
+            } catch (error) {
+              await emit("skill_memory_authority_revalidation_failed", {
+                boundary_id: boundaryId,
+                memory_id: memory.memoryId,
+                error: error instanceof Error ? error.message : String(error),
+                current_03c_resolution_required: true,
+                historical_outcome_executable: false,
+              });
+            }
+          }
+          let integratedPreparation: ReturnType<typeof e01.skillMemory.integration.prepare> | null = null;
+          try {
+            integratedPreparation = e01.skillMemory.integration.prepare({
+              identity,
+              workerKind: "code",
+              boundaryId,
+              archive,
+              history,
+              goal: prompt.trim() || asString(config.runtimeConstraints.goal, "Continue the current task"),
+              constraints: runtimeStringArray(config.runtimeConstraints.constraints),
+              requirementChanges: runtimeStringArray(config.runtimeConstraints.requirement_changes),
+              skillMemories,
+              procedures,
+              existingAttachments: [],
+              runtimeConstraints: config.runtimeConstraints as SkillMemoryJsonObject,
+              allowedTools,
+              deniedTools,
+              providerId,
+              modelId: config.modelName,
+              providerKind,
+              providerCapabilities: restoreCapabilities(config.runtimeConstraints, providerKind),
+              gatewayCapabilities: runtimeStringArray(config.runtimeConstraints.gateway_capabilities),
+              frames: [],
+              sourceProviderId: asString(config.runtimeConstraints.source_provider_id) || null,
+              sourceModelId: asString(config.runtimeConstraints.source_model_id) || null,
+              contextWindow: skillMemoryContextWindow,
+              maximumTokens: Math.max(1_024, Math.ceil(config.maxQueryContextChars / 4)),
+              metadata: {
+                turn_id: turn.turn_id,
+                turn_index: turnIndex,
+                compact_artifact_id: artifact.artifact_id,
+                same_session_continuity: true,
+              },
+            });
+          } catch (error) {
+            const failure = e01.skillMemory.integration.failures.record({
+              identity,
+              boundaryId,
+              stage: "retrieval_composition",
+              code: error && typeof error === "object" && "code" in error
+                ? String((error as { code?: unknown }).code)
+                : "skill_memory_integration_prepare_failed",
+              message: error instanceof Error ? error.message : String(error),
+              retryable: true,
+              baselineTextReferenceAvailable: true,
+              canonicalCheckpointAvailable: true,
+              currentAuthorityRequired: true,
+              provenanceComplete: false,
+              relatedIds: [archive.archiveId, artifact.artifact_id],
+              causationId: boundaryId,
+              details: { baseline_02b_02d_restore_preserved: true },
+            });
+            await emit("skill_memory_integration_deferred", {
+              boundary_id: boundaryId,
+              reason: error instanceof Error ? error.message : String(error),
+              failure: e01.skillMemory.integration.failures.event(failure.failureId),
+              baseline_02b_02d_restore_preserved: true,
+              experimental_fallback_used: false,
+            });
+          }
           const preparedRestore = e01.skillMemory.prepareRestore({
-            identity: {
-              runId: input.runId,
-              taskId: input.taskId,
-              sessionId: input.sessionId,
-              workerRequestId: input.workerRequestId,
-              epoch: e01.journal.restartEpoch,
-            },
+            identity,
             workerKind: "code",
             boundaryId,
             archive,
             summary: compact.summary,
-            restoredAttachments: [],
-            parentAllowedTools: registry.list().map((tool) => tool.name),
-            restoredAllowedTools: registry.list().map((tool) => tool.name),
-            deniedTools: [],
+            restoredAttachments: integratedPreparation?.attachments ?? [],
+            parentAllowedTools: allowedTools,
+            restoredAllowedTools: allowedTools,
+            deniedTools,
             maximumTokens: Math.max(1_024, Math.ceil(config.maxQueryContextChars / 4)),
             metadata: {
               turn_id: turn.turn_id,
@@ -1065,7 +1186,55 @@ export class ClaudeRuntimeCore {
           const appliedRestore = e01.skillMemory.applyRestore(
             preparedRestore.projection.projectionId,
           );
-          pendingRestoreProviderMessage = appliedRestore.providerMessage;
+          pendingRestoreProviderMessage = mergeRestoreProviderMessages(
+            appliedRestore.providerMessage,
+            integratedPreparation?.providerMessage ?? null,
+          );
+          if (integratedPreparation) {
+            const integratedApplication = e01.skillMemory.integration.apply({
+              preparationId: integratedPreparation.preparationId,
+              projection: appliedRestore.projection,
+              authorityReceipts,
+              committed: true,
+              reason: "same_session_codeworker_restore_applied",
+              metadata: { turn_id: turn.turn_id, turn_index: turnIndex },
+            });
+            const browserProjection = e01.skillMemory.integration.exportBrowserContext({
+              preparationId: integratedPreparation.preparationId,
+              projection: appliedRestore.projection,
+              summary: compact.summary,
+              allowedTools: browserAllowedTools,
+              deniedTools: browserDeniedTools,
+              providerId,
+              modelId: config.modelName,
+              metadata: {
+                application_id: integratedApplication.applicationId,
+                same_session_handoff: true,
+                authority_transfer: false,
+                browser_scope_declared: browserAllowedTools.length > 0,
+              },
+            });
+            await emit("skill_memory_restore_fidelity", {
+              boundary_id: boundaryId,
+              preparation: integratedPreparation as unknown as JsonObject,
+              application: integratedApplication as unknown as JsonObject,
+              baseline_text_ref_available: true,
+              experimental_default: false,
+            });
+            for (const failureEvent of integratedPreparation.failureEvents) {
+              await emit("skill_memory_restore_fidelity_failure", {
+                boundary_id: boundaryId,
+                failure: failureEvent as unknown as JsonObject,
+                text_reference_fallback_available: true,
+              });
+            }
+            await emit("skill_memory_browser_context_exported", {
+              boundary_id: boundaryId,
+              browser_projection: browserProjection as unknown as JsonObject,
+              changes_next_browserworker_context: true,
+              executable_skill_body_present: false,
+            });
+          }
           await emit("skill_memory_compact_restored", {
             turn_id: turn.turn_id,
             turn_index: turnIndex,
@@ -1074,12 +1243,36 @@ export class ClaudeRuntimeCore {
             changes_next_provider_context: true,
           });
         } else {
+          const deferredBoundaryId = matureCompact?.boundary.boundaryId
+            ?? `deferred:${skillMemoryTrigger.triggerId}`;
+          const failure = e01.skillMemory.integration.failures.record({
+            identity: {
+              runId: input.runId,
+              taskId: input.taskId,
+              sessionId: input.sessionId,
+              workerRequestId: input.workerRequestId,
+              epoch: e01.journal.restartEpoch,
+            },
+            boundaryId: deferredBoundaryId,
+            stage: "safe_cut",
+            code: "compact_safe_cut_unavailable",
+            message: safeCut?.reason ?? "no safe cut plan was available",
+            retryable: true,
+            baselineTextReferenceAvailable: true,
+            canonicalCheckpointAvailable: true,
+            currentAuthorityRequired: true,
+            provenanceComplete: true,
+            relatedIds: [skillMemoryTrigger.triggerId, safeCut?.planId ?? ""],
+            causationId: skillMemoryTrigger.triggerId,
+            details: { existing_compact_preserved: true },
+          });
           await emit("skill_memory_compact_restore_deferred", {
             turn_id: turn.turn_id,
             turn_index: turnIndex,
             safe_cut_plan_id: safeCut?.planId ?? null,
             reason: safeCut?.reason ?? "no_safe_cut_plan",
             existing_compact_preserved: true,
+            failure: e01.skillMemory.integration.failures.event(failure.failureId),
           });
         }
         await emit("context_compacted", {
@@ -1370,6 +1563,60 @@ function normalizeConfig(value: Partial<RuntimeConfig>): RuntimeConfig {
     controlCommands: Array.isArray(value.controlCommands)
       ? value.controlCommands
       : [],
+  };
+}
+
+function runtimeStringArray(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  return [...new Set(values.map((item) => String(item).trim()).filter(Boolean))].sort();
+}
+
+function restoreProviderKind(value: string, providerId: string): RestoreProviderKind {
+  const normalized = value.trim().toLowerCase();
+  if (["anthropic", "compatible", "local", "browser"].includes(normalized)) {
+    return normalized as RestoreProviderKind;
+  }
+  if (/anthropic|claude/.test(providerId.toLowerCase())) return "anthropic";
+  if (/browser/.test(providerId.toLowerCase())) return "browser";
+  if (/local|scripted/.test(providerId.toLowerCase())) return "local";
+  return "compatible";
+}
+
+function restoreCapabilities(
+  constraints: JsonObject,
+  providerKind: RestoreProviderKind,
+): string[] {
+  const declared = runtimeStringArray(constraints.provider_capabilities);
+  const baseline = ["text", "artifact_refs", "evidence_refs"];
+  if (providerKind === "anthropic" || providerKind === "browser") baseline.push("vision");
+  return [...new Set([...declared, ...baseline])].sort();
+}
+
+function currentAuthorityFromMemory(metadata: SkillMemoryJsonObject): CurrentSkillAuthority | null {
+  const value = metadata.current_skill_authority;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const object = value as SkillMemoryJsonObject;
+  if (object.protocol !== "zyra.skill-coordinator-authority/v1") return null;
+  return object as unknown as CurrentSkillAuthority;
+}
+
+function mergeRestoreProviderMessages(
+  baseline: JsonObject,
+  integrated: SkillMemoryJsonObject | null,
+): JsonObject {
+  if (!integrated) return baseline;
+  const baselineContent = Array.isArray(baseline.content) ? baseline.content : [];
+  const integratedContent = Array.isArray(integrated.content) ? integrated.content : [];
+  return {
+    role: "user",
+    content: [...baselineContent, ...integratedContent],
+    metadata: {
+      ...asObject(baseline.metadata),
+      ...asObject(integrated.metadata),
+      restore_sources: ["02B/02D", "06C-02"],
+      current_skill_authority_required: true,
+      historical_skill_body_executable: false,
+    },
   };
 }
 

@@ -50,6 +50,13 @@ from .retrieval_context_runtime import (
     WorkerRetrievalContextRuntime,
     WorkerRetrievalRecoveryReference,
 )
+from .skill_memory_context import (
+    BrowserSkillMemoryCheckpoint,
+    BrowserSkillMemoryContextRuntime,
+    BrowserSkillMemoryDeliveryReceipt,
+    BrowserSkillMemoryPreparation,
+    BrowserSkillMemoryProjection,
+)
 from .backend_dispatch_service import (
     BackendDispatchHttpServer,
     BackendDispatchServiceRuntime,
@@ -174,6 +181,11 @@ __all__ = [
     "WorkerRetrievalContext",
     "WorkerRetrievalContextRuntime",
     "WorkerRetrievalRecoveryReference",
+    "BrowserSkillMemoryCheckpoint",
+    "BrowserSkillMemoryContextRuntime",
+    "BrowserSkillMemoryDeliveryReceipt",
+    "BrowserSkillMemoryPreparation",
+    "BrowserSkillMemoryProjection",
     "CodeWorkerScaffold",
     "CodeWorkerSidecarClient",
     "MemoryWorkerScaffold",

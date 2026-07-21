@@ -69,6 +69,11 @@ from .browser_use_runtime import (
     find_browser_executable,
     inspect_browser_use_runtime,
 )
+from .skill_memory_context import (
+    BrowserSkillMemoryCheckpoint,
+    BrowserSkillMemoryContextRuntime,
+    BrowserSkillMemoryPreparation,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +84,8 @@ class BrowserWorkerRun:
     browser_context_checkpoint: dict[str, Any] = field(default_factory=dict)
     browser_context_projection: dict[str, Any] = field(default_factory=dict)
     browser_observability_projection: dict[str, Any] = field(default_factory=dict)
+    skill_memory_context_checkpoint: dict[str, Any] = field(default_factory=dict)
+    skill_memory_context_projection: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -155,6 +162,7 @@ class BrowserWorkerRuntime:
         browser_message_state_application: BrowserMessageStateApplication | None = None,
         browser_context_integration: BrowserContextTaskIntegrationRuntime | None = None,
         browser_message_integration_audit: BrowserMessageIntegrationAuditRuntime | None = None,
+        skill_memory_context_runtime: BrowserSkillMemoryContextRuntime | None = None,
         browser_observability_application: BrowserObservabilityApplication | None = None,
         workspace_edit_port: Any | None = None,
         workspace_gateway_required: bool = False,
@@ -272,6 +280,9 @@ class BrowserWorkerRuntime:
             self.browser_action_application,
         )
         self.browser_context_integration = browser_context_integration or BrowserContextTaskIntegrationRuntime()
+        self.skill_memory_context_runtime = (
+            skill_memory_context_runtime or BrowserSkillMemoryContextRuntime()
+        )
         self.browser_message_integration_audit = (
             browser_message_integration_audit or BrowserMessageIntegrationAuditRuntime()
         )
@@ -354,6 +365,7 @@ class BrowserWorkerRuntime:
         request: WorkerRequest,
         *,
         browser_context_checkpoint: Mapping[str, Any] | None = None,
+        skill_memory_context_checkpoint: Mapping[str, Any] | None = None,
     ) -> BrowserWorkerRun:
         if _request_contains_permission_capability_echo(request):
             # Shared permission preflight; this path rejects before backend selection
@@ -478,11 +490,16 @@ class BrowserWorkerRuntime:
                 worker_request_id=request.request_id,
                 max_chars=_browser_context_max_chars(request),
             )
+            skill_memory_preparation = self.skill_memory_context_runtime.prepare(
+                request,
+                context_window=context_turn_session.context_window,
+                checkpoint_value=skill_memory_context_checkpoint,
+            )
         except Exception as error:  # noqa: BLE001 - corrupt/foreign context fails before actions.
             return _browser_productized_failure(
                 request,
                 code=getattr(error, "code", type(error).__name__),
-                summary="BrowserWorker refused an invalid browser context checkpoint.",
+                summary="BrowserWorker refused an invalid browser or skill-memory context checkpoint.",
                 details=f"{type(error).__name__}: {error}",
                 metadata={
                     "browser_context_scope": json.dumps(context_scope.to_dict(), sort_keys=True),
@@ -663,6 +680,37 @@ class BrowserWorkerRuntime:
             if action_run is not None
             else action_error or "browser_application_failed"
         )
+        skill_memory_checkpoint: BrowserSkillMemoryCheckpoint | None = (
+            skill_memory_preparation.checkpoint if skill_memory_preparation else None
+        )
+        skill_memory_delivery = None
+        if skill_memory_preparation is not None:
+            application_events.extend(skill_memory_preparation.fallback_events)
+            if application_ok:
+                (
+                    skill_memory_checkpoint,
+                    skill_memory_delivery,
+                    skill_memory_event,
+                ) = self.skill_memory_context_runtime.commit(
+                    request,
+                    skill_memory_preparation,
+                    terminal_event_ids=tuple(
+                        event.event_id for event in application_events if event.event_id
+                    ),
+                )
+            else:
+                skill_memory_delivery, skill_memory_event = (
+                    self.skill_memory_context_runtime.release(
+                        request,
+                        skill_memory_preparation,
+                        reason=(
+                            "browser_permission_pending"
+                            if action_pending
+                            else application_error or "browser_application_failed"
+                        ),
+                    )
+                )
+            application_events.append(skill_memory_event)
         try:
             observability = self.browser_observability_application.observe(
                 request=request,
@@ -787,6 +835,27 @@ class BrowserWorkerRuntime:
             })
         elif message_state_error:
             application_metadata["browser_message_state_error"] = message_state_error
+        skill_memory_projection = self.skill_memory_context_runtime.projection_for_result(
+            skill_memory_preparation,
+            skill_memory_checkpoint,
+            skill_memory_delivery,
+        )
+        application_metadata.update({
+            "skill_memory_browser_context_applied": str(
+                bool(skill_memory_projection.get("applied"))
+            ).lower(),
+            "skill_memory_browser_context_projection_id": str(
+                (
+                    skill_memory_projection.get("projection", {}).get("projectionId")
+                    or skill_memory_projection.get("projection", {}).get("projection_id")
+                    or ""
+                )
+                if isinstance(skill_memory_projection.get("projection"), Mapping)
+                else ""
+            ),
+            "skill_memory_browser_context_owner": "BrowserSkillMemoryContextRuntime/06C-02",
+            "skill_memory_current_authority_required": "true",
+        })
         worker_result = WorkerResult(
             request_id=request.request_id,
             ok=application_ok and not stop_error,
@@ -825,6 +894,10 @@ class BrowserWorkerRuntime:
                 committed_context_checkpoint
             ),
             browser_observability_projection=observability_projection,
+            skill_memory_context_checkpoint=(
+                skill_memory_checkpoint.to_dict() if skill_memory_checkpoint else {}
+            ),
+            skill_memory_context_projection=skill_memory_projection,
         )
 
     def _run_browser_lifecycle(self, request: WorkerRequest, command_name: str) -> BrowserWorkerRun:

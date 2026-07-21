@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
+import type { CurrentSkillAuthority } from "@zyra/skill-memory-runtime";
 import type { JsonObject, JsonValue, ToolSpecContract } from "../contracts.ts";
 import { canonicalize, cloneJson, deterministicId, digest, monotonicNow } from "../e02/index.ts";
 import { SkillContextRuntime, type SkillContextSnapshot, type SkillParentContext } from "./context-runtime.ts";
@@ -212,6 +213,90 @@ export class SkillCoordinator {
     ];
   }
 
+  /**
+   * Resolves the authority that is valid now. 06C calls this after compact or
+   * resume; the method intentionally returns digests and policy evidence, not
+   * the executable body, so an outcome snapshot cannot become a second loader.
+   */
+  authority(
+    skillNameValue: string,
+    parentToolScope: SkillToolScope = defaultParentScope,
+  ): CurrentSkillAuthority {
+    TypeScriptSkillRuntime.assertSourceRuntimeEnabled();
+    const skillName = skillNameValue.trim();
+    const resolvedAt = this.timestamp();
+    try {
+      const resolution = this.registry.resolve(skillName);
+      const effective = this.invocation.applyToolScope(parentToolScope, resolution.descriptor.toolScope);
+      const policy = {
+        decisionId: deterministicId("skill-current-authority", {
+          skill_id: resolution.skillId,
+          registry_revision: resolution.revision,
+          registry_revision_id: resolution.revisionId,
+          descriptor_digest: resolution.descriptor.descriptorDigest,
+          effective_tool_scope: effective,
+        }, 32),
+        effect: "allow" as const,
+        policyRevision: `${resolution.revision}:${resolution.revisionId}`,
+        policyDigest: digest({ descriptor: resolution.descriptor.toolScope, parent: parentToolScope, effective }),
+        requestedTools: [...resolution.descriptor.toolScope.allowed],
+        effectiveTools: [...effective.allowed],
+        deniedTools: [...effective.denied],
+        approvalId: null,
+      };
+      return {
+        protocol: "zyra.skill-coordinator-authority/v1",
+        skillId: resolution.skillId,
+        skillName: resolution.descriptor.name,
+        availability: "available",
+        registryRevision: resolution.revision,
+        registryRevisionId: resolution.revisionId,
+        descriptorDigest: resolution.descriptor.descriptorDigest,
+        bodyDigest: resolution.descriptor.bodyDigest,
+        sourceRevision: resolution.revisionId,
+        trust: ["bundled", "managed"].includes(resolution.descriptor.source.sourceKind) ? "internal" : "verified",
+        policy,
+        resolvedAt,
+        resolutionError: null,
+        metadata: {
+          canonical_owner: "03C SkillCoordinator",
+          executable_body_present: false,
+          resolution_kind: resolution.resolutionKind,
+        },
+      };
+    } catch (error) {
+      const normalized = skillName.toLowerCase();
+      const descriptor = this.registry.list().find((candidate) =>
+        candidate.skillId.toLowerCase() === normalized
+        || candidate.name.toLowerCase() === normalized
+        || candidate.aliases.some((alias) => alias.toLowerCase() === normalized)
+      );
+      const availability = descriptor?.availability === "missing"
+        ? "removed"
+        : descriptor?.availability ?? "removed";
+      return {
+        protocol: "zyra.skill-coordinator-authority/v1",
+        skillId: descriptor?.skillId ?? skillName,
+        skillName: descriptor?.name ?? skillName,
+        availability,
+        registryRevision: this.registry.revision,
+        registryRevisionId: this.registry.headRevisionId ?? "registry-empty",
+        descriptorDigest: descriptor?.descriptorDigest ?? null,
+        bodyDigest: descriptor?.bodyDigest ?? null,
+        sourceRevision: this.registry.headRevisionId,
+        trust: "unknown",
+        policy: null,
+        resolvedAt,
+        resolutionError: error instanceof Error ? error.message : String(error),
+        metadata: {
+          canonical_owner: "03C SkillCoordinator",
+          executable_body_present: false,
+          current_resolution_failed_closed: true,
+        },
+      };
+    }
+  }
+
   async execute(
     toolName: string,
     argumentsValue: JsonObject,
@@ -283,6 +368,7 @@ export class SkillCoordinator {
         selected_resources: selectedResources,
       },
     };
+    const currentAuthority = this.authority(skillName, parentToolScope);
     try {
       const invocation = await this.invocation.invoke(request, signal);
       const binding = this.journalByInvocation.get(invocation.invocationId);
@@ -333,6 +419,7 @@ export class SkillCoordinator {
           outcome_reference_only: true,
           executable_skill_cache: false,
           registry_resolution_required_before_reuse: true,
+          current_authority_digest: digest(currentAuthority),
         },
       };
       return {
@@ -342,6 +429,7 @@ export class SkillCoordinator {
           composition_id: composition.compositionId,
           registry_revision: resolution.revision,
           outcome_reference: canonicalize(outcomeReference),
+          current_authority: canonicalize(currentAuthority),
         },
         contextDelta: {
           active_skill: resolution.skillId,

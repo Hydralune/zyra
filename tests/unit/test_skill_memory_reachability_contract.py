@@ -40,6 +40,9 @@ class SkillMemoryReachabilityContractTests(unittest.TestCase):
         self.assertIn("skill_memory_updated", events)
         self.assertIn("skill_memory_compact_trigger", events)
         self.assertIn("skill_memory_compact_restored", events)
+        self.assertIn("skill_memory_restore_fidelity", events)
+        self.assertIn("skill_memory_browser_context_exported", events)
+        self.assertIn("skill_memory_restore_fidelity_failure", events)
 
     def test_workspace_runtime_probe_resolves_exported_typescript_owner(self) -> None:
         entry = InternalizationLedgerEntry.new(
@@ -76,6 +79,28 @@ class SkillMemoryReachabilityContractTests(unittest.TestCase):
             ROOT,
             ledger,
             owner_unit="M1-S06C-01",
+            strict_audit=False,
+        )
+
+        self.assertEqual(report.total_entries, 3)
+        self.assertEqual(report.unreachable_entries, 0)
+        self.assertTrue(all(entry.reachable for entry in report.entries))
+
+    def test_integration_slice_entries_have_no_unreachable_runtime_surface(self) -> None:
+        ledger = InternalizationLedger.load(
+            ROOT
+            / "packages"
+            / "integrations"
+            / "zyra_integrations"
+            / "data"
+            / "internalization_ledger_seed.json",
+            normalize_current_policy=True,
+        )
+
+        report = build_reachability_report(
+            ROOT,
+            ledger,
+            owner_unit="M1-S06C-02",
             strict_audit=False,
         )
 

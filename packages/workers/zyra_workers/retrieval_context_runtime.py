@@ -16,6 +16,7 @@ from zyra_memory import (
     RetrievalConsumer,
     RetrievalExecution,
     RetrievalIntegrationRuntime,
+    ReusableProcedureRuntime,
 )
 from zyra_runtime.workers import WorkerRequest
 
@@ -29,6 +30,7 @@ class WorkerRetrievalContext:
     events: tuple[EventRecord, ...]
     memory_execution: RetrievalExecution | None = None
     code_selection: CodeIndexSelection | None = None
+    procedure_result: Any | None = None
     delivery_claimed: bool = False
     recovery_reference: Mapping[str, Any] = field(default_factory=dict)
 
@@ -44,6 +46,7 @@ class WorkerRetrievalRecoveryReference:
     code: Mapping[str, Any]
     message_ids: tuple[str, ...]
     source_digest: str
+    procedures: Mapping[str, Any] = field(default_factory=dict)
 
     def validated(self) -> "WorkerRetrievalRecoveryReference":
         if not self.task_id or not self.worker_request_id or not self.session_id:
@@ -51,7 +54,7 @@ class WorkerRetrievalRecoveryReference:
         if not self.source_digest:
             raise ValueError("retrieval recovery reference requires source_digest")
         body = json.dumps(
-            {"memory": self.memory, "code": self.code},
+            {"memory": self.memory, "code": self.code, "procedures": self.procedures},
             ensure_ascii=False,
             sort_keys=True,
             default=str,
@@ -86,6 +89,7 @@ class WorkerRetrievalRecoveryReference:
             "session_id": value.session_id,
             "memory": dict(value.memory),
             "code": dict(value.code),
+            "procedures": dict(value.procedures),
             "message_ids": list(value.message_ids),
             "source_digest": value.source_digest,
             "contains_index_dump": False,
@@ -108,6 +112,7 @@ class WorkerRetrievalContextRuntime:
         *,
         memory: RetrievalIntegrationRuntime,
         code: CodeIndexIntegrationRuntime,
+        procedures: ReusableProcedureRuntime | None = None,
         memory_maximum_results: int = 10,
         memory_maximum_chars: int = 16_000,
         code_maximum_files: int = 16,
@@ -116,6 +121,7 @@ class WorkerRetrievalContextRuntime:
     ) -> None:
         self.memory = memory
         self.code = code
+        self.procedures = procedures
         self.memory_maximum_results = max(0, memory_maximum_results)
         self.memory_maximum_chars = max(0, memory_maximum_chars)
         self.code_maximum_files = max(0, code_maximum_files)
@@ -165,7 +171,53 @@ class WorkerRetrievalContextRuntime:
                 metadata={"worker_name": request.worker_name},
             )
         )
-        messages = self._messages(request, memory_block.to_dict(), code_selection)
+        procedure_result = (
+            self.procedures.context(
+                request.task_id,
+                {
+                    "goal": query_text,
+                    "available_tools": self._constraint_strings(
+                        request, "available_tools", "allowed_tools"
+                    ),
+                    "denied_tools": self._constraint_strings(request, "denied_tools"),
+                    "languages": self._constraint_strings(request, "languages"),
+                    "workspace_kinds": self._constraint_strings(
+                        request, "workspace_kinds"
+                    ),
+                    "artifact_kinds": self._constraint_strings(
+                        request, "artifact_kinds"
+                    ),
+                    "provider_capabilities": self._constraint_strings(
+                        request, "provider_capabilities"
+                    ),
+                    "minimum_confidence": float(
+                        request.constraints.get("procedure_minimum_confidence", 0.0)
+                    ),
+                    "validated_only": True,
+                    "limit": max(
+                        1,
+                        min(
+                            int(request.constraints.get("procedure_maximum_results", 16)),
+                            100,
+                        ),
+                    ),
+                    "metadata": {
+                        "worker_request_id": request.request_id,
+                        "session_id": session_id,
+                        "source": "WorkerRetrievalContextRuntime/06C-02",
+                    },
+                },
+            )
+            if self.procedures is not None
+            else None
+        )
+        procedure_projection = procedure_result.to_dict() if procedure_result else {}
+        messages = self._messages(
+            request,
+            memory_block.to_dict(),
+            code_selection,
+            procedure_projection,
+        )
         source_digest = _stable_json_digest(
             {
                 "memory_query_id": memory_execution.snapshot.query_id,
@@ -173,12 +225,28 @@ class WorkerRetrievalContextRuntime:
                 "code_query_id": code_selection.request.query_id,
                 "code_result": code_selection.result_digest,
                 "message_ids": [message.message_id for message in messages],
+                "procedure_query_id": str(procedure_projection.get("query_id") or ""),
+                "procedure_query_digest": str(
+                    procedure_projection.get("query_digest") or ""
+                ),
             }
         )
         code_message_id = next(
             (message.message_id for message in messages if message.metadata.get("retrieval_scope") == "task_workspace"),
             messages[-1].message_id,
         )
+        procedure_reference = {
+            "query_id": str(procedure_projection.get("query_id") or ""),
+            "query_digest": str(procedure_projection.get("query_digest") or ""),
+            "procedure_ids": sorted(
+                str(item.get("procedure", {}).get("procedure_id") or "")
+                for item in procedure_projection.get("matches", ())
+                if isinstance(item, Mapping)
+                and isinstance(item.get("procedure"), Mapping)
+                and str(item.get("procedure", {}).get("procedure_id") or "")
+            ),
+            "contains_canonical_records": False,
+        }
         try:
             self.memory.store.claim_delivery(
                 worker_request_id=request.request_id,
@@ -192,6 +260,7 @@ class WorkerRetrievalContextRuntime:
                     "consumer": RetrievalConsumer.CODE_WORKER_CONTEXT.value,
                     "code_query_id": code_selection.request.query_id,
                     "code_result_digest": code_selection.result_digest,
+                    "procedure_reference": procedure_reference,
                 },
             )
             self.code.journal.claim_delivery(code_selection, message_id=code_message_id)
@@ -203,6 +272,7 @@ class WorkerRetrievalContextRuntime:
                 code=code_selection.recovery_reference(),
                 message_ids=tuple(message.message_id for message in messages),
                 source_digest=source_digest,
+                procedures=procedure_reference,
             ).to_dict()
         except Exception as error:
             cleanup_errors = self._compensate_prepare(
@@ -237,6 +307,15 @@ class WorkerRetrievalContextRuntime:
                     "code_source_refs": [ref.to_dict() for ref in code_selection.source_refs],
                     "selected_files": list(code_selection.selected_files),
                     "selected_tests": list(code_selection.selected_tests),
+                    "procedure_query_id": str(
+                        procedure_projection.get("query_id") or ""
+                    ),
+                    "procedure_ids": [
+                        str(item.get("procedure", {}).get("procedure_id") or "")
+                        for item in procedure_projection.get("matches", ())
+                        if isinstance(item, Mapping)
+                        and isinstance(item.get("procedure"), Mapping)
+                    ],
                     "canonical_context_owner": "typescript",
                     "derived_delivery_owner": "WorkerRetrievalContextRuntime",
                     "recovery_reference": recovery_reference,
@@ -258,6 +337,7 @@ class WorkerRetrievalContextRuntime:
                     key: list(value) for key, value in code_selection.test_reasons.items()
                 },
                 "retrieval_recovery_reference": recovery_reference,
+                "reusable_procedure_context": procedure_projection,
             },
             metadata={
                 "memory_retrieval_query_id": memory_execution.snapshot.query_id,
@@ -265,10 +345,14 @@ class WorkerRetrievalContextRuntime:
                 "code_index_query_id": code_selection.request.query_id,
                 "code_index_generation": str(code_selection.generation),
                 "retrieval_context_source_digest": source_digest,
+                "reusable_procedure_query_id": str(
+                    procedure_projection.get("query_id") or ""
+                ),
             },
             events=(event,),
             memory_execution=memory_execution,
             code_selection=code_selection,
+            procedure_result=procedure_result,
             delivery_claimed=True,
             recovery_reference=recovery_reference,
         )
@@ -380,10 +464,22 @@ class WorkerRetrievalContextRuntime:
         return tuple(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
 
     @staticmethod
+    def _constraint_strings(request: WorkerRequest, *keys: str) -> tuple[str, ...]:
+        values: list[str] = []
+        for key in keys:
+            raw = request.constraints.get(key)
+            if isinstance(raw, str):
+                raw = (raw,)
+            if isinstance(raw, Sequence):
+                values.extend(str(value).strip() for value in raw if str(value).strip())
+        return tuple(dict.fromkeys(values))
+
+    @staticmethod
     def _messages(
         request: WorkerRequest,
         memory_block: Mapping[str, Any],
         code_selection: CodeIndexSelection,
+        procedure_projection: Mapping[str, Any],
     ) -> tuple[AgentMessage, ...]:
         messages: list[AgentMessage] = []
         entries = list(memory_block.get("entries") or ())
@@ -417,6 +513,68 @@ class WorkerRetrievalContextRuntime:
                         "query_id": str(memory_block.get("query_id") or ""),
                         "index_generation": int(memory_block.get("index_generation") or 0),
                         "canonical_owner": "MemoryRecordStore",
+                    },
+                )
+            )
+        procedure_matches = [
+            item
+            for item in procedure_projection.get("matches", ())
+            if isinstance(item, Mapping)
+            and bool(item.get("applicable"))
+            and isinstance(item.get("procedure"), Mapping)
+        ]
+        if procedure_matches:
+            lines = [
+                "Retrieved validated reusable procedures (context guidance only; re-resolve all skills/tools):"
+            ]
+            for match in procedure_matches:
+                procedure = match["procedure"]
+                lines.append(
+                    f"- [{procedure.get('procedure_id')}] {procedure.get('name')}: "
+                    f"{procedure.get('summary')} (score={match.get('score')})"
+                )
+                for step in procedure.get("steps", ()):
+                    if isinstance(step, Mapping):
+                        lines.append(
+                            f"  {step.get('ordinal')}. {step.get('action')} "
+                            f"[tool={step.get('tool_name') or 'none'}] -> "
+                            f"{step.get('expected_effect')}"
+                        )
+            messages.append(
+                AgentMessage(
+                    run_id=request.run_id,
+                    task_id=request.task_id,
+                    node_id=request.node_id,
+                    sender_role=AgentRole.MEMORY,
+                    receiver_role=AgentRole.WORKER,
+                    intent=MessageIntent.OBSERVATION,
+                    message_id="msg_retrieval_procedure_"
+                    + _stable_json_digest(
+                        {
+                            "worker_request_id": request.request_id,
+                            "query_id": procedure_projection.get("query_id"),
+                            "procedure_ids": [
+                                item["procedure"].get("procedure_id")
+                                for item in procedure_matches
+                            ],
+                        }
+                    )[:24],
+                    content="\n".join(lines),
+                    summary="Retrieved validated procedures for the current CodeWorker request.",
+                    message_budget_chars=max(256, len("\n".join(lines))),
+                    metadata={
+                        "schema": "zyra.reusable-procedure-context-message.v1",
+                        "retrieval_scope": "reusable_procedures",
+                        "query_id": str(procedure_projection.get("query_id") or ""),
+                        "query_digest": str(
+                            procedure_projection.get("query_digest") or ""
+                        ),
+                        "procedure_ids": [
+                            item["procedure"].get("procedure_id")
+                            for item in procedure_matches
+                        ],
+                        "canonical_owner": "ReusableProcedureStore",
+                        "skill_invocation_owner": "03C SkillCoordinator",
                     },
                 )
             )

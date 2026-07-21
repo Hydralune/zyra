@@ -175867,19 +175867,496 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "skill_memory_current_authority_resume_and_cross_worker_restore",
+      "capability_summary": "Claude compact/restore and SkillTool lifecycle mechanisms are cropped into a Zyra-owned integration that revalidates current 03C authority, persists semantic resume continuity, and changes the next CodeWorker and BrowserWorker contexts.",
+      "dependencies": [
+        "M1-S02B",
+        "M1-S02D",
+        "M1-S03C",
+        "M1-S06A-02",
+        "M1-S06B-02",
+        "M1-S06C-01"
+      ],
+      "downstream_units": [
+        "M1-07C",
+        "M1-08",
+        "M2-memory-skill-panel"
+      ],
+      "ledger_id": "ledger_05ed469c291ce045",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Cropped and modified mechanisms are maintained inside Zyra modules.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "claude-code-best",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/workers/browser"
+        ],
+        "artifact_kinds": [
+          "compact_archive",
+          "skill_outcome",
+          "reusable_procedure"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "skill_memory_restore_fidelity",
+          "skill_memory_browser_context_exported",
+          "skill_memory_authority_revalidation_failed",
+          "skill_memory_integration_deferred"
+        ],
+        "surfaces": [
+          "codeworker_compact_restore",
+          "provider_restore_fidelity",
+          "browserworker_restored_context",
+          "current_skill_authority",
+          "resume_continuity"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "SkillMemoryIntegrationRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_compact_owner": "02D ContextCompactionRuntime",
+        "canonical_context_owner": "02B ContextAssemblyRuntime/BrowserContextTaskIntegrationRuntime",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "canonical_procedure_owner": "ReusableProcedureStore",
+        "experimental_default": false,
+        "migration_mode": "cropped_migration_retained_typescript_control_flow_cross_language_port",
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S06C-02",
+        "root_source_runtime_dependency": false,
+        "skill_loader_owner": "03C SkillCoordinator",
+        "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+        "source_role": "primary_implementation",
+        "state_owner": "SkillMemoryApplication integration snapshot; 03C SkillCoordinator authority; 02B/02D context and compact owners remain canonical"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=primary_implementation; source_commit=c57f5a29e88e9a814bea47abeb9a0a6f725dc102; The migration retains the high-cohesion compact/restore and current SkillTool resolution contracts. Historical outcome memory never restores an executable body or permission and BrowserWorker receives only digest-validated context projections.",
+      "owner_unit": "M1-S06C-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/skill-memory-runtime/src/authority-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/resume-continuity-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/integration-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/continuity-failure-runtime.ts",
+          "packages/runtime/claude-runtime/src/skills/coordinator.ts",
+          "packages/runtime/claude-runtime/src/query-engine.ts",
+          "packages/workers/zyra_workers/skill_memory_context.py",
+          "packages/workers/zyra_workers/browser_worker.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "SkillMemoryIntegrationRuntime",
+        "health_check": "bun test ./packages/memory/skill-memory-runtime/test/integration.behavior.test.ts ./packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts && python -m pytest tests/integration/test_skill_memory_compact_restore_integration.py -q",
+        "module": "@zyra/skill-memory-runtime",
+        "protocol": "zyra.skill-memory-integration/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned source graph and concrete source files verified for M1-S06C-02.",
+          "source_kind": "bounded_module_group",
+          "source_path": "src/services/compact/reactiveCompact.ts;src/services/compact/postCompactCleanup.ts;src/services/compact/compact.ts;src/tools/SkillTool/SkillTool.ts;src/tools/SkillTool/src/Tool.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "SkillMemoryIntegrationRuntime"
+          ],
+          "tags": [
+            "primary_implementation",
+            "M1-S06C-02"
+          ]
+        }
+      ],
+      "source_path": "src/services/compact/reactiveCompact.ts;src/services/compact/postCompactCleanup.ts;src/services/compact/compact.ts;src/tools/SkillTool/SkillTool.ts;src/tools/SkillTool/src/Tool.ts",
+      "source_repo": "claude-code-best",
+      "target_bindings": [
+        {
+          "path": "packages/memory/skill-memory-runtime/src/authority-runtime.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/resume-continuity-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/integration-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/continuity-failure-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/skills/coordinator.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/skill_memory_context.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/browser_worker.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/memory/skill-memory-runtime/test/integration.behavior.test.ts",
+          "expected_signal": "three restore lanes, current authority, retrieval composition and resume loss are deterministic",
+          "kind": "behavior",
+          "path": "packages/memory/skill-memory-runtime/test/integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "expected_signal": "real QueryEngine compact and 03C reload reach the integrated runtime",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_skill_memory_compact_restore_integration.py -q",
+          "expected_signal": "BrowserWorker consumes the digest-validated cross-worker restore projection",
+          "kind": "integration",
+          "path": "tests/integration/test_skill_memory_compact_restore_integration.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "provider_restore_fidelity_and_snapcompact_ablation",
+      "capability_summary": "OMP compact modes and frame-aware restore contracts are adapted into three same-history/same-budget fidelity lanes with explicit provider/gateway failures and a text/reference baseline that survives experimental adapter removal.",
+      "dependencies": [
+        "M1-S02B",
+        "M1-S02D",
+        "M1-S03C",
+        "M1-S06A-02",
+        "M1-S06B-02",
+        "M1-S06C-01"
+      ],
+      "downstream_units": [
+        "M1-07C",
+        "M1-08",
+        "M2-memory-skill-panel"
+      ],
+      "ledger_id": "ledger_6e89a5004c312c5c",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Cropped and modified mechanisms are maintained inside Zyra modules.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "compact_archive",
+          "skill_outcome",
+          "reusable_procedure"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "skill_memory_restore_fidelity",
+          "skill_memory_restore_fidelity_failure"
+        ],
+        "surfaces": [
+          "codeworker_compact_restore",
+          "provider_restore_fidelity",
+          "browserworker_restored_context",
+          "current_skill_authority",
+          "resume_continuity"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "ProviderRestoreFidelityRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_compact_owner": "02D ContextCompactionRuntime",
+        "canonical_context_owner": "02B ContextAssemblyRuntime/BrowserContextTaskIntegrationRuntime",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "canonical_procedure_owner": "ReusableProcedureStore",
+        "experimental_default": false,
+        "migration_mode": "cropped_migration_retained_typescript_protocol_ablation_adapt",
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S06C-02",
+        "root_source_runtime_dependency": false,
+        "skill_loader_owner": "03C SkillCoordinator",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "supplementary_implementation",
+        "state_owner": "ProviderRestoreFidelityRuntime comparison/receipt state under 06C snapshot"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; Snapcompact stays feature-gated and non-default. Unsupported vision, missing/corrupt frames, gateway image loss and provider changes emit explicit fallback evidence; no visual effectiveness claim is made.",
+      "owner_unit": "M1-S06C-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/skill-memory-runtime/src/fidelity-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/integration-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/continuity-failure-runtime.ts",
+          "packages/runtime/claude-runtime/src/query-engine.ts"
+        ],
+        "function": "ProviderRestoreFidelityRuntime",
+        "health_check": "bun test ./packages/memory/skill-memory-runtime/test/integration.behavior.test.ts ./packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts && python -m pytest tests/integration/test_skill_memory_compact_restore_integration.py -q",
+        "module": "@zyra/skill-memory-runtime",
+        "protocol": "zyra.skill-memory-integration/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned source graph and concrete source files verified for M1-S06C-02.",
+          "source_kind": "bounded_module_group",
+          "source_path": "packages/coding-agent/src/extensibility/extensions/compact-handler.ts;packages/coding-agent/src/session/compact-modes.ts;packages/coding-agent/src/session/messages.ts;packages/coding-agent/src/session/snapcompact-inline.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [
+            "ProviderRestoreFidelityRuntime"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S06C-02"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/extensibility/extensions/compact-handler.ts;packages/coding-agent/src/session/compact-modes.ts;packages/coding-agent/src/session/messages.ts;packages/coding-agent/src/session/snapcompact-inline.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/memory/skill-memory-runtime/src/fidelity-runtime.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/integration-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/continuity-failure-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/memory/skill-memory-runtime/test/integration.behavior.test.ts",
+          "expected_signal": "three restore lanes, current authority, retrieval composition and resume loss are deterministic",
+          "kind": "behavior",
+          "path": "packages/memory/skill-memory-runtime/test/integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "expected_signal": "real QueryEngine compact and 03C reload reach the integrated runtime",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_skill_memory_compact_restore_integration.py -q",
+          "expected_signal": "BrowserWorker consumes the digest-validated cross-worker restore projection",
+          "kind": "integration",
+          "path": "tests/integration/test_skill_memory_compact_restore_integration.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "procedure_memory_retrieval_compact_context_composition",
+      "capability_summary": "Validated 06B procedure memory is joined with 06A canonical memory/code retrieval and 06C skill outcomes in a bounded, provenance-bearing compact restore projection.",
+      "dependencies": [
+        "M1-S02B",
+        "M1-S02D",
+        "M1-S03C",
+        "M1-S06A-02",
+        "M1-S06B-02",
+        "M1-S06C-01"
+      ],
+      "downstream_units": [
+        "M1-07C",
+        "M1-08",
+        "M2-memory-skill-panel"
+      ],
+      "ledger_id": "ledger_a3f9ac9dcf08334e",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Cropped and modified mechanisms are maintained inside Zyra modules.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "hermes-agent",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/memory/procedures/context",
+          "POST /tasks/{task_id}/workers/browser"
+        ],
+        "artifact_kinds": [
+          "compact_archive",
+          "skill_outcome",
+          "reusable_procedure"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "skill_memory_browser_context_exported"
+        ],
+        "surfaces": [
+          "codeworker_compact_restore",
+          "provider_restore_fidelity",
+          "browserworker_restored_context",
+          "current_skill_authority",
+          "resume_continuity"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "BrowserSkillMemoryContextRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_compact_owner": "02D ContextCompactionRuntime",
+        "canonical_context_owner": "02B ContextAssemblyRuntime/BrowserContextTaskIntegrationRuntime",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "canonical_procedure_owner": "ReusableProcedureStore",
+        "experimental_default": false,
+        "migration_mode": "bounded_cross_language_projection_and_context_adapt",
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S06C-02",
+        "root_source_runtime_dependency": false,
+        "skill_loader_owner": "03C SkillCoordinator",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_role": "supplementary_implementation",
+        "state_owner": "ReusableProcedureStore plus derived 06A/06C retrieval delivery receipts"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; Only validated procedures with curator and runtime evidence enter context. The projection cannot invoke skills/tools and every referenced skill requires a fresh 03C resolution after compact or resume.",
+      "owner_unit": "M1-S06C-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/skill-memory-runtime/src/retrieval-composition-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/integration-runtime.ts",
+          "packages/workers/zyra_workers/retrieval_context_runtime.py",
+          "packages/memory/zyra_memory/procedure_runtime.py",
+          "packages/workers/zyra_workers/skill_memory_context.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "BrowserSkillMemoryContextRuntime",
+        "health_check": "bun test ./packages/memory/skill-memory-runtime/test/integration.behavior.test.ts ./packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts && python -m pytest tests/integration/test_skill_memory_compact_restore_integration.py -q",
+        "module": "zyra_workers.skill_memory_context",
+        "protocol": "zyra.skill-memory-integration/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned source graph and concrete source files verified for M1-S06C-02.",
+          "source_kind": "bounded_module_group",
+          "source_path": "agent/memory_manager.py;agent/memory_provider.py;tools/memory_tool.py",
+          "source_repo": "hermes-agent",
+          "symbols": [
+            "BrowserSkillMemoryContextRuntime"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S06C-02"
+          ]
+        }
+      ],
+      "source_path": "agent/memory_manager.py;agent/memory_provider.py;tools/memory_tool.py",
+      "source_repo": "hermes-agent",
+      "target_bindings": [
+        {
+          "path": "packages/memory/skill-memory-runtime/src/retrieval-composition-runtime.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/integration-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/retrieval_context_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/procedure_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/skill_memory_context.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/memory/skill-memory-runtime/test/integration.behavior.test.ts",
+          "expected_signal": "three restore lanes, current authority, retrieval composition and resume loss are deterministic",
+          "kind": "behavior",
+          "path": "packages/memory/skill-memory-runtime/test/integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "expected_signal": "real QueryEngine compact and 03C reload reach the integrated runtime",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_skill_memory_compact_restore_integration.py -q",
+          "expected_signal": "BrowserWorker consumes the digest-validated cross-worker restore projection",
+          "kind": "integration",
+          "path": "tests/integration/test_skill_memory_compact_restore_integration.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 446,
+    "active_or_internalized": 449,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 391
+      "productized": 394
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -175887,7 +176364,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 152,
+      "tested_main_path": 155,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -175927,6 +176404,7 @@
       "M1-S06B-01": 2,
       "M1-S06B-02": 2,
       "M1-S06C-01": 3,
+      "M1-S06C-02": 3,
       "M2-01A": 46,
       "M2-03B": 30
     },
@@ -175935,17 +176413,17 @@
       "agent-framework": 93,
       "agentscope": 103,
       "browser-use": 109,
-      "claude-code-best": 510,
-      "hermes-agent": 85,
+      "claude-code-best": 511,
+      "hermes-agent": 86,
       "langgraph": 85,
-      "oh-my-pi": 15,
+      "oh-my-pi": 16,
       "openclaw": 86,
       "opencode": 16
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 26,
+      "direct_port": 29,
       "not_selected": 14,
       "planned_adapter": 378,
       "reimplemented_pattern": 237,
@@ -175958,7 +176436,7 @@
       "apps/web": 46,
       "packages/evaluation": 34,
       "packages/integrations": 78,
-      "packages/memory": 194,
+      "packages/memory": 197,
       "packages/orchestration": 59,
       "packages/runtime": 168,
       "packages/scheduler": 79,
@@ -175969,6 +176447,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1188
+    "total_entries": 1191
   }
 }

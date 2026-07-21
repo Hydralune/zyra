@@ -106,6 +106,9 @@ export class SkillCoordinatorOutcomeAdapter {
       sourceRecordDigest,
       metadata: {
         ...object(envelopeValue.metadata),
+        // Evidence emitted by the current 03C resolution. It is never treated
+        // as an executable descriptor; resume must revalidate it before reuse.
+        current_skill_authority: cloneJson(object(value.output.current_authority)),
         runtime_event_sequence: value.eventSequence,
         runtime_tool_result_ok: value.ok,
         "03c_outcome_reference": true,

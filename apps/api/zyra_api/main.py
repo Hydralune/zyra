@@ -35,6 +35,7 @@ PACKAGE_PATHS = [
 # comparisons.  This manifest is kept beside the handlers so submission and
 # reachability audits can verify the public surface without importing the API.
 ZYRA_DYNAMIC_API_ROUTES = (
+    ("POST", "/tasks/{task_id}/workers/browser"),
     ("GET", "/tasks/{task_id}/memory/procedures"),
     ("POST", "/tasks/{task_id}/memory/procedures/mine"),
     ("POST", "/tasks/{task_id}/memory/procedures/routing"),
@@ -1491,7 +1492,11 @@ def _worker_retrieval_context(
                 process=True,
                 causation_id=transaction_id,
             )
-    return WorkerRetrievalContextRuntime(memory=memory, code=code)
+    return WorkerRetrievalContextRuntime(
+        memory=memory,
+        code=code,
+        procedures=get_reusable_procedure_runtime(store),
+    )
 
 
 def make_task_created_event(user_goal: str) -> tuple[Any, EventRecord]:
@@ -4626,6 +4631,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             constraints["session_id"] = session_id
             constraints["canonical_session_id"] = session_id
+            restored_skill_memory = state.metadata.get(
+                "skill_memory_browser_context_projection"
+            )
+            if (
+                "skill_memory_restore" not in constraints
+                and isinstance(restored_skill_memory, dict)
+                and restored_skill_memory
+            ):
+                constraints["skill_memory_restore"] = dict(restored_skill_memory)
             state.metadata["query_session_id"] = session_id
             node_id = str(payload.get("node_id") or state.root_node_id)
             if node_id not in _task_node_ids(state):
@@ -4691,6 +4705,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "idempotency_key": idempotency_key,
                         "browser_context": prior.get("browser_context", {}),
                         "browser_observability": prior.get("browser_observability", {}),
+                        "skill_memory_context": prior.get("skill_memory_context", {}),
                         "worker_result": prior.get("worker_result", {}),
                         "event_ids": prior.get("event_ids", []),
                         "permission_session": {
@@ -4741,6 +4756,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             checkpoint = state.metadata.get("browser_context_runtime_state")
             checkpoint = checkpoint if isinstance(checkpoint, dict) else None
+            skill_memory_checkpoint = state.metadata.get(
+                "browser_skill_memory_context_runtime_state"
+            )
+            skill_memory_checkpoint = (
+                skill_memory_checkpoint
+                if isinstance(skill_memory_checkpoint, dict)
+                else None
+            )
             try:
                 _runtime, browser_worker = get_browser_runtime_services(
                     task_id=state.task_id,
@@ -4750,6 +4773,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 run_result = browser_worker.run(
                     request,
                     browser_context_checkpoint=checkpoint,
+                    skill_memory_context_checkpoint=skill_memory_checkpoint,
                 )
             except WorkspaceError as error:
                 response = workspace_error_response(error)
@@ -4781,6 +4805,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     ),
                 )
                 _BROWSER_CONTEXT_TASK_INTEGRATION.persist_checkpoint(state.metadata, restored)
+            if run_result.skill_memory_context_checkpoint and not browser_action_pending:
+                state.metadata["browser_skill_memory_context_runtime_state"] = dict(
+                    run_result.skill_memory_context_checkpoint
+                )
+            state.metadata["browser_skill_memory_context"] = dict(
+                run_result.skill_memory_context_projection
+            )
             state.metadata["browser_observability"] = dict(
                 run_result.browser_observability_projection
             )
@@ -4816,6 +4847,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "worker_result": to_jsonable(run_result.worker_result),
                     "browser_context": run_result.browser_context_projection,
                     "browser_observability": run_result.browser_observability_projection,
+                    "skill_memory_context": run_result.skill_memory_context_projection,
                     "event_ids": [event.event_id for event in run_result.event_records],
                     "created_at": now_iso(),
                 }
@@ -4875,6 +4907,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     ],
                     "browser_context": run_result.browser_context_projection,
                     "browser_observability": run_result.browser_observability_projection,
+                    "skill_memory_context": run_result.skill_memory_context_projection,
                     "idempotency_key": idempotency_key,
                     "permission_session": permission_session,
                     "browser_action_continuation": {
@@ -6754,6 +6787,25 @@ def _record_code_worker_session_metadata(state: Any, run_result: Any) -> None:
         if event.payload.get("query_session", {}).get("phase") == "query_session_snapshot"
     ]
     latest_snapshot = snapshot_events[-1] if snapshot_events else {}
+    skill_memory_browser_exports = [
+        event.payload["query_session"].get("browser_projection", {})
+        for event in session_events
+        if event.payload.get("query_session", {}).get("phase")
+        == "skill_memory_browser_context_exported"
+        and isinstance(
+            event.payload.get("query_session", {}).get("browser_projection"),
+            dict,
+        )
+    ]
+    latest_skill_memory_browser_context = (
+        dict(skill_memory_browser_exports[-1])
+        if skill_memory_browser_exports
+        else {}
+    )
+    if latest_skill_memory_browser_context:
+        state.metadata["skill_memory_browser_context_projection"] = dict(
+            latest_skill_memory_browser_context
+        )
     record = {
         "session_id": session_id,
         "resume_token": metadata.get("query_session_resume_token", ""),
@@ -6789,6 +6841,7 @@ def _record_code_worker_session_metadata(state: Any, run_result: Any) -> None:
             "untrusted_messages": metadata.get("restore_integration_untrusted_messages", ""),
             "redacted_messages": metadata.get("restore_integration_redacted_messages", ""),
         },
+        "skill_memory_browser_context": latest_skill_memory_browser_context,
         "context_security": {
             "ok": metadata.get("context_security_ok", ""),
             "status": metadata.get("context_security_status", ""),

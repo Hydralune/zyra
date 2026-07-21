@@ -136,6 +136,7 @@ class ProcedureMatch:
             "03c_resolution_required": True,
             "procedure_can_invoke_skill": False,
         }
+        return projection
 
 
 @dataclass(frozen=True, slots=True)

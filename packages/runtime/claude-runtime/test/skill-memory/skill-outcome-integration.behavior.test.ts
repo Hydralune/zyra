@@ -21,6 +21,8 @@ import { E01RuntimeCoordinator } from "../../src/e01/coordinator.ts";
 
 afterEach(() => {
   delete process.env.ZYRA_DISABLE_SKILL_MEMORY_RUNTIME;
+  delete process.env.ZYRA_DISABLE_SKILL_MEMORY_INTEGRATION;
+  delete process.env.ZYRA_ENABLE_SNAPCOMPACT_EXPERIMENT;
 });
 
 test("real 03C SkillCoordinator outcome reaches 06C without transferring loader or invocation ownership", async () => {
@@ -90,6 +92,10 @@ Review {{target}} and return the observed result.`, "utf8");
     const reference = execution.output.outcome_reference as JsonObject;
     expect(reference.protocol).toBe("zyra.skill-coordinator-outcome/v1");
     expect((reference.metadata as JsonObject).executable_skill_cache).toBe(false);
+    const currentAuthority = execution.output.current_authority as JsonObject;
+    expect(currentAuthority.protocol).toBe("zyra.skill-coordinator-authority/v1");
+    expect(currentAuthority.availability).toBe("available");
+    expect(currentAuthority).not.toHaveProperty("body");
 
     const e01 = new E01RuntimeCoordinator(
       "run-06c",
@@ -118,6 +124,10 @@ Review {{target}} and return the observed result.`, "utf8");
     });
     expect(recorded).not.toBeNull();
     expect(e01.skillMemory.listSkillOutcomes({ reusableOnly: true })).toHaveLength(1);
+    expect(
+      (e01.skillMemory.listSkillOutcomes({ reusableOnly: true })[0]!.metadata
+        .current_skill_authority as JsonObject).protocol,
+    ).toBe("zyra.skill-coordinator-authority/v1");
     expect(e01.skillMemory.health().invokes_skills).toBe(false);
     expect(coordinator.owns("skill")).toBe(true);
     expect(coordinator.toolSpecs().map((item) => item.name)).toContain("skill");
@@ -136,6 +146,78 @@ Review {{target}} and return the observed result.`, "utf8");
     expect(restoredSkillMemory.revision).toBe(snapshot.skillMemory!.revision);
     expect(restoredSkillMemory.outcomes.records).toEqual(snapshot.skillMemory!.outcomes.records);
     expect(restoredSkillMemory.signals.signals).toEqual(snapshot.skillMemory!.signals.signals);
+  } finally {
+    await coordinator.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("real 03C reload tightens and revokes authority after historical outcome capture", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "zyra-06c-authority-reload-"));
+  const rootPath = join(workspace, "skills");
+  const skillPath = join(rootPath, "mutable-reviewer");
+  const manifestPath = join(skillPath, "SKILL.md");
+  await mkdir(skillPath, { recursive: true });
+  const manifest = (allowed: string[], enabled: boolean) => `---
+id: mutable-reviewer
+name: mutable-reviewer
+description: Verify current authority after compact
+tools: {"allowed":${JSON.stringify(allowed)},"denied":[],"namespaces":["builtin"],"mcp_servers":[],"read_only":true,"inherit_parent":true,"maximum_calls":3,"maximum_parallel":1,"require_approval":[]}
+execution: {"mode":"inline","timeout_ms":30000,"maximum_turns":2,"sandbox":"workspace_read","allow_network":false,"persist_transcript":true,"persist_artifacts":false}
+enabled: ${enabled}
+---
+Resolve this body only through the current 03C registry.`;
+  await writeFile(manifestPath, manifest(["file_read", "shell"], true), "utf8");
+  const coordinator = new SkillCoordinator({
+    workspaceRoot: workspace,
+    epoch: 0,
+    roots: [{
+      sourceId: "authority-reload-skills",
+      kind: "project",
+      rootPath,
+      priority: 300,
+      enabled: true,
+      recursive: true,
+      followSymlinks: false,
+      maximumDepth: 8,
+      includePatterns: ["**/SKILL.md"],
+      excludePatterns: [],
+      pluginId: null,
+      revision: 1,
+      metadata: {},
+    }],
+    watch: false,
+    executor: async () => ({ output: { ok: true }, artifacts: [] }),
+  });
+  try {
+    await coordinator.open();
+    const historical = await coordinator.execute("skill", {
+      skill: "mutable-reviewer",
+      arguments: {},
+    });
+    expect(
+      ((historical.output.current_authority as JsonObject).policy as JsonObject)
+        .effectiveTools,
+    ).toEqual(["file_read", "shell"]);
+
+    await writeFile(manifestPath, manifest(["file_read"], true), "utf8");
+    await coordinator.execute("reload_skills", {});
+    const tightened = coordinator.authority("mutable-reviewer");
+    expect(tightened.registryRevision).toBeGreaterThan(
+      Number((historical.output.current_authority as JsonObject).registryRevision),
+    );
+    expect(tightened.policy?.effectiveTools).toEqual(["file_read"]);
+    expect(tightened.policy?.effectiveTools).not.toContain("shell");
+
+    await writeFile(manifestPath, manifest(["file_read"], false), "utf8");
+    await coordinator.execute("reload_skills", {});
+    const revoked = coordinator.authority("mutable-reviewer");
+    expect(revoked.availability).toBe("disabled");
+    expect(revoked.policy).toBeNull();
+    await expect(coordinator.execute("skill", {
+      skill: "mutable-reviewer",
+      arguments: {},
+    })).rejects.toThrow("disabled");
   } finally {
     await coordinator.close();
     await rm(workspace, { recursive: true, force: true });
@@ -300,4 +382,17 @@ test("ClaudeRuntimeCore dynamically reaches 06C compact archive and restore proj
   const restoreBridge = skillState.restoreBridge as JsonObject;
   expect(Number(restoreBridge.contextEpoch)).toBeGreaterThan(0);
   expect((restoreBridge.appliedBoundaryIds as unknown[]).length).toBeGreaterThan(0);
+  const fidelity = host.events.filter((event) => event.phase === "skill_memory_restore_fidelity");
+  const browserExports = host.events.filter((event) => event.phase === "skill_memory_browser_context_exported");
+  expect(fidelity.length).toBeGreaterThan(0);
+  expect(browserExports.length).toBeGreaterThan(0);
+  const browserProjection = browserExports[0]?.browser_projection as JsonObject;
+  expect(browserProjection.allowedTools).toEqual([]);
+  expect((browserProjection.metadata as JsonObject).authority_transfer).toBe(false);
+  expect((browserProjection.metadata as JsonObject).browser_scope_declared).toBe(false);
+  expect((browserProjection.allowedTools as string[]).includes("read")).toBe(false);
+  const integration = skillState.integration as JsonObject;
+  expect((integration.preparations as unknown[]).length).toBeGreaterThan(0);
+  expect((integration.applications as unknown[]).length).toBeGreaterThan(0);
+  expect((integration.browserExports as unknown[]).length).toBeGreaterThan(0);
 });
