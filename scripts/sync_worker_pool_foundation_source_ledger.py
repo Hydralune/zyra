@@ -31,7 +31,8 @@ TEST_COMMAND = (
     "python -m pytest -q tests/unit/test_worker_pool_foundation.py "
     "tests/unit/test_dynamic_graph_custody.py "
     "tests/integration/test_edge_worker_resource_pool.py "
-    "tests/integration/test_worker_pool_api_main_path.py"
+    "tests/integration/test_worker_pool_api_main_path.py; "
+    "bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts"
 )
 
 
@@ -48,7 +49,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "src/agentscope/app/_service/_session.py"
         ),
         "source_language": "python",
-        "target_language": "python",
+        "target_language": "typescript",
         "source_symbols": [
             "ChatRunRegistry",
             "WakeupDispatcher",
@@ -154,28 +155,37 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "independent edge IPC, gateway artifact return and no-fallback edge-only failure."
         ),
         "target_paths": [
+            "packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts",
+            "packages/runtime/claude-runtime/src/omp-worker-control/semaphore.ts",
+            "packages/runtime/claude-runtime/src/omp-worker-control/job-manager.ts",
+            "packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts",
+            "packages/runtime/claude-runtime/src/tasks/executor.ts",
+            "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
             "packages/scheduler/zyra_scheduler/worker_pool/models.py",
-            "packages/scheduler/zyra_scheduler/worker_pool/capabilities.py",
-            "packages/scheduler/zyra_scheduler/worker_pool/recovery.py",
             "packages/workers/zyra_workers/edge_pool/protocol.py",
             "packages/workers/zyra_workers/edge_pool/server.py",
             "packages/workers/zyra_workers/edge_pool/connector.py",
             "packages/workers/zyra_workers/edge_pool/runtime.py",
             "apps/api/zyra_api/worker_pool_api.py",
+            "apps/api/zyra_api/main.py",
         ],
         "source_role": "supplementary_implementation",
-        "migration_mode": "bounded_protocol_and_lifecycle_adaptation_without_omp_process_or_store",
-        "runtime_module": "zyra_workers.edge_pool",
-        "runtime_function": "EdgeWorkerRegistrationRuntime",
+        "migration_mode": "cropped_same_language_worker_control_with_python_canonical_lease_projection",
+        "runtime_module": "@zyra/claude-runtime/omp-worker-control",
+        "runtime_function": "OmpWorkerDispatchRuntime",
         "event_types": ["worker_health", "resource_decision", "artifact_written", "node_failed"],
         "api_routes": ["GET /worker-pool/workers", "GET /worker-pool/health"],
         "state_owner": (
-            "WorkerPoolStore and EdgeWorkerProcessConnector; no OMP AgentRegistry, JSONL, SQLite, "
-            "RPC process or global registry is a runtime dependency"
+            "Python WorkerPoolStore owns physical attempt/lease/receipt durability; TypeScript "
+            "OmpWorkerDispatchRuntime owns only process-local admission, semaphore and AsyncJob "
+            "projection; no upstream OMP AgentRegistry, JSONL, SQLite, RPC process or global "
+            "registry is a runtime dependency"
         ),
         "rationale": (
-            "Only bounded progress, drain, claim, restart and external-worker protocol semantics "
-            "are adapted. Logical task trees stay 03D-owned and worktree state stays 05A-owned."
+            "OMP TaskTool concurrency and AsyncJob park/revive/drain control flow is cropped in "
+            "its original TypeScript and gates the real E03 child execution using a read-only "
+            "Python lease projection. Logical task trees stay 03D-owned, durable physical leases "
+            "stay WorkerPoolStore-owned and worktree state stays 05A-owned."
         ),
     },
 )
@@ -266,7 +276,14 @@ def _entry(decision: Mapping[str, Any]) -> dict[str, Any]:
                 "path": "tests/integration/test_worker_pool_api_main_path.py",
                 "command": "python -m pytest -q tests/integration/test_worker_pool_api_main_path.py",
                 "kind": "integration",
-                "expected_signal": "default task API acquires and cancels physical lease and exposes dynamic graph refs",
+                "expected_signal": "default task and subagent APIs acquire physical leases before TypeScript OMP-gated execution, settle receipts and fail closed when the gate is disabled",
+                "required": True,
+            },
+            {
+                "path": "packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+                "command": "bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+                "kind": "behavior",
+                "expected_signal": "original-language semaphore, bounded fanout, AsyncJob park/revive/cancel and physical dispatch gating mutate TypeScript runtime state",
                 "required": True,
             },
         ],

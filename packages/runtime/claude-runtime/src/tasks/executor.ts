@@ -18,6 +18,7 @@ import { TaskLeaseRuntime } from "./identity-runtime.ts";
 import { TeamDelivery } from "../team/delivery.ts";
 import { DeliveryOutboxRuntime } from "../team/delivery.ts";
 import { runAgent } from "../agents/run-agent.ts";
+import { OmpWorkerDispatchRuntime } from "../omp-worker-control/dispatch-runtime.ts";
 
 export interface TaskExecutionHost {
   runChild(input: RuntimeRunInput): Promise<RuntimeRunResult>;
@@ -49,6 +50,7 @@ export class TaskExecutor {
     private readonly stateMachine: TaskStateMachine,
     private readonly host: TaskExecutionHost,
     clock: E03Clock = new SystemE03Clock(),
+    private readonly physicalDispatch = new OmpWorkerDispatchRuntime(),
   ) {
     this.deadlines = new TaskDeadlineRuntime(clock);
     this.leases = new TaskLeaseRuntime(clock);
@@ -176,10 +178,19 @@ export class TaskExecutor {
         input,
       );
     try {
-      const result = await runAgent(task, input.argumentsValue, {
-        parentInput: input.parentInput,
-        runChild: (child) => this.host.runChild(child),
-      });
+      const result = await this.physicalDispatch.execute(
+        task,
+        () => runAgent(task, input.argumentsValue, {
+          parentInput: input.parentInput,
+          runChild: (child) => this.host.runChild(child),
+        }),
+        {
+          usage: (value) => {
+            const selected = value as RuntimeRunResult;
+            return usagePayload(selected);
+          },
+        },
+      );
       const current = this.registry.require(task.identity.taskId);
       this.stateMachine.rejectLateResult(
         current,
@@ -219,7 +230,14 @@ export class TaskExecutor {
         "failed",
         "agent_task_crashed",
         input,
-        { error: error instanceof Error ? error.message : String(error) },
+        {
+          error:
+            error instanceof E03RuntimeError
+              ? `${error.code}: ${error.message}`
+              : error instanceof Error
+                ? error.message
+                : String(error),
+        },
       );
     }
   }

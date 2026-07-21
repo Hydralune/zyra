@@ -284,6 +284,8 @@ export interface E03TaskState {
   prompt: string;
   promptDigest: string;
   executionMode: "foreground" | "background";
+  /** Read-only projection of the canonical Python physical attempt/lease. */
+  physicalDispatch: JsonObject | null;
   isolation: E03IsolationRequest | null;
   isolationReceipt: E03IsolationReceipt | null;
   messages: E03Message[];

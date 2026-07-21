@@ -14,6 +14,7 @@ import {
   type E03Transition,
   SystemE03Clock,
 } from "../e03/contracts.ts";
+import type { JsonObject } from "../contracts.ts";
 
 const ALLOWED: Readonly<Record<AgentTaskPhase, readonly AgentTaskPhase[]>> =
   Object.freeze({
@@ -41,6 +42,7 @@ export interface TaskCreationInput {
   context: E03ContextSnapshot;
   prompt: string;
   executionMode: "foreground" | "background";
+  physicalDispatch?: JsonObject | null;
 }
 
 export class TaskStateMachine {
@@ -75,6 +77,9 @@ export class TaskStateMachine {
       prompt,
       promptDigest: digest(prompt),
       executionMode: input.executionMode,
+      physicalDispatch: input.physicalDispatch
+        ? structuredClone(input.physicalDispatch)
+        : null,
       isolation: null,
       isolationReceipt: null,
       messages: [],

@@ -331,10 +331,16 @@ class TypeScriptAgentDurablePort:
         if not root.is_dir():
             raise ValueError(f"workspace root does not exist: {root}")
         base_revision = str(request.get("baseRevision") or "HEAD")
-        dirty = bool(self._git(root, "status", "--porcelain"))
+        # A manager-owned task workspace may live below the Zyra repository
+        # without itself being a Git checkout.  Letting `git -C` walk to a
+        # parent repository falsely makes the task baseline inherit unrelated
+        # developer changes and blocks every isolated child.
+        repository_marker = root / ".git"
+        is_repository = repository_marker.exists()
+        dirty = bool(self._git(root, "status", "--porcelain")) if is_repository else False
         if dirty and not bool(request.get("allowDirtyBaseline")):
             raise ValueError("workspace baseline is dirty")
-        observed = self._git(root, "rev-parse", base_revision) if (root / ".git").exists() else base_revision
+        observed = self._git(root, "rev-parse", base_revision) if is_repository else base_revision
         if mode != "worktree":
             return {
                 "workspace_path": str(root),

@@ -648,6 +648,7 @@ export function taskProjection(
     status: task.status,
     revision: task.revision,
     sequence: task.sequence,
+    physical_dispatch: task.physicalDispatch,
     messages: task.messages.map((message) => ({
       message_id: message.messageId,
       sender_task_id: message.senderTaskId,

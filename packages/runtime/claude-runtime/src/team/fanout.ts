@@ -372,6 +372,7 @@ function failurePlaceholder(
     prompt: target.prompt,
     promptDigest: digest(target.prompt),
     executionMode: "background",
+    physicalDispatch: null,
     isolation: null,
     isolationReceipt: null,
     messages: [],

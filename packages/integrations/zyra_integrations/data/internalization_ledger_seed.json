@@ -176506,7 +176506,7 @@
           "tests/app/tool_offload_middleware_test.py"
         ],
         "state_owner": "WorkerPoolStore owns WorkerInstance, TaskAttempt, WorkerLease, heartbeat telemetry, inbox/wakeup and execution receipts; 03D remains logical AgentTask owner",
-        "target_language": "python",
+        "target_language": "typescript",
         "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
       },
       "migration_strategy": "direct_port",
@@ -176526,7 +176526,7 @@
           "apps/api/zyra_api/main.py"
         ],
         "function": "WorkerPoolFoundationRuntime",
-        "health_check": "python -m pytest -q tests/unit/test_worker_pool_foundation.py tests/unit/test_dynamic_graph_custody.py tests/integration/test_edge_worker_resource_pool.py tests/integration/test_worker_pool_api_main_path.py",
+        "health_check": "python -m pytest -q tests/unit/test_worker_pool_foundation.py tests/unit/test_dynamic_graph_custody.py tests/integration/test_edge_worker_resource_pool.py tests/integration/test_worker_pool_api_main_path.py; bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
         "module": "zyra_scheduler.worker_pool",
         "protocol": "zyra.worker-pool/v1"
       },
@@ -176622,9 +176622,16 @@
         },
         {
           "command": "python -m pytest -q tests/integration/test_worker_pool_api_main_path.py",
-          "expected_signal": "default task API acquires and cancels physical lease and exposes dynamic graph refs",
+          "expected_signal": "default task and subagent APIs acquire physical leases before TypeScript OMP-gated execution, settle receipts and fail closed when the gate is disabled",
           "kind": "integration",
           "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+          "expected_signal": "original-language semaphore, bounded fanout, AsyncJob park/revive/cancel and physical dispatch gating mutate TypeScript runtime state",
+          "kind": "behavior",
+          "path": "packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
           "required": true
         }
       ]
@@ -176685,7 +176692,7 @@
           "dynamic_topology_custody"
         ],
         "ui_panels": [],
-        "worker_runtime": "EdgeWorkerRegistrationRuntime"
+        "worker_runtime": "OmpWorkerDispatchRuntime"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
@@ -176695,7 +176702,7 @@
         "graph_owner": "Zyra GraphStateCustody and DynamicTopologyRuntime",
         "langgraph_runtime_dependency": false,
         "logical_task_owner": "M1-S03D TypeScript AgentTaskRuntime",
-        "migration_mode": "bounded_protocol_and_lifecycle_adaptation_without_omp_process_or_store",
+        "migration_mode": "cropped_same_language_worker_control_with_python_canonical_lease_projection",
         "omp_runtime_dependency": false,
         "openclaw_forward_excluded": true,
         "owner_unit": "M1-S07A-01",
@@ -176720,27 +176727,32 @@
           "packages/coding-agent/test/task/**",
           "roboomp queue claim/restart behavior from source graph batch-06"
         ],
-        "state_owner": "WorkerPoolStore and EdgeWorkerProcessConnector; no OMP AgentRegistry, JSONL, SQLite, RPC process or global registry is a runtime dependency",
+        "state_owner": "Python WorkerPoolStore owns physical attempt/lease/receipt durability; TypeScript OmpWorkerDispatchRuntime owns only process-local admission, semaphore and AsyncJob projection; no upstream OMP AgentRegistry, JSONL, SQLite, RPC process or global registry is a runtime dependency",
         "target_language": "python",
         "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
       },
       "migration_strategy": "direct_port",
-      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; Only bounded progress, drain, claim, restart and external-worker protocol semantics are adapted. Logical task trees stay 03D-owned and worktree state stays 05A-owned.",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; OMP TaskTool concurrency and AsyncJob park/revive/drain control flow is cropped in its original TypeScript and gates the real E03 child execution using a read-only Python lease projection. Logical task trees stay 03D-owned, durable physical leases stay WorkerPoolStore-owned and worktree state stays 05A-owned.",
       "owner_unit": "M1-S07A-01",
       "runtime_entry": {
         "config_refs": [
+          "packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts",
+          "packages/runtime/claude-runtime/src/omp-worker-control/semaphore.ts",
+          "packages/runtime/claude-runtime/src/omp-worker-control/job-manager.ts",
+          "packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts",
+          "packages/runtime/claude-runtime/src/tasks/executor.ts",
+          "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
           "packages/scheduler/zyra_scheduler/worker_pool/models.py",
-          "packages/scheduler/zyra_scheduler/worker_pool/capabilities.py",
-          "packages/scheduler/zyra_scheduler/worker_pool/recovery.py",
           "packages/workers/zyra_workers/edge_pool/protocol.py",
           "packages/workers/zyra_workers/edge_pool/server.py",
           "packages/workers/zyra_workers/edge_pool/connector.py",
           "packages/workers/zyra_workers/edge_pool/runtime.py",
-          "apps/api/zyra_api/worker_pool_api.py"
+          "apps/api/zyra_api/worker_pool_api.py",
+          "apps/api/zyra_api/main.py"
         ],
-        "function": "EdgeWorkerRegistrationRuntime",
-        "health_check": "python -m pytest -q tests/unit/test_worker_pool_foundation.py tests/unit/test_dynamic_graph_custody.py tests/integration/test_edge_worker_resource_pool.py tests/integration/test_worker_pool_api_main_path.py",
-        "module": "zyra_workers.edge_pool",
+        "function": "OmpWorkerDispatchRuntime",
+        "health_check": "python -m pytest -q tests/unit/test_worker_pool_foundation.py tests/unit/test_dynamic_graph_custody.py tests/integration/test_edge_worker_resource_pool.py tests/integration/test_worker_pool_api_main_path.py; bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+        "module": "@zyra/claude-runtime/omp-worker-control",
         "protocol": "zyra.worker-pool/v1"
       },
       "source_evidence": [
@@ -176768,17 +176780,37 @@
       "source_repo": "oh-my-pi",
       "target_bindings": [
         {
-          "path": "packages/scheduler/zyra_scheduler/worker_pool/models.py",
+          "path": "packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts",
           "required_for_main_path": true,
           "role": "primary"
         },
         {
-          "path": "packages/scheduler/zyra_scheduler/worker_pool/capabilities.py",
+          "path": "packages/runtime/claude-runtime/src/omp-worker-control/semaphore.ts",
           "required_for_main_path": true,
           "role": "supporting"
         },
         {
-          "path": "packages/scheduler/zyra_scheduler/worker_pool/recovery.py",
+          "path": "packages/runtime/claude-runtime/src/omp-worker-control/job-manager.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/tasks/executor.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/agents/agent-tool.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/models.py",
           "required_for_main_path": true,
           "role": "supporting"
         },
@@ -176806,6 +176838,11 @@
           "path": "apps/api/zyra_api/worker_pool_api.py",
           "required_for_main_path": true,
           "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
         }
       ],
       "test_entries": [
@@ -176825,9 +176862,16 @@
         },
         {
           "command": "python -m pytest -q tests/integration/test_worker_pool_api_main_path.py",
-          "expected_signal": "default task API acquires and cancels physical lease and exposes dynamic graph refs",
+          "expected_signal": "default task and subagent APIs acquire physical leases before TypeScript OMP-gated execution, settle receipts and fail closed when the gate is disabled",
           "kind": "integration",
           "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+          "expected_signal": "original-language semaphore, bounded fanout, AsyncJob park/revive/cancel and physical dispatch gating mutate TypeScript runtime state",
+          "kind": "behavior",
+          "path": "packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
           "required": true
         }
       ]
@@ -176926,8 +176970,8 @@
       "packages/integrations": 78,
       "packages/memory": 197,
       "packages/orchestration": 59,
-      "packages/runtime": 168,
-      "packages/scheduler": 81,
+      "packages/runtime": 169,
+      "packages/scheduler": 80,
       "packages/skills": 48,
       "packages/symbolic": 1,
       "packages/workers": 165,

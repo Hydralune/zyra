@@ -20,6 +20,7 @@ import {
 import { HostE03PhysicalPort } from "../e03/host-port.ts";
 import { taskProjection } from "../tasks/registry.ts";
 import { AgentBackgroundSupervisor } from "./execution-runtime.ts";
+import { mapWithConcurrencyLimit } from "../omp-worker-control/semaphore.ts";
 
 const AGENT_TOOLS = new Set([
   "Agent",
@@ -65,6 +66,7 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         turns: { type: "array" },
         messages: { type: "array" },
         requests: { type: "array" },
+        physical_dispatch: { type: "object" },
       },
       additionalProperties: true,
     };
@@ -208,6 +210,14 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
       background_claims:
         this.backgroundSupervisor.snapshot() as unknown as JsonObject[],
       background_claims_are_projection_only: true,
+      omp_worker_dispatch:
+        this.coordinatorValue?.execution.physicalDispatch.snapshot() ?? {
+          version: "zyra.omp-worker-dispatch/v1",
+          canonical_state_owner: "python.WorkerPoolStore",
+          projection_only: true,
+          jobs: [],
+          semaphores: [],
+        },
       python_agent_fallback: false,
       commit_protocol: ["prepare", "effect", "receipt", "commit", "ack"],
     };
@@ -267,6 +277,7 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
         ),
         base_revision: asString(argumentsValue.base_revision, "HEAD"),
         start_immediately: !background,
+        physical_dispatch: argumentsValue.physical_dispatch ?? null,
         messages: argumentsValue.messages ?? [],
         turns: argumentsValue.turns ?? [],
       },
@@ -311,14 +322,10 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
       common.maximum_concurrency,
       Math.min(requests.length, 4),
     );
-    const results: Array<AgentCapabilityResult | null> = Array(
-      requests.length,
-    ).fill(null);
-    let next = 0;
-    let failed: Error | null = null;
-    const worker = async (): Promise<void> => {
-      while (next < requests.length && !failed) {
-        const index = next++;
+    const output = await mapWithConcurrencyLimit(
+      requests,
+      maximum,
+      async (_request, index) => {
         const { requests: _requests, ...requestValues } = {
           ...common,
           ...requests[index],
@@ -331,23 +338,19 @@ export class TypeScriptAgentRuntime implements AgentToolSurface {
           background: requests[index]!.background ?? common.background ?? true,
         } as JsonObject;
         try {
-          results[index] = await this.spawn(request, context);
+          return await this.spawn(request, context);
         } catch (error) {
-          failed = error instanceof Error ? error : new Error(String(error));
-          if (common.failure_mode !== "collect") return;
-          results[index] = {
-            summary: failed.message,
-            output: { ok: false, error: failed.message },
+          const failure = error instanceof Error ? error : new Error(String(error));
+          if (common.failure_mode !== "collect") throw failure;
+          const collected: AgentCapabilityResult = {
+            summary: failure.message,
+            output: { ok: false, error: failure.message },
             metadata: { canonical_owner: "typescript", failed: "true" },
           };
-          failed = null;
+          return collected;
         }
-      }
-    };
-    await Promise.all(Array.from({ length: maximum }, worker));
-    if (failed) throw failed;
-    const output = results.filter((item): item is AgentCapabilityResult =>
-      Boolean(item),
+      },
+      { failureMode: common.failure_mode === "collect" ? "collect" : "fail-fast" },
     );
     return {
       summary: `Fanout created ${output.length} TypeScript-owned children`,

@@ -329,6 +329,7 @@ from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
 from zyra_scheduler.worker_pool import (
     CancellationRequest as PhysicalCancellationRequest,
     CapabilityRequirement as PhysicalCapabilityRequirement,
+    ExecutionOutcome as PhysicalExecutionOutcome,
     ResourceVector as PhysicalResourceVector,
     WorkerPoolFoundationRuntime,
 )
@@ -1096,12 +1097,16 @@ def get_typescript_agent_port() -> TypeScriptAgentDurablePort:
 
     global _TYPESCRIPT_AGENT_PORT, _TYPESCRIPT_AGENT_PORT_KEY
     root = subagent_state_path().resolve()
-    key = str(root)
+    workspace_root = workspace_manager_config().data_root.resolve()
+    key = f"{root}|{workspace_root}"
     with _TYPESCRIPT_AGENT_PORT_LOCK:
         if _TYPESCRIPT_AGENT_PORT is None or _TYPESCRIPT_AGENT_PORT_KEY != key:
             _TYPESCRIPT_AGENT_PORT = TypeScriptAgentDurablePort(
                 root,
-                workspace_root=tool_workspace_path(),
+                # E03 effects may only target manager-owned task workspaces;
+                # the legacy tool workspace is a sibling and is not their
+                # containment authority.
+                workspace_root=workspace_root,
                 event_sink=_commit_runtime_event,
             )
             _TYPESCRIPT_AGENT_PORT_KEY = key
@@ -1134,12 +1139,18 @@ def _run_typescript_agent_request(
         worker_id="CodeWorkerRuntime",
     )
     worker_workspace_root = workspace_manager.internal_task_root(workspace_access)
+    bounded_arguments = {
+        **arguments,
+        # The E03 physical isolation port is bound to this task workspace.  A
+        # caller-supplied/project-root value must never escape that boundary.
+        "workspace_root": str(worker_workspace_root),
+    }
     constraints = {
         "query_turns": [[{
             "tool_name": tool_name,
             "step_id": f"agent-api:{request_id}",
             "tool_call_id": f"agent-api:{request_id}",
-            "arguments": arguments,
+            "arguments": bounded_arguments,
         }]],
         "typescriptAgentStatePath": str(subagent_state_path()),
         "query_context_budget_chars": 32000,
@@ -1195,6 +1206,172 @@ def _run_typescript_agent_request(
         },
         retrieval_context_runtime=retrieval_context,
     ).run(request)
+
+
+def _acquire_subagent_physical_dispatch(
+    state: Any,
+    *,
+    task_id: str,
+    owner_session_id: str,
+    idempotency_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Acquire and start the canonical 07A physical attempt before E03 runs.
+
+    The first mapping is persisted by the TypeScript E03 task as a read-only
+    dispatch projection.  It intentionally excludes the fence token; only the
+    Python WorkerPoolStore uses that token to settle the canonical lease.
+    """
+
+    pool_api = get_worker_pool_api()
+    pool_api.ensure_default_local_worker()
+    latest_attempt = pool_api.pool.store.latest_attempt(task_id)
+    active_lease = None
+    if latest_attempt is not None and latest_attempt.lease_id and not latest_attempt.terminal:
+        active_lease = pool_api.pool.store.get_lease(latest_attempt.lease_id)
+        if active_lease is not None and active_lease.terminal:
+            active_lease = None
+        elif active_lease is not None and active_lease.expired_at():
+            pool_api.pool.leases.expire(
+                active_lease.lease_id,
+                reason="subagent approval exceeded physical admission lease",
+            )
+            active_lease = None
+    if latest_attempt is not None and active_lease is not None:
+        attempt = latest_attempt
+        lease = active_lease
+        worker = pool_api.pool.store.require_worker(lease.worker_id)
+        manifest = pool_api.pool.store.latest_manifest(worker.worker_id)
+        if manifest is None:
+            raise RuntimeError(f"worker {worker.worker_id} has no capability manifest")
+        reused = True
+    else:
+        attempt_number = 1 if latest_attempt is None else latest_attempt.attempt_number + 1
+        acquisition = pool_api.pool.acquire_task(
+            task_id=task_id,
+            run_id=state.run_id,
+            owner_session_id=owner_session_id,
+            requirement=PhysicalCapabilityRequirement(
+                required=("agent_task",),
+                resources=PhysicalResourceVector(process_slots=1, memory_mb=64),
+            ),
+            attempt_number=attempt_number,
+            preferred_worker_ids=("local-code-worker",),
+            # The E02 ask/approve round-trip precedes E03 execution.  07A-02
+            # owns long-running renewal, but foundation admission must not
+            # expire during an ordinary interactive approval.
+            ttl_seconds=15 * 60.0,
+            idempotency_key=f"{idempotency_key}:physical:{attempt_number}",
+            metadata={
+                "parent_task_id": state.task_id,
+                "logical_owner": "typescript.E03AgentControlCoordinator",
+                "projection_owner": "typescript.OmpWorkerDispatchRuntime",
+                "logical_task_not_duplicated": True,
+            },
+        )
+        attempt = acquisition.attempt
+        lease = acquisition.lease
+        worker = acquisition.worker
+        manifest = acquisition.manifest
+        reused = acquisition.reused
+    running = pool_api.pool.leases.start_attempt(
+        lease.lease_id,
+        worker_id=lease.worker_id,
+        fence_token=lease.fence_token,
+        fence_epoch=lease.fence_epoch,
+        backend_dispatch_id=f"typescript-e03:{task_id}:{attempt.attempt_number}",
+    )
+    unsigned_projection = {
+        "schema": "zyra.worker-pool-dispatch/v1",
+        "required": True,
+        "canonical_owner": "python.WorkerPoolStore",
+        "projection_owner": "typescript.OmpWorkerDispatchRuntime",
+        "task_id": task_id,
+        "attempt_id": running.attempt_id,
+        "attempt": running.attempt_number,
+        "lease_id": lease.lease_id,
+        "worker_id": worker.worker_id,
+        "backend_id": lease.backend_id,
+        "fence_epoch": lease.fence_epoch,
+        "manifest_digest": manifest.digest,
+        "concurrency_limit": max(1, min(128, manifest.resource_capacity.process_slots or 1)),
+        "lease_state": lease.state.value,
+        "logical_task_not_duplicated": True,
+    }
+    projection = {
+        **unsigned_projection,
+        "projection_digest": hashlib.sha256(
+            json.dumps(
+                unsigned_projection,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
+    }
+    public = {
+        "task_id": task_id,
+        "attempt_id": running.attempt_id,
+        "attempt": running.attempt_number,
+        "lease_id": lease.lease_id,
+        "worker_id": worker.worker_id,
+        "backend_id": lease.backend_id,
+        "fence_epoch": lease.fence_epoch,
+        "manifest_digest": manifest.digest,
+        "lease_state": lease.state.value,
+        "typescript_dispatch_gate": "typescript.OmpWorkerDispatchRuntime",
+        "logical_task_not_duplicated": True,
+        "reused": reused,
+    }
+    return projection, public
+
+
+def _settle_subagent_physical_dispatch(
+    projection: Mapping[str, Any],
+    *,
+    status: str,
+    summary: str,
+) -> Mapping[str, Any] | None:
+    """Commit one canonical execution receipt after the E03 task settles."""
+
+    terminal = {"completed", "failed", "cancelled", "killed"}
+    if status not in terminal:
+        return None
+    pool = get_worker_pool_api().pool
+    lease_id = str(projection.get("lease_id") or "")
+    lease = pool.store.get_lease(lease_id)
+    if lease is None:
+        raise RuntimeError(f"physical worker lease {lease_id} disappeared")
+    if lease.terminal:
+        existing = next(
+            (
+                item
+                for item in pool.store.receipts_for_task(str(projection.get("task_id") or ""))
+                if item.attempt_id == str(projection.get("attempt_id") or "")
+            ),
+            None,
+        )
+        return existing.to_dict() if existing is not None else None
+    outcome = {
+        "completed": PhysicalExecutionOutcome.SUCCEEDED,
+        "cancelled": PhysicalExecutionOutcome.CANCELLED,
+        "killed": PhysicalExecutionOutcome.CANCELLED,
+        "failed": PhysicalExecutionOutcome.FAILED,
+    }[status]
+    receipt = pool.leases.complete(
+        lease.lease_id,
+        worker_id=lease.worker_id,
+        fence_token=lease.fence_token,
+        fence_epoch=lease.fence_epoch,
+        outcome=outcome,
+        summary=summary or f"TypeScript E03 task {status}",
+        backend_receipt_ref=f"typescript-e03:{projection.get('task_id')}:{projection.get('attempt')}",
+        metadata={
+            "logical_owner": "typescript.E03AgentControlCoordinator",
+            "dispatch_gate": "typescript.OmpWorkerDispatchRuntime",
+            "projection_digest": str(projection.get("projection_digest") or ""),
+        },
+    )
+    return receipt.to_dict()
 
 
 def _agent_permission_session(run: Any) -> dict[str, Any]:
@@ -3963,6 +4140,44 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             request_id = str(payload.get("request_id") or new_id("agentfanout"))
+            owner_session_id = str(
+                payload.get("session_id")
+                or state.metadata.get("query_session_id")
+                or f"task:{state.task_id}"
+            )
+            prepared_requests: list[dict[str, Any]] = []
+            physical_dispatches: list[dict[str, Any]] = []
+            physical_workers: list[dict[str, Any]] = []
+            try:
+                for index, item in enumerate(raw_items):
+                    if not isinstance(item, dict):
+                        continue
+                    child = dict(item)
+                    child_task_id = str(child.get("task_id") or new_id(f"agenttask-{index + 1}"))
+                    child["task_id"] = child_task_id
+                    dispatch, public = _acquire_subagent_physical_dispatch(
+                        state,
+                        task_id=child_task_id,
+                        owner_session_id=owner_session_id,
+                        idempotency_key=f"{request_id}:{index}",
+                    )
+                    child["physical_dispatch"] = dispatch
+                    prepared_requests.append(child)
+                    physical_dispatches.append(dispatch)
+                    physical_workers.append(public)
+            except Exception as error:
+                for projection in physical_dispatches:
+                    lease = get_worker_pool_api().pool.store.get_lease(str(projection.get("lease_id") or ""))
+                    if lease is not None and not lease.terminal:
+                        get_worker_pool_api().pool.leases.cancel(
+                            lease.lease_id,
+                            reason="fanout physical admission failed",
+                        )
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "subagent_worker_pool_acquisition_failed", "message": str(error)},
+                )
+                return
             arguments = {
                 "prompt": str(payload.get("shared_context") or "fanout"),
                 "requests": [
@@ -3974,25 +4189,70 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             + str(item.get("prompt") or "")
                         ).strip(),
                     }
-                    for item in raw_items
-                    if isinstance(item, dict)
+                    for item in prepared_requests
                 ],
-                "failure_policy": str(payload.get("failure_policy") or "collect"),
+                "failure_mode": str(payload.get("failure_policy") or "collect"),
+                "maximum_concurrency": max(
+                    1,
+                    min(len(prepared_requests), int(payload.get("maximum_concurrency") or 4)),
+                ),
                 "idempotency_key": str(payload.get("idempotency_key") or request_id),
                 "budget": {"max_children": max(2, int(payload.get("maximum_concurrency") or 4))},
             }
-            run = _run_typescript_agent_request(
-                state,
-                arguments=arguments,
-                request_id=request_id,
-                session_id=str(
-                    payload.get("session_id")
-                    or state.metadata.get("query_session_id")
-                    or f"task:{state.task_id}"
-                ),
-                session_custody_token=extract_bearer_token(self.headers, payload),
-            )
+            try:
+                run = _run_typescript_agent_request(
+                    state,
+                    arguments=arguments,
+                    request_id=request_id,
+                    session_id=owner_session_id,
+                    session_custody_token=extract_bearer_token(self.headers, payload),
+                )
+            except Exception as error:
+                failed_receipts = [
+                    _settle_subagent_physical_dispatch(
+                        projection,
+                        status="failed",
+                        summary=str(error),
+                    )
+                    for projection in physical_dispatches
+                ]
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": "typescript_subagent_fanout_execution_failed",
+                        "message": str(error),
+                        "physical_workers": physical_workers,
+                        "physical_receipts": failed_receipts,
+                    },
+                )
+                return
             persist_events(store, run.event_records)
+            records_by_id = {
+                item.task_id: item
+                for item in get_typescript_agent_port().records(parent_task_id=state.task_id)
+            }
+            physical_receipts = []
+            for projection in physical_dispatches:
+                selected = records_by_id.get(str(projection.get("task_id") or ""))
+                selected_status = (
+                    selected.status.value
+                    if selected is not None
+                    else (
+                        "running"
+                        if str(run.worker_result.error or "") == "permission_suspended"
+                        else ("failed" if not run.worker_result.ok else "running")
+                    )
+                )
+                receipt = _settle_subagent_physical_dispatch(
+                    projection,
+                    status=selected_status,
+                    summary=(
+                        str(selected.payload.get("error") or selected_status)
+                        if selected is not None
+                        else str(run.worker_result.error or selected_status)
+                    ),
+                )
+                physical_receipts.append(receipt)
             status = HTTPStatus.CREATED if run.worker_result.ok else HTTPStatus.CONFLICT
             self._send_json(status, {
                 "ok": run.worker_result.ok,
@@ -4003,6 +4263,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 "permission_session": _agent_permission_session(run),
                 "canonical_agent_owner": "typescript",
                 "python_agent_fallback": False,
+                "physical_workers": physical_workers,
+                "physical_receipts": physical_receipts,
             }, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
             return
 
@@ -4020,6 +4282,24 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             request_id = str(payload.get("request_id") or new_id("agentspawn"))
             task_id = str(payload.get("subagent_task_id") or new_id("agenttask"))
+            owner_session_id = str(
+                payload.get("session_id")
+                or state.metadata.get("query_session_id")
+                or f"task:{state.task_id}"
+            )
+            try:
+                physical_dispatch, physical_worker = _acquire_subagent_physical_dispatch(
+                    state,
+                    task_id=task_id,
+                    owner_session_id=owner_session_id,
+                    idempotency_key=str(payload.get("idempotency_key") or request_id),
+                )
+            except Exception as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "subagent_worker_pool_acquisition_failed", "message": str(error)},
+                )
+                return
             arguments = {
                 "prompt": str(payload.get("prompt") or ""),
                 "agent_type": str(payload.get("agent_type") or "general-purpose"),
@@ -4035,72 +4315,53 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "context_epoch": int(state.metadata.get("context_epoch") or 0),
                     "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
                 },
+                "physical_dispatch": physical_dispatch,
             }
-            run = _run_typescript_agent_request(
-                state,
-                arguments=arguments,
-                request_id=request_id,
-                session_id=str(
-                    payload.get("session_id")
-                    or state.metadata.get("query_session_id")
-                    or f"task:{state.task_id}"
-                ),
-                session_custody_token=extract_bearer_token(self.headers, payload),
-            )
+            try:
+                run = _run_typescript_agent_request(
+                    state,
+                    arguments=arguments,
+                    request_id=request_id,
+                    session_id=owner_session_id,
+                    session_custody_token=extract_bearer_token(self.headers, payload),
+                )
+            except Exception as error:
+                physical_receipt = _settle_subagent_physical_dispatch(
+                    physical_dispatch,
+                    status="failed",
+                    summary=str(error),
+                )
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": "typescript_subagent_execution_failed",
+                        "message": str(error),
+                        "physical_worker": physical_worker,
+                        "physical_receipt": physical_receipt,
+                    },
+                )
+                return
             persist_events(store, run.event_records)
             records = get_typescript_agent_port().records(parent_task_id=state.task_id)
             selected = next((item for item in records if item.task_id == task_id), None)
-            physical_worker = None
-            if run.worker_result.ok and selected is not None:
-                pool_api = get_worker_pool_api()
-                pool_api.ensure_default_local_worker()
-                existing_attempt = pool_api.pool.store.latest_attempt(task_id)
-                if existing_attempt is not None and existing_attempt.lease_id:
-                    existing_lease = pool_api.pool.store.get_lease(existing_attempt.lease_id)
-                    physical_worker = {
-                        "task_id": task_id,
-                        "attempt_id": existing_attempt.attempt_id,
-                        "attempt": existing_attempt.attempt_number,
-                        "lease_id": existing_attempt.lease_id,
-                        "worker_id": existing_attempt.worker_id,
-                        "fence_epoch": existing_lease.fence_epoch if existing_lease else 0,
-                        "logical_task_not_duplicated": True,
-                        "reused": True,
-                    }
-                else:
-                    acquisition = pool_api.pool.acquire_task(
-                        task_id=task_id,
-                        run_id=state.run_id,
-                        owner_session_id=str(
-                            payload.get("session_id")
-                            or state.metadata.get("query_session_id")
-                            or f"task:{state.task_id}"
-                        ),
-                        requirement=PhysicalCapabilityRequirement(
-                            required=("agent_task",),
-                            resources=PhysicalResourceVector(process_slots=1, memory_mb=64),
-                        ),
-                        attempt_number=1,
-                        preferred_worker_ids=("local-code-worker",),
-                        idempotency_key=f"subagent-lease:{task_id}:1",
-                        metadata={
-                            "parent_task_id": state.task_id,
-                            "logical_owner": "typescript.AgentTaskRuntime",
-                            "logical_task_not_duplicated": True,
-                        },
-                    )
-                    physical_worker = {
-                        "task_id": task_id,
-                        "attempt_id": acquisition.attempt.attempt_id,
-                        "attempt": acquisition.attempt.attempt_number,
-                        "lease_id": acquisition.lease.lease_id,
-                        "worker_id": acquisition.worker.worker_id,
-                        "backend_id": acquisition.lease.backend_id,
-                        "fence_epoch": acquisition.lease.fence_epoch,
-                        "manifest_digest": acquisition.manifest.digest,
-                        "logical_task_not_duplicated": True,
-                        "reused": False,
-                    }
+            selected_status = (
+                selected.status.value
+                if selected is not None
+                else (
+                    "running"
+                    if str(run.worker_result.error or "") == "permission_suspended"
+                    else ("failed" if not run.worker_result.ok else "running")
+                )
+            )
+            physical_receipt = _settle_subagent_physical_dispatch(
+                physical_dispatch,
+                status=selected_status,
+                summary=(
+                    str(selected.payload.get("error") or selected_status)
+                    if selected is not None
+                    else str(run.worker_result.error or selected_status)
+                ),
+            )
             status = HTTPStatus.CREATED if run.worker_result.ok else HTTPStatus.CONFLICT
             self._send_json(status, {
                 "ok": run.worker_result.ok,
@@ -4114,6 +4375,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 "canonical_agent_owner": "typescript",
                 "python_agent_fallback": False,
                 "physical_worker": physical_worker,
+                "physical_receipt": physical_receipt,
             }, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
             return
 

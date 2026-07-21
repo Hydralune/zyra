@@ -12,6 +12,7 @@ export * from "./plugins/index.ts";
 export * from "./protocol.ts";
 export * from "./query-engine.ts";
 export * from "./loop/model-iteration-runtime.ts";
+export * from "./omp-worker-control/index.ts";
 export * from "./provider/compatible-runtime.ts";
 export * from "./tools/execution-settlement-runtime.ts";
 export * from "./session.ts";

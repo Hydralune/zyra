@@ -14,6 +14,8 @@ import { TaskExecutor, type TaskExecutionHost } from "../tasks/executor.ts";
 import { TaskIdentityRuntime } from "../tasks/identity-runtime.ts";
 import { DurableTaskRegistry } from "../tasks/registry.ts";
 import { TaskStateMachine } from "../tasks/state-machine.ts";
+import { OmpWorkerDispatchRuntime } from "../omp-worker-control/dispatch-runtime.ts";
+import { mapWithConcurrencyLimit } from "../omp-worker-control/semaphore.ts";
 
 export interface AgentCreateRequest {
   requestId: string;
@@ -28,6 +30,7 @@ export interface AgentCreateRequest {
   context: E03ContextSnapshot;
   prompt: string;
   executionMode: "foreground" | "background";
+  physicalDispatch?: JsonObject | null;
   parentLineage?: readonly string[];
 }
 
@@ -35,6 +38,7 @@ export class AgentExecutionRuntime {
   private readonly identity = new TaskIdentityRuntime();
   private readonly machine: TaskStateMachine;
   private readonly executor: TaskExecutor;
+  readonly physicalDispatch = new OmpWorkerDispatchRuntime();
 
   constructor(
     private readonly registry: DurableTaskRegistry,
@@ -42,7 +46,13 @@ export class AgentExecutionRuntime {
     private readonly clock: E03Clock = new SystemE03Clock(),
   ) {
     this.machine = new TaskStateMachine(clock);
-    this.executor = new TaskExecutor(registry, this.machine, host, clock);
+    this.executor = new TaskExecutor(
+      registry,
+      this.machine,
+      host,
+      clock,
+      this.physicalDispatch,
+    );
   }
 
   async create(request: AgentCreateRequest): Promise<E03TaskState> {
@@ -98,6 +108,7 @@ export class AgentExecutionRuntime {
       context,
       prompt: request.prompt,
       executionMode: request.executionMode,
+      physicalDispatch: request.physicalDispatch,
     });
     const prepared = this.registry.prepare({
       requestId: request.requestId,
@@ -207,6 +218,7 @@ export class AgentExecutionRuntime {
     idempotencyKey: string,
   ): Promise<E03TaskState> {
     const task = this.registry.require(taskId);
+    this.physicalDispatch.cancelTask(taskId, reason);
     const transitioned =
       mode === "kill"
         ? this.machine.kill(task, {
@@ -560,16 +572,16 @@ export class AgentBackgroundSupervisor {
     const completed: string[] = [];
     const failed: string[] = [];
     const skipped: string[] = [];
-    let cursor = 0;
-    const worker = async (): Promise<void> => {
-      while (cursor < candidates.length) {
-        const claim = candidates[cursor++]!;
+    await mapWithConcurrencyLimit(
+      candidates,
+      Math.min(input.maximumConcurrency, candidates.length || 1),
+      async (claim) => {
         const task = tasks.find(
           (value) => value.identity.taskId === claim.taskId,
         );
         if (!task || isTerminal(task.status)) {
           skipped.push(claim.taskId);
-          continue;
+          return;
         }
         selected.push(task.identity.taskId);
         try {
@@ -587,13 +599,8 @@ export class AgentBackgroundSupervisor {
           );
           failed.push(task.identity.taskId);
         }
-      }
-    };
-    await Promise.all(
-      Array.from(
-        { length: Math.min(input.maximumConcurrency, candidates.length || 1) },
-        worker,
-      ),
+      },
+      { failureMode: "collect" },
     );
     return { selected, completed, failed, skipped, claims: this.snapshot() };
   }

@@ -64,7 +64,11 @@ export class HostE03PhysicalPort implements E03PhysicalPort {
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new E03RuntimeError(
         "invalid_e03_effect_receipt",
-        "Python physical port returned no typed effect receipt",
+        `Python physical port returned no typed effect receipt: ${String(receipt.error || receipt.error_code || "unknown rejection")}`,
+        {
+          physicalPortError: String(receipt.error || ""),
+          physicalPortErrorCode: String(receipt.error_code || ""),
+        },
       );
     const typed = structuredClone(value) as unknown as E03EffectReceipt;
     if (

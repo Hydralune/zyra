@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import time
+from uuid import uuid4
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -201,6 +204,10 @@ class CodeWorkerRuntime:
             "session_id": session_id,
             "canonical_runtime_owner": "typescript",
             "python_runtime_role": "process-durability-side-effect-host",
+            # The TypeScript E03 capability lattice must derive child roots
+            # from the manager-owned workspace actually granted to this
+            # worker, not from the Bun process cwd.
+            "workspace_roots": [str(self.workspace_root)],
         }
         retrieval_context: WorkerRetrievalContext | None = None
         if self.retrieval_context_runtime is not None and constraints.get("disable_retrieval_context") is not True:
@@ -593,12 +600,26 @@ class CodeWorkerRuntime:
     ) -> Path:
         path = self._state_path(session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".json.tmp")
-        temporary.write_text(
-            json.dumps(to_jsonable(payload), ensure_ascii=True, sort_keys=True, indent=2),
-            encoding="utf-8",
-        )
-        temporary.replace(path)
+        temporary = path.with_name(f".{path.name}.{os.getpid()}.{uuid4().hex}.tmp")
+        try:
+            temporary.write_text(
+                json.dumps(to_jsonable(payload), ensure_ascii=True, sort_keys=True, indent=2),
+                encoding="utf-8",
+            )
+            # Windows can transiently deny replacement while an antivirus or
+            # checkpoint reader still owns a handle.  A request retry must not
+            # fail solely because its previous suspended checkpoint is being
+            # released, and concurrent sessions must never share a temp file.
+            for retry in range(6):
+                try:
+                    os.replace(temporary, path)
+                    break
+                except PermissionError:
+                    if retry == 5:
+                        raise
+                    time.sleep(0.01 * (retry + 1))
+        finally:
+            temporary.unlink(missing_ok=True)
         return path
 
 

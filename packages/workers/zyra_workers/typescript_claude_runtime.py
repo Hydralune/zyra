@@ -1362,6 +1362,9 @@ class TypeScriptClaudeQueryEngine:
             "NO_COLOR",
             "CI",
             "TZ",
+            # Non-secret fail-closed kill switch used by production health
+            # checks and disconnect/mutation tests for the OMP dispatch gate.
+            "ZYRA_OMP_WORKER_CONTROL_DISABLED",
         }
         environment = {
             key: value for key, value in os.environ.items() if key.upper() in allowed

@@ -8,7 +8,10 @@ for the cropped mechanisms.
 
 - AgentScope (`b6698c5dbaa1aa916925e27402767f45e2405fa4`): lifecycle, inbox/wakeup, single-flight and
   cancellation ordering.
-- oh-my-pi (`c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca`): bounded attempt progress, drain, claim/requeue
-  and external-worker protocol semantics.
+- oh-my-pi (`c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca`): TaskTool semaphore/concurrency and
+  AsyncJob progress, park/revive, drain and cancellation control flow is cropped and modified in
+  its original TypeScript under `packages/runtime/claude-runtime/src/omp-worker-control`; the
+  Python WorkerPoolStore remains the sole durable attempt/lease/receipt owner. Bounded
+  claim/requeue and external-worker protocol adaptation remains in the Zyra worker-pool modules.
 
 No OpenClaw source, package, process, path, or runtime dependency is included in this slice.

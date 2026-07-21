@@ -234,6 +234,7 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
         envelope.body.execution_mode === "background"
           ? "background"
           : "foreground",
+      physicalDispatch: objectOrNull(envelope.body.physical_dispatch),
       parentLineage: Array.isArray(parentInput?.metadata?.e03_lineage)
         ? (parentInput!.metadata!.e03_lineage as string[])
         : [],
@@ -587,6 +588,11 @@ export class E03AgentControlCoordinator implements E03CommandHandler {
     if (typeof value !== "string") return 0;
     return this.registry.get(value)?.revision ?? 0;
   }
+}
+
+function objectOrNull(value: unknown): JsonObject | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return structuredClone(value as JsonObject);
 }
 
 function isEnvelope(value: unknown): value is E03ControlEnvelope {
