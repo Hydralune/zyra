@@ -64,6 +64,9 @@ from zyra_memory import (
     MemoryFabric,
     MemoryIndexRuntime,
     MemoryIndexWorkerProcessSupervisor,
+    ProcedureContractError,
+    ReusableProcedureRuntime,
+    ReusableProcedureStore,
     RetrievalIntegrationRuntime,
     SQLiteStore,
 )
@@ -1289,6 +1292,9 @@ def _memory_fabric(store: SQLiteStore) -> MemoryFabric:
 _MEMORY_CURATOR_LOCK = threading.RLock()
 _MEMORY_CURATOR_INSTANCE: MemoryCuratorWorkerRuntime | None = None
 _MEMORY_CURATOR_KEY: tuple[str, str, str] | None = None
+_REUSABLE_PROCEDURE_LOCK = threading.RLock()
+_REUSABLE_PROCEDURE_INSTANCE: ReusableProcedureRuntime | None = None
+_REUSABLE_PROCEDURE_KEY: tuple[str, int] | None = None
 
 
 def get_memory_curator_runtime(store: SQLiteStore | None = None) -> MemoryCuratorWorkerRuntime:
@@ -1325,9 +1331,42 @@ def get_memory_curator_runtime(store: SQLiteStore | None = None) -> MemoryCurato
 
 def reset_memory_curator_runtime() -> None:
     global _MEMORY_CURATOR_INSTANCE, _MEMORY_CURATOR_KEY
+    global _REUSABLE_PROCEDURE_INSTANCE, _REUSABLE_PROCEDURE_KEY
     with _MEMORY_CURATOR_LOCK:
         _MEMORY_CURATOR_INSTANCE = None
         _MEMORY_CURATOR_KEY = None
+    with _REUSABLE_PROCEDURE_LOCK:
+        _REUSABLE_PROCEDURE_INSTANCE = None
+        _REUSABLE_PROCEDURE_KEY = None
+
+
+def get_reusable_procedure_runtime(
+    store: SQLiteStore | None = None,
+) -> ReusableProcedureRuntime:
+    """Bind procedure mining to the canonical 06B store and MemoryFabric DB."""
+
+    global _REUSABLE_PROCEDURE_INSTANCE, _REUSABLE_PROCEDURE_KEY
+    canonical = store or get_store()
+    curator = get_memory_curator_runtime(canonical)
+    integration_store = curator.integration_store
+    if integration_store is None:
+        raise RuntimeError(
+            "memory curator integration store is required for procedure mining"
+        )
+    key = (str(Path(canonical.path).resolve()), id(integration_store))
+    with _REUSABLE_PROCEDURE_LOCK:
+        if (
+            _REUSABLE_PROCEDURE_INSTANCE is None
+            or _REUSABLE_PROCEDURE_KEY != key
+        ):
+            _REUSABLE_PROCEDURE_INSTANCE = ReusableProcedureRuntime(
+                canonical_store=canonical,
+                curator_store=integration_store,
+                procedure_store=ReusableProcedureStore(canonical.path),
+                event_sink=lambda event: persist_events(canonical, [event]),
+            )
+            _REUSABLE_PROCEDURE_KEY = key
+        return _REUSABLE_PROCEDURE_INSTANCE
 
 
 def curate_terminal_task(store: SQLiteStore, state: Any) -> dict[str, Any] | None:
@@ -3373,6 +3412,42 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "procedures":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            try:
+                runtime = get_reusable_procedure_runtime(store)
+                status = runtime.status(state.task_id)
+                procedures = runtime.export_for_typescript(state.task_id, limit=1000)
+            except (ProcedureContractError, RuntimeError, ValueError) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": getattr(error, "code", "procedure_status_failed"),
+                        "message": str(error),
+                        "task_id": state.task_id,
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "protocol": "zyra.reusable-procedure-api/v1",
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "status": status.to_dict(),
+                    "procedures": list(procedures),
+                    "source_owner": "06B CuratorIntegrationStore",
+                    "procedure_owner": "06C ReusableProcedureStore",
+                    "skill_execution_owner": "03C SkillCoordinator",
+                    "model_can_activate": False,
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "memory":
             state = store.load_task(parts[1])
             if state is None:
@@ -3908,6 +3983,76 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "python_agent_fallback": False,
                 },
                 headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"},
+            )
+            return
+
+        if len(parts) >= 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "procedures":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            operation = (
+                parts[4]
+                if len(parts) == 5
+                else str(payload.get("operation") or "mine")
+            )
+            try:
+                runtime = get_reusable_procedure_runtime(store)
+                if operation == "mine":
+                    raw_outcome_ids = payload.get("outcome_ids", ())
+                    if not isinstance(raw_outcome_ids, (list, tuple)):
+                        raise ProcedureContractError(
+                            "procedure_outcome_ids_invalid",
+                            "outcome_ids must be a list of curator outcome ids",
+                        )
+                    results = runtime.mine_task(
+                        state.task_id,
+                        outcome_ids=tuple(
+                            str(item)
+                            for item in raw_outcome_ids
+                            if str(item).strip()
+                        ),
+                        limit=int(payload.get("limit", 1000)),
+                    )
+                    body = {
+                        "protocol": "zyra.reusable-procedure-api/v1",
+                        "operation": operation,
+                        "task_id": state.task_id,
+                        "results": [item.to_dict() for item in results],
+                        "status": runtime.status(state.task_id).to_dict(),
+                    }
+                    response_status = HTTPStatus.CREATED if results else HTTPStatus.OK
+                elif operation in {"routing", "recovery", "context"}:
+                    query_result = getattr(runtime, operation)(state.task_id, payload)
+                    body = {
+                        "protocol": "zyra.reusable-procedure-api/v1",
+                        "operation": operation,
+                        "task_id": state.task_id,
+                        "result": query_result.to_dict(),
+                        "model_can_activate": False,
+                        "static_document_can_activate": False,
+                    }
+                    response_status = HTTPStatus.OK
+                else:
+                    raise ProcedureContractError(
+                        "procedure_operation_unknown",
+                        f"unsupported procedure operation: {operation}",
+                    )
+            except (ProcedureContractError, RuntimeError, ValueError, KeyError) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": getattr(error, "code", "procedure_operation_failed"),
+                        "message": str(error),
+                        "operation": operation,
+                        "task_id": state.task_id,
+                    },
+                )
+                return
+            self._send_json(
+                response_status,
+                body,
+                headers={"Cache-Control": "no-store, max-age=0"},
             )
             return
 

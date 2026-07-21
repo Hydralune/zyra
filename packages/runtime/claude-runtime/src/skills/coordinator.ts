@@ -286,16 +286,62 @@ export class SkillCoordinator {
     try {
       const invocation = await this.invocation.invoke(request, signal);
       const binding = this.journalByInvocation.get(invocation.invocationId);
+      let sourceRecordDigest = digest(invocation);
       if (binding) {
         const committed = this.journal.commit(binding.journalId, binding.transitionId, invocation);
         this.journal.acknowledge(binding.journalId, binding.transitionId, committed.resultDigest!);
+        sourceRecordDigest = committed.resultDigest!;
       }
+      const outcomeReference = {
+        protocol: "zyra.skill-coordinator-outcome/v1",
+        invocation: canonicalize(invocation),
+        provenance: {
+          skill_id: resolution.skillId,
+          skill_name: resolution.descriptor.name,
+          registry_revision: resolution.revision,
+          descriptor_digest: resolution.descriptor.descriptorDigest,
+          body_digest: resolution.descriptor.bodyDigest,
+          resource_digests: Object.fromEntries(
+            resources
+              .map((resource) => [resource.path, resource.digest] as const)
+              .sort(([left], [right]) => left.localeCompare(right)),
+          ),
+          source_revision: resolution.revisionId,
+        },
+        policy: {
+          decision_id: deterministicId("skill-tool-scope-decision", {
+            invocation_id: invocation.invocationId,
+            descriptor_digest: resolution.descriptor.descriptorDigest,
+            effective_tool_scope: this.invocation.applyToolScope(parentToolScope, resolution.descriptor.toolScope),
+          }, 32),
+          effect: "allow",
+          policy_revision: `${resolution.revision}:${resolution.revisionId}`,
+          policy_digest: digest(resolution.descriptor.toolScope),
+          requested_tools: [...resolution.descriptor.toolScope.allowed],
+          effective_tools: [...this.invocation.applyToolScope(parentToolScope, resolution.descriptor.toolScope).allowed],
+          denied_tools: [...this.invocation.applyToolScope(parentToolScope, resolution.descriptor.toolScope).denied],
+          approval_id: null,
+        },
+        composition: {
+          composition_id: composition.compositionId,
+          composition_digest: composition.digest,
+        },
+        source_record_digest: sourceRecordDigest,
+        reuse_conditions: [],
+        metadata: {
+          canonical_skill_owner: "03C SkillCoordinator",
+          outcome_reference_only: true,
+          executable_skill_cache: false,
+          registry_resolution_required_before_reuse: true,
+        },
+      };
       return {
         summary: `Skill ${resolution.descriptor.name} ${invocation.status}`,
         output: {
           invocation: canonicalize(invocation),
           composition_id: composition.compositionId,
           registry_revision: resolution.revision,
+          outcome_reference: canonicalize(outcomeReference),
         },
         contextDelta: {
           active_skill: resolution.skillId,

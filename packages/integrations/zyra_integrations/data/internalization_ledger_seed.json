@@ -175408,19 +175408,496 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "skill_outcome_compact_restore_context_chain",
+      "capability_summary": "Claude SkillTool invocation provenance and compact/post-compact context flow are cropped into Zyra-owned outcome, archive, restore projection and next-context state.",
+      "dependencies": [
+        "M1-S02B",
+        "M1-S02D",
+        "M1-S03C",
+        "M1-S05C",
+        "M1-S06B-02"
+      ],
+      "downstream_units": [
+        "M1-S06C-02",
+        "M1-07C",
+        "M2-memory-skill-panel"
+      ],
+      "ledger_id": "ledger_0e311fd7afb10b24",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Selected mechanisms and pinned revisions are recorded; Zyra owns the modified runtime.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "claude-code-best",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/memory/procedures",
+          "POST /tasks/{task_id}/memory/procedures/mine",
+          "POST /tasks/{task_id}/memory/procedures/routing",
+          "POST /tasks/{task_id}/memory/procedures/recovery",
+          "POST /tasks/{task_id}/memory/procedures/context"
+        ],
+        "artifact_kinds": [
+          "compact_archive",
+          "skill_outcome",
+          "reusable_procedure"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "skill_memory_updated",
+          "procedure_mined",
+          "compact_triggered",
+          "compact_restored"
+        ],
+        "surfaces": [
+          "skill_coordinator_outcome",
+          "skill_memory_application",
+          "compact_restore_context_projection",
+          "reusable_procedure_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "SkillMemoryApplication"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_compact_owner": "02D ContextCompactionRuntime",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "migration_mode": "cropped_migration_retained_typescript_control_flow_adapt",
+        "model_can_activate_procedure": false,
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S06C-01",
+        "root_source_runtime_dependency": false,
+        "skill_loader_owner": "03C SkillCoordinator",
+        "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+        "source_role": "primary_implementation",
+        "state_owner": "SkillMemoryApplication and CompactRestoreMemoryBridge"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=primary_implementation; source_commit=c57f5a29e88e9a814bea47abeb9a0a6f725dc102; 03C remains the sole skill loader/version/policy/invocation owner. The migrated primary chain begins only after an immutable invocation result and routes restore through the existing 02B/02D ports.",
+      "owner_unit": "M1-S06C-01",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/skill-memory-runtime/src/skill-outcome-adapter.ts",
+          "packages/memory/skill-memory-runtime/src/outcome-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/context-projector.ts",
+          "packages/memory/skill-memory-runtime/src/restore-bridge.ts",
+          "packages/memory/skill-memory-runtime/src/runtime.ts",
+          "packages/runtime/claude-runtime/src/skills/coordinator.ts",
+          "packages/runtime/claude-runtime/src/query-engine.ts",
+          "packages/runtime/claude-runtime/src/e01/coordinator.ts"
+        ],
+        "function": "SkillMemoryApplication",
+        "health_check": "bun test packages/memory/skill-memory-runtime/test packages/runtime/claude-runtime/test/skill-memory && python -m pytest tests/unit/test_reusable_procedure_miner.py tests/integration/test_reusable_procedure_api_main_path.py -q",
+        "module": "@zyra/skill-memory-runtime",
+        "protocol": "zyra.skill-memory/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Verified against the pinned source graph and concrete source files read for M1-S06C-01.",
+          "source_kind": "bounded_module_group",
+          "source_path": "src/tools/SkillTool/SkillTool.ts;src/tools/SkillTool/src/Tool.ts;src/services/compact/reactiveCompact.ts;src/services/compact/microCompact.ts;src/services/compact/postCompactCleanup.ts;src/services/contextCollapse/operations.ts",
+          "source_repo": "claude-code-best",
+          "symbols": [
+            "SkillMemoryApplication"
+          ],
+          "tags": [
+            "primary_implementation",
+            "M1-S06C-01"
+          ]
+        }
+      ],
+      "source_path": "src/tools/SkillTool/SkillTool.ts;src/tools/SkillTool/src/Tool.ts;src/services/compact/reactiveCompact.ts;src/services/compact/microCompact.ts;src/services/compact/postCompactCleanup.ts;src/services/contextCollapse/operations.ts",
+      "source_repo": "claude-code-best",
+      "target_bindings": [
+        {
+          "path": "packages/memory/skill-memory-runtime/src/skill-outcome-adapter.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/outcome-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/context-projector.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/restore-bridge.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/skills/coordinator.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/e01/coordinator.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "expected_signal": "real 03C outcome and compact restore dynamically reach 06C without owner transfer",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_reusable_procedure_miner.py -q",
+          "expected_signal": "validated 06B outcome creates a provenance-bound procedure visible to routing and recovery",
+          "kind": "unit",
+          "path": "tests/unit/test_reusable_procedure_miner.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_reusable_procedure_api_main_path.py -q",
+          "expected_signal": "live API exposes procedure mine/routing/recovery/context without model activation",
+          "kind": "integration",
+          "path": "tests/integration/test_reusable_procedure_api_main_path.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "validated_success_trajectory_reusable_procedure_memory",
+      "capability_summary": "Hermes procedure-memory concepts are retained as deterministic Python mining from published 06B outcomes with canonical session/tool/artifact/skill-version evidence.",
+      "dependencies": [
+        "M1-S02B",
+        "M1-S02D",
+        "M1-S03C",
+        "M1-S05C",
+        "M1-S06B-02"
+      ],
+      "downstream_units": [
+        "M1-S06C-02",
+        "M1-07C",
+        "M2-memory-skill-panel"
+      ],
+      "ledger_id": "ledger_2ccd8745c5b2da5f",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Selected mechanisms and pinned revisions are recorded; Zyra owns the modified runtime.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "hermes-agent",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/memory/procedures",
+          "POST /tasks/{task_id}/memory/procedures/mine",
+          "POST /tasks/{task_id}/memory/procedures/routing",
+          "POST /tasks/{task_id}/memory/procedures/recovery",
+          "POST /tasks/{task_id}/memory/procedures/context"
+        ],
+        "artifact_kinds": [
+          "compact_archive",
+          "skill_outcome",
+          "reusable_procedure"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "skill_memory_updated",
+          "procedure_mined",
+          "compact_triggered",
+          "compact_restored"
+        ],
+        "surfaces": [
+          "skill_coordinator_outcome",
+          "skill_memory_application",
+          "compact_restore_context_projection",
+          "reusable_procedure_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "ReusableProcedureRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_compact_owner": "02D ContextCompactionRuntime",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "migration_mode": "cropped_migration_same_language_procedure_adapt",
+        "model_can_activate_procedure": false,
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S06C-01",
+        "root_source_runtime_dependency": false,
+        "skill_loader_owner": "03C SkillCoordinator",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_role": "supplementary_implementation",
+        "state_owner": "ReusableProcedureStore"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; Only validated 06B skill-candidate outcomes can activate procedures. Static skills, fixtures and model summaries cannot publish an active procedure or invoke a skill.",
+      "owner_unit": "M1-S06C-01",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/zyra_memory/procedure_models.py",
+          "packages/memory/zyra_memory/procedure_store.py",
+          "packages/memory/zyra_memory/procedure_miner.py",
+          "packages/memory/zyra_memory/procedure_runtime.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "ReusableProcedureRuntime",
+        "health_check": "bun test packages/memory/skill-memory-runtime/test packages/runtime/claude-runtime/test/skill-memory && python -m pytest tests/unit/test_reusable_procedure_miner.py tests/integration/test_reusable_procedure_api_main_path.py -q",
+        "module": "zyra_memory.procedure_runtime",
+        "protocol": "zyra.skill-memory/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Verified against the pinned source graph and concrete source files read for M1-S06C-01.",
+          "source_kind": "bounded_module_group",
+          "source_path": "agent/memory_manager.py;agent/memory_provider.py;tools/memory_tool.py",
+          "source_repo": "hermes-agent",
+          "symbols": [
+            "ReusableProcedureRuntime"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S06C-01"
+          ]
+        }
+      ],
+      "source_path": "agent/memory_manager.py;agent/memory_provider.py;tools/memory_tool.py",
+      "source_repo": "hermes-agent",
+      "target_bindings": [
+        {
+          "path": "packages/memory/zyra_memory/procedure_models.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/zyra_memory/procedure_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/procedure_miner.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/procedure_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "expected_signal": "real 03C outcome and compact restore dynamically reach 06C without owner transfer",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_reusable_procedure_miner.py -q",
+          "expected_signal": "validated 06B outcome creates a provenance-bound procedure visible to routing and recovery",
+          "kind": "unit",
+          "path": "tests/unit/test_reusable_procedure_miner.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_reusable_procedure_api_main_path.py -q",
+          "expected_signal": "live API exposes procedure mine/routing/recovery/context without model activation",
+          "kind": "integration",
+          "path": "tests/integration/test_reusable_procedure_api_main_path.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "compact_trigger_safe_cut_archive_and_experimental_frame_contract",
+      "capability_summary": "OMP trigger modes, atomic tool-call/result cut semantics and archive references are adapted under Zyra compact ownership; snapcompact is compatibility-gated and off.",
+      "dependencies": [
+        "M1-S02B",
+        "M1-S02D",
+        "M1-S03C",
+        "M1-S05C",
+        "M1-S06B-02"
+      ],
+      "downstream_units": [
+        "M1-S06C-02",
+        "M1-07C",
+        "M2-memory-skill-panel"
+      ],
+      "ledger_id": "ledger_1bb43b60229d954a",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Selected mechanisms and pinned revisions are recorded; Zyra owns the modified runtime.",
+        "notice_path": "packages/memory/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/memory/procedures",
+          "POST /tasks/{task_id}/memory/procedures/mine",
+          "POST /tasks/{task_id}/memory/procedures/routing",
+          "POST /tasks/{task_id}/memory/procedures/recovery",
+          "POST /tasks/{task_id}/memory/procedures/context"
+        ],
+        "artifact_kinds": [
+          "compact_archive",
+          "skill_outcome",
+          "reusable_procedure"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "skill_memory_updated",
+          "procedure_mined",
+          "compact_triggered",
+          "compact_restored"
+        ],
+        "surfaces": [
+          "skill_coordinator_outcome",
+          "skill_memory_application",
+          "compact_restore_context_projection",
+          "reusable_procedure_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "CompactTriggerRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_compact_owner": "02D ContextCompactionRuntime",
+        "canonical_memory_owner": "SQLiteStore.memory_records",
+        "migration_mode": "cropped_migration_retained_typescript_protocol_adapt",
+        "model_can_activate_procedure": false,
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S06C-01",
+        "root_source_runtime_dependency": false,
+        "skill_loader_owner": "03C SkillCoordinator",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "supplementary_implementation",
+        "state_owner": "02D compact boundary plus 06C archive/projection state"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; OMP session storage and Mnemopi stores are not restored as canonical state. Frame compression has no default-path or effectiveness claim.",
+      "owner_unit": "M1-S06C-01",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/memory/skill-memory-runtime/src/compact-trigger-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/safe-cut-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/archive-runtime.ts",
+          "packages/memory/skill-memory-runtime/src/snapcompact-experimental.ts",
+          "packages/runtime/claude-runtime/src/query-engine.ts"
+        ],
+        "function": "CompactTriggerRuntime",
+        "health_check": "bun test packages/memory/skill-memory-runtime/test packages/runtime/claude-runtime/test/skill-memory && python -m pytest tests/unit/test_reusable_procedure_miner.py tests/integration/test_reusable_procedure_api_main_path.py -q",
+        "module": "@zyra/skill-memory-runtime",
+        "protocol": "zyra.skill-memory/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Verified against the pinned source graph and concrete source files read for M1-S06C-01.",
+          "source_kind": "bounded_module_group",
+          "source_path": "packages/coding-agent/src/extensibility/extensions/compact-handler.ts;packages/coding-agent/src/session/compact-modes.ts;packages/coding-agent/src/session/messages.ts;packages/coding-agent/src/session/snapcompact-inline.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [
+            "CompactTriggerRuntime"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S06C-01"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/extensibility/extensions/compact-handler.ts;packages/coding-agent/src/session/compact-modes.ts;packages/coding-agent/src/session/messages.ts;packages/coding-agent/src/session/snapcompact-inline.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/memory/skill-memory-runtime/src/compact-trigger-runtime.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/safe-cut-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/archive-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/skill-memory-runtime/src/snapcompact-experimental.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/query-engine.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "expected_signal": "real 03C outcome and compact restore dynamically reach 06C without owner transfer",
+          "kind": "integration",
+          "path": "packages/runtime/claude-runtime/test/skill-memory/skill-outcome-integration.behavior.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/unit/test_reusable_procedure_miner.py -q",
+          "expected_signal": "validated 06B outcome creates a provenance-bound procedure visible to routing and recovery",
+          "kind": "unit",
+          "path": "tests/unit/test_reusable_procedure_miner.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest tests/integration/test_reusable_procedure_api_main_path.py -q",
+          "expected_signal": "live API exposes procedure mine/routing/recovery/context without model activation",
+          "kind": "integration",
+          "path": "tests/integration/test_reusable_procedure_api_main_path.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 443,
+    "active_or_internalized": 446,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 388
+      "productized": 391
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -175428,7 +175905,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 149,
+      "tested_main_path": 152,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -175467,6 +175944,7 @@
       "M1-S06A-02": 2,
       "M1-S06B-01": 2,
       "M1-S06B-02": 2,
+      "M1-S06C-01": 3,
       "M2-01A": 46,
       "M2-03B": 30
     },
@@ -175475,17 +175953,17 @@
       "agent-framework": 93,
       "agentscope": 103,
       "browser-use": 109,
-      "claude-code-best": 509,
-      "hermes-agent": 84,
+      "claude-code-best": 510,
+      "hermes-agent": 85,
       "langgraph": 85,
-      "oh-my-pi": 14,
+      "oh-my-pi": 15,
       "openclaw": 86,
       "opencode": 16
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 23,
+      "direct_port": 26,
       "not_selected": 14,
       "planned_adapter": 378,
       "reimplemented_pattern": 237,
@@ -175498,7 +175976,7 @@
       "apps/web": 46,
       "packages/evaluation": 34,
       "packages/integrations": 78,
-      "packages/memory": 191,
+      "packages/memory": 194,
       "packages/orchestration": 59,
       "packages/runtime": 168,
       "packages/scheduler": 79,
@@ -175509,6 +175987,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1185
+    "total_entries": 1188
   }
 }

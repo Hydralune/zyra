@@ -28,6 +28,11 @@ import {
   ModelIterationRuntime,
   type ModelIterationSnapshot,
 } from "./loop/model-iteration-runtime.ts";
+import {
+  compactBlocksFromMessages,
+  digest as skillMemoryDigest,
+  type JsonObject as SkillMemoryJsonObject,
+} from "@zyra/skill-memory-runtime";
 
 const DEFAULT_CONFIG: RuntimeConfig = {
   maxTurns: null,
@@ -153,6 +158,7 @@ export class ClaudeRuntimeCore {
     let permissionSuspended = false;
     let providerRoundIndex = 0;
     let activeIterationRoundId: string | null = null;
+    let pendingRestoreProviderMessage: JsonObject | null = null;
     const mutationTargets = new Set<string>();
     let modelMetadata: Record<string, string> = {
       model_stream_ok: "false",
@@ -653,6 +659,52 @@ export class ClaudeRuntimeCore {
           }
           artifacts.push(...result.artifacts);
           session.recordToolResult(step.tool_name, result);
+          if (step.tool_name === "skill") {
+            try {
+              const memoryReceipt = e01.recordSkillToolOutcome({
+                toolCallId: result.tool_call_id,
+                toolName: step.tool_name,
+                ok: result.ok,
+                summary: result.summary,
+                output: result.output,
+                artifacts: result.artifacts.map((artifact) => artifact as unknown as SkillMemoryJsonObject),
+                error: result.error ?? null,
+                metadata: {
+                  ...result.metadata,
+                  workspace_root: asString(asObject(input.metadata).cwd),
+                },
+                identity: {
+                  runId: input.runId,
+                  taskId: input.taskId,
+                  sessionId: input.sessionId,
+                  workerRequestId: input.workerRequestId,
+                  epoch: e01.journal.restartEpoch,
+                },
+                eventSequence: eventSequence + 1,
+                occurredAt: new Date().toISOString(),
+              });
+              await emit("skill_memory_updated", {
+                turn_id: turn.turn_id,
+                turn_index: turnIndex,
+                tool_call_id: result.tool_call_id,
+                skill_memory: memoryReceipt,
+                source_skill_owner: "03C SkillCoordinator",
+                memory_owner: "06C SkillMemoryApplication",
+              });
+            } catch (error) {
+              await emit("skill_memory_rejected", {
+                turn_id: turn.turn_id,
+                turn_index: turnIndex,
+                tool_call_id: result.tool_call_id,
+                error_code: error && typeof error === "object" && "code" in error
+                  ? String((error as { code?: unknown }).code)
+                  : "skill_memory_admission_failed",
+                message: error instanceof Error ? error.message : String(error),
+                skill_invocation_preserved: true,
+                fallback_memory_owner: false,
+              });
+            }
+          }
           if (modelTransport === "http_sse") {
             iteration.recordToolObservation({
               callId: result.tool_call_id,
@@ -827,6 +879,45 @@ export class ClaudeRuntimeCore {
              runtime_tool_call_id: item.tool_call_id,
            },
          }));
+        const skillMemoryContextWindow = Math.max(
+          8_192,
+          Math.ceil(config.maxQueryContextChars / 4),
+        );
+        const skillMemoryReservedOutput = Math.min(
+          8_192,
+          skillMemoryContextWindow - 1,
+        );
+        const skillMemoryTrigger = e01.skillMemory.observeCompactTrigger({
+          identity: {
+            runId: input.runId,
+            taskId: input.taskId,
+            sessionId: input.sessionId,
+            workerRequestId: input.workerRequestId,
+            epoch: e01.journal.restartEpoch,
+          },
+          kind: asBoolean(config.runtimeConstraints.force_compact_restore) ? "manual" : "threshold",
+          currentTokens: Math.max(0, Math.ceil(session.contextChars() / 4)),
+          contextWindow: skillMemoryContextWindow,
+          reservedOutputTokens: skillMemoryReservedOutput,
+          thresholdTokens: Math.max(1, Math.ceil(autoCompactCharacterThreshold / 4)),
+          activeToolCallIds: [],
+          pendingToolResultIds: [],
+          idleMilliseconds: 0,
+          compactGeneration: session.compactionCount,
+          consecutiveFailures: 0,
+          querySource: "ClaudeRuntimeCore.run",
+          observedAt: new Date().toISOString(),
+          metadata: {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            context_decision_reason: contextDecision.reason,
+          },
+        });
+        await emit("skill_memory_compact_trigger", {
+          turn_id: turn.turn_id,
+          turn_index: turnIndex,
+          trigger: skillMemoryTrigger as unknown as JsonObject,
+        });
         const compactOptions = {
           trigger: asBoolean(config.runtimeConstraints.force_compact_restore) ? "manual" as const : "auto_threshold" as const,
           model: config.modelName,
@@ -844,10 +935,10 @@ export class ClaudeRuntimeCore {
         const matureCompact = compactSource.length >= 3
           ? asBoolean(config.runtimeConstraints.force_compact_restore)
             ? await e01.compact.compactConversation(
-            compactSource,
-            compactOptions,
-            async () => fallbackCompact.summary,
-          )
+              compactSource,
+              compactOptions,
+              async () => fallbackCompact.summary,
+            )
             : await e01.compact.autoCompactIfNeeded(
               compactSource,
               compactOptions,
@@ -862,6 +953,21 @@ export class ClaudeRuntimeCore {
             compact_owner: "typescript",
           });
         } else {
+          const safeCut = compactSource.length >= 3 && skillMemoryTrigger.decision === "compact"
+            ? e01.skillMemory.planSafeCut({
+              triggerId: skillMemoryTrigger.triggerId,
+              compactGeneration: session.compactionCount,
+              blocks: compactBlocksFromMessages(compactSource),
+              targetTokens: Math.max(1_024, Math.ceil(config.maxQueryContextChars / 8)),
+              minimumRecentTurns: 1,
+              preserveMessageIds: matureCompact?.boundary.preservedMessageIds ?? fallbackCompact.preserved.map((item) => item.message_id),
+              metadata: {
+                turn_id: turn.turn_id,
+                turn_index: turnIndex,
+                source_compact_boundary_id: matureCompact?.boundary.boundaryId ?? null,
+              },
+            })
+            : null;
         const preservedIds = new Set(matureCompact?.boundary.preservedMessageIds ?? fallbackCompact.preserved.map((item) => item.message_id));
         const preserved = session.messages.filter((item) => preservedIds.has(item.message_id));
         const removed = session.messages.filter((item) => !preservedIds.has(item.message_id));
@@ -907,6 +1013,75 @@ export class ClaudeRuntimeCore {
           compact.preserved,
           postCompactMessages,
         );
+        if (safeCut?.valid && safeCut.summarizedTokens > 0) {
+          const boundaryId = matureCompact?.boundary.boundaryId
+            ?? `compact-boundary-${skillMemoryDigest({
+              session_id: input.sessionId,
+              compact_generation: session.compactionCount,
+              safe_cut_plan_id: safeCut.planId,
+            }).slice(0, 24)}`;
+          const compactedTokens = Math.min(
+            safeCut.sourceTokens - 1,
+            Math.max(1, Math.ceil(compact.summary.length / 4) + safeCut.preservedTokens),
+          );
+          const archive = e01.skillMemory.commitArchive({
+            artifactId: artifact.artifact_id,
+            boundaryId,
+            sessionId: input.sessionId,
+            compactGeneration: session.compactionCount,
+            contentDigest: skillMemoryDigest(compact.content),
+            summary: compact.summary,
+            safeCutPlan: safeCut,
+            tokenCountAfter: compactedTokens,
+            metadata: {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              context_chars_after: session.contextChars(),
+            },
+          });
+          const preparedRestore = e01.skillMemory.prepareRestore({
+            identity: {
+              runId: input.runId,
+              taskId: input.taskId,
+              sessionId: input.sessionId,
+              workerRequestId: input.workerRequestId,
+              epoch: e01.journal.restartEpoch,
+            },
+            workerKind: "code",
+            boundaryId,
+            archive,
+            summary: compact.summary,
+            restoredAttachments: [],
+            parentAllowedTools: registry.list().map((tool) => tool.name),
+            restoredAllowedTools: registry.list().map((tool) => tool.name),
+            deniedTools: [],
+            maximumTokens: Math.max(1_024, Math.ceil(config.maxQueryContextChars / 4)),
+            metadata: {
+              turn_id: turn.turn_id,
+              turn_index: turnIndex,
+              compact_artifact_id: artifact.artifact_id,
+            },
+          });
+          const appliedRestore = e01.skillMemory.applyRestore(
+            preparedRestore.projection.projectionId,
+          );
+          pendingRestoreProviderMessage = appliedRestore.providerMessage;
+          await emit("skill_memory_compact_restored", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            projection: appliedRestore.projection as unknown as JsonObject,
+            provider_message_digest: appliedRestore.projection.providerMessageDigest,
+            changes_next_provider_context: true,
+          });
+        } else {
+          await emit("skill_memory_compact_restore_deferred", {
+            turn_id: turn.turn_id,
+            turn_index: turnIndex,
+            safe_cut_plan_id: safeCut?.planId ?? null,
+            reason: safeCut?.reason ?? "no_safe_cut_plan",
+            existing_compact_preserved: true,
+          });
+        }
         await emit("context_compacted", {
           turn_id: turn.turn_id,
           turn_index: turnIndex,
@@ -965,6 +1140,10 @@ export class ClaudeRuntimeCore {
         && turnIndex + 1 < turnLimit
       ) {
         providerMessages = iteration.buildRevisionMessages(activeIterationRoundId);
+        if (pendingRestoreProviderMessage) {
+          providerMessages = [...providerMessages, pendingRestoreProviderMessage];
+          pendingRestoreProviderMessage = null;
+        }
         const nextRound = iteration.beginProviderRound({
           requestKey: `${input.workerRequestId}:provider-round:${providerRoundIndex}`,
           model: config.modelName,

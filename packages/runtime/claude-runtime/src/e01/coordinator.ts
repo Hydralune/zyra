@@ -1,5 +1,11 @@
 import { ContextCompactionRuntime } from "../compact/context-runtime.ts";
 import {
+  SkillCoordinatorOutcomeAdapter,
+  SkillMemoryApplication,
+  type RuntimeSkillToolResult,
+  type SkillMemoryApplicationSnapshot,
+} from "@zyra/skill-memory-runtime";
+import {
   CompactRestoreRuntime,
   type ProcessedResume,
 } from "../compact/restore-runtime.ts";
@@ -164,6 +170,7 @@ export interface E01CoordinatorSnapshot {
   compact: ReturnType<ContextCompactionRuntime["snapshot"]>;
   compactSummary: ReturnType<CompactSummaryRuntime["snapshot"]>;
   compactRestore: ReturnType<CompactRestoreRuntime["snapshot"]>;
+  skillMemory?: SkillMemoryApplicationSnapshot;
   provider: ReturnType<ProviderModelRuntime["snapshot"]>;
   providerPrompt: ReturnType<ProviderPromptRuntime["snapshot"]>;
   providerTransport: ReturnType<ProviderTransportRuntime["snapshot"]>;
@@ -200,6 +207,8 @@ export class E01RuntimeCoordinator {
   readonly compact: ContextCompactionRuntime;
   readonly compactSummary: CompactSummaryRuntime;
   readonly compactRestore: CompactRestoreRuntime;
+  readonly skillMemory: SkillMemoryApplication;
+  readonly skillOutcomeAdapter: SkillCoordinatorOutcomeAdapter;
   readonly provider: ProviderModelRuntime;
   readonly providerPrompt: ProviderPromptRuntime;
   readonly providerTransport: ProviderTransportRuntime;
@@ -265,6 +274,18 @@ export class E01RuntimeCoordinator {
     this.compact = new ContextCompactionRuntime();
     this.compactSummary = new CompactSummaryRuntime();
     this.compactRestore = new CompactRestoreRuntime();
+    this.skillOutcomeAdapter = new SkillCoordinatorOutcomeAdapter();
+    this.skillMemory = new SkillMemoryApplication({
+      identity: {
+        runId,
+        taskId,
+        sessionId,
+        workerRequestId,
+        epoch: 0,
+      },
+      context: this.context,
+      compactRestore: this.compactRestore,
+    });
     this.provider = new ProviderModelRuntime();
     this.providerPrompt = new ProviderPromptRuntime();
     this.providerTransport = new ProviderTransportRuntime();
@@ -332,6 +353,7 @@ export class E01RuntimeCoordinator {
     this.compact.restore(snapshot.compact);
     this.compactSummary.restore(snapshot.compactSummary);
     this.compactRestore.restore(snapshot.compactRestore);
+    if (snapshot.skillMemory) this.skillMemory.restore(snapshot.skillMemory);
     this.provider.restore(snapshot.provider);
     this.providerPrompt.restore(snapshot.providerPrompt);
     this.providerTransport.restore(snapshot.providerTransport);
@@ -1455,6 +1477,19 @@ export class E01RuntimeCoordinator {
     });
   }
 
+  recordSkillToolOutcome(input: RuntimeSkillToolResult): JsonObject | null {
+    const adapted = this.skillOutcomeAdapter.adapt(input);
+    if (!adapted) return null;
+    const receipt = this.skillMemory.recordSkillOutcome(adapted);
+    return {
+      receipt: receipt as unknown as JsonObject,
+      memory: receipt.memoryId
+        ? this.skillMemory.outcomes.get(receipt.memoryId) as unknown as JsonObject
+        : null,
+      health: this.skillMemory.health(),
+    };
+  }
+
   finishCanonicalQuery(ok: boolean, reason: string | null): void {
     const project = this.query.project();
     if (/completed|failed|cancelled/.test(asRuntimeString(project.status, ""))) return;
@@ -1586,6 +1621,7 @@ export class E01RuntimeCoordinator {
       compact: this.compact.snapshot(),
       compactSummary: this.compactSummary.snapshot(),
       compactRestore: this.compactRestore.snapshot(),
+      skillMemory: this.skillMemory.snapshot(),
       provider: this.provider.snapshot(),
       providerPrompt: this.providerPrompt.snapshot(),
       providerTransport: this.providerTransport.snapshot(),

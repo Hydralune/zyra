@@ -5,7 +5,8 @@
   "type": "module",
   "dependencies": {
     "@zyra/claude-mcp": "workspace:*",
-    "@zyra/provider-control-plane": "workspace:*"
+    "@zyra/provider-control-plane": "workspace:*",
+    "@zyra/skill-memory-runtime": "workspace:*"
   },
   "exports": {
     ".": "./src/index.ts"
