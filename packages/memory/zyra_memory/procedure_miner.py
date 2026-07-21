@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from zyra_core import now_iso
@@ -31,7 +31,6 @@ from .procedure_models import (
     ProcedureValidationStatus,
     ReusableProcedure,
     mapping,
-    mapping_sequence,
     stable_digest,
     stable_id,
     unique_strings,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import threading
-import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +13,6 @@ from .curator_commit import CuratorOutboxDispatcher, MemoryCommitRuntime
 from .curator_decision import CandidateModel, MemoryDecisionRuntime
 from .curator_evidence import EventArtifactTraceExtractor
 from .curator_models import (
-    CandidateState,
     CommitDisposition,
     CuratorJob,
     CuratorJobLease,
@@ -23,7 +21,6 @@ from .curator_models import (
     CuratorRunResult,
     CuratorTrigger,
     MemoryCommitReceipt,
-    OutboxState,
     stable_id,
 )
 from .curator_store import (

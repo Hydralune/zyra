@@ -5,7 +5,6 @@ from typing import Any, Mapping, Protocol, Sequence
 
 from .curator_context import (
     CuratorRecallRequest,
-    CuratorRecallResult,
     CuratorRecallVerifier,
 )
 from .curator_integration_models import (

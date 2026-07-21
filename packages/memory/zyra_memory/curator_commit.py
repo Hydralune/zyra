@@ -13,7 +13,6 @@ from .curator_evidence import EvidenceResolver
 from .curator_models import (
     CandidateState,
     CommitDisposition,
-    DecisionCode,
     DecisionStatus,
     MemoryCandidate,
     MemoryCommitReceipt,
@@ -26,9 +25,7 @@ from .curator_models import (
     stable_id,
 )
 from .curator_store import (
-    CandidateConflictError,
     CuratorCandidateStore,
-    CuratorLeaseLostError,
 )
 from .models import MemoryLayer, MemoryRecord
 

@@ -25,7 +25,6 @@ from .procedure_models import (
     ProcedureConsumer,
     ProcedureContractError,
     ProcedureMiningDisposition,
-    ProcedureSignal,
     ProcedureValidationStatus,
     ReusableProcedure,
     stable_digest,

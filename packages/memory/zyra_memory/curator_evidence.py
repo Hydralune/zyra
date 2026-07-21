@@ -5,8 +5,7 @@ import json
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from zyra_core import ArtifactKind, ArtifactRef, now_iso

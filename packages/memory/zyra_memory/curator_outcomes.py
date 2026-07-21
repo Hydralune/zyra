@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from .curator_integration_models import (
@@ -8,7 +8,6 @@ from .curator_integration_models import (
     CuratorFailureContract,
     CuratorOutcome,
     CuratorOutcomeKind,
-    CuratorOutcomeState,
     FailureDisposition,
     FailureSeverity,
     consumers_for_outcome,
@@ -16,7 +15,6 @@ from .curator_integration_models import (
     outcome_kind_for_candidate,
 )
 from .curator_models import (
-    CandidateKind,
     CommitDisposition,
     CuratorRunResult,
     DecisionStatus,
@@ -25,7 +23,6 @@ from .curator_models import (
     MemoryDecision,
     OutboxKind,
     OutboxState,
-    stable_digest,
 )
 from .curator_store import CuratorCandidateStore
 

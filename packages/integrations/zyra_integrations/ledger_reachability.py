@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib
-import inspect
 import json
 import re
 import textwrap

@@ -6,7 +6,6 @@ from typing import Any, Mapping, Sequence
 from zyra_core import AgentMessage, AgentRole, MessageIntent, now_iso
 
 from .curator_integration_models import (
-    ContextEffect,
     CuratorConsumer,
     CuratorContextProof,
     CuratorContextVerificationError,

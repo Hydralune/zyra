@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol, Sequence
 
@@ -13,7 +11,7 @@ from zyra_memory.curator_integration_models import (
     RuntimeTraceRef,
 )
 from zyra_memory.curator_integration_store import CuratorIntegrationStore
-from zyra_memory.curator_models import canonical_json, stable_digest, unique_strings
+from zyra_memory.curator_models import stable_digest, unique_strings
 from zyra_runtime import RuntimeEventQuery, RuntimeEventSpineBridge
 
 

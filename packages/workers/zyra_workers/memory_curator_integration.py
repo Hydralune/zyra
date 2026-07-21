@@ -24,8 +24,6 @@ from zyra_memory.curator_integration_models import (
     CuratorIntegrationRunState,
     CuratorOutcome,
     CuratorProjectionReport,
-    FailureDisposition,
-    FailureSeverity,
 )
 from zyra_memory.curator_integration_store import CuratorIntegrationStore
 from zyra_memory.curator_models import CuratorRunResult, stable_id
@@ -33,7 +31,6 @@ from zyra_memory.curator_outcomes import (
     CuratorOutcomeProjector,
     CuratorProjectionAudit,
     CuratorProjectionAuditor,
-    CuratorProjectionDraft,
 )
 from zyra_memory.curator_runtime import MemoryCuratorWorker
 

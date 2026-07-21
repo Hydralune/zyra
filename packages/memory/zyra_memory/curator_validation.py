@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import math
 import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -18,7 +16,6 @@ from .curator_models import (
     DecisionIssue,
     DecisionStatus,
     EvidenceDocument,
-    EvidenceKind,
     MemoryCandidate,
     MemoryDecision,
     MemoryScope,
