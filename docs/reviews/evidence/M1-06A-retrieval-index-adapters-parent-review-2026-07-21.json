@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "review_id": "M1-06A-retrieval-index-adapters-parent-review-2026-07-21",
+  "review_date": "2026-07-21",
+  "scope": [
+    "M1-S06A-01",
+    "M1-S06A-02"
+  ],
+  "authority": [
+    "docs/milestones/M1-runtime-memory-scheduler-fault/slice-06a-01-retrieval-index-adapters-foundation.md",
+    "docs/milestones/M1-runtime-memory-scheduler-fault/slice-06a-02-retrieval-index-adapters-integration.md",
+    "docs/执行单元完成后通用审查任务书.md"
+  ],
+  "pre_review_head": "33ea29dfb73d21105a7a17a6222fde2ad8b38034",
+  "review_fix_commit": "4238dd8b9298d578b873b0322dadb98c56f923b8",
+  "verdict": "PASS_AFTER_FIX",
+  "resolved_findings": [
+    {
+      "id": "06A-R01",
+      "severity": "high",
+      "summary": "prepare failure could leave an exact-snapshot memory or code delivery claim dangling"
+    },
+    {
+      "id": "06A-R02",
+      "severity": "high",
+      "summary": "delivery finalization stopped at the first journal failure instead of attempting both and exposing repair state"
+    },
+    {
+      "id": "06A-R03",
+      "severity": "high",
+      "summary": "post-provider persistence or settlement failure could leave claims or return an incorrect successful worker outcome"
+    },
+    {
+      "id": "06A-R04",
+      "severity": "medium",
+      "summary": "AgentScope primary migration was misclassified as reimplemented_pattern instead of cropped same-language direct port"
+    },
+    {
+      "id": "06A-R05",
+      "severity": "medium",
+      "summary": "the declared AgentScope _knowledge_base.py source object did not exist at the fixed commit"
+    },
+    {
+      "id": "06A-R06",
+      "severity": "medium",
+      "summary": "default ledger-path selection made original review commands cache-dependent"
+    },
+    {
+      "id": "06A-R07",
+      "severity": "low",
+      "summary": "reviewed 06A Ruff scope contained 13 unused imports"
+    }
+  ],
+  "verification": {
+    "focused_worktree": {
+      "pytest_passed": 32,
+      "nested_subtests_passed": 8,
+      "duration_seconds": 61.61,
+      "ruff": "passed",
+      "compileall": "passed"
+    },
+    "exact_commit_cleanroom": {
+      "commit": "4238dd8b9298d578b873b0322dadb98c56f923b8",
+      "bun_version": "1.2.15",
+      "frozen_lockfile_packages_installed": 14,
+      "pytest_passed": 32,
+      "nested_subtests_passed": 8,
+      "duration_seconds": 51.70,
+      "ruff": "passed",
+      "compileall": "passed",
+      "git_status": "clean",
+      "forbidden_parent_runtime_path_hits": 0,
+      "changed_scope_openclaw_hits": 0,
+      "new_vendor_or_source_pool_paths": 0,
+      "worktree_registration_removed": true,
+      "residual_acl_restricted_temp_path": "G:\\agent-zoo\\.tmp\\m1-06a-review-cleanroom"
+    },
+    "source_objects": {
+      "fixed_source_commits_verified": 2,
+      "fixed_source_paths_verified": 12,
+      "missing": 0
+    },
+    "ledger": {
+      "explicit_path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+      "M1-S06A-01": {
+        "sync_aligned": true,
+        "total": 2,
+        "connected": 2,
+        "productized": 2,
+        "owner_blockers": 0,
+        "policy_blockers": 0
+      },
+      "M1-S06A-02": {
+        "sync_aligned": true,
+        "total": 2,
+        "connected": 2,
+        "productized": 2,
+        "owner_blockers": 0,
+        "policy_blockers": 0
+      },
+      "global_historical_blockers": 11
+    },
+    "repository_regression": {
+      "status": "deferred_by_user_to_numeric_stage_aggregate",
+      "bare_pytest_invalid_collection_errors": 224,
+      "zyra_tests_collection_blockers": 6,
+      "pre_06a_baseline_collection_blockers": 6,
+      "pre_06a_baseline_collected_tests": 486,
+      "protected_codeworker_group_current_failures": 16,
+      "protected_codeworker_group_baseline_failures": 16,
+      "completed_result_claimed": false
+    }
+  },
+  "source_roles": {
+    "agentscope": {
+      "role": "primary_implementation",
+      "commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+      "migration_strategy": "direct_port",
+      "migration_mode": "cropped_migration_same_language_module_integration"
+    },
+    "oh-my-pi": {
+      "role": "supplementary_implementation",
+      "commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "migration_strategy": "reimplemented_pattern",
+      "migration_mode": "bounded_cross_language_mechanism_port"
+    },
+    "langgraph": "conformance_only_narrow_checkpoint_contracts",
+    "hermes_opencode_claude": "reference_only",
+    "openclaw": "excluded_forward_only"
+  },
+  "state_owners": {
+    "canonical_memory": "SQLiteStore+MemoryRecordStore",
+    "canonical_workspace_patch": "WorkspaceManagerRuntime+file_revisions+committed_patch_transactions",
+    "derived_memory_index": "MemoryIndexRuntime+retrieval_SQLite_jobs_generations",
+    "derived_code_index": "CodeIndexRuntime+CodeIndexStore_jobs_leases_generations",
+    "delivery": "WorkerRetrievalContextRuntime+memory_and_code_delivery_journals",
+    "query_session": "TypeScript_QueryEngine_and_existing_session_runtime"
+  },
+  "effective_lines": {
+    "foundation_conservative": 8638,
+    "integration_conservative": 6566,
+    "parent_conservative": 15204,
+    "parent_minimum": 15000,
+    "parent_minimum_satisfied": true,
+    "review_fix_diff": {
+      "production_python_added": 269,
+      "production_python_deleted": 88,
+      "tests_added": 166,
+      "tests_deleted": 2,
+      "ledger_scripts_added": 23,
+      "ledger_scripts_deleted": 5,
+      "ledger_data_added": 10,
+      "ledger_data_deleted": 6
+    },
+    "generated_fixture_mock_vendor_source_pool_thin_unconnected_counted": 0
+  },
+  "competition_evidence": {
+    "advances": [
+      "REQ-COMM-01",
+      "REQ-TRACE-01"
+    ],
+    "closes": []
+  },
+  "next_slice_changed": false
+}
