@@ -107,6 +107,13 @@ from .scaffold_supervisor import (
     supervisor_event_records,
 )
 from .subagents.typescript_port import TypeScriptAgentDurablePort
+from .memory_curator import (
+    MemoryCuratorOperation,
+    MemoryCuratorWorkerRequest,
+    MemoryCuratorWorkerResponse,
+    MemoryCuratorWorkerRuntime,
+    build_memory_curator_runtime,
+)
 
 __all__ = [
     "BackendDispatchHttpServer",
@@ -204,4 +211,9 @@ __all__ = [
     "worker_scaffold_events",
     "worker_scaffold_health_payload",
     "TypeScriptAgentDurablePort",
+    "MemoryCuratorOperation",
+    "MemoryCuratorWorkerRequest",
+    "MemoryCuratorWorkerResponse",
+    "MemoryCuratorWorkerRuntime",
+    "build_memory_curator_runtime",
 ]

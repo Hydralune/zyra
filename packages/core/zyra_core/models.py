@@ -117,6 +117,10 @@ class EventType(StrEnum):
     BROWSER_TARGET_LIFECYCLE = "browser_target_lifecycle"
     BROWSER_CDP_REQUEST = "browser_cdp_request"
     BROWSER_RUNTIME_DIAGNOSTIC = "browser_runtime_diagnostic"
+    MEMORY_CURATOR_SCHEDULED = "memory_curator_scheduled"
+    MEMORY_CURATOR_COMMITTED = "memory_curator_committed"
+    MEMORY_CURATOR_REJECTED = "memory_curator_rejected"
+    MEMORY_CURATOR_RECOVERED = "memory_curator_recovered"
 
 
 @dataclass(slots=True)

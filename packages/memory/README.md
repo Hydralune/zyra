@@ -7,6 +7,12 @@ M4 turns this package into Zyra's long-horizon memory, context compact, and traj
 - `SQLiteStore`: durable task checkpoints, event log rows, memory records, and compact records.
 - `MemoryFabric`: working/episodic/semantic/skill memory ingestion, group-aware context compaction, retrieval, and replay frame construction.
 - `models`: memory records, compact policy/result, and trajectory frame schemas.
+- `MemoryCuratorWorker`: task-bound evidence extraction, proposal-only candidate
+  generation, deterministic validation and atomic MemoryFabric/event/index-outbox commit.
+- `CuratorCandidateStore`: separate evidence/candidate/job/decision state with
+  lease fencing, input/success watermarks, revision CAS and replayable outbox.
+- `@zyra/memory-curator-state-machine`: retained TypeScript ownership-token and
+  candidate consolidation logic with no database or canonical-write authority.
 
 ## Internalized Patterns
 
@@ -22,6 +28,10 @@ M4 turns this package into Zyra's long-horizon memory, context compact, and traj
 - `GET /tasks/{task_id}/memory`
 - `POST /tasks/{task_id}/memory/ingest`
 - `POST /tasks/{task_id}/memory/compact`
+- `GET /tasks/{task_id}/memory/curator`
+- `POST /tasks/{task_id}/memory/curator`
+- `POST /tasks/{task_id}/memory/curator/task-end`
+- `POST /tasks/{task_id}/memory/curator/recover`
 - `GET /tasks/{task_id}/trajectory`
 - `GET /tasks/{task_id}/compactions`
 - Slash commands: `/memory`, `/compact`, `/context`

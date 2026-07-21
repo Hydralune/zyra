@@ -227,6 +227,10 @@ from zyra_workers import (
     BrowserWorkerRuntime,
     CodeWorkerRuntime,
     WorkerRetrievalContextRuntime,
+    MemoryCuratorOperation,
+    MemoryCuratorWorkerRequest,
+    MemoryCuratorWorkerRuntime,
+    build_memory_curator_runtime,
     browser_use_health_summary,
     default_browser_action_registry,
     inspect_browser_use_runtime,
@@ -1280,6 +1284,79 @@ def _memory_fabric(store: SQLiteStore) -> MemoryFabric:
             worker_id=f"api-memory-index:{os.getpid()}",
         ),
     )
+
+
+_MEMORY_CURATOR_LOCK = threading.RLock()
+_MEMORY_CURATOR_INSTANCE: MemoryCuratorWorkerRuntime | None = None
+_MEMORY_CURATOR_KEY: tuple[str, str, str] | None = None
+
+
+def get_memory_curator_runtime(store: SQLiteStore | None = None) -> MemoryCuratorWorkerRuntime:
+    """Return the API-owned curator bound to canonical memory/artifact/index paths."""
+
+    global _MEMORY_CURATOR_INSTANCE, _MEMORY_CURATOR_KEY
+    canonical = store or get_store()
+    key = (
+        str(Path(canonical.path).resolve()),
+        str(memory_index_path().resolve()),
+        str(artifact_root_path().resolve()),
+    )
+    with _MEMORY_CURATOR_LOCK:
+        if _MEMORY_CURATOR_INSTANCE is None or _MEMORY_CURATOR_KEY != key:
+            artifacts = LocalArtifactStore(artifact_root_path())
+            memory_index = MemoryIndexRuntime(
+                canonical_store=canonical,
+                index_path=memory_index_path(),
+                artifact_store=artifacts,
+                worker_id=f"api-memory-curator-index:{os.getpid()}",
+            )
+            _MEMORY_CURATOR_INSTANCE = build_memory_curator_runtime(
+                canonical_store=canonical,
+                artifact_store=artifacts,
+                memory_index=memory_index,
+                worker_id=f"api-memory-curator:{os.getpid()}",
+            )
+            _MEMORY_CURATOR_KEY = key
+        return _MEMORY_CURATOR_INSTANCE
+
+
+def reset_memory_curator_runtime() -> None:
+    global _MEMORY_CURATOR_INSTANCE, _MEMORY_CURATOR_KEY
+    with _MEMORY_CURATOR_LOCK:
+        _MEMORY_CURATOR_INSTANCE = None
+        _MEMORY_CURATOR_KEY = None
+
+
+def curate_terminal_task(store: SQLiteStore, state: Any) -> dict[str, Any] | None:
+    """Schedule terminal curation without coupling primary task success to the worker."""
+
+    if str(state.status) not in {"completed", "failed", "cancelled"}:
+        return None
+    try:
+        response = get_memory_curator_runtime(store).execute(
+            MemoryCuratorWorkerRequest(
+                operation=MemoryCuratorOperation.SCHEDULE_TASK_END,
+                task_id=state.task_id,
+                requested_by="task-lifecycle",
+                allow_model_assist=True,
+                max_candidates=64,
+                process_immediately=False,
+                metadata={"task_status": str(state.status)},
+            )
+        )
+        return response.to_dict()
+    except Exception as error:  # noqa: BLE001 - curator failure must not fail the task lifecycle.
+        return {
+            "operation": MemoryCuratorOperation.SCHEDULE_TASK_END.value,
+            "status": "degraded",
+            "scheduled": None,
+            "result": None,
+            "data": {
+                "error": type(error).__name__,
+                "message": str(error)[:500],
+                "task_lifecycle_preserved": True,
+            },
+        }
 
 
 def _worker_retrieval_context(
@@ -3262,6 +3339,30 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK if route_contract.ok else HTTPStatus.CONFLICT, payload)
                 return
 
+        if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "curator":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            runtime = get_memory_curator_runtime(store)
+            candidate_store = runtime.worker.candidate_store
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "health": runtime.worker.health(),
+                    "jobs": [item.to_dict() for item in candidate_store.jobs(task_id=state.task_id, limit=100)],
+                    "candidates": [item.to_dict() for item in candidate_store.candidates(task_id=state.task_id, limit=1000)],
+                    "outbox": [item.to_dict() for item in candidate_store.outbox_messages(task_id=state.task_id, limit=1000)],
+                    "canonical_memory_owner": "SQLiteStore.memory_records",
+                    "candidate_store_is_separate": True,
+                    "model_can_write": False,
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "memory":
             state = store.load_task(parts[1])
             if state is None:
@@ -3497,11 +3598,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 events.extend(run_task_graph(state, execution_context=graph_execution_context()))
             persist_events(store, events)
             store.save_checkpoint(state)
+            curator = curate_terminal_task(store, state) if auto_run else None
             self._send_json(
                 HTTPStatus.CREATED,
                 {
                     "task": to_jsonable(state),
                     "events": [to_jsonable(event) for event in events],
+                    "memory_curator": curator,
                 },
             )
             return
@@ -3514,9 +3617,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             events = run_task_graph(state, execution_context=graph_execution_context())
             persist_events(store, events)
             store.save_checkpoint(state)
+            curator = curate_terminal_task(store, state)
             self._send_json(
                 HTTPStatus.OK,
-                {"task": to_jsonable(state), "events": [to_jsonable(event) for event in events]},
+                {
+                    "task": to_jsonable(state),
+                    "events": [to_jsonable(event) for event in events],
+                    "memory_curator": curator,
+                },
             )
             return
 
@@ -3565,6 +3673,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     })
             persist_events(store, events)
             store.save_checkpoint(state)
+            curator = curate_terminal_task(store, state)
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -3574,6 +3683,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "subagent_cancel_errors": subagent_cancel_errors,
                     "canonical_agent_owner": "typescript",
                     "backend_dispatch_control": backend_cancel.to_dict(),
+                    "memory_curator": curator,
                 },
             )
             return
@@ -3788,6 +3898,46 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "python_agent_fallback": False,
                 },
                 headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"},
+            )
+            return
+
+        if len(parts) >= 4 and parts[0] == "tasks" and parts[2] == "memory" and parts[3] == "curator":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            operation = str(payload.get("operation") or "schedule_manual")
+            if len(parts) == 5:
+                operation = {
+                    "task-end": "schedule_task_end",
+                    "recover": "recover",
+                    "run-next": "run_next",
+                    "run-job": "run_job",
+                }.get(parts[4], operation)
+            try:
+                request = MemoryCuratorWorkerRequest.from_dict(
+                    {
+                        **payload,
+                        "operation": operation,
+                        "task_id": state.task_id,
+                        "requested_by": str(payload.get("requested_by") or "memory-curator-api"),
+                    }
+                )
+                response = get_memory_curator_runtime(store).execute(request)
+            except (ValueError, RuntimeError, KeyError) as error:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {
+                        "error": getattr(error, "code", "memory_curator_failed"),
+                        "message": str(error),
+                        "task_id": state.task_id,
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus.CREATED if response.scheduled is not None else HTTPStatus.OK,
+                response.to_dict(),
+                headers={"Cache-Control": "no-store, max-age=0"},
             )
             return
 

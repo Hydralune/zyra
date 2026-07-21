@@ -7,12 +7,15 @@
     "apps/code-worker",
     "packages/runtime/claude-runtime",
     "packages/runtime/provider-control-plane",
+    "packages/memory/curator-state-machine",
     "packages/integrations/claude-mcp",
     "packages/runtime/sandbox-gateway-control",
     "packages/runtime/runtime-event-spine"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/provider-control-plane/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json",
+    "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/provider-control-plane/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json && tsc -p packages/memory/curator-state-machine/tsconfig.json",
+    "typecheck:memory-curator": "tsc -p packages/memory/curator-state-machine/tsconfig.json",
+    "test:memory-curator": "bun test ./packages/memory/curator-state-machine/test/state-machine.test.ts",
     "test:providers": "npm --workspace @zyra/provider-control-plane test",
     "typecheck:e01": "tsc -p packages/runtime/claude-runtime/tsconfig.json",
     "typecheck:e02": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/integrations/claude-mcp/tsconfig.json",

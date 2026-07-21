@@ -18,6 +18,10 @@
       "name": "@zyra/claude-mcp",
       "version": "0.1.0",
     },
+    "packages/memory/curator-state-machine": {
+      "name": "@zyra/memory-curator-state-machine",
+      "version": "0.1.0",
+    },
     "packages/runtime/claude-runtime": {
       "name": "@zyra/claude-runtime",
       "version": "0.1.0",
@@ -69,6 +73,8 @@
     "@zyra/claude-mcp": ["@zyra/claude-mcp@workspace:packages/integrations/claude-mcp"],
 
     "@zyra/claude-runtime": ["@zyra/claude-runtime@workspace:packages/runtime/claude-runtime"],
+
+    "@zyra/memory-curator-state-machine": ["@zyra/memory-curator-state-machine@workspace:packages/memory/curator-state-machine"],
 
     "@zyra/provider-control-plane": ["@zyra/provider-control-plane@workspace:packages/runtime/provider-control-plane"],
 
