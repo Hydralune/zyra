@@ -59,7 +59,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "migration_strategy": "direct_port",
         "migration_mode": "cropped_migration_same_language_module_integration",
         "runtime_module": "zyra_memory.curator_runtime",
-        "runtime_function": "MemoryCuratorWorker.process_one",
+        "runtime_function": "MemoryCuratorWorker",
         "license_hint": "MIT",
         "rationale": (
             "Hermes supplies the primary worker/lifecycle and trajectory curation mechanisms. "
@@ -99,8 +99,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "source_role": "supplementary_implementation",
         "migration_strategy": "direct_port",
         "migration_mode": "cropped_migration_same_language_module_integration",
-        "runtime_module": "@zyra/memory-curator-state-machine",
-        "runtime_function": "consolidateCandidates/transitionJob",
+        "runtime_module": "zyra_memory.curator_typescript_port",
+        "runtime_function": "TypeScriptCuratorStatePort",
         "license_hint": "MIT",
         "rationale": (
             "Only the bounded job/collision state machine is retained in TypeScript. The process "

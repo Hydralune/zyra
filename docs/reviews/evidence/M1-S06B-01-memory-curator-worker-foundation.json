@@ -1,0 +1,180 @@
+{
+  "review_id": "M1-S06B-01-memory-curator-worker-foundation",
+  "slice": "M1-S06B-01",
+  "date": "2026-07-21",
+  "measurement_baseline_commit": "9f3d04b9fa860980d86ad2aaa446bde1db26ad21",
+  "implementation_commits": [
+    "2efb0cbc1f2938fc97d96b4fa5028ac8c39671fe"
+  ],
+  "final_implementation_commit": "2efb0cbc1f2938fc97d96b4fa5028ac8c39671fe",
+  "verdict": "PASS",
+  "parent_status": "M1-06B_IN_PROGRESS",
+  "next_slice": "M1-S06B-02",
+  "blocking_findings_after_fix": 0,
+  "canonical_owners": {
+    "task_checkpoint_and_event_source": "SQLiteStore",
+    "evidence_candidates_decisions_jobs_leases": "CuratorCandidateStore",
+    "canonical_memory": "SQLiteStore.memory_records through MemoryCommitRuntime",
+    "curated_memory_revision": "memory_record_revisions under the commit transaction",
+    "event_index_delivery_intent": "memory_curator_outbox",
+    "retrieval_derived_state": "MemoryIndexRuntime",
+    "typescript_process": "supplementary JSON state machine with no database authority"
+  },
+  "candidate_kinds": [
+    "promote",
+    "discard",
+    "compress",
+    "skill_candidate",
+    "failure_pattern"
+  ],
+  "invariants": {
+    "model_can_write": false,
+    "typescript_can_write": false,
+    "candidate_store_is_canonical_memory": false,
+    "evidence_rechecked_before_commit": true,
+    "atomic_memory_revision_event_index_outbox": true,
+    "last_write_wins": false,
+    "duplicate_commit_creates_memory": false,
+    "contradiction_overwrites_memory": false,
+    "task_end_executes_synchronously": false,
+    "task_lifecycle_fails_when_curator_fails": false,
+    "lease_token_epoch_owner_expiry_checked": true,
+    "retry_preserves_input_watermark": true,
+    "exact_job_claim_supported": true
+  },
+  "source_roles": {
+    "hermes-agent": {
+      "role": "primary_implementation",
+      "commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "migration": "cropped_migration_same_language_module_integration",
+      "canonical_owner": false
+    },
+    "oh-my-pi": {
+      "role": "supplementary_implementation",
+      "commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "migration": "cropped TypeScript state machine retained under Zyra package ownership",
+      "bounded_mechanisms": "ownership token, lease, heartbeat, retry watermark and explicit consolidation",
+      "database_access": false,
+      "canonical_owner": false
+    },
+    "other_sources": {
+      "role": "conformance_or_reference_only",
+      "production_migration_quota": false,
+      "canonical_owner": false
+    }
+  },
+  "ledger_readiness": {
+    "owner_unit": "M1-S06B-01",
+    "entries": 2,
+    "connected": 2,
+    "blocked": 0,
+    "ready_for_productization": 2,
+    "missing_targets": 0,
+    "missing_runtime": 0,
+    "missing_tests": 0,
+    "policy_errors": 0,
+    "policy_warnings": 0,
+    "policy_blockers": 0,
+    "ok": true,
+    "global_legacy_audit_clean": false,
+    "global_legacy_audit_note": "protected earlier-unit target-path and source-scan debt remains outside the owner filter"
+  },
+  "line_buckets": {
+    "python_memory_runtime_effective": 7902,
+    "python_memory_runtime_raw": 8436,
+    "python_worker_effective": 227,
+    "python_worker_raw": 247,
+    "typescript_runtime_effective": 828,
+    "typescript_runtime_raw": 901,
+    "conservative_counted_production": 8957,
+    "raw_production": 9584,
+    "slice_minimum": 8500,
+    "slice_shortfall": 0,
+    "dedicated_tests_effective_excluded": 887,
+    "dedicated_tests_raw_excluded": 943,
+    "tool_effective_added": 11087,
+    "tool_raw_added": 11437,
+    "tool_excluded_added": 350,
+    "tool_production_bucket_before_conservative_exclusions": 9992,
+    "generated_data_mock_fixture_vendor_source_pool_counted": 0
+  },
+  "verification": [
+    {
+      "suite": "memory_curator_python_unit_and_http_main_path",
+      "result": "11 passed in 26.83s"
+    },
+    {
+      "suite": "memory_curator_typescript_state_machine",
+      "result": "4 passed, 0 failed, 22 assertions"
+    },
+    {
+      "suite": "repository_typescript_typecheck",
+      "result": "passed"
+    },
+    {
+      "suite": "adjacent_memory_retrieval_unit",
+      "result": "8 passed"
+    },
+    {
+      "suite": "adjacent_retrieval_index_recovery_codeworker_scheduler_integration",
+      "result": "10 passed"
+    },
+    {
+      "suite": "memory_curator_source_ledger_sync",
+      "result": "aligned=true, decisions=2"
+    },
+    {
+      "suite": "owner_filtered_ledger_readiness",
+      "result": "2 connected, 0 blocked, 0 missing target/runtime/test, ok=true"
+    },
+    {
+      "suite": "owner_filtered_policy_matrix",
+      "result": "0 errors, 0 warnings, 0 blockers, ok=true"
+    },
+    {
+      "suite": "cleanroom_exact_commit",
+      "result": "frozen install, repository typecheck, 4 TypeScript tests, 11 Python/HTTP tests and parent path scan passed"
+    }
+  ],
+  "behavior_coverage": [
+    "real event, tool, browser and artifact evidence extraction",
+    "five deterministic candidate types plus proposal-only model boundary",
+    "missing, forged and post-validation-mutated evidence rejection",
+    "secret rejection and untrusted permission-rule mutation rejection",
+    "duplicate exactly-once commit and immutable decision replay",
+    "explicit contradiction and merge-required without overwrite",
+    "atomic canonical memory, revision and event/index outbox intent",
+    "outbox restart replay without canonical memory duplication",
+    "lease expiry, retry watermark preservation and old-owner fencing",
+    "exact job-ID claim in the presence of an older queued task job",
+    "task-end enqueue isolation and enqueue-by-default manual API",
+    "real HTTP candidate to canonical memory, event and retrieval result",
+    "TypeScript ownership/watermark/consolidation execution"
+  ],
+  "submission_boundary": {
+    "new_vendor_or_source_pool_additions": 0,
+    "added_parent_source_runtime_path_hits": 0,
+    "npm_link_or_editable_source_paths": 0,
+    "external_upstream_runtime_owner": false,
+    "typescript_database_path_exposed": false,
+    "temporary_cleanroom_removed": true
+  },
+  "risk_trigger": {
+    "triggered": true,
+    "reason": "new formal TypeScript subprocess/package boundary on the curator main path",
+    "verification_level": "exact implementation commit cleanroom with frozen dependencies, typecheck, behavior tests and path scan",
+    "canonical_owner_transfer": false
+  },
+  "known_unrelated_test_debt": {
+    "suite": "tests/integration/test_api_control_commands.py",
+    "result": "19 passed, 16 failed",
+    "cause": "existing e02_route_not_found responses for unrelated tool capability owners before curator endpoints execute",
+    "curator_fallback_added": false
+  },
+  "unclaimed": [
+    "M1-S06B-02 and M1-06B parent completion",
+    "M1-06 numeric-stage aggregate review",
+    "model provider or embedding ownership",
+    "milestone exit and competition live-scenario gates"
+  ]
+}

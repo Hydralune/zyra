@@ -174833,7 +174833,7 @@
           "retrieval_index_outbox"
         ],
         "ui_panels": [],
-        "worker_runtime": "MemoryCuratorWorker.process_one"
+        "worker_runtime": "MemoryCuratorWorker"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
@@ -174863,7 +174863,7 @@
           "packages/workers/zyra_workers/memory_curator.py",
           "apps/api/zyra_api/main.py"
         ],
-        "function": "MemoryCuratorWorker.process_one",
+        "function": "MemoryCuratorWorker",
         "health_check": "python -m pytest tests/unit/test_memory_curator_worker_foundation.py tests/integration/test_memory_curator_api_main_path.py -q",
         "module": "zyra_memory.curator_runtime",
         "protocol": "zyra.memory-curator.v1"
@@ -174981,7 +174981,7 @@
           "retrieval_index_outbox"
         ],
         "ui_panels": [],
-        "worker_runtime": "consolidateCandidates/transitionJob"
+        "worker_runtime": "TypeScriptCuratorStatePort"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
@@ -175010,9 +175010,9 @@
           "packages/memory/zyra_memory/curator_store.py",
           "packages/memory/zyra_memory/curator_decision.py"
         ],
-        "function": "consolidateCandidates/transitionJob",
+        "function": "TypeScriptCuratorStatePort",
         "health_check": "python -m pytest tests/unit/test_memory_curator_worker_foundation.py tests/integration/test_memory_curator_api_main_path.py -q",
-        "module": "@zyra/memory-curator-state-machine",
+        "module": "zyra_memory.curator_typescript_port",
         "protocol": "zyra.memory-curator.v1"
       },
       "source_path": "packages/coding-agent/src/memories/storage.ts;packages/coding-agent/src/memories/index.ts;packages/mnemopi/src/core/extraction.ts;packages/mnemopi/src/core/beam/consolidate.ts;packages/mnemopi/src/core/veracity-consolidation.ts;packages/mnemopi/src/core/episodic-graph.ts;packages/mnemopi/src/core/orchestrator.ts",
