@@ -565,6 +565,7 @@ class BrowserSkillMemoryContextRuntime:
         self._lock = threading.RLock()
         self._preparations: dict[str, BrowserSkillMemoryPreparation] = {}
         self._deliveries: dict[str, BrowserSkillMemoryDeliveryReceipt] = {}
+        self._pending_projection_ids: set[str] = set()
         self._scope_epochs: dict[str, int] = {}
         self._rejections = 0
         self._fallbacks = 0
@@ -628,28 +629,76 @@ class BrowserSkillMemoryContextRuntime:
                     )
                 # Checkpoint/replay state is per delivery attempt; only the
                 # immutable TypeScript projection must remain identical.
-                self._preparations[projection.projection_id] = preparation
-            if not replayed:
-                blocks = context_window.seed_request_messages(provider_messages)
-                block_ids = tuple(str(getattr(block, "block_id", "")) for block in blocks)
-                preparation = replace(
-                    preparation,
-                    provider_messages=tuple(provider_messages),
-                )
-                with self._lock:
+                if replayed:
                     self._preparations[projection.projection_id] = preparation
-                    self._deliveries.setdefault(
-                        projection.projection_id,
-                        self._delivery(
-                            request,
-                            projection,
-                            checkpoint,
-                            block_ids=block_ids,
-                            state=BrowserSkillMemoryDeliveryState.PREPARED,
-                            reason="browser context window accepted skill-memory projection",
-                            fallback_event_emitted=bool(fallback_events),
-                        ),
+                    return preparation
+                current = self._deliveries.get(projection.projection_id)
+                if current is not None and current.state is BrowserSkillMemoryDeliveryState.PREPARED:
+                    if projection.projection_id in self._pending_projection_ids:
+                        raise BrowserSkillMemoryDeliveryConflict(
+                            "browser skill-memory projection is still seeding context",
+                            details={"projection_id": projection.projection_id},
+                        )
+                    if current.worker_request_id == request.request_id and existing is not None:
+                        return existing
+                    raise BrowserSkillMemoryDeliveryConflict(
+                        "browser skill-memory projection already has an active delivery",
+                        details={
+                            "projection_id": projection.projection_id,
+                            "active_worker_request_id": current.worker_request_id,
+                            "worker_request_id": request.request_id,
+                        },
                     )
+                if current is not None and current.state is BrowserSkillMemoryDeliveryState.APPLIED:
+                    raise BrowserSkillMemoryDeliveryConflict(
+                        "applied browser skill-memory projection is missing from the checkpoint",
+                        details={"projection_id": projection.projection_id},
+                    )
+                reservation = self._delivery(
+                    request,
+                    projection,
+                    checkpoint,
+                    block_ids=(),
+                    state=BrowserSkillMemoryDeliveryState.PREPARED,
+                    reason="browser context window delivery reserved",
+                    fallback_event_emitted=bool(fallback_events),
+                )
+                # RELEASED attempts may be retried by a new worker request.  A
+                # live PREPARED attempt is fenced above before context mutation.
+                self._preparations.pop(projection.projection_id, None)
+                self._deliveries[projection.projection_id] = reservation
+                self._pending_projection_ids.add(projection.projection_id)
+            try:
+                blocks = context_window.seed_request_messages(provider_messages)
+            except Exception:
+                with self._lock:
+                    current = self._deliveries.get(projection.projection_id)
+                    if current is not None and current.delivery_id == reservation.delivery_id:
+                        self._deliveries.pop(projection.projection_id, None)
+                        self._preparations.pop(projection.projection_id, None)
+                    self._pending_projection_ids.discard(projection.projection_id)
+                raise
+            block_ids = tuple(str(getattr(block, "block_id", "")) for block in blocks)
+            prepared_delivery = self._delivery(
+                request,
+                projection,
+                checkpoint,
+                block_ids=block_ids,
+                state=BrowserSkillMemoryDeliveryState.PREPARED,
+                reason="browser context window accepted skill-memory projection",
+                fallback_event_emitted=bool(fallback_events),
+            )
+            with self._lock:
+                current = self._deliveries.get(projection.projection_id)
+                if current is None or current.delivery_id != reservation.delivery_id:
+                    self._pending_projection_ids.discard(projection.projection_id)
+                    raise BrowserSkillMemoryDeliveryConflict(
+                        "browser skill-memory delivery reservation changed during context seed",
+                        details={"projection_id": projection.projection_id},
+                    )
+                self._preparations[projection.projection_id] = preparation
+                self._deliveries[projection.projection_id] = prepared_delivery
+                self._pending_projection_ids.discard(projection.projection_id)
             return preparation
         except BrowserSkillMemoryContextError:
             self._rejections += 1
@@ -670,6 +719,11 @@ class BrowserSkillMemoryContextRuntime:
     ) -> tuple[BrowserSkillMemoryCheckpoint, BrowserSkillMemoryDeliveryReceipt, EventRecord]:
         projection = preparation.projection
         with self._lock:
+            if projection.projection_id in self._pending_projection_ids:
+                raise BrowserSkillMemoryDeliveryConflict(
+                    "browser skill-memory context seed is still pending",
+                    details={"projection_id": projection.projection_id},
+                )
             current = self._deliveries.get(projection.projection_id)
             if preparation.replayed:
                 existing = next(
@@ -691,6 +745,15 @@ class BrowserSkillMemoryContextRuntime:
                 raise BrowserSkillMemoryDeliveryConflict(
                     "browser skill-memory delivery was not prepared",
                     details={"projection_id": projection.projection_id},
+                )
+            if current.worker_request_id != request.request_id:
+                raise BrowserSkillMemoryDeliveryConflict(
+                    "browser skill-memory delivery belongs to another worker request",
+                    details={
+                        "projection_id": projection.projection_id,
+                        "active_worker_request_id": current.worker_request_id,
+                        "worker_request_id": request.request_id,
+                    },
                 )
             applied = replace(
                 current,
@@ -747,7 +810,21 @@ class BrowserSkillMemoryContextRuntime:
     ) -> tuple[BrowserSkillMemoryDeliveryReceipt, EventRecord]:
         projection = preparation.projection
         with self._lock:
+            if projection.projection_id in self._pending_projection_ids:
+                raise BrowserSkillMemoryDeliveryConflict(
+                    "browser skill-memory context seed is still pending",
+                    details={"projection_id": projection.projection_id},
+                )
             current = self._deliveries.get(projection.projection_id)
+            if current is not None and current.worker_request_id != request.request_id:
+                raise BrowserSkillMemoryDeliveryConflict(
+                    "browser skill-memory delivery belongs to another worker request",
+                    details={
+                        "projection_id": projection.projection_id,
+                        "active_worker_request_id": current.worker_request_id,
+                        "worker_request_id": request.request_id,
+                    },
+                )
             if current is None:
                 current = self._delivery(
                     request,
@@ -843,6 +920,7 @@ class BrowserSkillMemoryContextRuntime:
                 "disabled": self.disabled,
                 "preparation_count": len(self._preparations),
                 "delivery_count": len(values),
+                "pending_delivery_count": len(self._pending_projection_ids),
                 "applied_count": sum(
                     1
                     for item in values

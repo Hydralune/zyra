@@ -163,7 +163,7 @@ python scripts/sync_memory_curator_source_ledger.py --check
 
 zyra_integration_ledger.py linecount --base <baseline> --cached \
   --owner-unit M1-S06B-01 --minimum-effective-lines 8500 --fail-on-shortfall
-# effective_added=11087; raw_added=11437; excluded_added=350; ok=true
+# effective_added=11086; raw_added=11434; excluded_added=348; ok=true
 ```
 
 The cleanroom used detached commit `2efb0cbc1f2938fc97d96b4fa5028ac8c39671fe`, installed from
@@ -179,7 +179,7 @@ curator fallback to hide it; targeted adjacent memory/retrieval/scheduler behavi
 
 ## 9. Effective line buckets
 
-The strict staged tool reports 11,087 effective additions and no bucket findings. A more
+The strict staged tool reports 11,086 effective additions and no bucket findings. A more
 conservative manual count excludes API glue, exports, tests, configs, docs, notices, ledger seed and
 ledger-sync script, and counts only nonblank/non-comment lines in the curator runtime modules:
 

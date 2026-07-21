@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Mapping, Sequence
 
 from zyra_core import EventRecord, EventType, now_iso
@@ -254,13 +254,6 @@ class MemoryCuratorIntegrationApplication:
                     outcomes=draft.outcomes,
                     failures=draft.failures,
                 )
-                event_ids.extend(
-                    self._emit_outcome_events(
-                        integration_run=integration_run,
-                        outcomes=outcomes,
-                        failures=failures,
-                    )
-                )
             elif integration_run.state in {
                 CuratorIntegrationRunState.PUBLISHED,
                 CuratorIntegrationRunState.CONTEXT_VERIFIED,
@@ -291,6 +284,16 @@ class MemoryCuratorIntegrationApplication:
                     "integration_state_not_resumable",
                     f"cannot resume integration from {integration_run.state.value}",
                 )
+            # Outcome events use deterministic ids and are safe to replay.  Emit
+            # them after both the initial publish and the PUBLISHED resume path
+            # so a transient event-sink failure cannot create a permanent gap.
+            event_ids.extend(
+                self._emit_outcome_events(
+                    integration_run=integration_run,
+                    outcomes=outcomes,
+                    failures=failures,
+                )
+            )
             delivery_reports = self._dispatch(
                 task_id=result.task_id,
                 enabled=self.auto_dispatch,
@@ -351,11 +354,17 @@ class MemoryCuratorIntegrationApplication:
                     "integration_completed": True,
                 },
             )
+            # Publish the deterministic completion event before committing the
+            # terminal state.  If the sink is temporarily unavailable, the
+            # durable run remains resumable and recovery can retry the event;
+            # a SUCCEEDED run must never hide a missing completion event.
+            completed_event_id = self._emit_completed_event(integration_run, audit)
             self.store.save_integration_run(
                 integration_run,
                 expected_state=completion_source_state,
             )
-            event_ids.append(self._emit_completed_event(integration_run, audit))
+            if completed_event_id:
+                event_ids.append(completed_event_id)
         except BaseException as error:
             self._record_failure(integration_run, result, error)
             raise
@@ -587,6 +596,14 @@ class MemoryCuratorIntegrationApplication:
         )
         draft = self.projector.project(result)
         audit = self.auditor.audit(draft)
+        event_ids = list(
+            self._emit_outcome_events(
+                integration_run=run,
+                outcomes=outcomes,
+                failures=failures,
+            )
+        )
+        event_ids.append(self._emit_completed_event(run, audit))
         report = CuratorProjectionReport(
             integration_run=run,
             outcomes=outcomes,
@@ -607,7 +624,7 @@ class MemoryCuratorIntegrationApplication:
             audit=audit,
             delivery_reports={},
             input_batch=input_batch,
-            event_ids=(),
+            event_ids=tuple(item for item in event_ids if item),
             replayed=True,
             diagnostics={
                 "idempotent_replay": True,
@@ -624,6 +641,34 @@ class MemoryCuratorIntegrationApplication:
         current = self.store.integration_run(run.integration_run_id) or run
         if current.terminal:
             return
+        retryable = bool(getattr(error, "retryable", False))
+        if retryable:
+            deferred = replace(
+                current,
+                updated_at=now_iso(),
+                error_code="",
+                error_message="",
+                metadata={
+                    **dict(current.metadata),
+                    "last_retryable_error": {
+                        "code": (
+                            error.code
+                            if isinstance(error, MemoryCuratorIntegrationError)
+                            else type(error).__name__.casefold()
+                        ),
+                        "message": str(error)[:2000],
+                        "failure_type": type(error).__name__,
+                    },
+                    "retryable": True,
+                    "recovery_required": True,
+                    "canonical_task_lifecycle_preserved": True,
+                },
+            ).validated()
+            self.store.save_integration_run(
+                deferred,
+                expected_state=current.state,
+            )
+            return
         code = (
             error.code
             if isinstance(error, MemoryCuratorIntegrationError)
@@ -635,7 +680,7 @@ class MemoryCuratorIntegrationApplication:
             error_message=str(error),
             metadata={
                 "failure_type": type(error).__name__,
-                "retryable": bool(getattr(error, "retryable", False)),
+                "retryable": False,
                 "canonical_task_lifecycle_preserved": True,
             },
         )
@@ -674,7 +719,7 @@ class MemoryCuratorIntegrationApplication:
                     "model_can_write": False,
                 },
             )
-            self.event_sink.append_event(event)
+            self._append_projection_event(event)
             event_ids.append(event_id)
         for failure in failures:
             event_id = stable_id(
@@ -694,9 +739,21 @@ class MemoryCuratorIntegrationApplication:
                     "canonical_memory_changed": False,
                 },
             )
-            self.event_sink.append_event(event)
+            self._append_projection_event(event)
             event_ids.append(event_id)
         return tuple(event_ids)
+
+    def _append_projection_event(self, event: EventRecord) -> None:
+        if self.event_sink is None:
+            return
+        try:
+            self.event_sink.append_event(event)
+        except Exception as error:
+            raise MemoryCuratorIntegrationError(
+                "outcome_event_delivery_failed",
+                f"curator outcome event delivery failed: {type(error).__name__}: {error}",
+                retryable=True,
+            ) from error
 
     @staticmethod
     def _event_type(outcome: CuratorOutcome) -> EventType:
@@ -720,22 +777,22 @@ class MemoryCuratorIntegrationApplication:
             "memory_curator_integration_completed",
             run.integration_run_id,
         )
-        if self.event_sink is not None:
-            self.event_sink.append_event(
-                EventRecord(
-                    event_id=event_id,
-                    run_id=run.run_id,
-                    task_id=run.task_id,
-                    event_type=EventType.SYSTEM_NOTICE,
-                    payload={
-                        "schema": "zyra.memory-curator-integration-event/v1",
-                        "phase": "integration_completed",
-                        "integration_run": run.to_dict(),
-                        "audit": audit.to_dict(),
-                        "canonical_memory_owner": "SQLiteStore.memory_records",
-                    },
-                )
-            )
+        if self.event_sink is None:
+            return ""
+        event = EventRecord(
+            event_id=event_id,
+            run_id=run.run_id,
+            task_id=run.task_id,
+            event_type=EventType.SYSTEM_NOTICE,
+            payload={
+                "schema": "zyra.memory-curator-integration-event/v1",
+                "phase": "integration_completed",
+                "integration_run": run.to_dict(),
+                "audit": audit.to_dict(),
+                "canonical_memory_owner": "SQLiteStore.memory_records",
+            },
+        )
+        self._append_projection_event(event)
         return event_id
 
     def _result_from_durable_job(self, job_id: str) -> CuratorRunResult | None:

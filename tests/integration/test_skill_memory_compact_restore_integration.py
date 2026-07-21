@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -22,6 +22,7 @@ from zyra_workers.browser_session import BrowserRuntimeConfig, BrowserSessionCom
 from zyra_workers.browser_session.runtime_registry import BrowserRuntimeRegistry  # noqa: E402
 from zyra_workers.browser_worker import BrowserWorkerRuntime  # noqa: E402
 from zyra_workers.skill_memory_context import (  # noqa: E402
+    BrowserSkillMemoryDeliveryConflict,
     BrowserSkillMemoryContextRuntime,
     BrowserSkillMemoryProjectionCorrupt,
     BrowserSkillMemoryToolScopeWidened,
@@ -226,6 +227,44 @@ class BrowserSkillMemoryContextTests(unittest.TestCase):
         self.assertIsNone(preparation)
         self.assertEqual(window.messages, [])
         self.assertTrue(runtime.health()["disabled"])
+
+    def test_active_delivery_is_fenced_and_released_projection_can_retry(self) -> None:
+        projection = _projection()
+        first_request = _request(projection)
+        runtime = BrowserSkillMemoryContextRuntime()
+        first_window = _ContextWindow()
+        first = runtime.prepare(first_request, context_window=first_window)
+        self.assertIsNotNone(first)
+        assert first is not None
+
+        second_request = replace(first_request, request_id="browser-worker-request-06c02-retry")
+        conflicting_window = _ContextWindow()
+        with self.assertRaises(BrowserSkillMemoryDeliveryConflict):
+            runtime.prepare(second_request, context_window=conflicting_window)
+        self.assertEqual(conflicting_window.messages, [])
+        with self.assertRaises(BrowserSkillMemoryDeliveryConflict):
+            runtime.release(
+                second_request,
+                first,
+                reason="unrelated worker must not release active delivery",
+            )
+
+        released, _event = runtime.release(
+            first_request,
+            first,
+            reason="browser action failed before context checkpoint commit",
+        )
+        self.assertEqual(released.state.value, "released")
+
+        retry_window = _ContextWindow()
+        retry = runtime.prepare(second_request, context_window=retry_window)
+        self.assertIsNotNone(retry)
+        assert retry is not None
+        self.assertEqual(len(retry_window.messages), 1)
+        checkpoint, delivery, _event = runtime.commit(second_request, retry)
+        self.assertEqual(delivery.state.value, "applied")
+        self.assertEqual(delivery.worker_request_id, second_request.request_id)
+        self.assertIn(projection["projectionId"], checkpoint.applied_projection_ids)
 
 
 class BrowserWorkerSkillMemoryMainPathTests(unittest.TestCase):

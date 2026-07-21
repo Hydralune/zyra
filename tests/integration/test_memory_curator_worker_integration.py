@@ -34,6 +34,7 @@ from zyra_memory import (
 )
 from zyra_runtime import WorkerRequest
 from zyra_workers import (
+    MemoryCuratorIntegrationError,
     MemoryCuratorOperation,
     MemoryCuratorWorkerRequest,
     WorkerRetrievalContextRuntime,
@@ -555,6 +556,92 @@ class MemoryCuratorWorkerIntegrationTests(unittest.TestCase):
             {item.delivery_id for item in after_deliveries},
         )
         self.assertTrue(app.store.consistency_report(task_id=self.harness.state.task_id)["ok"])
+
+    def test_retryable_outcome_event_failure_remains_recoverable(self) -> None:
+        self.harness.add_rich_trace()
+        app = self.harness.runtime.integration_application
+        canonical_sink = app.event_sink
+
+        class FailFirstOutcomeEvent:
+            def __init__(self, delegate) -> None:
+                self.delegate = delegate
+                self.failed = False
+
+            def append_event(self, event) -> None:
+                schema = str(event.payload.get("schema") or "")
+                if schema == "zyra.memory-curator-outcome-event/v1" and not self.failed:
+                    self.failed = True
+                    raise OSError("transient event sink failure")
+                self.delegate.append_event(event)
+
+        app.event_sink = FailFirstOutcomeEvent(canonical_sink)
+        with self.assertRaises(MemoryCuratorIntegrationError) as raised:
+            self.harness.run_manual(idempotency_key="retryable-event-delivery")
+        self.assertTrue(raised.exception.retryable)
+        active = app.store.integration_runs(
+            task_id=self.harness.state.task_id,
+            limit=10,
+        )
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0].state.value, "published")
+        self.assertTrue(active[0].metadata["recovery_required"])
+
+        app.event_sink = canonical_sink
+        recovery = app.recover()
+        self.assertIn(active[0].integration_run_id, recovery.resumed_integration_run_ids)
+        recovered = app.store.integration_run(active[0].integration_run_id)
+        self.assertIsNotNone(recovered)
+        self.assertEqual(recovered.state.value, "succeeded")
+        event_types = {
+            str(item["event_type"])
+            for item in self.harness.store.task_events(self.harness.state.task_id)
+        }
+        self.assertIn("memory_curator_candidate", event_types)
+        self.assertIn("memory_curator_committed", event_types)
+        durable_result = app._result_from_durable_job(recovered.curator_job_id)
+        self.assertIsNotNone(durable_result)
+        replay = app.integrate(durable_result)
+        self.assertTrue(replay.replayed)
+        self.assertTrue(replay.event_ids)
+
+    def test_retryable_completion_event_failure_does_not_commit_terminal_state(self) -> None:
+        self.harness.add_rich_trace()
+        app = self.harness.runtime.integration_application
+        canonical_sink = app.event_sink
+
+        class FailFirstCompletionEvent:
+            def __init__(self, delegate) -> None:
+                self.delegate = delegate
+                self.failed = False
+
+            def append_event(self, event) -> None:
+                payload = event.payload
+                if payload.get("phase") == "integration_completed" and not self.failed:
+                    self.failed = True
+                    raise OSError("transient completion event failure")
+                self.delegate.append_event(event)
+
+        app.event_sink = FailFirstCompletionEvent(canonical_sink)
+        with self.assertRaises(MemoryCuratorIntegrationError) as raised:
+            self.harness.run_manual(idempotency_key="retryable-completion-event")
+        self.assertTrue(raised.exception.retryable)
+        active = app.store.integration_runs(task_id=self.harness.state.task_id, limit=10)
+        self.assertEqual(len(active), 1)
+        self.assertFalse(active[0].terminal)
+        self.assertTrue(active[0].metadata["recovery_required"])
+
+        app.event_sink = canonical_sink
+        recovery = app.recover()
+        self.assertIn(active[0].integration_run_id, recovery.resumed_integration_run_ids)
+        recovered = app.store.integration_run(active[0].integration_run_id)
+        self.assertIsNotNone(recovered)
+        self.assertEqual(recovered.state.value, "succeeded")
+        completion_events = [
+            item
+            for item in self.harness.store.task_events(self.harness.state.task_id)
+            if item["payload"].get("phase") == "integration_completed"
+        ]
+        self.assertEqual(len(completion_events), 1)
 
     def test_validator_disconnect_fails_closed(self) -> None:
         self.harness.add_rich_trace()

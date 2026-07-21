@@ -92,9 +92,9 @@
     "slice_shortfall": 0,
     "dedicated_tests_effective_excluded": 887,
     "dedicated_tests_raw_excluded": 943,
-    "tool_effective_added": 11087,
-    "tool_raw_added": 11437,
-    "tool_excluded_added": 350,
+    "tool_effective_added": 11086,
+    "tool_raw_added": 11434,
+    "tool_excluded_added": 348,
     "tool_production_bucket_before_conservative_exclusions": 9992,
     "generated_data_mock_fixture_vendor_source_pool_counted": 0
   },
