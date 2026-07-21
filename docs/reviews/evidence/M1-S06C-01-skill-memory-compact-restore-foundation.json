@@ -1,0 +1,205 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M1-S06C-01",
+  "date": "2026-07-21",
+  "status": "complete",
+  "parent_status": "in_progress",
+  "next_slice": "M1-S06C-02",
+  "baseline_commit": "57a6ac8288c1e999ccbba924cfd85b4abbbdf2d2",
+  "implementation_commit": "f4d079ef25f42b05ce3c686c8f6ce6727ce365c7",
+  "implementation_commits": [
+    "ed4db58dbc2de77c84c1bbc8daf59b31cb82a100",
+    "f4d079ef25f42b05ce3c686c8f6ce6727ce365c7"
+  ],
+  "owners": {
+    "skill_loader_policy_version_invoke": "M1-S03C SkillCoordinator",
+    "skill_outcome_compact_projection": "SkillMemoryApplication",
+    "compact_boundary": "M1-S02D ContextCompactionRuntime",
+    "context_assembly": "M1-S02B ContextAssemblyRuntime",
+    "canonical_memory_fact": "SQLiteStore.memory_records",
+    "curator_outcome": "M1-S06B CuratorIntegrationStore",
+    "reusable_procedure": "ReusableProcedureStore"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "claude-code-best",
+      "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
+      "role": "primary_implementation",
+      "migration_mode": "cropped_migration_retained_typescript_control_flow_adapt",
+      "runtime_owner": "SkillMemoryApplication"
+    },
+    {
+      "source_repo": "hermes-agent",
+      "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "role": "supplementary_implementation",
+      "migration_mode": "cropped_migration_same_language_procedure_adapt",
+      "runtime_owner": "ReusableProcedureStore"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "role": "supplementary_implementation",
+      "migration_mode": "cropped_migration_retained_typescript_protocol_adapt",
+      "runtime_owner": "CompactTriggerRuntime and 02D compact boundary"
+    }
+  ],
+  "non_implementation_roles": {
+    "conformance_reference": [
+      "opencode",
+      "agent-framework"
+    ],
+    "experimental_default_off": [
+      "snapcompact"
+    ],
+    "excluded_forward_only": [
+      "openclaw"
+    ]
+  },
+  "main_paths": [
+    {
+      "name": "skill_outcome_memory",
+      "entry": "M1-S03C SkillCoordinator real invocation",
+      "effect": "skill_memory_updated and E01-restorable immutable outcome state",
+      "disconnect_effect": "03C invocation still succeeds but 06C creates no outcome memory"
+    },
+    {
+      "name": "compact_restore_next_context",
+      "entry": "ClaudeRuntimeCore existing compact path",
+      "effect": "archive and restore projection change the next provider request context",
+      "disconnect_effect": "restore is deferred and no provider restore message is injected"
+    },
+    {
+      "name": "reusable_procedure",
+      "entry": "validated deterministic M1-S06B skill outcome",
+      "effect": "durable provenance-bound procedure is visible to routing, recovery and context",
+      "disconnect_effect": "no active procedure is published or returned"
+    }
+  ],
+  "dynamic_surfaces": {
+    "api_routes": [
+      "GET /tasks/{task_id}/memory/procedures",
+      "POST /tasks/{task_id}/memory/procedures/mine",
+      "POST /tasks/{task_id}/memory/procedures/routing",
+      "POST /tasks/{task_id}/memory/procedures/recovery",
+      "POST /tasks/{task_id}/memory/procedures/context"
+    ],
+    "events": [
+      "skill_memory_updated",
+      "skill_memory_compact_trigger",
+      "skill_memory_compact_restored",
+      "system_notice with memory.procedure_* payload"
+    ],
+    "reachability": {
+      "entries": 3,
+      "reachable": 3,
+      "unreachable": 0,
+      "unit_reasons": [
+        [],
+        [],
+        []
+      ]
+    }
+  },
+  "line_buckets": {
+    "production_raw_added": 8781,
+    "production_effective_nonblank_noncomment": 8186,
+    "minimum_required": 8000,
+    "shortfall": 0,
+    "test_raw_added_excluded": 1169,
+    "test_nonblank_excluded": 1090,
+    "ledger_sync_script_raw_excluded": 317,
+    "ledger_seed_added_excluded": 469,
+    "ledger_seed_deleted": 9,
+    "generated_counted": 0,
+    "vendor_like_counted": 0,
+    "mock_fixture_counted": 0,
+    "tool_report": {
+      "raw_added": 10919,
+      "effective_added_including_tests_and_tooling": 10430,
+      "excluded_added": 489,
+      "review_added": 20,
+      "shortfall": 0,
+      "ok": true
+    }
+  },
+  "verification": {
+    "main_worktree": [
+      {
+        "command": "bun run typecheck",
+        "result": "pass"
+      },
+      {
+        "command": "bun test skill-memory package and Claude integration",
+        "result": "7 passed, 0 failed, 51 assertions"
+      },
+      {
+        "command": "bun test runtime.test.ts",
+        "result": "10 passed"
+      },
+      {
+        "command": "bun test E01 coordinator cutover and skills",
+        "result": "45 passed, 0 failed, 183 assertions"
+      },
+      {
+        "command": "pytest reusable procedure unit and API",
+        "result": "3 passed"
+      },
+      {
+        "command": "pytest adjacent M1-S06B foundation/API/integration",
+        "result": "19 passed"
+      },
+      {
+        "command": "pytest reachability/procedure/API/linecount targeted set",
+        "result": "16 passed"
+      }
+    ],
+    "cleanroom": {
+      "target": "f4d079ef25f42b05ce3c686c8f6ce6727ce365c7",
+      "frozen_install": true,
+      "python_isolated": true,
+      "python_import_origin_asserted": true,
+      "typescript_typecheck": "pass",
+      "bun_build": "pass, 236 modules, 4.81 MB",
+      "node_build": "pass, 236 modules, 4.81 MB",
+      "typescript_tests": "62 passed, 0 failed",
+      "python_tests": "25 passed in 78.86 seconds",
+      "ledger_sync": "aligned, 3 decisions",
+      "reachability": "3/3, 0 unreachable",
+      "forbidden_dependency_scan": "no matches",
+      "git_status": "clean",
+      "removed_after_verification": true
+    }
+  },
+  "ledger": {
+    "owner_unit": "M1-S06C-01",
+    "decision_count": 3,
+    "source_repo_count": 3,
+    "distinct_target_path_count": 17,
+    "owner_accounting_findings": 0,
+    "owner_filtered_strict_findings": 0,
+    "global_historical_findings": 928,
+    "global_historical_errors": 164,
+    "global_historical_blockers": 11
+  },
+  "adjacent_known_failures": {
+    "blocking_for_slice": false,
+    "owner": "M1-06 numeric-stage aggregate / protected M1-S02D contracts",
+    "tests": {
+      "tests/integration/test_codeworker_context_compact_api_foundation.py": "5 existing metadata/trace assertions fail",
+      "tests/integration/test_browser_message_state_compression_integration.py": "1 existing provider-selection assertion fails; 4 pass"
+    },
+    "diagnostic": {
+      "canonical_runtime_owner": "typescript",
+      "python_query_engine_fallback": false,
+      "compact_restore_ok": true
+    }
+  },
+  "residual_scope": [
+    "full live BrowserWorker and cross-provider restore fidelity",
+    "M1-S06A retrieval composition for outcome/procedure search",
+    "revoked-version and tightened-tool-scope resume integration",
+    "routing and recovery planner signal consumption",
+    "M1-06C parent closeout and cumulative 15000-line gate"
+  ],
+  "review_document": "docs/reviews/M1-S06C-01-skill-memory-compact-restore-foundation-review.md"
+}
