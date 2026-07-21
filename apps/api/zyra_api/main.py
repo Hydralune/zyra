@@ -317,11 +317,21 @@ if __package__:
         McpApiFacade,
     )
     from .provider_backend_api import ProviderBackendApi, reset_provider_control_client
+    from .worker_pool_api import WorkerPoolApiService
 else:  # pragma: no cover - direct development script entry.
     from mcp_api import (
         McpApiFacade,
     )
     from provider_backend_api import ProviderBackendApi, reset_provider_control_client
+    from worker_pool_api import WorkerPoolApiService
+
+from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
+from zyra_scheduler.worker_pool import (
+    CancellationRequest as PhysicalCancellationRequest,
+    CapabilityRequirement as PhysicalCapabilityRequirement,
+    ResourceVector as PhysicalResourceVector,
+    WorkerPoolFoundationRuntime,
+)
 
 
 def event_log_path() -> Path:
@@ -336,6 +346,58 @@ def sqlite_path() -> Path:
     if configured.is_absolute():
         return configured
     return PROJECT_ROOT / configured
+
+
+def worker_pool_path() -> Path:
+    configured_value = os.environ.get("ZYRA_WORKER_POOL_STORE", "").strip()
+    if configured_value:
+        configured = Path(configured_value)
+        return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    canonical = sqlite_path()
+    return canonical.with_name(f"{canonical.stem}.worker-pool.sqlite3")
+
+
+def graph_state_path() -> Path:
+    configured_value = os.environ.get("ZYRA_GRAPH_STATE_STORE", "").strip()
+    if configured_value:
+        configured = Path(configured_value)
+        return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    canonical = sqlite_path()
+    return canonical.with_name(f"{canonical.stem}.graph-state.sqlite3")
+
+
+_WORKER_POOL_LOCK = threading.RLock()
+_WORKER_POOL_RUNTIME: WorkerPoolFoundationRuntime | None = None
+_WORKER_POOL_API: WorkerPoolApiService | None = None
+_WORKER_POOL_KEY: tuple[str, str] | None = None
+
+
+def get_worker_pool_api() -> WorkerPoolApiService:
+    global _WORKER_POOL_RUNTIME, _WORKER_POOL_API, _WORKER_POOL_KEY
+    pool_path = worker_pool_path().resolve()
+    graph_path = graph_state_path().resolve()
+    key = (str(pool_path), str(graph_path))
+    with _WORKER_POOL_LOCK:
+        if _WORKER_POOL_API is None or _WORKER_POOL_KEY != key:
+            configured = os.environ.get("ZYRA_WORKER_POOL_SECRET", "").encode("utf-8")
+            secret = (
+                hashlib.sha256(configured).digest()
+                if configured
+                else hashlib.sha256(f"zyra-worker-pool:{pool_path}".encode("utf-8")).digest()
+            )
+            _WORKER_POOL_RUNTIME = WorkerPoolFoundationRuntime(
+                pool_path,
+                attestation_secret=secret,
+                default_lease_ttl_seconds=60.0,
+            )
+            graph_store = GraphStateStore(graph_path)
+            graph_store.initialize()
+            _WORKER_POOL_API = WorkerPoolApiService(
+                _WORKER_POOL_RUNTIME,
+                GraphStateCustody(graph_store),
+            )
+            _WORKER_POOL_KEY = key
+        return _WORKER_POOL_API
 
 
 def memory_index_path() -> Path:
@@ -2093,6 +2155,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
             return
 
+        worker_pool_response = get_worker_pool_api().route_get(
+            tuple(parts),
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if worker_pool_response is not None:
+            self._send_json(
+                worker_pool_response.status,
+                dict(worker_pool_response.body),
+                headers=dict(worker_pool_response.headers),
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "code-index":
             state = store.load_task(parts[1])
             if state is None:
@@ -3584,6 +3658,24 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if self._handle_permission_post(parts=parts, payload=payload, store=store):
             return
 
+        worker_pool_task = (
+            store.load_task(parts[1])
+            if len(parts) >= 2 and parts[0] == "tasks"
+            else None
+        )
+        worker_pool_response = get_worker_pool_api().route_post(
+            tuple(parts),
+            payload,
+            task_state=worker_pool_task,
+        )
+        if worker_pool_response is not None:
+            self._send_json(
+                worker_pool_response.status,
+                dict(worker_pool_response.body),
+                headers=dict(worker_pool_response.headers),
+            )
+            return
+
         if len(parts) == 4 and parts[0] == "tasks" and parts[2] == "code-index":
             state = store.load_task(parts[1])
             if state is None:
@@ -3697,13 +3789,47 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(response.status, response.body, headers=dict(response.headers))
                 return
             state.metadata["workspace_ref"] = workspace_result.projection.to_dict()
+            graph_events = ensure_default_graph(state)
             events = [
                 created_event,
-                *ensure_default_graph(state),
+                *graph_events,
                 *drain_workspace_events(state.task_id),
             ]
+            pool_api = get_worker_pool_api()
+            pool_journal = pool_api.pool.store.journal(limit=10000)
+            pool_sequence = pool_journal[-1].sequence if pool_journal else 0
+            try:
+                pool_api.acquire_for_task(
+                    state,
+                    payload=(
+                        payload.get("worker_pool")
+                        if isinstance(payload.get("worker_pool"), dict)
+                        else {}
+                    ),
+                )
+            except Exception as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "error": "worker_pool_acquisition_failed",
+                        "message": str(error),
+                        "task_id": state.task_id,
+                        "fallback": False,
+                    },
+                )
+                return
             if auto_run:
                 events.extend(run_task_graph(state, execution_context=graph_execution_context()))
+                pool_api.finalize_task(
+                    state,
+                    success=str(state.status) == "completed",
+                    summary=f"default task graph finished with status {state.status}",
+                )
+            events.extend(
+                event
+                for event in pool_api.pool.events.project_after(pool_api.pool.store, pool_sequence)
+                if event.run_id == state.run_id and event.task_id == state.task_id
+            )
             persist_events(store, events)
             store.save_checkpoint(state)
             curator = curate_terminal_task(store, state) if auto_run else None
@@ -3722,7 +3848,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
+            pool_api = get_worker_pool_api()
+            pool_journal = pool_api.pool.store.journal(limit=10000)
+            pool_sequence = pool_journal[-1].sequence if pool_journal else 0
+            pool_api.ensure_task_lease(state, payload={})
             events = run_task_graph(state, execution_context=graph_execution_context())
+            pool_api.finalize_task(
+                state,
+                success=str(state.status) == "completed",
+                summary=f"task run finished with status {state.status}",
+            )
+            events.extend(
+                event
+                for event in pool_api.pool.events.project_after(pool_api.pool.store, pool_sequence)
+                if event.run_id == state.run_id and event.task_id == state.task_id
+            )
             persist_events(store, events)
             store.save_checkpoint(state)
             curator = curate_terminal_task(store, state)
@@ -3751,6 +3891,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 idempotency_key=f"task-cancel:{state.run_id}:{state.task_id}:{reason}",
             )
             events = cancel_task_graph(state, reason=reason)
+            pool_cancel = get_worker_pool_api().pool.cancellation.cancel(
+                PhysicalCancellationRequest(
+                    task_id=state.task_id,
+                    run_id=state.run_id,
+                    reason=reason,
+                    actor_id="task-control-api",
+                    idempotency_key=f"task-cancel:{state.task_id}:{reason}",
+                )
+            )
             agent_port = get_typescript_agent_port()
             cancelled_subagents = []
             subagent_cancel_errors: list[dict[str, str]] = []
@@ -3791,6 +3940,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "subagent_cancel_errors": subagent_cancel_errors,
                     "canonical_agent_owner": "typescript",
                     "backend_dispatch_control": backend_cancel.to_dict(),
+                    "worker_pool_control": pool_cancel.to_dict(),
                     "memory_curator": curator,
                 },
             )
@@ -3900,6 +4050,57 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             persist_events(store, run.event_records)
             records = get_typescript_agent_port().records(parent_task_id=state.task_id)
             selected = next((item for item in records if item.task_id == task_id), None)
+            physical_worker = None
+            if run.worker_result.ok and selected is not None:
+                pool_api = get_worker_pool_api()
+                pool_api.ensure_default_local_worker()
+                existing_attempt = pool_api.pool.store.latest_attempt(task_id)
+                if existing_attempt is not None and existing_attempt.lease_id:
+                    existing_lease = pool_api.pool.store.get_lease(existing_attempt.lease_id)
+                    physical_worker = {
+                        "task_id": task_id,
+                        "attempt_id": existing_attempt.attempt_id,
+                        "attempt": existing_attempt.attempt_number,
+                        "lease_id": existing_attempt.lease_id,
+                        "worker_id": existing_attempt.worker_id,
+                        "fence_epoch": existing_lease.fence_epoch if existing_lease else 0,
+                        "logical_task_not_duplicated": True,
+                        "reused": True,
+                    }
+                else:
+                    acquisition = pool_api.pool.acquire_task(
+                        task_id=task_id,
+                        run_id=state.run_id,
+                        owner_session_id=str(
+                            payload.get("session_id")
+                            or state.metadata.get("query_session_id")
+                            or f"task:{state.task_id}"
+                        ),
+                        requirement=PhysicalCapabilityRequirement(
+                            required=("agent_task",),
+                            resources=PhysicalResourceVector(process_slots=1, memory_mb=64),
+                        ),
+                        attempt_number=1,
+                        preferred_worker_ids=("local-code-worker",),
+                        idempotency_key=f"subagent-lease:{task_id}:1",
+                        metadata={
+                            "parent_task_id": state.task_id,
+                            "logical_owner": "typescript.AgentTaskRuntime",
+                            "logical_task_not_duplicated": True,
+                        },
+                    )
+                    physical_worker = {
+                        "task_id": task_id,
+                        "attempt_id": acquisition.attempt.attempt_id,
+                        "attempt": acquisition.attempt.attempt_number,
+                        "lease_id": acquisition.lease.lease_id,
+                        "worker_id": acquisition.worker.worker_id,
+                        "backend_id": acquisition.lease.backend_id,
+                        "fence_epoch": acquisition.lease.fence_epoch,
+                        "manifest_digest": acquisition.manifest.digest,
+                        "logical_task_not_duplicated": True,
+                        "reused": False,
+                    }
             status = HTTPStatus.CREATED if run.worker_result.ok else HTTPStatus.CONFLICT
             self._send_json(status, {
                 "ok": run.worker_result.ok,
@@ -3912,6 +4113,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 "permission_session": _agent_permission_session(run),
                 "canonical_agent_owner": "typescript",
                 "python_agent_fallback": False,
+                "physical_worker": physical_worker,
             }, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
             return
 
@@ -3992,6 +4194,17 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             persist_events(store, run.event_records)
             updated = runtime.get_task(record.task_id)
+            physical_control = None
+            if action == "cancel" and run.worker_result.ok:
+                physical_control = get_worker_pool_api().pool.cancellation.cancel(
+                    PhysicalCancellationRequest(
+                        task_id=record.task_id,
+                        run_id=state.run_id,
+                        reason=str(payload.get("reason") or "api_cancel"),
+                        actor_id="subagent-control-api",
+                        idempotency_key=f"subagent-cancel:{record.task_id}:{expected}",
+                    )
+                ).to_dict()
             self._send_json(
                 HTTPStatus.OK if run.worker_result.ok else HTTPStatus.CONFLICT,
                 {
@@ -4004,6 +4217,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "permission_session": _agent_permission_session(run),
                     "canonical_agent_owner": "typescript",
                     "python_agent_fallback": False,
+                    "physical_worker_control": physical_control,
                 },
                 headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"},
             )

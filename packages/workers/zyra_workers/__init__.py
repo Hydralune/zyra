@@ -134,6 +134,15 @@ from .memory_curator_integration import (
     MemoryCuratorIntegrationApplication,
     MemoryCuratorIntegrationError,
 )
+from .edge_pool import (
+    EdgeGatewayReceipt,
+    EdgeGatewayRequest,
+    EdgeProcessEndpoint,
+    EdgeProcessError,
+    EdgeWorkerGatewayRuntime,
+    EdgeWorkerProcessConnector,
+    EdgeWorkerRegistrationRuntime,
+)
 
 __all__ = [
     "BackendDispatchHttpServer",
@@ -250,4 +259,11 @@ __all__ = [
     "MemoryCuratorIntegrationApplication",
     "MemoryCuratorIntegrationError",
     "RuntimeEventCuratorIngress",
+    "EdgeGatewayReceipt",
+    "EdgeGatewayRequest",
+    "EdgeProcessEndpoint",
+    "EdgeProcessError",
+    "EdgeWorkerGatewayRuntime",
+    "EdgeWorkerProcessConnector",
+    "EdgeWorkerRegistrationRuntime",
 ]

@@ -17,6 +17,21 @@ from .pool import WorkerPool, default_worker_manifests
 from .recovery import RecoveryPlanner
 from .scheduler import ResourceScheduler
 from .watchdog import RuntimeWatchdog
+from .worker_pool import (
+    AttemptState,
+    BackendCapability,
+    CapabilityRequirement,
+    HeartbeatPolicy,
+    LeaseState,
+    ResourceVector,
+    SubagentWorkerLeaseAdapter,
+    WorkerCapabilityManifest as PhysicalWorkerCapabilityManifest,
+    WorkerLease,
+    WorkerLifecycleState,
+    WorkerLocation as PhysicalWorkerLocation,
+    WorkerPoolFoundationRuntime,
+    WorkerPoolStore,
+)
 from .backend_registry import (
     BackendControlAction,
     BackendControlRuntime,
@@ -72,6 +87,19 @@ __all__ = [
     "WorkerHealthStatus",
     "WorkerManifest",
     "WorkerPool",
+    "AttemptState",
+    "BackendCapability",
+    "CapabilityRequirement",
+    "HeartbeatPolicy",
+    "LeaseState",
+    "PhysicalWorkerCapabilityManifest",
+    "PhysicalWorkerLocation",
+    "ResourceVector",
+    "SubagentWorkerLeaseAdapter",
+    "WorkerLease",
+    "WorkerLifecycleState",
+    "WorkerPoolFoundationRuntime",
+    "WorkerPoolStore",
     "build_dispatch_envelope",
     "cancel_pending_dispatches",
     "default_worker_manifests",
