@@ -1,0 +1,202 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M1-S07A-01",
+  "date": "2026-07-21",
+  "status": "complete",
+  "parent_status": "in_progress",
+  "next_entry": "M1-S07A-02",
+  "baseline_commit": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b",
+  "implementation_commit": "83251b198abe88e6b848f1095b6faed1005cd39d",
+  "final_review_target": "83251b198abe88e6b848f1095b6faed1005cd39d",
+  "owners": {
+    "logical_task_identity": "M1-S03D TypeScript AgentTaskRuntime",
+    "worker_attempt_lease_receipt_inbox": "WorkerPoolStore",
+    "worker_lifecycle": "WorkerLifecycleRuntime",
+    "heartbeat_health": "WorkerHeartbeatRuntime",
+    "cancellation": "WorkerCancellationCoordinator",
+    "takeover": "WorkerTakeoverRuntime",
+    "dynamic_topology": "GraphStateStore and GraphStateCustody",
+    "workspace": "M1-S05A WorkspaceManager",
+    "backend_gateway": "M1-S05B/M1-S05C backend and SandboxGateway owners",
+    "artifact": "M1-S05D ArtifactStore",
+    "edge_process": "EdgeWorkerProcessConnector plus Zyra edge protocol/server"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "agentscope",
+      "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+      "role": "primary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration_with_zyra_schema_event_and_transaction_ownership",
+      "runtime_owner": "WorkerPoolStore and lifecycle/inbox/heartbeat runtimes"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "python",
+      "migration_mode": "bounded_protocol_and_lifecycle_adaptation_without_omp_process_or_store",
+      "runtime_owner": "Zyra attempt/lease manager and edge connector"
+    },
+    {
+      "source_repo": "zyra",
+      "role": "primary_implementation_for_dynamic_topology",
+      "source_language": "language_neutral_design",
+      "target_language": "python",
+      "migration_mode": "zyra_owned_immutable_graph_custody",
+      "runtime_owner": "GraphStateStore and GraphStateCustody"
+    }
+  ],
+  "non_implementation_roles": {
+    "conformance_only": [
+      "langgraph checkpoint identity and exact-resume semantics"
+    ],
+    "reference_only": [
+      "claude-code-best task/background mapping patterns"
+    ],
+    "excluded_forward_only": [
+      "openclaw"
+    ]
+  },
+  "main_paths": [
+    {
+      "name": "default_task_physical_lease",
+      "entry": "POST /tasks and POST /tasks/{task_id}/run",
+      "effect": "creates/reuses one fenced physical attempt and binds its refs to an immutable dynamic graph",
+      "disconnect_effect": "task creation fails with fallback=false when worker-pool acquisition is unavailable"
+    },
+    {
+      "name": "task_cancel",
+      "entry": "POST /tasks/{task_id}/cancel and worker-pool-cancel",
+      "effect": "cancels/fences the physical lease and records cancellation state",
+      "disconnect_effect": "physical attempt remains active and the behavior test fails"
+    },
+    {
+      "name": "subagent_mapping",
+      "entry": "existing 03D subagent spawn/cancel API",
+      "effect": "maps the stable logical task to a physical attempt/lease and capability requirement without copying it",
+      "disconnect_effect": "subagent has no physical lease projection"
+    },
+    {
+      "name": "real_edge_worker",
+      "entry": "EdgeWorkerRegistrationRuntime",
+      "effect": "independent authenticated child performs heartbeat, fenced execution, artifact return and real cancellation",
+      "disconnect_effect": "disabled connector fails closed with no local fallback"
+    },
+    {
+      "name": "dynamic_graph_mutation",
+      "entry": "POST /worker-pool/graphs/{graph_id}/mutate and DynamicTopologyRuntime",
+      "effect": "commits immutable runtime node/edge/role/capability deltas with conflict receipts",
+      "disconnect_effect": "topology head does not advance and graph behavior tests fail"
+    }
+  ],
+  "dynamic_surfaces": {
+    "api_route_count": 15,
+    "events": [
+      "worker_health",
+      "resource_decision",
+      "artifact_written",
+      "node_failed"
+    ],
+    "artifact_kinds": [
+      "execution_receipt",
+      "worker_artifact"
+    ],
+    "ledger": {
+      "decisions": 2,
+      "aligned": true,
+      "current_slice_blocking_findings": 0
+    }
+  },
+  "line_buckets": {
+    "whole_commit_added": 11841,
+    "whole_commit_deleted": 9,
+    "raw_production_candidate": 9999,
+    "blank_comment_only_production_excluded": 759,
+    "conservative_effective_production": 9240,
+    "minimum_required": 9000,
+    "shortfall": 0,
+    "tests_raw_added_excluded": 756,
+    "ledger_sync_script_raw_excluded": 346,
+    "ledger_seed_added_excluded": 436,
+    "ledger_seed_deleted": 8,
+    "export_only_glue_excluded": 290,
+    "third_party_notice_excluded": 14,
+    "generated_counted": 0,
+    "vendor_like_counted": 0,
+    "adapter_only_counted": 0,
+    "mock_fixture_counted": 0,
+    "tool_report": {
+      "raw_added": 11841,
+      "effective_added_including_tests_and_tooling": 11391,
+      "excluded_added": 450,
+      "minimum_effective_lines": 9000,
+      "shortfall": 0,
+      "ok": true
+    }
+  },
+  "verification": {
+    "main_worktree": [
+      {
+        "command": "pytest slice behavior suite",
+        "result": "13 passed in 12.73s"
+      },
+      {
+        "command": "pytest adjacent scheduler/backend/sandbox/API suite",
+        "result": "53 passed, 4 subtests passed in 54.18s"
+      },
+      {
+        "command": "compileall new production modules",
+        "result": "pass"
+      },
+      {
+        "command": "source ledger sync --check",
+        "result": "aligned, 2 decisions"
+      },
+      {
+        "command": "current production dependency/path scan",
+        "result": "0 forbidden matches"
+      },
+      {
+        "command": "git diff --check",
+        "result": "pass"
+      }
+    ],
+    "cleanroom": {
+      "target": "83251b198abe88e6b848f1095b6faed1005cd39d",
+      "frozen_install": "pass, Bun 1.2.15, 16 locked packages",
+      "python_isolated_basetemp": true,
+      "python_bytecode_and_pytest_cache_disabled": true,
+      "python_import_origins_asserted": true,
+      "tests": "66 passed, 4 subtests passed in 87.17s",
+      "real_edge_child_process": true,
+      "authenticated_localhost_ipc": true,
+      "ledger_sync": "aligned, 2 decisions",
+      "linecount_gate": "pass, 11391 tool-effective >= 9000",
+      "forbidden_dependency_scan": "0 matches",
+      "git_status": "clean"
+    }
+  },
+  "baseline_known_failures": {
+    "blocking_for_slice": false,
+    "reproduced_at": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b",
+    "test": "test_audit_treats_planned_unmaterialized_targets_as_warnings_not_failure",
+    "reason": "protected historical productized ledger entries refer to superseded target paths",
+    "current_slice_added_findings": 0,
+    "classification_owner": "next applicable global ledger audit"
+  },
+  "residual_work": {
+    "next_slice": "M1-S07A-02",
+    "parent_complete": false,
+    "numeric_stage_complete": false,
+    "full_repository_suite_owner": "M1-07 numeric-stage aggregate review",
+    "competition_gates_closed": false
+  },
+  "root_document_boundary": {
+    "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "inside_zyra_git": false,
+    "update_after_evidence_commit": true
+  }
+}
