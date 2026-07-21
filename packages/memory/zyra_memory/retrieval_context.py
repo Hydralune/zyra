@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any, Mapping
 
 from .memory_index import HydratedMemoryResult, MemoryIndexRuntime
 from .models import MemoryRecord

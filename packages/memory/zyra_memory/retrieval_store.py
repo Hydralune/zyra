@@ -19,7 +19,6 @@ from .retrieval_models import (
     IndexPublication,
     IndexSourceKind,
     PublicationFencedError,
-    RetrievalFilter,
     RetrievalHit,
     RetrievalQuery,
     RetrievalResult,

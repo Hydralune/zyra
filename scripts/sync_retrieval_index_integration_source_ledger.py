@@ -29,7 +29,7 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "src/agentscope/app/_service/_index_worker.py;"
             "src/agentscope/app/_service/_index_task_consumer.py;"
             "src/agentscope/app/_service/_index_sweeper.py;"
-            "src/agentscope/rag/_knowledge_base.py"
+            "src/agentscope/rag/_knowledge.py"
         ),
         "capability_name": "retrieval_index_durable_admission_worker_context_integration",
         "capability_summary": (
@@ -37,6 +37,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "current-snapshot delivery are integrated into CodeWorker context and API paths."
         ),
         "source_role": "primary_implementation",
+        "migration_strategy": "direct_port",
+        "migration_mode": "cropped_migration_same_language_module_integration",
         "runtime_module": "zyra_workers.retrieval_context_runtime",
         "runtime_function": "WorkerRetrievalContextRuntime.prepare",
         "target_paths": [
@@ -72,6 +74,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "conformance and reference-only recovery checkpoints supplement the primary lifecycle."
         ),
         "source_role": "supplementary_implementation",
+        "migration_strategy": "reimplemented_pattern",
+        "migration_mode": "bounded_cross_language_mechanism_port",
         "runtime_module": "zyra_memory.integration_runtime",
         "runtime_function": "RetrievalIntegrationRuntime.execute",
         "target_paths": [
@@ -116,7 +120,7 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             {"path": path, "role": "primary" if index == 0 else "supporting", "required_for_main_path": True}
             for index, path in enumerate(targets)
         ],
-        "migration_strategy": "reimplemented_pattern",
+        "migration_strategy": decision["migration_strategy"],
         "main_path_status": "tested_main_path",
         "lifecycle": "productized",
         "owner_unit": OWNER_UNIT,
@@ -177,6 +181,7 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             "owner_unit": OWNER_UNIT,
             "source_role": decision["source_role"],
             "source_commit": decision["source_commit"],
+            "migration_mode": decision["migration_mode"],
             "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
             "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
             "derived_index_owner": "MemoryIndexRuntime+CodeIndexRuntime",
@@ -194,8 +199,16 @@ def canonical(value: object) -> str:
 def synchronize(path: Path, *, write: bool) -> tuple[bool, int]:
     current = json.loads(path.read_text(encoding="utf-8"))
     entries = current if isinstance(current, list) else current["entries"]
-    replacements = {item["ledger_id"]: item for item in map(entry, DECISIONS)}
-    output = [replacements.pop(str(item.get("ledger_id") or ""), item) for item in entries]
+    replacements = {
+        item["capability_name"]: item for item in map(entry, DECISIONS)
+    }
+    output = []
+    for item in entries:
+        capability = str(item.get("capability_name") or "")
+        if str(item.get("owner_unit") or "") == OWNER_UNIT and capability in replacements:
+            output.append(replacements.pop(capability))
+        else:
+            output.append(item)
     output.extend(replacements.values())
     typed = [InternalizationLedgerEntry.from_dict(item) for item in output]
     expected: Any = output if isinstance(current, list) else {

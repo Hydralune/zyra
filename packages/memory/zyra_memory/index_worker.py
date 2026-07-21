@@ -1,3 +1,15 @@
+"""Zyra-owned retrieval-index worker lifecycle.
+
+The acquire/heartbeat/build/finalize/sweep control flow is a cropped,
+same-language integration of AgentScope's ``_index_worker.py``,
+``_index_task_consumer.py`` and ``_index_sweeper.py`` at commit
+``b6698c5dbaa1aa916925e27402767f45e2405fa4``. Zyra replaces AgentScope's
+message bus, knowledge-document store and vector-store write with its durable
+SQLite job queue, staged generation store and atomic publication fence. The
+lease-loss stop condition, bounded drain, durable failure sink and stale-work
+recovery remain on the production control path.
+"""
+
 from __future__ import annotations
 
 import threading

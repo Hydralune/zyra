@@ -175,34 +175,49 @@ class WorkerRetrievalContextRuntime:
                 "message_ids": [message.message_id for message in messages],
             }
         )
-        self.memory.store.claim_delivery(
-            worker_request_id=request.request_id,
-            run_id=request.run_id,
-            task_id=request.task_id,
-            session_id=session_id,
-            query_ids=(memory_execution.snapshot.query_id,),
-            message_ids=tuple(message.message_id for message in messages),
-            source_digest=source_digest,
-            metadata={
-                "consumer": RetrievalConsumer.CODE_WORKER_CONTEXT.value,
-                "code_query_id": code_selection.request.query_id,
-                "code_result_digest": code_selection.result_digest,
-            },
-        )
         code_message_id = next(
             (message.message_id for message in messages if message.metadata.get("retrieval_scope") == "task_workspace"),
             messages[-1].message_id,
         )
-        self.code.journal.claim_delivery(code_selection, message_id=code_message_id)
-        recovery_reference = WorkerRetrievalRecoveryReference(
-            task_id=request.task_id,
-            worker_request_id=request.request_id,
-            session_id=session_id,
-            memory=self.memory.checkpoint_ref(request.task_id).to_dict(),
-            code=code_selection.recovery_reference(),
-            message_ids=tuple(message.message_id for message in messages),
-            source_digest=source_digest,
-        ).to_dict()
+        try:
+            self.memory.store.claim_delivery(
+                worker_request_id=request.request_id,
+                run_id=request.run_id,
+                task_id=request.task_id,
+                session_id=session_id,
+                query_ids=(memory_execution.snapshot.query_id,),
+                message_ids=tuple(message.message_id for message in messages),
+                source_digest=source_digest,
+                metadata={
+                    "consumer": RetrievalConsumer.CODE_WORKER_CONTEXT.value,
+                    "code_query_id": code_selection.request.query_id,
+                    "code_result_digest": code_selection.result_digest,
+                },
+            )
+            self.code.journal.claim_delivery(code_selection, message_id=code_message_id)
+            recovery_reference = WorkerRetrievalRecoveryReference(
+                task_id=request.task_id,
+                worker_request_id=request.request_id,
+                session_id=session_id,
+                memory=self.memory.checkpoint_ref(request.task_id).to_dict(),
+                code=code_selection.recovery_reference(),
+                message_ids=tuple(message.message_id for message in messages),
+                source_digest=source_digest,
+            ).to_dict()
+        except Exception as error:
+            cleanup_errors = self._compensate_prepare(
+                worker_request_id=request.request_id,
+                source_digest=source_digest,
+                code_query_id=code_selection.request.query_id,
+                code_result_digest=code_selection.result_digest,
+                reason=f"retrieval_context_prepare_failed:{type(error).__name__}",
+            )
+            if cleanup_errors:
+                raise RuntimeError(
+                    "retrieval context prepare failed and compensation was incomplete: "
+                    + "; ".join(cleanup_errors)
+                ) from error
+            raise
         event = EventRecord(
             run_id=request.run_id,
             task_id=request.task_id,
@@ -269,20 +284,81 @@ class WorkerRetrievalContextRuntime:
         if not context.delivery_claimed:
             return
         event_ids = tuple(dict.fromkeys(str(value) for value in terminal_event_ids if str(value)))
-        if committed:
-            self.memory.store.complete_delivery(context.worker_request_id, terminal_event_ids=event_ids)
-        else:
-            self.memory.store.release_delivery(
-                context.worker_request_id,
-                reason=reason or "worker_execution_failed",
-                terminal_event_ids=event_ids,
-            )
-        self.code.journal.finish_delivery(
-            context.worker_request_id,
-            committed=committed,
-            terminal_event_ids=event_ids,
-            reason=reason or ("provider_runtime_completed" if committed else "worker_execution_failed"),
+        final_reason = reason or (
+            "provider_runtime_completed" if committed else "worker_execution_failed"
         )
+        errors: list[str] = []
+        try:
+            if committed:
+                self.memory.store.complete_delivery(
+                    context.worker_request_id,
+                    terminal_event_ids=event_ids,
+                )
+            else:
+                self.memory.store.release_delivery(
+                    context.worker_request_id,
+                    reason=final_reason,
+                    terminal_event_ids=event_ids,
+                )
+        except Exception as error:  # noqa: BLE001 - the peer journal must still settle.
+            errors.append(f"memory:{type(error).__name__}:{error}")
+        try:
+            self.code.journal.finish_delivery(
+                context.worker_request_id,
+                committed=committed,
+                terminal_event_ids=event_ids,
+                reason=final_reason,
+            )
+        except Exception as error:  # noqa: BLE001 - report both durable journal failures.
+            errors.append(f"code:{type(error).__name__}:{error}")
+        if errors:
+            raise RuntimeError(
+                "retrieval delivery finalization incomplete; retry the same desired state: "
+                + "; ".join(errors)
+            )
+
+    def _compensate_prepare(
+        self,
+        *,
+        worker_request_id: str,
+        source_digest: str,
+        code_query_id: str,
+        code_result_digest: str,
+        reason: str,
+    ) -> tuple[str, ...]:
+        """Release only claims created/reclaimed for this exact snapshot."""
+
+        errors: list[str] = []
+        try:
+            memory_delivery = self.memory.store.delivery(worker_request_id)
+            if (
+                memory_delivery is not None
+                and memory_delivery.state.value == "claimed"
+                and memory_delivery.source_digest == source_digest
+            ):
+                self.memory.store.release_delivery(
+                    worker_request_id,
+                    reason=reason,
+                )
+        except Exception as error:  # noqa: BLE001 - continue compensating the peer journal.
+            errors.append(f"memory:{type(error).__name__}:{error}")
+        try:
+            code_delivery = self.code.journal.delivery(worker_request_id)
+            if (
+                code_delivery is not None
+                and str(code_delivery.get("state") or "") == "claimed"
+                and str(code_delivery.get("query_id") or "") == code_query_id
+                and str(code_delivery.get("result_digest") or "") == code_result_digest
+            ):
+                self.code.journal.finish_delivery(
+                    worker_request_id,
+                    committed=False,
+                    terminal_event_ids=(),
+                    reason=reason,
+                )
+        except Exception as error:  # noqa: BLE001 - surface incomplete compensation to the caller.
+            errors.append(f"code:{type(error).__name__}:{error}")
+        return tuple(errors)
 
     @staticmethod
     def _query_text(request: WorkerRequest) -> str:

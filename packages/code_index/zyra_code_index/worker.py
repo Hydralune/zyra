@@ -1,3 +1,13 @@
+"""Zyra-owned code-index worker lifecycle.
+
+This module reuses the cropped same-language acquire/heartbeat/pipeline/
+finalize/sweep control flow from AgentScope's index worker family at commit
+``b6698c5dbaa1aa916925e27402767f45e2405fa4``. Workspace revision guards,
+generation candidates and atomic publication fencing replace AgentScope's
+document parser/vector-store stages while preserving the mature lease-loss
+and recovery lifecycle inside Zyra's canonical schemas and stores.
+"""
+
 from __future__ import annotations
 
 import threading

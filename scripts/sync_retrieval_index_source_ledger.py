@@ -55,7 +55,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "apps/api/zyra_api/main.py",
         ],
         "source_role": "primary_implementation",
-        "migration_strategy": "reimplemented_pattern",
+        "migration_strategy": "direct_port",
+        "migration_mode": "cropped_migration_same_language_module_integration",
         "runtime_module": "zyra_memory.memory_index",
         "runtime_function": "MemoryIndexRuntime.synchronize_task",
         "rationale": (
@@ -222,6 +223,10 @@ def entry(decision: dict[str, Any]) -> dict[str, Any]:
             "owner_unit": OWNER_UNIT,
             "source_role": decision["source_role"],
             "source_commit": decision["source_commit"],
+            "migration_mode": decision.get(
+                "migration_mode",
+                "bounded_cross_language_mechanism_port",
+            ),
             "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
             "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
             "canonical_index_owner": "Zyra MemoryIndexRuntime+CodeIndexRuntime",

@@ -415,6 +415,19 @@ class CodeIndexQueryJournal:
             ).fetchone()
         return dict(row)
 
+    def delivery(self, worker_request_id: str) -> Mapping[str, Any] | None:
+        """Return the durable delivery receipt for compensation and recovery."""
+
+        with self.runtime.store.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM code_index_context_deliveries
+                WHERE worker_request_id = ?
+                """,
+                (worker_request_id,),
+            ).fetchone()
+        return None if row is None else dict(row)
+
     def finish_delivery(
         self,
         worker_request_id: str,

@@ -174240,12 +174240,13 @@
         "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
         "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
         "index_is_derived": true,
+        "migration_mode": "cropped_migration_same_language_module_integration",
         "owner_unit": "M1-S06A-01",
         "root_source_runtime_dependency": false,
         "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
         "source_role": "primary_implementation"
       },
-      "migration_strategy": "reimplemented_pattern",
+      "migration_strategy": "direct_port",
       "notes": "source_role=primary_implementation; source_commit=b6698c5dbaa1aa916925e27402767f45e2405fa4; AgentScope supplies the primary RAG/index-job lifecycle shape. Zyra replaces live-vector writes with staging plus atomic publication, adds lease epoch/token fences and retains SQLiteStore/MemoryRecordStore as canonical memory owner. No AgentScope service or store runs.",
       "owner_unit": "M1-S06A-01",
       "runtime_entry": {
@@ -174388,6 +174389,7 @@
         "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
         "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
         "index_is_derived": true,
+        "migration_mode": "bounded_cross_language_mechanism_port",
         "owner_unit": "M1-S06A-01",
         "root_source_runtime_dependency": false,
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
@@ -174478,7 +174480,7 @@
     {
       "capability_name": "retrieval_index_durable_admission_worker_context_integration",
       "capability_summary": "Durable source admission, claim/heartbeat/sweep, fenced process publication and current-snapshot delivery are integrated into CodeWorker context and API paths.",
-      "ledger_id": "ledger_c34d64d29dcc0694",
+      "ledger_id": "ledger_30c42da9f9a007a2",
       "license_notice": {
         "license_hint": "Apache-2.0",
         "notes": "Selected mechanisms are modified and maintained inside Zyra-owned packages.",
@@ -174526,12 +174528,13 @@
         "checkpoint_reference_only": true,
         "derived_index_owner": "MemoryIndexRuntime+CodeIndexRuntime",
         "langgraph_production_owner": false,
+        "migration_mode": "cropped_migration_same_language_module_integration",
         "owner_unit": "M1-S06A-02",
         "root_source_runtime_dependency": false,
         "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
         "source_role": "primary_implementation"
       },
-      "migration_strategy": "reimplemented_pattern",
+      "migration_strategy": "direct_port",
       "notes": "source_role=primary_implementation; source_commit=b6698c5dbaa1aa916925e27402767f45e2405fa4; AgentScope remains the single primary RAG/KB job-lifecycle source. Zyra adds atomic generation fencing, WorkspaceManager revision guards and QueryEngine message delivery; no AgentScope service, database or process is a runtime dependency.",
       "owner_unit": "M1-S06A-02",
       "runtime_entry": {
@@ -174553,7 +174556,7 @@
         "module": "zyra_workers.retrieval_context_runtime",
         "protocol": "zyra-retrieval-index-integration-v1"
       },
-      "source_path": "src/agentscope/app/_service/_index_worker.py;src/agentscope/app/_service/_index_task_consumer.py;src/agentscope/app/_service/_index_sweeper.py;src/agentscope/rag/_knowledge_base.py",
+      "source_path": "src/agentscope/app/_service/_index_worker.py;src/agentscope/app/_service/_index_task_consumer.py;src/agentscope/app/_service/_index_sweeper.py;src/agentscope/rag/_knowledge.py",
       "source_repo": "agentscope",
       "target_bindings": [
         {
@@ -174701,6 +174704,7 @@
         "checkpoint_reference_only": true,
         "derived_index_owner": "MemoryIndexRuntime+CodeIndexRuntime",
         "langgraph_production_owner": false,
+        "migration_mode": "bounded_cross_language_mechanism_port",
         "owner_unit": "M1-S06A-02",
         "root_source_runtime_dependency": false,
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
@@ -174863,10 +174867,10 @@
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 17,
+      "direct_port": 19,
       "not_selected": 14,
       "planned_adapter": 378,
-      "reimplemented_pattern": 239,
+      "reimplemented_pattern": 237,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 734,

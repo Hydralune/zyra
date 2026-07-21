@@ -6,7 +6,7 @@ import unicodedata
 from collections import defaultdict
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from .retrieval_models import (
     QueryIntent,

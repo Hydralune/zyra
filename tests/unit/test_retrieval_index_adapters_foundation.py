@@ -9,7 +9,6 @@ from zyra_memory import (
     MemoryIndexRuntime,
     MemoryLayer,
     MemoryRecord,
-    PublicationFencedError,
     RetrievalBudget,
     RetrievalFilter,
     SQLiteStore,

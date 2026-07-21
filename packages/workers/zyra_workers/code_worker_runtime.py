@@ -351,42 +351,72 @@ class CodeWorkerRuntime:
                 request_metadata=request_metadata,
             )
         except Exception as error:  # noqa: BLE001 - process boundary fails closed.
-            if retrieval_context is not None:
-                self.retrieval_context_runtime.finish(
-                    retrieval_context,
-                    committed=False,
-                    terminal_event_ids=(),
-                    reason=f"typescript_runtime_host_failed:{type(error).__name__}",
-                )
+            settlement_error = self._settle_retrieval_context(
+                retrieval_context,
+                committed=False,
+                terminal_event_ids=(),
+                reason=f"typescript_runtime_host_failed:{type(error).__name__}",
+            )
             return self._failure(
                 request,
-                error="typescript_runtime_host_failed",
-                summary=f"TypeScript runtime host failed closed: {type(error).__name__}: {error}",
+                error=(
+                    "retrieval_delivery_finalize_failed"
+                    if settlement_error
+                    else "typescript_runtime_host_failed"
+                ),
+                summary=(
+                    f"TypeScript runtime host failed closed: {type(error).__name__}: {error}"
+                    + (f"; retrieval settlement also failed: {settlement_error}" if settlement_error else "")
+                ),
                 session_id=session_id,
             )
 
-        checkpoint_path = self._persist_runtime_state(
-            session_id,
-            {
-                "schema_version": 1,
-                "canonical_owner": "typescript",
-                "session_id": session_id,
-                "worker_request_id": logical_worker_request_id,
-                "session_snapshot": to_jsonable(loop_result.session_snapshot),
-                "metadata": to_jsonable(loop_result.metadata),
-            },
-        )
-        artifacts = list(loop_result.artifacts)
-        trace = self.execution_context.artifact_store.write_text(
-            run_id=request.run_id,
-            task_id=request.task_id,
-            title=f"CodeWorker E01 trace {request.request_id}",
-            kind=ArtifactKind.TRACE,
-            extension=".md",
-            producer_node_id=request.node_id,
-            content=_trace_markdown(request, loop_result, checkpoint_path),
-        )
-        artifacts.append(trace)
+        try:
+            checkpoint_path = self._persist_runtime_state(
+                session_id,
+                {
+                    "schema_version": 1,
+                    "canonical_owner": "typescript",
+                    "session_id": session_id,
+                    "worker_request_id": logical_worker_request_id,
+                    "session_snapshot": to_jsonable(loop_result.session_snapshot),
+                    "metadata": to_jsonable(loop_result.metadata),
+                },
+            )
+            artifacts = list(loop_result.artifacts)
+            trace = self.execution_context.artifact_store.write_text(
+                run_id=request.run_id,
+                task_id=request.task_id,
+                title=f"CodeWorker E01 trace {request.request_id}",
+                kind=ArtifactKind.TRACE,
+                extension=".md",
+                producer_node_id=request.node_id,
+                content=_trace_markdown(request, loop_result, checkpoint_path),
+            )
+            artifacts.append(trace)
+        except Exception as error:  # noqa: BLE001 - release claimed context on host persistence failure.
+            settlement_error = self._settle_retrieval_context(
+                retrieval_context,
+                committed=False,
+                terminal_event_ids=tuple(
+                    event.event_id for event in loop_result.event_records
+                ),
+                reason=f"code_worker_result_persistence_failed:{type(error).__name__}",
+            )
+            return self._failure(
+                request,
+                error=(
+                    "retrieval_delivery_finalize_failed"
+                    if settlement_error
+                    else "code_worker_result_persistence_failed"
+                ),
+                summary=(
+                    "CodeWorkerRuntime could not persist its canonical host result: "
+                    f"{type(error).__name__}: {error}"
+                    + (f"; retrieval settlement also failed: {settlement_error}" if settlement_error else "")
+                ),
+                session_id=session_id,
+            )
         metadata = {
             "canonical_runtime_owner": "typescript",
             "python_runtime_role": "process-durability-side-effect-host",
@@ -423,19 +453,39 @@ class CodeWorkerRuntime:
             error=error,
             metadata=metadata,
         )
-        result_event = _worker_result_event(request, worker_result)
         retrieval_events = list(retrieval_context.events) if retrieval_context is not None else []
+        settlement_error = self._settle_retrieval_context(
+            retrieval_context,
+            committed=bool(loop_result.ok),
+            terminal_event_ids=tuple(
+                event.event_id for event in loop_result.event_records
+            ),
+            reason=(
+                "provider_runtime_completed"
+                if loop_result.ok
+                else (error or "provider_runtime_failed")
+            ),
+        )
         if retrieval_context is not None:
-            terminal_ids = tuple(
-                event.event_id for event in (*loop_result.event_records, result_event)
-            )
-            self.retrieval_context_runtime.finish(
-                retrieval_context,
-                committed=bool(loop_result.ok),
-                terminal_event_ids=terminal_ids,
-                reason=("provider_runtime_completed" if loop_result.ok else (error or "provider_runtime_failed")),
-            )
             metadata.update(retrieval_context.metadata)
+        if settlement_error:
+            worker_result = WorkerResult(
+                request_id=request.request_id,
+                ok=False,
+                summary=(
+                    "CodeWorkerRuntime reached a provider outcome but could not durably "
+                    f"settle retrieval delivery: {settlement_error}"
+                ),
+                artifacts=artifacts,
+                events=[to_jsonable(event) for event in loop_result.event_records],
+                error="retrieval_delivery_finalize_failed",
+                metadata={
+                    **metadata,
+                    "provider_runtime_ok": str(bool(loop_result.ok)).lower(),
+                    "retrieval_delivery_repair_required": "true",
+                },
+            )
+        result_event = _worker_result_event(request, worker_result)
         return CodeWorkerRun(
             worker_result=worker_result,
             event_records=[*retrieval_events, *loop_result.event_records, result_event],
@@ -473,6 +523,29 @@ class CodeWorkerRuntime:
             event_records=[_worker_result_event(request, result)],
             session_id=session_id,
         )
+
+    def _settle_retrieval_context(
+        self,
+        context: WorkerRetrievalContext | None,
+        *,
+        committed: bool,
+        terminal_event_ids: Sequence[str],
+        reason: str,
+    ) -> str:
+        if context is None:
+            return ""
+        if self.retrieval_context_runtime is None:
+            return "retrieval context exists without its delivery runtime"
+        try:
+            self.retrieval_context_runtime.finish(
+                context,
+                committed=committed,
+                terminal_event_ids=terminal_event_ids,
+                reason=reason,
+            )
+        except Exception as error:  # noqa: BLE001 - convert ambiguous settlement into a fail-closed result.
+            return f"{type(error).__name__}: {error}"
+        return ""
 
     @staticmethod
     def _session_id(request: WorkerRequest) -> str:

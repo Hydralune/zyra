@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import ast
 import re
-from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any, Mapping, Sequence
 
 from .models import (
     CallEdge,

@@ -18,7 +18,11 @@ from zyra_memory import (
     SQLiteStore,
 )
 from zyra_runtime import WorkerRequest
-from zyra_workers import CodeWorkerRuntime, WorkerRetrievalContextRuntime
+from zyra_workers import (
+    CodeWorkerRuntime,
+    WorkerRetrievalContextRuntime,
+    WorkerRetrievalRecoveryReference,
+)
 
 
 class CapturingFailingQueryEngine:
@@ -32,6 +36,12 @@ class CapturingFailingQueryEngine:
     def run(self, **kwargs):
         type(self).calls.append(dict(kwargs))
         raise RuntimeError("stop after observing injected retrieval context")
+
+
+class PersistenceFailingCodeWorkerRuntime(CodeWorkerRuntime):
+    def _persist_runtime_state(self, session_id, payload):
+        del session_id, payload
+        raise OSError("injected runtime-state persistence failure")
 
 
 class CodeWorkerRetrievalContextMainPathTests(unittest.TestCase):
@@ -238,6 +248,161 @@ class CodeWorkerRetrievalContextMainPathTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(code_delivery["state"], "committed")
         self.assertNotEqual(code_delivery["terminal_event_ids_json"], "[]")
+
+    def test_prepare_compensates_both_journals_when_reference_build_fails(self) -> None:
+        request = self._request("worker-request-reference-failure")
+        original_to_dict = WorkerRetrievalRecoveryReference.to_dict
+
+        def fail_reference_to_dict(reference):
+            del reference
+            raise RuntimeError("injected checkpoint reference failure")
+
+        WorkerRetrievalRecoveryReference.to_dict = fail_reference_to_dict
+        try:
+            with self.assertRaisesRegex(RuntimeError, "injected checkpoint reference failure"):
+                self.retrieval.prepare(request, session_id="session-reference-failure")
+        finally:
+            WorkerRetrievalRecoveryReference.to_dict = original_to_dict
+
+        memory_delivery = self.memory.store.delivery(request.request_id)
+        self.assertEqual(memory_delivery.state.value, "released")
+        self.assertIn("retrieval_context_prepare_failed", memory_delivery.reason)
+        code_delivery = self.code.journal.delivery(request.request_id)
+        self.assertEqual(code_delivery["state"], "released")
+        self.assertIn("retrieval_context_prepare_failed", code_delivery["reason"])
+
+    def test_finish_attempts_both_journals_and_is_repairable(self) -> None:
+        request = self._request("worker-request-finalize-repair")
+        context = self.retrieval.prepare(
+            request,
+            session_id="session-finalize-repair",
+        )
+        original_complete = self.memory.store.complete_delivery
+
+        def fail_complete(worker_request_id: str, *, terminal_event_ids):
+            del worker_request_id, terminal_event_ids
+            raise RuntimeError("injected memory finalize failure")
+
+        self.memory.store.complete_delivery = fail_complete
+        try:
+            with self.assertRaisesRegex(RuntimeError, "memory finalize failure"):
+                self.retrieval.finish(
+                    context,
+                    committed=True,
+                    terminal_event_ids=("terminal-finalize-repair",),
+                    reason="provider_runtime_completed",
+                )
+        finally:
+            self.memory.store.complete_delivery = original_complete
+
+        self.assertEqual(
+            self.memory.store.delivery(request.request_id).state.value,
+            "claimed",
+        )
+        self.assertEqual(
+            self.code.journal.delivery(request.request_id)["state"],
+            "committed",
+        )
+        self.retrieval.finish(
+            context,
+            committed=True,
+            terminal_event_ids=("terminal-finalize-repair",),
+            reason="provider_runtime_completed",
+        )
+        self.assertEqual(
+            self.memory.store.delivery(request.request_id).state.value,
+            "committed",
+        )
+        self.assertEqual(
+            self.code.journal.delivery(request.request_id)["state"],
+            "committed",
+        )
+
+    def test_post_query_persistence_failure_releases_both_deliveries(self) -> None:
+        request = self._request("worker-request-persistence-failure")
+        run = PersistenceFailingCodeWorkerRuntime(
+            project_root=Path(__file__).resolve().parents[2],
+            workspace_root=self.root,
+            artifact_root=self.root / "persistence-failure-artifacts",
+            retrieval_context_runtime=self.retrieval,
+        ).run(request)
+
+        self.assertFalse(run.worker_result.ok)
+        self.assertEqual(
+            run.worker_result.error,
+            "code_worker_result_persistence_failed",
+        )
+        memory_delivery = self.memory.store.delivery(request.request_id)
+        self.assertEqual(memory_delivery.state.value, "released")
+        self.assertIn("result_persistence_failed", memory_delivery.reason)
+        code_delivery = self.code.journal.delivery(request.request_id)
+        self.assertEqual(code_delivery["state"], "released")
+        self.assertIn("result_persistence_failed", code_delivery["reason"])
+
+    def test_code_worker_fails_closed_when_delivery_finalize_needs_repair(self) -> None:
+        request = self._request("worker-request-finalize-failure")
+        original_complete = self.memory.store.complete_delivery
+
+        def fail_complete(worker_request_id: str, *, terminal_event_ids):
+            del worker_request_id, terminal_event_ids
+            raise RuntimeError("injected final settlement failure")
+
+        self.memory.store.complete_delivery = fail_complete
+        try:
+            run = CodeWorkerRuntime(
+                project_root=Path(__file__).resolve().parents[2],
+                workspace_root=self.root,
+                artifact_root=self.root / "finalize-failure-artifacts",
+                retrieval_context_runtime=self.retrieval,
+            ).run(request)
+        finally:
+            self.memory.store.complete_delivery = original_complete
+
+        self.assertFalse(run.worker_result.ok)
+        self.assertEqual(
+            run.worker_result.error,
+            "retrieval_delivery_finalize_failed",
+        )
+        self.assertEqual(
+            run.worker_result.metadata["retrieval_delivery_repair_required"],
+            "true",
+        )
+        self.assertEqual(
+            self.memory.store.delivery(request.request_id).state.value,
+            "claimed",
+        )
+        self.assertEqual(
+            self.code.journal.delivery(request.request_id)["state"],
+            "committed",
+        )
+        self.memory.store.complete_delivery(
+            request.request_id,
+            terminal_event_ids=("manual-repair",),
+        )
+        self.assertEqual(
+            self.memory.store.delivery(request.request_id).state.value,
+            "committed",
+        )
+
+    @staticmethod
+    def _request(request_id: str) -> WorkerRequest:
+        return WorkerRequest(
+            run_id="run-1",
+            task_id="test-task",
+            worker_name="CodeWorkerRuntime",
+            request_id=request_id,
+            messages=[
+                AgentMessage(
+                    run_id="run-1",
+                    task_id="test-task",
+                    sender_role=AgentRole.USER,
+                    receiver_role=AgentRole.WORKER,
+                    intent=MessageIntent.REQUEST,
+                    content="Inspect fenced lease recovery context.",
+                )
+            ],
+            constraints={"query_turns": []},
+        )
 
 
 if __name__ == "__main__":
