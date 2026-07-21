@@ -33,6 +33,10 @@ class SkillMemoryReachabilityContractTests(unittest.TestCase):
         events = {probe.event_type for probe in discover_event_producers(ROOT)}
 
         self.assertIn(("GET", "/tasks/{task_id}/memory/procedures"), routes)
+        self.assertIn(("GET", "/tasks/{task_id}/memory/curator"), routes)
+        self.assertIn(("POST", "/tasks/{task_id}/memory/curator"), routes)
+        self.assertIn(("POST", "/tasks/{task_id}/memory/curator/task-end"), routes)
+        self.assertIn(("POST", "/tasks/{task_id}/memory/curator/recover"), routes)
         self.assertIn(("POST", "/tasks/{task_id}/memory/procedures/mine"), routes)
         self.assertIn(("POST", "/tasks/{task_id}/memory/procedures/routing"), routes)
         self.assertIn(("POST", "/tasks/{task_id}/memory/procedures/recovery"), routes)
@@ -43,6 +47,13 @@ class SkillMemoryReachabilityContractTests(unittest.TestCase):
         self.assertIn("skill_memory_restore_fidelity", events)
         self.assertIn("skill_memory_browser_context_exported", events)
         self.assertIn("skill_memory_restore_fidelity_failure", events)
+        self.assertIn("memory.candidate.proposed", events)
+        self.assertIn("memory.candidate.validated", events)
+        self.assertIn("memory_curator_scheduled", events)
+        self.assertIn("memory_curator_candidate", events)
+        self.assertIn("memory_curator_accepted", events)
+        self.assertIn("memory_curator_committed", events)
+        self.assertIn("memory_curator_index_published", events)
 
     def test_workspace_runtime_probe_resolves_exported_typescript_owner(self) -> None:
         entry = InternalizationLedgerEntry.new(
@@ -85,6 +96,29 @@ class SkillMemoryReachabilityContractTests(unittest.TestCase):
         self.assertEqual(report.total_entries, 3)
         self.assertEqual(report.unreachable_entries, 0)
         self.assertTrue(all(entry.reachable for entry in report.entries))
+
+    def test_curator_slice_entries_have_no_unreachable_runtime_surface(self) -> None:
+        ledger = InternalizationLedger.load(
+            ROOT
+            / "packages"
+            / "integrations"
+            / "zyra_integrations"
+            / "data"
+            / "internalization_ledger_seed.json",
+            normalize_current_policy=True,
+        )
+
+        for owner_unit in ("M1-S06B-01", "M1-S06B-02"):
+            with self.subTest(owner_unit=owner_unit):
+                report = build_reachability_report(
+                    ROOT,
+                    ledger,
+                    owner_unit=owner_unit,
+                    strict_audit=False,
+                )
+                self.assertEqual(report.total_entries, 2)
+                self.assertEqual(report.unreachable_entries, 0)
+                self.assertTrue(all(entry.reachable for entry in report.entries))
 
     def test_integration_slice_entries_have_no_unreachable_runtime_surface(self) -> None:
         ledger = InternalizationLedger.load(

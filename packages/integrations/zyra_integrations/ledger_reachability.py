@@ -477,6 +477,10 @@ def discover_event_producers(project_root: Path) -> list[EventProbe]:
         project_root / "packages" / "runtime" / "zyra_runtime" / "scaffold.py",
         project_root / "packages" / "runtime" / "zyra_runtime" / "scaffold_lifecycle.py",
         project_root / "packages" / "workers" / "zyra_workers" / "scaffold_bridge_runtime.py",
+        project_root / "packages" / "memory" / "zyra_memory" / "curator_store.py",
+        project_root / "packages" / "memory" / "zyra_memory" / "curator_runtime.py",
+        project_root / "packages" / "memory" / "zyra_memory" / "curator_commit.py",
+        project_root / "packages" / "workers" / "zyra_workers" / "memory_curator_integration.py",
         project_root / "packages" / "integrations" / "zyra_integrations" / "mcp" / "events.py",
         project_root / "apps" / "api" / "zyra_api" / "main.py",
         project_root / "packages" / "runtime" / "claude-runtime" / "src" / "query-engine.ts",
@@ -531,6 +535,16 @@ def discover_event_producers(project_root: Path) -> list[EventProbe]:
                     producer=_relative(project_root, path),
                     payload_key=event_type,
                     evidence=[f'emit("{event_type}")'],
+                )
+            )
+        for event_type in _python_event_type_names(text):
+            probes.append(
+                EventProbe(
+                    event_type=event_type,
+                    implemented=True,
+                    producer=_relative(project_root, path),
+                    payload_key="event_type",
+                    evidence=[f'event_type="{event_type}"'],
                 )
             )
         for member_name, event_type in event_enum_values.items():
@@ -903,6 +917,35 @@ def _typescript_emit_event_names(source: str) -> list[str]:
             )
         }
     )
+
+
+def _python_event_type_names(source: str) -> list[str]:
+    """Extract literal values passed through a Python ``event_type`` field."""
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    values: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            for keyword in node.keywords:
+                if (
+                    keyword.arg == "event_type"
+                    and isinstance(keyword.value, ast.Constant)
+                    and isinstance(keyword.value.value, str)
+                ):
+                    values.add(keyword.value.value)
+        elif isinstance(node, ast.Dict):
+            for key, value in zip(node.keys, node.values, strict=False):
+                if (
+                    isinstance(key, ast.Constant)
+                    and key.value == "event_type"
+                    and isinstance(value, ast.Constant)
+                    and isinstance(value.value, str)
+                ):
+                    values.add(value.value)
+    return sorted(values)
 
 
 def _typescript_workspace_for_module(project_root: Path, module: str) -> Path | None:

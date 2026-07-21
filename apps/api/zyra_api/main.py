@@ -36,6 +36,10 @@ PACKAGE_PATHS = [
 # reachability audits can verify the public surface without importing the API.
 ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/tasks/{task_id}/workers/browser"),
+    ("GET", "/tasks/{task_id}/memory/curator"),
+    ("POST", "/tasks/{task_id}/memory/curator"),
+    ("POST", "/tasks/{task_id}/memory/curator/task-end"),
+    ("POST", "/tasks/{task_id}/memory/curator/recover"),
     ("GET", "/tasks/{task_id}/memory/procedures"),
     ("POST", "/tasks/{task_id}/memory/procedures/mine"),
     ("POST", "/tasks/{task_id}/memory/procedures/routing"),
