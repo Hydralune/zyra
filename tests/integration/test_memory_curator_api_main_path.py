@@ -24,6 +24,36 @@ def _fresh_api_module() -> Any:
 
 
 class MemoryCuratorApiMainPathTests(unittest.TestCase):
+    def test_workspace_reset_rebinds_curator_to_live_event_spine(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            environment = {
+                "ZYRA_SQLITE_PATH": str(root / "api.sqlite3"),
+                "ZYRA_MEMORY_INDEX_PATH": str(root / "memory-index.sqlite3"),
+                "ZYRA_ARTIFACT_ROOT": str(root / "artifacts"),
+                "ZYRA_WORKSPACE_ROOT": str(root / "workspace"),
+            }
+            previous = {name: os.environ.get(name) for name in environment}
+            os.environ.update(environment)
+            module = _fresh_api_module()
+            try:
+                first = module.get_memory_curator_runtime(module.get_store())
+                first_bridge = first.worker.trace_ingress.bridge
+                module.reset_workspace_manager()
+
+                second = module.get_memory_curator_runtime(module.get_store())
+                second_bridge = second.worker.trace_ingress.bridge
+                self.assertIsNot(second, first)
+                self.assertIsNot(second_bridge, first_bridge)
+                self.assertIs(second_bridge, module.get_runtime_event_spine_bridge())
+            finally:
+                module.reset_workspace_manager()
+                for name, value in previous.items():
+                    if value is None:
+                        os.environ.pop(name, None)
+                    else:
+                        os.environ[name] = value
+
     def test_real_api_trace_commits_memory_event_and_retrieval_index(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

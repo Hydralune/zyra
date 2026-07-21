@@ -58,7 +58,11 @@ class CuratorIntegrationStore:
             if self._initialized:
                 return
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.connect() as connection:
+            # sqlite3.Connection's own context manager commits/rolls back but
+            # does not close the handle.  Use the store-owned context manager
+            # so API lifecycle resets and Windows cleanroom cleanup cannot be
+            # left holding the canonical database file.
+            with self.connection() as connection:
                 connection.executescript(
                     """
                     PRAGMA journal_mode = WAL;

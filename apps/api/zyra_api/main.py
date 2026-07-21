@@ -528,8 +528,10 @@ def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> N
     with _WORKSPACE_EVENT_LOCK:
         _WORKSPACE_PENDING_EVENTS.clear()
     # Workspace events are persisted by the API-owned runtime event spine.
-    # Resetting the workspace runtime is therefore also a lifecycle boundary
-    # for that child process and its SQLite connection.
+    # The 06B procedure/curator runtime is bound to both that workspace and the
+    # same canonical SQLite path.  Drop it before closing the sidecar so a
+    # workspace lifecycle reset cannot retain a stale bridge or database owner.
+    reset_memory_curator_runtime()
     reset_runtime_event_spine_bridge()
 
 
