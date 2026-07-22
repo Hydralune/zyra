@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -61,10 +62,11 @@ class TypeScriptRetrievalAlgorithmsPort:
             / "main.ts"
         ).resolve()
         workspace_bun = self.project_root / "node_modules" / ".bin" / (
-            "bun.exe" if __import__("os").name == "nt" else "bun"
+            "bun.exe" if os.name == "nt" else "bun"
         )
         self.bun_executable = (
             bun_executable
+            or str(os.environ.get("ZYRA_BUN_EXECUTABLE") or "").strip()
             or shutil.which("bun")
             or (str(workspace_bun) if workspace_bun.is_file() else "")
         )

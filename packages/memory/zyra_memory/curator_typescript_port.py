@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -63,10 +64,11 @@ class TypeScriptCuratorStatePort:
             / "main.ts"
         ).resolve()
         workspace_bun = self.project_root / "node_modules" / ".bin" / (
-            "bun.exe" if __import__("os").name == "nt" else "bun"
+            "bun.exe" if os.name == "nt" else "bun"
         )
         self.bun_executable = (
             bun_executable
+            or str(os.environ.get("ZYRA_BUN_EXECUTABLE") or "").strip()
             or shutil.which("bun")
             or (str(workspace_bun) if workspace_bun.is_file() else "")
         )

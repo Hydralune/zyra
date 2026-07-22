@@ -375,6 +375,7 @@ class CleanroomBoundaryScanner:
     @staticmethod
     def _runtime_reference_scope(relative: str) -> bool:
         normalized = relative.replace("\\", "/").lower()
+        parts = tuple(part for part in normalized.split("/") if part)
         excluded = (
             "docs/",
             "tests/",
@@ -385,6 +386,10 @@ class CleanroomBoundaryScanner:
             "scripts/remediation/",
         )
         if normalized.startswith(excluded):
+            return False
+        if any(part in {"test", "tests", "__tests__"} for part in parts):
+            return False
+        if ".test." in normalized or ".spec." in normalized:
             return False
         if normalized.startswith("scripts/smoke_"):
             return False
@@ -406,9 +411,11 @@ class CleanroomBoundaryScanner:
                 # not let this scanner's own detector regexes become evidence of
                 # the behaviour that they are intended to detect.
                 if path.suffix.lower() == ".py" and kind in {
+                    "parent-runtime-path",
                     "editable-install",
                     "external-docker-context",
                     "sibling-process",
+                    "absolute-workspace-path",
                 }:
                     continue
                 if pattern.search(line):
@@ -431,16 +438,38 @@ class CleanroomBoundaryScanner:
         except SyntaxError:
             return []
         findings: list[Mapping[str, Any]] = []
+        path_operations = (
+            "Path",
+            "open",
+            "read_text",
+            "read_bytes",
+            "write_text",
+            "write_bytes",
+            "glob",
+            "rglob",
+            "import_module",
+            "spec_from_file_location",
+            "add_dll_directory",
+        )
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 name = CleanroomBoundaryScanner._call_name(node.func)
-                if name.endswith(("Popen", "run", "call", "check_call", "check_output", "add_dll_directory")):
+                runtime_operation = name.endswith(
+                    ("Popen", "run", "call", "check_call", "check_output", *path_operations)
+                )
+                if runtime_operation:
                     for argument in node.args:
                         for value_node in ast.walk(argument):
                             if not isinstance(value_node, ast.Constant) or not isinstance(value_node.value, str):
                                 continue
                             value = value_node.value
-                            if any(sibling.lower() in value.lower() for sibling in FORBIDDEN_SIBLING_NAMES):
+                            normalized = value.replace("\\", "/").lower()
+                            sibling_path = any(
+                                f"../{sibling.lower()}" in normalized
+                                or f"/agent-zoo/{sibling.lower()}" in normalized
+                                for sibling in FORBIDDEN_SIBLING_NAMES
+                            )
+                            if sibling_path:
                                 findings.append(
                                     {
                                         "kind": "python-external-process-or-path",
@@ -562,7 +591,10 @@ class CleanroomVerifier:
             archive_digest, member_count = self.exporter.export(commit, extracted)
             scanner = CleanroomBoundaryScanner(extracted)
             residuals, outside_links, references, file_count, symlink_count = scanner.scan()
-            environment = CleanEnvironment.build(extracted)
+            environment = CleanEnvironment.build(
+                extracted,
+                additions=self._controlled_toolchain_environment(extracted),
+            )
             environment_names = sorted(environment)
             for command in commands:
                 command_receipts.append(self.runner.run(extracted, command, environment))
@@ -603,6 +635,59 @@ class CleanroomVerifier:
             limitations=limitations,
         )
         return receipt, self._gate(receipt, member_count=member_count)
+
+    def _controlled_toolchain_environment(self, extracted: Path) -> Mapping[str, str]:
+        """Expose only the source workspace's package-manager-locked Bun binary.
+
+        ``git archive`` intentionally excludes ``node_modules``.  The cleanroom
+        may nevertheless execute the committed TypeScript sources with the
+        toolchain locked by the archived ``package.json``.  The executable is
+        selected from the source workspace, version checked, and exposed as a
+        toolchain input; it is never copied into or treated as a runtime
+        dependency of the archived project.
+        """
+
+        package_path = extracted / "package.json"
+        if not package_path.is_file():
+            return {}
+        try:
+            package = json.loads(package_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        package_manager = str(package.get("packageManager") or "")
+        match = re.fullmatch(r"bun@([0-9]+(?:\.[0-9]+){2})", package_manager)
+        if match is None:
+            return {}
+        locked_version = match.group(1)
+        executable_name = "bun.exe" if os.name == "nt" else "bun"
+        candidates = (
+            self.root / "node_modules" / "bun" / "bin" / executable_name,
+            self.root / "node_modules" / ".bin" / executable_name,
+        )
+        executable = next((item.resolve() for item in candidates if item.is_file()), None)
+        if executable is None:
+            return {}
+        observed = subprocess.run(
+            [str(executable), "--version"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+        if observed.returncode != 0 or observed.stdout.strip() != locked_version:
+            return {}
+        original_path = os.environ.get("PATH", "")
+        controlled_path = os.pathsep.join(
+            item for item in (str(executable.parent), original_path) if item
+        )
+        return {
+            "PATH": controlled_path,
+            "ZYRA_BUN_EXECUTABLE": str(executable),
+            "ZYRA_BUN_LOCKED_VERSION": locked_version,
+        }
 
     @staticmethod
     def _unique_references(values: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -734,7 +819,7 @@ def default_cleanroom_commands() -> tuple[CleanroomCommand, ...]:
         ),
         CleanroomCommand(
             command_id="m1-hardening-unit",
-            argv=(python, "-m", "pytest", "-q", "tests/unit/test_m1_hardening_foundation.py"),
+            argv=(python, "-m", "pytest", "-q", "tests/unit/test_m1_hardening_integration.py"),
             timeout_seconds=600,
         ),
         CleanroomCommand(

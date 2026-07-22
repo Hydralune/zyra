@@ -8,6 +8,7 @@ from pathlib import Path
 from zyra_evaluation.m1_hardening.benchmark import BenchmarkAnalyzer
 from zyra_evaluation.m1_hardening.cleanroom import (
     CleanroomBoundaryScanner,
+    CleanroomVerifier,
     default_cleanroom_commands,
 )
 from zyra_evaluation.m1_hardening.contracts import GateStatus
@@ -116,6 +117,21 @@ def test_cleanroom_scanner_rejects_sibling_runtime_paths_without_self_matching(t
     _, _, references, _, _ = CleanroomBoundaryScanner(tmp_path).scan()
     assert any(item["kind"] == "python-external-process-or-path" for item in references)
 
+    forbidden.write_text(
+        "from pathlib import Path\nPath('../browser-use/runtime')\n",
+        encoding="utf-8",
+    )
+    _, _, references, _, _ = CleanroomBoundaryScanner(tmp_path).scan()
+    assert any(item["kind"] == "python-external-process-or-path" for item in references)
+
+    detector = package / "detector.py"
+    detector.write_text(
+        "def inspect(value):\n    return value.startswith('g:/agent-zoo/')\n",
+        encoding="utf-8",
+    )
+    _, _, references, _, _ = CleanroomBoundaryScanner(tmp_path).scan()
+    assert not any(item["path"].endswith("detector.py") for item in references)
+
 
 def test_cleanroom_scanner_excludes_committed_history_but_uses_controlled_python(tmp_path: Path) -> None:
     evidence = tmp_path / "docs" / "reviews" / "evidence" / "historical.log"
@@ -131,6 +147,31 @@ def test_cleanroom_scanner_excludes_committed_history_but_uses_controlled_python
     commands = default_cleanroom_commands()
     assert all(Path(command.argv[0]).is_absolute() for command in commands)
     assert len({command.argv[0] for command in commands}) == 1
+
+
+def test_cleanroom_exposes_only_package_manager_locked_bun(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "source"
+    extracted = tmp_path / "extracted"
+    bun = source / "node_modules" / "bun" / "bin" / ("bun.exe" if os.name == "nt" else "bun")
+    bun.parent.mkdir(parents=True)
+    bun.write_text("toolchain-placeholder", encoding="utf-8")
+    extracted.mkdir()
+    (extracted / "package.json").write_text(
+        json.dumps({"packageManager": "bun@1.2.15"}),
+        encoding="utf-8",
+    )
+    verifier = CleanroomVerifier(source)
+
+    class Completed:
+        returncode = 0
+        stdout = "1.2.15\n"
+
+    monkeypatch.setattr("zyra_evaluation.m1_hardening.cleanroom.subprocess.run", lambda *args, **kwargs: Completed())
+    environment = verifier._controlled_toolchain_environment(extracted)
+
+    assert environment["ZYRA_BUN_EXECUTABLE"] == str(bun.resolve())
+    assert environment["ZYRA_BUN_LOCKED_VERSION"] == "1.2.15"
+    assert environment["PATH"].split(os.pathsep)[0] == str(bun.parent.resolve())
 
 
 def test_evidence_admission_accepts_digest_bound_runtime_evidence_and_rejects_tampering() -> None:
