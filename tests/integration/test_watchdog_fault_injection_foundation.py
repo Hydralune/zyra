@@ -273,6 +273,158 @@ def test_restart_reconciliation_fails_pre_observation_and_resumes_projected_inje
         restarted.close()
 
 
+def test_observer_runtime_epoch_reattaches_persisted_running_callbacks(tmp_path: Path) -> None:
+    state = create_task_state("Reattach observer callbacks after an ungraceful process stop.")
+    store_path = tmp_path / "fault-runtime.sqlite3"
+    first = FaultRuntimeApplication(
+        store_path,
+        event_sink=lambda _event: None,
+        task_state_resolver=lambda task_id: state if task_id == state.task_id else None,
+    )
+    first_epoch = first.watchdog.lifecycle.process_epoch
+    assert first.store.require_observer("browser-crash").lifecycle.value == "running"
+    first.store.close()
+
+    events: list[Any] = []
+    restarted = FaultRuntimeApplication(
+        store_path,
+        event_sink=events.append,
+        task_state_resolver=lambda task_id: state if task_id == state.task_id else None,
+    )
+    try:
+        assert restarted.watchdog.lifecycle.process_epoch != first_epoch
+        startup = restarted.watchdog.lifecycle.snapshot()["startup_report"]
+        browser = next(item for item in startup if item["observer_id"] == "browser-crash")
+        assert browser["action"] == "reattached_stale_running"
+        runtime = restarted.watchdog.registry.runtime_snapshot("browser-crash")
+        assert runtime["attached"] is True
+        assert runtime["running"] is True
+
+        observation = restarted.watchdog.browser.observe_04d_signal({
+            "signal_id": "browser-after-runtime-restart",
+            "kind": "process_exited",
+            "status": "terminated",
+            "summary": "Browser process exited after runtime callback restoration.",
+            "sequence": 1,
+            "retryable": True,
+            "terminal": True,
+            "scope": {
+                "run_id": state.run_id,
+                "task_id": state.task_id,
+                "browser_session_id": "browser-restart-session",
+                "worker_request_id": "browser-restart-attempt",
+            },
+            "metadata": {"exit_code": 17},
+        })
+        assert observation is not None
+        assert restarted.store.signals(task_id=state.task_id)[0].kind is FaultKind.BROWSER_CRASH
+        assert len(events) == 1
+    finally:
+        restarted.close()
+
+
+def test_observer_runtime_supervisor_backoff_and_heartbeat_fences(tmp_path: Path) -> None:
+    state, _events, application = _application(tmp_path)
+    try:
+        failure = application.watchdog.lifecycle.report_failure(
+            "provider-response",
+            error="provider callback stream closed",
+            at_ms=10,
+        )
+        assert failure["outcome"] == "restart_scheduled"
+        assert failure["next_restart_ms"] == 260
+        assert application.store.require_observer("provider-response").lifecycle.value == "failed"
+        assert application.watchdog.lifecycle.restart_due(at_ms=259) == ()
+        restarted = application.watchdog.lifecycle.restart_due(at_ms=260)
+        assert restarted[0]["outcome"] == "restarted"
+        generation = restarted[0]["generation"]
+        assert application.watchdog.lifecycle.source_heartbeat(
+            "provider-response",
+            generation=generation - 1,
+            sequence=99,
+            at_ms=300,
+        ) is False
+        assert application.watchdog.lifecycle.source_heartbeat(
+            "provider-response",
+            generation=generation,
+            sequence=1,
+            at_ms=300,
+        ) is True
+        assert application.watchdog.lifecycle.source_heartbeat(
+            "provider-response",
+            generation=generation,
+            sequence=1,
+            at_ms=301,
+        ) is False
+        stale = application.watchdog.lifecycle.sweep_stale(at_ms=60_301)
+        assert stale[0]["outcome"] == "restart_scheduled"
+        snapshot = application.watchdog.lifecycle.snapshot()["observers"]["provider-response"]
+        assert snapshot["stale_heartbeats"] == 2
+        assert snapshot["failure_count"] == 1
+    finally:
+        application.close()
+
+
+def test_durable_source_revision_cursor_rejects_restart_regression(tmp_path: Path) -> None:
+    state = create_task_state("Fence source revisions across observer process epochs.")
+    store_path = tmp_path / "fault-runtime.sqlite3"
+    refs = _refs(
+        state,
+        observation_id="provider-source-cursor",
+        provider_id="provider-cursor-1",
+    )
+    first = FaultRuntimeApplication(
+        store_path,
+        event_sink=lambda _event: None,
+        task_state_resolver=lambda task_id: state if task_id == state.task_id else None,
+    )
+    try:
+        assert first.watchdog.providers.observe_response(
+            refs,
+            ok=False,
+            status_code=503,
+            error_code="provider_error",
+            retryable=True,
+        ) is not None
+        assert first.store.observation_cursors(
+            task_id=state.task_id,
+            observer_id="provider-response",
+        )[0]["source_state_revision"] == 1
+    finally:
+        first.close()
+
+    restarted = FaultRuntimeApplication(
+        store_path,
+        event_sink=lambda _event: None,
+        task_state_resolver=lambda task_id: state if task_id == state.task_id else None,
+    )
+    try:
+        with pytest.raises(Exception, match="revision was reused"):
+            restarted.watchdog.providers.observe_response(
+                refs,
+                ok=False,
+                status_code=500,
+                error_code="provider_error",
+                retryable=True,
+            )
+        accepted = restarted.watchdog.providers.observe_response(
+            refs,
+            ok=False,
+            status_code=502,
+            error_code="provider_error",
+            retryable=True,
+        )
+        assert accepted is not None
+        cursor = restarted.store.observation_cursors(
+            task_id=state.task_id,
+            observer_id="provider-response",
+        )[0]
+        assert cursor["source_state_revision"] == 2
+        assert len(restarted.store.signals(task_id=state.task_id)) == 2
+    finally:
+        restarted.close()
+
+
 def test_disabling_real_browser_observer_does_not_disable_injection(tmp_path: Path) -> None:
     state, events, application = _application(tmp_path)
     try:

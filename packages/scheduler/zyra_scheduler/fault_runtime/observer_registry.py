@@ -180,6 +180,70 @@ class WatchdogObserverRegistry:
             states.append(self.start(observer_id))
         return tuple(states)
 
+    def runtime_snapshot(self, observer_id: str) -> Mapping[str, Any]:
+        with self._guard:
+            return dict(self._runtime(observer_id).snapshot())
+
+    def recover_stale_running(
+        self,
+        observer_id: str,
+        *,
+        process_epoch: str,
+    ) -> ObserverState:
+        """Replace process-local callbacks lost while durable state said RUNNING."""
+        with self._guard:
+            observer = self._runtime(observer_id)
+            current = self.store.require_observer(observer_id)
+            runtime = dict(observer.snapshot())
+            if current.lifecycle is not ObserverLifecycle.RUNNING:
+                return self.start(observer_id)
+            if bool(runtime.get("attached")) and bool(runtime.get("running")):
+                return current
+            stopped = self.store.transition_observer(
+                observer_id,
+                ObserverLifecycle.STOPPED,
+                expected_revision=current.revision,
+                reason=f"process epoch {process_epoch} replaced stale runtime callbacks",
+            )
+            try:
+                observer.stop()
+            except Exception as error:
+                failed = self.store.transition_observer(
+                    observer_id,
+                    ObserverLifecycle.FAILED,
+                    expected_revision=stopped.revision,
+                    reason="stale observer callback cleanup failed",
+                    error=f"{type(error).__name__}: {error}",
+                )
+                if failed.lifecycle is ObserverLifecycle.FAILED:
+                    return self.start(observer_id)
+            return self.start(observer_id)
+
+    def fail(
+        self,
+        observer_id: str,
+        *,
+        error: str,
+        reason: str,
+    ) -> ObserverState:
+        with self._guard:
+            observer = self._runtime(observer_id)
+            current = self.store.require_observer(observer_id)
+            if current.lifecycle is ObserverLifecycle.FAILED:
+                return current
+            failed = self.store.transition_observer(
+                observer_id,
+                ObserverLifecycle.FAILED,
+                expected_revision=current.revision,
+                reason=reason,
+                error=error,
+            )
+            try:
+                observer.stop()
+            finally:
+                self.emission_guard.reset(observer_id)
+            return failed
+
     def stop(self, observer_id: str, *, reason: str = "observer stopped") -> ObserverState:
         with self._guard:
             observer = self._runtime(observer_id)

@@ -22,6 +22,7 @@ from .contracts import (
     StructuredObservation,
 )
 from .event_writer import FaultSignalEventWriter
+from .lifecycle_supervisor import ObserverRestartPolicy, ObserverRuntimeSupervisor
 from .deadline_runtime import (
     TerminalResultDisposition,
     TerminalResultReceipt,
@@ -88,6 +89,8 @@ __all__ = [
     "ObservationProvenance",
     "ObserverLifecycle",
     "ObserverMaturity",
+    "ObserverRestartPolicy",
+    "ObserverRuntimeSupervisor",
     "PermissionReceiptObserver",
     "ProcessLifecycleObserver",
     "ProjectionReceipt",

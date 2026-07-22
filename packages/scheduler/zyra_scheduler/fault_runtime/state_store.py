@@ -21,6 +21,7 @@ from .contracts import (
     StructuredObservation,
     canonical_json,
     runtime_id,
+    stable_digest,
     utc_now,
 )
 from .errors import (
@@ -118,6 +119,21 @@ class FaultStateStore:
                     ON observations(task_id, created_at, observation_id);
                 CREATE INDEX IF NOT EXISTS idx_fault_observations_observer
                     ON observations(observer_id, source_state_revision, created_at);
+
+                CREATE TABLE IF NOT EXISTS observation_source_cursors (
+                    scope_key TEXT PRIMARY KEY,
+                    observer_id TEXT NOT NULL,
+                    run_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    source_state_revision INTEGER NOT NULL,
+                    fingerprint TEXT NOT NULL,
+                    observation_id TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(observer_id) REFERENCES observer_state(observer_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_observation_source_cursors_observer
+                    ON observation_source_cursors(observer_id, run_id, task_id);
 
                 CREATE TABLE IF NOT EXISTS fault_signals (
                     signal_id TEXT PRIMARY KEY,
@@ -390,6 +406,7 @@ class FaultStateStore:
             if duplicate_row is not None:
                 existing = observation_from_dict(json.loads(str(duplicate_row["json"])))
                 return existing, True, current
+            self._fence_observation_cursor(connection, observation)
             connection.execute(
                 """
                 INSERT INTO observations(
@@ -456,6 +473,45 @@ class FaultStateStore:
                 tuple(parameters),
             ).fetchall()
         return tuple(observation_from_dict(json.loads(str(row["json"]))) for row in rows)
+
+    def observation_cursors(
+        self,
+        *,
+        task_id: str = "",
+        observer_id: str = "",
+        limit: int = 500,
+    ) -> tuple[dict[str, Any], ...]:
+        clauses: list[str] = []
+        parameters: list[Any] = []
+        if task_id:
+            clauses.append("task_id = ?")
+            parameters.append(task_id)
+        if observer_id:
+            clauses.append("observer_id = ?")
+            parameters.append(observer_id)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        parameters.append(max(1, min(int(limit), 5_000)))
+        with self._guard:
+            rows = self._connection.execute(
+                f"""
+                SELECT * FROM observation_source_cursors{where}
+                ORDER BY updated_at DESC, scope_key DESC LIMIT ?
+                """,
+                tuple(parameters),
+            ).fetchall()
+        return tuple(
+            {
+                "scope_key": str(row["scope_key"]),
+                "observer_id": str(row["observer_id"]),
+                "run_id": str(row["run_id"]),
+                "task_id": str(row["task_id"]),
+                "source_state_revision": int(row["source_state_revision"]),
+                "fingerprint": str(row["fingerprint"]),
+                "observation_id": str(row["observation_id"]),
+                "updated_at": str(row["updated_at"]),
+            }
+            for row in rows
+        )
 
     def append_signal(self, signal: FaultSignal) -> tuple[FaultSignal, bool]:
         with self.transaction() as connection:
@@ -1111,6 +1167,7 @@ class FaultStateStore:
         injections = self.injections(task_id=task_id, limit=500)
         handoffs = self.handoffs(task_id=task_id, limit=500)
         handoff_deliveries = self.handoff_deliveries(task_id=task_id, limit=500)
+        observation_cursors = self.observation_cursors(task_id=task_id, limit=500)
         return {
             "schema": "zyra.watchdog-fault-state/v1",
             "state_owner": "FaultStateStore",
@@ -1118,6 +1175,7 @@ class FaultStateStore:
             "task_id": task_id,
             "observers": [item.to_dict() for item in observers],
             "observations": [item.to_dict() for item in observations],
+            "observation_source_cursors": list(observation_cursors),
             "signals": [item.to_dict() for item in signals],
             "injections": [
                 {
@@ -1131,6 +1189,7 @@ class FaultStateStore:
             "counts": {
                 "observers": len(observers),
                 "observations": len(observations),
+                "observation_source_cursors": len(observation_cursors),
                 "signals": len(signals),
                 "injections": len(injections),
                 "recovery_handoffs": len(handoffs),
@@ -1178,6 +1237,98 @@ class FaultStateStore:
                 state.descriptor.source_revision,
                 canonical_json(state.to_dict()),
                 state.updated_at,
+            ),
+        )
+
+    @staticmethod
+    def _fence_observation_cursor(
+        connection: sqlite3.Connection,
+        observation: StructuredObservation,
+    ) -> None:
+        refs = observation.refs.to_dict()
+        refs.pop("observation_id", None)
+        refs.pop("source_state_revision", None)
+        scope_key = stable_digest(
+            {
+                "observer_id": observation.provenance.observer_id,
+                "injection_id": observation.provenance.injection_id,
+                "category": observation.category.value,
+                "refs": refs,
+            }
+        )
+        row = connection.execute(
+            """
+            SELECT source_state_revision, fingerprint, observation_id
+            FROM observation_source_cursors WHERE scope_key = ?
+            """,
+            (scope_key,),
+        ).fetchone()
+        revision = observation.refs.source_state_revision
+        if row is not None:
+            current_revision = int(row["source_state_revision"])
+            if revision < current_revision:
+                raise FaultRuntimeError(
+                    FaultRuntimeErrorCode.INVALID_OBSERVATION,
+                    "observation source revision regressed after runtime restore",
+                    details={
+                        "observer_id": observation.provenance.observer_id,
+                        "scope_key": scope_key,
+                        "current_revision": current_revision,
+                        "received_revision": revision,
+                        "current_observation_id": str(row["observation_id"]),
+                    },
+                )
+            if revision == current_revision:
+                raise FaultRuntimeError(
+                    FaultRuntimeErrorCode.INVALID_OBSERVATION,
+                    "observation source revision was reused with different evidence",
+                    details={
+                        "observer_id": observation.provenance.observer_id,
+                        "scope_key": scope_key,
+                        "revision": revision,
+                        "current_fingerprint": str(row["fingerprint"]),
+                        "received_fingerprint": observation.fingerprint,
+                    },
+                )
+            connection.execute(
+                """
+                UPDATE observation_source_cursors
+                SET source_state_revision = ?, fingerprint = ?, observation_id = ?,
+                    updated_at = ?
+                WHERE scope_key = ? AND source_state_revision = ?
+                """,
+                (
+                    revision,
+                    observation.fingerprint,
+                    observation.observation_id,
+                    observation.observed_at,
+                    scope_key,
+                    current_revision,
+                ),
+            )
+            if connection.execute("SELECT changes() AS count").fetchone()["count"] != 1:
+                raise FaultRuntimeError(
+                    FaultRuntimeErrorCode.STATE_STORE_CONFLICT,
+                    "observation source cursor changed concurrently",
+                    details={"scope_key": scope_key},
+                )
+            return
+        connection.execute(
+            """
+            INSERT INTO observation_source_cursors(
+                scope_key, observer_id, run_id, task_id, source_state_revision,
+                fingerprint, observation_id, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scope_key,
+                observation.provenance.observer_id,
+                observation.refs.run_id,
+                observation.refs.task_id,
+                revision,
+                observation.fingerprint,
+                observation.observation_id,
+                observation.observed_at,
             ),
         )
 

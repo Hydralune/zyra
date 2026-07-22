@@ -39,6 +39,10 @@ from .supervision import McpTransportObserver, WorkerHeartbeatObserver
 from .runtime_event_adapter import RuntimeEventObservationAdapter
 from .diagnostics import FaultRuntimeDiagnostics
 from .deadline_runtime import ToolDeadlineRuntime, deadline_runtime_contract
+from .lifecycle_supervisor import (
+    ObserverRuntimeSupervisor,
+    lifecycle_supervision_contract,
+)
 from .polling import WatchdogPollingCoordinator
 from .query import FaultRuntimeQueryService
 from .pressure import FaultPressureMonitor
@@ -107,12 +111,13 @@ class RuntimeWatchdog:
         self.runtime_events = RuntimeEventObservationAdapter(self.registry)
         self.polling = WatchdogPollingCoordinator()
         self.polling.register("tool-deadlines", lambda: dict(self.tick()), interval_ms=250)
+        self.lifecycle = ObserverRuntimeSupervisor(self.store, self.registry)
         self.queries = FaultRuntimeQueryService(self.store)
         self.diagnostics = FaultRuntimeDiagnostics(self.store)
         self.pressure = FaultPressureMonitor()
 
     def start(self) -> tuple[Mapping[str, Any], ...]:
-        return tuple(state.to_dict() for state in self.registry.start_defaults())
+        return self.lifecycle.reconcile_startup()
 
     def ingest_runtime_event(self, event: Mapping[str, Any]) -> Mapping[str, Any]:
         self.runtime_events.ingest(event)
@@ -131,6 +136,7 @@ class RuntimeWatchdog:
         for state in self.store.observers():
             if state.lifecycle.accepts_observations and state.descriptor.maturity is not ObserverMaturity.INJECTION_ONLY:
                 stopped.append(self.registry.stop(state.descriptor.observer_id, reason="runtime watchdog shutdown"))
+                self.lifecycle.mark_stopped(state.descriptor.observer_id)
         return tuple(item.to_dict() for item in stopped)
 
     def tick(self) -> Mapping[str, Any]:
@@ -138,6 +144,8 @@ class RuntimeWatchdog:
         process_observations = self.processes.poll()
         heartbeat_observations = self.worker_heartbeats.sweep()
         browser_source_signals = self.browser_source.poll_all()
+        observer_restarts = self.lifecycle.restart_due()
+        stale_observers = self.lifecycle.sweep_stale()
         return {
             "schema": "zyra.runtime-watchdog-tick/v1",
             "tool_observation_ids": [item.observation_id for item in tool_observations],
@@ -148,6 +156,8 @@ class RuntimeWatchdog:
                 for key, value in browser_source_signals.items()
             },
             "mcp_reconnect_due": list(self.mcp_transports.due_reconnects()),
+            "observer_restarts": list(observer_restarts),
+            "stale_observers": list(stale_observers),
             "signal_ids": list(self._last_signal_ids[-100:]),
         }
 
@@ -178,6 +188,7 @@ class RuntimeWatchdog:
                 "browser_crash_source": self.browser_source.snapshot(),
                 "provider_attempts": self.provider_attempts.snapshot(),
                 "tool_deadline_runtime": self.tool_execution.snapshot(),
+                "observer_runtime_supervision": self.lifecycle.snapshot(),
                 "polling": self.polling.snapshot(),
                 "task_summary": self.queries.task_summary(task_id) if task_id else {},
                 "diagnostics": self.diagnostics.inspect(task_id=task_id).to_dict(),
@@ -334,6 +345,7 @@ class FaultRuntimeApplication:
             "browser_source": browser_source_contract(),
             "provider_supervision": provider_supervision_contract(),
             "deadline_runtime": deadline_runtime_contract(),
+            "observer_runtime_supervision": lifecycle_supervision_contract(),
             "injection": FaultInjectionRuntime.contract(),
             "recovery_bridge": WatchdogRecoveryBridge.contract(),
             "roles": {
