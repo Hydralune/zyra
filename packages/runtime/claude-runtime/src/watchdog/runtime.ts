@@ -395,13 +395,16 @@ export class RuntimeWatchdogObserver {
       const response = responses[index];
       const responseMetadata = response?.metadata ?? {};
       const permissionDenied = response?.ok === false && (
-        responseMetadata.permission_decision === "deny"
+        responseMetadata.permission_effect === "deny"
+        || responseMetadata.permission_decision === "deny"
         || responseMetadata.permission_status === "denied"
         || responseMetadata.reason_code === "permission_denied"
+        || response?.error === "permission_denied"
       );
       if (permissionDenied) {
+        const observationId = runtimeId("ts_permission_observation");
         await this.accept("ts-permission-receipt", {
-          observationId: runtimeId("ts_permission_observation"),
+          observationId,
           observerId: "ts-permission-receipt",
           category: "permission",
           code: "permission_denied",
@@ -414,14 +417,16 @@ export class RuntimeWatchdogObserver {
           deadlineMs,
           statusCode: null,
           refs: this.refs({
-            observationId: "",
+            observationId,
             toolCallId: request.toolCallId,
             toolName: request.toolName,
           }),
           details: {
             batch_id: batch.batchId,
             batch_index: request.batchIndex,
-            permission_decision: responseMetadata.permission_decision ?? "deny",
+            permission_decision: responseMetadata.permission_effect
+              ?? responseMetadata.permission_decision
+              ?? "deny",
             reason_code: responseMetadata.reason_code ?? "permission_denied",
           },
           observedAt: nowIso(),

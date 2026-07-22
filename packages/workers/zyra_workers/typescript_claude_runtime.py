@@ -125,6 +125,18 @@ class TypeScriptClaudeQueryEngine:
         self._active_runtime_process: subprocess.Popen[str] | None = None
         self._runtime_event_bridge = context.runtime_services.get("runtime_event_bridge")
         self._runtime_event_ingress: CodeWorkerRuntimeEventIngress | None = None
+        self._fault_observation_sink = context.runtime_services.get(
+            "fault_observation_sink"
+        )
+        self._fault_observation_sink_required = bool(
+            context.runtime_services.get("fault_observation_sink_required", False)
+        )
+        if self._fault_observation_sink is not None and not callable(
+            self._fault_observation_sink
+        ):
+            raise TypeError("fault_observation_sink must be callable")
+        if self._fault_observation_sink_required and self._fault_observation_sink is None:
+            raise TypeError("default CodeWorker path requires fault_observation_sink")
 
     def run(
         self,
@@ -534,6 +546,7 @@ class TypeScriptClaudeQueryEngine:
                         payload,
                         transport_sequence=int(frame["sequence"]),
                     )
+                self._forward_fault_observation(payload)
                 self._append_host_event(
                     self._event_record(
                         run_id=run_id,
@@ -1927,6 +1940,36 @@ class TypeScriptClaudeQueryEngine:
             and self._runtime_event_ingress is not None
         ):
             self._runtime_event_ingress.emit_legacy_host_event(event)
+
+    def _forward_fault_observation(self, payload: Mapping[str, Any]) -> None:
+        """Forward only the typed 07B watchdog envelope at the real frame boundary.
+
+        QueryEngine also emits a compact ``tool_failure_signal`` used by the
+        runtime event spine.  It is not a watchdog observation and must not be
+        inflated into fault truth from free text.  The structured envelope is
+        distinguished by its explicit observation and refs objects.
+        """
+
+        if str(payload.get("phase") or "") != "tool_failure_signal":
+            return
+        observation = payload.get("observation")
+        if not isinstance(observation, Mapping):
+            return
+        refs = observation.get("refs")
+        if not isinstance(refs, Mapping):
+            raise TypeScriptRuntimeError(
+                "typescript_watchdog_refs_missing",
+                "Structured TypeScript watchdog observation lacks refs.",
+            )
+        sink = self._fault_observation_sink
+        if sink is None:
+            if self._fault_observation_sink_required:
+                raise TypeScriptRuntimeError(
+                    "fault_observation_sink_missing",
+                    "Default CodeWorker path cannot persist a structured watchdog observation.",
+                )
+            return
+        sink(dict(payload))
 
     def _write_artifact(
         self,

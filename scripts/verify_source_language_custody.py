@@ -159,7 +159,10 @@ def _ledger_custody_violations(
             f"ledger owner {owner_unit} has {len(owned)} entries, expected {expected_count}"
         )
     decisions = {
-        (str(item.get("source_repo") or ""), str(item.get("role") or "")): item
+        (
+            str(item.get("source_repo") or ""),
+            str(item.get("role") or item.get("source_role") or ""),
+        ): item
         for item in list(document.get("source_decisions") or [])
         if isinstance(item, Mapping)
     }
@@ -283,7 +286,14 @@ def verify(document: Mapping[str, Any], *, base: str, target: str) -> dict[str, 
                 "production_paths": paths,
             }
         )
-    violations.extend(_ledger_custody_violations(document, target=target))
+    # Production custody is measured at the frozen implementation target, but
+    # the source ledger is evidence and is intentionally committed afterwards.
+    # Reading the ledger from the implementation target made the documented
+    # three-commit protocol impossible to verify: a correct implementation
+    # target necessarily predates its ledger entries.  Validate the evidence
+    # commit instead, while keeping all line additions frozen at ``target``.
+    # HEAD deliberately excludes uncommitted ledger edits from audit evidence.
+    violations.extend(_ledger_custody_violations(document, target="HEAD"))
     return {
         "schema": "zyra.source-language-custody-report/v1",
         "base": base,

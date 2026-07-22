@@ -12,6 +12,7 @@ import {
   type ArtifactReceipt,
   type ArtifactRequest,
   type CapabilitySettlement,
+  type CapabilitySupervisionIdentity,
   type JsonObject,
   type RuntimeEvent,
   type RuntimeHost,
@@ -228,11 +229,20 @@ class JsonlRuntimeHost implements RuntimeHost {
     await this.watchdog.observeProviderError(error);
   }
 
+  superviseCapability<T>(
+    request: ToolExecutionRequest,
+    identity: CapabilitySupervisionIdentity,
+    operation: (signal?: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    return this.watchdog.supervision.superviseCapability(request, identity, operation);
+  }
+
   closeWatchdog(): void {
     this.watchdog.stop();
   }
 
   async emitEvent(event: RuntimeEvent): Promise<void> {
+    await this.watchdog.supervision.observeRuntimeEvent(event as unknown as JsonObject);
     this.send("runtime.event", event as unknown as JsonObject);
   }
 

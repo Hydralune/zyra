@@ -281,6 +281,14 @@ class ActiveFaultContainmentRuntime:
                 receipt = self._receipt(prior, changed=False)
                 self._remember_receipt_locked(receipt)
                 return receipt
+            if prior is not None and prior.phase is ContainmentPhase.APPLYING:
+                # The native callback executes outside the lock.  A concurrent
+                # delivery of the same canonical signal must observe that
+                # in-flight attempt instead of resetting the target to UNBOUND
+                # and invoking the side effect a second time.
+                receipt = self._receipt(prior, changed=False)
+                self._remember_receipt_locked(receipt)
+                return receipt
             target = self._targets.get(self._key(source_kind, source_id)) if source_id else None
             if target is None or target.phase is not ContainmentPhase.READY:
                 effect = prior or ContainmentEffectState(

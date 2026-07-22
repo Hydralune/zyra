@@ -486,6 +486,34 @@ def reset_fault_runtime_api() -> None:
         _FAULT_RUNTIME_KEY = None
 
 
+def codeworker_fault_observation_sink(
+    store: SQLiteStore,
+    state: Any,
+):
+    """Bind the real CodeWorker frame boundary to the canonical 07B runtime."""
+
+    def ingest(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        service = get_fault_runtime_api(store)
+        response = service.route_post(
+            ("tasks", state.task_id, "faults", "runtime-events"),
+            payload,
+            task_state=state,
+            requested_by="typescript-codeworker-watchdog",
+        )
+        if response is None or int(response.status) >= 400:
+            body = {} if response is None else dict(response.body)
+            raise RuntimeError(
+                str(body.get("message") or body.get("error") or "fault runtime rejected CodeWorker observation")
+            )
+        projection = service.runtime.writer.task_projection(state.task_id)
+        current = dict(state.metadata.get("fault_runtime") or {})
+        current.update(dict(projection))
+        state.metadata["fault_runtime"] = current
+        return dict(response.body)
+
+    return ingest
+
+
 def memory_index_path() -> Path:
     configured_value = os.environ.get("ZYRA_MEMORY_INDEX_PATH", "").strip()
     if configured_value:
@@ -1351,6 +1379,11 @@ def _run_typescript_agent_request(
             ),
             "workspace_gateway_required": True,
             "typescript_agent_state_path": str(subagent_state_path()),
+            "fault_observation_sink": codeworker_fault_observation_sink(
+                canonical_store,
+                state,
+            ),
+            "fault_observation_sink_required": True,
         },
         retrieval_context_runtime=retrieval_context,
     ).run(request)
@@ -1731,6 +1764,11 @@ def _graph_workspace_runtime_binding(
         ),
         "workspace_gateway_required": True,
         "runtime_event_bridge": get_runtime_event_spine_bridge(),
+        "fault_observation_sink": codeworker_fault_observation_sink(
+            get_store(),
+            state,
+        ),
+        "fault_observation_sink_required": True,
     }
     if worker_name == "CodeWorkerRuntime":
         services.update(
@@ -6054,6 +6092,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             artifact_store=LocalArtifactStore(artifact_root_path()),
                         ),
                         "workspace_gateway_required": True,
+                        "fault_observation_sink": codeworker_fault_observation_sink(
+                            store,
+                            state,
+                        ),
+                        "fault_observation_sink_required": True,
                     },
                     retrieval_context_runtime=retrieval_context,
                 ).run(request)

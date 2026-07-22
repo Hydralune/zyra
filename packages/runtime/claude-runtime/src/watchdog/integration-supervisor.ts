@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   asObject,
   asString,
+  type CapabilitySupervisionIdentity,
   type JsonObject,
   type RuntimeRunInput,
   type ToolBatch,
@@ -71,6 +72,10 @@ export class CrossRuntimeFaultSupervisor {
   #batches = new Map<string, BatchExecutionRecord>();
   #toolGeneration = new Map<string, number>();
   #streamGeneration = new Map<string, number>();
+  #activeProviderStreams = new Set<string>();
+  #providerFrameSequences = new Map<string, number>();
+  #mcpGeneration = new Map<string, number>();
+  #mcpBound = new Set<string>();
   #configuredCount = 0;
   #batchCount = 0;
   #batchDeadlineCount = 0;
@@ -236,6 +241,170 @@ export class CrossRuntimeFaultSupervisor {
     return await this.providerStreams.interrupt(streamId, generation, input);
   }
 
+  async observeRuntimeEvent(event: JsonObject): Promise<void> {
+    const phase = asString(event.phase);
+    if (phase === "model_request_prepared") {
+      const request = asObject(asObject(event.model_request_prepared).provider_request);
+      const fallbackRequest = asObject(event.provider_request);
+      const selected = Object.keys(request).length > 0 ? request : fallbackRequest;
+      const streamId = asString(selected.request_id);
+      if (!streamId || this.#activeProviderStreams.has(streamId)) return;
+      const attemptNumber = this.#positiveIntegerFromRequestId(streamId, 1);
+      const constraints = asObject(this.#requireInput().config.runtimeConstraints);
+      const maxAttempts = this.#positiveMetadata(
+        constraints,
+        "api_retry_max_attempts",
+        Math.max(1, attemptNumber),
+      );
+      this.beginProviderStream(streamId, attemptNumber, Math.max(attemptNumber, maxAttempts));
+      this.#activeProviderStreams.add(streamId);
+      this.#providerFrameSequences.set(streamId, 0);
+      return;
+    }
+    if (phase === "model_stream_frame") {
+      const frame = asObject(event.model_stream_frame);
+      const streamId = asString(frame.request_id);
+      if (!streamId || !this.#activeProviderStreams.has(streamId) || asString(frame.kind) !== "sse_chunk") return;
+      const chunk = asObject(frame.chunk);
+      const sequence = (this.#providerFrameSequences.get(streamId) ?? 0) + 1;
+      this.#providerFrameSequences.set(streamId, sequence);
+      const serialized = JSON.stringify(chunk);
+      const generation = this.#streamGeneration.get(streamId);
+      if (generation === undefined) throw new Error("provider stream generation is missing");
+      this.providerStreams.acceptChunk(streamId, generation, {
+        chunkId: streamId + ":chunk:" + String(sequence),
+        sequence,
+        contentDigest: createHash("sha256").update(serialized, "utf8").digest("hex"),
+        textBytes: Buffer.byteLength(serialized, "utf8"),
+        metadata: {
+          frame_index: frame.frame_index ?? sequence,
+          model: frame.model ?? "",
+          transport: "http_sse",
+        },
+      });
+      return;
+    }
+    if (phase !== "model_stream_report") return;
+    const report = asObject(event.model_stream);
+    const streamId = asString(report.request_id);
+    if (!streamId || !this.#activeProviderStreams.has(streamId)) return;
+    const generation = this.#streamGeneration.get(streamId);
+    if (generation === undefined) throw new Error("provider stream generation is missing");
+    this.#activeProviderStreams.delete(streamId);
+    this.#providerFrameSequences.delete(streamId);
+    if (report.ok === true) {
+      const terminalDigest = createHash("sha256")
+        .update(JSON.stringify(report), "utf8")
+        .digest("hex");
+      this.providerStreams.complete(streamId, generation, terminalDigest);
+      return;
+    }
+    const statusCode = typeof report.status === "number" ? report.status : 0;
+    const decision = asString(report.decision);
+    const retryable = ["retry", "fallback", "reduce_output", "retry_fallback_model"].includes(decision)
+      || [408, 429, 500, 502, 503, 504, 529].includes(statusCode);
+    const recoveryPlan = asObject(report.recovery_plan);
+    await this.interruptProviderStream(streamId, {
+      errorCode: statusCode === 429
+        ? "rate_limited"
+        : statusCode === 408
+          ? "timeout"
+          : "provider_error",
+      errorType: "ProviderStreamReportFailure",
+      statusCode,
+      retryable,
+      terminal: !retryable,
+      retryAfterMs: this.#nonnegativeInteger(
+        recoveryPlan.delay_ms ?? recoveryPlan.delayMs,
+      ),
+      metadata: {
+        request_id: streamId,
+        model: report.model ?? "",
+        transport: report.transport ?? "unknown",
+        decision,
+      },
+    });
+  }
+
+  async superviseCapability<T>(
+    request: ToolExecutionRequest,
+    identity: CapabilitySupervisionIdentity,
+    operation: (signal?: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    if (identity.namespace !== "mcp" || !identity.serverId) {
+      return await operation(undefined);
+    }
+    const generation = this.#mcpGeneration.get(identity.serverId) ?? 0;
+    this.#mcpGeneration.set(identity.serverId, generation);
+    if (!this.#mcpBound.has(identity.serverId)) {
+      this.mcpTransports.connect({
+        refs: this.refs({
+          observationId: runtimeId("ts_mcp_binding"),
+          mcpServerId: identity.serverId,
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          sourceStateRevision: generation,
+        }),
+        generation,
+        metadata: {
+          capability_owner: "typescript.McpRuntimeCoordinator",
+          transport_owner: "typescript",
+        },
+      });
+      this.#mcpBound.add(identity.serverId);
+    }
+    const timeoutMs = this.#positiveMetadata(
+      request.metadata,
+      "mcp_request_timeout_ms",
+      30_000,
+    );
+    const requestId = request.toolCallId + ":mcp:" + generation;
+    const runtime = this.#requireInput();
+    const supervised = this.mcpTransports.beginRequest(
+      identity.serverId,
+      generation,
+      {
+        requestId,
+        method: request.toolName,
+        timeoutMs,
+        idempotencyKey: [
+          runtime.runId,
+          runtime.taskId,
+          request.toolCallId,
+          identity.serverId,
+        ].join(":"),
+        sideEffecting: request.executionMode !== "concurrent_read_only",
+        metadata: { schema_digest: identity.schemaDigest, version: identity.version },
+      },
+    );
+    try {
+      const result = await operation(supervised.signal);
+      const responseDigest = createHash("sha256")
+        .update(JSON.stringify(result), "utf8")
+        .digest("hex");
+      this.mcpTransports.settleRequest(
+        identity.serverId,
+        generation,
+        requestId,
+        responseDigest,
+      );
+      return result;
+    } catch (error) {
+      if (supervised.signal.aborted) {
+        await this.mcpTransports.timeoutRequest(identity.serverId, generation, requestId);
+      } else {
+        const structured = asObject(error);
+        const failure = asObject(structured.failure);
+        const errorCode = asString(failure.code) || asString(structured.code) || "mcp_request_failed";
+        this.mcpTransports.failRequest(identity.serverId, generation, requestId, errorCode);
+        if (asString(failure.category) === "transport") {
+          await this.mcpTransports.disconnected(identity.serverId, generation, errorCode);
+        }
+      }
+      throw error;
+    }
+  }
+
   heartbeatWorker(sequence: number, atMs?: number): boolean {
     const input = this.#requireInput();
     const workerId = asString(input.metadata?.worker_id);
@@ -330,6 +499,16 @@ export class CrossRuntimeFaultSupervisor {
   #positiveMetadata(metadata: JsonObject | undefined, key: string, fallback: number): number {
     const value = metadata?.[key];
     return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : fallback;
+  }
+
+  #positiveIntegerFromRequestId(requestId: string, fallback: number): number {
+    const suffix = Number(requestId.split(":").at(-1));
+    return Number.isSafeInteger(suffix) && suffix > 0 ? suffix : fallback;
+  }
+
+  #nonnegativeInteger(value: unknown): number {
+    const selected = Number(value);
+    return Number.isSafeInteger(selected) && selected >= 0 ? selected : 0;
   }
 }
 

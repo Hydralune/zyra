@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CrossRuntimeFaultSupervisor,
   McpTransportSupervisor,
   ProviderStreamSupervisor,
   ToolExecutionSupervisor,
   WorkerRestartSupervisor,
   type SupplementaryObservationEmitter,
 } from "../src/watchdog/index.ts";
+import type { RuntimeRunInput, ToolExecutionRequest } from "../src/contracts.ts";
 import type { WatchdogObservation, WatchdogRefs } from "../src/watchdog/runtime.ts";
 
 function refs(overrides: Partial<WatchdogRefs> = {}): WatchdogRefs {
@@ -151,6 +153,58 @@ test("OMP-derived MCP timeout aborts requests and crash storm opens breaker", as
   assert.equal(snapshot.injection_fallback_when_disabled, false);
 });
 
+test("default capability supervision applies MCP timeout to the real execution signal", async () => {
+  const capture = observations();
+  const runtime = new CrossRuntimeFaultSupervisor(capture.emit);
+  const input: RuntimeRunInput = {
+    runId: "run-mcp-capability",
+    taskId: "task-mcp-capability",
+    nodeId: "node-mcp-capability",
+    workerRequestId: "worker-request-mcp-capability",
+    sessionId: "session-mcp-capability",
+    messages: [],
+    turns: [],
+    tools: [],
+    config: { modelName: "model-test", runtimeConstraints: {} },
+    metadata: {},
+  };
+  runtime.configure(input);
+  const request: ToolExecutionRequest = {
+    toolCallId: "mcp-tool-call-live-1",
+    toolName: "mcp:server-live:tools/call",
+    arguments: {},
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "mcp-capability-batch-1",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { mcp_request_timeout_ms: 5 },
+  };
+
+  await assert.rejects(
+    runtime.superviseCapability(
+      request,
+      {
+        namespace: "mcp",
+        serverId: "server-live",
+        version: "1",
+        schemaDigest: "sha256:mcp-schema",
+      },
+      async (signal) => await new Promise((_resolve, reject) => {
+        assert.ok(signal);
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }),
+    ),
+    /MCP request timeout/,
+  );
+  assert.equal(capture.emitted.length, 1);
+  assert.equal(capture.emitted[0]?.observation.category, "mcp");
+  assert.equal(capture.emitted[0]?.observation.code, "request_timeout");
+  assert.equal(capture.emitted[0]?.observation.refs.mcpServerId, "server-live");
+  runtime.dispose();
+});
+
 test("provider partial stream resumes without replaying committed side effects", async () => {
   let now = 3_000;
   const capture = observations();
@@ -222,6 +276,69 @@ test("provider partial stream resumes without replaying committed side effects",
   assert.equal(resumed?.phase, "completed");
   assert.equal(resumed?.chunk_count, 2);
   assert.deepEqual(resumed?.committed_effect_keys, ["provider-effect-idem-1"]);
+});
+
+test("default model stream events drive provider supervision and typed interruption", async () => {
+  const capture = observations();
+  const runtime = new CrossRuntimeFaultSupervisor(capture.emit);
+  runtime.configure({
+    runId: "run-provider-events",
+    taskId: "task-provider-events",
+    nodeId: "node-provider-events",
+    workerRequestId: "worker-request-provider-events",
+    sessionId: "session-provider-events",
+    messages: [],
+    turns: [],
+    tools: [],
+    config: {
+      modelName: "model-provider-events",
+      runtimeConstraints: {
+        provider_id: "provider-events",
+        api_retry_max_attempts: 2,
+      },
+    },
+    metadata: {},
+  });
+
+  await runtime.observeRuntimeEvent({
+    phase: "model_request_prepared",
+    provider_request: { request_id: "request-provider-events:1" },
+  });
+  await runtime.observeRuntimeEvent({
+    phase: "model_stream_frame",
+    model_stream_frame: {
+      request_id: "request-provider-events:1",
+      kind: "sse_chunk",
+      frame_index: 1,
+      model: "model-provider-events",
+      chunk: { choices: [{ delta: { content: "partial" } }] },
+    },
+  });
+  await runtime.observeRuntimeEvent({
+    phase: "model_stream_report",
+    model_stream: {
+      request_id: "request-provider-events:1",
+      ok: false,
+      status: 503,
+      decision: "retry",
+      model: "model-provider-events",
+      transport: "http_sse",
+      recovery_plan: { delay_ms: 7 },
+    },
+  });
+
+  assert.equal(capture.emitted.length, 1);
+  assert.equal(capture.emitted[0]?.observation.category, "provider");
+  assert.equal(capture.emitted[0]?.observation.details.partial_content_present, true);
+  assert.equal(capture.emitted[0]?.observation.details.retry_after_ms, 7);
+  const snapshot = runtime.snapshot();
+  const streams = (snapshot.provider_streams as Record<string, unknown>).streams as Record<
+    string,
+    Record<string, unknown>
+  >;
+  assert.equal(streams["request-provider-events:1"]?.phase, "interrupted");
+  assert.equal(streams["request-provider-events:1"]?.chunk_count, 1);
+  runtime.dispose();
 });
 
 test("worker process restart requeues durable checkpointed job exactly once", async () => {

@@ -153,6 +153,15 @@ class SignalEffectCoordinator:
                 self._receipts.append(receipt)
                 del self._receipts[:-500]
                 return receipt
+            if existing is not None and existing.phase is SignalEffectPhase.PROJECTING:
+                # Projection writes canonical events, memory and scheduler
+                # health outside this coordinator lock.  Return the in-flight
+                # cursor so concurrent listener/reconcile calls cannot run the
+                # same external projection twice.
+                receipt = self._receipt(existing, False, ())
+                self._receipts.append(receipt)
+                del self._receipts[:-500]
+                return receipt
             state = self._states.setdefault(
                 signal.signal_id,
                 SignalEffectState(

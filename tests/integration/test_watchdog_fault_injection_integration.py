@@ -143,6 +143,25 @@ class _BrowserEventSource:
             callback(value)
 
 
+class _PartiallyFailingBrowserEventSource(_BrowserEventSource):
+    def __init__(self) -> None:
+        super().__init__()
+        self.unsubscribe_attempts: list[str] = []
+        self.failed_unsubscribe_once = False
+
+    def subscribe(self, event_name: str, callback: Callable[[Mapping[str, Any]], None]) -> str:
+        if event_name == "browser.reconnected":
+            raise RuntimeError("synthetic partial attach failure")
+        return super().subscribe(event_name, callback)
+
+    def unsubscribe(self, event_name: str, token: Any) -> None:
+        self.unsubscribe_attempts.append(event_name)
+        if event_name == "browser.cdp_disconnected" and not self.failed_unsubscribe_once:
+            self.failed_unsubscribe_once = True
+            raise RuntimeError("synthetic one-shot unsubscribe failure")
+        super().unsubscribe(event_name, token)
+
+
 @dataclass
 class _ProcessHandle:
     process: subprocess.Popen[str]
@@ -373,6 +392,56 @@ def test_browser_use_style_event_attach_disable_removes_capture_without_injectio
         assert len(runtime.application.store.injections(task_id=state.task_id)) == before_injections
         snapshot = runtime.application.integration.browser_events.snapshot(task_id=state.task_id)
         assert snapshot["disabled_capture_falls_back_to_injection"] is False
+    finally:
+        runtime.close()
+
+
+def test_browser_partial_attach_failure_drains_all_subscriptions_and_disables_source_session(
+    tmp_path: Path,
+) -> None:
+    runtime = _integrated_runtime(tmp_path)
+    source = _PartiallyFailingBrowserEventSource()
+    state = runtime.state
+    try:
+        with pytest.raises(RuntimeError, match="synthetic partial attach failure"):
+            runtime.application.integration.attach_browser_event_source(
+                state,
+                {
+                    "browser_session_id": "browser-partial-1",
+                    "session_id": "session-browser-partial-1",
+                    "attempt_id": "browser-attempt-partial-1",
+                    "generation": 3,
+                    "cdp_connected": True,
+                },
+                source,
+            )
+
+        assert source.unsubscribe_attempts == [
+            "browser.connected",
+            "browser.cdp_disconnected",
+            "browser.reconnecting",
+        ]
+        bridge = runtime.application.integration.browser_events.snapshot(task_id=state.task_id)[
+            "bindings"
+        ]["browser-partial-1"]
+        assert bridge["phase"] == "failed"
+        assert bridge["subscriptions"]["browser.cdp_disconnected"]["attached"] is True
+        sessions = runtime.application.integration.sources.snapshot(task_id=state.task_id)
+        assert sessions["bindings"]["browser:browser-partial-1"]["phase"] == "disabled"
+
+        source.emit(
+            "browser.cdp_disconnected",
+            {
+                "event_id": "browser-event-after-failed-attach",
+                "sequence": 1,
+                "reason_code": "must-not-be-forwarded",
+            },
+        )
+        assert runtime.application.store.signals(task_id=state.task_id) == ()
+        bridge = runtime.application.integration.browser_events.snapshot(task_id=state.task_id)[
+            "bindings"
+        ]["browser-partial-1"]
+        assert bridge["dropped_disabled_events"] == 1
     finally:
         runtime.close()
 
@@ -748,6 +817,72 @@ def test_http_observation_and_command_share_single_durable_fault_runtime(
         reset_fault_runtime_api()
 
 
+def test_codeworker_fault_sink_reaches_canonical_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ZYRA_SQLITE_PATH", str(tmp_path / "codeworker.sqlite3"))
+    monkeypatch.setenv("ZYRA_EVENT_LOG", str(tmp_path / "events.jsonl"))
+    monkeypatch.setenv("ZYRA_ARTIFACT_ROOT", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("ZYRA_FAULT_RUNTIME_STORE", str(tmp_path / "fault-runtime.sqlite3"))
+    from apps.api.zyra_api.main import (
+        codeworker_fault_observation_sink,
+        get_fault_runtime_api,
+        reset_fault_runtime_api,
+    )
+
+    reset_fault_runtime_api()
+    canonical = SQLiteStore(tmp_path / "codeworker.sqlite3")
+    canonical.initialize()
+    state = create_task_state("Persist a real CodeWorker watchdog frame.")
+    canonical.save_checkpoint(state)
+    sink = codeworker_fault_observation_sink(canonical, state)
+    event = {
+        "phase": "tool_failure_signal",
+        "sequence": 4,
+        "run_id": state.run_id,
+        "task_id": state.task_id,
+        "runtime_id": "zyra-typescript-claude-runtime",
+        "signal_id": "ts-source-signal-default-path-1",
+        "provenance": {"source_repo": "oh-my-pi", "source_revision": "c6b83c"},
+        "observation": {
+            "observation_id": "ts-default-path-observation-1",
+            "category": "tool",
+            "code": "tool_timeout",
+            "status": "timed_out",
+            "summary": "typed timeout",
+            "error_type": "ToolTimeoutError",
+            "retryable_hint": True,
+            "terminal_hint": True,
+            "elapsed_ms": 31,
+            "deadline_ms": 30,
+            "refs": {
+                "run_id": state.run_id,
+                "task_id": state.task_id,
+                "session_id": "session-default-path",
+                "observation_id": "ts-default-path-observation-1",
+                "tool_call_id": "tool-default-path-1",
+                "tool_name": "shell",
+                "source_state_revision": 1,
+            },
+            "details": {"terminal_result_guard": True},
+        },
+    }
+    try:
+        response = sink(event)
+        service = get_fault_runtime_api(canonical)
+        signals = service.runtime.store.signals(task_id=state.task_id)
+
+        assert response["operation"] == "ingest:typescript-watchdog"
+        assert len(signals) == 1
+        assert signals[0].kind is FaultKind.TOOL_TIMEOUT
+        assert service.runtime.store.projection_receipt(signals[0].signal_id).ok is True
+        assert state.metadata["fault_runtime"]["active_signal_ids"] == [signals[0].signal_id]
+        assert service.runtime.store.handoffs(task_id=state.task_id)
+    finally:
+        reset_fault_runtime_api()
+
+
 def test_watchdog_control_command_uses_same_injection_and_observation_state(tmp_path: Path) -> None:
     runtime = _integrated_runtime(tmp_path)
     service = FaultRuntimeApiService(runtime.application)
@@ -791,5 +926,64 @@ def test_watchdog_control_command_uses_same_injection_and_observation_state(tmp_
         )
         assert status.data["fault_state"]["counts"]["signals"] == 1
         assert "provider:provider-command-1" in status.data["integration"]["source_sessions"]["bindings"]
+    finally:
+        runtime.close()
+
+
+def test_runtime_observation_admission_serializes_same_producer_side_effects(
+    tmp_path: Path,
+) -> None:
+    runtime = _integrated_runtime(tmp_path)
+    port = runtime.application.integration.observations
+    first_entered = threading.Event()
+    second_entered = threading.Event()
+    first_saw_second: list[bool] = []
+    errors: list[BaseException] = []
+
+    def handler(_state: Any, envelope: Any, _process: Any) -> Mapping[str, Any]:
+        if envelope.sequence == 1:
+            first_entered.set()
+            first_saw_second.append(second_entered.wait(timeout=0.2))
+        else:
+            second_entered.set()
+        return {"operation": "concurrency-probe", "sequence": envelope.sequence}
+
+    port._handlers["provider.attached"] = handler
+
+    def ingest(sequence: int) -> None:
+        try:
+            port.ingest(
+                runtime.state,
+                _event(
+                    runtime,
+                    event_id=f"concurrent-provider-{sequence}",
+                    event_type="provider.attached",
+                    producer="same-provider-producer",
+                    sequence=sequence,
+                    payload={"provider_id": "provider-concurrent", "generation": 1},
+                ),
+            )
+        except BaseException as error:  # noqa: BLE001 - surfaced below with thread context.
+            errors.append(error)
+
+    first = threading.Thread(target=ingest, args=(1,))
+    second = threading.Thread(target=ingest, args=(2,))
+    try:
+        first.start()
+        assert first_entered.wait(timeout=2)
+        second.start()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert first_saw_second == [False]
+        snapshot = port.snapshot(task_id=runtime.state.task_id)
+        producer_key = (
+            f"{runtime.state.run_id}:{runtime.state.task_id}:same-provider-producer"
+        )
+        assert snapshot["producer_sequences"][producer_key] == 2
+        assert snapshot["counts"]["accepted"] == 2
     finally:
         runtime.close()

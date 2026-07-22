@@ -136,6 +136,7 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
                 event.payload["query_session"]
                 for event in run.event_records
                 if event.payload.get("query_session", {}).get("phase") == "tool_failure_signal"
+                and "signal" in event.payload.get("query_session", {})
             ]
             watchdogs = [
                 event.payload["query_session"]
@@ -144,6 +145,47 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
             ]
             self.assertEqual(failures[0]["signal"]["kind"], "permission_denied")
             self.assertEqual(watchdogs[0]["watchdog_signal"]["route"], "permission_runtime")
+
+    def test_default_codeworker_frame_forwards_structured_watchdog_observation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("A denied tool must reach the canonical fault sink.")
+            outside = Path(tmpdir) / "outside.txt"
+            outside.write_text("outside", encoding="utf-8")
+            captured: list[dict[str, object]] = []
+            runtime = CodeWorkerRuntime(
+                project_root=ROOT,
+                workspace_root=Path(tmpdir) / "workspace",
+                artifact_root=Path(tmpdir) / "artifacts",
+                sidecar_client=ExplodingSidecarClient(),
+                runtime_services={
+                    "fault_observation_sink": lambda payload: captured.append(dict(payload)),
+                    "fault_observation_sink_required": True,
+                },
+            )
+            request = WorkerRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                worker_name="CodeWorkerRuntime",
+                constraints={
+                    "tool_plan": [
+                        {
+                            "tool_name": "file_read",
+                            "arguments": {"path": str(outside)},
+                        }
+                    ],
+                },
+            )
+
+            run = runtime.run(request)
+
+            self.assertFalse(run.worker_result.ok)
+            self.assertTrue(captured)
+            observation = captured[0]["observation"]
+            self.assertIsInstance(observation, dict)
+            self.assertEqual(observation["category"], "permission")
+            self.assertEqual(observation["code"], "permission_denied")
+            self.assertEqual(observation["refs"]["task_id"], state.task_id)
 
     def test_context_budget_changes_runtime_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

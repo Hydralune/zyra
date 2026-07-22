@@ -715,10 +715,14 @@ class RuntimeSourceSessionManager:
         disable: bool = False,
     ) -> SourceLifecycleReceipt:
         kind = SourceKind(source_kind)
-        binding = self._require(kind, source_id, generation)
         if not reason.strip():
             raise ValueError("source stop requires a reason")
         with self._guard:
+            binding = self._bindings.get(self._key(kind, source_id))
+            if binding is None:
+                raise RuntimeError(f"{kind.value} source is not attached: {source_id}")
+            if binding.generation != generation:
+                raise RuntimeError("stale source generation")
             if binding.phase in {SourceSessionPhase.STOPPED, SourceSessionPhase.DISABLED}:
                 return self._receipt(binding, "disable" if disable else "stop", False, {"reason": reason})
             binding.phase = SourceSessionPhase.STOPPING

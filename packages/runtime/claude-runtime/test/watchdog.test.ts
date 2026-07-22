@@ -123,6 +123,35 @@ test("disabled observer stops real emission and transport refs stay explicit", a
   assert.equal((events[0].refs as JsonObject).mcp_server_id, "mcp-server-1");
 });
 
+test("permission observer accepts the canonical Python host settlement metadata", async () => {
+  const events: RuntimeEvent[] = [];
+  const watchdog = new RuntimeWatchdogObserver(async (event) => {
+    events.push(structuredClone(event));
+  });
+  watchdog.configure(input());
+  const values = batch();
+
+  await watchdog.observeToolBatch(values.batch, values.requests, [{
+    tool_call_id: values.requests[0].toolCallId,
+    ok: false,
+    summary: "denied by TypeScript permission policy",
+    output: {},
+    artifacts: [],
+    error: "permission_denied",
+    metadata: {
+      permission_effect: "deny",
+      canonical_permission_owner: "typescript",
+    },
+  }], 3, 30_000);
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].fault_kind, "permission_denied");
+  const observation = events[0].observation as JsonObject;
+  const refs = observation.refs as JsonObject;
+  assert.equal(observation.observation_id, refs.observation_id);
+  assert.equal(refs.tool_call_id, "tool-call-watchdog-1");
+});
+
 test("watchdog contract records OMP supplementary and Python canonical ownership", () => {
   const contract = runtimeWatchdogContract();
   assert.equal(contract.canonical_signal_owner, "python.FaultStateStore");

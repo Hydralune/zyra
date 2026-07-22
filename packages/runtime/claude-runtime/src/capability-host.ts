@@ -3,6 +3,7 @@ import type {
   AgentMutationRequest,
   ArtifactReceipt,
   ArtifactRequest,
+  CapabilitySupervisionIdentity,
   JsonObject,
   RuntimeEvent,
   RuntimeHost,
@@ -54,6 +55,15 @@ export class PermissionedCapabilityHost implements RuntimeHost {
       ...snapshot,
       typescriptCapabilities: this.snapshot(),
     }) ?? Promise.resolve();
+  }
+
+  superviseCapability<T>(
+    request: ToolExecutionRequest,
+    identity: CapabilitySupervisionIdentity,
+    operation: (signal?: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    return this.delegate.superviseCapability?.(request, identity, operation)
+      ?? operation(undefined);
   }
 
   async executeBatch(
@@ -192,26 +202,38 @@ export class PermissionedCapabilityHost implements RuntimeHost {
       let settlementAttempted = false;
       try {
         this.settlement.beginLocalCapability(request.toolCallId);
-        const result = await this.capabilities.execute(
+        const identity = inferToolIdentity(
           request.toolName,
-          request.arguments,
-          {
-            parentInput: this.input,
-            host: this,
-            runChild: async (childInput) => new ClaudeRuntimeCore().run(
-              childInput,
-              new PermissionedCapabilityHost(this.delegate, childInput, this.capabilities),
-            ),
-          },
-          {
-            toolCallId: request.toolCallId,
-            permitId: request.e02PermitId,
-            sessionRevision: request.e02SessionRevision,
-            namespace: inferToolIdentity(request.toolName, this.input.tools.find((item) => item.name === request.toolName)).namespace,
-            serverId: inferToolIdentity(request.toolName, this.input.tools.find((item) => item.name === request.toolName)).serverId,
-            operation: inferOperation(request.toolName, this.input.tools.find((item) => item.name === request.toolName)),
-            metadata: request.metadata,
-          },
+          this.input.tools.find((item) => item.name === request.toolName),
+        );
+        const result = await this.superviseCapability(
+          request,
+          identity,
+          (signal) => this.capabilities.execute(
+            request.toolName,
+            request.arguments,
+            {
+              parentInput: this.input,
+              host: this,
+              runChild: async (childInput) => new ClaudeRuntimeCore().run(
+                childInput,
+                new PermissionedCapabilityHost(this.delegate, childInput, this.capabilities),
+              ),
+            },
+            {
+              toolCallId: request.toolCallId,
+              permitId: request.e02PermitId,
+              sessionRevision: request.e02SessionRevision,
+              namespace: identity.namespace,
+              serverId: identity.serverId,
+              operation: inferOperation(
+                request.toolName,
+                this.input.tools.find((item) => item.name === request.toolName),
+              ),
+              metadata: request.metadata,
+              signal,
+            },
+          ),
         );
         settlementAttempted = true;
         await this.delegate.settleCapability?.({

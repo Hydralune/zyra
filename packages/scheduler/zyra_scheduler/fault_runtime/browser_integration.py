@@ -184,7 +184,16 @@ class BrowserWatchdogEventBridge:
                         raise RuntimeError("browser generation cannot change event source")
                     if current.phase is BrowserBridgePhase.RUNNING:
                         return self._receipt(current, "attach", False, False, {"already_attached": True})
-                self._detach_locked(current, reason="replaced by newer generation", disable=False)
+                cleanup_errors = self._detach_locked(
+                    current,
+                    reason="replaced by newer generation",
+                    disable=False,
+                )
+                if cleanup_errors:
+                    raise RuntimeError(
+                        "browser bridge replacement could not remove prior subscriptions: "
+                        + "; ".join(cleanup_errors)
+                    )
             binding = BrowserBridgeBinding(
                 refs=refs,
                 generation=generation,
@@ -226,7 +235,24 @@ class BrowserWatchdogEventBridge:
                 binding.phase = BrowserBridgePhase.FAILED
                 binding.last_error = f"{type(error).__name__}: {error}"
                 binding.revision += 1
-                self._detach_subscriptions_locked(binding)
+                cleanup_errors = self._detach_subscriptions_locked(binding)
+                if cleanup_errors:
+                    binding.last_error += "; cleanup: " + "; ".join(cleanup_errors)
+            try:
+                self.sessions.stop(
+                    SourceKind.BROWSER,
+                    refs.browser_session_id,
+                    generation=generation,
+                    reason="browser event bridge attach failed",
+                    disable=True,
+                )
+            except Exception as cleanup_error:  # noqa: BLE001 - preserve the attach failure.
+                error.add_note(
+                    "source-session cleanup also failed: "
+                    f"{type(cleanup_error).__name__}: {cleanup_error}"
+                )
+            if cleanup_errors:
+                error.add_note("subscription cleanup failures: " + "; ".join(cleanup_errors))
             raise
         return self._receipt(
             binding,
@@ -252,14 +278,24 @@ class BrowserWatchdogEventBridge:
             binding = self._require_locked(browser_session_id, generation)
             if binding.phase in {BrowserBridgePhase.STOPPED, BrowserBridgePhase.DISABLED}:
                 return self._receipt(binding, "disable" if disable else "detach", False, False, {"reason": reason})
-            self._detach_locked(binding, reason=reason, disable=disable)
-        session_receipt = self.sessions.stop(
-            SourceKind.BROWSER,
-            browser_session_id,
-            generation=generation,
-            reason=reason,
-            disable=disable,
-        )
+            cleanup_errors = self._detach_locked(binding, reason=reason, disable=disable)
+        try:
+            session_receipt = self.sessions.stop(
+                SourceKind.BROWSER,
+                browser_session_id,
+                generation=generation,
+                reason=reason,
+                disable=disable,
+            )
+        except Exception as error:
+            if cleanup_errors:
+                error.add_note("subscription cleanup failures: " + "; ".join(cleanup_errors))
+            raise
+        if cleanup_errors:
+            raise RuntimeError(
+                "browser bridge source session stopped but subscriptions remain attached: "
+                + "; ".join(cleanup_errors)
+            )
         return self._receipt(
             binding,
             "disable" if disable else "detach",
@@ -288,9 +324,19 @@ class BrowserWatchdogEventBridge:
             if binding.generation != generation:
                 binding.dropped_stale_events += 1
                 return self._receipt(binding, event_name, False, False, {"stale_generation": True})
-            if binding.phase in {BrowserBridgePhase.DISABLED, BrowserBridgePhase.STOPPED}:
+            if binding.phase not in {
+                BrowserBridgePhase.ATTACHING,
+                BrowserBridgePhase.RUNNING,
+                BrowserBridgePhase.RECONNECTING,
+            }:
                 binding.dropped_disabled_events += 1
-                return self._receipt(binding, event_name, False, False, {"capture_disabled": True})
+                return self._receipt(
+                    binding,
+                    event_name,
+                    False,
+                    False,
+                    {"capture_disabled": True, "bridge_phase": binding.phase.value},
+                )
         forwarded = self._handle(binding, event_name, event)
         return self._receipt(binding, event_name, forwarded, forwarded, {"event": dict(event)})
 
@@ -459,25 +505,41 @@ class BrowserWatchdogEventBridge:
         *,
         reason: str,
         disable: bool,
-    ) -> None:
+    ) -> tuple[str, ...]:
         binding.phase = BrowserBridgePhase.STOPPING
         binding.revision += 1
-        self._detach_subscriptions_locked(binding)
-        binding.phase = BrowserBridgePhase.DISABLED if disable else BrowserBridgePhase.STOPPED
+        cleanup_errors = self._detach_subscriptions_locked(binding)
+        binding.phase = (
+            BrowserBridgePhase.FAILED
+            if cleanup_errors
+            else BrowserBridgePhase.DISABLED if disable else BrowserBridgePhase.STOPPED
+        )
         binding.detach_count += 1
         binding.stopped_at = utc_now()
-        binding.last_error = reason if disable else ""
+        binding.last_error = (
+            "; ".join(cleanup_errors)
+            if cleanup_errors
+            else reason if disable else ""
+        )
         binding.revision += 1
+        return cleanup_errors
 
-    def _detach_subscriptions_locked(self, binding: BrowserBridgeBinding) -> None:
+    def _detach_subscriptions_locked(self, binding: BrowserBridgeBinding) -> tuple[str, ...]:
+        cleanup_errors: list[str] = []
+        callbacks = self._callbacks.get(binding.bridge_id, {})
         for event_name, subscription in tuple(binding.subscriptions.items()):
             if not subscription.attached:
                 continue
             try:
                 binding.source.unsubscribe(event_name, subscription.token)
-            finally:
+            except Exception as error:  # noqa: BLE001 - cleanup must continue for every token.
+                cleanup_errors.append(f"{event_name}: {type(error).__name__}: {error}")
+            else:
                 subscription.attached = False
-        self._callbacks.pop(binding.bridge_id, None)
+                callbacks.pop(event_name, None)
+        if not callbacks:
+            self._callbacks.pop(binding.bridge_id, None)
+        return tuple(cleanup_errors)
 
     def _require_locked(self, browser_session_id: str, generation: int) -> BrowserBridgeBinding:
         binding = self._bindings.get(browser_session_id)

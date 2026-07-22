@@ -142,6 +142,11 @@ class RuntimeFaultObservationPort:
         envelope = value if isinstance(value, RuntimeObservationEnvelope) else self.envelope(value)
         self._validate_scope(state, envelope)
         digest = self._digest(envelope)
+        # Admission, handler execution, and receipt publication form one
+        # producer-sequence transaction.  Releasing the lock after validation
+        # allowed two concurrent frames from the same producer to both observe
+        # the old cursor, execute side effects twice, and then publish the
+        # sequence in reverse order.
         with self._guard:
             prior = self._receipts.get(envelope.event_id)
             if prior is not None:
@@ -170,29 +175,26 @@ class RuntimeFaultObservationPort:
                 raise RuntimeObservationRejected(
                     f"unsupported structured runtime observation: {envelope.event_type}"
                 )
-        try:
-            result = handler(state, envelope, process_handle)
-        except RuntimeObservationControlRequired:
-            with self._guard:
+            try:
+                result = handler(state, envelope, process_handle)
+            except RuntimeObservationControlRequired:
                 self._rejected_count += 1
-            raise
-        except (KeyError, TypeError, ValueError, RuntimeError):
-            with self._guard:
+                raise
+            except (KeyError, TypeError, ValueError, RuntimeError):
                 self._rejected_count += 1
-            raise
-        receipt = RuntimeObservationReceipt(
-            event_id=envelope.event_id,
-            event_type=envelope.event_type,
-            run_id=envelope.run_id,
-            task_id=envelope.task_id,
-            sequence=envelope.sequence,
-            status=RuntimeObservationStatus.ACCEPTED,
-            operation=str(result.get("operation") or envelope.event_type),
-            result=dict(result),
-            payload_digest=digest,
-            changed=True,
-        )
-        with self._guard:
+                raise
+            receipt = RuntimeObservationReceipt(
+                event_id=envelope.event_id,
+                event_type=envelope.event_type,
+                run_id=envelope.run_id,
+                task_id=envelope.task_id,
+                sequence=envelope.sequence,
+                status=RuntimeObservationStatus.ACCEPTED,
+                operation=str(result.get("operation") or envelope.event_type),
+                result=dict(result),
+                payload_digest=digest,
+                changed=True,
+            )
             self._receipts[envelope.event_id] = receipt
             self._receipt_order.append(envelope.event_id)
             self._producer_sequences[self._producer_key(envelope)] = envelope.sequence
