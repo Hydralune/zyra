@@ -1,0 +1,176 @@
+{
+  "schema": "zyra.m1-slice-evidence/v1",
+  "slice_id": "M1-S08-02",
+  "date": "2026-07-23",
+  "slice_baseline_commit": "8065bac109a3bed9ba01e0e92392fec4d05bfca3",
+  "parent_baseline_commit": "44da53ad8ea909147709857e358b7d16e39f6313",
+  "decision_commit": "0a8518e6b7e115df9e862372cb80447b8020eb7e",
+  "implementation_commit": "e7105fdefebe4723c53bd58a3f0353b73744ece0",
+  "implementation_commits": [
+    "94a0a8eb3523a76cc21a0b0be932450fcfb95a38",
+    "353cb1eb1997361b5c2fa4b62b48e941de0c1cf3",
+    "b605bef2b0cc426d208cf6c6a2c2a14138ed080e",
+    "32142d943b535ef2e62e2bf2191c24d5895f0958",
+    "bfd5dede2d0054df544eb6116ddb0eec557d49e1",
+    "e7105fdefebe4723c53bd58a3f0353b73744ece0"
+  ],
+  "evidence_commit": "this_commit",
+  "verdict": "implementation_complete_exit_blocked",
+  "authoritative_state_updated": false,
+  "authoritative_next_slice": "M1-S08-02-main-path-hardening-integration",
+  "migration": {
+    "mode": "audit_and_hardening_only",
+    "new_upstream_runtime": false,
+    "canonical_owner_changed": false,
+    "language_normalization": false,
+    "openclaw": "excluded_forward_only"
+  },
+  "effective_line_audit": {
+    "slice": {
+      "status": "passed",
+      "minimum": 7000,
+      "effective_production": 8016,
+      "margin": 1016,
+      "raw_added": 10707,
+      "raw_deleted": 19,
+      "bucket_raw_added": {"docs": 113, "production": 10050, "test": 544},
+      "bucket_effective": {"docs": 0, "production": 8016, "test": 0},
+      "exclusions": {
+        "blank": 581,
+        "comment": 25,
+        "docs": 113,
+        "docstring_or_literal": 20,
+        "import": 222,
+        "pass_only": 1,
+        "protocol": 12,
+        "schema_dto_field": 496,
+        "schema_dto_header": 44,
+        "signature_continuation": 633,
+        "test": 544
+      }
+    },
+    "parent": {
+      "status": "passed",
+      "minimum": 16000,
+      "effective_production": 17201,
+      "margin": 1201,
+      "raw_added": 23034,
+      "raw_deleted": 5,
+      "bucket_raw_added": {"docs": 476, "production": 21640, "test": 918},
+      "bucket_effective": {"docs": 0, "production": 17201, "test": 0}
+    },
+    "generated": 0,
+    "data": 0,
+    "vendor_like_source_pool": 0,
+    "adapter_only": 0,
+    "mock_fixture_only": 0
+  },
+  "cleanroom": {
+    "status": "passed",
+    "target_commit": "e7105fdefebe4723c53bd58a3f0353b73744ece0",
+    "archive_digest": "08b2f2b627f9e7eef08ce2e1d5bcfa08562e824b95553a54bb54b00e95468991",
+    "receipt_digest": "529790440634d396830672c916e0d55d474d8d5685261e97a618593fcbc579ed",
+    "file_count": 6530,
+    "symlink_count": 0,
+    "residual_count": 0,
+    "outside_link_count": 0,
+    "forbidden_reference_count": 0,
+    "cleanup_ok": true,
+    "locked_bun_version": "1.2.15",
+    "workspace_packages": [
+      "zyra-code-worker",
+      "@zyra/claude-mcp",
+      "@zyra/memory-curator-state-machine",
+      "@zyra/retrieval-algorithms",
+      "@zyra/skill-memory-runtime",
+      "@zyra/claude-runtime",
+      "@zyra/provider-control-plane",
+      "@zyra/runtime-event-spine",
+      "@zyra/sandbox-gateway-control"
+    ],
+    "commands": [
+      {"command_id": "python-compile", "status": "passed", "duration_ms": 3932},
+      {"command_id": "m1-hardening-unit", "status": "passed", "result": "13 passed in 0.48s", "duration_ms": 932},
+      {"command_id": "m1-hardening-integration", "status": "passed", "result": "8 passed in 167.95s", "duration_ms": 168751}
+    ]
+  },
+  "scenario_verification": {
+    "transport": "real_loopback_http",
+    "scenario_count": 6,
+    "status": "behavior_paths_passed_disconnect_matrix_not_run",
+    "execute_disconnects": false,
+    "scenarios": [
+      "m1-integration-query-session-context-tool",
+      "m1-integration-dangerous-tool-permission",
+      "m1-integration-mcp-auth-elicitation",
+      "m1-integration-skill-memory-compact-restore",
+      "m1-integration-subagent-worker-recovery",
+      "m1-integration-api-stream-provider-failover"
+    ]
+  },
+  "disable_matrix": {
+    "status": "blocked",
+    "registered_contracts": 17,
+    "registered_contract_validation": "passed",
+    "scenario_mapped_unique": 12,
+    "executed_final_capabilities": 0,
+    "unmapped_probe_ids": [
+      "disable-code-index",
+      "disable-edge-worker",
+      "disable-graph-state-store",
+      "disable-memory-curator",
+      "disable-workspace-runtime"
+    ],
+    "unbound_or_unproven_owner_flags": [
+      "workspace-runtime",
+      "sandbox-gateway",
+      "runtime-event-spine",
+      "provider-control-plane",
+      "memory-curator",
+      "watchdog",
+      "layered-route",
+      "graph-custody"
+    ]
+  },
+  "validation": [
+    {"scope": "exact commit cleanroom compile", "result": "passed"},
+    {"scope": "exact commit 08-02 unit", "result": "13 passed"},
+    {"scope": "exact commit main path and integration", "result": "8 passed"},
+    {"scope": "recovery planner/API and E02 TypeScript adjacent", "result": "13 passed, 6 subtests passed in 98.97s"},
+    {"scope": "slice effective line gate", "result": "8016/7000 passed"},
+    {"scope": "parent effective line gate", "result": "17201/16000 passed"},
+    {"scope": "python compileall", "result": "passed"},
+    {"scope": "git diff --check", "result": "passed"}
+  ],
+  "known_adjacent_baseline_failures": [
+    {
+      "scope": "worker-pool fanout second child",
+      "error": "retrieval_context_prepare_failed",
+      "baseline_reproduced": true,
+      "current_slice_owner": false
+    },
+    {
+      "scope": "legacy CodeWorker session foundation collection",
+      "error": "missing build_productized_claude_runtime_contracts import",
+      "baseline_reproduced": true,
+      "current_slice_owner": false
+    }
+  ],
+  "blocking_requirements": [
+    "complete and execute all 17 canonical owner disconnect probes with restore and no fallback masking",
+    "one sealed continuous run with at least 1000 effective actions and 2000 canonical transitions",
+    "two high-completion cross-domain live tasks",
+    "real local, isolated edge and cloud execution receipts",
+    "two real provider integrations using distinct wire dialects and models",
+    "dynamic sparse topology low-entropy comparison against full-connect, full-text and static-route baselines",
+    "zero-human fault, requirement-change and node-loss recovery evidence",
+    "all evidence envelopes admitted against the final implementation and evidence commits"
+  ],
+  "state_decision": {
+    "completed_through": "M1-S08-01",
+    "next_slice": "M1-S08-02-main-path-hardening-integration",
+    "protect_08_02": false,
+    "close_parent_m1_08": false,
+    "close_m1": false
+  }
+}
