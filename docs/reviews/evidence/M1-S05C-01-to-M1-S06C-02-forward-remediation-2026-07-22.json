@@ -21,6 +21,7 @@
     "provider_control_plane": "eb16281ec422ab3b0e3b8472434d3037c3d5c694",
     "adjacent_lifecycle_regressions": "4c838265a90fb1059a9390c5d37ba6b52a47f114"
   },
+  "exact_commit_cleanroom_target": "299b61a20103c825d4f0872e3135c35129adb933",
   "historical_verdicts": {
     "M1-S05C-01": "FAIL",
     "M1-S05C-02": "FAIL",
@@ -98,9 +99,25 @@
     {"scope": "retrieval ledger sync check", "result": "PASS"},
     {"scope": "forbidden parent repository runtime paths", "hits": 0}
   ],
+  "exact_commit_cleanroom": {
+    "bun_version": "1.2.15",
+    "frozen_lockfile_install": "PASS",
+    "typescript_typecheck": "PASS",
+    "bun_tests_passed": 26,
+    "node_strip_only_tests_passed": 20,
+    "retrieval_and_provider_python_tests_passed": 32,
+    "retrieval_and_provider_python_elapsed_seconds": 72.16,
+    "lifecycle_tests_passed": 24,
+    "lifecycle_elapsed_seconds": 143.39,
+    "ledger_decisions_aligned": 2,
+    "production_parent_runtime_path_hits": 0,
+    "git_status": "clean",
+    "environment_retry": "The first lifecycle run produced 10 passes and 14 setup errors because pytest could not scan the user temp directory; the identical suite passed with an explicit workspace basetemp.",
+    "temporary_directories_removed": true
+  },
   "limitations": [
     "BrowserWorker does not gain a separate Provider Control Plane LLM dispatch path in this remediation.",
     "Historical baseline-to-implementation verdicts are not rewritten.",
-    "Milestone-exit sealed autonomous, 2000-transition, real local-edge-cloud, full cleanroom and broad long regression gates are not claimed."
+    "Milestone-exit sealed autonomous, 2000-transition, real local-edge-cloud and broad long regression gates are not claimed."
   ]
 }

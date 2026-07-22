@@ -6,6 +6,7 @@
 - 06A implementation：`60af927d4b74ae9785ca5176fdd505fcce8b318f`
 - 05D implementation：`eb16281ec422ab3b0e3b8472434d3037c3d5c694`
 - 相邻生命周期回归修复：`4c838265a90fb1059a9390c5d37ba6b52a47f114`
+- exact-commit cleanroom target：`299b61a20103c825d4f0872e3135c35129adb933`
 - 裁决：**FORWARD_REMEDIATION_PASS**
 
 ## 1. 结论与非追溯边界
@@ -89,10 +90,10 @@ OMP supplementary 没有数值型生产配额；`851` 行是裁剪后的可执�
 | 范围 | 命令/运行时 | 结果 |
 |---|---|---|
 | 全 TypeScript workspace | `bun run typecheck` | PASS |
-| 05D 原回归 | `bun test packages/runtime/provider-control-plane/test/provider-control-plane.test.ts` | 11/11 PASS |
-| 05D remediation | `bun test packages/runtime/provider-control-plane/test/remediation-provider-control-plane.test.ts` | 9/9 PASS |
+| 05D 原回归 | `bun test ./packages/runtime/provider-control-plane/test/provider-control-plane.test.ts` | 11/11 PASS |
+| 05D remediation | `bun test ./packages/runtime/provider-control-plane/test/remediation-provider-control-plane.test.ts` | 9/9 PASS |
 | 05D 双运行时 | `node --experimental-strip-types --test` 运行两个 provider test files | 20/20 PASS |
-| 06A TypeScript | `bun test packages/memory/retrieval-algorithms/test/retrieval-algorithms.test.ts` | 6/6 PASS |
+| 06A TypeScript | `bun test ./packages/memory/retrieval-algorithms/test/retrieval-algorithms.test.ts` | 6/6 PASS |
 | 06A Python foundation/integration/TS port | focused pytest | 12/12 PASS，包含既有 64-concurrent retrieval case |
 | 06A API + CodeWorker | focused pytest | 8/8 PASS |
 | 05D Python port/backend/API/failover | focused pytest | 12/12 PASS |
@@ -102,11 +103,22 @@ OMP supplementary 没有数值型生产配额；`851` 行是裁剪后的可执�
 
 关键 sensitivity cases 包括：predispatch admission/cancel 的 zero-byte 断言、idempotency digest drift、401 credential rotation、tool pairing mutation、TypeScript runtime disable、协议输出 mutation、bridge reset 并发和 replayed APPLIED release。
 
+### 6.1 Exact-commit cleanroom
+
+在 detached `299b61a20103c825d4f0872e3135c35129adb933` 上使用 Bun `1.2.15` 执行 frozen-lockfile install，随后取得：
+
+- workspace TypeScript typecheck PASS；Bun provider/retrieval `11 + 9 + 6 = 26` tests PASS；Node strip-only provider `20/20` PASS；
+- retrieval/provider Python 主路径 `32/32` PASS（72.16s）；
+- event-spine/skill-memory/worker-pool/graph-custody 生命周期组合 `24/24` PASS（143.39s）；
+- 显式 bundled-seed retrieval ledger `2/2` aligned；`apps/**`、`packages/**` 父仓 runtime path hits `0`；cleanroom Git status clean。
+
+生命周期组合首次运行因 pytest 无权扫描用户级临时目录而得到 `10 passed, 14 setup errors`；改用 workspace 内显式 `--basetemp` 后同一组全部通过。这是环境诊断，不作为失败行为被掩盖。cleanroom 与本轮 pytest 临时目录已清理。
+
 ## 7. 限制与未声称事项
 
 - BrowserWorker 本轮没有新增经 Provider Control Plane 发起真实 LLM 请求的独立路径；不能把 CodeWorker/API 的 PCP 证据冒充 Browser provider dispatch 证据。Browser 仍不取得第二 provider owner。
 - 本轮不重新评价或改写历史 slice 的 baseline..implementation 结论，也不把后续补丁计入原实现。
-- 本轮没有执行里程碑退出级 sealed 2,000-transition、真实 local/edge/cloud、完整 cleanroom 或全仓长回归；这些仍属于相应数字阶段聚合/里程碑退出门禁。
+- 本轮已完成本修复范围的 exact-commit frozen-install cleanroom，但没有执行里程碑退出级 sealed 2,000-transition、真实 local/edge/cloud 或全仓长回归；这些仍属于相应数字阶段聚合/里程碑退出门禁。
 - 没有新增对 `../opencode`、`../oh-my-pi`、`../claude-code-best`、`../OpenHands`、`../browser-use` 或已删除 OpenClaw 的运行时依赖。
 
 ## 8. 最终裁决
