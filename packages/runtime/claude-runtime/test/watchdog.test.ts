@@ -89,8 +89,13 @@ test("runtime watchdog emits structured tool timeout and provider signals", asyn
   assert.equal(events[0].fault_kind, "tool_timeout");
   assert.equal((events[0].refs as JsonObject).tool_call_id, "tool-call-watchdog-1");
   assert.equal(events[0].critical_ref_source, "structured_refs_only");
+  const timeoutRecovery = events[0].recovery_receipt as JsonObject;
+  assert.equal(timeoutRecovery.schema, "zyra.omp-recovery-receipt/v1");
+  assert.equal(timeoutRecovery.signal_kind, "tool_timeout");
+  assert.equal((timeoutRecovery.provenance as JsonObject).canonical_policy_owner, "python.RecoveryDecisionRuntime");
   assert.equal(events[1].fault_kind, "model_rate_limit");
   assert.equal((events[1].refs as JsonObject).provider_id, "provider-test");
+  assert.equal((events[1].recovery_receipt as JsonObject).signal_kind, "provider_rate_limit");
   assert.equal(watchdog.snapshot().requirement_changed_is_fault, false);
 });
 

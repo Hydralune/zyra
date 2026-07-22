@@ -23,3 +23,4 @@ export * from "./stdio.ts";
 export * from "./tools.ts";
 export * from "./loop/tool-observation-budget-runtime.ts";
 export * from "./watchdog/index.ts";
+export * from "./recovery/index.ts";

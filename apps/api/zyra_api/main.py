@@ -53,6 +53,15 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/tasks/{task_id}/faults/runtime-events"),
     ("POST", "/tasks/{task_id}/faults/observations"),
     ("POST", "/tasks/{task_id}/faults/handoffs/dispatch"),
+    ("GET", "/tasks/{task_id}/recovery"),
+    ("POST", "/tasks/{task_id}/recovery/signals"),
+    ("POST", "/tasks/{task_id}/recovery/fault-handoff"),
+    ("POST", "/tasks/{task_id}/recovery/worker-handoff"),
+    ("POST", "/tasks/{task_id}/recovery/checkpoints"),
+    ("POST", "/tasks/{task_id}/recovery/checkpoints/{checkpoint_id}/resume"),
+    ("POST", "/tasks/{task_id}/recovery/deltas"),
+    ("GET", "/recovery/plans/{plan_id}"),
+    ("POST", "/recovery/plans/{plan_id}/resume-waiting"),
 )
 
 for package_path in PACKAGE_PATHS:
@@ -68,6 +77,7 @@ from zyra_core import (
     EventRecord,
     EventType,
     MessageIntent,
+    PlanNodeStatus,
     create_task_state,
     new_id,
     now_iso,
@@ -117,6 +127,24 @@ from zyra_scheduler.fault_runtime import (
     FaultApiError,
     FaultRuntimeApiService,
     FaultRuntimeApplication,
+)
+from zyra_scheduler.recovery_runtime import (
+    CallbackRecoveryEventSink,
+    CanonicalOwnerCallbacks,
+    CanonicalTaskStateRuntime,
+    CheckpointCommitRuntime,
+    CheckpointResumeBridge,
+    DeterministicCommitRuntime,
+    LayeredRouteRuntime,
+    RecoveryActionRuntime,
+    RecoveryApplication,
+    RecoveryContextRuntime,
+    RecoveryDecisionRuntime,
+    RecoveryOwnerRuntime,
+    RecoveryPlanStore,
+    RecoverySignalClassifier,
+    RoutingMemoryFeedback,
+    CallbackRoutingMemorySink,
 )
 from zyra_commands import (
     CommandOrigin,
@@ -251,6 +279,8 @@ from zyra_runtime.permission.models import (
     PermissionRuleSource,
     PermissionScope,
     PermissionScopeKind,
+    PermissionMode,
+    ToolIdentity as RuntimePermissionToolIdentity,
 )
 from zyra_workers import (
     BrowserRuntimeConfig,
@@ -332,12 +362,14 @@ if __package__:
     )
     from .provider_backend_api import ProviderBackendApi, reset_provider_control_client
     from .worker_pool_api import WorkerPoolApiService
+    from .recovery_api import RecoveryRuntimeApiService
 else:  # pragma: no cover - direct development script entry.
     from mcp_api import (
         McpApiFacade,
     )
     from provider_backend_api import ProviderBackendApi, reset_provider_control_client
     from worker_pool_api import WorkerPoolApiService
+    from recovery_api import RecoveryRuntimeApiService
 
 from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
 from zyra_scheduler.worker_pool import (
@@ -351,6 +383,13 @@ from zyra_scheduler.worker_pool import (
     WorkerPoolError,
     WorkerPoolErrorCode,
     SchedulerDispatchContext as PhysicalSchedulerDispatchContext,
+)
+from zyra_scheduler.backend_registry import (
+    BackendLocation,
+    BackendRegistry,
+    BackendRegistryStore,
+    BackendSelectionRequest,
+    ensure_default_backends,
 )
 
 
@@ -484,6 +523,682 @@ def reset_fault_runtime_api() -> None:
             _FAULT_RUNTIME_API.close()
         _FAULT_RUNTIME_API = None
         _FAULT_RUNTIME_KEY = None
+
+
+def recovery_runtime_path() -> Path:
+    configured_value = os.environ.get("ZYRA_RECOVERY_RUNTIME_STORE", "").strip()
+    if configured_value:
+        configured = Path(configured_value)
+        return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    canonical = sqlite_path()
+    return canonical.with_name(f"{canonical.stem}.recovery-runtime.sqlite3")
+
+
+_RECOVERY_RUNTIME_LOCK = threading.RLock()
+_RECOVERY_RUNTIME_API: RecoveryRuntimeApiService | None = None
+_RECOVERY_RUNTIME_KEY: tuple[str, str, str, str] | None = None
+
+
+def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
+    def require_state(request: Mapping[str, Any]):
+        task_id = str(request.get("task_id") or "")
+        state = store.load_task(task_id)
+        if state is None:
+            raise ValueError(f"task state not found: {task_id}")
+        if str(request.get("run_id") or state.run_id) != state.run_id:
+            raise ValueError("recovery owner request run identity mismatch")
+        return state
+
+    def worker_successor(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        before = dict(state.metadata.get("worker_pool") or {})
+        worker_api = get_worker_pool_api()
+        prior_lease_id = str(before.get("lease_id") or "")
+        if prior_lease_id:
+            prior = worker_api.pool.store.get_lease(prior_lease_id)
+            if prior is not None and not prior.terminal:
+                worker_api.pool.leases.cancel(
+                    prior.lease_id,
+                    reason=f"recovery successor requested by {request.get('plan_id')}",
+                )
+        excluded = {
+            str(item) for item in request.get("excluded_refs") or () if str(item)
+        }
+        if before.get("worker_id"):
+            excluded.add(str(before["worker_id"]))
+        acquisition = worker_api.acquire_for_task(
+            state,
+            payload={
+                "excluded_worker_ids": sorted(excluded),
+                "required_capabilities": list(
+                    (request.get("constraints") or {}).get("worker", {}).get("required_capabilities")
+                    or ("agent_task",)
+                ),
+                "idempotency_key": str(request.get("idempotency_key") or ""),
+                "ttl_seconds": 3600.0,
+            },
+        )
+        after = dict(state.metadata.get("worker_pool") or {})
+        store.save_checkpoint(state)
+        return {
+            "accepted": True,
+            "changed": before.get("lease_id") != after.get("lease_id"),
+            "before": before,
+            "after": after,
+            "canonical_ref": {
+                "attempt_id": acquisition.attempt.attempt_id,
+                "lease_id": acquisition.lease.lease_id,
+                "fence_epoch": acquisition.lease.fence_epoch,
+                "worker_id": acquisition.worker.worker_id,
+            },
+            "receipt_id": acquisition.lease.lease_id,
+            "message": "WorkerPoolFoundationRuntime allocated a successor lease",
+        }
+
+    def backend_successor(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        before = dict(state.metadata.get("backend_route") or state.metadata.get("worker_pool") or {})
+        provider = dict(state.metadata.get("provider_route") or {})
+        workspace = task_workspace_root(
+            task_id=state.task_id,
+            session_id=str(state.metadata.get("query_session_id") or f"task:{state.task_id}"),
+            worker_id=str(before.get("worker_id") or "recovery-worker"),
+        )
+        registry_store = BackendRegistryStore(backend_registry_path(artifact_root_path()))
+        try:
+            registry = BackendRegistry(registry_store)
+            ensure_default_backends(registry)
+            locations = tuple(
+                BackendLocation(str(item))
+                for item in (request.get("constraints") or {}).get("allowed_locations") or ()
+            )
+            selection = BackendSelectionRequest(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                runtime_worker="CodeWorkerRuntime",
+                preferred_backend_id=None,
+                required_capabilities=("code-change",),
+                allowed_locations=locations,
+                excluded_backend_ids=tuple({
+                    *[str(item) for item in request.get("excluded_refs") or () if str(item)],
+                    *([str(before.get("backend_id"))] if before.get("backend_id") else []),
+                }),
+                workspace_root=str(workspace),
+                artifact_root=str(artifact_root_path()),
+                provider_route_id=str(provider.get("route_id") or "") or None,
+                provider_route_checksum=str(provider.get("checksum") or ""),
+                provider_catalog_revision=int(provider.get("catalog_revision") or 0),
+                provider_credential_version=int(provider.get("credential_version") or 0),
+                provider_credential_fingerprint=str(provider.get("credential_fingerprint") or ""),
+                provider_transport_id=str(provider.get("transport_id") or ""),
+                m0_execution_ref=str(state.metadata.get("m0_execution_ref") or ""),
+                turn_id=str(state.metadata.get("turn_id") or f"recovery:{request.get('plan_id')}"),
+                metadata={"recovery_plan_id": str(request.get("plan_id") or "")},
+            )
+            lease = registry.acquire(selection)
+            after = lease.to_dict()
+            return {
+                "accepted": True,
+                "changed": before.get("backend_id") != lease.backend_id,
+                "before": before,
+                "after": after,
+                "canonical_ref": {
+                    "backend_lease_id": lease.lease_id,
+                    "backend_id": lease.backend_id,
+                    "registry_revision": lease.registry_revision,
+                },
+                "receipt_id": lease.lease_id,
+                "message": "BackendRegistry allocated a successor backend lease",
+            }
+        finally:
+            registry_store.close()
+
+    def provider_successor(request: Mapping[str, Any], *, degrade: bool = False) -> Mapping[str, Any]:
+        state = require_state(request)
+        before = dict(state.metadata.get("provider_route") or {})
+        provider_api = ProviderBackendApi(project_root=PROJECT_ROOT, artifact_root=artifact_root_path())
+        constraints = dict((request.get("constraints") or {}).get("provider") or {})
+        excluded = [str(item) for item in request.get("excluded_refs") or () if str(item)]
+        provider_ids = [
+            str(item) for item in constraints.get("provider_ids") or ()
+            if str(item) and str(item) not in excluded
+        ]
+        model_ids = [str(item) for item in constraints.get("degrade_model_ids") or () if str(item)] if degrade else [
+            str(item) for item in constraints.get("model_ids") or () if str(item)
+        ]
+        response = provider_api.handle_post(
+            ("providers", "routes"),
+            {
+                "request": {
+                    "runId": state.run_id,
+                    "taskId": state.task_id,
+                    "nodeId": state.root_node_id,
+                    "sessionId": str(state.metadata.get("query_session_id") or f"task:{state.task_id}"),
+                    "turnId": str(state.metadata.get("turn_id") or f"recovery:{request.get('plan_id')}"),
+                    "purpose": "reason",
+                    "preferredProviderId": None,
+                    "preferredModelId": None,
+                    "routeHint": "recovery-degrade" if degrade else "recovery-failover",
+                    "constraints": {
+                        "providerIds": provider_ids,
+                        "modelIds": model_ids,
+                        "requiredInput": list(constraints.get("required_input") or ("text",)),
+                        "requiredOutput": list(constraints.get("required_output") or ("text",)),
+                        "requireTools": bool(constraints.get("require_tools", True)),
+                        "requireStreaming": bool(constraints.get("require_streaming", False)),
+                        "minimumContextWindow": int(constraints.get("minimum_context_window") or 0),
+                        "maximumInputPricePerMillion": constraints.get("maximum_input_price_per_million"),
+                        "maximumOutputPricePerMillion": constraints.get("maximum_output_price_per_million"),
+                        "excludedCredentialIds": list(constraints.get("excluded_credential_ids") or ()),
+                        "requiredScopes": list(constraints.get("required_scopes") or ()),
+                    },
+                    "metadata": {
+                        "recovery_plan_id": str(request.get("plan_id") or ""),
+                        "excluded_provider_ids": excluded,
+                    },
+                },
+                "previous_route_id": str(before.get("routeId") or before.get("route_id") or "") or None,
+            },
+        )
+        if response is None or int(response.status) >= 400:
+            body = {} if response is None else dict(response.body)
+            return {
+                "accepted": False,
+                "changed": False,
+                "before": before,
+                "after": before,
+                "error_code": str(body.get("error") or "provider_route_unavailable"),
+                "message": str(body.get("message") or "ProviderControlPlane rejected route acquisition"),
+            }
+        after = dict(response.body.get("result") or {})
+        return {
+            "accepted": True,
+            "changed": before.get("routeId") != after.get("routeId"),
+            "before": before,
+            "after": {
+                **after,
+                "route_id": after.get("routeId", ""),
+                "provider_id": after.get("providerId", ""),
+                "model_id": after.get("modelId", ""),
+                "credential_id": after.get("credentialId", ""),
+                "transport_id": after.get("transportId", ""),
+            },
+            "canonical_ref": {
+                "route_id": after.get("routeId", ""),
+                "checksum": after.get("checksum", ""),
+                "catalog_revision": after.get("catalogRevision", 0),
+            },
+            "receipt_id": str(after.get("routeId") or ""),
+            "message": "ProviderControlPlane allocated a recovery route",
+        }
+
+    def graph_replan(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        worker_api = get_worker_pool_api()
+        graph_id_value = worker_api.ensure_task_graph(state)
+        before = worker_api.topology.version_ref(graph_id_value).to_dict()
+        branch = worker_api.graph_custody.branch(
+            graph_id_value,
+            branch_id=f"recovery:{request.get('plan_id')}",
+            actor_id="RecoveryDecisionRuntime",
+            causation_id=str(request.get("signal_id") or ""),
+            idempotency_key=str(request.get("idempotency_key") or ""),
+            metadata={"recovery_action": "replan"},
+        )
+        branch.set_metadata("recovery_replan", {
+            "plan_id": str(request.get("plan_id") or ""),
+            "signal_id": str(request.get("signal_id") or ""),
+            "reason": str(request.get("reason") or "recovery replan"),
+            "requested_at": now_iso(),
+        })
+        committed = worker_api.graph_custody.commit(branch.build())
+        if not committed.receipt.committed:
+            return {
+                "accepted": False,
+                "before": before,
+                "after": before,
+                "error_code": "graph_replan_conflict",
+                "message": "GraphStateCustody rejected recovery replan",
+                "metadata": {"receipt": committed.receipt.to_dict()},
+            }
+        after = worker_api.topology.version_ref(graph_id_value).to_dict()
+        state.metadata["dynamic_graph_ref"] = after
+        store.save_checkpoint(state)
+        return {
+            "accepted": True,
+            "changed": before != after,
+            "before": before,
+            "after": after,
+            "canonical_ref": after,
+            "receipt_id": committed.receipt.commit_id,
+            "message": "GraphStateCustody committed a recovery replan mutation",
+        }
+
+    def retry_request(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        root = state.plan_nodes.get(state.root_node_id)
+        before = {
+            "task_status": str(state.status),
+            "root_status": str(root.status) if root is not None else "",
+            "retry_generation": int((state.metadata.get("recovery_runtime") or {}).get("retry_generation") or 0),
+        }
+        if root is not None and root.status in {PlanNodeStatus.FAILED, PlanNodeStatus.BLOCKED}:
+            root.status = PlanNodeStatus.PENDING
+            root.updated_at = now_iso()
+        if state.status in {PlanNodeStatus.FAILED, PlanNodeStatus.BLOCKED}:
+            state.status = PlanNodeStatus.PENDING
+        after = {
+            **before,
+            "task_status": str(state.status),
+            "root_status": str(root.status) if root else "",
+            "retry_generation": int(before["retry_generation"]) + 1,
+        }
+        store.save_checkpoint(state)
+        return {
+            "accepted": True,
+            "changed": True,
+            "before": before,
+            "after": after,
+            "receipt_id": str(request.get("request_digest") or ""),
+            "message": "QueryEngine task projection was reopened for a bounded retry",
+            "metadata": {"retry_delay_ms": (request.get("metadata") or {}).get("retry_delay_ms", 0)},
+        }
+
+    def permission_request(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        context = dict(request.get("context") or {})
+        permission_state = dict(context.get("permission_state") or {})
+        session_id = str(state.metadata.get("query_session_id") or permission_state.get("session_id") or f"task:{state.task_id}")
+        facade = get_permission_api_facade(task_id=state.task_id, session_id=session_id)
+        token = str(permission_state.get("custody_token") or "")
+        if not token:
+            opened = facade.open_session(
+                session_id=session_id,
+                run_id=state.run_id,
+                task_id=state.task_id,
+                external_session_exists=False,
+            )
+            token = str((opened.body.get("session") or {}).get("bearer_token") or "")
+        authority = facade.authority(
+            session_id=session_id,
+            run_id=state.run_id,
+            task_id=state.task_id,
+            custody_token=token,
+            actor_id="recovery-runtime",
+        )
+        tool_name = str(permission_state.get("tool_name") or "recovery-action")
+        response = facade.create_request(
+            authority,
+            {
+                "run_id": state.run_id,
+                "task_id": state.task_id,
+                "session_id": session_id,
+                "tool_use_id": str(permission_state.get("tool_call_id") or request.get("signal_id") or request.get("plan_id")),
+                "tool_identity": {
+                    "namespace": str(permission_state.get("tool_namespace") or "recovery"),
+                    "name": tool_name,
+                    "server_id": str(permission_state.get("server_id") or ""),
+                },
+                "arguments": dict(permission_state.get("arguments") or {}),
+                "worker_request_id": str(permission_state.get("worker_request_id") or "recovery-runtime"),
+                "node_id": state.root_node_id,
+                "mode": PermissionMode.DEFAULT.value,
+                "workspace_root": str(permission_session_workspace_root(task_id=state.task_id, session_id=session_id)),
+                "interactive": True,
+                "requires_interaction": True,
+                "reason_code": "recovery.permission_required",
+                "reason": str(request.get("reason") or "recovery requires permission"),
+            },
+            service_token=os.environ.get("ZYRA_PERMISSION_SERVICE_TOKEN", ""),
+        )
+        persist_events(store, list(response.events))
+        result = dict(response.body.get("result") or {})
+        request_projection = dict(result.get("request") or result)
+        request_id = str(request_projection.get("request_id") or "")
+        return {
+            "accepted": bool(request_id),
+            "changed": bool(request_id),
+            "before": {"pending": False},
+            "after": {"pending": True, "request_id": request_id, "session_id": session_id},
+            "canonical_ref": {"permission_request_id": request_id},
+            "receipt_id": request_id,
+            "message": "PermissionControlPlane created an interactive recovery request",
+            "metadata": {"deferred": True, "custody_token_persisted": False},
+        }
+
+    def mcp_authenticate(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        signal = dict(request.get("plan") or {})
+        server_id = str(
+            (signal.get("signal") or {}).get("refs", {}).get("mcp_server_id")
+            or (request.get("context") or {}).get("metadata", {}).get("mcp_server_id")
+            or ""
+        )
+        if not server_id:
+            return {
+                "accepted": False,
+                "error_code": "mcp_server_id_missing",
+                "message": "MCP authentication requires a structured server id",
+            }
+        event = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            event_type=EventType.MCP_AUTH_CHANGED,
+            payload={
+                "server_id": server_id,
+                "state": "needs_auth",
+                "control_action": "authenticate",
+                "recovery_plan_id": str(request.get("plan_id") or ""),
+                "credential_material_in_event": False,
+            },
+        )
+        persist_events(store, [event])
+        return {
+            "accepted": True,
+            "changed": True,
+            "before": {"server_id": server_id, "state": "needs_auth"},
+            "after": {"server_id": server_id, "state": "authenticating", "event_id": event.event_id},
+            "canonical_ref": {"event_id": event.event_id, "server_id": server_id},
+            "receipt_id": event.event_id,
+            "message": "MCP authentication control path was opened",
+            "metadata": {"deferred": True, "credential_material_persisted": False},
+        }
+
+    def compact_context(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        before = len(store.task_compactions(state.task_id))
+        result = _memory_fabric(store).compact_context(
+            state,
+            store.task_events(state.task_id),
+            focus=str(request.get("reason") or "recovery prompt-too-long compaction"),
+            source_event_id=str(request.get("signal_id") or ""),
+            persist=True,
+        )
+        after = len(store.task_compactions(state.task_id))
+        return {
+            "accepted": True,
+            "changed": after > before,
+            "before": {"compaction_count": before},
+            "after": {
+                "compaction_count": after,
+                "compact_id": result.compact_id,
+                "artifact_ids": list(result.artifact_ids),
+                "compression_ratio": result.compression_ratio,
+            },
+            "canonical_ref": {"compact_id": result.compact_id, "artifact_ids": list(result.artifact_ids)},
+            "receipt_id": result.compact_id,
+            "message": "MemoryFabric compacted the canonical task context",
+        }
+
+    def abort_task(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        before = {"status": str(state.status)}
+        state.status = PlanNodeStatus.FAILED
+        root = state.plan_nodes.get(state.root_node_id)
+        if root is not None and root.status not in {PlanNodeStatus.COMPLETED, PlanNodeStatus.CANCELLED}:
+            root.status = PlanNodeStatus.FAILED
+            root.updated_at = now_iso()
+        store.save_checkpoint(state)
+        return {
+            "accepted": True,
+            "changed": before["status"] != str(state.status),
+            "before": before,
+            "after": {"status": str(state.status)},
+            "receipt_id": str(request.get("request_digest") or ""),
+            "message": "TaskState entered a terminal failed state",
+        }
+
+    def session_resume(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        event = EventRecord(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            event_type=EventType.AGENT_MESSAGE,
+            payload={
+                "query_session": {
+                    "phase": "session_resume_recovery",
+                    "session_id": str(request.get("session_id") or ""),
+                    "checkpoint_id": str(request.get("checkpoint_id") or ""),
+                    "worker_request_id": str(state.metadata.get("worker_request_id") or ""),
+                    "ok": True,
+                }
+            },
+        )
+        persist_events(store, [event])
+        return {
+            "accepted": True,
+            "changed": True,
+            "before": {"resume_event_id": ""},
+            "after": {"resume_event_id": event.event_id},
+            "canonical_ref": {"event_id": event.event_id},
+            "receipt_id": event.event_id,
+        }
+
+    def compact_restore(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        snapshot = _memory_fabric(store).refresh_task_memory(
+            state,
+            store.task_events(state.task_id),
+            persist=True,
+        )
+        return {
+            "accepted": True,
+            "changed": bool(snapshot.records),
+            "before": {},
+            "after": {"memory_record_count": len(snapshot.records)},
+            "canonical_ref": {"memory_ids": [item.memory_id for item in snapshot.records]},
+            "receipt_id": new_id("compact_restore"),
+        }
+
+    def worker_rebind(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        before = dict(state.metadata.get("worker_pool") or {})
+        acquisition = get_worker_pool_api().ensure_task_lease(
+            state,
+            payload={"idempotency_key": str(request.get("idempotency_key") or "")},
+        )
+        after = dict(state.metadata.get("worker_pool") or {})
+        store.save_checkpoint(state)
+        return {
+            "accepted": True,
+            "changed": before != after,
+            "before": before,
+            "after": after,
+            "canonical_ref": after,
+            "receipt_id": str(after.get("lease_id") or new_id("worker_rebind")),
+            "metadata": {"existing_lease_reused": acquisition is None},
+        }
+
+    def graph_rebind(request: Mapping[str, Any]) -> Mapping[str, Any]:
+        state = require_state(request)
+        graph_id_value = get_worker_pool_api().ensure_task_graph(state)
+        snapshot = get_worker_pool_api().graph_custody.current(graph_id_value)
+        ref = get_worker_pool_api().topology.version_ref(graph_id_value).to_dict()
+        store.save_checkpoint(state)
+        return {
+            "accepted": True,
+            "changed": False,
+            "before": ref,
+            "after": ref,
+            "canonical_ref": ref,
+            "receipt_id": snapshot.commit_id,
+        }
+
+    def permission_snapshot(signal: Any) -> Mapping[str, Any]:
+        state = get_permission_control_plane().state_store.read_state()
+        requests = state.get("requests") if isinstance(state, Mapping) else {}
+        task_requests = [
+            value for value in (requests or {}).values()
+            if isinstance(value, Mapping) and str(value.get("task_id") or "") == signal.refs.task_id
+        ]
+        return {
+            "revision": int(state.get("revision") or 0),
+            "pending_count": sum(str(item.get("status") or "") == "pending" for item in task_requests),
+            "request_ids": [str(item.get("request_id") or "") for item in task_requests],
+            "secret_values_exposed": False,
+        }
+
+    def worker_snapshot(signal: Any) -> Mapping[str, Any]:
+        state = store.load_task(signal.refs.task_id)
+        projection = dict(state.metadata.get("worker_pool") or {}) if state is not None else {}
+        worker_id = str(projection.get("worker_id") or "")
+        health = None
+        if worker_id:
+            try:
+                health = get_worker_pool_api().pool.heartbeats.assess(worker_id).to_dict()
+            except Exception:
+                health = None
+        return {**projection, "health": health, "available": state is not None}
+
+    def backend_snapshot(signal: Any) -> Mapping[str, Any]:
+        state = store.load_task(signal.refs.task_id)
+        return {
+            **(dict(state.metadata.get("backend_route") or {}) if state is not None else {}),
+            "available": state is not None,
+        }
+
+    def provider_snapshot(signal: Any) -> Mapping[str, Any]:
+        state = store.load_task(signal.refs.task_id)
+        projection = dict(state.metadata.get("provider_route") or {}) if state is not None else {}
+        response = ProviderBackendApi(
+            project_root=PROJECT_ROOT,
+            artifact_root=artifact_root_path(),
+        ).handle_get(("providers", "routes"), {"run_id": signal.refs.run_id, "task_id": signal.refs.task_id})
+        routes = [] if response is None or int(response.status) >= 400 else response.body.get("result", [])
+        return {**projection, "routes": routes, "available": response is not None and int(response.status) < 400}
+
+    return CanonicalOwnerCallbacks(
+        worker_successor=worker_successor,
+        backend_successor=backend_successor,
+        provider_successor=provider_successor,
+        model_degrade=lambda request: provider_successor(request, degrade=True),
+        graph_replan=graph_replan,
+        retry_request=retry_request,
+        permission_request=permission_request,
+        mcp_authenticate=mcp_authenticate,
+        compact_context=compact_context,
+        abort_task=abort_task,
+        session_resume=session_resume,
+        compact_restore=compact_restore,
+        worker_rebind=worker_rebind,
+        graph_rebind=graph_rebind,
+        permission_snapshot=permission_snapshot,
+        worker_snapshot=worker_snapshot,
+        backend_snapshot=backend_snapshot,
+        provider_snapshot=provider_snapshot,
+    )
+
+
+def get_recovery_runtime_api(store: SQLiteStore | None = None) -> RecoveryRuntimeApiService:
+    global _RECOVERY_RUNTIME_API, _RECOVERY_RUNTIME_KEY
+    canonical = store or get_store()
+    recovery_path = recovery_runtime_path().resolve()
+    key = (
+        str(Path(canonical.path).resolve()),
+        str(recovery_path),
+        str(worker_pool_path().resolve()),
+        str(backend_registry_path(artifact_root_path()).resolve()),
+    )
+    with _RECOVERY_RUNTIME_LOCK:
+        if _RECOVERY_RUNTIME_API is not None and _RECOVERY_RUNTIME_KEY == key:
+            return _RECOVERY_RUNTIME_API
+        recovery_store = RecoveryPlanStore(recovery_path)
+        recovery_store.initialize()
+        feedback = RoutingMemoryFeedback(
+            recovery_store,
+            sinks=(CallbackRoutingMemorySink(lambda record: _persist_recovery_memory(canonical, record)),),
+        )
+        task_state = CanonicalTaskStateRuntime(canonical)
+        owner_runtime = RecoveryOwnerRuntime(task_state, _recovery_owner_callbacks(canonical))
+        route_owners = owner_runtime.route_registry()
+        routes = LayeredRouteRuntime(recovery_store, route_owners)
+        context = RecoveryContextRuntime(
+            recovery_store,
+            feedback,
+            snapshot_ports=owner_runtime.snapshot_ports(),
+            route_owners=route_owners,
+        )
+        resume_owners = owner_runtime.resume_owners()
+        resume = CheckpointResumeBridge(
+            recovery_store,
+            session_owner=resume_owners.get("session"),
+            compact_owner=resume_owners.get("compact"),
+            worker_owner=resume_owners.get("worker"),
+            graph_owner=resume_owners.get("graph"),
+        )
+        actions = RecoveryActionRuntime(
+            recovery_store,
+            routes,
+            feedback,
+            ports=owner_runtime.action_registry(),
+            resume_bridge=resume,
+            executor_id=f"api-recovery:{os.getpid()}",
+        )
+        application = RecoveryApplication(
+            recovery_store,
+            RecoverySignalClassifier(),
+            RecoveryDecisionRuntime(recovery_store),
+            actions,
+            routes,
+            feedback,
+            CheckpointCommitRuntime(recovery_store),
+            DeterministicCommitRuntime(recovery_store),
+            context_resolver=context,
+            resume_bridge=resume,
+            event_sinks=(CallbackRecoveryEventSink(lambda event_type, payload: _persist_recovery_event(canonical, event_type, payload)),),
+            enabled=lambda: not _truthy(os.environ.get("ZYRA_DISABLE_RECOVERY_RUNTIME"), default=False),
+        )
+        _RECOVERY_RUNTIME_API = RecoveryRuntimeApiService(application)
+        _RECOVERY_RUNTIME_KEY = key
+        return _RECOVERY_RUNTIME_API
+
+
+def reset_recovery_runtime_api() -> None:
+    global _RECOVERY_RUNTIME_API, _RECOVERY_RUNTIME_KEY
+    with _RECOVERY_RUNTIME_LOCK:
+        _RECOVERY_RUNTIME_API = None
+        _RECOVERY_RUNTIME_KEY = None
+
+
+def _persist_recovery_event(
+    store: SQLiteStore,
+    event_type: str,
+    payload: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    mapped = EventType.RECOVERY_PLANNED if event_type == "recovery_planned" else EventType.TOPOLOGY_ROUTE
+    event = EventRecord(
+        run_id=str(payload["run_id"]),
+        task_id=str(payload["task_id"]),
+        node_id=None,
+        event_type=mapped,
+        payload={"recovery_runtime": {"phase": event_type, **dict(payload)}},
+    )
+    persist_events(store, [event])
+    return {"event_id": event.event_id, "event_type": event.event_type.value}
+
+
+def _persist_recovery_memory(store: SQLiteStore, record: Any) -> Mapping[str, Any]:
+    event = EventRecord(
+        run_id=record.run_id,
+        task_id=record.task_id,
+        event_type=EventType.TOPOLOGY_ROUTE,
+        payload={"routing_memory": record.to_dict()},
+    )
+    persist_events(store, [event])
+    state = store.load_task(record.task_id)
+    if state is not None:
+        snapshot = _memory_fabric(store).refresh_task_memory(
+            state,
+            store.task_events(record.task_id),
+            persist=True,
+        )
+        memory_count = len(snapshot.records)
+    else:
+        memory_count = 0
+    return {"event_id": event.event_id, "memory_record_count": memory_count}
 
 
 def codeworker_fault_observation_sink(
@@ -2598,6 +3313,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        recovery_response = get_recovery_runtime_api(store).route_get(
+            tuple(parts),
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if recovery_response is not None:
+            self._send_json(
+                recovery_response.status,
+                dict(recovery_response.body),
+                headers=dict(recovery_response.headers),
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "faults":
             fault_task = store.load_task(parts[1])
             fault_api = get_fault_runtime_api(store)
@@ -4045,14 +4772,6 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, _scheduler_task_view(state, store))
             return
 
-        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "recovery":
-            state = store.load_task(parts[1])
-            if state is None:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
-                return
-            self._send_json(HTTPStatus.OK, _recovery_task_view(state, store))
-            return
-
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "artifacts":
             state = store.load_task(parts[1])
             if state is None:
@@ -4098,6 +4817,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
+
+        recovery_response = get_recovery_runtime_api(store).route_post(tuple(parts), payload)
+        if recovery_response is not None:
+            self._send_json(
+                recovery_response.status,
+                dict(recovery_response.body),
+                headers=dict(recovery_response.headers),
+            )
             return
 
         if self._handle_permission_post(parts=parts, payload=payload, store=store):

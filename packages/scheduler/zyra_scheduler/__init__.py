@@ -53,6 +53,13 @@ from .backend_registry import (
     dispatch_worker_callable,
     event_record_from_backend,
 )
+from .recovery_runtime import (
+    RecoveryApplication,
+    RecoveryDecisionRuntime,
+    RecoveryPlanStore,
+    RecoverySignalClassifier,
+    RoutingMemoryFeedback,
+)
 
 __all__ = [
     "DispatchEnvelope",
@@ -108,4 +115,9 @@ __all__ = [
     "dispatch_worker_callable",
     "event_record_from_backend",
     "source_to_target_ledger",
+    "RecoveryApplication",
+    "RecoveryDecisionRuntime",
+    "RecoveryPlanStore",
+    "RecoverySignalClassifier",
+    "RoutingMemoryFeedback",
 ]

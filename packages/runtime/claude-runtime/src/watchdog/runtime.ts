@@ -15,6 +15,7 @@ import {
   CrossRuntimeFaultSupervisor,
   crossRuntimeFaultSupervisorContract,
 } from "./integration-supervisor.ts";
+import { OmpRecoveryReceiptRuntime } from "../recovery/omp-recovery-runtime.ts";
 
 export type WatchdogMaturity =
   | "active_real"
@@ -327,9 +328,11 @@ export class RuntimeWatchdogObserver {
   private context: RuntimeRunInput | null = null;
   private readonly emit: EmitFaultEvent;
   readonly supervision: CrossRuntimeFaultSupervisor;
+  readonly recoveryReceipts: OmpRecoveryReceiptRuntime;
 
   constructor(emit: EmitFaultEvent) {
     this.emit = emit;
+    this.recoveryReceipts = new OmpRecoveryReceiptRuntime();
     this.supervision = new CrossRuntimeFaultSupervisor(
       async (observerId, observation) => await this.observeSupplementary(observerId, observation),
     );
@@ -554,6 +557,7 @@ export class RuntimeWatchdogObserver {
       requirement_changed_is_fault: false,
       free_text_identity_inference: false,
       cross_runtime_supervision: this.supervision.snapshot(),
+      recovery_receipts: this.recoveryReceipts.snapshot(),
     };
   }
 
@@ -610,6 +614,30 @@ export class RuntimeWatchdogObserver {
     }
     this.sequence += 1;
     state.emittedCount += 1;
+    const recoveryReceipt = this.recoveryReceipts.receipt({
+      kind: classification.kind,
+      retryable: classification.retryable,
+      terminal: classification.terminal,
+      statusCode: normalized.statusCode,
+      observedCode: normalized.code,
+      errorType: normalized.errorType,
+      refs: {
+        runId: normalized.refs.runId,
+        taskId: normalized.refs.taskId,
+        sessionId: normalized.refs.sessionId,
+        requestId: asString(normalized.details.request_id) || normalized.refs.attemptId,
+        responseId: asString(normalized.details.response_id),
+        attemptId: normalized.refs.attemptId,
+        workerId: normalized.refs.workerId,
+        backendId: normalized.refs.backendId,
+        providerId: normalized.refs.providerId,
+        modelId: asString(normalized.details.model_id),
+        mcpServerId: normalized.refs.mcpServerId,
+        toolCallId: normalized.refs.toolCallId,
+      },
+      details: normalized.details,
+      observedAt: normalized.observedAt,
+    });
     await this.emit({
       phase: "tool_failure_signal",
       sequence: this.sequence,
@@ -634,6 +662,7 @@ export class RuntimeWatchdogObserver {
         maturity: state.descriptor.maturity,
       },
       critical_ref_source: "structured_refs_only",
+      recovery_receipt: recoveryReceipt as unknown as JsonObject,
       injection_id: "",
     });
   }
