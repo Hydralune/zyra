@@ -122,6 +122,12 @@ class RecoverySignalClassifier:
             "provider_rate_limit": "rate_limited",
             "worker_heartbeat_stale": "worker_heartbeat_stale",
             "worker_lost": "worker_lost",
+            # The watchdog/fault runtime canonicalizes the public
+            # ``worker_lost`` injection kind to its containment-domain
+            # ``worker_unavailable`` fault kind.  Preserve the typed handoff
+            # across that domain boundary instead of degrading it to an
+            # unknown failure that requires an unsafe allow_unknown escape.
+            "worker_unavailable": "worker_lost",
             "backend_unavailable": "backend_unavailable",
             "subagent_failed": "subagent_failed",
             "workspace_conflict": "workspace_conflict",

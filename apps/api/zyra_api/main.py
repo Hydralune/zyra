@@ -69,6 +69,10 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/hardening/m1/audit"),
     ("POST", "/hardening/m1/reports/{report_id}/verify"),
     ("POST", "/tasks/{task_id}/hardening/m1/foundation"),
+    ("GET", "/hardening/m1/integration/status"),
+    ("GET", "/hardening/m1/integration/runs"),
+    ("GET", "/hardening/m1/integration/runs/{run_id}"),
+    ("POST", "/hardening/m1/integration"),
 )
 
 for package_path in PACKAGE_PATHS:
@@ -324,6 +328,7 @@ from zyra_workers import (
 from zyra_workers.subagents.typescript_port import TypeScriptAgentDurablePort
 from zyra_evaluation import evaluate_task_trace
 from zyra_evaluation.m1_hardening.api import M1HardeningApi
+from zyra_evaluation.m1_hardening.integration_service import M1IntegrationService
 from zyra_evaluation.m1_hardening.service import M1HardeningService
 from zyra_integrations import (
     LedgerAdvanceRequest,
@@ -378,7 +383,11 @@ from zyra_integrations import (
     unit_review_payload,
     validate_entry_for_persistence,
 )
-from zyra_integrations.e02_ports import TypeScriptE02ApiPort, TypeScriptE02PortError
+from zyra_integrations.e02_ports import (
+    TypeScriptE02ApiPort,
+    TypeScriptE02PortError,
+    materialize_bundled_skills,
+)
 
 if __package__:
     from .mcp_api import (
@@ -1987,7 +1996,13 @@ def get_m1_hardening_api() -> M1HardeningApi:
             )
             _M1_HARDENING_API_INSTANCE = M1HardeningApi(
                 service,
-                default_baseline="44da53ad8ea909147709857e358b7d16e39f6313",
+                default_baseline="8065bac109a3bed9ba01e0e92392fec4d05bfca3",
+                integration_service=M1IntegrationService(
+                    PROJECT_ROOT,
+                    source_workspace=PROJECT_ROOT.parent,
+                    artifact_root=hardening_root,
+                    foundation_service=service,
+                ),
             )
             _M1_HARDENING_API_KEY = key
         return _M1_HARDENING_API_INSTANCE
@@ -5373,6 +5388,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload,
             task_loader=lambda task_id: _hardening_task_payload(store, task_id),
             event_loader=lambda task_id: tuple(store.task_events(task_id)),
+            base_url=f"http://127.0.0.1:{self.server.server_address[1]}",
         )
         if hardening_response is not None:
             self._send_json(
@@ -6718,6 +6734,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "namespace": str(payload.get("namespace") or ""),
                         "server_id": str(payload.get("server_id") or ""),
                         "operation": str(payload.get("operation") or "api.execute"),
+                        "permit_id": str(payload.get("permit_id") or ""),
                         "actor_id": self._permission_actor_id(),
                         "correlation_id": str(payload.get("correlation_id") or tool_call_id),
                         "task_id": state.task_id,
@@ -7132,6 +7149,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "tool_call_id": tool_call_id,
                         "namespace": "skill",
                         "operation": "invoke",
+                        "permit_id": str(payload.get("permit_id") or ""),
                         "actor_id": self._permission_actor_id(),
                         "correlation_id": str(payload.get("correlation_id") or tool_call_id),
                         "task_id": state.task_id,
@@ -7314,6 +7332,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     worker_id="CodeWorkerRuntime",
                 )
                 worker_workspace_root = workspace_manager.internal_task_root(workspace_access)
+                materialize_bundled_skills(PROJECT_ROOT, worker_workspace_root)
             except WorkspaceError as error:
                 response = workspace_error_response(error)
                 self._send_json(response.status, response.body, headers=dict(response.headers))

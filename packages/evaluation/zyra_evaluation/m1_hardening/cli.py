@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .contracts import HardeningContext
+from .integration_service import IntegrationOptions, M1IntegrationService
 from .reporting import ReportComparator
+from .release_reporting import ReleaseReportBuilder, ReleaseReportStore
 from .service import AuditOptions, M1HardeningService
 from .store import HardeningStoreError, ReportIntegrityError, ReportNotFound
 
@@ -37,6 +39,26 @@ def build_parser() -> argparse.ArgumentParser:
     scenario.add_argument("--base-url", required=True, help="running Zyra API base URL")
     scenario.add_argument("--goal", default="Exercise M1 hardening through the public API.")
     scenario.add_argument("--http-timeout", type=float, default=90.0)
+
+    integration = subparsers.add_parser("integration", help="run the six-scenario M1 integration and exit gates")
+    integration.add_argument("--base-url", required=True, help="running Zyra API base URL")
+    integration.add_argument("--baseline", default="8065bac109a3bed9ba01e0e92392fec4d05bfca3")
+    integration.add_argument("--implementation-commit", default="")
+    integration.add_argument("--evidence-commit", default="")
+    integration.add_argument("--scenario", action="append", default=[])
+    integration.add_argument("--no-scenarios", action="store_true")
+    integration.add_argument("--execute-disconnects", action="store_true")
+    integration.add_argument("--final-completion", action="store_true")
+    integration.add_argument("--run-cleanroom", action="store_true")
+    integration.add_argument("--scenario-timeout", type=float, default=120.0)
+    integration.add_argument("--benchmark-run-id", default="")
+    integration.add_argument("--sealed-policy-json", default="")
+    integration.add_argument("--line-evidence-json", default="")
+    integration.add_argument("--tier-evidence-json", default="")
+    integration.add_argument("--provider-evidence-json", default="")
+    integration.add_argument("--evidence-envelopes-json", default="")
+    integration.add_argument("--unresolved-requirement", action="append", default=[])
+    integration.add_argument("--no-persist", action="store_true")
 
     status = subparsers.add_parser("status", help="show catalog and report-store status")
     status.add_argument("--compact", action="store_true")
@@ -95,6 +117,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _audit(service, args)
         if args.command == "scenario":
             return _scenario(service, args)
+        if args.command == "integration":
+            integration_service = M1IntegrationService(
+                project_root,
+                source_workspace=source_workspace,
+                artifact_root=artifact_root,
+                foundation_service=service,
+            )
+            return _integration(integration_service, args)
         if args.command == "status":
             _write_json(service.repository_status(), compact=args.compact)
             return 0
@@ -175,6 +205,48 @@ def _scenario(service: M1HardeningService, args: argparse.Namespace) -> int:
         timeout_seconds=args.http_timeout,
     )
     _write_json(outcome.to_dict(include_scenario=True))
+    return 0 if outcome.accepted else 2
+
+
+def _integration(service: M1IntegrationService, args: argparse.Namespace) -> int:
+    if args.scenario_timeout <= 0 or args.scenario_timeout > 1800:
+        raise CliError("--scenario-timeout must be between 0 and 1800 seconds")
+    policy = _json_argument(args.sealed_policy_json, expected=dict) if args.sealed_policy_json else {}
+    line_evidence = tuple(_load_array(args.line_evidence_json)) if args.line_evidence_json else ()
+    tier_evidence = tuple(_load_array(args.tier_evidence_json)) if args.tier_evidence_json else ()
+    provider_evidence = tuple(_load_array(args.provider_evidence_json)) if args.provider_evidence_json else ()
+    evidence_envelopes = tuple(_load_array(args.evidence_envelopes_json)) if args.evidence_envelopes_json else ()
+    implementation_commit = str(args.implementation_commit or "")
+    if implementation_commit:
+        implementation_commit = _git_identity(service.root, implementation_commit)
+    evidence_commit = str(args.evidence_commit or "")
+    if evidence_commit:
+        evidence_commit = _git_identity(service.root, evidence_commit)
+    options = IntegrationOptions(
+        baseline_commit=_git_identity(service.root, args.baseline),
+        implementation_commit=implementation_commit,
+        evidence_commit=evidence_commit,
+        scenario_ids=tuple(args.scenario),
+        execute_scenarios=not args.no_scenarios,
+        execute_disconnects=bool(args.execute_disconnects),
+        final_completion=bool(args.final_completion),
+        run_cleanroom=bool(args.run_cleanroom),
+        scenario_timeout_seconds=float(args.scenario_timeout),
+        benchmark_run_id=str(args.benchmark_run_id or ""),
+        sealed_policy=policy,
+        line_evidence=line_evidence,
+        tier_observations=tier_evidence,
+        provider_observations=provider_evidence,
+        evidence_envelopes=evidence_envelopes,
+        unresolved_requirements=tuple(args.unresolved_requirement),
+        persist=not args.no_persist,
+    )
+    outcome = service.execute(args.base_url, options)
+    if options.persist:
+        report = ReleaseReportBuilder().build(outcome)
+        paths = ReleaseReportStore(service.artifact_root / "release").persist(report)
+        outcome.artifact_paths.extend((paths["json"], paths["markdown"]))
+    _write_json(outcome.to_dict(include_scenario_events=False))
     return 0 if outcome.accepted else 2
 
 

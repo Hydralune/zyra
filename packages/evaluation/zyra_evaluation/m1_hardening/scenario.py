@@ -23,9 +23,19 @@ class ScenarioTransportError(RuntimeError):
 
 
 class ScenarioTransport(Protocol):
-    def get(self, path: str, query: Mapping[str, Any] | None = None) -> tuple[int, Mapping[str, Any]]: ...
+    def get(
+        self,
+        path: str,
+        query: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> tuple[int, Mapping[str, Any]]: ...
 
-    def post(self, path: str, payload: Mapping[str, Any]) -> tuple[int, Mapping[str, Any]]: ...
+    def post(
+        self,
+        path: str,
+        payload: Mapping[str, Any],
+        headers: Mapping[str, str] | None = None,
+    ) -> tuple[int, Mapping[str, Any]]: ...
 
 
 class HttpScenarioTransport:
@@ -33,14 +43,24 @@ class HttpScenarioTransport:
         self.base_url = base_url.rstrip("/") + "/"
         self.timeout_seconds = max(1.0, float(timeout_seconds))
 
-    def get(self, path: str, query: Mapping[str, Any] | None = None) -> tuple[int, Mapping[str, Any]]:
+    def get(
+        self,
+        path: str,
+        query: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> tuple[int, Mapping[str, Any]]:
         url = self._url(path)
         if query:
             url += "?" + urlencode({key: value for key, value in query.items() if value is not None})
-        return self._request("GET", url, None)
+        return self._request("GET", url, None, headers=headers)
 
-    def post(self, path: str, payload: Mapping[str, Any]) -> tuple[int, Mapping[str, Any]]:
-        return self._request("POST", self._url(path), payload)
+    def post(
+        self,
+        path: str,
+        payload: Mapping[str, Any],
+        headers: Mapping[str, str] | None = None,
+    ) -> tuple[int, Mapping[str, Any]]:
+        return self._request("POST", self._url(path), payload, headers=headers)
 
     def _url(self, path: str) -> str:
         return urljoin(self.base_url, path.lstrip("/"))
@@ -50,13 +70,19 @@ class HttpScenarioTransport:
         method: str,
         url: str,
         payload: Mapping[str, Any] | None,
+        *,
+        headers: Mapping[str, str] | None = None,
     ) -> tuple[int, Mapping[str, Any]]:
         body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = Request(
             url,
             data=body,
             method=method,
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                **{str(key): str(value) for key, value in (headers or {}).items()},
+            },
         )
         try:
             with urlopen(request, timeout=self.timeout_seconds) as response:

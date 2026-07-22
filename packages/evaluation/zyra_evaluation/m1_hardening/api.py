@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .contracts import HardeningContext
+from .integration_service import IntegrationOptions, M1IntegrationService
 from .service import AuditOptions, HardeningServiceError, M1HardeningService
 from .store import ConcurrentAuditError, HardeningStoreError, ReportIntegrityError, ReportNotFound
 
@@ -150,10 +151,17 @@ class AuditOptionParser:
 
 
 class M1HardeningApi:
-    def __init__(self, service: M1HardeningService, *, default_baseline: str) -> None:
+    def __init__(
+        self,
+        service: M1HardeningService,
+        *,
+        default_baseline: str,
+        integration_service: M1IntegrationService | None = None,
+    ) -> None:
         self.service = service
         self.default_baseline = default_baseline
         self.options = AuditOptionParser()
+        self.integration = integration_service
 
     def handle_get(
         self,
@@ -163,7 +171,40 @@ class M1HardeningApi:
         normalized = tuple(str(item) for item in parts)
         try:
             if normalized == ("hardening", "m1", "status"):
-                return self._response(HTTPStatus.OK, self.service.repository_status())
+                value = self.service.repository_status()
+                if self.integration is not None:
+                    value = {**value, "integration": self.integration.status()}
+                return self._response(HTTPStatus.OK, value)
+            if normalized == ("hardening", "m1", "integration", "status"):
+                if self.integration is None:
+                    return self._error(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        "m1_integration_unavailable",
+                        "M1 integration service is not configured",
+                    )
+                return self._response(HTTPStatus.OK, self.integration.status())
+            if normalized == ("hardening", "m1", "integration", "runs"):
+                if self.integration is None:
+                    return self._error(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        "m1_integration_unavailable",
+                        "M1 integration service is not configured",
+                    )
+                return self._response(
+                    HTTPStatus.OK,
+                    {
+                        "schema": "zyra.m1-integration-run-list/v1",
+                        "runs": self.integration.store.list(),
+                    },
+                )
+            if len(normalized) == 5 and normalized[:4] == ("hardening", "m1", "integration", "runs"):
+                if self.integration is None:
+                    return self._error(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        "m1_integration_unavailable",
+                        "M1 integration service is not configured",
+                    )
+                return self._response(HTTPStatus.OK, self.integration.store.load(normalized[4]))
             if normalized == ("hardening", "m1", "reports"):
                 return self._list_reports(query)
             if len(normalized) == 4 and normalized[:3] == ("hardening", "m1", "reports"):
@@ -180,6 +221,10 @@ class M1HardeningApi:
             return self._error(HTTPStatus.CONFLICT, "hardening_report_integrity_failed", str(error))
         except HardeningStoreError as error:
             return self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "hardening_store_failed", str(error))
+        except FileNotFoundError as error:
+            return self._error(HTTPStatus.NOT_FOUND, "m1_integration_run_not_found", str(error))
+        except ValueError as error:
+            return self._error(HTTPStatus.BAD_REQUEST, "m1_integration_request_invalid", str(error))
         return None
 
     def handle_post(
@@ -189,11 +234,14 @@ class M1HardeningApi:
         *,
         task_loader: TaskLoader,
         event_loader: EventLoader,
+        base_url: str = "",
     ) -> HardeningApiResponse | None:
         normalized = tuple(str(item) for item in parts)
         try:
             if normalized == ("hardening", "m1", "audit"):
                 return self._repository_audit(payload, task_loader=task_loader, event_loader=event_loader)
+            if normalized == ("hardening", "m1", "integration"):
+                return self._integration_run(payload, base_url=base_url)
             if (
                 len(normalized) == 5
                 and normalized[0] == "tasks"
@@ -223,9 +271,162 @@ class M1HardeningApi:
             return self._error(HTTPStatus.NOT_FOUND, "hardening_report_not_found", str(error))
         except ReportIntegrityError as error:
             return self._error(HTTPStatus.CONFLICT, "hardening_report_integrity_failed", str(error))
-        except (HardeningServiceError, HardeningStoreError, ValueError) as error:
+        except (HardeningServiceError, HardeningStoreError, RuntimeError, ValueError) as error:
             return self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "hardening_audit_failed", str(error))
         return None
+
+    def _integration_run(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        base_url: str,
+    ) -> HardeningApiResponse:
+        if self.integration is None:
+            return self._error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "m1_integration_unavailable",
+                "M1 integration service is not configured",
+            )
+        requested_base = str(payload.get("base_url") or base_url).strip()
+        if not requested_base.startswith(("http://127.0.0.1:", "http://localhost:")):
+            raise HardeningApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                "integration_base_url_invalid",
+                "in-process integration execution accepts only the current loopback Zyra API",
+            )
+        scenario_ids = self._string_array(payload.get("scenario_ids"), "scenario_ids", maximum_items=6)
+        unresolved = self._string_array(
+            payload.get("unresolved_requirements"),
+            "unresolved_requirements",
+            maximum_items=200,
+        )
+        lines = self._mapping_array(payload.get("line_evidence"), "line_evidence", maximum_items=8)
+        tiers = self._mapping_array(
+            payload.get("tier_observations"),
+            "tier_observations",
+            maximum_items=100,
+        )
+        providers = self._mapping_array(
+            payload.get("provider_observations"),
+            "provider_observations",
+            maximum_items=100,
+        )
+        envelopes = self._mapping_array(
+            payload.get("evidence_envelopes"),
+            "evidence_envelopes",
+            maximum_items=10_000,
+        )
+        sealed_policy = payload.get("sealed_policy") or {}
+        if not isinstance(sealed_policy, Mapping):
+            raise HardeningApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                "sealed_policy_invalid",
+                "sealed_policy must be an object",
+            )
+        options = IntegrationOptions(
+            baseline_commit=self._commit(
+                payload.get("baseline_commit") or self.default_baseline,
+                "baseline_commit",
+            ),
+            implementation_commit=self._optional_commit(
+                payload.get("implementation_commit"),
+                "implementation_commit",
+            ),
+            evidence_commit=self._optional_commit(payload.get("evidence_commit"), "evidence_commit"),
+            scenario_ids=scenario_ids,
+            execute_scenarios=self.options._boolean(payload.get("execute_scenarios"), default=True),
+            execute_disconnects=self.options._boolean(payload.get("execute_disconnects"), default=False),
+            final_completion=self.options._boolean(payload.get("final_completion"), default=False),
+            run_cleanroom=self.options._boolean(payload.get("run_cleanroom"), default=False),
+            scenario_timeout_seconds=self.options._number(
+                payload.get("scenario_timeout_seconds"),
+                default=120.0,
+                minimum=5.0,
+                maximum=1800.0,
+            ),
+            benchmark_run_id=str(payload.get("benchmark_run_id") or "")[:160],
+            sealed_policy=dict(sealed_policy),
+            line_evidence=lines,
+            tier_observations=tiers,
+            provider_observations=providers,
+            evidence_envelopes=envelopes,
+            unresolved_requirements=unresolved,
+            persist=self.options._boolean(payload.get("persist"), default=True),
+        )
+        outcome = self.integration.execute(requested_base, options)
+        return self._outcome_response(
+            outcome.to_dict(include_scenario_events=False),
+            accepted=outcome.accepted,
+        )
+
+    @staticmethod
+    def _string_array(value: Any, name: str, *, maximum_items: int) -> tuple[str, ...]:
+        if value is None:
+            return ()
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+            raise HardeningApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                f"{name}_invalid",
+                f"{name} must be an array",
+            )
+        if len(value) > maximum_items:
+            raise HardeningApiRequestError(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                f"{name}_too_large",
+                f"{name} exceeds the bounded item count",
+            )
+        strings: list[str] = []
+        for item in value:
+            text = str(item).strip()
+            if not text or len(text) > 500 or any(character in text for character in "\r\n\0"):
+                raise HardeningApiRequestError(
+                    HTTPStatus.BAD_REQUEST,
+                    f"{name}_item_invalid",
+                    f"{name} contains an invalid item",
+                )
+            strings.append(text)
+        return tuple(strings)
+
+    @staticmethod
+    def _mapping_array(value: Any, name: str, *, maximum_items: int) -> tuple[Mapping[str, Any], ...]:
+        if value is None:
+            return ()
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+            raise HardeningApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                f"{name}_invalid",
+                f"{name} must be an array of objects",
+            )
+        if len(value) > maximum_items:
+            raise HardeningApiRequestError(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                f"{name}_too_large",
+                f"{name} exceeds the bounded item count",
+            )
+        values: list[Mapping[str, Any]] = []
+        for item in value:
+            if not isinstance(item, Mapping):
+                raise HardeningApiRequestError(
+                    HTTPStatus.BAD_REQUEST,
+                    f"{name}_item_invalid",
+                    f"{name} must contain only objects",
+                )
+            values.append(dict(item))
+        return tuple(values)
+
+    def _commit(self, value: Any, name: str) -> str:
+        text = str(value or "").strip()
+        if not self.options._COMMIT.fullmatch(text):
+            raise HardeningApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                f"{name}_invalid",
+                f"{name} must be a hexadecimal Git identity",
+            )
+        return text
+
+    def _optional_commit(self, value: Any, name: str) -> str:
+        text = str(value or "").strip()
+        return self._commit(text, name) if text else ""
 
     def _repository_audit(
         self,

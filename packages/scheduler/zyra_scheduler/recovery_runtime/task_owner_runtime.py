@@ -148,8 +148,11 @@ class CanonicalTaskStateRuntime:
         if layer is RouteLayer.WORKER:
             return copy.deepcopy(dict(metadata.get("worker_pool") or {}))
         if layer is RouteLayer.BACKEND:
-            value = metadata.get("backend_route") or metadata.get("worker_pool") or {}
-            return copy.deepcopy(dict(value))
+            # Worker and backend are independent canonical route layers.  A
+            # legacy worker-pool fallback made every worker lease mutation
+            # appear to mutate the backend owner as well, defeating the
+            # isolation gate and rejecting otherwise valid worker reroutes.
+            return copy.deepcopy(dict(metadata.get("backend_route") or {}))
         if layer is RouteLayer.WORKSPACE:
             return copy.deepcopy(dict(metadata.get("workspace") or {}))
         if layer in {RouteLayer.PROVIDER, RouteLayer.MODEL, RouteLayer.CREDENTIAL, RouteLayer.TRANSPORT}:

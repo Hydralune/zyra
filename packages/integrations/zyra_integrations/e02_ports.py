@@ -29,6 +29,53 @@ class TypeScriptE02PortError(RuntimeError):
         self.detail = dict(detail or {})
 
 
+def materialize_bundled_skills(
+    project_root: str | Path,
+    workspace_root: str | Path,
+) -> Path:
+    """Copy Zyra-packaged skills into a reserved workspace-managed root."""
+
+    project = Path(project_root).resolve()
+    workspace = Path(workspace_root).resolve()
+    source = (project / "skills" / "builtin").resolve()
+    target = (workspace / ".zyra" / "skills" / "zyra-bundled").resolve()
+    if not source.is_dir():
+        raise TypeScriptE02PortError(
+            "e02_bundled_skills_missing",
+            f"Zyra bundled skill root is missing: {source}",
+        )
+    try:
+        source.relative_to(project)
+        target.relative_to(workspace)
+    except ValueError as error:
+        raise TypeScriptE02PortError(
+            "e02_bundled_skill_boundary_invalid",
+            "Bundled skill projection escaped its Zyra or workspace root.",
+        ) from error
+    target.mkdir(parents=True, exist_ok=True)
+    for item in sorted(source.rglob("*")):
+        if item.is_symlink():
+            raise TypeScriptE02PortError(
+                "e02_bundled_skill_symlink_forbidden",
+                f"Bundled skill projection refuses symlink: {item}",
+            )
+        relative = item.relative_to(source)
+        destination = (target / relative).resolve()
+        try:
+            destination.relative_to(target)
+        except ValueError as error:
+            raise TypeScriptE02PortError(
+                "e02_bundled_skill_path_escape",
+                f"Bundled skill path escaped managed root: {relative}",
+            ) from error
+        if item.is_dir():
+            destination.mkdir(parents=True, exist_ok=True)
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(item, destination)
+    return target
+
+
 class _LineReader:
     def __init__(self, stream: Any) -> None:
         self._lines: queue.Queue[str | None] = queue.Queue()
@@ -258,6 +305,7 @@ class TypeScriptE02ApiPort:
                 "e02_api_entrypoint_missing",
                 f"TypeScript E02 API entrypoint is missing: {entrypoint}",
             )
+        self._materialize_bundled_skills()
         environment = dict(os.environ)
         environment.pop("NODE_PATH", None)
         environment["ZYRA_TYPESCRIPT_RUNTIME_OWNER"] = "canonical"
@@ -307,6 +355,18 @@ class TypeScriptE02ApiPort:
         except Exception:
             self.close()
             raise
+
+    def _materialize_bundled_skills(self) -> None:
+        """Project packaged skills into the workspace-scoped managed root.
+
+        SkillCoordinator deliberately rejects roots outside the workspace.  A
+        clean task therefore receives a byte-for-byte product projection under
+        a reserved managed directory before TypeScript discovery starts.  The
+        copy contains no policy or registry decisions; those remain owned by
+        the TypeScript coordinator.
+        """
+
+        materialize_bundled_skills(self.project_root, self.workspace_root)
 
     def _exchange(
         self,
