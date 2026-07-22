@@ -147,6 +147,44 @@ def test_subagent_api_fails_closed_and_records_failed_receipt_when_omp_gate_is_d
             os.environ["ZYRA_OMP_WORKER_CONTROL_DISABLED"] = previous
 
 
+def test_subagent_api_lease_store_disable_blocks_before_typescript_execution(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    executions: list[str] = []
+
+    def forbidden_execution(*_args: Any, **_kwargs: Any) -> Any:
+        executions.append("typescript-child-started")
+        raise AssertionError("TypeScript child executed without canonical lease admission")
+
+    monkeypatch.setattr(api_main, "_run_typescript_agent_request", forbidden_execution)
+    with _api(tmp_path) as base_url:
+        created = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Disable the canonical lease before child execution.", "auto_run": False},
+        )
+        task_id = created["task"]["task_id"]
+        monkeypatch.setenv("ZYRA_WORKER_LEASE_STORE_DISABLED", "1")
+        status, rejected = _post_with_status(
+            base_url,
+            f"/tasks/{task_id}/subagents",
+            {
+                "prompt": "This child operation must never start.",
+                "execution_mode": "foreground",
+                "subagent_task_id": "lease-disabled-child",
+                "idempotency_key": "lease-disabled-child-create",
+                "request_id": "lease-disabled-child-request",
+            },
+        )
+        assert status == 409
+        assert rejected["error"] == "subagent_worker_pool_acquisition_failed"
+        assert "lease store is disabled" in rejected["message"]
+        assert executions == []
+        assert api_main.get_typescript_agent_port().records(parent_task_id=task_id) == ()
+        assert _get(base_url, "/worker-pool/leases?task_id=lease-disabled-child")["leases"] == []
+
+
 def test_subagent_fanout_maps_each_child_to_one_physical_attempt_and_receipt(
     tmp_path: Path,
 ) -> None:
