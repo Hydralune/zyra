@@ -1,9 +1,13 @@
 # M1-S07B-01 Watchdog 与故障注入基础批判式自审
 
-日期：2026-07-22  
-baseline：`6900e96dcb6dd73c22b803787afc30125fbe947c`  
-实施前冻结：`a9ab2be2ddf1a4bd317a6dc19c1494aa13a483e9`  
-中间实现：`db27e57892cbb62eec4e783f73394c0a6a5d54df`  
+日期：2026-07-22
+
+baseline：`6900e96dcb6dd73c22b803787afc30125fbe947c`
+
+实施前冻结：`a9ab2be2ddf1a4bd317a6dc19c1494aa13a483e9`
+
+中间实现：`db27e57892cbb62eec4e783f73394c0a6a5d54df`
+
 最终 implementation：`242038c842a02b3311e2452dad3cb86a2fa864e6`
 
 ## 结论
