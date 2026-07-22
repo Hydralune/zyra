@@ -32,6 +32,62 @@ for package_path in (
 
 
 class RuntimeEventSpineApiTests(unittest.TestCase):
+    def test_concurrent_reset_cannot_return_the_bridge_being_closed(self) -> None:
+        previous = os.environ.get("ZYRA_SQLITE_PATH")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            import apps.api.zyra_api.main as api_main  # noqa: PLC0415
+
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "reset-race.sqlite3")
+            api_main.reset_runtime_event_spine_bridge()
+            closing = api_main.get_runtime_event_spine_bridge()
+            real_release = api_main.release_runtime_event_spine
+            release_entered = threading.Event()
+            allow_release = threading.Event()
+            getter_done = threading.Event()
+            acquired: list[Any] = []
+
+            def blocked_release(bridge: Any) -> bool:
+                release_entered.set()
+                if not allow_release.wait(timeout=10):
+                    raise TimeoutError("release was not allowed")
+                return real_release(bridge)
+
+            api_main.release_runtime_event_spine = blocked_release
+            reset_thread = threading.Thread(
+                target=api_main.reset_runtime_event_spine_bridge,
+                daemon=True,
+            )
+            get_thread = threading.Thread(
+                target=lambda: (
+                    acquired.append(api_main.get_runtime_event_spine_bridge()),
+                    getter_done.set(),
+                ),
+                daemon=True,
+            )
+            try:
+                reset_thread.start()
+                self.assertTrue(release_entered.wait(timeout=5))
+                get_thread.start()
+                self.assertFalse(getter_done.wait(timeout=0.2))
+                allow_release.set()
+                reset_thread.join(timeout=10)
+                get_thread.join(timeout=10)
+                self.assertTrue(getter_done.is_set())
+                self.assertEqual(len(acquired), 1)
+                self.assertIsNot(acquired[0], closing)
+                self.assertTrue(acquired[0].health().ok)
+            finally:
+                allow_release.set()
+                api_main.release_runtime_event_spine = real_release
+                reset_thread.join(timeout=10)
+                get_thread.join(timeout=10)
+                api_main.reset_runtime_event_spine_bridge()
+                if previous is None:
+                    os.environ.pop("ZYRA_SQLITE_PATH", None)
+                else:
+                    os.environ["ZYRA_SQLITE_PATH"] = previous
+
     def test_server_close_drains_active_handler_before_sidecar_shutdown(self) -> None:
         previous = os.environ.get("ZYRA_SQLITE_PATH")
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -202,6 +202,20 @@ class BrowserSkillMemoryContextTests(unittest.TestCase):
         assert replay is not None
         self.assertTrue(replay.replayed)
         self.assertEqual(replay_window.messages, [])
+        replay_request = replace(
+            request,
+            request_id="browser-worker-request-06c02-replayed-failure",
+        )
+        replayed_delivery, replayed_event = runtime.release(
+            replay_request,
+            replay,
+            reason="later browser attempt failed after projection was already applied",
+        )
+        self.assertEqual(replayed_delivery.state.value, "applied")
+        self.assertEqual(
+            replayed_event.payload["skill_memory_browser_context"]["replayed"],
+            True,
+        )
 
     def test_corruption_and_tool_scope_widening_fail_before_context_mutation(self) -> None:
         corrupt = _projection()

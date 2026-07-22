@@ -810,6 +810,25 @@ class BrowserSkillMemoryContextRuntime:
     ) -> tuple[BrowserSkillMemoryDeliveryReceipt, EventRecord]:
         projection = preparation.projection
         with self._lock:
+            if preparation.replayed:
+                existing = next(
+                    (
+                        item
+                        for item in preparation.checkpoint.deliveries
+                        if item.projection_id == projection.projection_id
+                    ),
+                    None,
+                )
+                if existing is None:
+                    raise BrowserSkillMemoryDeliveryConflict(
+                        "replayed browser skill-memory projection lacks prior delivery",
+                        details={"projection_id": projection.projection_id},
+                    )
+                return existing, self.event_for_delivery(
+                    request,
+                    existing,
+                    replayed=True,
+                )
             if projection.projection_id in self._pending_projection_ids:
                 raise BrowserSkillMemoryDeliveryConflict(
                     "browser skill-memory context seed is still pending",

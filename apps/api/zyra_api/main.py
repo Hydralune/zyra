@@ -181,11 +181,12 @@ def reset_runtime_event_spine_bridge() -> None:
         bridge = _RUNTIME_EVENT_SPINE
         _RUNTIME_EVENT_SPINE = None
         _RUNTIME_EVENT_SPINE_KEY = None
-    if bridge is not None:
-        # The integration registry holds the same bridge by path. Release only
-        # this API-owned instance: a process-global reset can close unrelated
-        # scheduler/test/runtime owners that use another database.
-        release_runtime_event_spine(bridge)
+        if bridge is not None:
+            # Keep the API lock through registry eviction and close. Otherwise
+            # a concurrent getter can reacquire the still-registered bridge
+            # between clearing this cache and release, then receive an object
+            # that this reset immediately closes.
+            release_runtime_event_spine(bridge)
 
 
 from zyra_runtime import (
@@ -401,6 +402,16 @@ def get_worker_pool_api() -> WorkerPoolApiService:
         return _WORKER_POOL_API
 
 
+def reset_worker_pool_api() -> None:
+    """Forget API-owned worker/graph composition roots between workspace lifecycles."""
+
+    global _WORKER_POOL_RUNTIME, _WORKER_POOL_API, _WORKER_POOL_KEY
+    with _WORKER_POOL_LOCK:
+        _WORKER_POOL_API = None
+        _WORKER_POOL_RUNTIME = None
+        _WORKER_POOL_KEY = None
+
+
 def memory_index_path() -> Path:
     configured_value = os.environ.get("ZYRA_MEMORY_INDEX_PATH", "").strip()
     if configured_value:
@@ -599,6 +610,7 @@ def reset_workspace_manager(runtime: WorkspaceManagerRuntime | None = None) -> N
     # same canonical SQLite path.  Drop it before closing the sidecar so a
     # workspace lifecycle reset cannot retain a stale bridge or database owner.
     reset_memory_curator_runtime()
+    reset_worker_pool_api()
     reset_runtime_event_spine_bridge()
 
 

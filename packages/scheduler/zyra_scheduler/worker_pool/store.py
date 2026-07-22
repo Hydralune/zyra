@@ -37,6 +37,14 @@ from .models import (
 T = TypeVar("T")
 
 
+class _ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        try:
+            return bool(super().__exit__(exc_type, exc, traceback))
+        finally:
+            self.close()
+
+
 class WorkerPoolStore:
     """Durable canonical owner for physical worker, attempt, lease, and inbox state.
 
@@ -1815,7 +1823,12 @@ class WorkerPoolStore:
         return revision
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=5.0, isolation_level=None)
+        connection = sqlite3.connect(
+            self.path,
+            timeout=5.0,
+            isolation_level=None,
+            factory=_ClosingConnection,
+        )
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("PRAGMA busy_timeout=5000")
