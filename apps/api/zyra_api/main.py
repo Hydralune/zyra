@@ -329,6 +329,7 @@ from zyra_workers.subagents.typescript_port import TypeScriptAgentDurablePort
 from zyra_evaluation import evaluate_task_trace
 from zyra_evaluation.m1_hardening.api import M1HardeningApi
 from zyra_evaluation.m1_hardening.integration_service import M1IntegrationService
+from zyra_evaluation.m1_hardening.owner_probes import RuntimeResetRegistry
 from zyra_evaluation.m1_hardening.service import M1HardeningService
 from zyra_integrations import (
     LedgerAdvanceRequest,
@@ -1957,6 +1958,13 @@ def get_code_index_service() -> CodeIndexApiService:
         return _CODE_INDEX_SERVICE_INSTANCE
 
 
+def reset_code_index_service() -> None:
+    global _CODE_INDEX_SERVICE_INSTANCE, _CODE_INDEX_SERVICE_KEY
+    with _CODE_INDEX_SERVICE_LOCK:
+        _CODE_INDEX_SERVICE_INSTANCE = None
+        _CODE_INDEX_SERVICE_KEY = None
+
+
 def task_workspace_root(*, task_id: str, session_id: str, worker_id: str) -> Path:
     manager = get_workspace_manager()
     # A worker's query/permission session can rotate while the task workspace
@@ -1983,6 +1991,32 @@ _M1_HARDENING_API_INSTANCE: M1HardeningApi | None = None
 _M1_HARDENING_API_KEY: tuple[str, str] | None = None
 
 
+def m1_owner_probe_reset_registry() -> RuntimeResetRegistry:
+    """Bind owner-disable probes to the API composition roots they invalidate."""
+
+    registry = RuntimeResetRegistry()
+    stateless = lambda: None
+    callbacks = {
+        "codeworker": stateless,
+        "mcp": reset_mcp_runtime,
+        "workspace": reset_workspace_manager,
+        "sandbox-gateway": stateless,
+        "runtime-event-spine": reset_runtime_event_spine_bridge,
+        "provider-control-plane": reset_provider_control_client,
+        "memory": reset_memory_curator_runtime,
+        "code-index": reset_code_index_service,
+        "skill-memory": stateless,
+        "worker-pool": reset_worker_pool_api,
+        "fault-runtime": reset_fault_runtime_api,
+        "recovery": reset_recovery_runtime_api,
+        "scheduler": reset_recovery_runtime_api,
+        "graph-custody": reset_worker_pool_api,
+    }
+    for component, callback in callbacks.items():
+        registry.register(component, callback)
+    return registry
+
+
 def get_m1_hardening_api() -> M1HardeningApi:
     global _M1_HARDENING_API_INSTANCE, _M1_HARDENING_API_KEY
     hardening_root = (artifact_root_path() / "m1-hardening").resolve()
@@ -2002,6 +2036,7 @@ def get_m1_hardening_api() -> M1HardeningApi:
                     source_workspace=PROJECT_ROOT.parent,
                     artifact_root=hardening_root,
                     foundation_service=service,
+                    reset_registry=m1_owner_probe_reset_registry(),
                 ),
             )
             _M1_HARDENING_API_KEY = key
@@ -2793,6 +2828,7 @@ def _acquire_subagent_physical_dispatch(
         "attempt": binding.attempt_number,
         "lease_id": lease.lease_id,
         "worker_id": worker.worker_id,
+        "worker_location": worker.location.value,
         "backend_id": lease.backend_id,
         "fence_epoch": lease.fence_epoch,
         "manifest_digest": manifest.digest,
@@ -2822,6 +2858,7 @@ def _acquire_subagent_physical_dispatch(
         "attempt": binding.attempt_number,
         "lease_id": lease.lease_id,
         "worker_id": worker.worker_id,
+        "worker_location": worker.location.value,
         "backend_id": lease.backend_id,
         "fence_epoch": lease.fence_epoch,
         "manifest_digest": manifest.digest,
@@ -3343,6 +3380,25 @@ def _task_node_ids(state: Any) -> set[str]:
 
 class ZyraRequestHandler(BaseHTTPRequestHandler):
     server_version = "ZyraDevAPI/0.2"
+
+    def handle_one_request(self) -> None:
+        try:
+            super().handle_one_request()
+        except RuntimeEventProcessError as error:
+            # Canonical event custody is used by most mutating routes.  An
+            # unavailable spine must fail closed as a stable HTTP response,
+            # never as a dropped socket that hides the owner failure.
+            try:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "error": error.code,
+                        "message": str(error),
+                        "fallback": False,
+                    },
+                )
+            except (BrokenPipeError, ConnectionError, OSError):
+                self.close_connection = True
 
     def setup(self) -> None:
         super().setup()
@@ -5841,9 +5897,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             lease.lease_id,
                             reason="fanout physical admission failed",
                         )
+                failure_code = getattr(error, "code", "")
+                failure_code = getattr(failure_code, "value", failure_code)
                 self._send_json(
                     HTTPStatus.CONFLICT,
-                    {"error": "subagent_worker_pool_acquisition_failed", "message": str(error)},
+                    {
+                        "error": str(failure_code or "subagent_worker_pool_acquisition_failed"),
+                        "message": str(error),
+                    },
                 )
                 return
             arguments = {
@@ -5884,10 +5945,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     )
                     for projection in physical_dispatches
                 ]
+                failure_code = getattr(error, "code", "")
+                failure_code = getattr(failure_code, "value", failure_code)
                 self._send_json(
                     HTTPStatus.CONFLICT,
                     {
-                        "error": "typescript_subagent_fanout_execution_failed",
+                        "error": str(failure_code or "typescript_subagent_fanout_execution_failed"),
                         "message": str(error),
                         "physical_workers": physical_workers,
                         "physical_receipts": failed_receipts,

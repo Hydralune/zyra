@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
@@ -210,6 +211,13 @@ class LayeredRouteRuntime:
         layers: Sequence[RouteLayer] | None = None,
         stop_after_first_change: bool = False,
     ) -> LayeredRouteDecision:
+        if os.environ.get("ZYRA_LAYERED_SCHEDULER_DISABLED", "").strip().casefold() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            raise RouteRuntimeError("layered_scheduler_disabled")
         requested_layers = tuple(layers or self.ACTION_LAYERS.get(action, ()))
         if not requested_layers:
             raise RouteRuntimeError(f"{action.value} is not a layered route action")

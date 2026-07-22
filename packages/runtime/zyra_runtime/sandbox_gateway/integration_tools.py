@@ -128,6 +128,11 @@ class GatewayToolExecutionRouter:
                 "managed sandbox execution requires WorkspaceEditPort",
             )
         try:
+            # Every handled operation, including read-only WorkspaceEditPort
+            # routes, is owned by SandboxGateway.  Check owner availability
+            # before selecting the concrete execution port so a disabled
+            # runtime cannot be masked by a direct file adapter.
+            self.bundle.runtime.assert_enabled()
             identity = self._identity(call)
             if call.tool_name == "shell":
                 return self._shell(

@@ -240,7 +240,7 @@ class WorkerAdmissionRuntime:
     def admit(self, request: DispatchAdmissionRequest) -> AdmissionResult:
         if os.getenv("ZYRA_WORKER_POOL_INTEGRATION_DISABLED") == "1":
             raise WorkerPoolError(
-                WorkerPoolErrorCode.EXECUTION_REJECTED,
+                WorkerPoolErrorCode.INTEGRATION_DISABLED,
                 "worker-pool integration admission is disabled",
                 operation="integration_admit",
                 task_id=request.task_id,

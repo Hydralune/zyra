@@ -63,6 +63,10 @@ class WorkspaceManagerConfig:
         data_root = Path(values.get("ZYRA_WORKSPACE_DATA_ROOT") or (base / "workspaces")).resolve()
         enabled_value = str(values.get("ZYRA_LOCAL_WORKSPACE_ENABLED", "1")).strip().casefold()
         enabled = enabled_value not in {"0", "false", "no", "off", "disabled"}
+        integration_disabled = str(
+            values.get("ZYRA_WORKSPACE_INTEGRATION_DISABLED", "")
+        ).strip().casefold() in {"1", "true", "yes", "on"}
+        enabled = enabled and not integration_disabled
         return cls(
             state_root=state_root,
             data_root=data_root,

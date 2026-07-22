@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 for package in ROOT.joinpath("packages").iterdir():
@@ -366,6 +367,40 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertEqual(result.output["termination"], "output_limit")
         self.assertTrue(result.output["artifact_refs"], (result.output, result.metadata))
         self.assertTrue(port.read_bytes("command-output/gateway-output-spill-1.log").exists)
+
+    def test_disabled_gateway_blocks_read_only_workspace_port_without_fallback(self) -> None:
+        state = create_task_state("Disabled gateway blocks every owned surface")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        port.write_bytes("owned.txt", b"gateway-owned")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+        call = ToolCall(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            tool_name="file_read",
+            tool_call_id="gateway-disabled-read-1",
+            arguments={"path": "owned.txt"},
+            metadata={"session_id": f"disabled-{state.task_id}"},
+        )
+
+        with patch.dict("os.environ", {"ZYRA_SANDBOX_GATEWAY_DISABLED": "1"}):
+            result = router.execute(
+                call,
+                permission_grant=None,
+                permission_authority=None,
+                permission_execution_context=None,
+            )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, "sandbox_gateway_disabled")
+        self.assertEqual(result.metadata["sandbox_gateway_routed"], "true")
 
 
 if __name__ == "__main__":

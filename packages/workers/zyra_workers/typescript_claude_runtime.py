@@ -1379,6 +1379,17 @@ class TypeScriptClaudeQueryEngine:
             # Non-secret fail-closed kill switch used by production health
             # checks and disconnect/mutation tests for the OMP dispatch gate.
             "ZYRA_OMP_WORKER_CONTROL_DISABLED",
+            # Non-secret owner disconnect switches used by the M1 exit matrix.
+            # The subprocess environment is intentionally allowlisted, so each
+            # canonical TypeScript owner switch must be forwarded explicitly.
+            "ZYRA_DISABLE_E04_QUERY_SOURCE_RUNTIME",
+            "ZYRA_DISABLE_E04_TOOL_SOURCE_RUNTIME",
+            "ZYRA_DISABLE_E04_MCP_SOURCE_RUNTIME",
+            "ZYRA_DISABLE_E04_PERMISSION_SOURCE_RUNTIME",
+            "ZYRA_DISABLE_E04_ISOLATION_SOURCE_RUNTIME",
+            "ZYRA_DISABLE_SKILL_MEMORY_RUNTIME",
+            "ZYRA_DISABLE_COMPACT_RESTORE_MEMORY_BRIDGE",
+            "ZYRA_PROVIDER_CONTROL_PLANE_DISABLED",
         }
         environment = {
             key: value for key, value in os.environ.items() if key.upper() in allowed

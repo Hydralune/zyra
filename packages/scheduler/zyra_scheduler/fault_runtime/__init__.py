@@ -42,7 +42,7 @@ from .observers import (
     WorkspaceIntegrityObserver,
 )
 from .recovery_bridge import WatchdogRecoveryBridge
-from .runtime import FaultRuntimeApplication, RuntimeWatchdog
+from .runtime import FaultRuntimeApplication, RuntimeWatchdog, WatchdogRuntimeError
 from .state_store import FaultStateStore
 from .supervision import McpTransportObserver, WorkerHeartbeatObserver
 from .runtime_event_adapter import RuntimeEventObservationAdapter
@@ -168,6 +168,7 @@ __all__ = [
     "RequirementChangeFaultIsolation",
     "RequirementChangeReceipt",
     "RuntimeWatchdog",
+    "WatchdogRuntimeError",
     "RuntimeEventObservationAdapter",
     "RuntimeFaultObservationPort",
     "RuntimeObservationControlRequired",

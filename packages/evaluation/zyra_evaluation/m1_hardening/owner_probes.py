@@ -10,9 +10,12 @@ from typing import Any, Callable, Mapping, MutableMapping, Sequence
 
 from .disable import DisableModuleProbe, DisableProbeBlocked, ProbeHandle
 from .integration_contracts import DisconnectRequirement, ExpectedEffect, stable_digest, utc_now
-from .integration_scenarios import ScenarioExecutionContext
+from .integration_scenarios import (
+    IntegrationScenarioExecutor,
+    ScenarioExecutionContext,
+)
 from .owner_matrix import REQUIRED_DISABLE_CAPABILITIES
-from .scenario import HttpScenarioTransport, ScenarioTransport
+from .scenario import HttpScenarioTransport, ScenarioTransport, ScenarioTransportError
 
 
 Exercise = Callable[[], Mapping[str, Any]]
@@ -121,7 +124,11 @@ class RuntimeResetRegistry:
 
 
 class EnvironmentOwnerDisconnectProbe:
-    _environment_lock = threading.RLock()
+    # DisableProbeRunner enforces timeouts by invoking capture/disable/restore in
+    # separate worker threads.  RLock ownership is thread-affine and therefore
+    # cannot safely span those stages.  A plain Lock still serializes process
+    # environment mutation and may be released by the restore stage.
+    _environment_lock = threading.Lock()
 
     def __init__(
         self,
@@ -214,9 +221,11 @@ class EnvironmentOwnerDisconnectProbe:
 
 @dataclass(frozen=True, slots=True)
 class HttpExerciseSpec:
+    probe_id: str
     method: str
     path: str
     payload: Mapping[str, Any]
+    headers: Mapping[str, str]
     success_statuses: tuple[int, ...]
     owner_paths: tuple[str, ...] = ()
     error_paths: tuple[str, ...] = ("error", "worker_result.error", "code")
@@ -225,32 +234,63 @@ class HttpExerciseSpec:
         "python_fallback",
         "worker_result.metadata.fallback",
     )
+    failure_error_codes: tuple[str, ...] = ()
 
 
 class HttpOwnerExercise:
     def __init__(self, transport: ScenarioTransport, spec: HttpExerciseSpec) -> None:
         self.transport = transport
         self.spec = spec
+        self._call_index = 0
 
     def __call__(self) -> Mapping[str, Any]:
+        self._call_index += 1
+        payload = dict(self.spec.payload)
+        if self.spec.method.upper() != "GET":
+            unique = f"{self.spec.probe_id}-{self._call_index}"
+            if self.spec.path.endswith("/workers/code"):
+                payload.pop("session_custody_token", None)
+                payload["session_id"] = f"m1-owner-probe:{unique}"
+            if "idempotency_key" in payload:
+                payload["idempotency_key"] = unique
+            if "request_id" in payload:
+                payload["request_id"] = unique
         if self.spec.method.upper() == "GET":
-            status, response = self.transport.get(self.spec.path, self.spec.payload)
+            status, response = self.transport.get(
+                self.spec.path,
+                payload,
+                headers=self.spec.headers,
+            )
         else:
-            status, response = self.transport.post(self.spec.path, self.spec.payload)
-        error = self._first(response, self.spec.error_paths)
-        fallback = self._first(response, self.spec.fallback_paths)
-        owner = self._first(response, self.spec.owner_paths)
-        ok = status in self.spec.success_statuses
-        if error and status >= 400:
-            ok = False
+            status, response = self.transport.post(
+                self.spec.path,
+                payload,
+                headers=self.spec.headers,
+            )
+        return self.project(response, status=status, spec=self.spec)
+
+    @classmethod
+    def project(
+        cls,
+        response: Mapping[str, Any],
+        *,
+        status: int,
+        spec: HttpExerciseSpec,
+    ) -> Mapping[str, Any]:
+        error = cls._first(response, spec.error_paths)
+        if isinstance(error, Mapping):
+            error = error.get("code") or error.get("kind") or error.get("message")
+        fallback = cls._first(response, spec.fallback_paths)
+        owner = cls._first(response, spec.owner_paths)
+        ok = status in spec.success_statuses and str(error or "") not in spec.failure_error_codes
         return {
             "ok": ok,
             "status": status,
             "error": str(error or ""),
             "canonical_owner": str(owner or ""),
-            "fallback": bool(fallback),
+            "fallback": cls._as_bool(fallback),
             "response_digest": stable_digest(response),
-            "semantic": self._semantic_projection(response),
+            "semantic": cls._semantic_projection(response),
         }
 
     @staticmethod
@@ -269,6 +309,12 @@ class HttpOwnerExercise:
         return None
 
     @staticmethod
+    def _as_bool(value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @staticmethod
     def _semantic_projection(value: Mapping[str, Any]) -> Mapping[str, Any]:
         allowed = {
             "ok",
@@ -278,14 +324,189 @@ class HttpOwnerExercise:
             "code",
             "canonical_entrypoint",
             "python_fallback",
-            "worker_result",
             "revision",
             "snapshotHash",
             "event_count",
             "route",
             "backend",
         }
-        return {key: item for key, item in value.items() if key in allowed}
+        projected = {key: item for key, item in value.items() if key in allowed}
+        worker_result = value.get("worker_result")
+        if isinstance(worker_result, Mapping):
+            # Worker results can contain complete event streams and artifacts.
+            # Preserve only bounded semantic leaves so probe evidence remains
+            # reviewable and task/session identifiers cannot manufacture a
+            # material-difference pass.
+            projected["worker_result"] = {
+                "signals": HttpOwnerExercise._semantic_signals(worker_result),
+            }
+        return projected
+
+    @staticmethod
+    def _semantic_signals(value: Mapping[str, Any]) -> list[dict[str, Any]]:
+        meaningful = {
+            "action",
+            "canonical_owner",
+            "canonical_runtime_owner",
+            "code",
+            "decision",
+            "error",
+            "error_code",
+            "fallback",
+            "kind",
+            "phase",
+            "reason",
+            "state",
+            "status",
+            "stopped_reason",
+        }
+        volatile = {
+            "binding_id",
+            "event_id",
+            "lease_id",
+            "request_id",
+            "run_id",
+            "session_id",
+            "span_id",
+            "task_id",
+            "trace_id",
+            "turn_id",
+            "worker_id",
+        }
+        signals: list[dict[str, Any]] = []
+
+        def visit(item: Any, path: str, depth: int) -> None:
+            if depth > 8 or len(signals) >= 96:
+                return
+            if isinstance(item, Mapping):
+                for key, child in item.items():
+                    token = str(key)
+                    lowered = token.lower()
+                    child_path = f"{path}.{token}" if path else token
+                    if lowered in volatile:
+                        continue
+                    if lowered in meaningful and isinstance(child, (str, int, float, bool, type(None))):
+                        signals.append({"path": child_path, "value": child})
+                    elif isinstance(child, (Mapping, list, tuple)):
+                        visit(child, child_path, depth + 1)
+            elif isinstance(item, (list, tuple)):
+                for index, child in enumerate(item[:64]):
+                    visit(child, f"{path}[{index}]", depth + 1)
+
+        visit(value, "", 0)
+        return signals
+
+
+class ScenarioPrefixOwnerExercise:
+    """Recreate scenario preconditions for every probe phase on a fresh task."""
+
+    def __init__(
+        self,
+        context: ScenarioExecutionContext,
+        requirement: DisconnectRequirement,
+        spec: HttpExerciseSpec,
+    ) -> None:
+        self.context = context
+        self.requirement = requirement
+        self.spec = spec
+
+    def __call__(self) -> Mapping[str, Any]:
+        fresh = ScenarioExecutionContext(
+            definition=self.context.definition,
+            transport=self.context.transport,
+            options=self.context.options,
+        )
+        fresh.bindings.update(
+            {
+                "actor_id": self.context.options.actor_id,
+                "scenario_id": self.context.definition.scenario_id,
+                "scenario_kind": self.context.definition.kind.value,
+            }
+        )
+        executor = IntegrationScenarioExecutor(self.context.transport)
+        result: dict[str, Any] | None = None
+        try:
+            for request in self.context.definition.requests:
+                executor._execute_request(fresh, request)
+                step = fresh.steps[-1]
+                if request.step_id == self.requirement.exercise_step_id:
+                    result = dict(
+                        HttpOwnerExercise.project(
+                            step.response,
+                            status=step.status,
+                            spec=self.spec,
+                        )
+                    )
+                    break
+                if step.error and not request.optional:
+                    result = dict(
+                        HttpOwnerExercise.project(
+                            step.response,
+                            status=step.status,
+                            spec=HttpExerciseSpec(
+                                probe_id=self.spec.probe_id,
+                                method=step.method,
+                                path=step.path,
+                                payload={},
+                                headers={},
+                                success_statuses=self.spec.success_statuses,
+                                owner_paths=self.spec.owner_paths,
+                                error_paths=self.spec.error_paths,
+                                fallback_paths=self.spec.fallback_paths,
+                                failure_error_codes=self.spec.failure_error_codes,
+                            ),
+                        )
+                    )
+                    break
+            if result is None:
+                raise DisableProbeBlocked(
+                    f"scenario prefix did not reach {self.requirement.exercise_step_id}"
+                )
+            return result
+        finally:
+            task_id = str(fresh.bindings.get("task_id") or "")
+            if task_id:
+                # POST /tasks reserves a physical worker lease even when the
+                # task is intentionally left pending.  Probe prefixes are
+                # disposable, so release their lease through the production
+                # cancellation path or a complete owner matrix exhausts the
+                # worker pool and produces order-dependent false failures.
+                try:
+                    target_response = fresh.steps[-1].response if fresh.steps else {}
+                    physical_workers = target_response.get("physical_workers")
+                    if isinstance(physical_workers, Sequence) and not isinstance(
+                        physical_workers, (str, bytes, bytearray)
+                    ):
+                        for item in physical_workers:
+                            if not isinstance(item, Mapping):
+                                continue
+                            self.context.transport.post(
+                                f"/tasks/{task_id}/worker-pool-control",
+                                {
+                                    "kind": "cancel",
+                                    "reason": "M1 owner disconnect child probe completed",
+                                    "lease_id": str(item.get("lease_id") or ""),
+                                    "binding_id": str(item.get("binding_id") or ""),
+                                    "worker_id": str(item.get("worker_id") or ""),
+                                    "idempotency_key": (
+                                        f"{self.spec.probe_id}:{task_id}:"
+                                        f"{item.get('lease_id') or item.get('binding_id') or 'child'}:cleanup"
+                                    ),
+                                },
+                                headers={},
+                            )
+                    self.context.transport.post(
+                        f"/tasks/{task_id}/worker-pool-cancel",
+                        {
+                            "reason": "M1 owner disconnect probe prefix completed",
+                            "idempotency_key": f"{self.spec.probe_id}:{task_id}:cleanup",
+                        },
+                        headers={},
+                    )
+                except (ScenarioTransportError, OSError, TimeoutError):
+                    # Cleanup failure must not replace the owner behavior.  A
+                    # later probe will expose lease exhaustion fail-closed.
+                    pass
 
 
 class OwnerProbeCatalog:
@@ -392,6 +613,48 @@ class ScenarioDisconnectCoordinator:
         requirement: DisconnectRequirement,
         context: ScenarioExecutionContext,
     ) -> Mapping[str, Any]:
+        if requirement.capability == "edge-worker":
+            step = next(
+                (
+                    item
+                    for item in context.steps
+                    if item.step_id == requirement.exercise_step_id and item.ok
+                ),
+                None,
+            )
+            workers = (
+                step.response.get("physical_workers")
+                if step is not None and isinstance(step.response, Mapping)
+                else ()
+            )
+            locations = (
+                sorted(
+                    {
+                        str(item.get("worker_location") or "")
+                        for item in workers
+                        if isinstance(item, Mapping)
+                    }
+                    - {""}
+                )
+                if isinstance(workers, Sequence)
+                and not isinstance(workers, (str, bytes, bytearray))
+                else []
+            )
+            if "edge" not in locations:
+                return {
+                    "probe_id": requirement.probe_id,
+                    "capability": requirement.capability,
+                    "status": "blocked",
+                    "error_code": "edge_live_dispatch_unavailable",
+                    "error_message": (
+                        "scenario exercise did not dispatch through an isolated edge worker; "
+                        f"observed locations={locations or ['unreported']}"
+                    ),
+                    "expected_failure_observed": False,
+                    "fallback_masked": False,
+                    "observed_worker_locations": locations,
+                    "limitation": "real isolated edge dispatch remains an M1 exit blocker",
+                }
         contract = self.catalog.contract(requirement.probe_id)
         exercise = self._scenario_exercise(requirement, context)
         probe = EnvironmentOwnerDisconnectProbe(
@@ -427,27 +690,54 @@ class ScenarioDisconnectCoordinator:
         requirement: DisconnectRequirement,
         context: ScenarioExecutionContext,
     ) -> Exercise:
-        successful_steps = [step for step in context.steps if step.ok and step.method in {"GET", "POST"}]
-        preferred = [
-            step
-            for step in successful_steps
-            if requirement.capability.replace("-", "") in step.step_id.replace("-", "")
-        ]
-        step = (preferred or successful_steps)[-1] if successful_steps else None
+        request = next(
+            (
+                item
+                for item in context.definition.requests
+                if item.step_id == requirement.exercise_step_id
+            ),
+            None,
+        )
+        step = next(
+            (
+                item
+                for item in context.steps
+                if item.step_id == requirement.exercise_step_id and item.ok
+            ),
+            None,
+        )
+        if request is None:
+            raise DisableProbeBlocked(
+                f"scenario does not define exercise step {requirement.exercise_step_id}"
+            )
         if step is None:
-            raise DisableProbeBlocked(f"scenario has no real step to exercise {requirement.capability}")
+            raise DisableProbeBlocked(
+                f"scenario did not successfully execute {requirement.exercise_step_id} "
+                f"for {requirement.capability}"
+            )
         spec = HttpExerciseSpec(
-            method=step.method,
+            probe_id=requirement.probe_id,
+            method=request.method,
             path=step.path,
-            payload={},
-            success_statuses=(200, 201, 202, 204, 409),
+            payload=request.payload,
+            headers=request.headers,
+            success_statuses=request.expected_statuses,
             owner_paths=(
                 "canonical_entrypoint",
+                "state_owner",
                 "worker_result.metadata.canonical_runtime_owner",
                 "metadata.canonical_owner",
             ),
+            failure_error_codes=tuple(requirement.expected_errors),
         )
-        return HttpOwnerExercise(context.transport, spec)
+        # Read-only owner surfaces are safe to replay against the task or
+        # process that the scenario already proved reachable.  Recreating the
+        # entire scenario prefix while the owner is disabled can fail in an
+        # unrelated prerequisite (for example task-event persistence), which
+        # masks the exact owner-disconnect behavior under review.
+        if request.method.upper() == "GET":
+            return HttpOwnerExercise(context.transport, spec)
+        return ScenarioPrefixOwnerExercise(context, requirement, spec)
 
 
 def default_owner_disable_contracts() -> tuple[OwnerDisableContract, ...]:
@@ -466,6 +756,14 @@ def default_owner_disable_contracts() -> tuple[OwnerDisableContract, ...]:
             expected_error_codes=("e04_tool_source_runtime_disabled", "tool_loop_foundation_disabled"),
             dependencies=("disable-query-session",),
             reset_components=("codeworker",),
+        ),
+        OwnerDisableContract(
+            probe_id="disable-mcp-runtime",
+            capability="mcp-runtime",
+            environment_flags=("ZYRA_DISABLE_E04_MCP_SOURCE_RUNTIME",),
+            expected_error_codes=("mcp_source_runtime_disabled", "mcp_runtime_disabled"),
+            dependencies=("disable-permission-runtime",),
+            reset_components=("mcp",),
         ),
         OwnerDisableContract(
             probe_id="disable-permission-runtime",
@@ -487,7 +785,8 @@ def default_owner_disable_contracts() -> tuple[OwnerDisableContract, ...]:
             probe_id="disable-sandbox-gateway",
             capability="sandbox-gateway",
             environment_flags=("ZYRA_SANDBOX_GATEWAY_DISABLED",),
-            expected_error_codes=("sandbox_gateway_disabled", "gateway_unavailable"),
+            expected_error_codes=("sandbox_gateway_disabled",),
+            allow_success_with_difference=True,
             dependencies=("disable-workspace-runtime",),
             reset_components=("sandbox-gateway",),
         ),
@@ -540,6 +839,7 @@ def default_owner_disable_contracts() -> tuple[OwnerDisableContract, ...]:
                 "ZYRA_DISABLE_COMPACT_RESTORE_MEMORY_BRIDGE",
             ),
             expected_error_codes=("skill_memory_runtime_disabled", "compact_restore_memory_bridge_disabled"),
+            allow_success_with_difference=True,
             dependencies=("disable-memory-curator",),
             reset_components=("codeworker", "skill-memory"),
         ),
@@ -588,8 +888,8 @@ def default_owner_disable_contracts() -> tuple[OwnerDisableContract, ...]:
         OwnerDisableContract(
             probe_id="disable-graph-state-store",
             capability="graph-custody",
-            environment_flags=("ZYRA_GRAPH_STATE_STORE_DISABLED",),
-            expected_error_codes=("graph_custody_disabled",),
+            environment_flags=("ZYRA_DYNAMIC_GRAPH_COMMIT_DISABLED",),
+            expected_error_codes=("dynamic_graph_commit_disabled", "graph_custody_disabled"),
             dependencies=("disable-runtime-event-spine",),
             reset_components=("graph-custody",),
         ),

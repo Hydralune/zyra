@@ -17,6 +17,10 @@ from zyra_evaluation.m1_hardening.integration_scenarios import (
     M1IntegrationScenarioSuite,
     ScenarioRuntimeOptions,
 )
+from zyra_evaluation.m1_hardening.owner_probes import (
+    OwnerProbeCatalog,
+    ScenarioDisconnectCoordinator,
+)
 from zyra_evaluation.m1_hardening.contracts import HardeningContext
 from zyra_evaluation.m1_hardening.service import AuditOptions, M1HardeningService
 
@@ -167,7 +171,7 @@ def test_public_api_exposes_integration_status_and_executes_each_main_path(
                 assert status == 200
                 assert body["schema"] == "zyra.m1-integration-service-status/v1"
                 assert len(body["scenario_ids"]) == 6
-                assert len(body["owner_probe_ids"]) == 17
+                assert len(body["owner_probe_ids"]) == 18
 
                 status, missing = transport.get("/hardening/m1/integration/runs/not-present")
                 assert status == 404
@@ -223,6 +227,88 @@ def test_public_api_exposes_integration_status_and_executes_each_main_path(
         assert all(step.ok for step in run.steps)
 
 
+@pytest.mark.parametrize(
+    "scenario_id",
+    M1IntegrationScenarioSuite().scenario_ids(),
+)
+def test_public_api_scenarios_execute_real_owner_disconnects_without_lease_exhaustion(
+    scenario_id: str,
+) -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        environment = {
+            "ZYRA_SQLITE_PATH": str(root / "api.sqlite3"),
+            "ZYRA_EVENT_LOG": str(root / "events.jsonl"),
+            "ZYRA_TOOL_WORKSPACE": str(root / "workspace"),
+            "ZYRA_ARTIFACT_ROOT": str(root / "artifacts"),
+            "ZYRA_PERMISSION_STATE": str(root / "permission-state.json"),
+            "ZYRA_PERMISSION_STORE": str(root / "permissions.json"),
+        }
+        with patch.dict(os.environ, environment, clear=False):
+            handler = _fresh_api_handler()
+            api_module = sys.modules["apps.api.zyra_api.main"]
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            coordinator = ScenarioDisconnectCoordinator(
+                OwnerProbeCatalog(),
+                reset_registry=api_module.m1_owner_probe_reset_registry(),
+            )
+            try:
+                suite = M1IntegrationScenarioSuite()
+                evidence, gate = suite.execute_http(
+                    base_url,
+                    scenario_ids=(scenario_id,),
+                    options=ScenarioRuntimeOptions(
+                        timeout_seconds=120,
+                        execute_disconnects=True,
+                        final_completion=False,
+                    ),
+                    disconnect_executor=coordinator.execute,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=10)
+
+        diagnostic = {
+            "gate": gate.to_dict(),
+            "disconnect_evidence": [
+                {
+                    "probe_id": item.get("probe_id"),
+                    "capability": item.get("capability"),
+                    "status": item.get("status"),
+                    "error_code": item.get("error_code"),
+                    "error_message": item.get("error_message") or item.get("message"),
+                    "disabled": item.get("disabled"),
+                    "difference": item.get("difference"),
+                    "restore_receipt": item.get("restore_receipt"),
+                }
+                for item in evidence[0].disconnect_evidence
+            ],
+        }
+        receipts = {item["capability"]: item for item in evidence[0].disconnect_evidence}
+        expected_capabilities = {
+            item.capability for item in suite.definition(scenario_id).disconnects
+        }
+        assert set(receipts) == expected_capabilities
+        if scenario_id == "m1-integration-subagent-worker-recovery":
+            # The production subagent bridge currently pins physical dispatch
+            # to the local worker.  Preserve this as a visible M1 exit blocker
+            # instead of letting an edge disable flag falsify a passing probe.
+            assert not gate.ok, json.dumps(diagnostic, indent=2)
+            edge = receipts.pop("edge-worker")
+            assert edge["status"] == "blocked"
+            assert edge["error_code"] == "edge_live_dispatch_unavailable"
+            assert edge["observed_worker_locations"] == ["local"]
+        else:
+            assert gate.ok, json.dumps(diagnostic, indent=2)
+        assert all(item["status"] == "passed" for item in receipts.values())
+        assert all(item.get("expected_failure_observed") or item.get("material_difference") for item in receipts.values())
+        assert all(item.get("fallback_masked") is False for item in receipts.values())
+
+
 def test_public_api_integration_orchestrator_persists_fail_closed_outcome() -> None:
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
@@ -272,3 +358,36 @@ def test_public_api_integration_orchestrator_persists_fail_closed_outcome() -> N
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=10)
+
+
+def test_runtime_event_spine_disconnect_returns_stable_http_failure() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        environment = {
+            "ZYRA_SQLITE_PATH": str(root / "api.sqlite3"),
+            "ZYRA_EVENT_LOG": str(root / "events.jsonl"),
+            "ZYRA_TOOL_WORKSPACE": str(root / "workspace"),
+            "ZYRA_ARTIFACT_ROOT": str(root / "artifacts"),
+            "ZYRA_RUNTIME_EVENT_SPINE_DISABLED": "1",
+        }
+        with patch.dict(os.environ, environment, clear=False):
+            handler = _fresh_api_handler()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            transport = HttpScenarioTransport(
+                f"http://127.0.0.1:{server.server_address[1]}"
+            )
+            try:
+                status, body = transport.post(
+                    "/tasks",
+                    {"goal": "Fail closed when canonical event custody is unavailable.", "auto_run": False},
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=10)
+
+        assert status == 503
+        assert body["error"] == "runtime_event_spine_disabled"
+        assert body["fallback"] is False

@@ -68,7 +68,7 @@ class ExactWorkerCheckpointRuntime:
     ) -> IntegrationCheckpoint:
         if os.getenv("ZYRA_DYNAMIC_GRAPH_COMMIT_DISABLED") == "1":
             raise WorkerPoolError(
-                WorkerPoolErrorCode.EXECUTION_REJECTED,
+                WorkerPoolErrorCode.DYNAMIC_GRAPH_COMMIT_DISABLED,
                 "dynamic graph checkpoint module is disabled",
                 operation="create_worker_integration_checkpoint",
             )
@@ -196,7 +196,7 @@ class ExactWorkerCheckpointRuntime:
     def restore(self, checkpoint_id: str, *, strict: bool = True) -> RestoreAudit:
         if os.getenv("ZYRA_DYNAMIC_GRAPH_COMMIT_DISABLED") == "1":
             raise WorkerPoolError(
-                WorkerPoolErrorCode.EXECUTION_REJECTED,
+                WorkerPoolErrorCode.DYNAMIC_GRAPH_COMMIT_DISABLED,
                 "dynamic graph restore module is disabled",
                 operation="restore_worker_integration_checkpoint",
             )

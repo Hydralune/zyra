@@ -10,7 +10,7 @@ from zyra_core import TaskState
 
 from .contracts import ContinuationMode, InjectionKind, runtime_id
 from .injection import FaultInjectionRuntime
-from .runtime import FaultRuntimeApplication
+from .runtime import FaultRuntimeApplication, WatchdogRuntimeError
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +259,16 @@ class FaultRuntimeApiService:
                 return FaultApiResponse(HTTPStatus.OK, result.to_dict(), headers={"Cache-Control": "no-store"})
         except FaultApiError as error:
             return error.response()
+        except WatchdogRuntimeError as error:
+            return FaultApiResponse(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {
+                    "schema": "zyra.fault-api-error/v1",
+                    "error": error.code,
+                    "message": str(error),
+                    "fallback": False,
+                },
+            )
         except (TypeError, ValueError, KeyError, RuntimeError) as error:
             return FaultApiResponse(
                 HTTPStatus.BAD_REQUEST,

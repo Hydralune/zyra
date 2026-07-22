@@ -30,7 +30,11 @@ from .integration_scenarios import (
 )
 from .live_evidence import LiveEvidenceSuite
 from .owner_matrix import OwnerMatrix
-from .owner_probes import OwnerProbeCatalog, ScenarioDisconnectCoordinator
+from .owner_probes import (
+    OwnerProbeCatalog,
+    RuntimeResetRegistry,
+    ScenarioDisconnectCoordinator,
+)
 from .service import AuditOptions, AuditOutcome, M1HardeningService
 
 
@@ -199,6 +203,7 @@ class M1IntegrationService:
         source_workspace: str | Path | None = None,
         artifact_root: str | Path | None = None,
         foundation_service: M1HardeningService | None = None,
+        reset_registry: RuntimeResetRegistry | None = None,
     ) -> None:
         self.root = Path(project_root).resolve()
         self.source_workspace = Path(source_workspace).resolve() if source_workspace else self.root.parent
@@ -210,6 +215,7 @@ class M1IntegrationService:
         )
         self.scenarios = M1IntegrationScenarioSuite()
         self.owner_probes = OwnerProbeCatalog()
+        self.reset_registry = reset_registry or RuntimeResetRegistry()
         self.owner_matrix = OwnerMatrix(self.root)
         self.live = LiveEvidenceSuite()
         self.benchmark = LongHorizonBenchmarkGate()
@@ -249,7 +255,10 @@ class M1IntegrationService:
         artifact_paths: list[str] = []
         try:
             if options.execute_scenarios:
-                coordinator = ScenarioDisconnectCoordinator(self.owner_probes)
+                coordinator = ScenarioDisconnectCoordinator(
+                    self.owner_probes,
+                    reset_registry=self.reset_registry,
+                )
                 scenario_evidence, scenario_gate = self.scenarios.execute_http(
                     base_url,
                     scenario_ids=options.scenario_ids,

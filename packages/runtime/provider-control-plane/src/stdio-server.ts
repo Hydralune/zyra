@@ -58,6 +58,7 @@ export class ProviderControlPlaneRpcServer {
   }
 
   private async dispatch(operation: string, payload: Record<string, unknown>): Promise<unknown> {
+    assertProviderControlPlaneEnabled();
     switch (operation) {
       case "health":
         return this.controlPlane.health();
@@ -198,6 +199,18 @@ export class ProviderControlPlaneRpcServer {
         throw new TypeError(`unsupported provider RPC operation: ${operation}`);
     }
   }
+}
+
+function assertProviderControlPlaneEnabled(): void {
+  const value = String(process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED ?? "").trim().toLowerCase();
+  if (!["1", "true", "yes", "on"].includes(value)) return;
+  throw new ProviderControlPlaneError({
+    layer: "protocol",
+    kind: "provider_control_plane_disabled",
+    message: "provider control plane is disabled by the Zyra owner-disconnect gate",
+    recoveryIntent: "surface_to_operator",
+    detail: { fallbackEnabled: false },
+  });
 }
 
 export async function runStdioServer(databasePath: string): Promise<void> {

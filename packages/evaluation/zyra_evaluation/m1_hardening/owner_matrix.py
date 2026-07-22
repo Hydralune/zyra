@@ -15,6 +15,7 @@ from .contracts import EvidencePointer, Finding, GateResult, GateStatus, Severit
 REQUIRED_DISABLE_CAPABILITIES = (
     "query-session",
     "tool-loop",
+    "mcp-runtime",
     "permission-runtime",
     "workspace-runtime",
     "sandbox-gateway",
@@ -586,6 +587,32 @@ def default_owner_requirements() -> tuple[OwnerRequirement, ...]:
             dependencies=("query-session",),
             required_for_scenarios=(query, permission, mcp),
             restore_semantics=("pending tool call settles once with stable tool-use identity",),
+        ),
+        OwnerRequirement(
+            capability="mcp-runtime",
+            canonical_owner="McpRuntimeCoordinator/McpConnectionRuntime",
+            state_family="mcp_runtime",
+            source_role="primary",
+            source_repository="claude-code-best",
+            source_language="TypeScript",
+            target_language="TypeScript",
+            entrypoints=(
+                _entry(
+                    "packages/integrations/claude-mcp/src/runtime/coordinator.ts",
+                    "McpRuntimeCoordinator",
+                    language="TypeScript",
+                    events=(r"mcp", r"elicitation|auth"),
+                ),
+                _entry(
+                    "packages/integrations/claude-mcp/src/connection/connection-runtime.ts",
+                    "McpConnectionRuntime",
+                    language="TypeScript",
+                ),
+            ),
+            disable_probe_ids=("disable-mcp-runtime",),
+            dependencies=("permission-runtime",),
+            required_for_scenarios=(mcp,),
+            restore_semantics=("connection generation, auth and elicitation custody survive restart",),
         ),
         OwnerRequirement(
             capability="permission-runtime",

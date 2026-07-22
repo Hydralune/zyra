@@ -6,6 +6,7 @@ import atexit
 from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 import hashlib
+import os
 from pathlib import Path
 import threading
 from typing import Any, Iterable, Mapping, Sequence
@@ -745,6 +746,16 @@ def get_runtime_event_spine(
     artifact_root: str | Path,
     workspace_root: str | Path | None = None,
 ) -> RuntimeEventSpineBridge:
+    if os.environ.get("ZYRA_RUNTIME_EVENT_SPINE_DISABLED", "").strip().casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        raise RuntimeEventProcessError(
+            "runtime_event_spine_disabled",
+            code="runtime_event_spine_disabled",
+        )
     database = str(Path(database_path).expanduser().resolve())
     artifacts = str(Path(artifact_root).expanduser().resolve())
     workspace = str(Path(workspace_root).expanduser().resolve()) if workspace_root else ""

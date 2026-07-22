@@ -13,6 +13,7 @@ from zyra_evaluation.m1_hardening.cleanroom import (
     default_cleanroom_commands,
 )
 from zyra_evaluation.m1_hardening.contracts import GateStatus
+from zyra_evaluation.m1_hardening.disable import DisableProbeRunner, ProbeStatus
 from zyra_evaluation.m1_hardening.evidence_admission import (
     AdmissionPolicy,
     AdmissionStatus,
@@ -28,7 +29,7 @@ from zyra_evaluation.m1_hardening.integration_scenarios import (
     scenario_catalog_gate,
 )
 from zyra_evaluation.m1_hardening.live_evidence import EndpointEvidenceGate
-from zyra_evaluation.m1_hardening.owner_matrix import OwnerMatrix
+from zyra_evaluation.m1_hardening.owner_matrix import OwnerMatrix, REQUIRED_DISABLE_CAPABILITIES
 from zyra_evaluation.m1_hardening.owner_probes import (
     EnvironmentOwnerDisconnectProbe,
     OwnerDisableContract,
@@ -55,10 +56,21 @@ def test_six_scenario_catalog_and_owner_matrix_resolve_real_product_owners() -> 
     assert catalog_gate.status is GateStatus.PASSED, catalog_gate.to_dict()
     assert len(definitions) == 6
     assert len({item.kind for item in definitions}) == 6
-    assert len(probes.probe_ids()) == 17
+    assert len(probes.probe_ids()) == 18
     assert probes.validate() == ()
     assert owner_gate.status is GateStatus.PASSED, owner_gate.to_dict()
-    assert owner_gate.metrics["required_capability_count"] == 17
+    assert owner_gate.metrics["required_capability_count"] == 18
+    mapped = {
+        disconnect.capability
+        for definition in definitions
+        for disconnect in definition.disconnects
+    }
+    assert mapped == set(REQUIRED_DISABLE_CAPABILITIES)
+    assert all(
+        disconnect.exercise_step_id in {request.step_id for request in definition.requests}
+        for definition in definitions
+        for disconnect in definition.disconnects
+    )
 
 
 def test_environment_disconnect_probe_disables_real_process_flag_and_restores() -> None:
@@ -81,21 +93,17 @@ def test_environment_disconnect_probe_disables_real_process_flag_and_restores() 
         }
 
     probe = EnvironmentOwnerDisconnectProbe(contract, exercise)
-    captured = probe.capture()
-    baseline = probe.exercise()
-    disabled = probe.disable()
-    failure = probe.exercise()
-    restored = probe.restore(captured)
+    execution = DisableProbeRunner().run(probe)
 
-    assert baseline["ok"] is True
-    assert disabled["ok"] is True
-    assert failure == {
+    assert execution.status is ProbeStatus.PASSED, execution.to_dict()
+    assert execution.baseline["ok"] is True
+    assert execution.disabled == {
         "ok": False,
         "error": "test_owner_disabled",
         "canonical_owner": "code-index",
         "fallback": False,
     }
-    assert restored["ok"] is True
+    assert execution.restore_receipt["ok"] is True
     assert flag not in os.environ
 
 

@@ -4,6 +4,7 @@ import { deepClone } from "./canonical.ts";
 export type ProviderFailureLayer = "catalog" | "integration" | "credential" | "route" | "transport" | "protocol";
 
 export type ProviderFailureKind =
+  | "provider_control_plane_disabled"
   | "catalog_revision_conflict"
   | "provider_not_found"
   | "provider_disabled"

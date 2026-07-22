@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -48,6 +49,12 @@ from .query import FaultRuntimeQueryService
 from .pressure import FaultPressureMonitor
 from .provider_supervision import ProviderAttemptSupervisor, provider_supervision_contract
 from .integration import WatchdogFaultIntegrationRuntime, integration_contract
+
+
+class WatchdogRuntimeError(RuntimeError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class RuntimeWatchdog:
@@ -123,6 +130,16 @@ class RuntimeWatchdog:
         return self.lifecycle.reconcile_startup()
 
     def ingest_runtime_event(self, event: Mapping[str, Any]) -> Mapping[str, Any]:
+        if os.environ.get("ZYRA_WATCHDOG_RUNTIME_DISABLED", "").strip().casefold() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            raise WatchdogRuntimeError(
+                "watchdog_runtime_disabled",
+                "runtime watchdog owner is disabled by the Zyra owner-disconnect gate",
+            )
         self.runtime_events.ingest(event)
         source_signal_id = str(event.get("signal_id") or "")
         return {
@@ -403,4 +420,4 @@ class FaultRuntimeApplication:
         }
 
 
-__all__ = ["FaultRuntimeApplication", "RuntimeWatchdog"]
+__all__ = ["FaultRuntimeApplication", "RuntimeWatchdog", "WatchdogRuntimeError"]

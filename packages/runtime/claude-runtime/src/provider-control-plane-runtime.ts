@@ -63,6 +63,9 @@ export async function resolveProviderControlPlaneTurns(
   requestRound: number,
   overrideMessages?: readonly JsonObject[],
 ): Promise<ProviderControlPlaneModelResolution> {
+  if (process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED === "1") {
+    return failClosed("provider_control_plane_disabled", config.modelName);
+  }
   const constraints = config.runtimeConstraints;
   const databasePath = asString(constraints.provider_control_plane_database_path).trim();
   if (!databasePath) {

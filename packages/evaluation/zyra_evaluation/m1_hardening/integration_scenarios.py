@@ -26,6 +26,7 @@ from .integration_contracts import (
     request_digest,
     stable_digest,
 )
+from .owner_matrix import REQUIRED_DISABLE_CAPABILITIES
 from .scenario import HttpScenarioTransport, ScenarioTransport, ScenarioTransportError
 
 
@@ -639,13 +640,34 @@ def _query_tool_scenario() -> ScenarioDefinition:
                 capability="query-session",
                 probe_id="disable-query-session",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("query_session_disabled", "typescript_runtime_disabled"),
+                exercise_step_id="execute-query-tool",
+                expected_errors=("e04_query_source_runtime_disabled", "query_session_disabled"),
             ),
             DisconnectRequirement(
                 capability="tool-loop",
                 probe_id="disable-tool-loop",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("tool_loop_disabled", "tool_loop_foundation_disabled"),
+                exercise_step_id="execute-query-tool",
+                expected_errors=("e04_tool_source_runtime_disabled", "tool_loop_foundation_disabled"),
+            ),
+            DisconnectRequirement(
+                capability="workspace-runtime",
+                probe_id="disable-workspace-runtime",
+                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
+                exercise_step_id="execute-query-tool",
+                expected_errors=("workspace_backend_disabled", "workspace_runtime_disabled"),
+            ),
+            DisconnectRequirement(
+                capability="code-index",
+                probe_id="disable-code-index",
+                expected_effect=ExpectedEffect.MATERIAL_DIFFERENCE,
+                exercise_step_id="execute-query-tool",
+            ),
+            DisconnectRequirement(
+                capability="sandbox-gateway",
+                probe_id="disable-sandbox-gateway",
+                expected_effect=ExpectedEffect.MATERIAL_DIFFERENCE,
+                exercise_step_id="execute-query-tool",
             ),
         ),
         required_event_families=("task", "tool", "artifact"),
@@ -726,13 +748,8 @@ def _permission_scenario() -> ScenarioDefinition:
                 capability="permission-runtime",
                 probe_id="disable-permission-runtime",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("permission_runtime_disabled", "permission_owner_disabled"),
-            ),
-            DisconnectRequirement(
-                capability="sandbox-gateway",
-                probe_id="disable-sandbox-gateway",
-                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("sandbox_gateway_disabled", "gateway_unavailable"),
+                exercise_step_id="dangerous-tool",
+                expected_errors=("permission_source_runtime_disabled", "permission_runtime_disabled"),
             ),
         ),
         required_event_families=("permission", "tool", "requirement+change"),
@@ -821,16 +838,18 @@ def _mcp_scenario() -> ScenarioDefinition:
         ),
         disconnects=(
             DisconnectRequirement(
-                capability="tool-loop",
-                probe_id="disable-tool-loop",
+                capability="mcp-runtime",
+                probe_id="disable-mcp-runtime",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("tool_loop_disabled", "tool_loop_foundation_disabled"),
+                exercise_step_id="mcp-tools",
+                expected_errors=("mcp_source_runtime_disabled", "mcp_runtime_disabled"),
             ),
             DisconnectRequirement(
                 capability="permission-runtime",
                 probe_id="disable-permission-runtime",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("permission_runtime_disabled", "permission_owner_disabled"),
+                exercise_step_id="mcp-command",
+                expected_errors=("permission_source_runtime_disabled", "permission_runtime_disabled"),
             ),
         ),
         required_event_families=("mcp", "requirement+change"),
@@ -860,7 +879,10 @@ def _skill_memory_scenario() -> ScenarioDefinition:
                 payload={
                     "invoked_skills": ["codebase-analysis"],
                     "tool_plan": [
-                        {"tool_name": "file_read", "arguments": {"path": "skill-context.txt"}}
+                        {
+                            "tool_name": "skill",
+                            "arguments": {"name": "codebase-analysis", "arguments": {}},
+                        }
                     ],
                     "max_turns": 1,
                 },
@@ -872,6 +894,13 @@ def _skill_memory_scenario() -> ScenarioDefinition:
                 path="/tasks/{{task_id}}/memory/ingest",
                 payload={},
                 expected_statuses=(200, 201),
+            ),
+            RequestSpec(
+                step_id="curator-health",
+                method="POST",
+                path="/tasks/{{task_id}}/memory/curator",
+                payload={"operation": "health"},
+                expected_statuses=(200, 201, 409),
             ),
             RequestSpec(
                 step_id="mine-procedure",
@@ -933,12 +962,20 @@ def _skill_memory_scenario() -> ScenarioDefinition:
                 capability="memory-retrieval",
                 probe_id="disable-memory-retrieval",
                 expected_effect=ExpectedEffect.MATERIAL_DIFFERENCE,
+                exercise_step_id="invoke-skill",
+            ),
+            DisconnectRequirement(
+                capability="memory-curator",
+                probe_id="disable-memory-curator",
+                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
+                exercise_step_id="curator-health",
+                expected_errors=("memory_curator_disabled", "curator_runtime_disabled"),
             ),
             DisconnectRequirement(
                 capability="skill-memory-restore",
                 probe_id="disable-skill-memory-restore",
-                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("skill_memory_restore_disabled", "compact_restore_disabled"),
+                expected_effect=ExpectedEffect.MATERIAL_DIFFERENCE,
+                exercise_step_id="invoke-skill",
             ),
         ),
         required_event_families=("skill", "memory", "compact"),
@@ -962,20 +999,20 @@ def _subagent_recovery_scenario() -> ScenarioDefinition:
                     "shared_context": "Inspect recovery evidence with bounded, no-tool work.",
                     "items": [
                         {
-                            "task_id": "m1-integration-recovery-child-a",
+                            "task_id": "{{task_id}}-recovery-child-a",
                             "prompt": "Inspect the worker lease receipt.",
                             "background": True,
                         },
                         {
-                            "task_id": "m1-integration-recovery-child-b",
+                            "task_id": "{{task_id}}-recovery-child-b",
                             "prompt": "Inspect the recovery route evidence.",
                             "background": True,
                         },
                     ],
                     "failure_policy": "collect",
                     "maximum_concurrency": 2,
-                    "request_id": "m1-integration-recovery-fanout",
-                    "idempotency_key": "m1-integration-recovery-fanout",
+                    "request_id": "{{task_id}}-recovery-fanout",
+                    "idempotency_key": "{{task_id}}-recovery-fanout",
                 },
                 expected_statuses=(200, 201, 202, 409),
                 optional=True,
@@ -1057,18 +1094,35 @@ def _subagent_recovery_scenario() -> ScenarioDefinition:
                 capability="physical-worker",
                 probe_id="disable-physical-worker",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("physical_worker_disabled", "worker_pool_disabled"),
+                exercise_step_id="fanout-subagent",
+                expected_errors=("worker_pool_integration_disabled", "physical_worker_disabled"),
+            ),
+            DisconnectRequirement(
+                capability="edge-worker",
+                probe_id="disable-edge-worker",
+                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
+                exercise_step_id="fanout-subagent",
+                expected_errors=("edge_connector_disabled", "edge_worker_disabled"),
             ),
             DisconnectRequirement(
                 capability="checkpoint-recovery",
                 probe_id="disable-checkpoint-recovery",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                expected_errors=("checkpoint_recovery_disabled", "recovery_owner_disabled"),
+                exercise_step_id="recover-reroute",
+                expected_errors=("recovery_runtime_disabled", "checkpoint_recovery_disabled"),
             ),
             DisconnectRequirement(
                 capability="layered-route",
                 probe_id="disable-layered-route",
                 expected_effect=ExpectedEffect.MATERIAL_DIFFERENCE,
+                exercise_step_id="recover-reroute",
+            ),
+            DisconnectRequirement(
+                capability="graph-custody",
+                probe_id="disable-graph-state-store",
+                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
+                exercise_step_id="fanout-subagent",
+                expected_errors=("dynamic_graph_commit_disabled", "graph_custody_disabled"),
             ),
         ),
         required_event_families=("subagent", "worker", "failure", "recovery"),
@@ -1084,6 +1138,12 @@ def _stream_failover_scenario() -> ScenarioDefinition:
         requests=(
             _create_request("Exercise provider stream stall, bounded retry and backend failover."),
             *_baseline_requests(),
+            RequestSpec(
+                step_id="provider-health",
+                method="GET",
+                path="/providers/health",
+                expected_statuses=(200,),
+            ),
             RequestSpec(
                 step_id="runtime-stream-before",
                 method="GET",
@@ -1102,6 +1162,18 @@ def _stream_failover_scenario() -> ScenarioDefinition:
                     "require_provider_failover": True,
                 },
                 expected_statuses=(201, 202, 409, 502, 503, 504),
+            ),
+            RequestSpec(
+                step_id="watchdog-ingest",
+                method="POST",
+                path="/tasks/{{task_id}}/faults/runtime-events",
+                payload={
+                    "run_id": "{{run_id}}",
+                    "task_id": "{{task_id}}",
+                    "phase": "owner_disconnect_probe",
+                    "signal_id": "watchdog-owner-probe:{{task_id}}",
+                },
+                expected_statuses=(202,),
             ),
             RequestSpec(
                 step_id="runtime-stream-after",
@@ -1141,18 +1213,22 @@ def _stream_failover_scenario() -> ScenarioDefinition:
                 capability="provider-control-plane",
                 probe_id="disable-provider-control-plane",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
+                exercise_step_id="provider-health",
                 expected_errors=("provider_control_plane_disabled", "provider_owner_disabled"),
             ),
             DisconnectRequirement(
                 capability="runtime-event-spine",
                 probe_id="disable-runtime-event-spine",
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
+                exercise_step_id="runtime-stream-after",
                 expected_errors=("runtime_event_spine_disabled", "event_owner_disabled"),
             ),
             DisconnectRequirement(
                 capability="watchdog",
                 probe_id="disable-watchdog",
-                expected_effect=ExpectedEffect.MATERIAL_DIFFERENCE,
+                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
+                exercise_step_id="watchdog-ingest",
+                expected_errors=("watchdog_runtime_disabled",),
             ),
         ),
         required_event_families=("provider", "retry", "fallback", "stream"),
@@ -1211,11 +1287,26 @@ def scenario_catalog_gate() -> GateResult:
                 detail=kind.value,
             )
         )
+    mapped_capabilities = {
+        disconnect.capability
+        for definition in suite.definitions()
+        for disconnect in definition.disconnects
+    }
+    for capability in sorted(set(REQUIRED_DISABLE_CAPABILITIES) - mapped_capabilities):
+        result.add(
+            Finding(
+                code="integration.catalog_owner_disconnect_missing",
+                severity=Severity.BLOCKER,
+                summary="Scenario catalog omits a required owner disconnect.",
+                capability=capability,
+            )
+        )
     result.metrics.update(
         {
             "scenario_count": len(suite.definitions()),
             "kinds": sorted(kind.value for kind in kinds),
             "disconnect_probe_ids": sorted(probe_ids),
+            "disconnect_capabilities": sorted(mapped_capabilities),
             "request_count": sum(len(item.requests) for item in suite.definitions()),
             "assertion_count": sum(len(item.assertions) for item in suite.definitions()),
         }

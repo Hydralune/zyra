@@ -121,6 +121,7 @@ class DisconnectRequirement:
     capability: str
     probe_id: str
     expected_effect: ExpectedEffect
+    exercise_step_id: str
     expected_errors: tuple[str, ...] = ()
     forbid_fallback: bool = True
 
@@ -130,6 +131,8 @@ class DisconnectRequirement:
             issues.append("disconnect capability is empty")
         if not re.fullmatch(r"disable-[a-z0-9-]{3,100}", self.probe_id):
             issues.append("disconnect probe id must start with disable-")
+        if not re.fullmatch(r"[a-z][a-z0-9-]{2,80}", self.exercise_step_id):
+            issues.append("disconnect must name one explicit scenario exercise step")
         if self.expected_effect is ExpectedEffect.EXPLICIT_FAILURE and not self.expected_errors:
             issues.append("explicit failure disconnect requires stable error codes")
         return tuple(issues)
@@ -178,6 +181,11 @@ class ScenarioDefinition:
         probe_ids: set[str] = set()
         for disconnect in self.disconnects:
             issues.extend(f"disconnect {disconnect.probe_id}: {issue}" for issue in disconnect.validate())
+            if disconnect.exercise_step_id not in step_ids:
+                issues.append(
+                    f"disconnect {disconnect.probe_id}: unknown exercise step "
+                    f"{disconnect.exercise_step_id}"
+                )
             if disconnect.probe_id in probe_ids:
                 issues.append(f"duplicate disconnect: {disconnect.probe_id}")
             probe_ids.add(disconnect.probe_id)

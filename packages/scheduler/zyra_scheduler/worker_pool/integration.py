@@ -363,7 +363,7 @@ class WorkerPoolIntegrationRuntime:
 
         if os.getenv("ZYRA_DYNAMIC_GRAPH_COMMIT_DISABLED") == "1":
             raise WorkerPoolError(
-                WorkerPoolErrorCode.EXECUTION_REJECTED,
+                WorkerPoolErrorCode.DYNAMIC_GRAPH_COMMIT_DISABLED,
                 "dynamic graph commit runtime is disabled",
                 operation="add_runtime_worker_node",
                 task_id=logical_task_id,

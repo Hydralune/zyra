@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -17,6 +18,12 @@ from zyra_memory.curator_store import CuratorCandidateStore
 
 from .memory_curator_ingress import RuntimeEventCuratorIngress
 from .memory_curator_integration import MemoryCuratorIntegrationApplication
+
+
+class MemoryCuratorRuntimeError(RuntimeError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class MemoryCuratorOperation(StrEnum):
@@ -171,6 +178,16 @@ class MemoryCuratorWorkerRuntime:
         return integrated.curator_result, integrated.to_dict()
 
     def execute(self, request: MemoryCuratorWorkerRequest) -> MemoryCuratorWorkerResponse:
+        if os.environ.get("ZYRA_MEMORY_CURATOR_DISABLED", "").strip().casefold() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            raise MemoryCuratorRuntimeError(
+                "memory_curator_disabled",
+                "MemoryCuratorWorkerRuntime is disabled; no alternate curator may take custody.",
+            )
         value = request.validated()
         if value.operation is MemoryCuratorOperation.SCHEDULE_MANUAL:
             scheduled = self.scheduler.schedule_manual(

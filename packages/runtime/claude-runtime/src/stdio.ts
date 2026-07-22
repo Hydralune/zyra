@@ -571,7 +571,26 @@ export async function runStdioRuntimeWithStreams(
       },
     } as unknown as JsonObject);
   } catch (caught) {
-    let error: unknown = caught;
+    const error: unknown = caught;
+    const protocolError = error instanceof RuntimeProtocolError ? error : null;
+    const message = error instanceof Error ? error.message : String(error);
+    const structuredCode = typeof error === "object" && error !== null
+      && typeof (error as { code?: unknown }).code === "string"
+      ? String((error as { code: string }).code)
+      : "";
+    const errorCode = protocolError?.code
+      ?? (/^[a-z][a-z0-9_]{2,127}$/.test(structuredCode) ? structuredCode : null)
+      ?? (/^[a-z][a-z0-9_]{2,127}$/.test(message) ? message : "typescript_runtime_error");
+    if (!terminalResultSent) {
+      // Emit the terminal error before cleanup.  E02 close may checkpoint or
+      // wait for external transports; making it precede the error frame turns
+      // an explicit owner kill-switch into a host-side timeout/process crash.
+      host.send("runtime.error", {
+        code: errorCode,
+        message,
+        canonical_owner: "typescript",
+      });
+    }
     try {
       await host.observeRuntimeError(error);
     } catch {
@@ -580,19 +599,11 @@ export async function runStdioRuntimeWithStreams(
     if (!terminalResultSent && capabilities !== null) {
       try {
         await capabilities.close();
-      } catch (closeError) {
-        error = closeError;
+      } catch {
+        // Cleanup must not replace the already-emitted canonical failure.
       } finally {
         capabilities = null;
       }
-    }
-    if (!terminalResultSent) {
-      const protocolError = error instanceof RuntimeProtocolError ? error : null;
-      host.send("runtime.error", {
-        code: protocolError?.code ?? "typescript_runtime_error",
-        message: error instanceof Error ? error.message : String(error),
-        canonical_owner: "typescript",
-      });
     }
     process.exitCode = 1;
   } finally {

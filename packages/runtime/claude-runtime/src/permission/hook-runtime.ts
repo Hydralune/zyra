@@ -58,9 +58,11 @@ export interface PermissionHookPipelineResult {
 
 export function assertPermissionSourceRuntimeEnabled(): void {
   if (process.env.ZYRA_DISABLE_E04_PERMISSION_SOURCE_RUNTIME === "1") {
-    throw new Error(
+    const error = new Error(
       "The migrated TypeScript permission source runtime is disabled; no local policy fallback is permitted",
     );
+    Object.assign(error, { code: "permission_source_runtime_disabled" });
+    throw error;
   }
 }
 

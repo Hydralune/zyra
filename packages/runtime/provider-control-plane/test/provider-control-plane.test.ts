@@ -14,6 +14,7 @@ import {
   type RouteRequest,
   type TransportProtocol,
 } from "../src/index.ts";
+import { ProviderControlPlaneRpcServer, RPC_PROTOCOL } from "../src/stdio-server.ts";
 
 interface CapturedRequest {
   readonly url: string;
@@ -76,6 +77,27 @@ function makeControlPlane(t: TestContext): { controlPlane: ProviderControlPlane;
   });
   return { controlPlane, secrets };
 }
+
+test("RPC server fails closed when the provider control-plane owner is disabled", async (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  const server = new ProviderControlPlaneRpcServer(controlPlane);
+  const previous = process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED;
+  t.after(() => {
+    if (previous === undefined) delete process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED;
+    else process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED = previous;
+  });
+  process.env.ZYRA_PROVIDER_CONTROL_PLANE_DISABLED = "true";
+
+  const response = await server.handle({
+    protocol: RPC_PROTOCOL,
+    requestId: "provider-owner-disconnect",
+    operation: "health",
+    payload: {},
+  });
+
+  assert.equal(response.ok, false);
+  assert.equal(response.error?.code, "provider_control_plane_disabled");
+});
 
 function installProvider(
   controlPlane: ProviderControlPlane,

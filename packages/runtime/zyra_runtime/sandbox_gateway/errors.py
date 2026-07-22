@@ -48,6 +48,7 @@ class GatewayErrorCode(str, Enum):
     PROCESS_OUTPUT_LIMIT = "process_output_limit"
     PROCESS_TREE_LEAK = "process_tree_leak"
     BACKEND_UNAVAILABLE = "backend_unavailable"
+    GATEWAY_DISABLED = "sandbox_gateway_disabled"
     BACKEND_PROTOCOL = "backend_protocol"
     ARTIFACT_WRITE_FAILED = "artifact_write_failed"
     PATCH_REJECTED = "patch_rejected"

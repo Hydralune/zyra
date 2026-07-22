@@ -121,6 +121,10 @@ class ProbeResultComparator:
         "event_id",
         "trace_id",
         "span_id",
+        # Kept in receipts for forensic identity, but the digest represents the
+        # full response and therefore changes on fresh task/session IDs.  It
+        # must not by itself satisfy a material semantic-difference contract.
+        "response_digest",
     }
 
     def compare(
@@ -136,7 +140,7 @@ class ProbeResultComparator:
         baseline_owner = self._owner(baseline)
         disabled_owner = self._owner(disabled)
         error_code = self._error_code(disabled)
-        semantic_change = bool(changed) and (
+        semantic_change = bool(changed) and bool(
             baseline_ok != disabled_ok
             or baseline_owner != disabled_owner
             or error_code
@@ -173,6 +177,26 @@ class ProbeResultComparator:
             return True
         metadata = disabled.get("metadata") if isinstance(disabled.get("metadata"), Mapping) else {}
         return bool(metadata.get("legacy_fallback") or metadata.get("vendor_fallback") or metadata.get("mock_fallback"))
+
+    def restored_equivalent(
+        self,
+        baseline: Mapping[str, Any],
+        restored: Mapping[str, Any],
+    ) -> bool:
+        """Compare capability recovery without requiring mutation outputs to rewind.
+
+        Real owner probes may replay a state-changing request.  Its revision and
+        response digest are expected to advance after restore; recovery means the
+        owner is healthy again, its identity is unchanged, fallback remains off,
+        and the disable error is gone.
+        """
+
+        return (
+            self._ok(baseline) == self._ok(restored)
+            and self._owner(baseline) == self._owner(restored)
+            and self._error_code(baseline) == self._error_code(restored)
+            and not bool(restored.get("fallback") or restored.get("fallback_owner"))
+        )
 
     def expected_failure(
         self,
@@ -323,7 +347,10 @@ class DisableProbeRunner:
                         post_restore = self._call(probe.exercise, probe.timeout_seconds, "post-restore exercise")
                         if execution.baseline:
                             restore_difference = self.comparator.compare(execution.baseline, post_restore)
-                            if restore_difference.get("semantic_change"):
+                            if not self.comparator.restored_equivalent(
+                                execution.baseline,
+                                post_restore,
+                            ):
                                 execution.status = ProbeStatus.FAILED
                                 execution.error_code = "restore_semantic_mismatch"
                                 execution.error_message = "Capability behavior did not return to its captured baseline."

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -140,6 +141,11 @@ class SandboxGatewayRuntime:
         self._backend_sessions: dict[str, BackendSession] = {}
         self._backend_lock = threading.RLock()
         assert_source_custody()
+
+    def assert_enabled(self) -> None:
+        """Fail closed before any gateway-owned surface can choose a port."""
+
+        self._require_enabled()
 
     def create_session(
         self,
@@ -730,9 +736,9 @@ class SandboxGatewayRuntime:
             )
 
     def _require_enabled(self) -> None:
-        if not self.config.enabled:
+        if not self.config.enabled or os.environ.get("ZYRA_SANDBOX_GATEWAY_DISABLED") == "1":
             raise SandboxGatewayError(
-                GatewayErrorCode.BACKEND_UNAVAILABLE,
+                GatewayErrorCode.GATEWAY_DISABLED,
                 "SandboxGatewayRuntime is disabled; direct execution fallback is forbidden",
                 operation="sandbox_gateway",
             )

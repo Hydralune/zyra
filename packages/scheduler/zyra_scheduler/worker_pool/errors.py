@@ -33,6 +33,8 @@ class WorkerPoolErrorCode(StrEnum):
     EDGE_AUTHENTICATION_FAILED = "edge_authentication_failed"
     EDGE_UNAVAILABLE = "edge_unavailable"
     EDGE_TIMEOUT = "edge_timeout"
+    INTEGRATION_DISABLED = "worker_pool_integration_disabled"
+    DYNAMIC_GRAPH_COMMIT_DISABLED = "dynamic_graph_commit_disabled"
     EXECUTION_REJECTED = "execution_rejected"
 
 

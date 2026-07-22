@@ -685,6 +685,7 @@ export class E02ApiPortRuntime {
   private mcpHttpGet(payload: JsonObject): HttpProjection {
     const parts = stringArray(payload.parts);
     if (parts[0] !== "mcp") throw apiError("e02_api_mcp_path_invalid", "MCP API path must begin with mcp");
+    this.coordinator.mcp.assertSourceRuntimeEnabled();
     const snapshot = this.coordinator.mcp.snapshot();
     const tail = parts.slice(1);
     let body: JsonObject;

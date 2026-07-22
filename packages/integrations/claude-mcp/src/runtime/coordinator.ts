@@ -5,7 +5,10 @@ import { InMemoryMcpTokenVault, type McpTokenVaultAdapter } from "../auth/token-
 import { McpCapabilityCatalog, type McpCapabilityCatalogSnapshot } from "../catalog/capability-catalog.ts";
 import { McpConfigStore, type McpConfigLayer, type McpConfigMergeResult, type McpConfigSnapshot, type McpServerConfigRecord } from "../config/config-store.ts";
 import { McpServerPolicy, type McpPolicyRule, type McpPolicySnapshot } from "../config/policy.ts";
-import { McpConnectionRuntime } from "../connection/connection-runtime.ts";
+import {
+  assertMcpSourceRuntimeEnabled,
+  McpConnectionRuntime,
+} from "../connection/connection-runtime.ts";
 import type { McpConnectionSnapshot } from "../connection/contracts.ts";
 import { canonicalJson, cloneJson, deterministicMcpId, monotonicNow, sha256 } from "../core/canonical.ts";
 import { McpRuntimeError } from "../core/failure.ts";
@@ -163,6 +166,10 @@ export class McpRuntimeCoordinator {
   private restoredBeforeBootstrap = false;
   private requestSequence = 0;
   private lastTimestamp: string | null = null;
+
+  assertSourceRuntimeEnabled(): void {
+    assertMcpSourceRuntimeEnabled();
+  }
 
   constructor(options: McpRuntimeCoordinatorOptions) {
     if (!options.sessionId || !options.workspaceRoot) throw coordinatorError("coordinator_identity_incomplete", "MCP coordinator requires session and workspace identity");
