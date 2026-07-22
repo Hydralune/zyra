@@ -54,8 +54,10 @@ The API route `POST /tasks/{task_id}/faults/inject` and the existing `/inject` c
 ## 5. 验证与计数冻结
 
 - implementation commit diff base: `6900e96dcb6dd73c22b803787afc30125fbe947c`
-- implementation commit: to be filled only after code and direct tests pass
-- evidence commit: to be filled only after line buckets, large-file review, behavior evidence and critical self-review exist
+- intermediate implementation commit: `db27e57892cbb62eec4e783f73394c0a6a5d54df`（在 evidence 前的保守逐文件审查中未达到有效 production 门禁，未被冻结为最终 target）
+- final implementation commit: `242038c842a02b3311e2452dad3cb86a2fa864e6`
+- evidence commit: 本决策记录与 review/evidence/ledger 一并提交后生成；不参与 implementation 统计
+- conservative effective production: `8,866 / 8,500`（Python `8,299`；TypeScript `567`）
 - Python original-language production must be non-zero for browser-use primary migration.
 - TypeScript original-language production must be non-zero for oh-my-pi supplementary migration.
 - Tests must prove structured identity binding, no free-text critical-ref inference, observer disable semantics, injection idempotency, same-run progression, 05C/memory/05D writes, browser observer capture, TypeScript observer behavior, `/inject` command and HTTP API reachability, and `RequirementChanged` exclusion.
