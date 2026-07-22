@@ -174,6 +174,29 @@ def test_cleanroom_exposes_only_package_manager_locked_bun(tmp_path: Path, monke
     assert environment["PATH"].split(os.pathsep)[0] == str(bun.parent.resolve())
 
 
+def test_cleanroom_materializes_committed_workspace_packages_without_install(tmp_path: Path) -> None:
+    package = tmp_path / "packages" / "memory" / "runtime"
+    package.mkdir(parents=True)
+    (tmp_path / "package.json").write_text(
+        json.dumps({"workspaces": ["packages/memory/runtime"]}),
+        encoding="utf-8",
+    )
+    (package / "package.json").write_text(
+        json.dumps({"name": "@zyra/memory-runtime", "exports": {".": "./src/index.ts"}}),
+        encoding="utf-8",
+    )
+    source = package / "src" / "index.ts"
+    source.parent.mkdir()
+    source.write_text("export const owner = 'zyra';\n", encoding="utf-8")
+
+    materialized = CleanroomVerifier._materialize_workspace_packages(tmp_path)
+
+    target = tmp_path / "node_modules" / "@zyra" / "memory-runtime"
+    assert materialized == ["@zyra/memory-runtime"]
+    assert (target / "package.json").is_file()
+    assert (target / "src" / "index.ts").read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
+
+
 def test_evidence_admission_accepts_digest_bound_runtime_evidence_and_rejects_tampering() -> None:
     policy = AdmissionPolicy(
         required_kinds=(EvidenceKind.SCENARIO,),

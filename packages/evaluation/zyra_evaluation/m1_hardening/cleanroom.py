@@ -134,6 +134,7 @@ class CleanroomReceipt:
     forbidden_references: list[Mapping[str, Any]]
     commands: list[CleanroomCommandReceipt]
     environment_names: list[str]
+    workspace_packages: list[str]
     cleanup_ok: bool
     limitations: list[str] = field(default_factory=list)
 
@@ -168,6 +169,7 @@ class CleanroomReceipt:
             "forbidden_references": [dict(item) for item in self.forbidden_references],
             "commands": [item.to_dict() for item in self.commands],
             "environment_names": list(self.environment_names),
+            "workspace_packages": list(self.workspace_packages),
             "cleanup_ok": self.cleanup_ok,
             "limitations": list(self.limitations),
             "ok": self.ok,
@@ -587,10 +589,12 @@ class CleanroomVerifier:
         command_receipts: list[CleanroomCommandReceipt] = []
         cleanup_ok = False
         environment_names: list[str] = []
+        workspace_packages: list[str] = []
         try:
             archive_digest, member_count = self.exporter.export(commit, extracted)
             scanner = CleanroomBoundaryScanner(extracted)
             residuals, outside_links, references, file_count, symlink_count = scanner.scan()
+            workspace_packages = self._materialize_workspace_packages(extracted)
             environment = CleanEnvironment.build(
                 extracted,
                 additions=self._controlled_toolchain_environment(extracted),
@@ -631,10 +635,60 @@ class CleanroomVerifier:
             forbidden_references=references,
             commands=command_receipts,
             environment_names=environment_names,
+            workspace_packages=workspace_packages,
             cleanup_ok=cleanup_ok,
             limitations=limitations,
         )
         return receipt, self._gate(receipt, member_count=member_count)
+
+    @staticmethod
+    def _materialize_workspace_packages(extracted: Path) -> list[str]:
+        """Create an offline package-resolution tree from committed workspaces.
+
+        Package managers normally create these links during install.  A Git
+        archive deliberately contains no ``node_modules``, so cleanroom builds
+        equivalent temporary package entries directly from the committed
+        workspace declarations.  Copies are used instead of platform-specific
+        symlinks and are removed with the cleanroom tree after verification.
+        """
+
+        root_manifest = extracted / "package.json"
+        if not root_manifest.is_file():
+            return []
+        package = json.loads(root_manifest.read_text(encoding="utf-8"))
+        workspaces = package.get("workspaces")
+        if not isinstance(workspaces, list):
+            return []
+        node_modules = (extracted / "node_modules").resolve()
+        materialized: list[str] = []
+        for raw_workspace in sorted(str(item) for item in workspaces):
+            if not raw_workspace or any(token in raw_workspace for token in ("*", "?", "[")):
+                continue
+            source = (extracted / raw_workspace).resolve()
+            try:
+                source.relative_to(extracted)
+            except ValueError as error:
+                raise RuntimeError(f"workspace escapes cleanroom: {raw_workspace}") from error
+            manifest_path = source / "package.json"
+            if not manifest_path.is_file():
+                continue
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            name = str(manifest.get("name") or "")
+            if re.fullmatch(r"(?:@[a-z0-9._-]+/)?[a-z0-9._-]+", name, re.I) is None:
+                raise RuntimeError(f"workspace has unsafe package name: {name or raw_workspace}")
+            destination = (node_modules / Path(*name.split("/"))).resolve()
+            try:
+                destination.relative_to(node_modules)
+            except ValueError as error:
+                raise RuntimeError(f"workspace package escapes node_modules: {name}") from error
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(
+                source,
+                destination,
+                ignore=shutil.ignore_patterns("node_modules", ".cache", ".pytest_cache", "__pycache__"),
+            )
+            materialized.append(name)
+        return materialized
 
     def _controlled_toolchain_environment(self, extracted: Path) -> Mapping[str, str]:
         """Expose only the source workspace's package-manager-locked Bun binary.
@@ -791,6 +845,8 @@ class CleanroomVerifier:
                 "forbidden_reference_count": len(receipt.forbidden_references),
                 "command_count": len(receipt.commands),
                 "passed_command_count": sum(item.ok for item in receipt.commands),
+                "workspace_package_count": len(receipt.workspace_packages),
+                "workspace_packages": list(receipt.workspace_packages),
                 "receipt_digest": receipt.to_dict()["content_digest"],
                 "commands": [item.to_dict() for item in receipt.commands],
             }
