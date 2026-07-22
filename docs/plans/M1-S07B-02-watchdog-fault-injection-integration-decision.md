@@ -4,10 +4,10 @@
 - parent unit: `M1-07B`
 - decision status: `frozen_before_production_change`
 - baseline commit: `805d31985df5f549745ac2fd2b21d4bfc6236dd6`
-- parent effective-code baseline: `6900e96b2413fa12f66b082dd3c47a3c0174c480`
+- parent effective-code baseline: `6900e96dcb6dd73c22b803787afc30125fbe947c`
 - decision date: `2026-07-22`
-- implementation commit: pending
-- evidence commit: pending
+- implementation commit: `c6887b0a7a336500d13ad5ae2b02473140d45b5c`
+- evidence commit: created by committing this postimplementation record, review, evidence, audit tooling and ledger sync
 
 ## 1. Scope and non-negotiable ownership
 
@@ -109,3 +109,21 @@ Commit order is frozen as:
 5. root `docs/milestones/execution-state.yaml` update outside the Zyra Git repository.
 
 No production file was changed before this decision document was created.
+
+## 8. Postimplementation record and baseline erratum
+
+The frozen preimplementation commit wrote the parent baseline as
+`6900e96b2413fa12f66b082dd3c47a3c0174c480`. That object does not exist in the
+Zyra repository. The preceding `M1-S07B-01` evidence and Git history both identify
+`6900e96dcb6dd73c22b803787afc30125fbe947c` as the real parent baseline. This
+single-character transcription error is corrected above and is explicitly retained
+in the preimplementation commit history. It changes no source role, owner, threshold,
+implementation scope or verification requirement.
+
+The final implementation target is
+`c6887b0a7a336500d13ad5ae2b02473140d45b5c`. An earlier unreferenced audit target
+and the pre-evidence implementation object `f999d46208fba2c15642b89aba312688bd843702`
+were superseded before evidence after the adjacent scheduler API test exposed a
+Windows SQLite handle leak. The final implementation adds deterministic release of
+the reusable fault-store connection in the recovery view and is the sole target used
+by the final tests and effective-code audit.

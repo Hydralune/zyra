@@ -177779,19 +177779,450 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "browser_source_session_watchdog_fault_integration",
+      "capability_summary": "Browser Use's explicit watchdog attachment and cleanup semantics are cropped into Zyra source sessions and the active 04D browser evidence path. Typed observations flow through the existing classifier/store/event/memory/health owners, then through same-run containment and an acknowledged 07C-compatible handoff.",
+      "dependencies": [
+        "M1-S04D-02",
+        "M1-S05A-02",
+        "M1-S05C-02",
+        "M1-S05D-02",
+        "M1-S07A-02",
+        "M1-S07B-01"
+      ],
+      "downstream_units": [
+        "M1-S07C-01",
+        "M2-fault-console"
+      ],
+      "ledger_id": "ledger_07b02_browser_source_session_fault_integration",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Cropped and modified lifecycle mechanisms are maintained inside Zyra-owned modules.",
+        "notice_path": "packages/scheduler/THIRD_PARTY_NOTICES.md",
+        "source_repo": "browser-use",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/faults/sources/bind",
+          "POST /tasks/{task_id}/faults/sources/observe",
+          "POST /tasks/{task_id}/faults/handoffs/dispatch",
+          "GET /tasks/{task_id}/faults"
+        ],
+        "artifact_kinds": [
+          "execution_receipt",
+          "edge_artifact",
+          "graph_snapshot"
+        ],
+        "control_commands": [
+          "/inject",
+          "/change"
+        ],
+        "event_types": [
+          "failure_injected"
+        ],
+        "surfaces": [
+          "task_scoped_source_session",
+          "browser_04d_observer_bridge",
+          "typescript_execution_transport_supervision",
+          "canonical_fault_projection_and_containment",
+          "fault_http_and_control_commands",
+          "m1_07c_consumer_dispatch"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "WatchdogFaultIntegrationRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "backend_owner": "M1-S05D BackendRegistry",
+        "event_owner": "M1-S05C RuntimeEventStore",
+        "gateway_owner": "M1-S05B SandboxGatewayRuntime",
+        "graph_owner": "Zyra GraphStateCustody and DynamicTopologyRuntime",
+        "langgraph_runtime_dependency": false,
+        "logical_task_owner": "M1-S03D TypeScript AgentTaskRuntime",
+        "migration_mode": "cropped_same_language_browser_observer_integration_with_zyra_state_custody",
+        "omp_runtime_dependency": false,
+        "openclaw_forward_excluded": true,
+        "original_language_behavior_test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts",
+        "original_language_runtime": "@zyra/claude-runtime/watchdog IntegratedRuntimeSupervisor",
+        "owner_unit": "M1-S07B-02",
+        "recovery_plan_owner": "M1-S07C",
+        "requirement_changed_is_fault": false,
+        "root_source_runtime_dependency": false,
+        "shared_watchdog_control_command": "/watchdog",
+        "source_callsites": [
+          "task-scoped source-session bind and generation fence",
+          "explicit browser callback subscribe and unsubscribe",
+          "typed browser process, target and CDP observation admission",
+          "canonical signal projection and same-run containment",
+          "lease-fenced recovery handoff dispatch and acknowledgement"
+        ],
+        "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+        "source_language": "python",
+        "source_role": "primary_implementation",
+        "source_symbols": [
+          "BaseWatchdog.attach_to_session/start/stop",
+          "BrowserSession lifecycle event dispatch",
+          "target crash listener",
+          "process-death and CDP responsiveness observation"
+        ],
+        "source_tests": [
+          "browser-use watchdog lifecycle and BrowserSession tests recorded in the source graph"
+        ],
+        "state_owner": "FaultStateStore owns durable source, observation, signal, projection and handoff facts; 04D owns browser process/CDP evidence; MemoryFabric and BackendRegistry retain memory and scheduler-health custody; 07C owns recovery-plan choice",
+        "target_language": "python",
+        "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=primary_implementation; source_commit=18484f23ac96bb955259a1c54530a7d265dfffdb; The same-language migration retains explicit attach/detach and lifecycle-loss behavior while replacing Browser Use event/session custody with Zyra identities, generation fences, canonical events, projections and durable delivery. Disabling the browser observer removes every capture callback and has no injection fallback.",
+      "owner_unit": "M1-S07B-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/scheduler/zyra_scheduler/fault_runtime/source_session.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/browser_integration.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/observation_port.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/effect_runtime.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/containment_runtime.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/handoff_runtime.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/integration.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/runtime.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/api.py",
+          "packages/commands/zyra_commands/runtime/watchdog_control.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "WatchdogFaultIntegrationRuntime",
+        "health_check": "python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
+        "module": "zyra_scheduler.fault_runtime.integration",
+        "protocol": "zyra.worker-pool/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned source graph and concrete source files verified for M1-S07B-02.",
+          "source_kind": "bounded_module_group",
+          "source_path": "browser_use/browser/watchdog_base.py;browser_use/browser/watchdogs/local_browser_watchdog.py;browser_use/browser/session.py",
+          "source_repo": "browser-use",
+          "symbols": [
+            "BaseWatchdog.attach_to_session/start/stop",
+            "BrowserSession lifecycle event dispatch",
+            "target crash listener",
+            "process-death and CDP responsiveness observation"
+          ],
+          "tags": [
+            "primary_implementation",
+            "M1-S07B-02"
+          ]
+        }
+      ],
+      "source_path": "browser_use/browser/watchdog_base.py;browser_use/browser/watchdogs/local_browser_watchdog.py;browser_use/browser/session.py",
+      "source_repo": "browser-use",
+      "target_bindings": [
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/source_session.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/browser_integration.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/observation_port.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/effect_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/containment_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/handoff_runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/integration.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/runtime.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/api.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/commands/zyra_commands/runtime/watchdog_control.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
+          "expected_signal": "typed real observations mutate canonical events, memory, scheduler health and same-run containment before an acknowledged recovery handoff",
+          "kind": "integration_main_path",
+          "path": "tests/integration/test_watchdog_fault_injection_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_watchdog_fault_injection_foundation.py",
+          "expected_signal": "disabled observers, stale generations, invalid identities and failed handoff leases remain fail-closed",
+          "kind": "adjacent_negative_path_regression",
+          "path": "tests/integration/test_watchdog_fault_injection_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_change_command_creates_requirement_change_event",
+          "expected_signal": "the /change path replans while remaining outside fault counts, pressure, scheduler health and failure memory",
+          "kind": "adjacent_control_boundary_regression",
+          "path": "tests/integration/test_api_control_commands.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "omp_execution_provider_mcp_and_worker_restart_supervision",
+      "capability_summary": "OMP-derived execution and transport supervision remains TypeScript-native in the Claude runtime path. It aborts overdue work, fences committed effects, resumes partial streams, bounds MCP reconnect storms and hands durable jobs back across worker generations while emitting typed observations to Python custody.",
+      "dependencies": [
+        "M1-S04D-02",
+        "M1-S05A-02",
+        "M1-S05C-02",
+        "M1-S05D-02",
+        "M1-S07A-02",
+        "M1-S07B-01"
+      ],
+      "downstream_units": [
+        "M1-S07C-01",
+        "M2-fault-console"
+      ],
+      "ledger_id": "ledger_07b02_omp_execution_transport_supervision",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Cropped and modified lifecycle mechanisms are maintained inside Zyra-owned modules.",
+        "notice_path": "packages/scheduler/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/faults/runtime-events"
+        ],
+        "artifact_kinds": [
+          "execution_receipt",
+          "edge_artifact",
+          "graph_snapshot"
+        ],
+        "control_commands": [
+          "/inject",
+          "/change"
+        ],
+        "event_types": [
+          "tool_failure_signal"
+        ],
+        "surfaces": [
+          "task_scoped_source_session",
+          "browser_04d_observer_bridge",
+          "typescript_execution_transport_supervision",
+          "canonical_fault_projection_and_containment",
+          "fault_http_and_control_commands",
+          "m1_07c_consumer_dispatch"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "WatchdogFaultIntegrationRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "backend_owner": "M1-S05D BackendRegistry",
+        "event_owner": "M1-S05C RuntimeEventStore",
+        "gateway_owner": "M1-S05B SandboxGatewayRuntime",
+        "graph_owner": "Zyra GraphStateCustody and DynamicTopologyRuntime",
+        "langgraph_runtime_dependency": false,
+        "logical_task_owner": "M1-S03D TypeScript AgentTaskRuntime",
+        "migration_mode": "cropped_same_language_execution_transport_supervision_with_python_canonical_custody",
+        "omp_runtime_dependency": false,
+        "openclaw_forward_excluded": true,
+        "original_language_behavior_test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts",
+        "original_language_runtime": "@zyra/claude-runtime/watchdog IntegratedRuntimeSupervisor",
+        "owner_unit": "M1-S07B-02",
+        "recovery_plan_owner": "M1-S07C",
+        "requirement_changed_is_fault": false,
+        "root_source_runtime_dependency": false,
+        "shared_watchdog_control_command": "/watchdog",
+        "source_callsites": [
+          "Claude runtime stdio batch execution",
+          "tool deadline abort with committed-effect preservation",
+          "provider partial-stream resume without duplicate side effects",
+          "MCP crash-window breaker and request cleanup",
+          "worker restart budget and checkpointed job requeue"
+        ],
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "source_symbols": [
+          "turn/tool abort and terminal settlement fences",
+          "partial provider stream retry cursor",
+          "MCP timeout, transport close and reconnect single-flight",
+          "worker process generation and durable job handback"
+        ],
+        "source_tests": [
+          "OMP tool execution, MCP transport/timeout and provider error tests recorded in the source graph"
+        ],
+        "state_owner": "TypeScript owns process-local deadlines, abort handles, partial-stream cursors, MCP reconnect state and worker generations; Python FaultStateStore owns durable fault facts; 07C owns recovery planning",
+        "target_language": "typescript",
+        "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; The cropped original-language mechanisms preserve abort/settlement and transport semantics at their real execution boundary. Explicit signal IDs and Python admission fences prevent a second classifier, durable store or recovery owner.",
+      "owner_unit": "M1-S07B-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/runtime/claude-runtime/src/watchdog/execution-supervisor.ts",
+          "packages/runtime/claude-runtime/src/watchdog/provider-stream-supervisor.ts",
+          "packages/runtime/claude-runtime/src/watchdog/mcp-supervisor.ts",
+          "packages/runtime/claude-runtime/src/watchdog/worker-restart-supervisor.ts",
+          "packages/runtime/claude-runtime/src/watchdog/integration-supervisor.ts",
+          "packages/runtime/claude-runtime/src/watchdog/runtime.ts",
+          "packages/runtime/claude-runtime/src/watchdog/index.ts",
+          "packages/runtime/claude-runtime/src/stdio.ts",
+          "packages/scheduler/zyra_scheduler/fault_runtime/observation_port.py",
+          "packages/scheduler/zyra_scheduler/fault_runtime/integration.py"
+        ],
+        "function": "WatchdogFaultIntegrationRuntime",
+        "health_check": "python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
+        "module": "zyra_scheduler.fault_runtime.integration",
+        "protocol": "zyra.worker-pool/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned source graph and concrete source files verified for M1-S07B-02.",
+          "source_kind": "bounded_module_group",
+          "source_path": "packages/coding-agent/src/advisor/emission-guard.ts;packages/coding-agent/src/mcp/transports/stdio.ts;packages/coding-agent/src/mcp/manager.ts;packages/coding-agent/src/mcp/timeout.ts;packages/ai/src/error/retryable.ts;packages/ai/src/utils/provider-response.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [
+            "turn/tool abort and terminal settlement fences",
+            "partial provider stream retry cursor",
+            "MCP timeout, transport close and reconnect single-flight",
+            "worker process generation and durable job handback"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S07B-02"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/advisor/emission-guard.ts;packages/coding-agent/src/mcp/transports/stdio.ts;packages/coding-agent/src/mcp/manager.ts;packages/coding-agent/src/mcp/timeout.ts;packages/ai/src/error/retryable.ts;packages/ai/src/utils/provider-response.ts",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/runtime/claude-runtime/src/watchdog/execution-supervisor.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/watchdog/provider-stream-supervisor.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/watchdog/mcp-supervisor.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/watchdog/worker-restart-supervisor.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/watchdog/integration-supervisor.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/watchdog/runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/watchdog/index.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/stdio.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/observation_port.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/fault_runtime/integration.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
+          "expected_signal": "typed real observations mutate canonical events, memory, scheduler health and same-run containment before an acknowledged recovery handoff",
+          "kind": "integration_main_path",
+          "path": "tests/integration/test_watchdog_fault_injection_integration.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_watchdog_fault_injection_foundation.py",
+          "expected_signal": "disabled observers, stale generations, invalid identities and failed handoff leases remain fail-closed",
+          "kind": "adjacent_negative_path_regression",
+          "path": "tests/integration/test_watchdog_fault_injection_foundation.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_change_command_creates_requirement_change_event",
+          "expected_signal": "the /change path replans while remaining outside fault counts, pressure, scheduler health and failure memory",
+          "kind": "adjacent_control_boundary_regression",
+          "path": "tests/integration/test_api_control_commands.py",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 455,
+    "active_or_internalized": 457,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 400
+      "productized": 402
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -177799,7 +178230,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 161,
+      "tested_main_path": 163,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -177843,6 +178274,7 @@
       "M1-S07A-01": 2,
       "M1-S07A-02": 2,
       "M1-S07B-01": 2,
+      "M1-S07B-02": 2,
       "M2-01A": 46,
       "M2-03B": 30
     },
@@ -177850,18 +178282,18 @@
       "OpenHands": 86,
       "agent-framework": 93,
       "agentscope": 105,
-      "browser-use": 110,
+      "browser-use": 111,
       "claude-code-best": 511,
       "hermes-agent": 86,
       "langgraph": 85,
-      "oh-my-pi": 19,
+      "oh-my-pi": 20,
       "openclaw": 86,
       "opencode": 16
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 36,
+      "direct_port": 38,
       "not_selected": 14,
       "planned_adapter": 378,
       "reimplemented_pattern": 236,
@@ -177876,8 +178308,8 @@
       "packages/integrations": 78,
       "packages/memory": 197,
       "packages/orchestration": 59,
-      "packages/runtime": 171,
-      "packages/scheduler": 82,
+      "packages/runtime": 172,
+      "packages/scheduler": 83,
       "packages/skills": 48,
       "packages/symbolic": 1,
       "packages/workers": 165,
@@ -177885,6 +178317,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1197
+    "total_entries": 1199
   }
 }

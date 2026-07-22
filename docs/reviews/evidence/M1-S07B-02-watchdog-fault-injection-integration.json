@@ -1,0 +1,251 @@
+{
+  "schema": "zyra.slice-evidence/v2",
+  "slice_id": "M1-S07B-02",
+  "parent_unit": "M1-07B",
+  "date": "2026-07-22",
+  "status": "complete_after_pre_evidence_resource_handle_remediation",
+  "baseline_commit": "805d31985df5f549745ac2fd2b21d4bfc6236dd6",
+  "parent_baseline_commit": "6900e96dcb6dd73c22b803787afc30125fbe947c",
+  "preimplementation_decision_commit": "b0609f788011684626c287975d3d4a58c01ab5b7",
+  "implementation_commit": "c6887b0a7a336500d13ad5ae2b02473140d45b5c",
+  "evidence_commit": "created by committing this record, review, audit tooling, decision erratum and ledger synchronization",
+  "next_entry": "M1-S07C-01",
+  "commit_gate": {
+    "decision_precedes_production": true,
+    "implementation_contains_only_code_and_direct_tests": true,
+    "evidence_is_after_final_implementation": true,
+    "pre_evidence_implementation_object": "f999d46208fba2c15642b89aba312688bd843702",
+    "pre_evidence_remediation": "Adjacent scheduler API regression exposed a Windows SQLite handle retained by the recovery view. The view now releases the reusable fault-store connection in finally; the implementation commit was amended before evidence and all final checks target c6887b0.",
+    "counted_slice_range": "805d31985df5f549745ac2fd2b21d4bfc6236dd6..c6887b0a7a336500d13ad5ae2b02473140d45b5c",
+    "counted_parent_range": "6900e96dcb6dd73c22b803787afc30125fbe947c..c6887b0a7a336500d13ad5ae2b02473140d45b5c"
+  },
+  "baseline_erratum": {
+    "frozen_text": "6900e96b2413fa12f66b082dd3c47a3c0174c480",
+    "problem": "The object does not exist in the Zyra repository; the character b was a transcription error.",
+    "verified_value": "6900e96dcb6dd73c22b803787afc30125fbe947c",
+    "verification": "M1-S07B-01 evidence and Git history both identify this commit.",
+    "semantic_change": false
+  },
+  "owners": {
+    "source_session_lifecycle": "RuntimeSourceSessionManager and process-local TypeScript supervisors",
+    "browser_process_and_cdp_evidence": "M1-S04D BrowserActionRuntime/browser source",
+    "fault_classification": "WatchdogSignalClassifier",
+    "durable_fault_state": "FaultStateStore",
+    "canonical_runtime_event": "M1-S05C event store through FaultSignalEventWriter",
+    "failure_memory": "MemoryFabric",
+    "scheduler_backend_health": "M1-S05D BackendRegistryHealthAdapter",
+    "task_and_checkpoint": "existing SQLiteStore and TaskState",
+    "requirement_change": "ConstraintKeeper and TopologyRouter",
+    "recovery_plan": "M1-S07C; 07B owns only claim/dispatch/ack/release of typed handoffs"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "browser-use",
+      "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+      "source_role": "primary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_browser_observer_integration_with_zyra_state_custody",
+      "selected_mechanisms": [
+        "explicit attach/start/stop and full callback cleanup",
+        "lifecycle-event admission while CDP is unavailable",
+        "target crash, process death and CDP responsiveness observation"
+      ],
+      "excluded": [
+        "Browser Use event bus",
+        "Browser Use browser launcher and agent loop",
+        "Browser Use state or recovery ownership"
+      ]
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_same_language_execution_transport_supervision_with_python_canonical_custody",
+      "selected_mechanisms": [
+        "tool deadline abort and terminal settlement fence",
+        "partial provider stream resume without duplicate committed effects",
+        "MCP timeout, close, single-flight reconnect and crash-window breaker",
+        "worker generation restart and durable checkpointed job handback"
+      ],
+      "excluded": [
+        "OMP session store and CLI/TUI",
+        "OMP provider catalog and complete MCP manager",
+        "second classifier, durable fault owner or recovery planner"
+      ]
+    }
+  ],
+  "non_implementation_roles": {
+    "conformance_reference_only": [
+      "claude-code-best",
+      "agent-framework",
+      "langgraph",
+      "hermes-agent",
+      "opencode"
+    ],
+    "excluded_forward_only": [
+      "openclaw"
+    ]
+  },
+  "line_buckets": {
+    "audit_command": "python scripts/audit_m1_s07b02_effective_code_gate.py --target c6887b0a7a336500d13ad5ae2b02473140d45b5c --fail-on-gate",
+    "audit_tool_is_nonproduction": true,
+    "slice": {
+      "raw_additions": 9554,
+      "production_runtime": 6669,
+      "effective_production": 6669,
+      "type_declaration_excluded": 490,
+      "schema_dto_data_excluded": 642,
+      "adapter_only_excluded": 0,
+      "test_mock_fixture_excluded": 1077,
+      "generated_excluded": 0,
+      "docs_comments_blank_excluded": 676,
+      "minimum_required": 6500,
+      "margin": 169,
+      "shortfall": 0
+    },
+    "effective_by_source_role_and_language": {
+      "browser-use_primary_python": 412,
+      "oh-my-pi_supplementary_typescript": 2083,
+      "zyra_owned_api_python": 152,
+      "zyra_owned_control_python": 272,
+      "zyra_owned_fault_integration_python": 3750
+    },
+    "parent": {
+      "method": "Recomputed from the frozen parent baseline with git blame restricted to the two 07B-01 implementation commits and the final 07B-02 implementation commit; no arithmetic carry-forward.",
+      "effective_production": 15324,
+      "minimum_required": 15000,
+      "margin": 324,
+      "shortfall": 0,
+      "allowed_implementation_commits": [
+        "db27e57892cbb62eec4e783f73394c0a6a5d54df",
+        "242038c842a02b3311e2452dad3cb86a2fa864e6",
+        "c6887b0a7a336500d13ad5ae2b02473140d45b5c"
+      ]
+    },
+    "per_file_report": "docs/reviews/M1-S07B-02-watchdog-fault-injection-integration-review.md section 6",
+    "large_file_manual_review": "docs/reviews/M1-S07B-02-watchdog-fault-injection-integration-review.md section 7",
+    "gate_ok": true
+  },
+  "main_paths": [
+    {
+      "entry": "POST /tasks/{task_id}/faults/sources/bind and sources/observe",
+      "effect": "Persistent task-scoped source identity, explicit attachment, generation-fenced typed observation and canonical projection.",
+      "disconnect_effect": "Stale generation is rejected; disabling the browser observer removes all nine callbacks and starts no fallback."
+    },
+    {
+      "entry": "Claude runtime IntegratedRuntimeSupervisor and stdio batch",
+      "effect": "Real tool/provider/MCP/worker boundaries abort, resume, reconnect or requeue with idempotency fences before emitting structured observations.",
+      "disconnect_effect": "Node behavior tests lose abort, breaker, no-replay and exactly-once requeue outcomes."
+    },
+    {
+      "entry": "POST /tasks/{task_id}/faults/observations and runtime-events",
+      "effect": "Typed refs enter the existing classifier/store/event writer, mutate memory and scheduler health where applicable, apply same-run containment and create a durable handoff.",
+      "disconnect_effect": "The heartbeat causal-chain and five-category admission tests fail."
+    },
+    {
+      "entry": "POST /tasks/{task_id}/faults/handoffs/dispatch",
+      "effect": "A consumer port receives the same-run handoff; claim, acknowledgement or release is journaled without selecting a plan.",
+      "disconnect_effect": "The 07C acknowledgement causality assertion fails."
+    },
+    {
+      "entry": "/inject and /watchdog commands",
+      "effect": "The canonical command registry invokes the same persistent FaultRuntime application used by HTTP.",
+      "disconnect_effect": "Command mutation and cross-request state tests fail."
+    },
+    {
+      "entry": "/change",
+      "effect": "RequirementChanged enters ConstraintKeeper/TopologyRouter replan while fault state, pressure, health and failure memory remain unchanged.",
+      "disconnect_effect": "Requirement isolation tests fail closed."
+    }
+  ],
+  "semantic_boundaries": {
+    "requirement_changed_is_fault": false,
+    "free_text_identity_inference": false,
+    "injection_counts_as_real_health": false,
+    "injection_can_mutate_external_resources": false,
+    "disabled_capture_falls_back_to_injection_or_polling": false,
+    "late_tool_result_can_mutate_terminal_state": false,
+    "partial_stream_retry_replays_committed_effect": false,
+    "recovery_plan_owned_by_07b": false,
+    "openclaw_runtime_or_source_dependency": false
+  },
+  "verification": {
+    "direct_python": {
+      "command": "python -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-m1-s07b02-final-impl tests/integration/test_watchdog_fault_injection_integration.py tests/integration/test_watchdog_fault_injection_foundation.py tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_change_command_creates_requirement_change_event",
+      "result": "30 passed in 26.56s"
+    },
+    "adjacent_python": {
+      "command": "python -m pytest -q scheduler API, M5 fault recovery, runtime event spine, worker-pool integration/API and browser observability main-path files",
+      "result": "31 passed in 210.66s"
+    },
+    "typescript": {
+      "command": "node --experimental-strip-types --test watchdog-integration.test.ts watchdog.test.ts",
+      "result": "7 passed"
+    },
+    "typescript_typecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p packages/runtime/claude-runtime/tsconfig.json --noEmit",
+      "result": "pass"
+    },
+    "python_compile": {
+      "command": "python -m compileall -q fault_runtime command runtime API and direct integration test",
+      "result": "pass"
+    },
+    "effective_code_gate": "pass; slice 6669/6500, parent 15324/15000",
+    "ledger_sync": "aligned, exactly 2 M1-S07B-02 decisions",
+    "ledger_test_quality": "2 entries, 6 test entries, 0 errors, 0 warnings",
+    "ledger_reachability": "2 entries, 0 unreachable and 0 current-unit findings; global trust gate retains one aggregate finding because protected historical ledger audit errors remain",
+    "diff_check": "pass",
+    "forbidden_dependency_scan": "0 sibling source-repo runtime paths, 0 cache/vendor/source-pool paths, 0 OpenClaw paths",
+    "dependency_or_lockfile_changes": 0,
+    "placeholder_scan": 0,
+    "ruff": "not run: ruff is not installed in the project virtual environment; no dependency was added for optional linting",
+    "full_cleanroom": {
+      "run": false,
+      "reason": "M1-07 numeric-stage aggregate is not yet due and this slice added no external dependency, service, port, Docker boundary, dynamic import, owner transfer or incompatible public schema. The aggregate review retains full cleanroom responsibility."
+    }
+  },
+  "pre_final_failure_and_remediation": {
+    "initial_adjacent_result": "1 failed, 30 passed in 209.24s",
+    "failure": "SchedulerApiTests completed all behavior assertions but TemporaryDirectory cleanup failed with WinError 32 on api.fault-runtime.sqlite3.",
+    "cause": "_recovery_task_view called the persistent runtime snapshot directly and left the lazy SQLite handle open.",
+    "fix": "Release the idle connection in finally after snapshot creation.",
+    "targeted_retest": "1 passed in 25.33s",
+    "final_adjacent_result": "31 passed in 210.66s"
+  },
+  "known_external_or_baseline_findings": [
+    {
+      "blocking_for_slice": false,
+      "finding": "The global ledger verifier remains fail-closed because protected early entries contain missing target paths and historical remediation source references.",
+      "current_unit_unreachable_entries": 0,
+      "current_unit_findings": 0,
+      "owner": "protected historical remediation or M1-07 numeric-stage aggregate"
+    }
+  ],
+  "competition_gate_claims": {
+    "closed_by_this_slice": [],
+    "not_claimed": [
+      "two cross-domain live tasks",
+      "single-run 2000 canonical transitions",
+      "sealed zero-human benchmark",
+      "dynamic sparse topology entropy comparison",
+      "real local isolated-edge cloud dispatch matrix",
+      "final multi-model and delivery freeze"
+    ]
+  },
+  "parent_closeout": {
+    "parent_unit": "M1-07B",
+    "foundation_and_integration_cross_slice_path_verified": true,
+    "cumulative_effective_gate_ok": true,
+    "source_to_target_complete": true,
+    "state_owner_consistent": true,
+    "next_entry": "M1-S07C-01"
+  },
+  "root_document_boundary": {
+    "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "inside_zyra_git": false,
+    "update_after_evidence_commit": true
+  }
+}
