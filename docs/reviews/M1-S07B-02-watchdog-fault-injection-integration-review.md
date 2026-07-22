@@ -1,5 +1,7 @@
 # M1-S07B-02 Watchdog 与故障注入集成批判式自审
 
+> **2026-07-22 父级审查更正：** 本文保留原 slice 完成时的历史记录；其实现 target、默认主路径结论和有效代码数字已由父级审查修复并取代。最终实现 target 为 `383acfbe276420dbceec3f64f09829d38b99816c`，07B-02 有效 production 为 `7,059`，父级累计为 `15,710`。权威结论见 [`M1-07B-watchdog-fault-injection-parent-review-2026-07-22.md`](M1-07B-watchdog-fault-injection-parent-review-2026-07-22.md) 及 amended evidence JSON。
+
 - slice: `M1-S07B-02`
 - review date: `2026-07-22`
 - decision commit: `b0609f788011684626c287975d3d4a58c01ab5b7`

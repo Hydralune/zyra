@@ -177827,7 +177827,6 @@
         "surfaces": [
           "task_scoped_source_session",
           "browser_04d_observer_bridge",
-          "typescript_execution_transport_supervision",
           "canonical_fault_projection_and_containment",
           "fault_http_and_control_commands",
           "m1_07c_consumer_dispatch"
@@ -177846,8 +177845,8 @@
         "migration_mode": "cropped_same_language_browser_observer_integration_with_zyra_state_custody",
         "omp_runtime_dependency": false,
         "openclaw_forward_excluded": true,
-        "original_language_behavior_test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts",
-        "original_language_runtime": "@zyra/claude-runtime/watchdog IntegratedRuntimeSupervisor",
+        "original_language_behavior_test": "python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
+        "original_language_runtime": "browser-use BaseWatchdog/BrowserSession lifecycle adapted into Zyra",
         "owner_unit": "M1-S07B-02",
         "recovery_plan_owner": "M1-S07C",
         "requirement_changed_is_fault": false,
@@ -177896,7 +177895,7 @@
         "function": "WatchdogFaultIntegrationRuntime",
         "health_check": "python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
         "module": "zyra_scheduler.fault_runtime.integration",
-        "protocol": "zyra.worker-pool/v1"
+        "protocol": "zyra.watchdog-fault-signal/v1"
       },
       "source_evidence": [
         {
@@ -178002,7 +178001,7 @@
     },
     {
       "capability_name": "omp_execution_provider_mcp_and_worker_restart_supervision",
-      "capability_summary": "OMP-derived execution and transport supervision remains TypeScript-native in the Claude runtime path. It aborts overdue work, fences committed effects, resumes partial streams, bounds MCP reconnect storms and hands durable jobs back across worker generations while emitting typed observations to Python custody.",
+      "capability_summary": "OMP-derived execution and transport supervision remains TypeScript-native in the Claude runtime path. Real stdio tool batches, model-stream frames, local MCP capabilities and CodeWorker heartbeats enter CrossRuntimeFaultSupervisor; typed observations then cross the CodeWorker frame boundary into Python FaultStateStore custody. Restart/requeue branches are exercised by direct original-language behavior tests and their live worker state is persisted in the session snapshot.",
       "dependencies": [
         "M1-S04D-02",
         "M1-S05A-02",
@@ -178042,15 +178041,14 @@
           "tool_failure_signal"
         ],
         "surfaces": [
-          "task_scoped_source_session",
-          "browser_04d_observer_bridge",
           "typescript_execution_transport_supervision",
+          "codeworker_fault_frame_sink",
           "canonical_fault_projection_and_containment",
           "fault_http_and_control_commands",
           "m1_07c_consumer_dispatch"
         ],
         "ui_panels": [],
-        "worker_runtime": "WatchdogFaultIntegrationRuntime"
+        "worker_runtime": "CodeWorkerRuntime -> JsonlRuntimeHost -> CrossRuntimeFaultSupervisor -> FaultRuntimeApiService"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
@@ -178063,19 +178061,19 @@
         "migration_mode": "cropped_same_language_execution_transport_supervision_with_python_canonical_custody",
         "omp_runtime_dependency": false,
         "openclaw_forward_excluded": true,
-        "original_language_behavior_test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts",
-        "original_language_runtime": "@zyra/claude-runtime/watchdog IntegratedRuntimeSupervisor",
+        "original_language_behavior_test": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts packages/runtime/claude-runtime/test/watchdog.test.ts",
+        "original_language_runtime": "@zyra/claude-runtime/watchdog CrossRuntimeFaultSupervisor",
         "owner_unit": "M1-S07B-02",
         "recovery_plan_owner": "M1-S07C",
         "requirement_changed_is_fault": false,
         "root_source_runtime_dependency": false,
         "shared_watchdog_control_command": "/watchdog",
         "source_callsites": [
-          "Claude runtime stdio batch execution",
-          "tool deadline abort with committed-effect preservation",
-          "provider partial-stream resume without duplicate side effects",
-          "MCP crash-window breaker and request cleanup",
-          "worker restart budget and checkpointed job requeue"
+          "Claude runtime stdio batch execution with a real tool deadline race",
+          "default model_request/model_stream events drive provider partial-stream custody",
+          "local MCP capability execution receives the supervisor AbortSignal",
+          "CodeWorker runtime events heartbeat worker state and persist its snapshot",
+          "direct TypeScript process-exit behavior verifies restart budget and checkpointed job requeue"
         ],
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
         "source_language": "typescript",
@@ -178109,10 +178107,10 @@
           "packages/scheduler/zyra_scheduler/fault_runtime/observation_port.py",
           "packages/scheduler/zyra_scheduler/fault_runtime/integration.py"
         ],
-        "function": "WatchdogFaultIntegrationRuntime",
-        "health_check": "python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
-        "module": "zyra_scheduler.fault_runtime.integration",
-        "protocol": "zyra.worker-pool/v1"
+        "function": "CrossRuntimeFaultSupervisor",
+        "health_check": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts packages/runtime/claude-runtime/test/watchdog.test.ts && python -m pytest -q tests/integration/test_code_worker_clean_productized_runtime.py && python -m pytest -q tests/integration/test_watchdog_fault_injection_integration.py",
+        "module": "@zyra/claude-runtime/watchdog",
+        "protocol": "zyra.claude-runtime.v1 -> zyra.watchdog-fault-signal/v1"
       },
       "source_evidence": [
         {
@@ -178207,6 +178205,20 @@
           "expected_signal": "the /change path replans while remaining outside fault counts, pressure, scheduler health and failure memory",
           "kind": "adjacent_control_boundary_regression",
           "path": "tests/integration/test_api_control_commands.py",
+          "required": true
+        },
+        {
+          "command": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts packages/runtime/claude-runtime/test/watchdog.test.ts",
+          "expected_signal": "tool, provider, MCP and worker supervision alter live TypeScript runtime state",
+          "kind": "original_language_runtime_main_path",
+          "path": "packages/runtime/claude-runtime/test/watchdog-integration.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_code_worker_clean_productized_runtime.py",
+          "expected_signal": "typed watchdog observations reach Python custody and worker heartbeat state is persisted in the CodeWorker session snapshot",
+          "kind": "cross_runtime_frame_main_path",
+          "path": "tests/integration/test_code_worker_clean_productized_runtime.py",
           "required": true
         }
       ]

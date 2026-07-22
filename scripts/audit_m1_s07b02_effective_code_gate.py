@@ -15,6 +15,13 @@ PREVIOUS_IMPLEMENTATION_COMMITS = {
     "db27e57892cbb62eec4e783f73394c0a6a5d54df",
     "242038c842a02b3311e2452dad3cb86a2fa864e6",
 }
+ORIGINAL_SLICE_IMPLEMENTATION_COMMITS = {
+    "c6887b0a7a336500d13ad5ae2b02473140d45b5c",
+}
+REVIEW_REMEDIATION_COMMITS = {
+    "a234ac0be11a183a20f7155af2eed71771a49bf9",
+    "4add6d07547dc59819bde5560bed9121953dbe3e",
+}
 SLICE_MINIMUM = 6500
 PARENT_MINIMUM = 15000
 
@@ -63,7 +70,12 @@ def audit(*, target: str) -> dict[str, Any]:
         parent_report = common.audit_range(
             base=PARENT_BASELINE,
             target=resolved_target,
-            allowed_commits={*PREVIOUS_IMPLEMENTATION_COMMITS, resolved_target},
+            allowed_commits={
+                *PREVIOUS_IMPLEMENTATION_COMMITS,
+                *ORIGINAL_SLICE_IMPLEMENTATION_COMMITS,
+                *REVIEW_REMEDIATION_COMMITS,
+                resolved_target,
+            },
         )
     finally:
         common.source_role = original_role

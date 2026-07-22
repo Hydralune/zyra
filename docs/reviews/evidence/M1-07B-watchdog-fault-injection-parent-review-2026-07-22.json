@@ -1,0 +1,150 @@
+{
+  "schema": "zyra.parent-review-evidence/v1",
+  "unit_id": "M1-07B",
+  "date": "2026-07-22",
+  "status": "pass_after_remediation",
+  "baseline_commit": "6900e96dcb6dd73c22b803787afc30125fbe947c",
+  "original_evidence_head": "4580dba3d089a8be19a8f578300da065362b3b6f",
+  "final_implementation_commit": "383acfbe276420dbceec3f64f09829d38b99816c",
+  "evidence_commit": "created by committing this record and the parent review",
+  "remediation_commits": [
+    "a234ac0be11a183a20f7155af2eed71771a49bf9",
+    "4add6d07547dc59819bde5560bed9121953dbe3e",
+    "383acfbe276420dbceec3f64f09829d38b99816c"
+  ],
+  "verdict": {
+    "before_remediation": "fail",
+    "after_remediation": "pass",
+    "blocking_findings_remaining": 0,
+    "next_entry": "M1-S07C-01"
+  },
+  "fixed_findings": [
+    "CodeWorker structured watchdog events bypassed Python canonical fault custody",
+    "default MCP/provider/worker execution paths did not fully drive TypeScript supervision",
+    "permission denial metadata diverged across the Python/TypeScript boundary",
+    "observation admission and external effect projection were vulnerable to concurrent duplicate work",
+    "browser attach and unsubscribe failures could leak callbacks and live source sessions",
+    "source-language custody verifier read ledger data from the wrong commit boundary",
+    "effective-code ownership and source-ledger descriptions omitted the original implementation/default callsites"
+  ],
+  "main_path": {
+    "entries": [
+      "POST /tasks/{task_id}/faults/observations",
+      "POST /tasks/{task_id}/faults/runtime-events",
+      "POST /tasks/{task_id}/faults/inject",
+      "POST /tasks/{task_id}/faults/sources/bind",
+      "POST /tasks/{task_id}/faults/sources/observe",
+      "POST /tasks/{task_id}/faults/handoffs/dispatch",
+      "/inject",
+      "/watchdog",
+      "CodeWorkerRuntime -> JsonlRuntimeHost -> CrossRuntimeFaultSupervisor",
+      "browser worker session -> BrowserFaultObserverBridge"
+    ],
+    "canonical_owner": "Python FaultStateStore",
+    "process_local_owner": "TypeScript CrossRuntimeFaultSupervisor",
+    "recovery_plan_owner": "M1-S07C",
+    "requirement_change_is_fault": false,
+    "tested": true
+  },
+  "source_language_custody": {
+    "M1-S07B-01": {
+      "browser_use_python_raw_declared_path_additions": 6178,
+      "oh_my_pi_typescript_raw_declared_path_additions": 750,
+      "violations": 0
+    },
+    "M1-S07B-02": {
+      "browser_use_python_raw_declared_path_additions": 1668,
+      "oh_my_pi_typescript_raw_declared_path_additions": 2875,
+      "violations": 0
+    }
+  },
+  "effective_code": {
+    "method": "target-side additions with Python AST/token and TypeScript declaration/comment exclusions; implementation ownership frozen at final target",
+    "slice": {
+      "raw_additions": 11791,
+      "effective_production": 7059,
+      "minimum": 6500,
+      "margin": 559,
+      "test_mock_fixture": 1521,
+      "type_declaration": 503,
+      "schema_dto_data": 1536,
+      "docs_comments_blank": 713,
+      "nonproduction_tooling": 459,
+      "adapter_only": 0,
+      "generated": 0
+    },
+    "parent": {
+      "raw_additions": 25194,
+      "effective_production": 15710,
+      "minimum": 15000,
+      "margin": 710,
+      "test_mock_fixture": 2668,
+      "type_declaration": 787,
+      "schema_dto_data": 1610,
+      "docs_comments_blank": 1667,
+      "unrelated_scope": 2740
+    },
+    "gate_ok": true
+  },
+  "verification": [
+    {
+      "command": "python -m pytest tests/integration/test_watchdog_fault_injection_integration.py tests/integration/test_watchdog_fault_injection_foundation.py tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_change_command_creates_requirement_change_event -q",
+      "result": "33 passed"
+    },
+    {
+      "command": "python -m pytest tests/integration/test_code_worker_clean_productized_runtime.py -q",
+      "result": "7 passed"
+    },
+    {
+      "command": "node --experimental-strip-types --test packages/runtime/claude-runtime/test/watchdog-integration.test.ts packages/runtime/claude-runtime/test/watchdog.test.ts",
+      "result": "10 passed"
+    },
+    {
+      "command": "python -m pytest tests/unit/test_source_language_custody.py -q",
+      "result": "6 passed"
+    },
+    {
+      "command": "tsc -p packages/runtime/claude-runtime/tsconfig.json --noEmit",
+      "result": "pass"
+    },
+    {
+      "command": "python -m compileall -q apps packages scripts",
+      "result": "pass"
+    },
+    {
+      "command": "python scripts/audit_m1_s07b02_effective_code_gate.py --target 383acfbe276420dbceec3f64f09829d38b99816c --summary-only --fail-on-gate",
+      "result": "pass; slice 7059/6500, parent 15710/15000"
+    },
+    {
+      "command": "python scripts/sync_watchdog_fault_integration_source_ledger.py --check",
+      "result": "aligned; 2 M1-S07B-02 decisions"
+    },
+    {
+      "command": "python scripts/zyra_integration_ledger.py --ledger-path <seeded-review-ledger> test-quality --unit M1-S07B-02 --include-entries --fail-on-error --json",
+      "result": "2 entries, 8 test entries, 0 errors, 2 non-blocking warnings caused by applying Python AST heuristics to the TypeScript Node test; the Node behavior command passes 10 tests"
+    }
+  ],
+  "dependency_boundary": {
+    "dependency_or_lockfile_changes": 0,
+    "new_external_service_or_port": false,
+    "root_source_repository_runtime_dependency": false,
+    "cache_or_residual_state_dependency": false,
+    "openclaw_forward_dependency": false
+  },
+  "cleanroom": {
+    "run": false,
+    "reason": "This is a parent unit closeout, not the M1-07 numeric-stage aggregate, and the remediation introduced no external dependency, service, port, Docker boundary, dynamic import, incompatible public schema or canonical owner transfer.",
+    "mandatory_next_layer": "M1-07 numeric-stage aggregate or milestone exit"
+  },
+  "historical_global_ledger_debt": {
+    "present": true,
+    "blocking_for_unit": false,
+    "reason": "The strict global verifier reports protected early-unit target paths and historical remediation/source-audit references outside the M1-07B implementation diff. Current-unit two decision records, target bindings and eight required test entries were checked directly."
+  },
+  "competition_gate_regression": {
+    "REQ-FAULT-01": "partial remains; 07C/08 must prove recovery and final delivery",
+    "REQ-TRACE-01": "causal backend evidence added; UI/live trace remains",
+    "REQ-EDGE-01": "backend health mutation added; real edge/cloud dispatch remains",
+    "SCORE-ROBUST": "behavior foundation only; repeated live runs, MTTR and recovery metrics remain"
+  }
+}

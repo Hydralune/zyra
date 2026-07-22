@@ -3,21 +3,26 @@
   "slice_id": "M1-S07B-02",
   "parent_unit": "M1-07B",
   "date": "2026-07-22",
-  "status": "complete_after_pre_evidence_resource_handle_remediation",
+  "status": "complete_after_parent_review_remediation",
   "baseline_commit": "805d31985df5f549745ac2fd2b21d4bfc6236dd6",
   "parent_baseline_commit": "6900e96dcb6dd73c22b803787afc30125fbe947c",
   "preimplementation_decision_commit": "b0609f788011684626c287975d3d4a58c01ab5b7",
-  "implementation_commit": "c6887b0a7a336500d13ad5ae2b02473140d45b5c",
-  "evidence_commit": "created by committing this record, review, audit tooling, decision erratum and ledger synchronization",
+  "implementation_commit": "383acfbe276420dbceec3f64f09829d38b99816c",
+  "evidence_commit": "created by committing this amended record, parent review, audit tooling and ledger clarification",
   "next_entry": "M1-S07C-01",
   "commit_gate": {
     "decision_precedes_production": true,
     "implementation_contains_only_code_and_direct_tests": true,
     "evidence_is_after_final_implementation": true,
     "pre_evidence_implementation_object": "f999d46208fba2c15642b89aba312688bd843702",
-    "pre_evidence_remediation": "Adjacent scheduler API regression exposed a Windows SQLite handle retained by the recovery view. The view now releases the reusable fault-store connection in finally; the implementation commit was amended before evidence and all final checks target c6887b0.",
-    "counted_slice_range": "805d31985df5f549745ac2fd2b21d4bfc6236dd6..c6887b0a7a336500d13ad5ae2b02473140d45b5c",
-    "counted_parent_range": "6900e96dcb6dd73c22b803787afc30125fbe947c..c6887b0a7a336500d13ad5ae2b02473140d45b5c"
+    "parent_review_remediation_commits": [
+      "a234ac0be11a183a20f7155af2eed71771a49bf9",
+      "4add6d07547dc59819bde5560bed9121953dbe3e",
+      "383acfbe276420dbceec3f64f09829d38b99816c"
+    ],
+    "pre_evidence_remediation": "The original evidence target c6887b0 already included the SQLite handle remediation. The parent review later superseded that target with three scoped watchdog remediation commits and re-ran all affected checks against 383acfb.",
+    "counted_slice_range": "805d31985df5f549745ac2fd2b21d4bfc6236dd6..383acfbe276420dbceec3f64f09829d38b99816c",
+    "counted_parent_range": "6900e96dcb6dd73c22b803787afc30125fbe947c..383acfbe276420dbceec3f64f09829d38b99816c"
   },
   "baseline_erratum": {
     "frozen_text": "6900e96b2413fa12f66b082dd3c47a3c0174c480",
@@ -77,6 +82,41 @@
       ]
     }
   ],
+  "language_custody": [
+    {
+      "source_repo": "browser-use",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_same_language_browser_observer_integration_with_zyra_state_custody",
+      "expected_production_languages": ["python"],
+      "minimum_added_lines_by_language": {"python": 1},
+      "production_paths": [
+        "packages/scheduler/zyra_scheduler/fault_runtime/source_session.py",
+        "packages/scheduler/zyra_scheduler/fault_runtime/browser_integration.py"
+      ]
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_execution_transport_supervision_with_python_canonical_custody",
+      "expected_production_languages": ["typescript"],
+      "minimum_added_lines_by_language": {"typescript": 1},
+      "production_paths": [
+        "packages/runtime/claude-runtime/src/watchdog/execution-supervisor.ts",
+        "packages/runtime/claude-runtime/src/watchdog/provider-stream-supervisor.ts",
+        "packages/runtime/claude-runtime/src/watchdog/mcp-supervisor.ts",
+        "packages/runtime/claude-runtime/src/watchdog/worker-restart-supervisor.ts",
+        "packages/runtime/claude-runtime/src/watchdog/integration-supervisor.ts",
+        "packages/runtime/claude-runtime/src/watchdog/runtime.ts",
+        "packages/runtime/claude-runtime/src/stdio.ts"
+      ]
+    }
+  ],
+  "ledger_custody": {
+    "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+    "owner_unit": "M1-S07B-02",
+    "expected_entry_count": 2,
+    "sync_script": "scripts/sync_watchdog_fault_integration_source_ledger.py"
+  },
   "non_implementation_roles": {
     "conformance_reference_only": [
       "claude-code-best",
@@ -90,43 +130,47 @@
     ]
   },
   "line_buckets": {
-    "audit_command": "python scripts/audit_m1_s07b02_effective_code_gate.py --target c6887b0a7a336500d13ad5ae2b02473140d45b5c --fail-on-gate",
+    "audit_command": "python scripts/audit_m1_s07b02_effective_code_gate.py --target 383acfbe276420dbceec3f64f09829d38b99816c --fail-on-gate",
     "audit_tool_is_nonproduction": true,
     "slice": {
-      "raw_additions": 9554,
-      "production_runtime": 6669,
-      "effective_production": 6669,
-      "type_declaration_excluded": 490,
-      "schema_dto_data_excluded": 642,
+      "raw_additions": 11791,
+      "production_runtime": 7059,
+      "effective_production": 7059,
+      "type_declaration_excluded": 503,
+      "schema_dto_data_excluded": 1536,
       "adapter_only_excluded": 0,
-      "test_mock_fixture_excluded": 1077,
+      "test_mock_fixture_excluded": 1521,
       "generated_excluded": 0,
-      "docs_comments_blank_excluded": 676,
+      "docs_comments_blank_excluded": 713,
       "minimum_required": 6500,
-      "margin": 169,
+      "margin": 559,
       "shortfall": 0
     },
     "effective_by_source_role_and_language": {
-      "browser-use_primary_python": 412,
-      "oh-my-pi_supplementary_typescript": 2083,
-      "zyra_owned_api_python": 152,
+      "browser-use_primary_python": 472,
+      "oh-my-pi_supplementary_typescript": 2289,
+      "zyra_owned_api_python": 190,
       "zyra_owned_control_python": 272,
-      "zyra_owned_fault_integration_python": 3750
+      "zyra_owned_fault_integration_python": 3760,
+      "zyra_supporting_python_typescript": 76
     },
     "parent": {
-      "method": "Recomputed from the frozen parent baseline with git blame restricted to the two 07B-01 implementation commits and the final 07B-02 implementation commit; no arithmetic carry-forward.",
-      "effective_production": 15324,
+      "method": "Recomputed from the frozen parent baseline with git blame restricted to the two 07B-01 implementation commits, the original 07B-02 implementation commit and the three parent-review remediation commits; no arithmetic carry-forward.",
+      "effective_production": 15710,
       "minimum_required": 15000,
-      "margin": 324,
+      "margin": 710,
       "shortfall": 0,
       "allowed_implementation_commits": [
         "db27e57892cbb62eec4e783f73394c0a6a5d54df",
         "242038c842a02b3311e2452dad3cb86a2fa864e6",
-        "c6887b0a7a336500d13ad5ae2b02473140d45b5c"
+        "c6887b0a7a336500d13ad5ae2b02473140d45b5c",
+        "a234ac0be11a183a20f7155af2eed71771a49bf9",
+        "4add6d07547dc59819bde5560bed9121953dbe3e",
+        "383acfbe276420dbceec3f64f09829d38b99816c"
       ]
     },
-    "per_file_report": "docs/reviews/M1-S07B-02-watchdog-fault-injection-integration-review.md section 6",
-    "large_file_manual_review": "docs/reviews/M1-S07B-02-watchdog-fault-injection-integration-review.md section 7",
+    "per_file_report": "docs/reviews/M1-07B-watchdog-fault-injection-parent-review-2026-07-22.md",
+    "large_file_manual_review": "docs/reviews/M1-07B-watchdog-fault-injection-parent-review-2026-07-22.md",
     "gate_ok": true
   },
   "main_paths": [
@@ -136,9 +180,9 @@
       "disconnect_effect": "Stale generation is rejected; disabling the browser observer removes all nine callbacks and starts no fallback."
     },
     {
-      "entry": "Claude runtime IntegratedRuntimeSupervisor and stdio batch",
-      "effect": "Real tool/provider/MCP/worker boundaries abort, resume, reconnect or requeue with idempotency fences before emitting structured observations.",
-      "disconnect_effect": "Node behavior tests lose abort, breaker, no-replay and exactly-once requeue outcomes."
+      "entry": "Claude runtime CrossRuntimeFaultSupervisor, stdio frames and local capability host",
+      "effect": "Tool batches use deadline races; model stream events drive partial-stream supervision; local MCP calls receive the real abort signal; CodeWorker events heartbeat and persist worker supervision before typed observations cross into Python custody.",
+      "disconnect_effect": "The CodeWorker frame test loses the canonical fault sink and persisted worker heartbeat; Node behavior tests lose abort, MCP timeout and provider partial-stream outcomes."
     },
     {
       "entry": "POST /tasks/{task_id}/faults/observations and runtime-events",
@@ -175,7 +219,7 @@
   "verification": {
     "direct_python": {
       "command": "python -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-m1-s07b02-final-impl tests/integration/test_watchdog_fault_injection_integration.py tests/integration/test_watchdog_fault_injection_foundation.py tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_change_command_creates_requirement_change_event",
-      "result": "30 passed in 26.56s"
+      "result": "33 passed in 44.93s"
     },
     "adjacent_python": {
       "command": "python -m pytest -q scheduler API, M5 fault recovery, runtime event spine, worker-pool integration/API and browser observability main-path files",
@@ -183,7 +227,7 @@
     },
     "typescript": {
       "command": "node --experimental-strip-types --test watchdog-integration.test.ts watchdog.test.ts",
-      "result": "7 passed"
+      "result": "10 passed"
     },
     "typescript_typecheck": {
       "command": "node node_modules/typescript/bin/tsc -p packages/runtime/claude-runtime/tsconfig.json --noEmit",
@@ -193,9 +237,17 @@
       "command": "python -m compileall -q fault_runtime command runtime API and direct integration test",
       "result": "pass"
     },
-    "effective_code_gate": "pass; slice 6669/6500, parent 15324/15000",
+    "codeworker_frame": {
+      "command": "python -m pytest -q tests/integration/test_code_worker_clean_productized_runtime.py",
+      "result": "7 passed"
+    },
+    "language_custody": {
+      "command": "python scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/M1-S07B-02-watchdog-fault-injection-integration.json --base 805d31985df5f549745ac2fd2b21d4bfc6236dd6 --target 383acfbe276420dbceec3f64f09829d38b99816c",
+      "result": "pass; browser-use Python 1668 raw added lines, oh-my-pi TypeScript 2875 raw added lines, ledger custody 2/2, no violations"
+    },
+    "effective_code_gate": "pass; slice 7059/6500, parent 15710/15000",
     "ledger_sync": "aligned, exactly 2 M1-S07B-02 decisions",
-    "ledger_test_quality": "2 entries, 6 test entries, 0 errors, 0 warnings",
+    "ledger_test_quality": "2 entries, 8 test entries, 0 errors; 2 non-blocking static warnings because the current analyzer applies Python AST heuristics to the TypeScript Node test, while the Node command itself passes 10 behavior tests",
     "ledger_reachability": "2 entries, 0 unreachable and 0 current-unit findings; global trust gate retains one aggregate finding because protected historical ledger audit errors remain",
     "diff_check": "pass",
     "forbidden_dependency_scan": "0 sibling source-repo runtime paths, 0 cache/vendor/source-pool paths, 0 OpenClaw paths",

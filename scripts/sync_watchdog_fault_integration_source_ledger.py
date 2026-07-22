@@ -35,7 +35,12 @@ PYTHON_TEST = (
 )
 TYPESCRIPT_TEST = (
     "node --experimental-strip-types --test packages/runtime/claude-runtime/"
-    "test/watchdog-integration.test.ts"
+    "test/watchdog-integration.test.ts packages/runtime/claude-runtime/"
+    "test/watchdog.test.ts"
+)
+CODEWORKER_TEST = (
+    "python -m pytest -q tests/integration/"
+    "test_code_worker_clean_productized_runtime.py"
 )
 
 
@@ -131,11 +136,11 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "worker process generation and durable job handback",
         ],
         "source_callsites": [
-            "Claude runtime stdio batch execution",
-            "tool deadline abort with committed-effect preservation",
-            "provider partial-stream resume without duplicate side effects",
-            "MCP crash-window breaker and request cleanup",
-            "worker restart budget and checkpointed job requeue",
+            "Claude runtime stdio batch execution with a real tool deadline race",
+            "default model_request/model_stream events drive provider partial-stream custody",
+            "local MCP capability execution receives the supervisor AbortSignal",
+            "CodeWorker runtime events heartbeat worker state and persist its snapshot",
+            "direct TypeScript process-exit behavior verifies restart budget and checkpointed job requeue",
         ],
         "source_tests": [
             "OMP tool execution, MCP transport/timeout and provider error tests recorded in the source graph",
@@ -143,9 +148,11 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         "capability_name": "omp_execution_provider_mcp_and_worker_restart_supervision",
         "capability_summary": (
             "OMP-derived execution and transport supervision remains TypeScript-native in the "
-            "Claude runtime path. It aborts overdue work, fences committed effects, resumes "
-            "partial streams, bounds MCP reconnect storms and hands durable jobs back across "
-            "worker generations while emitting typed observations to Python custody."
+            "Claude runtime path. Real stdio tool batches, model-stream frames, local MCP "
+            "capabilities and CodeWorker heartbeats enter CrossRuntimeFaultSupervisor; typed "
+            "observations then cross the CodeWorker frame boundary into Python FaultStateStore "
+            "custody. Restart/requeue branches are exercised by direct original-language "
+            "behavior tests and their live worker state is persisted in the session snapshot."
         ),
         "target_paths": [
             "packages/runtime/claude-runtime/src/watchdog/execution-supervisor.ts",
@@ -161,8 +168,8 @@ DECISIONS: tuple[dict[str, Any], ...] = (
         ],
         "source_role": "supplementary_implementation",
         "migration_mode": "cropped_same_language_execution_transport_supervision_with_python_canonical_custody",
-        "runtime_module": "zyra_scheduler.fault_runtime.integration",
-        "runtime_function": "WatchdogFaultIntegrationRuntime",
+        "runtime_module": "@zyra/claude-runtime/watchdog",
+        "runtime_function": "CrossRuntimeFaultSupervisor",
         "event_types": ["tool_failure_signal"],
         "api_routes": [
             "POST /tasks/{task_id}/faults/runtime-events",
@@ -193,7 +200,17 @@ def _entry(decision: Mapping[str, Any]) -> dict[str, Any]:
         "M1-S07A-02",
         "M1-S07B-01",
     ]
-    entry["runtime_entry"]["health_check"] = PYTHON_TEST
+    if decision["source_repo"] == "oh-my-pi":
+        entry["runtime_entry"]["health_check"] = f"{TYPESCRIPT_TEST} && {CODEWORKER_TEST} && {PYTHON_TEST}"
+        entry["runtime_entry"]["protocol"] = (
+            "zyra.claude-runtime.v1 -> zyra.watchdog-fault-signal/v1"
+        )
+        entry["main_path"]["worker_runtime"] = (
+            "CodeWorkerRuntime -> JsonlRuntimeHost -> CrossRuntimeFaultSupervisor -> "
+            "FaultRuntimeApiService"
+        )
+    else:
+        entry["runtime_entry"]["health_check"] = PYTHON_TEST
     entry["test_entries"] = [
         {
             "path": "tests/integration/test_watchdog_fault_injection_integration.py",
@@ -232,14 +249,47 @@ def _entry(decision: Mapping[str, Any]) -> dict[str, Any]:
             "required": True,
         },
     ]
-    entry["main_path"]["surfaces"] = [
-        "task_scoped_source_session",
-        "browser_04d_observer_bridge",
-        "typescript_execution_transport_supervision",
-        "canonical_fault_projection_and_containment",
-        "fault_http_and_control_commands",
-        "m1_07c_consumer_dispatch",
-    ]
+    if decision["source_repo"] == "oh-my-pi":
+        entry["test_entries"].extend(
+            [
+                {
+                    "path": "packages/runtime/claude-runtime/test/watchdog-integration.test.ts",
+                    "command": TYPESCRIPT_TEST,
+                    "kind": "original_language_runtime_main_path",
+                    "expected_signal": (
+                        "tool, provider, MCP and worker supervision alter live TypeScript runtime state"
+                    ),
+                    "required": True,
+                },
+                {
+                    "path": "tests/integration/test_code_worker_clean_productized_runtime.py",
+                    "command": CODEWORKER_TEST,
+                    "kind": "cross_runtime_frame_main_path",
+                    "expected_signal": (
+                        "typed watchdog observations reach Python custody and worker heartbeat "
+                        "state is persisted in the CodeWorker session snapshot"
+                    ),
+                    "required": True,
+                },
+            ]
+        )
+    if decision["source_repo"] == "oh-my-pi":
+        entry["main_path"]["surfaces"] = [
+            "typescript_execution_transport_supervision",
+            "codeworker_fault_frame_sink",
+            "canonical_fault_projection_and_containment",
+            "fault_http_and_control_commands",
+            "m1_07c_consumer_dispatch",
+        ]
+    else:
+        entry["runtime_entry"]["protocol"] = "zyra.watchdog-fault-signal/v1"
+        entry["main_path"]["surfaces"] = [
+            "task_scoped_source_session",
+            "browser_04d_observer_bridge",
+            "canonical_fault_projection_and_containment",
+            "fault_http_and_control_commands",
+            "m1_07c_consumer_dispatch",
+        ]
     entry["main_path"]["control_commands"] = ["/inject", "/change"]
     entry["source_evidence"][0]["reason"] = (
         "Pinned source graph and concrete source files verified for M1-S07B-02."
@@ -250,10 +300,16 @@ def _entry(decision: Mapping[str, Any]) -> dict[str, Any]:
     entry["metadata"]["openclaw_forward_excluded"] = True
     entry["metadata"]["requirement_changed_is_fault"] = False
     entry["metadata"]["recovery_plan_owner"] = "M1-S07C"
-    entry["metadata"]["original_language_runtime"] = (
-        "@zyra/claude-runtime/watchdog IntegratedRuntimeSupervisor"
-    )
-    entry["metadata"]["original_language_behavior_test"] = TYPESCRIPT_TEST
+    if decision["source_repo"] == "oh-my-pi":
+        entry["metadata"]["original_language_runtime"] = (
+            "@zyra/claude-runtime/watchdog CrossRuntimeFaultSupervisor"
+        )
+        entry["metadata"]["original_language_behavior_test"] = TYPESCRIPT_TEST
+    else:
+        entry["metadata"]["original_language_runtime"] = (
+            "browser-use BaseWatchdog/BrowserSession lifecycle adapted into Zyra"
+        )
+        entry["metadata"]["original_language_behavior_test"] = PYTHON_TEST
     entry["metadata"]["shared_watchdog_control_command"] = "/watchdog"
     return entry
 
