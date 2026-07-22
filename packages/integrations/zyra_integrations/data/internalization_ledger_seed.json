@@ -178222,19 +178222,201 @@
           "required": true
         }
       ]
+    },
+    {
+      "blockers": [],
+      "capability_name": "omp_retry_fallback_continuity_and_replay_fence_receipts",
+      "capability_summary": "Cropped TypeScript retry/fallback classification, bounded backoff, append-only session/fork continuity, task terminal generations and worktree merge replay fences produce supplementary receipts consumed by the Python recovery policy owner.",
+      "created_at": "2026-07-22T12:00:00.000Z",
+      "dependencies": [
+        "M1-S02B-01",
+        "M1-S02D-01",
+        "M1-S03A-02",
+        "M1-S07B-02"
+      ],
+      "downstream_units": [
+        "M1-S07C-02",
+        "M1-08",
+        "M2-recovery-console"
+      ],
+      "ledger_id": "ile_oh_my_pi_e9817a6295f955c4",
+      "license_notice": {
+        "license_hint": "Cropped TypeScript mechanisms retained with provenance.",
+        "notes": "No runtime dependency on the parent OMP repository or its state stores.",
+        "notice_path": "packages/scheduler/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/recovery/signals",
+          "GET /tasks/{task_id}/recovery"
+        ],
+        "artifact_kinds": [
+          "checkpoint_receipt",
+          "execution_receipt"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "tool_failure_signal",
+          "recovery_planned",
+          "topology_route"
+        ],
+        "surfaces": [
+          "claude_runtime_watchdog_recovery_receipt",
+          "python_recovery_classifier",
+          "task_recovery_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "RuntimeWatchdogObserver -> OmpRecoveryReceiptRuntime -> RecoverySignalClassifier"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.RecoveryPlanStore",
+        "canonical_policy_owner": "python.RecoveryDecisionRuntime",
+        "migration_mode": "cropped_same_language_recovery_receipt_migration",
+        "omp_runtime_dependency": false,
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S07C-01",
+        "root_source_runtime_dependency": false,
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M1",
+      "owner_unit": "M1-S07C-01",
+      "replacement_plan": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; cropped same-language migration keeps receipt/backoff/replay mechanisms while excluding OMP session, task, provider and workspace stores.",
+      "risk_notes": [],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/runtime/claude-runtime/src/recovery/omp-recovery-runtime.ts",
+          "packages/runtime/claude-runtime/src/recovery/continuity-runtime.ts",
+          "packages/runtime/claude-runtime/src/watchdog/runtime.ts",
+          "packages/scheduler/zyra_scheduler/recovery_runtime/signal_classifier.py"
+        ],
+        "environment_refs": [],
+        "function": "OmpRecoveryReceiptRuntime",
+        "health_check": "npm run test:recovery --workspace=@zyra/claude-runtime",
+        "module": "@zyra/claude-runtime/recovery",
+        "protocol": "zyra.omp-recovery-receipt/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned OMP revision and selected recovery/session/task/worktree modules verified for M1-S07C-01.",
+          "source_kind": "bounded_module_group",
+          "source_path": "docs/non-compaction-retry-policy.md;packages/ai/src/auth-retry.ts;packages/coding-agent/src/session/session-manager.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/worktree.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [
+            "bounded retry",
+            "provider fallback",
+            "SessionManager resume/fork",
+            "TaskTool terminal state",
+            "worktree merge receipt"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S07C-01"
+          ]
+        }
+      ],
+      "source_path": "docs/non-compaction-retry-policy.md;packages/ai/src/auth-retry.ts;packages/coding-agent/src/session/session-manager.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/worktree.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/runtime/claude-runtime/src/recovery/omp-recovery-runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/runtime/claude-runtime/src/recovery/continuity-runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/runtime/claude-runtime/src/watchdog/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "adapter_ready",
+            "api_connected",
+            "event_log_connected",
+            "control_command_connected",
+            "worker_runtime_connected",
+            "ui_connected",
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/scheduler/zyra_scheduler/recovery_runtime/signal_classifier.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "npm run test:recovery --workspace=@zyra/claude-runtime",
+          "expected_signal": "bounded retry, replay fences, append-only resume/fork, task terminal and worktree merge receipts mutate process-local state and fail closed",
+          "kind": "original_language_behavior",
+          "path": "packages/runtime/claude-runtime/test/recovery.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_recovery_planner_routing_memory_api.py",
+          "expected_signal": "typed receipts enter the Python owner and concrete actions, events and routing memory change canonical execution",
+          "kind": "integration_main_path",
+          "path": "tests/integration/test_recovery_planner_routing_memory_api.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-22T12:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 457,
+    "active_or_internalized": 458,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 402
+      "productized": 403
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -178242,7 +178424,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 163,
+      "tested_main_path": 164,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -178287,6 +178469,7 @@
       "M1-S07A-02": 2,
       "M1-S07B-01": 2,
       "M1-S07B-02": 2,
+      "M1-S07C-01": 1,
       "M2-01A": 46,
       "M2-03B": 30
     },
@@ -178298,14 +178481,14 @@
       "claude-code-best": 511,
       "hermes-agent": 86,
       "langgraph": 85,
-      "oh-my-pi": 20,
+      "oh-my-pi": 21,
       "openclaw": 86,
       "opencode": 16
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 38,
+      "direct_port": 39,
       "not_selected": 14,
       "planned_adapter": 378,
       "reimplemented_pattern": 236,
@@ -178320,7 +178503,7 @@
       "packages/integrations": 78,
       "packages/memory": 197,
       "packages/orchestration": 59,
-      "packages/runtime": 172,
+      "packages/runtime": 173,
       "packages/scheduler": 83,
       "packages/skills": 48,
       "packages/symbolic": 1,
@@ -178329,6 +178512,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1199
+    "total_entries": 1200
   }
 }

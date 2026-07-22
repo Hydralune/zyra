@@ -1,0 +1,317 @@
+{
+  "schema": "zyra.slice-evidence/v2",
+  "slice_id": "M1-S07C-01",
+  "parent_unit": "M1-07C",
+  "date": "2026-07-22",
+  "status": "complete",
+  "baseline_commit": "aa494526ed7f32b177f9a10fa3a93d8a684e0264",
+  "preimplementation_decision_commit": "fd3fb81e0c0d099bfc384e16eeed88e48e7ad9c8",
+  "implementation_commit": "0b331ca6f709a24e663136939257aa061010aacf",
+  "evidence_commit": "created by committing this record, review, audit tooling, ledger sync and ledger seed",
+  "next_entry": "M1-S07C-02",
+  "commit_gate": {
+    "decision_precedes_production": true,
+    "implementation_contains_only_code_and_direct_tests": true,
+    "evidence_is_after_implementation": true,
+    "counted_range": "aa494526ed7f32b177f9a10fa3a93d8a684e0264..0b331ca6f709a24e663136939257aa061010aacf",
+    "implementation_diff": "28 files, 12270 insertions, 8 deletions",
+    "predecision_raw_additions_excluded": 117
+  },
+  "canonical_owners": {
+    "recovery_policy": "python.RecoveryDecisionRuntime",
+    "recovery_plan_checkpoint_route_feedback_store": "python.RecoveryPlanStore",
+    "recovery_action_execution": "python.RecoveryActionRuntime",
+    "checkpoint_commit_and_resume": "python.CheckpointCommitRuntime and CheckpointResumeBridge",
+    "branch_delta_commit": "python.DeterministicCommitRuntime",
+    "task_state": "existing SQLiteStore and TaskState",
+    "graph_topology": "existing GraphStateCustody",
+    "worker_attempt_and_lease": "M1-S07A WorkerPoolFoundationRuntime",
+    "backend_workspace": "M1-S05D BackendRegistry",
+    "provider_model_credential_transport": "M1-S05D ProviderControlPlane",
+    "permission": "existing PermissionControlPlane",
+    "memory_and_compact": "existing MemoryFabric",
+    "typescript_supplement": "process-local OmpRecoveryReceiptRuntime and RecoveryContinuityRuntime only"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "source_role": "supplementary_implementation",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_same_language_recovery_receipt_migration",
+      "selected_mechanisms": [
+        "retry and fallback classification with bounded backoff",
+        "observable response and side-effect replay fences",
+        "append-only session resume and fork continuity",
+        "task terminal generation and idempotency receipt",
+        "worktree merge success and conflict receipt"
+      ],
+      "excluded": [
+        "OMP session, task, provider and worktree stores",
+        "OMP CLI/TUI and RoboOmp owner",
+        "second durable recovery planner, checkpoint store or route owner"
+      ]
+    },
+    {
+      "source_repo": "langgraph",
+      "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
+      "source_role": "conformance_only",
+      "role": "conformance_only",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "conformance_only",
+      "selected_semantics": [
+        "checkpoint identity and lineage",
+        "pending versus committed writes",
+        "stable task and correlation ids",
+        "atomic commit and interrupt/exact-resume"
+      ],
+      "excluded": [
+        "StateGraph compiler",
+        "generic channels and reducers",
+        "Pregel planner and runner",
+        "stream controller, ToolNode, Store, SDK and deploy runtime"
+      ],
+      "production_migration_quota": false,
+      "ledger_production_entry": false
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_recovery_receipt_migration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "production_paths": [
+        "packages/runtime/claude-runtime/src/recovery/omp-recovery-runtime.ts",
+        "packages/runtime/claude-runtime/src/recovery/continuity-runtime.ts",
+        "packages/runtime/claude-runtime/src/watchdog/runtime.ts"
+      ]
+    }
+  ],
+  "ledger_custody": {
+    "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+    "owner_unit": "M1-S07C-01",
+    "expected_entry_count": 1,
+    "sync_script": "scripts/sync_recovery_planner_source_ledger.py",
+    "scope": "production implementation roles only; LangGraph conformance remains in decision/review/evidence"
+  },
+  "non_implementation_roles": {
+    "zyra_owned_primary": [
+      "RecoveryDecisionRuntime",
+      "RecoveryPlanStore",
+      "CheckpointCommitRuntime",
+      "CheckpointResumeBridge",
+      "DeterministicCommitRuntime",
+      "LayeredRouteRuntime",
+      "RoutingMemoryFeedback"
+    ],
+    "conformance_reference_only": [
+      "claude-code-best permission/compact/MCP/subagent/stream failure chains",
+      "agent-framework checkpoint and AG-UI history",
+      "agentscope worker lifecycle and workspace boundaries",
+      "hermes-agent recovery naming",
+      "opencode durable session/provider/tool failure receipts"
+    ],
+    "excluded_forward_only": [
+      "openclaw"
+    ]
+  },
+  "line_buckets": {
+    "audit_command": "python scripts/audit_m1_s07c01_effective_code_gate.py --target 0b331ca6f709a24e663136939257aa061010aacf --fail-on-gate",
+    "audit_tool_is_nonproduction": true,
+    "raw_additions": 12387,
+    "raw_deletions": 8,
+    "effective_production": 8429,
+    "type_declaration_excluded": 485,
+    "schema_dto_data_manifest_excluded": 1831,
+    "test_mock_fixture_excluded": 739,
+    "docs_comments_blank_excluded": 903,
+    "adapter_only_excluded": 0,
+    "generated_vendor_source_pool_excluded": 0,
+    "minimum_required": 8000,
+    "margin": 429,
+    "shortfall": 0,
+    "effective_by_language": {
+      "python": 7568,
+      "typescript": 861
+    },
+    "effective_by_source_role_and_language": {
+      "zyra_owned_recovery_primary_python": 6692,
+      "zyra_owned_recovery_main_path_python": 876,
+      "oh_my_pi_supplementary_same_language_typescript": 861
+    },
+    "files": [
+      {"path":"apps/api/zyra_api/main.py","language":"python","role":"zyra_owned_recovery_main_path","raw":736,"effective":702,"type":0,"schema_data":0,"test":0,"docs_blank":34},
+      {"path":"apps/api/zyra_api/recovery_api.py","language":"python","role":"zyra_owned_recovery_main_path","raw":195,"effective":174,"type":1,"schema_data":5,"test":0,"docs_blank":15},
+      {"path":"docs/plans/M1-S07C-01-recovery-planner-routing-memory-foundation-decision.md","language":"markdown","role":"decision","raw":117,"effective":0,"type":0,"schema_data":117,"test":0,"docs_blank":0},
+      {"path":"packages/runtime/claude-runtime/package.json","language":"json","role":"manifest","raw":1,"effective":0,"type":0,"schema_data":1,"test":0,"docs_blank":0},
+      {"path":"packages/runtime/claude-runtime/src/index.ts","language":"typescript","role":"export","raw":1,"effective":0,"type":1,"schema_data":0,"test":0,"docs_blank":0},
+      {"path":"packages/runtime/claude-runtime/src/recovery/continuity-runtime.ts","language":"typescript","role":"oh_my_pi_supplementary","raw":503,"effective":366,"type":100,"schema_data":0,"test":0,"docs_blank":37},
+      {"path":"packages/runtime/claude-runtime/src/recovery/index.ts","language":"typescript","role":"export","raw":2,"effective":0,"type":2,"schema_data":0,"test":0,"docs_blank":0},
+      {"path":"packages/runtime/claude-runtime/src/recovery/omp-recovery-runtime.ts","language":"typescript","role":"oh_my_pi_supplementary","raw":614,"effective":466,"type":101,"schema_data":0,"test":0,"docs_blank":47},
+      {"path":"packages/runtime/claude-runtime/src/watchdog/runtime.ts","language":"typescript","role":"oh_my_pi_supplementary","raw":29,"effective":29,"type":0,"schema_data":0,"test":0,"docs_blank":0},
+      {"path":"packages/runtime/claude-runtime/test/recovery.test.ts","language":"typescript","role":"test","raw":228,"effective":0,"type":0,"schema_data":0,"test":228,"docs_blank":0},
+      {"path":"packages/runtime/claude-runtime/test/watchdog.test.ts","language":"typescript","role":"test","raw":5,"effective":0,"type":0,"schema_data":0,"test":5,"docs_blank":0},
+      {"path":"packages/scheduler/zyra_scheduler/__init__.py","language":"python","role":"export","raw":12,"effective":0,"type":12,"schema_data":0,"test":0,"docs_blank":0},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/__init__.py","language":"python","role":"export","raw":230,"effective":0,"type":229,"schema_data":0,"test":0,"docs_blank":1},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/action_runtime.py","language":"python","role":"zyra_owned_recovery_primary","raw":650,"effective":548,"type":5,"schema_data":47,"test":0,"docs_blank":50},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/application.py","language":"python","role":"zyra_owned_recovery_primary","raw":446,"effective":386,"type":5,"schema_data":14,"test":0,"docs_blank":41},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/audit_runtime.py","language":"python","role":"zyra_owned_recovery_primary","raw":642,"effective":564,"type":1,"schema_data":48,"test":0,"docs_blank":29},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/checkpoint_runtime.py","language":"python","role":"zyra_owned_recovery_primary","raw":736,"effective":606,"type":4,"schema_data":70,"test":0,"docs_blank":56},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/context_runtime.py","language":"python","role":"zyra_owned_recovery_primary","raw":332,"effective":266,"type":4,"schema_data":30,"test":0,"docs_blank":32},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/contracts.py","language":"python","role":"zyra_owned_contract_validation","raw":1560,"effective":289,"type":1,"schema_data":1108,"test":0,"docs_blank":162},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/delta_journal.py","language":"python","role":"zyra_owned_recovery_primary","raw":558,"effective":495,"type":1,"schema_data":16,"test":0,"docs_blank":46},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/memory_feedback.py","language":"python","role":"zyra_owned_recovery_primary","raw":324,"effective":270,"type":3,"schema_data":23,"test":0,"docs_blank":28},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/policy.py","language":"python","role":"zyra_owned_recovery_primary","raw":728,"effective":660,"type":1,"schema_data":20,"test":0,"docs_blank":47},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/route_runtime.py","language":"python","role":"zyra_owned_recovery_primary","raw":411,"effective":309,"type":6,"schema_data":53,"test":0,"docs_blank":43},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/safe_codec.py","language":"python","role":"zyra_owned_recovery_primary","raw":314,"effective":261,"type":1,"schema_data":0,"test":0,"docs_blank":52},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/signal_classifier.py","language":"python","role":"zyra_owned_recovery_primary","raw":541,"effective":486,"type":1,"schema_data":13,"test":0,"docs_blank":41},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/store.py","language":"python","role":"zyra_owned_recovery_primary","raw":1484,"effective":1165,"type":1,"schema_data":217,"test":0,"docs_blank":101},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/task_owner_runtime.py","language":"python","role":"zyra_owned_recovery_primary","raw":482,"effective":387,"type":5,"schema_data":49,"test":0,"docs_blank":41},
+      {"path":"tests/integration/test_recovery_planner_routing_memory_api.py","language":"python","role":"test","raw":231,"effective":0,"type":0,"schema_data":0,"test":231,"docs_blank":0},
+      {"path":"tests/unit/test_recovery_planner_routing_memory_foundation.py","language":"python","role":"test","raw":275,"effective":0,"type":0,"schema_data":0,"test":275,"docs_blank":0}
+    ],
+    "gate_ok": true
+  },
+  "large_file_reviews": [
+    {"path":"apps/api/zyra_api/main.py","raw":736,"effective":702,"responsibility":"real canonical owner callbacks and GET/POST routing","test":"HTTP retry, GraphState replan, checkpoint/delta and disable behavior"},
+    {"path":"packages/runtime/claude-runtime/src/recovery/continuity-runtime.ts","raw":503,"effective":366,"responsibility":"append-only session/fork, terminal generation and worktree receipt state machines","test":"recovery.test.ts continuity and replay fence behavior"},
+    {"path":"packages/runtime/claude-runtime/src/recovery/omp-recovery-runtime.ts","raw":614,"effective":466,"responsibility":"bounded retry/fallback and response/side-effect eligibility","test":"recovery.test.ts budget, deterministic receipt and fail-closed ownership"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/action_runtime.py","raw":650,"effective":548,"responsibility":"plan lease, cursor, idempotency, concrete action and outcome","test":"unit policy/action and HTTP canonical mutation"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/audit_runtime.py","raw":642,"effective":564,"responsibility":"causal, custody, receipt and journal integrity audit","test":"unit audit assertions and API recovery view"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/checkpoint_runtime.py","raw":736,"effective":606,"responsibility":"atomic commit, exact resume and replay bypass","test":"signature, pending/committed, processed response and side-effect fence subtests"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/contracts.py","raw":1560,"effective":289,"responsibility":"typed contracts plus executable validation, digest and refinement","excluded":"1108 DTO/schema lines and 162 docs/blank lines","test":"invalid identity, corrupt payload and owner mismatch fail closed"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/delta_journal.py","raw":558,"effective":495,"responsibility":"branch-local COW, read/write-set conflict and deterministic commit","test":"alias isolation, conflict rejection and commit ordering"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/policy.py","raw":728,"effective":660,"responsibility":"deterministic candidate scoring, budget, sealed mode and action sequence","test":"signal matrix and unsafe replay eligibility"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/signal_classifier.py","raw":541,"effective":486,"responsibility":"typed failure/control classification and OMP receipt normalization","test":"permission, compact, stream, backend, subagent, MCP and requirement-change matrix"},
+    {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/store.py","raw":1484,"effective":1165,"responsibility":"sole 07C SQLite transaction, CAS, idempotency, checkpoint, route, feedback and journal custody","test":"durability, duplicate action, exact resume, conflict and Windows handle lifecycle"}
+  ],
+  "main_paths": [
+    {
+      "entry": "POST /tasks/{task_id}/recovery/signals",
+      "effect": "typed signal -> deterministic plan -> concrete canonical owner action -> durable outcome -> routing memory and event",
+      "disconnect_effect": "ZYRA_DISABLE_RECOVERY_RUNTIME returns 503 and no TaskState, graph or memory fallback mutation occurs"
+    },
+    {
+      "entry": "POST /tasks/{task_id}/recovery/checkpoints and /checkpoints/{checkpoint_id}/resume",
+      "effect": "atomic checkpoint with signature, ancestry, pending/committed writes, correlations and replay fences resumes through session/compact/worker/graph owners",
+      "disconnect_effect": "signature mismatch, corrupt JSON, processed-response replay and side-effect replay tests fail closed"
+    },
+    {
+      "entry": "POST /tasks/{task_id}/recovery/deltas",
+      "effect": "branch-local copy-on-write delta commits only after read/write-set validation and deterministic CAS",
+      "disconnect_effect": "nested alias, conflicting write and uncommitted-delta isolation subtests fail"
+    },
+    {
+      "entry": "Claude runtime RuntimeWatchdog recovery receipt",
+      "effect": "OMP-derived bounded retry/fallback and continuity receipts enter typed Python classification without owning durable policy",
+      "disconnect_effect": "TypeScript recovery/watchdog behavior tests lose receipt and replay-fence behavior"
+    }
+  ],
+  "signal_action_matrix": {
+    "permission_pending_or_denied": "ask_permission",
+    "prompt_too_long_or_compact_needed": "compact then resume_checkpoint",
+    "api_retry_exhausted_or_stream_stall": "bounded retry then provider/model fallback subject to replay fence",
+    "backend_unavailable": "switch_backend",
+    "worker_heartbeat_stale": "reroute worker",
+    "subagent_failed": "reroute or replan",
+    "mcp_auth_required": "authenticate_mcp control path",
+    "requirement_changed": "graph replan control reason, never failure retry"
+  },
+  "semantic_boundaries": {
+    "llm_can_apply_route_or_checkpoint": false,
+    "free_text_can_supply_critical_identity": false,
+    "requirement_change_is_failure_retry": false,
+    "pending_delta_enters_canonical_state": false,
+    "processed_response_or_side_effect_replayed": false,
+    "langgraph_runtime_dependency": false,
+    "omp_durable_store_dependency": false,
+    "second_route_or_checkpoint_owner": false,
+    "openclaw_runtime_or_source_dependency": false
+  },
+  "verification": {
+    "direct_python": {
+      "command": "python -m pytest -q -p no:cacheprovider tests/unit/test_recovery_planner_routing_memory_foundation.py tests/integration/test_recovery_planner_routing_memory_api.py",
+      "result": "5 passed, 6 subtests passed in 9.12s"
+    },
+    "adjacent_python": {
+      "command": "direct 07C plus 07B watchdog foundation/integration and 07A worker-pool foundation/integration",
+      "result": "56 passed, 6 subtests passed in 58.49s"
+    },
+    "typescript_original_language": {
+      "command": "npm run test:recovery --workspace=@zyra/claude-runtime",
+      "result": "9 passed"
+    },
+    "typescript_typecheck": {
+      "command": "npm run typecheck -- --pretty false",
+      "result": "pass for all configured TypeScript workspaces"
+    },
+    "python_compile": {
+      "command": "python -m compileall -q recovery runtime, API and direct tests",
+      "result": "pass"
+    },
+    "effective_code_gate": "pass, 8429/8000 with Python and OMP TypeScript production nonzero",
+    "source_ledger_sync": "aligned, exactly 1 M1-S07C-01 production source decision",
+    "source_ledger_targeted_audit": "1 entry, 0 validation errors, 0 current-unit findings",
+    "language_custody": "verified after evidence commit against frozen implementation target",
+    "diff_check": "pass",
+    "forbidden_dependency_scan": "0 sibling source-repo runtime path, 0 cache/vendor/source-pool path, 0 OpenClaw path, 0 dependency or lockfile addition",
+    "full_cleanroom": {
+      "run": false,
+      "reason": "Ordinary foundation slice; no external dependency/service/port/Docker/dynamic import, owner transfer, incompatible schema migration or global default policy change. M1-S07C-02 parent closeout and M1-07 aggregate retain the full cleanroom and full-repository gates."
+    }
+  },
+  "known_external_or_baseline_findings": [
+    {
+      "blocking_for_slice": false,
+      "finding": "Global ledger verifier remains fail-closed on protected M1-01B TARGET_PATH_NOT_FOUND entries; targeted M1-S07C-01 seed audit has zero findings.",
+      "owner": "protected historical remediation or M1-07 aggregate"
+    },
+    {
+      "blocking_for_slice": false,
+      "finding": "Extended worker_pool_api_main_path fanout returns a failed second concurrent child even when 07C API initialization is bypassed; a detached baseline also cannot pass the same test and stops earlier in retrieval context preparation.",
+      "owner": "existing worker/subagent integration owner or M1-07 aggregate"
+    },
+    {
+      "blocking_for_slice": false,
+      "finding": "The broader internalization-ledger unit selection has 64 passed and 3 failures in protected M1-01B readiness and existing MCP route discovery; the new seed entry validates with zero current-unit findings.",
+      "owner": "protected ledger/MCP owners"
+    },
+    {
+      "blocking_for_slice": false,
+      "finding": "The Claude runtime generic npm test runner has pre-existing Node strip-types and .js import issues; the new test:recovery target and full configured typecheck pass.",
+      "owner": "Claude runtime package-wide test harness"
+    }
+  ],
+  "competition_gate_claims": {
+    "closed_by_this_slice": [],
+    "not_claimed": [
+      "two cross-domain live tasks",
+      "single-run 2000 canonical transitions",
+      "sealed zero-human benchmark",
+      "dynamic sparse topology entropy comparison",
+      "real local isolated-edge cloud dispatch matrix",
+      "final multi-model and delivery freeze"
+    ]
+  },
+  "parent_closeout": {
+    "parent_complete": false,
+    "remaining_slice": "M1-S07C-02",
+    "parent_minimum_effective_lines": 15000,
+    "current_slice_effective_lines": 8429,
+    "cumulative_gate_due": "M1-S07C-02"
+  },
+  "root_document_boundary": {
+    "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "inside_zyra_git": false,
+    "update_after_evidence_commit": true
+  }
+}
