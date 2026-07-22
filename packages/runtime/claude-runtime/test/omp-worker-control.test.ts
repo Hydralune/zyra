@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   OmpAbortSafeSemaphore,
   OmpAsyncJobProjectionManager,
+  OmpSessionAdmissionRuntime,
   OmpWorkerDispatchRuntime,
   mapWithConcurrencyLimit,
   type PhysicalDispatchProjection,
@@ -34,6 +35,11 @@ function projection(
     concurrency_limit: 1,
     lease_state: "active",
     logical_task_not_duplicated: true,
+    integration_binding_id: `binding-${taskId}`,
+    graph_ref: { owner: "GraphStateCustody", object_id: `graph-${taskId}`, revision: 1 },
+    workspace_ref: { owner: "M1-S05A.WorkspaceManager", object_id: `workspace-${taskId}` },
+    gateway_ref: { owner: "M1-S05B.SandboxGatewayRuntime", object_id: "local-sandbox-gateway" },
+    route_ref: { owner: "M1-S05D.BackendRegistry", object_id: "local-sandbox-gateway" },
     ...selectedOverrides,
   };
   return {
@@ -42,13 +48,18 @@ function projection(
   } as PhysicalDispatchProjection;
 }
 
-function physicalTask(taskId: string, dispatch = projection(taskId)) {
+function physicalTask(
+  taskId: string,
+  dispatch = projection(taskId),
+  executionMode: "foreground" | "background" = "foreground",
+  parentSessionId = "parent-session",
+) {
   const identity = new TaskIdentityRuntime().allocate({
     runId: "run-omp",
     sessionId: `session-${taskId}`,
     taskId,
     parentTaskId: "parent-task",
-    parentSessionId: "parent-session",
+    parentSessionId,
     idempotencyKey: `identity-${taskId}`,
   });
   const capabilityScope = scope();
@@ -58,7 +69,7 @@ function physicalTask(taskId: string, dispatch = projection(taskId)) {
     scope: capabilityScope,
     context: context(taskId, identity.sessionId, capabilityScope),
     prompt: "execute under canonical physical admission",
-    executionMode: "foreground",
+    executionMode,
     physicalDispatch: dispatch,
   });
 }
@@ -189,4 +200,222 @@ test("OMP dispatch rejects a tampered canonical lease projection", async () => {
     /changed after canonical lease admission/,
   );
   assert.equal(runtime.snapshot().jobs.length, 0);
+});
+
+test("OMP dispatch rejects duplicate concurrent execution for one physical attempt", async () => {
+  const runtime = new OmpWorkerDispatchRuntime();
+  const dispatch = projection("dispatch-single-flight", { concurrency_limit: 2 });
+  const task = physicalTask(
+    "dispatch-single-flight",
+    dispatch,
+    "background",
+    "dispatch-single-flight-session",
+  );
+  let executions = 0;
+  let finish!: () => void;
+  const blocker = new Promise<void>((resolve) => { finish = resolve; });
+  const first = runtime.execute(task, async () => {
+    executions += 1;
+    await blocker;
+    return { ok: true };
+  });
+  await Promise.resolve();
+  await assert.rejects(
+    runtime.execute(task, async () => {
+      executions += 1;
+      return { ok: true };
+    }),
+    /already has an active physical execution/,
+  );
+  assert.equal(executions, 1);
+  finish();
+  await first;
+});
+
+test("OMP session admission shares capacity across foreground/background and park/revive", async () => {
+  const runtime = new OmpSessionAdmissionRuntime();
+  const firstDispatch = projection("session-first", { concurrency_limit: 1 });
+  const secondDispatch = projection("session-second", { concurrency_limit: 4 });
+  const firstTask = physicalTask("session-first", firstDispatch, "foreground", "shared-session");
+  const secondTask = physicalTask("session-second", secondDispatch, "background", "shared-session");
+
+  const firstPermit = await runtime.enter(firstTask, firstDispatch);
+  let secondAdmitted = false;
+  const secondPending = runtime.enter(secondTask, secondDispatch).then((permit) => {
+    secondAdmitted = true;
+    return permit;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(secondAdmitted, false);
+  assert.equal(runtime.snapshot().sessions[0]?.active, 1);
+  assert.equal(runtime.snapshot().sessions[0]?.pending, 1);
+
+  const parked = runtime.park("session-first", "wait for dependency");
+  assert.equal(parked.permit_held, false);
+  const secondPermit = await secondPending;
+  assert.equal(secondAdmitted, true);
+  assert.equal(runtime.get("session-second")?.phase, "background");
+
+  let revived = false;
+  const revivePending = runtime.revive("session-first", firstDispatch).then((value) => {
+    revived = true;
+    return value;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(revived, false);
+  runtime.yieldOnce({
+    taskId: "session-second",
+    kind: "result",
+    summary: "background child completed",
+    payload: { ok: true },
+  });
+  runtime.settle("session-second", "completed");
+  secondPermit.release();
+  const revivedProjection = await revivePending;
+  assert.equal(revivedProjection.phase, "foreground");
+  assert.equal(revivedProjection.permit_held, true);
+
+  const firstYield = runtime.yieldOnce({
+    taskId: "session-first",
+    kind: "artifact",
+    summary: "foreground child returned one artifact",
+    payload: { nested: { values: [1, 2] } },
+    artifactIds: ["artifact-b", "artifact-a", "artifact-a"],
+  });
+  assert.deepEqual(firstYield.artifact_ids, ["artifact-a", "artifact-b"]);
+  assert.equal(
+    runtime.yieldOnce({
+      taskId: "session-first",
+      kind: "artifact",
+      summary: "foreground child returned one artifact",
+      payload: { nested: { values: [1, 2] } },
+      artifactIds: ["artifact-a", "artifact-b"],
+    }).yield_id,
+    firstYield.yield_id,
+  );
+  assert.throws(
+    () => runtime.yieldOnce({
+      taskId: "session-first",
+      kind: "result",
+      summary: "a second result",
+      payload: { changed: true },
+    }),
+    /second typed yield/,
+  );
+  runtime.settle("session-first", "completed");
+  firstPermit.release();
+  assert.equal(runtime.snapshot().sessions[0]?.active, 0);
+});
+
+test("OMP session abort removes queued admission and cancellation yields exactly once", async () => {
+  const runtime = new OmpSessionAdmissionRuntime();
+  const firstDispatch = projection("abort-first", { concurrency_limit: 1 });
+  const queuedDispatch = projection("abort-queued", { concurrency_limit: 1 });
+  const first = await runtime.enter(
+    physicalTask("abort-first", firstDispatch, "background", "abort-session"),
+    firstDispatch,
+  );
+  const controller = new AbortController();
+  const queued = runtime.enter(
+    physicalTask("abort-queued", queuedDispatch, "background", "abort-session"),
+    queuedDispatch,
+    controller.signal,
+  );
+  controller.abort("operator cancelled queued admission");
+  await assert.rejects(queued, /operator cancelled queued admission/);
+  assert.equal(runtime.get("abort-queued"), null);
+  assert.equal(runtime.snapshot().sessions[0]?.pending, 0);
+
+  const cancelled = runtime.cancel("abort-first", "operator cancelled active task");
+  assert.equal(cancelled.phase, "cancelled");
+  assert.equal(cancelled.typed_yield?.kind, "cancelled");
+  assert.equal(cancelled.typed_yield?.sequence, 1);
+  first.release();
+  assert.equal(runtime.snapshot().sessions[0]?.active, 0);
+});
+
+test("OMP session duplicate admission and revive are single-flight per physical attempt", async () => {
+  const runtime = new OmpSessionAdmissionRuntime();
+  const dispatch = projection("single-flight", { concurrency_limit: 2 });
+  const task = physicalTask("single-flight", dispatch, "background", "single-flight-session");
+
+  const [first, duplicate] = await Promise.all([
+    runtime.enter(task, dispatch),
+    runtime.enter(task, dispatch),
+  ]);
+  assert.equal(runtime.snapshot().sessions[0]?.active, 1);
+  first.release();
+  duplicate.release();
+  assert.equal(runtime.snapshot().sessions[0]?.active, 0);
+
+  const reacquired = await runtime.enter(task, dispatch);
+  runtime.park("single-flight", "wait for foreground");
+  const [revived, duplicateRevive] = await Promise.all([
+    runtime.revive("single-flight", dispatch),
+    runtime.revive("single-flight", dispatch),
+  ]);
+  assert.equal(revived.phase, "background");
+  assert.equal(duplicateRevive.phase, "background");
+  assert.equal(runtime.snapshot().sessions[0]?.active, 1);
+  reacquired.release();
+  assert.equal(runtime.snapshot().sessions[0]?.active, 1);
+  runtime.cancel("single-flight", "single-flight test complete");
+  assert.equal(runtime.snapshot().sessions[0]?.active, 0);
+});
+
+test("OMP session restart rehydrates only verified Python projections and disable mutation fails closed", async () => {
+  const runtime = new OmpSessionAdmissionRuntime();
+  const active = projection("rehydrate-active", { concurrency_limit: 2 });
+  const draining = projection("rehydrate-draining", {
+    concurrency_limit: 2,
+    lease_state: "draining",
+  });
+  const permit = await runtime.enter(
+    physicalTask("rehydrate-active", active, "background", "restart-session"),
+    active,
+  );
+  const before = runtime.snapshot();
+  const restored = runtime.rehydrate(
+    [draining, active],
+    {
+      "rehydrate-active": "restart-session",
+      "rehydrate-draining": "restart-session",
+    },
+    { "rehydrate-active": "background" },
+  );
+  permit.release();
+  assert.equal(runtime.snapshot().process_epoch, before.process_epoch + 1);
+  assert.deepEqual(restored.map((item) => item.task_id), ["rehydrate-active", "rehydrate-draining"]);
+  assert.equal(runtime.get("rehydrate-active")?.phase, "queued");
+  assert.equal(runtime.get("rehydrate-draining")?.phase, "parked");
+  assert.equal(runtime.snapshot().sessions[0]?.active, 0);
+
+  const tampered = { ...active, worker_id: "tampered-worker" } as PhysicalDispatchProjection;
+  assert.throws(
+    () => runtime.rehydrate([tampered], { "rehydrate-active": "restart-session" }),
+    /changed after canonical lease admission/,
+  );
+  assert.throws(
+    () => runtime.rehydrate(
+      [active, active],
+      { "rehydrate-active": "restart-session" },
+    ),
+    /multiple canonical projections/,
+  );
+
+  const previous = process.env.ZYRA_OMP_SESSION_RUNTIME_DISABLED;
+  process.env.ZYRA_OMP_SESSION_RUNTIME_DISABLED = "1";
+  try {
+    await assert.rejects(
+      runtime.enter(
+        physicalTask("disabled-session", projection("disabled-session")),
+        projection("disabled-session"),
+      ),
+      /require the OMP session runtime/,
+    );
+  } finally {
+    if (previous === undefined)
+      delete process.env.ZYRA_OMP_SESSION_RUNTIME_DISABLED;
+    else process.env.ZYRA_OMP_SESSION_RUNTIME_DISABLED = previous;
+  }
 });

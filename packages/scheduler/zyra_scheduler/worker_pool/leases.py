@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import timedelta
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .errors import LeaseFenced, WorkerPoolError, WorkerPoolErrorCode
 from .lifecycle import WorkerLifecycleRuntime
@@ -26,6 +26,12 @@ from .models import (
     utc_now,
 )
 from .store import WorkerPoolStore
+
+
+LeaseCommitHook = Callable[
+    [Any, TaskAttempt, WorkerLease, WorkerInstance, WorkerCapabilityManifest],
+    None,
+]
 
 
 class WorkerLeaseManager:
@@ -61,6 +67,8 @@ class WorkerLeaseManager:
         recovery_reason: str = "",
         parent_attempt_id: str = "",
         metadata: Mapping[str, Any] | None = None,
+        admission_guard: Callable[[Any, WorkerInstance], None] | None = None,
+        commit_hook: LeaseCommitHook | None = None,
     ) -> LeaseAcquisition:
         duration = self._ttl(ttl_seconds)
         latest = self.store.latest_attempt(task_id)
@@ -152,6 +160,8 @@ class WorkerLeaseManager:
                     task_id=task_id,
                     retryable=True,
                 )
+            if admission_guard is not None:
+                admission_guard(connection, current_worker)
             self._assert_capacity(worker.worker_id, manifest, requirement.resources)
             persisted_attempt = self.store.insert_attempt(attempt, connection=connection)
             persisted_lease = self.store.insert_lease(lease, connection=connection)
@@ -160,7 +170,7 @@ class WorkerLeaseManager:
                 worker_id=worker.worker_id,
                 lease_id=persisted_lease.lease_id,
             )
-            self.store.update_attempt(
+            leased_attempt = self.store.update_attempt(
                 leased_attempt,
                 expected_version=persisted_attempt.version,
                 operation="attempt_leased",
@@ -171,6 +181,14 @@ class WorkerLeaseManager:
                 },
                 connection=connection,
             )
+            if commit_hook is not None:
+                commit_hook(
+                    connection,
+                    leased_attempt,
+                    persisted_lease,
+                    current_worker,
+                    manifest,
+                )
         self.lifecycle.mark_busy(worker.worker_id)
         return LeaseAcquisition(
             attempt=leased_attempt,

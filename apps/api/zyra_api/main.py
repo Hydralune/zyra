@@ -328,11 +328,14 @@ else:  # pragma: no cover - direct development script entry.
 
 from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
 from zyra_scheduler.worker_pool import (
-    CancellationRequest as PhysicalCancellationRequest,
-    CapabilityRequirement as PhysicalCapabilityRequirement,
+    BackendRegistryHealthAdapter,
     ExecutionOutcome as PhysicalExecutionOutcome,
     ResourceVector as PhysicalResourceVector,
     WorkerPoolFoundationRuntime,
+    DispatchMode as PhysicalDispatchMode,
+    WorkerLocation as PhysicalWorkerLocation,
+    ControlKind,
+    SchedulerDispatchContext as PhysicalSchedulerDispatchContext,
 )
 
 
@@ -371,16 +374,19 @@ def graph_state_path() -> Path:
 _WORKER_POOL_LOCK = threading.RLock()
 _WORKER_POOL_RUNTIME: WorkerPoolFoundationRuntime | None = None
 _WORKER_POOL_API: WorkerPoolApiService | None = None
-_WORKER_POOL_KEY: tuple[str, str] | None = None
+_WORKER_POOL_KEY: tuple[str, str, str] | None = None
 
 
 def get_worker_pool_api() -> WorkerPoolApiService:
     global _WORKER_POOL_RUNTIME, _WORKER_POOL_API, _WORKER_POOL_KEY
     pool_path = worker_pool_path().resolve()
     graph_path = graph_state_path().resolve()
-    key = (str(pool_path), str(graph_path))
+    backend_path = backend_registry_path(artifact_root_path()).resolve()
+    key = (str(pool_path), str(graph_path), str(backend_path))
     with _WORKER_POOL_LOCK:
         if _WORKER_POOL_API is None or _WORKER_POOL_KEY != key:
+            if _WORKER_POOL_API is not None:
+                _WORKER_POOL_API.close()
             configured = os.environ.get("ZYRA_WORKER_POOL_SECRET", "").encode("utf-8")
             secret = (
                 hashlib.sha256(configured).digest()
@@ -397,6 +403,7 @@ def get_worker_pool_api() -> WorkerPoolApiService:
             _WORKER_POOL_API = WorkerPoolApiService(
                 _WORKER_POOL_RUNTIME,
                 GraphStateCustody(graph_store),
+                backend_health=BackendRegistryHealthAdapter(backend_path),
             )
             _WORKER_POOL_KEY = key
         return _WORKER_POOL_API
@@ -407,6 +414,8 @@ def reset_worker_pool_api() -> None:
 
     global _WORKER_POOL_RUNTIME, _WORKER_POOL_API, _WORKER_POOL_KEY
     with _WORKER_POOL_LOCK:
+        if _WORKER_POOL_API is not None:
+            _WORKER_POOL_API.close()
         _WORKER_POOL_API = None
         _WORKER_POOL_RUNTIME = None
         _WORKER_POOL_KEY = None
@@ -1235,71 +1244,126 @@ def _acquire_subagent_physical_dispatch(
     """
 
     pool_api = get_worker_pool_api()
-    pool_api.ensure_default_local_worker()
-    latest_attempt = pool_api.pool.store.latest_attempt(task_id)
-    active_lease = None
-    if latest_attempt is not None and latest_attempt.lease_id and not latest_attempt.terminal:
-        active_lease = pool_api.pool.store.get_lease(latest_attempt.lease_id)
-        if active_lease is not None and active_lease.terminal:
-            active_lease = None
-        elif active_lease is not None and active_lease.expired_at():
-            pool_api.pool.leases.expire(
-                active_lease.lease_id,
-                reason="subagent approval exceeded physical admission lease",
+    raw_workspace_ref = state.metadata.get("workspace_ref")
+    if isinstance(raw_workspace_ref, Mapping):
+        nested_workspace = raw_workspace_ref.get("workspace")
+        workspace_ref = str(
+            raw_workspace_ref.get("workspace_id")
+            or (
+                nested_workspace.get("workspace_id")
+                if isinstance(nested_workspace, Mapping)
+                else ""
             )
-            active_lease = None
-    if latest_attempt is not None and active_lease is not None:
-        attempt = latest_attempt
-        lease = active_lease
-        worker = pool_api.pool.store.require_worker(lease.worker_id)
-        manifest = pool_api.pool.store.latest_manifest(worker.worker_id)
-        if manifest is None:
-            raise RuntimeError(f"worker {worker.worker_id} has no capability manifest")
-        reused = True
+            or f"workspace:{state.task_id}"
+        )
     else:
+        workspace_ref = str(raw_workspace_ref or f"workspace:{state.task_id}")
+    pool_api.ensure_default_local_worker()
+    graph_id = pool_api.ensure_task_graph(state)
+    graph = pool_api.graph_custody.current(graph_id)
+    runtime_node = pool_api.integration.add_runtime_node_for_requirement(
+        graph_id=graph_id,
+        logical_task_id=task_id,
+        role="subagent_worker",
+        capabilities=("agent_task", "code_execution", "artifact_return"),
+        connect_from=(state.root_node_id,) if state.root_node_id in graph.node_map else (),
+        workspace_ref=workspace_ref,
+        causation_id=f"subagent-admission:{task_id}",
+        node_id=f"runtime-subagent:{task_id}",
+        metadata={"parent_task_id": state.task_id, "omp_session_owner": owner_session_id},
+    ) if f"runtime-subagent:{task_id}" not in graph.node_map else {
+        "version_ref": pool_api.topology.version_ref(graph_id).to_dict()
+    }
+    graph_ref = pool_api.topology.version_ref(graph_id)
+    latest_attempt = pool_api.pool.store.latest_attempt(task_id)
+    active_binding = pool_api.integration.repository.latest_binding(task_id)
+    if active_binding is not None:
+        active_lease = pool_api.pool.store.get_lease(active_binding.lease_id)
+        if (
+            not active_binding.terminal
+            and active_lease is not None
+            and not active_lease.terminal
+            and not active_lease.expired_at()
+        ):
+            binding = active_binding
+            lease = active_lease
+            worker = pool_api.pool.store.require_worker(binding.worker_id)
+            manifest = pool_api.pool.store.latest_manifest(worker.worker_id)
+            if manifest is None:
+                raise RuntimeError(f"worker {worker.worker_id} has no capability manifest")
+            reused = True
+        else:
+            if (
+                active_lease is not None
+                and not active_lease.terminal
+                and active_lease.expired_at()
+            ):
+                pool_api.pool.leases.expire(
+                    active_lease.lease_id,
+                    reason="subagent approval exceeded integrated physical admission lease",
+                )
+                pool_api.integration.reconcile(run_id=state.run_id)
+            active_binding = None
+    if active_binding is None:
         attempt_number = 1 if latest_attempt is None else latest_attempt.attempt_number + 1
-        acquisition = pool_api.pool.acquire_task(
+        scheduler_context = PhysicalSchedulerDispatchContext(
             task_id=task_id,
             run_id=state.run_id,
             owner_session_id=owner_session_id,
-            requirement=PhysicalCapabilityRequirement(
-                required=("agent_task",),
-                resources=PhysicalResourceVector(process_slots=1, memory_mb=64),
-            ),
-            attempt_number=attempt_number,
+            logical_attempt=attempt_number,
+            logical_task_revision=0,
+            graph_id=graph_id,
+            graph_revision=graph_ref.revision,
+            graph_node_id=f"runtime-subagent:{task_id}",
+            workspace_ref=workspace_ref,
+            gateway_ref="local-sandbox-gateway",
+            backend_route_id="local-code-worker",
+            required_capabilities=("agent_task",),
+            locations=(PhysicalWorkerLocation.LOCAL,),
+            resources=PhysicalResourceVector(process_slots=1, memory_mb=64),
+            execution_mode=PhysicalDispatchMode.BACKGROUND,
             preferred_worker_ids=("local-code-worker",),
-            # The E02 ask/approve round-trip precedes E03 execution.  07A-02
-            # owns long-running renewal, but foundation admission must not
-            # expire during an ordinary interactive approval.
-            ttl_seconds=15 * 60.0,
-            idempotency_key=f"{idempotency_key}:physical:{attempt_number}",
+            lease_ttl_seconds=15 * 60.0,
+            checkpoint_ref=str(state.metadata.get("checkpoint_id") or ""),
+            idempotency_key=f"{idempotency_key}:integration:{attempt_number}",
+            causation_id=f"subagent-admission:{task_id}",
+            correlation_id=owner_session_id,
             metadata={
                 "parent_task_id": state.task_id,
+                "graph_node_id": f"runtime-subagent:{task_id}",
                 "logical_owner": "typescript.E03AgentControlCoordinator",
                 "projection_owner": "typescript.OmpWorkerDispatchRuntime",
                 "logical_task_not_duplicated": True,
+                "runtime_node_commit": runtime_node,
             },
         )
-        attempt = acquisition.attempt
-        lease = acquisition.lease
-        worker = acquisition.worker
-        manifest = acquisition.manifest
-        reused = acquisition.reused
-    running = pool_api.pool.leases.start_attempt(
-        lease.lease_id,
-        worker_id=lease.worker_id,
+        raw_memory_signals = state.metadata.get("memory_signals") or ()
+        memory_signals = tuple(item for item in raw_memory_signals if isinstance(item, Mapping))
+        _scheduler_plan, admission = pool_api.integration.scheduler.admit(
+            scheduler_context,
+            memory_signals=memory_signals,
+        )
+        binding = admission.binding
+        lease = pool_api.pool.store.require_lease(binding.lease_id)
+        worker = pool_api.pool.store.require_worker(binding.worker_id)
+        manifest = pool_api.pool.store.latest_manifest(worker.worker_id)
+        if manifest is None:
+            raise RuntimeError(f"worker {worker.worker_id} has no capability manifest")
+        reused = admission.reused
+    started = pool_api.integration.start(
+        binding.binding_id,
         fence_token=lease.fence_token,
-        fence_epoch=lease.fence_epoch,
-        backend_dispatch_id=f"typescript-e03:{task_id}:{attempt.attempt_number}",
+        backend_dispatch_id=f"typescript-e03:{task_id}:{binding.attempt_number}",
     )
+    binding = started.binding
     unsigned_projection = {
         "schema": "zyra.worker-pool-dispatch/v1",
         "required": True,
         "canonical_owner": "python.WorkerPoolStore",
         "projection_owner": "typescript.OmpWorkerDispatchRuntime",
         "task_id": task_id,
-        "attempt_id": running.attempt_id,
-        "attempt": running.attempt_number,
+        "attempt_id": binding.attempt_id,
+        "attempt": binding.attempt_number,
         "lease_id": lease.lease_id,
         "worker_id": worker.worker_id,
         "backend_id": lease.backend_id,
@@ -1308,6 +1372,11 @@ def _acquire_subagent_physical_dispatch(
         "concurrency_limit": max(1, min(128, manifest.resource_capacity.process_slots or 1)),
         "lease_state": lease.state.value,
         "logical_task_not_duplicated": True,
+        "integration_binding_id": binding.binding_id,
+        "graph_ref": binding.foreign_refs.graph.to_dict(),
+        "workspace_ref": binding.foreign_refs.workspace.to_dict(),
+        "gateway_ref": binding.foreign_refs.gateway.to_dict(),
+        "route_ref": binding.foreign_refs.backend_route.to_dict(),
     }
     projection = {
         **unsigned_projection,
@@ -1322,8 +1391,8 @@ def _acquire_subagent_physical_dispatch(
     }
     public = {
         "task_id": task_id,
-        "attempt_id": running.attempt_id,
-        "attempt": running.attempt_number,
+        "attempt_id": binding.attempt_id,
+        "attempt": binding.attempt_number,
         "lease_id": lease.lease_id,
         "worker_id": worker.worker_id,
         "backend_id": lease.backend_id,
@@ -1333,6 +1402,8 @@ def _acquire_subagent_physical_dispatch(
         "typescript_dispatch_gate": "typescript.OmpWorkerDispatchRuntime",
         "logical_task_not_duplicated": True,
         "reused": reused,
+        "integration_binding_id": binding.binding_id,
+        "graph_ref": binding.foreign_refs.graph.to_dict(),
     }
     return projection, public
 
@@ -1348,7 +1419,8 @@ def _settle_subagent_physical_dispatch(
     terminal = {"completed", "failed", "cancelled", "killed"}
     if status not in terminal:
         return None
-    pool = get_worker_pool_api().pool
+    pool_api = get_worker_pool_api()
+    pool = pool_api.pool
     lease_id = str(projection.get("lease_id") or "")
     lease = pool.store.get_lease(lease_id)
     if lease is None:
@@ -1369,21 +1441,26 @@ def _settle_subagent_physical_dispatch(
         "killed": PhysicalExecutionOutcome.CANCELLED,
         "failed": PhysicalExecutionOutcome.FAILED,
     }[status]
-    receipt = pool.leases.complete(
-        lease.lease_id,
-        worker_id=lease.worker_id,
+    binding_id = str(projection.get("integration_binding_id") or "")
+    if not binding_id:
+        raise RuntimeError("physical dispatch projection has no integration binding id")
+    integrated = pool_api.integration.complete(
+        binding_id,
         fence_token=lease.fence_token,
-        fence_epoch=lease.fence_epoch,
         outcome=outcome,
         summary=summary or f"TypeScript E03 task {status}",
         backend_receipt_ref=f"typescript-e03:{projection.get('task_id')}:{projection.get('attempt')}",
-        metadata={
+        result_payload={
             "logical_owner": "typescript.E03AgentControlCoordinator",
             "dispatch_gate": "typescript.OmpWorkerDispatchRuntime",
             "projection_digest": str(projection.get("projection_digest") or ""),
         },
     )
-    return receipt.to_dict()
+    return {
+        **dict(integrated.execution_receipt),
+        "integration_binding": integrated.binding.to_dict(),
+        "typed_yield": integrated.typed_yield.to_dict() if integrated.typed_yield else None,
+    }
 
 
 def _agent_permission_session(run: Any) -> dict[str, Any]:
@@ -4080,14 +4157,17 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 idempotency_key=f"task-cancel:{state.run_id}:{state.task_id}:{reason}",
             )
             events = cancel_task_graph(state, reason=reason)
-            pool_cancel = get_worker_pool_api().pool.cancellation.cancel(
-                PhysicalCancellationRequest(
-                    task_id=state.task_id,
-                    run_id=state.run_id,
-                    reason=reason,
-                    actor_id="task-control-api",
-                    idempotency_key=f"task-cancel:{state.task_id}:{reason}",
-                )
+            pool_cancel = get_worker_pool_api().integration.control.submit_and_apply(
+                ControlKind.CANCEL,
+                claim_owner="task-control-api",
+                actor_id="task-control-api",
+                reason=reason,
+                idempotency_key=(
+                    f"task-cancel:{state.task_id}:"
+                    + hashlib.sha256(reason.encode("utf-8")).hexdigest()[:16]
+                ),
+                task_id=state.task_id,
+                run_id=state.run_id,
             )
             agent_port = get_typescript_agent_port()
             cancelled_subagents = []
@@ -4129,7 +4209,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "subagent_cancel_errors": subagent_cancel_errors,
                     "canonical_agent_owner": "typescript",
                     "backend_dispatch_control": backend_cancel.to_dict(),
-                    "worker_pool_control": pool_cancel.to_dict(),
+                    "worker_pool_control": {
+                        **pool_cancel.to_dict(),
+                        **dict(pool_cancel.effect.get("cancellation") or {}),
+                    },
                     "memory_curator": curator,
                 },
             )
@@ -4470,14 +4553,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             updated = runtime.get_task(record.task_id)
             physical_control = None
             if action == "cancel" and run.worker_result.ok:
-                physical_control = get_worker_pool_api().pool.cancellation.cancel(
-                    PhysicalCancellationRequest(
-                        task_id=record.task_id,
-                        run_id=state.run_id,
-                        reason=str(payload.get("reason") or "api_cancel"),
-                        actor_id="subagent-control-api",
-                        idempotency_key=f"subagent-cancel:{record.task_id}:{expected}",
-                    )
+                physical_control = get_worker_pool_api().integration.control.submit_and_apply(
+                    ControlKind.CANCEL,
+                    claim_owner="subagent-control-api",
+                    actor_id="subagent-control-api",
+                    reason=str(payload.get("reason") or "api_cancel"),
+                    idempotency_key=f"subagent-cancel:{record.task_id}:{expected}",
+                    task_id=record.task_id,
+                    run_id=state.run_id,
                 ).to_dict()
             self._send_json(
                 HTTPStatus.OK if run.worker_result.ok else HTTPStatus.CONFLICT,

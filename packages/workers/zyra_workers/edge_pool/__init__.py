@@ -12,6 +12,7 @@ from .runtime import (
     EdgeWorkerGatewayRuntime,
     EdgeWorkerRegistrationRuntime,
 )
+from .integration import EdgeIntegrationProjection, IntegratedEdgeExecutionAdapter, IntegratedEdgeRequest
 
 __all__ = [
     "EdgeAttestationResponse",
@@ -26,5 +27,8 @@ __all__ = [
     "EdgeWorkerGatewayRuntime",
     "EdgeWorkerProcessConnector",
     "EdgeWorkerRegistrationRuntime",
+    "EdgeIntegrationProjection",
+    "IntegratedEdgeExecutionAdapter",
+    "IntegratedEdgeRequest",
     "PROTOCOL_VERSION",
 ]

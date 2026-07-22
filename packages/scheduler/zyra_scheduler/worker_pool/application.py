@@ -18,7 +18,7 @@ from .capabilities import (
 )
 from .heartbeat import HeartbeatPolicy, HeartbeatSweepResult, WorkerHeartbeatRuntime
 from .inbox import WorkerInboxRuntime
-from .leases import WorkerLeaseManager
+from .leases import LeaseCommitHook, WorkerLeaseManager
 from .lifecycle import WorkerLifecycleRuntime
 from .models import (
     AttemptState,
@@ -279,6 +279,8 @@ class WorkerPoolFoundationRuntime:
         idempotency_key: str = "",
         recovery_reason: str = "",
         metadata: Mapping[str, Any] | None = None,
+        admission_guard: Callable[[Any, WorkerInstance], None] | None = None,
+        commit_hook: LeaseCommitHook | None = None,
     ) -> LeaseAcquisition:
         return self.leases.acquire(
             task_id=task_id,
@@ -292,6 +294,8 @@ class WorkerPoolFoundationRuntime:
             idempotency_key=idempotency_key,
             recovery_reason=recovery_reason,
             metadata=metadata,
+            admission_guard=admission_guard,
+            commit_hook=commit_hook,
         )
 
     def acquire_subagent(

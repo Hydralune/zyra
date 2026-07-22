@@ -176888,19 +176888,467 @@
           "required": true
         }
       ]
+    },
+    {
+      "capability_name": "worker_pool_admission_renewal_control_checkpoint_projection_and_recovery_handoff",
+      "capability_summary": "AgentScope lifecycle ordering is productized into one Zyra SQLite transaction domain for capacity admission, progress-coupled renewal, durable cancel/drain/wake, exact restart correlation, M2 cursor projection and 07C lifecycle evidence.",
+      "dependencies": [
+        "M1-S03D",
+        "M1-S05A",
+        "M1-S05B",
+        "M1-S05C",
+        "M1-S05D",
+        "M1-S06C",
+        "M1-S07A-01"
+      ],
+      "downstream_units": [
+        "M1-S07B-01",
+        "M1-S07C",
+        "M2-worker-pool-panel"
+      ],
+      "ledger_id": "ledger_07a02_agentscope_worker_integration",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Cropped and modified lifecycle mechanisms are maintained inside Zyra-owned modules.",
+        "notice_path": "packages/scheduler/THIRD_PARTY_NOTICES.md",
+        "source_repo": "agentscope",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /worker-pool/integration",
+          "GET /worker-pool/handoff",
+          "GET /worker-pool/recovery-handoff",
+          "POST /worker-pool/checkpoints/{run_id}",
+          "POST /worker-pool/health/sweep",
+          "POST /tasks/{task_id}/worker-pool-control",
+          "POST /tasks/{task_id}/cancel",
+          "POST /tasks/{task_id}/subagents"
+        ],
+        "artifact_kinds": [
+          "execution_receipt",
+          "edge_artifact",
+          "graph_snapshot"
+        ],
+        "control_commands": [
+          "cancel",
+          "drain",
+          "wake",
+          "stop",
+          "park",
+          "revive"
+        ],
+        "event_types": [
+          "worker_dispatch_started",
+          "worker_dispatch_progress",
+          "worker_typed_yield",
+          "worker_dispatch_terminal",
+          "control_command",
+          "worker_health"
+        ],
+        "surfaces": [
+          "scheduler_capacity_admission",
+          "task_and_subagent_api",
+          "durable_worker_control",
+          "real_edge_process_failover",
+          "m2_worker_state_handoff",
+          "m1_07c_recovery_handoff"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "WorkerPoolIntegrationRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "backend_owner": "M1-S05D BackendRegistry",
+        "event_owner": "M1-S05C RuntimeEventStore",
+        "gateway_owner": "M1-S05B SandboxGatewayRuntime",
+        "graph_owner": "Zyra GraphStateCustody and DynamicTopologyRuntime",
+        "langgraph_runtime_dependency": false,
+        "logical_task_owner": "M1-S03D TypeScript AgentTaskRuntime",
+        "migration_mode": "cropped_same_language_migration_with_zyra_cas_lease_graph_and_checkpoint_ownership",
+        "omp_runtime_dependency": false,
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S07A-02",
+        "root_source_runtime_dependency": false,
+        "source_callsites": [
+          "persist control intent before cancel/wakeup side effects",
+          "single-flight session admission and active-run recovery",
+          "inbox-before-wakeup ordering and restart-safe dispatch"
+        ],
+        "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+        "source_language": "python",
+        "source_role": "primary_implementation",
+        "source_symbols": [
+          "ChatRunRegistry",
+          "WakeupDispatcher",
+          "CancelDispatcher",
+          "BackgroundTaskManager",
+          "InboxMiddleware",
+          "SessionService"
+        ],
+        "source_tests": [
+          "tests/app/service_wakeup_dispatcher_test.py",
+          "tests/app/service_cancel_dispatcher_test.py",
+          "tests/app/service_inbox_middleware_test.py"
+        ],
+        "state_owner": "WorkerPoolStore and WorkerPoolIntegrationRepository own physical attempt, lease, binding, renewal, control, yield and checkpoint durability; TypeScript 03D owns the logical task and GraphStateCustody owns immutable topology revisions",
+        "target_language": "python",
+        "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=primary_implementation; source_commit=b6698c5dbaa1aa916925e27402767f45e2405fa4; The integration preserves AgentScope's control-before-effect and wakeup ordering but replaces process registries and bus globals with Zyra CAS rows, lease fences, typed foreign refs, exact checkpoint correlation and canonical journal projection.",
+      "owner_unit": "M1-S07A-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/integration_store.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/admission.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/application.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/leases.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/renewal.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/control.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/checkpoint.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/invariants.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/projection.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/recovery_handoff.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/health_bridge.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/scheduler_bridge.py",
+          "apps/api/zyra_api/worker_pool_api.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "WorkerPoolIntegrationRuntime",
+        "health_check": "python -m pytest -q tests/integration/test_worker_pool_integration_runtime.py tests/integration/test_worker_pool_api_main_path.py; bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+        "module": "zyra_scheduler.worker_pool",
+        "protocol": "zyra.worker-pool/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned source graph and concrete source files verified for M1-S07A-02.",
+          "source_kind": "bounded_module_group",
+          "source_path": "src/agentscope/app/_manager/_chat_run_registry.py;src/agentscope/app/_manager/_wakeup_dispatcher.py;src/agentscope/app/_manager/_cancel_dispatcher.py;src/agentscope/app/_manager/_background_task_manager.py;src/agentscope/app/middleware/_inbox_middleware.py;src/agentscope/app/_service/_session.py",
+          "source_repo": "agentscope",
+          "symbols": [
+            "ChatRunRegistry",
+            "WakeupDispatcher",
+            "CancelDispatcher",
+            "BackgroundTaskManager",
+            "InboxMiddleware",
+            "SessionService"
+          ],
+          "tags": [
+            "primary_implementation",
+            "M1-S07A-02"
+          ]
+        }
+      ],
+      "source_path": "src/agentscope/app/_manager/_chat_run_registry.py;src/agentscope/app/_manager/_wakeup_dispatcher.py;src/agentscope/app/_manager/_cancel_dispatcher.py;src/agentscope/app/_manager/_background_task_manager.py;src/agentscope/app/middleware/_inbox_middleware.py;src/agentscope/app/_service/_session.py",
+      "source_repo": "agentscope",
+      "target_bindings": [
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/integration_store.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/admission.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/application.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/leases.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/renewal.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/control.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/checkpoint.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/invariants.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/projection.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/recovery_handoff.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/health_bridge.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/scheduler_bridge.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/worker_pool_api.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_pool_integration_runtime.py",
+          "expected_signal": "capacity, renewal, cancel, drain/wake, exact restart, single yield and real edge failover mutate canonical state",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_pool_integration_runtime.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_pool_api_main_path.py",
+          "expected_signal": "task/subagent APIs use integrated physical admission and durable control without fallback",
+          "kind": "main_path",
+          "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+          "expected_signal": "shared session concurrency, park/revive, typed yield, restart rehydration and disable failure execute in TypeScript",
+          "kind": "original_language_behavior",
+          "path": "packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+          "required": true
+        }
+      ]
+    },
+    {
+      "capability_name": "omp_shared_session_admission_park_revive_typed_yield_and_edge_execution_projection",
+      "capability_summary": "OMP semaphore, foreground/background, park/revive and AsyncJob mechanics remain in TypeScript as a process-local supplement that gates real E03 execution and rehydrates from the Python canonical lease projection without becoming a second store.",
+      "dependencies": [
+        "M1-S03D",
+        "M1-S05A",
+        "M1-S05B",
+        "M1-S05C",
+        "M1-S05D",
+        "M1-S06C",
+        "M1-S07A-01"
+      ],
+      "downstream_units": [
+        "M1-S07B-01",
+        "M1-S07C",
+        "M2-worker-pool-panel"
+      ],
+      "ledger_id": "ledger_07a02_omp_session_runtime",
+      "license_notice": {
+        "license_hint": "source license retained in repository notice inventory",
+        "notes": "Cropped and modified lifecycle mechanisms are maintained inside Zyra-owned modules.",
+        "notice_path": "packages/scheduler/THIRD_PARTY_NOTICES.md",
+        "source_repo": "oh-my-pi",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "POST /tasks/{task_id}/subagents",
+          "POST /tasks/{task_id}/subagents/fanout"
+        ],
+        "artifact_kinds": [
+          "execution_receipt",
+          "edge_artifact",
+          "graph_snapshot"
+        ],
+        "control_commands": [
+          "cancel",
+          "drain",
+          "wake",
+          "stop",
+          "park",
+          "revive"
+        ],
+        "event_types": [
+          "worker_dispatch_progress",
+          "worker_typed_yield",
+          "artifact_written"
+        ],
+        "surfaces": [
+          "scheduler_capacity_admission",
+          "task_and_subagent_api",
+          "durable_worker_control",
+          "real_edge_process_failover",
+          "m2_worker_state_handoff",
+          "m1_07c_recovery_handoff"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "OmpSessionAdmissionRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "backend_owner": "M1-S05D BackendRegistry",
+        "event_owner": "M1-S05C RuntimeEventStore",
+        "gateway_owner": "M1-S05B SandboxGatewayRuntime",
+        "graph_owner": "Zyra GraphStateCustody and DynamicTopologyRuntime",
+        "langgraph_runtime_dependency": false,
+        "logical_task_owner": "M1-S03D TypeScript AgentTaskRuntime",
+        "migration_mode": "cropped_same_language_session_control_with_read_only_python_lease_projection",
+        "omp_runtime_dependency": false,
+        "openclaw_forward_excluded": true,
+        "owner_unit": "M1-S07A-02",
+        "root_source_runtime_dependency": false,
+        "source_callsites": [
+          "shared session capacity across foreground and background jobs",
+          "park releases a permit and revive reacquires it",
+          "typed yield exactly once before terminal settlement",
+          "process restart rehydrates only checksummed Python physical projections"
+        ],
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "source_symbols": [
+          "TaskTool.execute",
+          "Semaphore",
+          "mapWithConcurrencyLimit",
+          "AsyncJobManager",
+          "park/revive",
+          "restart requeue"
+        ],
+        "source_tests": [
+          "packages/coding-agent/test/task/task-batch.test.ts",
+          "packages/coding-agent/test/async-job-manager.test.ts",
+          "roboomp queue claim/restart tests recorded in source graph batch-06"
+        ],
+        "state_owner": "TypeScript OmpSessionAdmissionRuntime owns only process-local permits and projections; Python WorkerPoolStore remains the sole durable physical owner and edge-only routing cannot fall back to a local OMP process",
+        "target_language": "typescript",
+        "workspace_owner": "M1-S05A WorkspaceManagerRuntime"
+      },
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; The original-language supplement fills shared session concurrency, promotion, park/revive and typed-yield mechanics while all durable lease, fence, checkpoint and recovery decisions remain in the AgentScope-derived Python primary.",
+      "owner_unit": "M1-S07A-02",
+      "runtime_entry": {
+        "config_refs": [
+          "packages/runtime/claude-runtime/src/omp-worker-control/session-runtime.ts",
+          "packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts",
+          "packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts",
+          "packages/workers/zyra_workers/edge_pool/integration.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "function": "OmpSessionAdmissionRuntime",
+        "health_check": "python -m pytest -q tests/integration/test_worker_pool_integration_runtime.py tests/integration/test_worker_pool_api_main_path.py; bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+        "module": "@zyra/claude-runtime/omp-worker-control",
+        "protocol": "zyra.worker-pool/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "Pinned source graph and concrete source files verified for M1-S07A-02.",
+          "source_kind": "bounded_module_group",
+          "source_path": "packages/coding-agent/src/task/index.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/parallel.ts;packages/coding-agent/src/task/provider-concurrency.ts;packages/coding-agent/src/async/job-manager.ts;packages/roboomp/src/**",
+          "source_repo": "oh-my-pi",
+          "symbols": [
+            "TaskTool.execute",
+            "Semaphore",
+            "mapWithConcurrencyLimit",
+            "AsyncJobManager",
+            "park/revive",
+            "restart requeue"
+          ],
+          "tags": [
+            "supplementary_implementation",
+            "M1-S07A-02"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/task/index.ts;packages/coding-agent/src/task/executor.ts;packages/coding-agent/src/task/parallel.ts;packages/coding-agent/src/task/provider-concurrency.ts;packages/coding-agent/src/async/job-manager.ts;packages/roboomp/src/**",
+      "source_repo": "oh-my-pi",
+      "target_bindings": [
+        {
+          "path": "packages/runtime/claude-runtime/src/omp-worker-control/session-runtime.ts",
+          "required_for_main_path": true,
+          "role": "primary"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/workers/zyra_workers/edge_pool/integration.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "apps/api/zyra_api/main.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_pool_integration_runtime.py",
+          "expected_signal": "capacity, renewal, cancel, drain/wake, exact restart, single yield and real edge failover mutate canonical state",
+          "kind": "integration",
+          "path": "tests/integration/test_worker_pool_integration_runtime.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_worker_pool_api_main_path.py",
+          "expected_signal": "task/subagent APIs use integrated physical admission and durable control without fallback",
+          "kind": "main_path",
+          "path": "tests/integration/test_worker_pool_api_main_path.py",
+          "required": true
+        },
+        {
+          "command": "bun test packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+          "expected_signal": "shared session concurrency, park/revive, typed yield, restart rehydration and disable failure execute in TypeScript",
+          "kind": "original_language_behavior",
+          "path": "packages/runtime/claude-runtime/test/omp-worker-control.test.ts",
+          "required": true
+        }
+      ]
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 451,
+    "active_or_internalized": 453,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 36,
       "deferred": 8,
       "planned": 698,
-      "productized": 396
+      "productized": 398
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -176908,7 +177356,7 @@
       "event_log_connected": 1,
       "inventoried": 36,
       "planned": 503,
-      "tested_main_path": 157,
+      "tested_main_path": 159,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -176950,25 +177398,26 @@
       "M1-S06C-01": 3,
       "M1-S06C-02": 3,
       "M1-S07A-01": 2,
+      "M1-S07A-02": 2,
       "M2-01A": 46,
       "M2-03B": 30
     },
     "by_source_repo": {
       "OpenHands": 86,
       "agent-framework": 93,
-      "agentscope": 104,
+      "agentscope": 105,
       "browser-use": 109,
       "claude-code-best": 511,
       "hermes-agent": 86,
       "langgraph": 85,
-      "oh-my-pi": 17,
+      "oh-my-pi": 18,
       "openclaw": 86,
       "opencode": 16
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 32,
+      "direct_port": 34,
       "not_selected": 14,
       "planned_adapter": 378,
       "reimplemented_pattern": 236,
@@ -176983,8 +177432,8 @@
       "packages/integrations": 78,
       "packages/memory": 197,
       "packages/orchestration": 59,
-      "packages/runtime": 169,
-      "packages/scheduler": 80,
+      "packages/runtime": 170,
+      "packages/scheduler": 81,
       "packages/skills": 48,
       "packages/symbolic": 1,
       "packages/workers": 165,
@@ -176992,6 +177441,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1193
+    "total_entries": 1195
   }
 }

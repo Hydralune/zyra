@@ -30,6 +30,7 @@ from .worker_pool import (
     WorkerLifecycleState,
     WorkerLocation as PhysicalWorkerLocation,
     WorkerPoolFoundationRuntime,
+    WorkerPoolIntegrationRuntime,
     WorkerPoolStore,
 )
 from .backend_registry import (
@@ -99,6 +100,7 @@ __all__ = [
     "WorkerLease",
     "WorkerLifecycleState",
     "WorkerPoolFoundationRuntime",
+    "WorkerPoolIntegrationRuntime",
     "WorkerPoolStore",
     "build_dispatch_envelope",
     "cancel_pending_dispatches",

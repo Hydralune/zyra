@@ -29,6 +29,14 @@ from .errors import (
     WorkerPoolErrorCode,
 )
 from .heartbeat import HeartbeatPolicy, HeartbeatSweepResult, WorkerHeartbeatRuntime
+from .health_bridge import (
+    BackendHealthMutationReceipt,
+    BackendRegistryHealthAdapter,
+    WorkerHealthBridgeReport,
+    WorkerHealthBridgeRuntime,
+    WorkerRouteHealthSignal,
+    WorkerRouteHealthSink,
+)
 from .inbox import WorkerInboxRuntime
 from .leases import WorkerLeaseManager
 from .lifecycle import ALLOWED_TRANSITIONS, WorkerLifecycleRuntime
@@ -64,6 +72,58 @@ from .models import (
     WorkerTelemetry,
 )
 from .store import WorkerPoolStore
+from .admission import AdmissionPorts, WorkerAdmissionRuntime, WorkerCapacityRuntime
+from .checkpoint import ExactWorkerCheckpointRuntime, StartupIntegrationRecovery
+from .control import ControlDispatchReport, ExecutionCancellationPort, WorkerControlRuntime
+from .integration import (
+    DispatchStartReceipt,
+    EdgeDispatchReceipt,
+    FailoverReceipt,
+    WorkerPoolIntegrationRuntime,
+    capability_requirement_from_dict,
+)
+from .integration_models import (
+    AdmissionPhase,
+    AdmissionPolicy,
+    AdmissionResult,
+    CapacityObservation,
+    ControlCommand,
+    ControlKind,
+    ControlPhase,
+    DispatchAdmissionRequest,
+    DispatchForeignRefs,
+    DispatchMode,
+    ForeignStateRef,
+    IntegrationCheckpoint,
+    IntegrationOutcome,
+    LeaseRenewalRecord,
+    PhysicalDispatchBinding,
+    ProgressReceipt,
+    RecoveryDisposition,
+    RecoveryEvidence,
+    RenewalDisposition,
+    RestoreAudit,
+    RouteHealth,
+    TypedYieldReceipt,
+    YieldKind,
+    make_foreign_refs,
+)
+from .integration_store import WorkerPoolIntegrationRepository
+from .renewal import LeaseRenewalRuntime, RenewalAssessment
+from .invariants import InvariantSeverity, InvariantViolation, WorkerInvariantReport, WorkerPoolInvariantRuntime
+from .projection import PoolProjectionEvent, ProjectionCursor, WorkerPoolHandoff, WorkerPoolProjectionRuntime
+from .scheduler_bridge import (
+    MemoryRoutingDirective,
+    SchedulerAdmissionPlan,
+    SchedulerDispatchContext,
+    WorkerPoolSchedulerBridge,
+)
+from .recovery_handoff import (
+    RecoveryHandoff,
+    RecoverySignalKind,
+    WorkerLifecycleEvidence,
+    WorkerRecoveryHandoffRuntime,
+)
 from .recovery import (
     TakeoverDisposition,
     TakeoverReason,
@@ -94,6 +154,8 @@ __all__ = [
     "HealthDisposition",
     "HeartbeatPolicy",
     "HeartbeatSweepResult",
+    "BackendHealthMutationReceipt",
+    "BackendRegistryHealthAdapter",
     "InboxEnvelope",
     "InboxMessageState",
     "LeaseAcquisition",
@@ -116,7 +178,11 @@ __all__ = [
     "WorkerCapabilityManifest",
     "WorkerHeartbeat",
     "WorkerHeartbeatRuntime",
+    "WorkerHealthBridgeReport",
+    "WorkerHealthBridgeRuntime",
     "WorkerHealthStatus",
+    "WorkerRouteHealthSignal",
+    "WorkerRouteHealthSink",
     "WorkerInboxRuntime",
     "WorkerInstance",
     "WorkerLease",
@@ -139,4 +205,60 @@ __all__ = [
     "WorkerTakeoverReceipt",
     "WorkerTakeoverRuntime",
     "requirement_from_subagent_dispatch",
+    "AdmissionPhase",
+    "AdmissionPolicy",
+    "AdmissionPorts",
+    "AdmissionResult",
+    "CapacityObservation",
+    "ControlCommand",
+    "ControlDispatchReport",
+    "ExecutionCancellationPort",
+    "ControlKind",
+    "ControlPhase",
+    "DispatchAdmissionRequest",
+    "DispatchForeignRefs",
+    "DispatchMode",
+    "DispatchStartReceipt",
+    "EdgeDispatchReceipt",
+    "ExactWorkerCheckpointRuntime",
+    "FailoverReceipt",
+    "ForeignStateRef",
+    "IntegrationCheckpoint",
+    "IntegrationOutcome",
+    "LeaseRenewalRecord",
+    "LeaseRenewalRuntime",
+    "PhysicalDispatchBinding",
+    "ProgressReceipt",
+    "RecoveryDisposition",
+    "RecoveryEvidence",
+    "RenewalAssessment",
+    "RenewalDisposition",
+    "RestoreAudit",
+    "RouteHealth",
+    "StartupIntegrationRecovery",
+    "TypedYieldReceipt",
+    "WorkerAdmissionRuntime",
+    "WorkerCapacityRuntime",
+    "WorkerControlRuntime",
+    "WorkerPoolIntegrationRepository",
+    "WorkerPoolIntegrationRuntime",
+    "YieldKind",
+    "capability_requirement_from_dict",
+    "make_foreign_refs",
+    "InvariantSeverity",
+    "InvariantViolation",
+    "WorkerInvariantReport",
+    "WorkerPoolInvariantRuntime",
+    "PoolProjectionEvent",
+    "ProjectionCursor",
+    "WorkerPoolHandoff",
+    "WorkerPoolProjectionRuntime",
+    "MemoryRoutingDirective",
+    "SchedulerAdmissionPlan",
+    "SchedulerDispatchContext",
+    "WorkerPoolSchedulerBridge",
+    "RecoveryHandoff",
+    "RecoverySignalKind",
+    "WorkerLifecycleEvidence",
+    "WorkerRecoveryHandoffRuntime",
 ]

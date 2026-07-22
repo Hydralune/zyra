@@ -1524,6 +1524,7 @@ class WorkerPoolStore:
         *,
         after_sequence: int = 0,
         task_id: str = "",
+        run_id: str = "",
         aggregate_type: str = "",
         aggregate_id: str = "",
         limit: int = 1000,
@@ -1533,6 +1534,9 @@ class WorkerPoolStore:
         if task_id:
             clauses.append("task_id=?")
             params.append(task_id)
+        if run_id:
+            clauses.append("(run_id=? OR run_id='')")
+            params.append(run_id)
         if aggregate_type:
             clauses.append("aggregate_type=?")
             params.append(aggregate_type)
@@ -1564,6 +1568,53 @@ class WorkerPoolStore:
                 created_at=str(row["created_at"]),
             )
             for row in rows
+        )
+
+    def journal_head_sequence(self) -> int:
+        """Return the canonical journal head without a bounded page scan."""
+
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(MAX(sequence), 0) AS sequence FROM worker_pool_journal"
+            ).fetchone()
+        return int(row["sequence"] if row is not None else 0)
+
+    def append_journal_record(
+        self,
+        record: PoolJournalRecord,
+        *,
+        connection: sqlite3.Connection | None = None,
+        bump_revision: bool = True,
+    ) -> PoolJournalRecord:
+        """Append an integration fact through the canonical pool transaction.
+
+        Integration modules deliberately receive this public operation instead
+        of opening a second SQLite connection or maintaining another event log.
+        The returned sequence is the canonical worker-pool journal position.
+        """
+
+        if connection is None:
+            with self.transaction() as current:
+                return self.append_journal_record(
+                    record,
+                    connection=current,
+                    bump_revision=bump_revision,
+                )
+        sequence = self._journal(connection, record)
+        if bump_revision:
+            self._bump_revision(connection)
+        return PoolJournalRecord(
+            journal_id=record.journal_id,
+            sequence=sequence,
+            aggregate_type=record.aggregate_type,
+            aggregate_id=record.aggregate_id,
+            operation=record.operation,
+            run_id=record.run_id,
+            task_id=record.task_id,
+            causation_id=record.causation_id,
+            correlation_id=record.correlation_id,
+            payload=dict(record.payload),
+            created_at=record.created_at,
         )
 
     @property

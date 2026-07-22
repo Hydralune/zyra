@@ -19,6 +19,11 @@ export interface PhysicalDispatchProjection extends JsonObject {
   concurrency_limit: number;
   lease_state: "active" | "draining";
   logical_task_not_duplicated: true;
+  integration_binding_id: string;
+  graph_ref: JsonObject;
+  workspace_ref: JsonObject;
+  gateway_ref: JsonObject;
+  route_ref: JsonObject;
   projection_digest: string;
 }
 
@@ -67,6 +72,7 @@ export interface OmpDispatchSnapshot extends JsonObject {
   projection_only: true;
   jobs: OmpProjectionJob[];
   semaphores: Array<JsonObject>;
+  session_runtime: JsonObject;
 }
 
 export function parsePhysicalDispatch(
@@ -97,6 +103,11 @@ export function parsePhysicalDispatch(
     concurrency_limit: integer(input.concurrency_limit, "concurrency_limit", 1, 128),
     lease_state: asString(input.lease_state) as "active" | "draining",
     logical_task_not_duplicated: true as const,
+    integration_binding_id: asString(input.integration_binding_id),
+    graph_ref: asObject(input.graph_ref),
+    workspace_ref: asObject(input.workspace_ref),
+    gateway_ref: asObject(input.gateway_ref),
+    route_ref: asObject(input.route_ref),
     projection_digest: asString(input.projection_digest),
   } satisfies PhysicalDispatchProjection;
   if (projection.schema !== PHYSICAL_DISPATCH_SCHEMA)
@@ -127,10 +138,22 @@ export function parsePhysicalDispatch(
     backend_id: projection.backend_id,
     manifest_digest: projection.manifest_digest,
     projection_digest: projection.projection_digest,
+    integration_binding_id: projection.integration_binding_id,
   }))
     if (!selected.trim())
       throw new E03RuntimeError(
         "physical_dispatch_incomplete",
+        `physical dispatch ${field} is empty`,
+      );
+  for (const [field, reference] of Object.entries({
+    graph_ref: projection.graph_ref,
+    workspace_ref: projection.workspace_ref,
+    gateway_ref: projection.gateway_ref,
+    route_ref: projection.route_ref,
+  }))
+    if (!Object.keys(reference).length)
+      throw new E03RuntimeError(
+        "physical_dispatch_foreign_ref_missing",
         `physical dispatch ${field} is empty`,
       );
   if (projection.lease_state !== "active" && projection.lease_state !== "draining")

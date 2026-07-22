@@ -1,31 +1,28 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from http import HTTPStatus
-from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from zyra_core import TaskState, new_id
 from zyra_orchestration.graph_custody import (
     DynamicTopologyRuntime,
-    GraphConflictStrategy,
     GraphDeltaBuilder,
     GraphEdge,
     GraphNode,
     GraphStateCustody,
-    GraphStateStore,
     NodeExecutionState,
 )
 from zyra_scheduler.worker_pool import (
     BackendCapability,
-    CancellationRequest,
     CapabilityRequirement,
     ExecutionOutcome,
     ResourceVector,
     WorkerLocation,
     WorkerPoolError,
     WorkerPoolFoundationRuntime,
+    WorkerPoolIntegrationRuntime,
+    ControlKind,
 )
 
 
@@ -49,6 +46,14 @@ ZYRA_DYNAMIC_API_ROUTES = (
     "POST /tasks/{task_id}/worker-pool-lease",
     "POST /tasks/{task_id}/worker-pool-cancel",
     "POST /worker-pool/graphs/{graph_id}/mutate",
+    "GET /worker-pool/integration",
+    "GET /worker-pool/controls",
+    "GET /worker-pool/checkpoints/{run_id}",
+    "GET /worker-pool/handoff",
+    "GET /worker-pool/recovery-handoff",
+    "POST /worker-pool/checkpoints/{run_id}",
+    "POST /worker-pool/health/sweep",
+    "POST /tasks/{task_id}/worker-pool-control",
 )
 
 
@@ -64,10 +69,23 @@ class WorkerPoolApiService:
         self,
         pool: WorkerPoolFoundationRuntime,
         graph_custody: GraphStateCustody,
+        *,
+        backend_health: Any | None = None,
     ) -> None:
         self.pool = pool
         self.graph_custody = graph_custody
         self.topology = DynamicTopologyRuntime(graph_custody)
+        self.backend_health = backend_health
+        self.integration = WorkerPoolIntegrationRuntime(
+            pool,
+            graph_custody,
+            backend_health=backend_health,
+        )
+
+    def close(self) -> None:
+        close = getattr(self.backend_health, "close", None)
+        if callable(close):
+            close()
 
     def route_get(
         self,
@@ -100,6 +118,37 @@ class WorkerPoolApiService:
             limit = max(1, min(5000, int(query.get("limit") or 1000)))
             records = self.pool.store.journal(after_sequence=after, limit=limit)
             return self._ok({"records": [item.to_dict() for item in records]})
+        if list(parts) == ["worker-pool", "integration"]:
+            return self._ok(self.integration.api_projection(
+                run_id=str(query.get("run_id") or ""),
+                task_id=str(query.get("task_id") or ""),
+            ))
+        if list(parts) == ["worker-pool", "handoff"]:
+            handoff = self.integration.projection.handoff(
+                after_sequence=max(0, int(query.get("after_sequence") or 0)),
+                limit=max(1, min(5000, int(query.get("limit") or 500))),
+                run_id=str(query.get("run_id") or ""),
+                task_id=str(query.get("task_id") or ""),
+            )
+            return self._ok(handoff.to_dict())
+        if list(parts) == ["worker-pool", "recovery-handoff"]:
+            handoff = self.integration.recovery_handoff.build(
+                run_id=str(query.get("run_id") or ""),
+                task_id=str(query.get("task_id") or ""),
+            )
+            return self._ok(handoff.to_dict())
+        if list(parts) == ["worker-pool", "controls"]:
+            controls = self.integration.repository.list_controls(
+                task_id=str(query.get("task_id") or ""),
+                worker_id=str(query.get("worker_id") or ""),
+            )
+            return self._ok({"controls": [item.to_dict() for item in controls]})
+        if len(parts) == 3 and parts[0] == "worker-pool" and parts[1] == "checkpoints":
+            checkpoint = self.integration.repository.latest_checkpoint(parts[2])
+            if checkpoint is None:
+                return self._error(HTTPStatus.NOT_FOUND, "checkpoint_not_found", "worker checkpoint is not available")
+            restore = self.integration.checkpoints.restore(checkpoint.checkpoint_id, strict=False)
+            return self._ok({"checkpoint": checkpoint.to_dict(), "restore": restore.to_dict()})
         if len(parts) == 3 and parts[0] == "worker-pool" and parts[1] == "workers":
             worker = self.pool.store.get_worker(parts[2])
             if worker is None:
@@ -138,6 +187,10 @@ class WorkerPoolApiService:
         task_state: TaskState | None = None,
     ) -> WorkerPoolApiResponse | None:
         try:
+            if list(parts) == ["worker-pool", "health", "sweep"]:
+                report = self.integration.health_bridge.sweep()
+                status = HTTPStatus.OK if not report.failures else HTTPStatus.MULTI_STATUS
+                return self._response(status, report.to_dict())
             if list(parts) == ["worker-pool", "workers", "local", "register"]:
                 registration = self.ensure_default_local_worker(
                     worker_id=str(payload.get("worker_id") or "local-code-worker"),
@@ -148,16 +201,37 @@ class WorkerPoolApiService:
                 worker_id = parts[2]
                 action = parts[3]
                 if action == "drain":
-                    worker = self.pool.lifecycle.begin_drain(worker_id, reason=str(payload.get("reason") or "api drain"))
-                elif action == "wake":
-                    worker = self.pool.lifecycle.wake(worker_id, reason=str(payload.get("reason") or "api wake"))
-                elif action == "stop":
-                    worker = self.pool.lifecycle.stop(
-                        worker_id,
-                        force=bool(payload.get("force", False)),
-                        reason=str(payload.get("reason") or "api stop"),
+                    command = self.integration.control.submit_and_apply(
+                        ControlKind.DRAIN,
+                        claim_owner="worker-pool-api",
+                        actor_id="worker-pool-api",
+                        reason=str(payload.get("reason") or "api drain"),
+                        idempotency_key=str(payload.get("idempotency_key") or f"api-drain:{worker_id}"),
+                        worker_id=worker_id,
                     )
+                    worker = self.pool.store.require_worker(worker_id)
+                elif action == "wake":
+                    command = self.integration.control.submit_and_apply(
+                        ControlKind.WAKE,
+                        claim_owner="worker-pool-api",
+                        actor_id="worker-pool-api",
+                        reason=str(payload.get("reason") or "api wake"),
+                        idempotency_key=str(payload.get("idempotency_key") or f"api-wake:{worker_id}:{self.pool.store.revision}"),
+                        worker_id=worker_id,
+                    )
+                    worker = self.pool.store.require_worker(worker_id)
+                elif action == "stop":
+                    command = self.integration.control.submit_and_apply(
+                        ControlKind.STOP,
+                        claim_owner="worker-pool-api",
+                        actor_id="worker-pool-api",
+                        reason=str(payload.get("reason") or "api stop"),
+                        idempotency_key=str(payload.get("idempotency_key") or f"api-stop:{worker_id}:{self.pool.store.revision}"),
+                        worker_id=worker_id,
+                    )
+                    worker = self.pool.store.require_worker(worker_id)
                 elif action == "heartbeat":
+                    command = None
                     latest = self.pool.store.latest_heartbeat(worker_id)
                     sequence = 1 if latest is None else latest.sequence + 1
                     self.pool.heartbeat_local_worker(
@@ -169,7 +243,10 @@ class WorkerPoolApiService:
                     worker = self.pool.store.require_worker(worker_id)
                 else:
                     return None
-                return self._ok({"worker": worker.to_dict()})
+                return self._ok({
+                    "worker": worker.to_dict(),
+                    "control": command.to_dict() if command is not None else None,
+                })
             if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "worker-pool-lease":
                 if task_state is None or task_state.task_id != parts[1]:
                     return self._error(HTTPStatus.NOT_FOUND, "task_not_found", "task is not available")
@@ -181,16 +258,53 @@ class WorkerPoolApiService:
             if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "worker-pool-cancel":
                 if task_state is None or task_state.task_id != parts[1]:
                     return self._error(HTTPStatus.NOT_FOUND, "task_not_found", "task is not available")
-                receipt = self.pool.cancellation.cancel(
-                    CancellationRequest(
-                        task_id=task_state.task_id,
-                        run_id=task_state.run_id,
-                        reason=str(payload.get("reason") or "worker pool cancellation requested"),
-                        actor_id="worker-pool-api",
-                        idempotency_key=str(payload.get("idempotency_key") or ""),
-                    )
+                command = self.integration.control.submit_and_apply(
+                    ControlKind.CANCEL,
+                    claim_owner="worker-pool-api",
+                    actor_id="worker-pool-api",
+                    reason=str(payload.get("reason") or "worker pool cancellation requested"),
+                    idempotency_key=str(payload.get("idempotency_key") or f"api-cancel:{task_state.task_id}"),
+                    task_id=task_state.task_id,
+                    run_id=task_state.run_id,
                 )
-                return self._ok({"cancellation": receipt.to_dict()})
+                return self._ok({
+                    "control": command.to_dict(),
+                    "cancellation": dict(command.effect.get("cancellation") or {}),
+                })
+            if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "worker-pool-control":
+                if task_state is None or task_state.task_id != parts[1]:
+                    return self._error(HTTPStatus.NOT_FOUND, "task_not_found", "task is not available")
+                kind = ControlKind(str(payload.get("kind") or "cancel"))
+                command = self.integration.control.submit_and_apply(
+                    kind,
+                    claim_owner="worker-pool-api",
+                    actor_id=str(payload.get("actor_id") or "worker-pool-api"),
+                    reason=str(payload.get("reason") or f"api {kind.value}"),
+                    idempotency_key=str(payload.get("idempotency_key") or f"api-control:{task_state.task_id}:{kind.value}"),
+                    task_id=task_state.task_id,
+                    run_id=task_state.run_id,
+                    worker_id=str(payload.get("worker_id") or ""),
+                    lease_id=str(payload.get("lease_id") or ""),
+                    binding_id=str(payload.get("binding_id") or ""),
+                )
+                return self._ok({"control": command.to_dict()})
+            if len(parts) == 3 and parts[0] == "worker-pool" and parts[1] == "checkpoints":
+                run_id = parts[2]
+                graph_ids = tuple(
+                    sorted({
+                        item.foreign_refs.graph.object_id
+                        for item in self.integration.repository.list_bindings(run_id=run_id)
+                        if item.foreign_refs.graph.object_id
+                    })
+                )
+                checkpoint = self.integration.checkpoints.create(
+                    run_id=run_id,
+                    graph_ids=graph_ids,
+                    foreign_checkpoint_refs=tuple(payload.get("foreign_checkpoint_refs") or ()),
+                    previous_checkpoint_id=str(payload.get("previous_checkpoint_id") or ""),
+                    checkpoint_id=str(payload.get("checkpoint_id") or ""),
+                )
+                return self._response(HTTPStatus.CREATED, {"checkpoint": checkpoint.to_dict()})
             if len(parts) == 4 and parts[0] == "worker-pool" and parts[1] == "graphs" and parts[3] == "mutate":
                 return self._mutate_graph(parts[2], payload)
         except WorkerPoolError as error:
