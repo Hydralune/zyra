@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 import audit_m1_s07a02_effective_code_gate as frozen
 
@@ -120,6 +121,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary-only", action="store_true")
     parser.add_argument("--fail-on-gate", action="store_true")
+    parser.add_argument("--output", type=Path)
     arguments = parser.parse_args(argv)
     result = audit()
     if arguments.summary_only:
@@ -127,7 +129,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = result.get(scope)
             if isinstance(report, dict):
                 report.pop("files", None)
-    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    rendered = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if arguments.output is not None:
+        arguments.output.parent.mkdir(parents=True, exist_ok=True)
+        arguments.output.write_text(rendered, encoding="utf-8", newline="\n")
+    print(rendered, end="")
     return 1 if arguments.fail_on_gate and not result["gate"]["ok"] else 0
 
 
