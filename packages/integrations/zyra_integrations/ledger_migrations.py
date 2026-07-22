@@ -23,12 +23,38 @@ OWNER_UNIT = "M1-02A"
 PRIMARY_SOURCE_REPO = "claude-code-best"
 SOURCE_POOL_PREFIX = "vendor-runtimes/claude-code-runtime/productized/claude-code-best/"
 FOUNDATION_TEST_COMMAND = "python scripts/verify_claude_productization_foundation.py"
+RETIRED_TARGET_PATHS = {
+    "apps/code-worker/src/main.mjs": "apps/code-worker/src/main.ts",
+    "packages/workers/zyra_workers/code_query_loop.py": "packages/runtime/claude-runtime/src/query-engine.ts",
+    "packages/runtime/zyra_runtime/tool_runtime_foundation.py": "packages/runtime/claude-runtime/src/tools/execution-runtime.ts",
+    "packages/runtime/zyra_runtime/permission/action_gate.py": "packages/runtime/claude-runtime/src/permission/coordinator.ts",
+    "packages/runtime/zyra_runtime/permission/classifier.py": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts",
+    "packages/runtime/zyra_runtime/permission/evaluator.py": "packages/runtime/claude-runtime/src/permission/evaluator.ts",
+    "packages/runtime/zyra_runtime/permission/extensions.py": "packages/runtime/claude-runtime/src/permission/settings-runtime.ts",
+    "packages/runtime/zyra_runtime/permission/hooks.py": "packages/runtime/claude-runtime/src/permission/hook-runtime.ts",
+    "packages/runtime/zyra_runtime/permission/modes.py": "packages/runtime/claude-runtime/src/permission/mode-runtime.ts",
+    "packages/runtime/zyra_runtime/permission/risk.py": "packages/runtime/claude-runtime/src/permission/risk-runtime.ts",
+    "packages/runtime/zyra_runtime/permission/rules.py": "packages/runtime/claude-runtime/src/permission/rule-index.ts",
+    "packages/runtime/zyra_runtime/permission/shell_analysis.py": "packages/runtime/claude-runtime/src/permission/command-risk-runtime.ts",
+    "packages/integrations/zyra_integrations/mcp/auth.py": "packages/integrations/claude-mcp/src/auth/oauth-runtime.ts",
+    "packages/integrations/zyra_integrations/mcp/capabilities.py": "packages/integrations/claude-mcp/src/catalog/capability-catalog.ts",
+    "packages/integrations/zyra_integrations/mcp/config.py": "packages/integrations/claude-mcp/src/config/config-store.ts",
+    "packages/integrations/zyra_integrations/mcp/connection.py": "packages/integrations/claude-mcp/src/connection/connection-runtime.ts",
+    "packages/integrations/zyra_integrations/mcp/elicitation.py": "packages/integrations/claude-mcp/src/runtime/elicitation-runtime.ts",
+    "packages/integrations/zyra_integrations/mcp/instructions.py": "packages/integrations/claude-mcp/src/projection/instruction-runtime.ts",
+    "packages/integrations/zyra_integrations/mcp/projection.py": "packages/integrations/claude-mcp/src/projection/tool-projection.ts",
+    "packages/integrations/zyra_integrations/mcp/protocol.py": "packages/integrations/claude-mcp/src/core/protocol.ts",
+    "packages/integrations/zyra_integrations/mcp/sampling.py": "packages/integrations/claude-mcp/src/runtime/sampling-runtime.ts",
+    "packages/integrations/zyra_integrations/mcp/tasks.py": "packages/integrations/claude-mcp/src/runtime/task-runtime.ts",
+    "packages/integrations/zyra_integrations/mcp/transport.py": "packages/integrations/claude-mcp/src/transport.ts",
+}
 
 
 def normalize_ledger_for_current_policy(entries: Iterable[InternalizationLedgerEntry]) -> list[InternalizationLedgerEntry]:
     normalized = [_normalize_entry(entry) for entry in entries]
     by_id = {entry.ledger_id: entry for entry in normalized}
     for entry in _foundation_entries():
+        _normalize_entry(entry)
         by_id[entry.ledger_id] = entry
     return list(by_id.values())
 
@@ -38,7 +64,25 @@ def _normalize_entry(entry: InternalizationLedgerEntry) -> InternalizationLedger
         _downgrade_legacy_source_pool(entry)
     elif _is_legacy_m1_02a_connected_vendor(entry):
         _downgrade_legacy_connected_vendor(entry)
+    _remap_retired_targets(entry)
     return entry
+
+
+def _remap_retired_targets(entry: InternalizationLedgerEntry) -> None:
+    """Point historical rows at the current Zyra-owned runtime owners."""
+
+    def remap(value: str) -> str:
+        result = value
+        for retired, current in RETIRED_TARGET_PATHS.items():
+            result = result.replace(retired, current)
+        return result
+
+    for binding in entry.target_bindings:
+        binding.target_path = remap(binding.target_path)
+    entry.runtime_entry.command = remap(entry.runtime_entry.command)
+    entry.runtime_entry.health_check = remap(entry.runtime_entry.health_check)
+    entry.runtime_entry.config_refs = [remap(value) for value in entry.runtime_entry.config_refs]
+    entry.main_path.surfaces = [remap(value) for value in entry.main_path.surfaces]
 
 
 def _is_legacy_m1_02a_source_pool(entry: InternalizationLedgerEntry) -> bool:

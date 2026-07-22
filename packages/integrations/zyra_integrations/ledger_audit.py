@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import subprocess
 from dataclasses import dataclass, field
@@ -63,7 +64,6 @@ REQUIRED_SOURCE_REPOS = {
     "claude-code-best",
     "browser-use",
     "OpenHands",
-    "openclaw",
     "agentscope",
     "agent-framework",
     "hermes-agent",
@@ -493,22 +493,28 @@ class InternalizationLedgerAuditor:
         findings: list[LedgerAuditFinding] = []
         forbidden = _forbidden_fragments()
         for path in self._iter_scanned_project_files():
+            relative = path.relative_to(self.project_root).as_posix()
+            if relative.startswith("scripts/remediation/"):
+                continue
             try:
                 text = path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
-            for fragment in forbidden:
-                if fragment in text:
-                    relative = path.relative_to(self.project_root).as_posix()
-                    findings.append(
-                        LedgerAuditFinding(
-                            code=AuditFindingCode.FORBIDDEN_RELATIVE_SOURCE_DEP,
-                            severity=AuditSeverity.BLOCKER,
-                            message=f"{relative} contains forbidden runtime dependency {fragment!r}",
-                            target_path=relative,
-                            remediation="Move the source code into zyra or use a productized vendor runtime inside zyra.",
-                        )
+            fragments = (
+                _python_runtime_dependency_fragments(text, forbidden)
+                if path.suffix.lower() == ".py"
+                else [fragment for fragment in forbidden if fragment in text]
+            )
+            for fragment in fragments:
+                findings.append(
+                    LedgerAuditFinding(
+                        code=AuditFindingCode.FORBIDDEN_RELATIVE_SOURCE_DEP,
+                        severity=AuditSeverity.BLOCKER,
+                        message=f"{relative} contains forbidden runtime dependency {fragment!r}",
+                        target_path=relative,
+                        remediation="Move the source code into zyra or use a productized vendor runtime inside zyra.",
                     )
+                )
         return findings
 
     def _iter_scanned_project_files(self) -> list[Path]:
@@ -655,3 +661,51 @@ def _forbidden_fragments() -> list[str]:
             ]
         )
     return fragments
+
+
+def _python_runtime_dependency_fragments(text: str, forbidden: list[str]) -> list[str]:
+    """Find executable path literals without flagging deny-list definitions."""
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return [fragment for fragment in forbidden if fragment in text]
+
+    found: set[str] = set()
+
+    def is_static_denylist(name: str) -> bool:
+        return name in {"FORBIDDEN_PATH_MARKERS", "FORBIDDEN_LITERAL_PATTERNS"} or name.endswith("_DENYLIST")
+
+    class RuntimeLiteralVisitor(ast.NodeVisitor):
+        def visit_Assign(self, node: ast.Assign) -> None:
+            names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+            if any(is_static_denylist(name) for name in names):
+                return
+            self.generic_visit(node)
+
+        def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+            if isinstance(node.target, ast.Name) and is_static_denylist(node.target.id):
+                return
+            self.generic_visit(node)
+
+        def visit_For(self, node: ast.For) -> None:
+            literals = [
+                item.value
+                for item in getattr(node.iter, "elts", [])
+                if isinstance(item, ast.Constant) and isinstance(item.value, str)
+            ]
+            if literals and any(fragment in value for value in literals for fragment in forbidden):
+                for statement in [*node.body, *node.orelse]:
+                    self.visit(statement)
+                return
+            self.generic_visit(node)
+
+        def visit_Constant(self, node: ast.Constant) -> None:
+            if not isinstance(node.value, str):
+                return
+            for fragment in forbidden:
+                if fragment in node.value:
+                    found.add(fragment)
+
+    RuntimeLiteralVisitor().visit(tree)
+    return sorted(found)

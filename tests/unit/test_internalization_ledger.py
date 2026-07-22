@@ -33,10 +33,75 @@ from zyra_integrations import (
     TestEntry,
     load_seed_ledger,
 )
-from zyra_integrations.ledger_audit import AuditFindingCode
+from zyra_integrations.ledger_audit import (
+    REQUIRED_SOURCE_REPOS,
+    AuditFindingCode,
+    _python_runtime_dependency_fragments,
+)
+from zyra_integrations.ledger_migrations import normalize_ledger_for_current_policy
 
 
 class InternalizationLedgerTests(unittest.TestCase):
+    def test_forward_excluded_openclaw_is_historical_not_required(self) -> None:
+        self.assertNotIn("openclaw", REQUIRED_SOURCE_REPOS)
+        self.assertIn("openclaw", load_seed_ledger().summary().by_source_repo)
+
+    def test_dependency_literal_scan_ignores_denylist_but_catches_runtime_path(self) -> None:
+        forbidden = ["../claude-code-best"]
+
+        self.assertEqual(
+            _python_runtime_dependency_fragments(
+                "FORBIDDEN_PATH_MARKERS = ('../claude-code-best',)\n",
+                forbidden,
+            ),
+            [],
+        )
+        self.assertEqual(
+            _python_runtime_dependency_fragments(
+                "runtime_root = '../claude-code-best'\n",
+                forbidden,
+            ),
+            forbidden,
+        )
+
+    def test_current_policy_remaps_retired_connected_targets(self) -> None:
+        legacy = InternalizationLedgerEntry.new(
+            source_repo="claude-code-best",
+            source_path="src/QueryEngine.ts",
+            capability_name="retired connected paths",
+            capability_summary="historical row that still names temporary owners",
+            target_paths=[
+                "apps/code-worker/src/main.mjs",
+                "packages/workers/zyra_workers/code_query_loop.py",
+            ],
+            migration_strategy=MigrationStrategy.DIRECT_PORT,
+            main_path_status=MainPathStatus.WORKER_RUNTIME_CONNECTED,
+            lifecycle=LedgerLifecycle.INTERNALIZED,
+            owner_unit="M1-01B",
+            milestone="M1",
+            line_count_policy=LineCountPolicy.COUNTS_AS_RUNTIME,
+        )
+        legacy.runtime_entry.command = "node apps/code-worker/src/main.mjs"
+        legacy.runtime_entry.config_refs = ["packages/workers/zyra_workers/code_query_loop.py"]
+        legacy.main_path.surfaces = ["apps/code-worker/src/main.mjs"]
+
+        entries = normalize_ledger_for_current_policy([legacy])
+        migrated = next(entry for entry in entries if entry.ledger_id == legacy.ledger_id)
+
+        self.assertEqual(
+            migrated.target_paths,
+            [
+                "apps/code-worker/src/main.ts",
+                "packages/runtime/claude-runtime/src/query-engine.ts",
+            ],
+        )
+        self.assertEqual(migrated.runtime_entry.command, "node apps/code-worker/src/main.ts")
+        self.assertEqual(
+            migrated.runtime_entry.config_refs,
+            ["packages/runtime/claude-runtime/src/query-engine.ts"],
+        )
+        self.assertEqual(migrated.main_path.surfaces, ["apps/code-worker/src/main.ts"])
+
     def test_seed_ledger_covers_required_repositories_and_units(self) -> None:
         ledger = load_seed_ledger()
         summary = ledger.summary()

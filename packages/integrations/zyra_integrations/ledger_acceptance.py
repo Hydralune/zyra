@@ -472,7 +472,6 @@ def _core_criteria(
         "claude-code-best",
         "browser-use",
         "OpenHands",
-        "openclaw",
         "agentscope",
         "agent-framework",
         "hermes-agent",

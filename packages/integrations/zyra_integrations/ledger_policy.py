@@ -73,7 +73,6 @@ REQUIRED_SOURCE_REPOS = {
     "claude-code-best",
     "browser-use",
     "OpenHands",
-    "openclaw",
     "agentscope",
     "agent-framework",
     "hermes-agent",
@@ -82,7 +81,7 @@ REQUIRED_SOURCE_REPOS = {
 
 # New source-graph repositories are valid evidence without retroactively
 # invalidating historical or isolated seeds that predate their adoption.
-ALLOWED_SOURCE_REPOS = REQUIRED_SOURCE_REPOS | {"opencode", "oh-my-pi"}
+ALLOWED_SOURCE_REPOS = REQUIRED_SOURCE_REPOS | {"opencode", "oh-my-pi", "openclaw"}
 
 ALLOWED_TARGET_ROOTS = {
     "apps",
