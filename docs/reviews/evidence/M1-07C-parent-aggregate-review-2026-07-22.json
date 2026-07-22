@@ -1,0 +1,169 @@
+{
+  "schema": "zyra.parent-unit-review-evidence/v1",
+  "review_id": "M1-07C-parent-aggregate-review-2026-07-22",
+  "parent_unit": "M1-07C",
+  "slices": ["M1-S07C-01", "M1-S07C-02"],
+  "date": "2026-07-22",
+  "verdict": "pass_after_remediation",
+  "frozen_commits": {
+    "parent_baseline": "aa494526ed7f32b177f9a10fa3a93d8a684e0264",
+    "slice_01_implementation_target": "0b331ca6f709a24e663136939257aa061010aacf",
+    "slice_02_implementation_target": "8de780f9410308725859a9994bdc2e27e5ba6042",
+    "original_parent_evidence_target": "a95a6ce8d8f8e8e3eda35f01ba52fc3aba9c7989",
+    "remediation_implementation_commit": "600ec308926786ea11185a50b4076c019dfbdf55",
+    "evidence_commit": "created by committing this review, machine evidence repair, and root-state handoff metadata"
+  },
+  "findings": [
+    {
+      "severity": "blocker",
+      "code": "event_only_continuation_claimed_execution_change",
+      "first_offending_commit": "774c8f87d9cdf193596d20fedf72fb3034bc5e38",
+      "fixed_in": "600ec308926786ea11185a50b4076c019dfbdf55",
+      "status": "fixed",
+      "proof": "an auto_run=false task formerly remained pending; it now completes with artifacts, execution event ids, and worker/backend/provider dispatch refs"
+    },
+    {
+      "severity": "blocker",
+      "code": "continuation_stale_task_state_lost_update",
+      "first_offending_commit": "774c8f87d9cdf193596d20fedf72fb3034bc5e38",
+      "fixed_in": "600ec308926786ea11185a50b4076c019dfbdf55",
+      "status": "fixed",
+      "proof": "RecoveryContinuationRuntime reloads the latest same-run TaskState after owner dispatch before merging its projection"
+    },
+    {
+      "severity": "blocker",
+      "code": "recovery_route_not_consumed_by_graph_dispatch",
+      "first_offending_commit_for_07c_claim": "774c8f87d9cdf193596d20fedf72fb3034bc5e38",
+      "fixed_in": "600ec308926786ea11185a50b4076c019dfbdf55",
+      "status": "fixed",
+      "proof": "worker/backend/provider recovery projections override stale dispatch metadata and the canonical physical worker lease cannot be replaced by a resource suggestion"
+    },
+    {
+      "severity": "blocker",
+      "code": "slice_02_language_custody_machine_evidence_missing",
+      "first_offending_commit": "a95a6ce8d8f8e8e3eda35f01ba52fc3aba9c7989",
+      "fixed_in": "this evidence commit",
+      "status": "fixed",
+      "proof": "verify_source_language_custody reports 1031 TypeScript production additions and zero violations for the frozen slice range"
+    }
+  ],
+  "original_effective_code_gate": {
+    "slice_01": {"effective": 8429, "minimum": 8000, "margin": 429, "ok": true},
+    "slice_02": {"effective": 7062, "minimum": 7000, "margin": 62, "ok": true},
+    "parent_direct_recompute": {
+      "range": "aa494526ed7f32b177f9a10fa3a93d8a684e0264..8de780f9410308725859a9994bdc2e27e5ba6042",
+      "effective": 15469,
+      "minimum": 15000,
+      "margin": 469,
+      "ok": true
+    },
+    "remediation_used_to_top_up_original_gate": false
+  },
+  "remediation_diff_buckets": {
+    "range": "a95a6ce8d8f8e8e3eda35f01ba52fc3aba9c7989..600ec308926786ea11185a50b4076c019dfbdf55",
+    "production_raw_additions": 389,
+    "production_raw_deletions": 65,
+    "test_raw_additions": 98,
+    "test_raw_deletions": 2,
+    "generated": 0,
+    "data_as_code": 0,
+    "vendor_or_source_pool": 0,
+    "adapter_only": 0,
+    "dependency_or_lockfile_changes": 0,
+    "effective_credit_claimed": false
+  },
+  "source_roles": [
+    {
+      "source_repo": "oh-my-pi",
+      "role": "supplementary_implementation",
+      "canonical_owner": false,
+      "migration_mode": "cropped_same_language_recovery_receipts_and_integration_receipts"
+    },
+    {
+      "source_repo": "langgraph",
+      "role": "conformance_only",
+      "production_owner": false
+    },
+    {
+      "source_repo": "claude-code-best",
+      "role": "conformance_reference",
+      "production_owner": false
+    }
+  ],
+  "state_custody": {
+    "classification_and_policy": "Python RecoverySignalClassifier and RecoveryDecisionRuntime",
+    "plan_action_checkpoint_outcome_and_memory": "Python RecoveryPlanStore",
+    "integration": "Python RecoveryIntegrationRuntime",
+    "task_projection": "SQLiteStore.TaskState",
+    "graph": "GraphStateCustody",
+    "worker": "WorkerPoolFoundationRuntime",
+    "backend": "BackendRegistry",
+    "provider": "ProviderControlPlane",
+    "permission": "PermissionControlPlane",
+    "context_and_compact": "MemoryFabric",
+    "typescript_supplement_owns_canonical_state": false
+  },
+  "semantic_proofs": {
+    "real_continuation_dispatch": true,
+    "event_only_success_forbidden": true,
+    "prepared_committed_failed_fence": true,
+    "latest_task_state_merge": true,
+    "worker_backend_provider_route_consumed": true,
+    "permission_custody_token_persisted_or_bypassed": false,
+    "restart_executes_again": true,
+    "routing_memory_after_applied_proof_only": true
+  },
+  "language_custody": [
+    {
+      "slice_id": "M1-S07C-01",
+      "source_repo": "oh-my-pi",
+      "expected_language": "typescript",
+      "added_production_lines": 1146,
+      "violations": 0
+    },
+    {
+      "slice_id": "M1-S07C-02",
+      "source_repo": "oh-my-pi",
+      "expected_language": "typescript",
+      "added_production_lines": 1031,
+      "violations": 0
+    }
+  ],
+  "verification": {
+    "direct_python_and_task_graph": "16 passed, 6 subtests passed",
+    "adjacent_07a_07b_python": "51 passed",
+    "typescript_original_language": "15 passed",
+    "python_compileall": "pass",
+    "diff_check": "pass",
+    "source_ledger_sync": "M1-S07C-01 and M1-S07C-02 aligned; one production decision each",
+    "targeted_ledger_findings": 0,
+    "forbidden_dependency_diff_hits": 0
+  },
+  "cleanroom": {
+    "implementation_target": "600ec308926786ea11185a50b4076c019dfbdf55",
+    "detached": true,
+    "initial_missing_bun_failed_closed": true,
+    "frozen_lock_install": "bun 1.2.15; 17 packages installed from bun.lock",
+    "python_result": "67 passed, 6 subtests passed",
+    "typescript_result": "15 passed",
+    "git_head_matched": true,
+    "temporary_worktree_removed": true
+  },
+  "boundaries": {
+    "sibling_source_runtime_dependencies": 0,
+    "npm_links": 0,
+    "pip_editable_parent_paths": 0,
+    "external_docker_contexts": 0,
+    "openclaw_forward_dependencies": 0,
+    "zyra_git_repository_only": true,
+    "root_execution_state_outside_zyra_git": true
+  },
+  "not_run": {
+    "full_repository_test_suite": "deferred to the M1-07A/B/C numeric-stage aggregate review; this high-risk parent review ran the complete 07C, 07A/07B adjacent, task-graph, original-language and detached cleanroom gates"
+  },
+  "next_entry": {
+    "document": "docs/执行单元完成后通用审查任务书.md",
+    "scope": ["M1-07A", "M1-07B", "M1-07C"],
+    "after_success": "M1-S08-01"
+  }
+}

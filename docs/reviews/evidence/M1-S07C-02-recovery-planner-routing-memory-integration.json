@@ -13,6 +13,14 @@
   ],
   "final_implementation_target": "8de780f9410308725859a9994bdc2e27e5ba6042",
   "evidence_commit": "created by committing this record, review, audit tooling, ledger sync and ledger seed",
+  "parent_review_remediation": {
+    "review_date": "2026-07-22",
+    "original_evidence_commit": "a95a6ce8d8f8e8e3eda35f01ba52fc3aba9c7989",
+    "implementation_fix_commit": "600ec308926786ea11185a50b4076c019dfbdf55",
+    "original_gap": "the machine evidence omitted the mandatory language_custody list and its source decision migration_mode did not match the ledger",
+    "original_implementation_range_unchanged": true,
+    "record_repaired_after_original_evidence": true
+  },
   "next_entry": {
     "document": "docs/执行单元完成后通用审查任务书.md",
     "scope": ["M1-07A", "M1-07B", "M1-07C"],
@@ -50,7 +58,7 @@
       "source_role": "supplementary_implementation",
       "source_language": "typescript",
       "target_language": "typescript",
-      "migration_mode": "cropped_same_language_recovery_integration_migration",
+      "migration_mode": "cropped_same_language_recovery_integration_receipts",
       "ledger_id": "ile_oh_my_pi_490e53f66a4d5834",
       "selected_mechanisms": [
         "provider and credential rotation receipts",
@@ -95,6 +103,21 @@
       ],
       "production_migration_quota": false,
       "ledger_production_entry": false
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_recovery_integration_receipts",
+      "expected_production_languages": ["typescript"],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "production_paths": [
+        "packages/runtime/claude-runtime/src/recovery/omp-integration-runtime.ts",
+        "packages/runtime/claude-runtime/src/recovery/omp-recovery-runtime.ts"
+      ]
     }
   ],
   "ledger_custody": {
