@@ -35,6 +35,7 @@ from .control_hub import *
 from .owner_handlers import *
 from .session_control import *
 from .source_coordinator import *
+from .watchdog_control import *
 
 __all__ = [
     "COMMAND_SOURCE_DECISIONS",
@@ -78,4 +79,7 @@ __all__ = [
     "built_in_control_descriptors",
     "command_source_audit",
     "default_control_command_registry",
+    "WatchdogCommandReceipt",
+    "WatchdogControlCommandRuntime",
+    "watchdog_control_contract",
 ]

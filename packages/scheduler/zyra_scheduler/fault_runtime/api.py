@@ -191,9 +191,12 @@ class FaultRuntimeApiService:
 
     def __init__(self, runtime: FaultRuntimeApplication) -> None:
         self.runtime = runtime
+        self.closed = False
 
     def close(self) -> None:
-        self.runtime.close()
+        if not self.closed:
+            self.runtime.close()
+            self.closed = True
 
     def route_get(
         self,
@@ -205,13 +208,16 @@ class FaultRuntimeApiService:
             return None
         if task_state is None:
             return FaultApiResponse(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
-        snapshot = dict(self.runtime.snapshot(task_id=task_state.task_id))
-        snapshot["api"] = self.contract()
-        return FaultApiResponse(
-            HTTPStatus.OK,
-            snapshot,
-            headers={"Cache-Control": "no-store"},
-        )
+        try:
+            snapshot = dict(self.runtime.snapshot(task_id=task_state.task_id))
+            snapshot["api"] = self.contract()
+            return FaultApiResponse(
+                HTTPStatus.OK,
+                snapshot,
+                headers={"Cache-Control": "no-store"},
+            )
+        finally:
+            self.runtime.store.release_connection()
 
     def route_post(
         self,
@@ -221,19 +227,39 @@ class FaultRuntimeApiService:
         task_state: TaskState | None,
         requested_by: str = "api-user",
     ) -> FaultApiResponse | None:
-        if len(parts) != 4 or parts[0] != "tasks" or parts[2] != "faults":
+        if len(parts) not in {4, 5} or parts[0] != "tasks" or parts[2] != "faults":
             return None
         if task_state is None:
             return FaultApiResponse(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
-        action = parts[3]
+        action = "/".join(parts[3:])
         try:
             if action == "inject":
                 return self._inject(payload, task_state=task_state, requested_by=requested_by)
             if action == "observers":
                 return self._observer_control(payload)
+            if action == "sources/bind":
+                result = self.runtime.integration.bind_source(task_state, payload)
+                return FaultApiResponse(HTTPStatus.CREATED, result.to_dict(), headers={"Cache-Control": "no-store"})
+            if action == "sources/observe":
+                result = self.runtime.integration.observe_source(task_state, payload)
+                return FaultApiResponse(HTTPStatus.OK, result.to_dict(), headers={"Cache-Control": "no-store"})
+            if action == "runtime-events":
+                result = self.runtime.integration.ingest_typescript_event(task_state, payload)
+                return FaultApiResponse(HTTPStatus.ACCEPTED, result.to_dict(), headers={"Cache-Control": "no-store"})
+            if action == "observations":
+                result = self.runtime.integration.observations.ingest(task_state, payload)
+                return FaultApiResponse(HTTPStatus.ACCEPTED, result.to_dict(), headers={"Cache-Control": "no-store"})
+            if action == "handoffs/dispatch":
+                result = self.runtime.integration.dispatch_handoffs(
+                    str(payload.get("consumer_id") or ""),
+                    task_id=task_state.task_id,
+                    limit=int(payload.get("limit") or 20),
+                    now_ms=(int(payload["now_ms"]) if payload.get("now_ms") is not None else None),
+                )
+                return FaultApiResponse(HTTPStatus.OK, result.to_dict(), headers={"Cache-Control": "no-store"})
         except FaultApiError as error:
             return error.response()
-        except (TypeError, ValueError, KeyError) as error:
+        except (TypeError, ValueError, KeyError, RuntimeError) as error:
             return FaultApiResponse(
                 HTTPStatus.BAD_REQUEST,
                 {
@@ -242,7 +268,12 @@ class FaultRuntimeApiService:
                     "message": str(error),
                 },
             )
+        finally:
+            self.runtime.store.release_connection()
         return FaultApiResponse(HTTPStatus.NOT_FOUND, {"error": "fault_action_not_found", "action": action})
+
+    def release_idle_connection(self) -> None:
+        self.runtime.store.release_connection()
 
     def command_inject(
         self,
@@ -323,6 +354,11 @@ class FaultRuntimeApiService:
                 {"method": "GET", "path": "/tasks/{task_id}/faults"},
                 {"method": "POST", "path": "/tasks/{task_id}/faults/inject"},
                 {"method": "POST", "path": "/tasks/{task_id}/faults/observers"},
+                {"method": "POST", "path": "/tasks/{task_id}/faults/sources/bind"},
+                {"method": "POST", "path": "/tasks/{task_id}/faults/sources/observe"},
+                {"method": "POST", "path": "/tasks/{task_id}/faults/runtime-events"},
+                {"method": "POST", "path": "/tasks/{task_id}/faults/observations"},
+                {"method": "POST", "path": "/tasks/{task_id}/faults/handoffs/dispatch"},
             ],
             "command": "/inject <kind> name=value...",
             "idempotency": "run_id + task_id + idempotency_key",

@@ -48,6 +48,11 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("GET", "/tasks/{task_id}/faults"),
     ("POST", "/tasks/{task_id}/faults/inject"),
     ("POST", "/tasks/{task_id}/faults/observers"),
+    ("POST", "/tasks/{task_id}/faults/sources/bind"),
+    ("POST", "/tasks/{task_id}/faults/sources/observe"),
+    ("POST", "/tasks/{task_id}/faults/runtime-events"),
+    ("POST", "/tasks/{task_id}/faults/observations"),
+    ("POST", "/tasks/{task_id}/faults/handoffs/dispatch"),
 )
 
 for package_path in PACKAGE_PATHS:
@@ -103,7 +108,6 @@ from zyra_orchestration import GraphExecutionContext, cancel_task_graph, ensure_
 from zyra_symbolic import apply_failure_injection, apply_requirement_change
 from zyra_scheduler import (
     ResourceScheduler,
-    RuntimeWatchdog,
     WorkerPool,
     backend_registry_path,
     cancel_pending_dispatches,
@@ -128,6 +132,7 @@ from zyra_commands import (
     StructuredControlHub,
     ControlFrameStore,
     StructuredEnvelope,
+    WatchdogControlCommandRuntime,
     default_control_command_registry,
 )
 from zyra_commands.runtime import (
@@ -440,18 +445,45 @@ def fault_runtime_path() -> Path:
     return canonical.with_name(f"{canonical.stem}.fault-runtime.sqlite3")
 
 
+_FAULT_RUNTIME_LOCK = threading.RLock()
+_FAULT_RUNTIME_API: FaultRuntimeApiService | None = None
+_FAULT_RUNTIME_KEY: tuple[str, str, str] | None = None
+
+
 def get_fault_runtime_api(store: SQLiteStore | None = None) -> FaultRuntimeApiService:
+    global _FAULT_RUNTIME_API, _FAULT_RUNTIME_KEY
     canonical = store or get_store()
     fault_path = fault_runtime_path().resolve()
     backend_path = backend_registry_path(artifact_root_path()).resolve()
-    application = FaultRuntimeApplication(
-        fault_path,
-        event_sink=lambda event: persist_events(canonical, [event]),
-        memory=_memory_fabric(canonical),
-        scheduler_health=BackendRegistryHealthAdapter(backend_path),
-        task_state_resolver=canonical.load_task,
-    )
-    return FaultRuntimeApiService(application)
+    key = (str(Path(canonical.path).resolve()), str(fault_path), str(backend_path))
+    with _FAULT_RUNTIME_LOCK:
+        if (
+            _FAULT_RUNTIME_API is not None
+            and _FAULT_RUNTIME_KEY == key
+            and not _FAULT_RUNTIME_API.closed
+        ):
+            return _FAULT_RUNTIME_API
+        if _FAULT_RUNTIME_API is not None and not _FAULT_RUNTIME_API.closed:
+            _FAULT_RUNTIME_API.close()
+        application = FaultRuntimeApplication(
+            fault_path,
+            event_sink=lambda event: persist_events(canonical, [event]),
+            memory=_memory_fabric(canonical),
+            scheduler_health=BackendRegistryHealthAdapter(backend_path),
+            task_state_resolver=canonical.load_task,
+        )
+        _FAULT_RUNTIME_API = FaultRuntimeApiService(application)
+        _FAULT_RUNTIME_KEY = key
+        return _FAULT_RUNTIME_API
+
+
+def reset_fault_runtime_api() -> None:
+    global _FAULT_RUNTIME_API, _FAULT_RUNTIME_KEY
+    with _FAULT_RUNTIME_LOCK:
+        if _FAULT_RUNTIME_API is not None and not _FAULT_RUNTIME_API.closed:
+            _FAULT_RUNTIME_API.close()
+        _FAULT_RUNTIME_API = None
+        _FAULT_RUNTIME_KEY = None
 
 
 def memory_index_path() -> Path:
@@ -2531,13 +2563,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "faults":
             fault_task = store.load_task(parts[1])
             fault_api = get_fault_runtime_api(store)
-            try:
-                fault_response = fault_api.route_get(
-                    tuple(parts),
-                    task_state=fault_task,
-                )
-            finally:
-                fault_api.close()
+            fault_response = fault_api.route_get(
+                tuple(parts),
+                task_state=fault_task,
+            )
             self._send_json(
                 fault_response.status,
                 dict(fault_response.body),
@@ -4055,21 +4084,27 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if (
-            len(parts) == 4
+            len(parts) in {4, 5}
             and parts[0] == "tasks"
             and parts[2] == "faults"
-            and parts[3] in {"inject", "observers"}
+            and "/".join(parts[3:])
+            in {
+                "inject",
+                "observers",
+                "sources/bind",
+                "sources/observe",
+                "runtime-events",
+                "observations",
+                "handoffs/dispatch",
+            }
         ):
             fault_api = get_fault_runtime_api(store)
-            try:
-                fault_response = fault_api.route_post(
-                    tuple(parts),
-                    payload,
-                    task_state=worker_pool_task,
-                    requested_by=str(payload.get("actor_id") or "api-user"),
-                )
-            finally:
-                fault_api.close()
+            fault_response = fault_api.route_post(
+                tuple(parts),
+                payload,
+                task_state=worker_pool_task,
+                requested_by=str(payload.get("actor_id") or "api-user"),
+            )
             if worker_pool_task is not None and fault_response.status < HTTPStatus.BAD_REQUEST:
                 store.save_checkpoint(worker_pool_task)
             self._send_json(
@@ -6752,6 +6787,7 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             "artifact.write",
             "task.change",
             "task.inject",
+            "watchdog.control",
             "artifact.export",
             "task.evaluate",
         }
@@ -7121,17 +7157,18 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
         )
 
     def fault_inject(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
-        raw = str(request.arguments.get("raw") or "").strip()
         fault_api = get_fault_runtime_api(store)
-        try:
-            receipt = fault_api.command_inject(
-                raw,
-                state=state,
-                requested_by=str(request.metadata.get("actor_id") or "control-user"),
-                idempotency_key=request.idempotency_key or request.request_id,
-            )
-        finally:
-            fault_api.close()
+        command = WatchdogControlCommandRuntime(
+            fault_api,
+            state,
+            actor_id=str(request.metadata.get("actor_id") or "control-user"),
+        )
+        command_receipt = command.dispatch(
+            request.canonical_name,
+            request.arguments,
+            idempotency_key=request.idempotency_key or request.request_id,
+        )
+        receipt = dict(command_receipt.data)
         state.metadata.setdefault("control_mutations", []).append({
             "request_id": request.request_id,
             "command": request.canonical_name,
@@ -7147,11 +7184,83 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
                 "runtime_status": "stateful",
                 "canonical_fault_owner": "python.FaultStateStore",
                 "legacy_symbolic_inject": False,
+                "mutation_receipt": command_receipt.to_dict(),
             },
         )
 
-    handlers["task.change"] = legacy_real_mutation
+    def watchdog_control(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        fault_api = get_fault_runtime_api(store)
+        command = WatchdogControlCommandRuntime(
+            fault_api,
+            state,
+            actor_id=str(request.metadata.get("actor_id") or "control-user"),
+        )
+        receipt = command.dispatch(
+            request.canonical_name,
+            request.arguments,
+            idempotency_key=request.idempotency_key or request.request_id,
+        )
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.canonical_name,
+            "action": receipt.action,
+            "mutations": list(receipt.mutations),
+        })
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text=f"Watchdog action {receipt.action} completed.",
+            data=receipt.to_dict(),
+            metadata={
+                "runtime_status": "stateful",
+                "canonical_fault_owner": "python.FaultStateStore",
+                "recovery_plan_owner": "M1-S07C",
+            },
+        )
+
+    def requirement_change(request: ControlCommandRequest, descriptor: Any, _context: Any) -> ControlResult:
+        command = ControlCommand(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            name=request.canonical_name,
+            arguments=dict(request.arguments),
+            command_id=request.command_id,
+            metadata={
+                "category": str(getattr(descriptor, "category", "task-control")),
+                "handler_id": str(getattr(descriptor, "handler_id", "task.change")),
+                "runtime_status": "stateful",
+                "canonical_command_registry_owner": "typescript",
+                "event_hint": "requirement_change",
+            },
+        )
+        event = control_event_from_command(command, node_id=state.root_node_id)
+        persist_events(store, [event])
+        fault_api = get_fault_runtime_api(store)
+        isolation = fault_api.runtime.integration.apply_requirement_change(state, event)
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.canonical_name,
+            "event_id": event.event_id,
+            "replan_node_id": isolation.get("replan_node_id", ""),
+            "requirement_changed_is_fault": False,
+        })
+        store.save_checkpoint(state)
+        legacy = _command_result_for_event(state, event, store)
+        legacy_data = dict(legacy.get("data") or {})
+        legacy_data["fault_isolation"] = dict(isolation)
+        fault_api.release_idle_connection()
+        return ControlResult(
+            display_text="Requirement change routed through ConstraintKeeper and TopologyRouter.",
+            data={**legacy_data, "control_event": to_jsonable(event)},
+            metadata={
+                "runtime_status": "stateful",
+                "route_owner": "ConstraintKeeper/TopologyRouter",
+                "requirement_changed_is_fault": False,
+            },
+        )
+
+    handlers["task.change"] = requirement_change
     handlers["task.inject"] = fault_inject
+    handlers["watchdog.control"] = watchdog_control
     handlers["artifact.export"] = legacy_real_mutation
     handlers["task.evaluate"] = legacy_real_mutation
 
@@ -7244,14 +7353,23 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
 
 def _recovery_task_view(state: Any, store: SQLiteStore) -> dict[str, Any]:
     events = store.task_events(state.task_id)
-    signals = RuntimeWatchdog().scan_events(state, events)
+    fault_api = get_fault_runtime_api(store)
+    try:
+        snapshot = dict(fault_api.runtime.snapshot(task_id=state.task_id))
+    finally:
+        fault_api.release_idle_connection()
+    fault_state = dict(snapshot.get("fault_state") or {})
     return {
         "task_id": state.task_id,
         "run_id": state.run_id,
         "recovery_plans": list(state.metadata.get("recovery_plans", [])),
         "last_recovery_plan": state.metadata.get("last_recovery_plan"),
         "failure_injections": list(state.metadata.get("failure_injections", [])),
-        "signals": [to_jsonable(signal) for signal in signals],
+        "signals": list(fault_state.get("signals") or []),
+        "recovery_handoffs": list(fault_state.get("recovery_handoffs") or []),
+        "recovery_handoff_deliveries": list(fault_state.get("recovery_handoff_deliveries") or []),
+        "integration": dict(snapshot.get("integration") or {}),
+        "legacy_free_text_scan": False,
         "event_counts": _event_counts(events),
     }
 

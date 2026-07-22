@@ -53,18 +53,47 @@ class FaultStateStore:
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._guard = threading.RLock()
-        self._connection = sqlite3.connect(
+        self._connection_handle: sqlite3.Connection | None = self._open_connection()
+        self._permanently_closed = False
+        self._initialize()
+
+    def _open_connection(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(
             self.path,
             timeout=30.0,
             isolation_level=None,
             check_same_thread=False,
         )
-        self._connection.row_factory = sqlite3.Row
-        self._initialize()
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("PRAGMA busy_timeout=30000")
+        return connection
+
+    @property
+    def _connection(self) -> sqlite3.Connection:
+        with self._guard:
+            if self._permanently_closed:
+                raise RuntimeError("fault state store is closed")
+            if self._connection_handle is None:
+                self._connection_handle = self._open_connection()
+            return self._connection_handle
+
+    def release_connection(self) -> None:
+        """Release the SQLite handle while keeping the durable store reusable."""
+
+        with self._guard:
+            connection = self._connection_handle
+            self._connection_handle = None
+            if connection is not None:
+                connection.close()
 
     def close(self) -> None:
         with self._guard:
-            self._connection.close()
+            connection = self._connection_handle
+            self._connection_handle = None
+            self._permanently_closed = True
+            if connection is not None:
+                connection.close()
 
     def _initialize(self) -> None:
         with self._guard:

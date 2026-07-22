@@ -47,6 +47,7 @@ from .polling import WatchdogPollingCoordinator
 from .query import FaultRuntimeQueryService
 from .pressure import FaultPressureMonitor
 from .provider_supervision import ProviderAttemptSupervisor, provider_supervision_contract
+from .integration import WatchdogFaultIntegrationRuntime, integration_contract
 
 
 class RuntimeWatchdog:
@@ -71,6 +72,8 @@ class RuntimeWatchdog:
         self._guard = threading.RLock()
         self._last_signal_ids: list[str] = []
         self._last_projection_errors: dict[str, tuple[str, ...]] = {}
+        self._signal_listeners: list[Callable[[FaultSignal], None]] = []
+        self._signal_listener_errors: list[dict[str, str]] = []
         self.registry = WatchdogObserverRegistry(
             store,
             classifier=self.classifier,
@@ -139,13 +142,13 @@ class RuntimeWatchdog:
                 self.lifecycle.mark_stopped(state.descriptor.observer_id)
         return tuple(item.to_dict() for item in stopped)
 
-    def tick(self) -> Mapping[str, Any]:
-        tool_observations = self.tool_execution.poll()
+    def tick(self, *, at_ms: int | None = None) -> Mapping[str, Any]:
+        tool_observations = self.tool_execution.poll(at_ms=at_ms)
         process_observations = self.processes.poll()
-        heartbeat_observations = self.worker_heartbeats.sweep()
-        browser_source_signals = self.browser_source.poll_all()
-        observer_restarts = self.lifecycle.restart_due()
-        stale_observers = self.lifecycle.sweep_stale()
+        heartbeat_observations = self.worker_heartbeats.sweep(at_ms=at_ms)
+        browser_source_signals = self.browser_source.poll_all(at_ms=at_ms)
+        observer_restarts = self.lifecycle.restart_due(at_ms=at_ms)
+        stale_observers = self.lifecycle.sweep_stale(at_ms=at_ms)
         return {
             "schema": "zyra.runtime-watchdog-tick/v1",
             "tool_observation_ids": [item.observation_id for item in tool_observations],
@@ -172,6 +175,18 @@ class RuntimeWatchdog:
             raise ValueError("source_inactive observer cannot be enabled")
         return self.registry.start(observer_id).to_dict()
 
+    def add_signal_listener(self, listener: Callable[[FaultSignal], None]) -> None:
+        if not callable(listener):
+            raise TypeError("watchdog signal listener must be callable")
+        with self._guard:
+            if listener not in self._signal_listeners:
+                self._signal_listeners.append(listener)
+
+    def remove_signal_listener(self, listener: Callable[[FaultSignal], None]) -> None:
+        with self._guard:
+            if listener in self._signal_listeners:
+                self._signal_listeners.remove(listener)
+
     def snapshot(self, *, task_id: str = "") -> dict[str, Any]:
         with self._guard:
             return {
@@ -184,6 +199,8 @@ class RuntimeWatchdog:
                     key: list(value)
                     for key, value in self._last_projection_errors.items()
                 },
+                "signal_listener_count": len(self._signal_listeners),
+                "signal_listener_errors": list(self._signal_listener_errors[-100:]),
                 "typescript_runtime_ingress": self.runtime_events.snapshot(),
                 "browser_crash_source": self.browser_source.snapshot(),
                 "provider_attempts": self.provider_attempts.snapshot(),
@@ -276,6 +293,21 @@ class RuntimeWatchdog:
                     "pressure_forced": pressure.force_recovery_handoff,
                 },
             )
+        with self._guard:
+            listeners = tuple(self._signal_listeners)
+        for listener in listeners:
+            try:
+                listener(signal)
+            except Exception as error:
+                with self._guard:
+                    self._signal_listener_errors.append(
+                        {
+                            "signal_id": signal.signal_id,
+                            "listener": getattr(listener, "__qualname__", type(listener).__name__),
+                            "error": f"{type(error).__name__}: {error}",
+                        }
+                    )
+                    del self._signal_listener_errors[:-100]
 
 
 class FaultRuntimeApplication:
@@ -314,6 +346,11 @@ class FaultRuntimeApplication:
             self.recovery,
         )
         self.reconciliation_report = self.injections.reconcile_incomplete(task_state_resolver)
+        self.integration = WatchdogFaultIntegrationRuntime(
+            self,
+            event_sink=event_sink,
+            task_state_resolver=task_state_resolver,
+        )
 
     def inject(self, request: FaultInjectionRequest, *, task_state: TaskState) -> FaultInjectionReceipt:
         return self.injections.inject(request, task_state=task_state)
@@ -322,9 +359,11 @@ class FaultRuntimeApplication:
         return {
             **self.watchdog.snapshot(task_id=task_id),
             "injection_reconciliation": list(self.reconciliation_report),
+            "integration": self.integration.snapshot(task_id=task_id),
         }
 
     def close(self) -> None:
+        self.integration.close()
         self.watchdog.stop()
         injection_state = self.store.observer("same-run-fault-injector")
         if injection_state is not None and injection_state.lifecycle.accepts_observations:
@@ -348,6 +387,7 @@ class FaultRuntimeApplication:
             "observer_runtime_supervision": lifecycle_supervision_contract(),
             "injection": FaultInjectionRuntime.contract(),
             "recovery_bridge": WatchdogRecoveryBridge.contract(),
+            "integration": integration_contract(),
             "roles": {
                 "browser_observer_primary": "browser-use lifecycle + Zyra 04D detector",
                 "classifier_primary": "Zyra structured deterministic rules",

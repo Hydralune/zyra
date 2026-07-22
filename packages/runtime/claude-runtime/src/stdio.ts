@@ -228,6 +228,10 @@ class JsonlRuntimeHost implements RuntimeHost {
     await this.watchdog.observeProviderError(error);
   }
 
+  closeWatchdog(): void {
+    this.watchdog.stop();
+  }
+
   async emitEvent(event: RuntimeEvent): Promise<void> {
     this.send("runtime.event", event as unknown as JsonObject);
   }
@@ -253,6 +257,7 @@ class JsonlRuntimeHost implements RuntimeHost {
       execution_owner: request.executionOwner ?? "python-tool-executor",
       permission_only: request.permissionOnly === true,
     }));
+    this.watchdog.supervision.beginToolBatch(batch, requests, deadlineMs);
     this.send("tool.batch.request", {
       batch_id: batch.batchId,
       execution_mode: batch.executionMode,
@@ -261,12 +266,17 @@ class JsonlRuntimeHost implements RuntimeHost {
     }, batch.batchId);
     let frame: RuntimeFrame;
     try {
-      frame = await this.read("tool.batch.result", batch.batchId);
+      frame = await this.watchdog.supervision.raceBatch(
+        batch.batchId,
+        this.read("tool.batch.result", batch.batchId),
+      );
     } catch (error) {
-      await this.watchdog.observeTransportClosed("pipe_closed", {}, {
-        batch_id: batch.batchId,
-        pending_tool_call_ids: requests.map((item) => item.toolCallId),
-      });
+      if (error instanceof RuntimeProtocolError && error.code === "host_disconnected") {
+        await this.watchdog.observeTransportClosed("pipe_closed", {}, {
+          batch_id: batch.batchId,
+          pending_tool_call_ids: requests.map((item) => item.toolCallId),
+        });
+      }
       throw error;
     }
     const results = Array.isArray(frame.payload.results) ? frame.payload.results : [];
@@ -274,6 +284,7 @@ class JsonlRuntimeHost implements RuntimeHost {
       throw new RuntimeProtocolError("tool_batch_cardinality", "tool batch result cardinality mismatch");
     }
     const normalized = results.map((result) => normalizeToolResult(asObject(result)));
+    this.watchdog.supervision.settleToolBatch(batch.batchId, requests, normalized);
     await this.watchdog.observeToolBatch(
       batch,
       requests,
@@ -570,6 +581,7 @@ export async function runStdioRuntimeWithStreams(
         process.exitCode = 1;
       }
     }
+    host.closeWatchdog();
     reader.close();
   }
 }

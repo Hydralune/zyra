@@ -11,6 +11,10 @@ import {
   type ToolExecutionRequest,
   type ToolExecutionResponse,
 } from "../contracts.ts";
+import {
+  CrossRuntimeFaultSupervisor,
+  crossRuntimeFaultSupervisorContract,
+} from "./integration-supervisor.ts";
 
 export type WatchdogMaturity =
   | "active_real"
@@ -322,9 +326,13 @@ export class RuntimeWatchdogObserver {
   private sequence = 0;
   private context: RuntimeRunInput | null = null;
   private readonly emit: EmitFaultEvent;
+  readonly supervision: CrossRuntimeFaultSupervisor;
 
   constructor(emit: EmitFaultEvent) {
     this.emit = emit;
+    this.supervision = new CrossRuntimeFaultSupervisor(
+      async (observerId, observation) => await this.observeSupplementary(observerId, observation),
+    );
     for (const item of DESCRIPTORS) {
       this.states.set(item.observerId, emptyState(item));
     }
@@ -335,6 +343,7 @@ export class RuntimeWatchdogObserver {
       throw new Error("watchdog cannot be rebound to another run");
     }
     this.context = input;
+    this.supervision.configure(input);
     for (const state of this.states.values()) {
       if (!state.descriptor.enabledByDefault || state.descriptor.maturity !== "active_real") {
         continue;
@@ -349,6 +358,7 @@ export class RuntimeWatchdogObserver {
   }
 
   stop(): void {
+    this.supervision.dispose();
     for (const state of this.states.values()) {
       if (state.lifecycle === "running") {
         state.lifecycle = "stopped";
@@ -361,6 +371,16 @@ export class RuntimeWatchdogObserver {
     const state = this.requireState(observerId);
     state.lifecycle = "disabled";
     state.revision += 1;
+  }
+
+  async observeSupplementary(
+    observerId: string,
+    observation: WatchdogObservation,
+  ): Promise<void> {
+    if (observation.observerId !== observerId) {
+      throw new Error("supplementary observation observerId mismatch");
+    }
+    await this.accept(observerId, observation);
   }
 
   async observeToolBatch(
@@ -528,6 +548,7 @@ export class RuntimeWatchdogObserver {
       terminal_guard_size: this.terminalKeys.size,
       requirement_changed_is_fault: false,
       free_text_identity_inference: false,
+      cross_runtime_supervision: this.supervision.snapshot(),
     };
   }
 
@@ -705,5 +726,6 @@ export function runtimeWatchdogContract(): JsonObject {
       oh_my_pi: "supplementary",
       classifier_contract: "Zyra primary",
     },
+    cross_runtime_supervision: crossRuntimeFaultSupervisorContract(),
   };
 }
