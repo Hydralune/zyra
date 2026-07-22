@@ -129,20 +129,35 @@ from zyra_scheduler.fault_runtime import (
     FaultRuntimeApplication,
 )
 from zyra_scheduler.recovery_runtime import (
+    AppliedOutcomeVerifier,
+    CallbackContinuationOwner,
+    CallbackProjectionPort,
     CallbackRecoveryEventSink,
+    CallbackRecoveryIntegrationEventSink,
     CanonicalOwnerCallbacks,
     CanonicalTaskStateRuntime,
     CheckpointCommitRuntime,
     CheckpointResumeBridge,
     DeterministicCommitRuntime,
+    ExactRecoveryRuntime,
     LayeredRouteRuntime,
+    MemoryAwareRouteRuntime,
+    RecoveryCausalTraceRuntime,
+    RecoveryComponentControl,
+    RecoveryContinuationRuntime,
+    RecoveryFeedbackIntegrationRuntime,
+    RecoveryIngressRuntime,
+    RecoveryIntegrationRuntime,
     RecoveryActionRuntime,
     RecoveryApplication,
     RecoveryContextRuntime,
     RecoveryDecisionRuntime,
     RecoveryOwnerRuntime,
     RecoveryPlanStore,
+    RecoveryRestartRuntime,
+    RecoverySemanticRuntime,
     RecoverySignalClassifier,
+    RecoveryStateFusionRuntime,
     RoutingMemoryFeedback,
     CallbackRoutingMemorySink,
 )
@@ -1092,6 +1107,173 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
     )
 
 
+def _recovery_continuation_owners(
+    store: SQLiteStore,
+) -> dict[str, CallbackContinuationOwner]:
+    """Bind recovery continuation to observable runtime owner dispatches."""
+
+    def port(key: str, owner: str) -> CallbackContinuationOwner:
+        def continue_execution(request: Mapping[str, Any]) -> Mapping[str, Any]:
+            task_id = str(request.get("task_id") or "")
+            run_id = str(request.get("run_id") or "")
+            state = store.load_task(task_id)
+            if state is None:
+                return {
+                    "accepted": False,
+                    "changed": False,
+                    "error_code": "task_not_found",
+                    "message": f"continuation task does not exist: {task_id}",
+                }
+            if str(state.run_id) != run_id:
+                return {
+                    "accepted": False,
+                    "changed": False,
+                    "error_code": "run_identity_mismatch",
+                    "message": "continuation owner rejected cross-run dispatch",
+                }
+            previous = dict(request.get("previous_projection") or {})
+            generation = int(previous.get("generation") or 0) + 1
+            action = str(request.get("action") or "")
+            event = EventRecord(
+                run_id=run_id,
+                task_id=task_id,
+                node_id=state.root_node_id,
+                event_type=EventType.AGENT_MESSAGE,
+                payload={
+                    "recovery_continuation": {
+                        "owner": owner,
+                        "owner_key": key,
+                        "plan_id": str(request.get("plan_id") or ""),
+                        "signal_id": str(request.get("signal_id") or ""),
+                        "action": action,
+                        "generation": generation,
+                        "route_decision_id": str(request.get("route_decision_id") or ""),
+                        "checkpoint_id": str(request.get("checkpoint_id") or ""),
+                        "action_receipt_ids": list(request.get("action_receipt_ids") or ()),
+                        "permission_blocks_tool": action == "ask_permission",
+                        "recovery_owner_dispatch": True,
+                    }
+                },
+            )
+            persist_events(store, [event])
+            return {
+                "accepted": True,
+                "changed": True,
+                "dispatch_id": event.event_id,
+                "before": {
+                    "generation": int(previous.get("generation") or 0),
+                    "dispatch_id": str(previous.get("dispatch_id") or ""),
+                },
+                "after": {
+                    "generation": generation,
+                    "dispatch_id": event.event_id,
+                    "owner": owner,
+                    "action": action,
+                },
+                "canonical_ref": {
+                    "event_id": event.event_id,
+                    "owner": owner,
+                    "generation": generation,
+                },
+                "receipt_id": event.event_id,
+                "message": f"{owner} accepted recovery continuation",
+                "metadata": {
+                    "event_type": event.event_type.value,
+                    "tool_dispatch_allowed": action not in {"ask_permission", "authenticate_mcp", "abort"},
+                },
+            }
+
+        return CallbackContinuationOwner(owner, continue_execution)
+
+    return {
+        "query": port("query", "QueryEngine"),
+        "scheduler": port("scheduler", "ResourceScheduler"),
+        "graph": port("graph", "GraphStateCustody"),
+        "permission": port("permission", "PermissionControlPlane"),
+        "mcp": port("mcp", "McpControlRuntime"),
+        "task": port("task", "TaskState"),
+    }
+
+
+def _recovery_projection_ports(
+    state_runtime: CanonicalTaskStateRuntime,
+) -> dict[str, CallbackProjectionPort]:
+    """Read action receipts back through the canonical TaskState projection."""
+
+    def snapshot(plan: Any, receipt: Any) -> Mapping[str, Any]:
+        state = state_runtime.require(plan.signal.refs.task_id)
+        if str(state.run_id) != plan.signal.refs.run_id:
+            raise ValueError("recovery projection crosses run custody")
+        recovery = dict(state.metadata.get("recovery_runtime") or {})
+        mutations = [
+            dict(item)
+            for item in recovery.get("mutation_history") or (recovery.get("last_mutation") or {},)
+            if isinstance(item, Mapping)
+        ]
+        mutation = next(
+            (
+                item
+                for item in reversed(mutations)
+                if str(item.get("receipt_id") or "") == receipt.external_receipt_ref
+            ),
+            {},
+        )
+        if not mutation:
+            raise ValueError(
+                "canonical TaskState does not reference the applied owner receipt: "
+                f"action={receipt.action.value}, owner={receipt.owner}, ref={receipt.external_receipt_ref}"
+            )
+        if str(mutation.get("action") or "") != receipt.action.value:
+            raise ValueError("canonical TaskState action differs from the applied receipt")
+        return {
+            "run_id": str(state.run_id),
+            "task_id": str(state.task_id),
+            "revision": str(recovery.get("revision") or ""),
+            "projection": {
+                "active_plan_id": str(recovery.get("active_plan_id") or ""),
+                "receipt_id": str(mutation.get("receipt_id") or ""),
+                "action": str(mutation.get("action") or ""),
+                "owner": str(mutation.get("owner") or ""),
+                "changed": bool(mutation.get("changed")),
+                "canonical_ref": dict(mutation.get("canonical_ref") or {}),
+            },
+        }
+
+    return {
+        action: CallbackProjectionPort("TaskState", snapshot)
+        for action in (
+            "retry",
+            "compact",
+            "ask_permission",
+            "authenticate_mcp",
+            "abort",
+        )
+    }
+
+
+def _persist_recovery_proof_event(
+    store: SQLiteStore,
+    event_type: str,
+    proof: Any,
+) -> Mapping[str, Any]:
+    value = proof.to_dict() if hasattr(proof, "to_dict") else dict(proof)
+    event = EventRecord(
+        run_id=str(value["run_id"]),
+        task_id=str(value["task_id"]),
+        node_id=None,
+        event_type=EventType.TOPOLOGY_ROUTE,
+        payload={
+            "recovery_runtime": {
+                "phase": event_type,
+                "proof": value,
+                "opaque_external_owner": False,
+            }
+        },
+    )
+    persist_events(store, [event])
+    return {"event_id": event.event_id, "proof_id": str(value.get("proof_id") or "")}
+
+
 def get_recovery_runtime_api(store: SQLiteStore | None = None) -> RecoveryRuntimeApiService:
     global _RECOVERY_RUNTIME_API, _RECOVERY_RUNTIME_KEY
     canonical = store or get_store()
@@ -1107,6 +1289,7 @@ def get_recovery_runtime_api(store: SQLiteStore | None = None) -> RecoveryRuntim
             return _RECOVERY_RUNTIME_API
         recovery_store = RecoveryPlanStore(recovery_path)
         recovery_store.initialize()
+        components = RecoveryComponentControl()
         feedback = RoutingMemoryFeedback(
             recovery_store,
             sinks=(CallbackRoutingMemorySink(lambda record: _persist_recovery_memory(canonical, record)),),
@@ -1114,12 +1297,17 @@ def get_recovery_runtime_api(store: SQLiteStore | None = None) -> RecoveryRuntim
         task_state = CanonicalTaskStateRuntime(canonical)
         owner_runtime = RecoveryOwnerRuntime(task_state, _recovery_owner_callbacks(canonical))
         route_owners = owner_runtime.route_registry()
-        routes = LayeredRouteRuntime(recovery_store, route_owners)
-        context = RecoveryContextRuntime(
+        base_routes = LayeredRouteRuntime(recovery_store, route_owners)
+        routes = MemoryAwareRouteRuntime(base_routes, feedback, components=components)
+        base_context = RecoveryContextRuntime(
             recovery_store,
             feedback,
             snapshot_ports=owner_runtime.snapshot_ports(),
             route_owners=route_owners,
+        )
+        state_fusion = RecoveryStateFusionRuntime(
+            base_context,
+            components=components,
         )
         resume_owners = owner_runtime.resume_owners()
         resume = CheckpointResumeBridge(
@@ -1129,29 +1317,85 @@ def get_recovery_runtime_api(store: SQLiteStore | None = None) -> RecoveryRuntim
             worker_owner=resume_owners.get("worker"),
             graph_owner=resume_owners.get("graph"),
         )
+        continuation = RecoveryContinuationRuntime(
+            canonical,
+            owners=_recovery_continuation_owners(canonical),
+            components=components,
+            event_sink=lambda event_type, payload: _persist_recovery_event(canonical, event_type, payload),
+        )
+        verifier = AppliedOutcomeVerifier(
+            routes,
+            continuation,
+            projection_ports=_recovery_projection_ports(task_state),
+            components=components,
+            proof_sink=lambda proof: _persist_recovery_proof_event(canonical, "applied_outcome_proof", proof),
+        )
+        semantics = RecoverySemanticRuntime()
         actions = RecoveryActionRuntime(
             recovery_store,
             routes,
             feedback,
             ports=owner_runtime.action_registry(),
             resume_bridge=resume,
+            outcome_verifier=verifier,
+            semantic_gate=semantics,
             executor_id=f"api-recovery:{os.getpid()}",
         )
+        checkpoints = CheckpointCommitRuntime(recovery_store)
         application = RecoveryApplication(
             recovery_store,
-            RecoverySignalClassifier(),
+            classifier := RecoverySignalClassifier(),
             RecoveryDecisionRuntime(recovery_store),
             actions,
             routes,
             feedback,
-            CheckpointCommitRuntime(recovery_store),
+            checkpoints,
             DeterministicCommitRuntime(recovery_store),
-            context_resolver=context,
+            context_resolver=state_fusion,
             resume_bridge=resume,
             event_sinks=(CallbackRecoveryEventSink(lambda event_type, payload: _persist_recovery_event(canonical, event_type, payload)),),
             enabled=lambda: not _truthy(os.environ.get("ZYRA_DISABLE_RECOVERY_RUNTIME"), default=False),
         )
-        _RECOVERY_RUNTIME_API = RecoveryRuntimeApiService(application)
+        exact = ExactRecoveryRuntime(
+            recovery_store,
+            checkpoints,
+            resume,
+            components=components,
+        )
+        restart = RecoveryRestartRuntime(
+            recovery_store,
+            actions,
+            state_fusion,
+            components=components,
+            executor_id=f"api-recovery-restart:{os.getpid()}",
+        )
+        feedback_integration = RecoveryFeedbackIntegrationRuntime(
+            recovery_store,
+            feedback,
+            routes,
+            proof_sink=lambda proof: _persist_recovery_proof_event(canonical, "feedback_influence_proof", proof),
+        )
+        causality = RecoveryCausalTraceRuntime(
+            recovery_store,
+            event_sink=lambda trace: _persist_recovery_proof_event(canonical, "causal_trace", trace),
+        )
+        integration = RecoveryIntegrationRuntime(
+            recovery_store,
+            application,
+            RecoveryIngressRuntime(classifier, components=components),
+            state_fusion,
+            routes,
+            exact,
+            restart,
+            feedback_integration,
+            causality,
+            components=components,
+            event_sinks=(CallbackRecoveryIntegrationEventSink(
+                lambda event_type, payload: _persist_recovery_event(canonical, event_type, payload)
+            ),),
+            enabled=lambda: not _truthy(os.environ.get("ZYRA_DISABLE_RECOVERY_RUNTIME"), default=False),
+        )
+        _RECOVERY_RUNTIME_API = RecoveryRuntimeApiService(application, integration=integration)
         _RECOVERY_RUNTIME_KEY = key
         return _RECOVERY_RUNTIME_API
 

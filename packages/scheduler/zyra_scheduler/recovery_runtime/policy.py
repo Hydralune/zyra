@@ -146,6 +146,10 @@ class RecoveryDecisionRuntime:
                 "llm_advisory_only": bool(advisory_notes),
                 "llm_selected_action": False,
                 "requirement_change_is_fault": False,
+                "explicit_escalation": bool(context.metadata.get("explicit_escalation", False)),
+                "escalation_ids": list(context.metadata.get("escalation_ids") or ()),
+                "state_fusion_digest": str(context.metadata.get("state_fusion_digest") or ""),
+                "observation_digest": str(context.metadata.get("observation_digest") or ""),
             },
         )
         return self.store.put_plan(plan)

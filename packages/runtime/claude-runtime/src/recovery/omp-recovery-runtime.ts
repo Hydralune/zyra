@@ -2,6 +2,13 @@ import { createHash } from "node:crypto";
 
 import type { JsonObject, JsonValue } from "../contracts.ts";
 import { OmpContinuityReceiptRuntime } from "./continuity-runtime.ts";
+import {
+  OmpRecoveryIntegrationRuntime,
+  type McpTransportObservation,
+  type PartialStreamObservation,
+  type ProviderCredentialCandidate,
+  type ProviderFailureObservation,
+} from "./omp-integration-runtime.ts";
 
 export type OmpRecoverySignal =
   | "api_retry_exhausted"
@@ -88,6 +95,7 @@ export interface OmpRecoveryReceipt {
     lease_owner: string;
   };
   refs: JsonObject;
+  details: JsonObject;
   provenance: JsonObject;
   created_at: string;
 }
@@ -139,6 +147,16 @@ function booleanValue(value: JsonValue | undefined, fallback = false): boolean {
 
 function stringValue(value: JsonValue | undefined): string {
   return typeof value === "string" ? value : "";
+}
+
+function objectValue(value: JsonValue | undefined): JsonObject {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? structuredClone(value as JsonObject)
+    : {};
+}
+
+function stringArray(value: JsonValue | undefined): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 export class DeterministicRetryBudgetRuntime {
@@ -355,11 +373,13 @@ export class OmpRecoveryReceiptRuntime {
   readonly retry: DeterministicRetryBudgetRuntime;
   readonly replay: ResponseReplayFence;
   readonly continuity: OmpContinuityReceiptRuntime;
+  readonly integration: OmpRecoveryIntegrationRuntime;
 
   constructor(options: { retry?: Partial<RetryBudget> } = {}) {
     this.retry = new DeterministicRetryBudgetRuntime(options.retry);
     this.replay = new ResponseReplayFence();
     this.continuity = new OmpContinuityReceiptRuntime();
+    this.integration = new OmpRecoveryIntegrationRuntime();
   }
 
   receipt(input: OmpFaultInput): OmpRecoveryReceipt {
@@ -373,6 +393,7 @@ export class OmpRecoveryReceiptRuntime {
       && this.retry.eligible(safety.requestKey);
     const candidates = this.candidates(signal, input, retryEligible, safety.retrySafe);
     const requestedLayer = this.requestedLayer(signal);
+    const integrationEvidence = this.integrationEvidence(input, signal, safety);
     const receiptId = "omprecovery_" + digest({ input, signal, candidates, attempt }).slice(7, 47);
     return {
       schema: "zyra.omp-recovery-receipt/v1",
@@ -402,6 +423,10 @@ export class OmpRecoveryReceiptRuntime {
         lease_owner: this.leaseOwner(requestedLayer),
       },
       refs: this.refsJson(input.refs),
+      details: {
+        ...structuredClone(input.details),
+        omp_integration: integrationEvidence,
+      },
       provenance: {
         source_repo: "oh-my-pi",
         source_revision: "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
@@ -452,6 +477,7 @@ export class OmpRecoveryReceiptRuntime {
       retry: this.retry.snapshot(),
       replay: this.replay.snapshot(),
       continuity: this.continuity.snapshot(),
+      integration: this.integration.snapshot(),
       applied_action_owner: "python.RecoveryDecisionRuntime",
       supplementary_only: true,
     };
@@ -588,6 +614,104 @@ export class OmpRecoveryReceiptRuntime {
       tool_call_id: refs.toolCallId,
     };
   }
+
+  private integrationEvidence(
+    input: OmpFaultInput,
+    signal: OmpRecoverySignal,
+    safety: {
+      requestKey: string;
+      responseKey: string;
+      sideEffectKey: string;
+      retrySafe: boolean;
+      partialOutput: boolean;
+      observableSideEffect: boolean;
+    },
+  ): JsonObject {
+    const supplement: {
+      provider?: ProviderFailureObservation;
+      stream?: PartialStreamObservation;
+      mcp?: McpTransportObservation;
+    } = {};
+    if (["provider_rate_limit", "provider_quota", "provider_unavailable", "stream_stall", "api_retry_exhausted"].includes(signal)) {
+      const rawCandidates = Array.isArray(input.details.candidate_routes)
+        ? input.details.candidate_routes
+        : [];
+      const candidates: ProviderCredentialCandidate[] = rawCandidates
+        .filter((item): item is JsonObject => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+        .map((item) => ({
+          providerId: stringValue(item.provider_id),
+          modelId: stringValue(item.model_id),
+          credentialId: stringValue(item.credential_id),
+          routeId: stringValue(item.route_id),
+          credentialVersion: boundedInteger(item.credential_version, 0),
+          available: booleanValue(item.available, true),
+          cooldownUntil: stringValue(item.cooldown_until),
+          scopes: stringArray(item.scopes),
+        }))
+        .filter((item) => item.providerId && item.modelId && item.credentialId && item.routeId);
+      supplement.provider = {
+        runId: input.refs.runId,
+        taskId: input.refs.taskId,
+        requestId: input.refs.requestId || safety.requestKey,
+        responseId: input.refs.responseId,
+        currentProviderId: input.refs.providerId,
+        currentModelId: input.refs.modelId,
+        currentCredentialId: stringValue(input.details.credential_id),
+        currentRouteId: stringValue(input.details.route_id),
+        failureClass: signal === "provider_rate_limit"
+          ? "rate_limit"
+          : signal === "provider_quota"
+            ? "quota"
+            : signal === "provider_unavailable"
+              ? "transport"
+              : "transport",
+        statusCode: input.statusCode,
+        retryAfterMs: boundedInteger(input.details.retry_after_ms, 0, 0, 3_600_000),
+        attempt: boundedInteger(input.details.attempt_count, 0, 0, 10_000),
+        requiredScopes: stringArray(input.details.required_scopes),
+        candidates,
+        idempotencyKey: safety.requestKey,
+        observedAt: input.observedAt,
+      };
+    }
+    const checkpointId = stringValue(input.details.checkpoint_id);
+    if ((safety.partialOutput || signal === "stream_stall") && checkpointId && input.refs.responseId) {
+      supplement.stream = {
+        runId: input.refs.runId,
+        taskId: input.refs.taskId,
+        sessionId: input.refs.sessionId,
+        turnId: stringValue(input.details.turn_id) || input.refs.requestId,
+        requestId: input.refs.requestId,
+        responseId: input.refs.responseId,
+        toolCallIds: stringArray(input.details.tool_call_ids),
+        committedToolCallIds: stringArray(input.details.committed_tool_call_ids),
+        emittedContentDigest: stringValue(input.details.emitted_content_digest) || safety.responseKey,
+        checkpointId,
+        sideEffectFenceKeys: stringArray(input.details.side_effect_fence_keys),
+        sequence: boundedInteger(input.details.stream_sequence, 0),
+        idempotencyKey: safety.responseKey || safety.requestKey,
+      };
+    }
+    if (signal === "mcp_disconnected" && input.refs.mcpServerId) {
+      supplement.mcp = {
+        runId: input.refs.runId,
+        taskId: input.refs.taskId,
+        sessionId: input.refs.sessionId,
+        requestId: input.refs.requestId || safety.requestKey,
+        serverId: input.refs.mcpServerId,
+        transportId: stringValue(input.details.transport_id) || "transport:unknown",
+        failureCode: input.observedCode || "mcp.disconnected",
+        authRequired: booleanValue(input.details.auth_required),
+        retryable: input.retryable,
+        attempt: boundedInteger(input.details.attempt_count, 0),
+        maximumAttempts: boundedInteger(input.details.maximum_attempts, 3, 1, 10_000),
+        cooldownMs: boundedInteger(input.details.cooldown_ms, 30_000, 0, 86_400_000),
+        idempotencyKey: safety.requestKey,
+        observedAt: input.observedAt,
+      };
+    }
+    return this.integration.evidence(supplement);
+  }
 }
 
 export function ompRecoveryRuntimeContract(): JsonObject {
@@ -607,6 +731,10 @@ export function ompRecoveryRuntimeContract(): JsonObject {
       "task terminal generation receipts",
       "worktree merge conflict and side-effect receipts",
       "task worker successor route receipts",
+      "provider credential rotation integration receipts",
+      "partial stream exact-resume integration receipts",
+      "MCP reconnect breaker integration receipts",
+      "dirty worktree and durable background task recovery receipts",
     ],
     rejected_mechanisms: ["second recovery planner", "second checkpoint owner", "model-selected applied route"],
     receipt_consumer: "python.RecoverySignalClassifier.from_omp_receipt",

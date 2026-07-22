@@ -195,6 +195,150 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                     else:
                         os.environ[name] = value
 
+    def test_integrated_observation_causal_feedback_and_restart_routes(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            root = Path(tmpdir)
+            environment = {
+                "ZYRA_SQLITE_PATH": str(root / "api.sqlite3"),
+                "ZYRA_RECOVERY_SQLITE_PATH": str(root / "recovery.sqlite3"),
+                "ZYRA_EVENT_LOG": str(root / "events.jsonl"),
+                "ZYRA_ARTIFACT_ROOT": str(root / "artifacts"),
+                "ZYRA_TOOL_WORKSPACE": str(root / "workspace"),
+                "ZYRA_WORKSPACE_ROOT": str(root / "managed-workspaces"),
+                "ZYRA_PERMISSION_STATE": str(root / "permission-state.json"),
+                "ZYRA_PROVIDER_CONTROL_STATE": str(root / "provider-control.sqlite3"),
+                "ZYRA_DISABLE_RECOVERY_RUNTIME": "false",
+                "ZYRA_DISABLE_RECOVERY_CLASSIFIER": "false",
+            }
+            previous = {name: os.environ.get(name) for name in environment}
+            os.environ.update(environment)
+            module = _fresh_api_module()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), module.ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = _post(base_url, "/tasks", {
+                    "goal": "Exercise integrated recovery observation and durable restart.",
+                    "auto_run": False,
+                })
+                task = created["task"]
+                task_id = task["task_id"]
+                run_id = task["run_id"]
+                observation = {
+                    "domain": "api",
+                    "owner": "QueryEngine",
+                    "owner_revision": "query-session:4",
+                    "span_id": "span-stream-stall-1",
+                    "event_ids": [created["events"][0]["event_id"]],
+                    "observation": {
+                        "source": "api_runtime",
+                        "source_kind": "stream_stall",
+                        "error_kind": "stream_stall",
+                        "refs": {
+                            "run_id": run_id,
+                            "task_id": task_id,
+                            "session_id": "session-integrated",
+                            "request_id": "request-integrated-1",
+                            "provider_id": "provider-integrated-a",
+                        },
+                        "summary": "stream produced no observable output",
+                        "attempt_count": 1,
+                    },
+                    "apply": True,
+                    "idempotency_key": "integrated-observation-1",
+                }
+                status, integrated = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/recovery/observations",
+                    observation,
+                )
+                self.assertEqual(status, 202, integrated)
+                self.assertTrue(integrated["success"])
+                self.assertGreaterEqual(len(integrated["fused_state"]["families"]), 3)
+                self.assertTrue(integrated["feedback_influence"]["accepted"])
+                self.assertTrue(integrated["feedback_influence"]["changed_later_decision"])
+                self.assertTrue(integrated["causal_trace"]["complete"])
+                kinds = set(integrated["causal_trace"]["fact_kinds"])
+                self.assertTrue({
+                    "recovery_signal",
+                    "recovery_plan",
+                    "action_receipt",
+                    "outcome",
+                    "continuation",
+                    "memory_update",
+                }.issubset(kinds))
+                plan_id = integrated["attempts"][-1]["plan_id"]
+                plan_view = _get(base_url, f"/recovery/plans/{plan_id}")
+                self.assertEqual(plan_view["causal_trace"]["plan_id"], plan_id)
+                self.assertFalse(plan_view["restart_candidate"]["ready"])
+                component_view = _get(base_url, "/recovery/components")
+                self.assertTrue(component_view["ready"])
+                self.assertFalse(component_view["legacy_fallback"])
+
+                planned_payload = {
+                    **observation,
+                    "observation": {
+                        **observation["observation"],
+                        "refs": {
+                            **observation["observation"]["refs"],
+                            "request_id": "request-integrated-restart",
+                        },
+                        "summary": "persist a recovery plan before simulated restart",
+                    },
+                    "span_id": "span-stream-stall-restart",
+                    "event_ids": [],
+                    "apply": False,
+                    "idempotency_key": "integrated-observation-restart",
+                }
+                planned_status, planned = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/recovery/observations",
+                    planned_payload,
+                )
+                self.assertEqual(planned_status, 200, planned)
+                planned_id = planned["attempts"][-1]["plan_id"]
+                module.reset_recovery_runtime_api()
+                restart_status, restarted = _post_with_status(
+                    base_url,
+                    f"/recovery/plans/{planned_id}/restart",
+                    {"task_id": task_id},
+                )
+                self.assertEqual(restart_status, 200, restarted)
+                self.assertTrue(restarted["success"])
+                self.assertEqual(restarted["candidate"]["plan_id"], planned_id)
+                self.assertTrue(restarted["result"]["applied_proof"]["applied"])
+
+                os.environ["ZYRA_DISABLE_RECOVERY_CLASSIFIER"] = "true"
+                disabled_status, disabled = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/recovery/observations",
+                    {
+                        **observation,
+                        "observation": {
+                            **observation["observation"],
+                            "refs": {
+                                **observation["observation"]["refs"],
+                                "request_id": "request-disabled-component",
+                            },
+                        },
+                        "idempotency_key": "disabled-component-observation",
+                    },
+                )
+                self.assertEqual(disabled_status, 503)
+                self.assertEqual(disabled["error"], "recovery_component_disabled")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=10)
+                module.reset_recovery_runtime_api()
+                module.reset_provider_control_client()
+                for name, value in previous.items():
+                    if value is None:
+                        os.environ.pop(name, None)
+                    else:
+                        os.environ[name] = value
+
 
 def _get(base_url: str, path: str) -> dict[str, Any]:
     request = urllib.request.Request(f"{base_url}{path}", method="GET")

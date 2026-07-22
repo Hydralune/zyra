@@ -184,7 +184,7 @@ class RoutingMemoryFeedback:
 
     def evidence(self, task_id: str, *, limit: int = 100) -> tuple[dict[str, Any], ...]:
         scores = self.scores(task_id)
-        return tuple({
+        score_evidence = tuple({
             "kind": "recovery_route_outcome",
             "route_layer": score.layer.value,
             "route_id": score.route_id,
@@ -194,6 +194,26 @@ class RoutingMemoryFeedback:
             "evidence_refs": list(score.evidence_refs),
             "metadata": copy.deepcopy(dict(score.metadata)),
         } for score in scores[: max(0, min(limit, 1000))])
+        # Graph, permission, compact and control recoveries may not have a
+        # worker/backend/provider/model route id.  They still need to inform a
+        # later policy decision, so expose their durable applied-outcome record
+        # independently of the route-score projection.
+        outcome_evidence = tuple({
+            "kind": "recovery_applied_outcome",
+            "record_id": record.record_id,
+            "signal_kind": record.signal_kind.value,
+            "action": record.action.value,
+            "success": record.success,
+            "route_layers": [item.value for item in record.route_layers],
+            "score_delta": record.score_delta,
+            "evidence_refs": list(record.evidence_refs),
+            "created_at": record.created_at,
+            "metadata": {
+                **copy.deepcopy(dict(record.metadata)),
+                "canonical_owner": "RecoveryPlanStore.routing_feedback",
+            },
+        } for record in self.store.feedback(task_id=task_id, limit=max(1, min(limit, 1000))))
+        return (*score_evidence, *outcome_evidence)[: max(0, min(limit, 1000))]
 
     def enrich_context(self, context: RecoveryContext) -> RecoveryContext:
         learned = self.evidence(context.refs.task_id)

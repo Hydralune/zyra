@@ -222,6 +222,7 @@ class RecoverySignalClassifier:
         receipt_kind = str(value.get("kind") or value.get("signal_kind") or "")
         mapping = {
             "retry_exhausted": "api_retry_exhausted",
+            "api_retry_exhausted": "api_retry_exhausted",
             "rate_limited": "rate_limited",
             "auth_rotation_exhausted": "credential_exhausted",
             "stream_stall": "stream_stall",
@@ -285,6 +286,7 @@ class RecoverySignalClassifier:
             "prompt_too_long": "prompt_too_long",
             "context_overflow": "prompt_too_long",
             "retry_exhausted": "api_retry_exhausted",
+            "api_retry_exhausted": "api_retry_exhausted",
             "stream_stall": "stream_stall",
             "stream_idle_timeout": "stream_stall",
             "stream_interrupted_after_output": "stream_interrupted_after_output",

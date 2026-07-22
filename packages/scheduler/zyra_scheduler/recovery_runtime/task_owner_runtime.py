@@ -201,6 +201,14 @@ class CanonicalTaskStateRuntime:
                 "active_plan_id": plan_id,
                 "last_mutation": mutation,
             })
+            history = [
+                copy.deepcopy(dict(item))
+                for item in recovery.get("mutation_history") or ()
+                if isinstance(item, Mapping)
+            ]
+            if not any(str(item.get("receipt_id") or "") == receipt.receipt_id for item in history):
+                history.append(copy.deepcopy(mutation))
+            recovery["mutation_history"] = history[-128:]
             if action is RecoveryAction.RETRY:
                 recovery["retry_generation"] = int(recovery.get("retry_generation") or 0) + 1
             if action is RecoveryAction.COMPACT:

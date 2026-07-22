@@ -389,7 +389,7 @@ class DeterministicCommitRuntime:
         if head is None:
             raise DeltaJournalError("cannot commit a branch without checkpoint head")
         resulting = self.apply(head.state_payload, persisted.entries)
-        committed_writes = self._checkpoint_writes(persisted)
+        committed_writes = self._checkpoint_writes(persisted, head)
         checkpoint_id = "recoverycheckpoint:" + stable_digest({
             "parent": head.checkpoint_id,
             "parent_revision": head.commit_revision,
@@ -519,11 +519,25 @@ class DeterministicCommitRuntime:
         return copy.deepcopy(result)
 
     @staticmethod
-    def _checkpoint_writes(delta: BranchDelta) -> tuple[CheckpointWrite, ...]:
+    def _checkpoint_writes(
+        delta: BranchDelta,
+        head: RecoveryCheckpoint,
+    ) -> tuple[CheckpointWrite, ...]:
         writes: list[CheckpointWrite] = []
+        next_sequence: dict[tuple[str, str], int] = {}
+        for existing in (*head.committed_writes, *head.pending_writes):
+            key = (existing.task_key, existing.channel)
+            next_sequence[key] = max(next_sequence.get(key, 0), existing.sequence)
         for entry in delta.entries:
+            key = (entry.key, "recovery_delta")
+            sequence = next_sequence.get(key, 0) + 1
+            next_sequence[key] = sequence
             writes.append(CheckpointWrite(
-                write_id=f"checkpointwrite:{entry.digest[:40]}",
+                write_id="checkpointwrite:" + stable_digest({
+                    "entry": entry.digest,
+                    "sequence": sequence,
+                    "parent_checkpoint": head.checkpoint_id,
+                })[:40],
                 task_key=entry.key,
                 channel="recovery_delta",
                 value={
@@ -532,7 +546,7 @@ class DeterministicCommitRuntime:
                     "entry_digest": entry.digest,
                 },
                 state=PendingWriteState.COMMITTED,
-                sequence=entry.sequence,
+                sequence=sequence,
                 writer_id=delta.owner,
                 idempotency_key=f"{delta.branch_id}:{entry.sequence}",
                 metadata={"branch_id": delta.branch_id, "entry_id": entry.entry_id},

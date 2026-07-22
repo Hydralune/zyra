@@ -85,6 +85,29 @@ class RecoveryActionPort(Protocol):
     def apply(self, request: ActionRequest) -> ActionOwnerResult: ...
 
 
+class AppliedOutcomeGate(Protocol):
+    def verify(
+        self,
+        plan: RecoveryPlan,
+        outcome: RecoveryOutcome,
+        receipts: Sequence[RecoveryActionReceipt],
+        context: RecoveryContext,
+    ) -> Any: ...
+
+
+class RecoverySemanticGate(Protocol):
+    def preflight(self, plan: RecoveryPlan, context: RecoveryContext) -> Any: ...
+
+    def verify(
+        self,
+        plan: RecoveryPlan,
+        context: RecoveryContext,
+        execution: "ExecutionResult",
+        *,
+        require_feedback: bool = True,
+    ) -> Any: ...
+
+
 class CallbackActionPort:
     def __init__(
         self,
@@ -159,6 +182,7 @@ class ExecutionResult:
     outcome: RecoveryOutcome
     routing_memory_id: str
     replayed: bool = False
+    applied_proof: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -167,6 +191,7 @@ class ExecutionResult:
             "outcome": self.outcome.to_dict(),
             "routing_memory_id": self.routing_memory_id,
             "replayed": self.replayed,
+            "applied_proof": copy.deepcopy(dict(self.applied_proof)),
         }
 
 
@@ -187,6 +212,8 @@ class RecoveryActionRuntime:
         *,
         ports: ActionPortRegistry | None = None,
         resume_bridge: CheckpointResumeBridge | None = None,
+        outcome_verifier: AppliedOutcomeGate | None = None,
+        semantic_gate: RecoverySemanticGate | None = None,
         executor_id: str = "recovery-action-runtime",
         lease_seconds: float = 90.0,
     ) -> None:
@@ -195,6 +222,8 @@ class RecoveryActionRuntime:
         self.feedback = feedback
         self.ports = ports or ActionPortRegistry()
         self.resume_bridge = resume_bridge
+        self.outcome_verifier = outcome_verifier
+        self.semantic_gate = semantic_gate
         self.executor_id = executor_id
         self.lease_seconds = lease_seconds
 
@@ -203,6 +232,12 @@ class RecoveryActionRuntime:
         if plan is None:
             raise RecoveryActionError(f"recovery plan not found: {plan_id}")
         self._validate_context(plan, context)
+        semantic_preflight: dict[str, Any] = {}
+        if self.semantic_gate is not None:
+            preflight = self.semantic_gate.preflight(plan, context)
+            if hasattr(preflight, "require_accepted"):
+                preflight.require_accepted()
+            semantic_preflight = dict(preflight.to_dict()) if hasattr(preflight, "to_dict") else {}
         if plan.status is RecoveryPlanStatus.SUCCEEDED:
             return self._replayed_result(plan)
         claimed = self.store.claim_plan(plan_id, owner=self.executor_id, lease_seconds=self.lease_seconds)
@@ -267,9 +302,56 @@ class RecoveryActionRuntime:
                         route_decision_id=route_decision.route_decision_id if route_decision else "",
                         checkpoint_id=checkpoint_id,
                     )
-                    memory = self.feedback.record(applying, outcome, route_decision=route_decision)
-                    return ExecutionResult(applying, tuple(receipts), outcome, memory.record_id)
+                    if self.outcome_verifier is None:
+                        memory = self.feedback.record(applying, outcome, route_decision=route_decision)
+                        memory_id = memory.record_id
+                    else:
+                        memory_id = ""
+                    return ExecutionResult(applying, tuple(receipts), outcome, memory_id)
             applied = self._transition(applying, RecoveryPlanStatus.APPLIED, "applied")
+            provisional = self._outcome(
+                applied,
+                receipts,
+                kind=RecoveryOutcomeKind.RECOVERED,
+                success=True,
+                summary=self._success_summary(applied, receipts),
+                started=started,
+                route_decision_id=route_decision.route_decision_id if route_decision else "",
+                checkpoint_id=checkpoint_id,
+                persist=False,
+            )
+            proof_value: dict[str, Any] = {}
+            proof_id = ""
+            if self.outcome_verifier is not None:
+                proof = self.outcome_verifier.verify(applied, provisional, receipts, context)
+                if hasattr(proof, "to_dict"):
+                    proof_value = copy.deepcopy(dict(proof.to_dict()))
+                elif isinstance(proof, Mapping):
+                    proof_value = copy.deepcopy(dict(proof))
+                else:
+                    raise RecoveryActionError("applied outcome verifier returned an unsupported proof")
+                proof_id = str(proof_value.get("proof_id") or "")
+                if not proof_id or not bool(proof_value.get("applied", False)):
+                    raise RecoveryActionError("applied outcome verifier did not close the recovery proof")
+            if self.semantic_gate is not None:
+                semantic_effects = self.semantic_gate.verify(
+                    applied,
+                    context,
+                    ExecutionResult(
+                        applied,
+                        tuple(receipts),
+                        provisional,
+                        "",
+                        applied_proof=proof_value,
+                    ),
+                    require_feedback=False,
+                )
+                if hasattr(semantic_effects, "require_accepted"):
+                    semantic_effects.require_accepted()
+                proof_value["semantic_preflight"] = semantic_preflight
+                proof_value["semantic_effects"] = (
+                    semantic_effects.to_dict() if hasattr(semantic_effects, "to_dict") else {}
+                )
             succeeded = self._transition(applied, RecoveryPlanStatus.SUCCEEDED, "succeeded")
             outcome = self._outcome(
                 succeeded,
@@ -280,9 +362,45 @@ class RecoveryActionRuntime:
                 started=started,
                 route_decision_id=route_decision.route_decision_id if route_decision else "",
                 checkpoint_id=checkpoint_id,
+                metadata={
+                    "applied_proof_id": proof_id,
+                    "continuation_receipt_id": str((proof_value.get("continuation") or {}).get("receipt_id") or ""),
+                    "feedback_after_applied_proof": self.outcome_verifier is not None,
+                },
             )
-            memory = self.feedback.record(succeeded, outcome, route_decision=route_decision)
-            return ExecutionResult(succeeded, tuple(receipts), outcome, memory.record_id)
+            memory = self.feedback.record(
+                succeeded,
+                outcome,
+                route_decision=route_decision,
+                extra_evidence_refs=(proof_id,) if proof_id else (),
+            )
+            result = ExecutionResult(
+                succeeded,
+                tuple(receipts),
+                outcome,
+                memory.record_id,
+                applied_proof=proof_value,
+            )
+            if self.semantic_gate is not None:
+                semantic_final = self.semantic_gate.verify(
+                    succeeded,
+                    context,
+                    result,
+                    require_feedback=True,
+                )
+                if hasattr(semantic_final, "require_accepted"):
+                    semantic_final.require_accepted()
+                proof_value["semantic_outcome"] = (
+                    semantic_final.to_dict() if hasattr(semantic_final, "to_dict") else {}
+                )
+                result = ExecutionResult(
+                    succeeded,
+                    tuple(receipts),
+                    outcome,
+                    memory.record_id,
+                    applied_proof=proof_value,
+                )
+            return result
         except Exception as error:
             current = self.store.plan(plan_id) or applying
             if not current.status.terminal and current.status is not RecoveryPlanStatus.FAILED:
@@ -301,7 +419,11 @@ class RecoveryActionRuntime:
                 checkpoint_id=checkpoint_id,
                 error=error,
             )
-            memory = self.feedback.record(current, outcome, route_decision=route_decision)
+            if self.outcome_verifier is None:
+                memory = self.feedback.record(current, outcome, route_decision=route_decision)
+                memory_id = memory.record_id
+            else:
+                memory_id = ""
             if isinstance(error, RecoveryActionError):
                 raise
             raise RecoveryActionError(str(error)) from error
@@ -347,6 +469,7 @@ class RecoveryActionRuntime:
                 action,
                 constraints=constraints,
                 excluded_refs=exclusions,
+                layers=(plan.decision.selected.route_layer,) if plan.decision.selected.route_layer else None,
             )
             changed = any(item.applied for item in decision.changes)
             status = RecoveryAttemptStatus.APPLIED if changed else RecoveryAttemptStatus.REJECTED
@@ -536,6 +659,8 @@ class RecoveryActionRuntime:
         route_decision_id: str,
         checkpoint_id: str,
         error: Exception | None = None,
+        persist: bool = True,
+        metadata: Mapping[str, Any] | None = None,
     ) -> RecoveryOutcome:
         outcome = RecoveryOutcome(
             outcome_id="recoveryoutcome_" + stable_digest({
@@ -559,8 +684,11 @@ class RecoveryActionRuntime:
                 "action_sequence": [item.value for item in self._sequence(plan)],
                 "error_type": type(error).__name__ if error else "",
                 "error_code": getattr(error, "code", "") if error else "",
+                **copy.deepcopy(dict(metadata or {})),
             },
         )
+        if not persist:
+            return outcome
         stored, _ = self.store.append_outcome(outcome)
         return stored
 
@@ -583,6 +711,13 @@ class RecoveryActionRuntime:
             outcome=outcome,
             routing_memory_id=matching.record_id if matching else "",
             replayed=True,
+            applied_proof={
+                "proof_id": str(outcome.metadata.get("applied_proof_id") or ""),
+                "continuation": {
+                    "receipt_id": str(outcome.metadata.get("continuation_receipt_id") or ""),
+                },
+                "applied": bool(outcome.metadata.get("applied_proof_id")),
+            } if outcome.metadata.get("applied_proof_id") else {},
         )
 
     @staticmethod
