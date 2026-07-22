@@ -79,14 +79,26 @@ export class ModelFallbackPolicy {
       return this.result("reduce_request", false, false, false, error, lease, attempt,
         "request must be reduced before retry", evidence);
     }
-    if (attempt >= lease.retryPolicy.maximumAttempts || !error.retryable) {
-      return this.result("stop", false, false, false, error, lease, attempt,
-        "provider retry exhausted or failure is non-retryable", evidence);
+    if (error.layer === "route" && error.recoveryIntent === "retry_same_route" && error.retryable) {
+      if (attempt >= lease.retryPolicy.maximumAttempts) {
+        return this.result("stop", false, false, false, error, lease, attempt,
+          "same-route retry exhausted the bounded attempt budget", evidence);
+      }
+      return this.result("retry_same_route", true, false, false, error, lease, attempt,
+        "provider requested a bounded same-route retry", evidence);
     }
     if (["authentication_failed", "usage_limited", "credential_blocked", "credential_expired"].includes(error.kind)) {
+      if (attempt >= lease.retryPolicy.maximumAttempts) {
+        return this.result("stop", false, false, false, error, lease, attempt,
+          "credential rotation exhausted the bounded attempt budget", evidence);
+      }
       const rotate = this.rotateAuthentication && lease.retryPolicy.rotateCredentialOnAuthenticationFailure;
       return this.result(rotate ? "rotate_credential" : "stop", rotate, rotate, rotate,
         error, lease, attempt, rotate ? "rotate sibling credential on pinned catalog" : "credential rotation disabled", evidence);
+    }
+    if (attempt >= lease.retryPolicy.maximumAttempts || !error.retryable) {
+      return this.result("stop", false, false, false, error, lease, attempt,
+        "provider retry exhausted or failure is non-retryable", evidence);
     }
     if (error.kind === "rate_limited") {
       const change = this.routeOnRateLimit && lease.retryPolicy.rotateRouteOnProviderUnavailable;

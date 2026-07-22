@@ -16,8 +16,8 @@ dependencies.
 
 - Source revision: `c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca`
 - Source files: OpenAI Chat, OpenAI Responses, Anthropic Messages, simple
-  Responses, and auth-retry mechanisms recorded in the M1-S05D-01 source
-  ledger.
+  Responses, message normalization, tool-result pairing, response decoding,
+  and auth-retry mechanisms recorded in the M1-S05D-01 source ledger.
 - License: MIT.
 - Copyright: 2025 Mario Zechner; 2025-2026 Can Bölük.
 - The hand-maintained OpenAI Responses wire types record derivation from
@@ -26,6 +26,12 @@ dependencies.
 The direct ports were modified to use Zyra catalog revisions, credential
 references, immutable route leases, attempt records, byte accounting, error
 taxonomy, process supervision, and API/task-graph boundaries.
+
+The generated/hand-maintained wire declaration files are schema contracts and
+are not counted as executable production code. Executable remediation lives in
+the catalog reconciler, credential pool/refresh lifecycle, route-health
+admission, dispatch lifecycle/cancellation, message normalizer, and request /
+response codecs under this package's Zyra-owned runtime boundary.
 
 ## MIT license text
 

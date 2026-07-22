@@ -26,6 +26,7 @@ export function classifyProviderResponse(input: ErrorClassificationInput): Provi
   } else if (status === 401 || /invalid.+(api.?key|token)|authentication/.test(text)) {
     kind = "authentication_failed";
     recoveryIntent = "rotate_credential";
+    retryable = true;
   } else if (status === 403) {
     kind = "authorization_failed";
   } else if (status === 429 && /usage|quota|credit|billing/.test(text)) {

@@ -28,6 +28,13 @@ import {
 import { ProviderRoutePlanner, type RoutePlannerOptions } from "./routing.ts";
 import { ProviderControlPlaneStore, type ProviderStoreHealth } from "./store.ts";
 import { ProviderTransportRuntime, type ProviderTransportOptions } from "./transport/runtime.ts";
+import { ProviderDispatchLifecycle } from "./dispatch-lifecycle.ts";
+import { ProviderRouteHealthRuntime } from "./route-health.ts";
+import { ProviderCatalogReconciler } from "./catalog-reconciler.ts";
+import { ProviderCredentialPoolRuntime } from "./credential-pool.ts";
+import { CredentialRefreshRuntime } from "./credential-refresh.ts";
+import { ProviderDispatchCancellationRuntime } from "./dispatch-cancellation.ts";
+import { ProviderControlPlaneError } from "./errors.ts";
 
 export interface ProviderControlPlaneOptions {
   readonly databasePath: string;
@@ -48,9 +55,15 @@ export interface ProviderControlPlaneHealth extends ProviderStoreHealth {
 export class ProviderControlPlane {
   readonly store: ProviderControlPlaneStore;
   readonly catalog: ProviderCatalog;
+  readonly catalogReconciler: ProviderCatalogReconciler;
   readonly credentials: CredentialManager;
+  readonly credentialPool: ProviderCredentialPoolRuntime;
+  readonly credentialRefresh: CredentialRefreshRuntime;
   readonly routes: ProviderRoutePlanner;
+  readonly routeHealth: ProviderRouteHealthRuntime;
   readonly transport: ProviderTransportRuntime;
+  readonly dispatches: ProviderDispatchLifecycle;
+  readonly cancellations: ProviderDispatchCancellationRuntime;
   private readonly clock: Clock;
   private readonly ids: IdFactory;
 
@@ -60,7 +73,24 @@ export class ProviderControlPlane {
     const secrets = options.secrets ?? new EnvironmentSecretResolver();
     this.store = new ProviderControlPlaneStore(options.databasePath);
     this.catalog = new ProviderCatalog(this.store);
+    this.catalogReconciler = new ProviderCatalogReconciler(this.store, this.catalog, {
+      clock: this.clock,
+      ids: this.ids,
+    });
     this.credentials = new CredentialManager(this.store, this.catalog, secrets, {
+      clock: this.clock,
+      ids: this.ids,
+    });
+    this.credentialPool = new ProviderCredentialPoolRuntime(this.store, {
+      clock: this.clock,
+    });
+    this.credentialRefresh = new CredentialRefreshRuntime(
+      this.store,
+      this.catalog,
+      this.credentials,
+      { clock: this.clock, ids: this.ids },
+    );
+    this.routeHealth = new ProviderRouteHealthRuntime(this.store, {
       clock: this.clock,
       ids: this.ids,
     });
@@ -68,12 +98,19 @@ export class ProviderControlPlane {
       ...options.route,
       clock: this.clock,
       ids: this.ids,
+    }, this.routeHealth, this.credentialPool);
+    this.dispatches = new ProviderDispatchLifecycle(this.store, {
+      clock: this.clock,
+      ids: this.ids,
+    });
+    this.cancellations = new ProviderDispatchCancellationRuntime(this.store, {
+      clock: this.clock,
     });
     this.transport = new ProviderTransportRuntime(this.store, this.routes, this.credentials, secrets, {
       ...options.transport,
       clock: this.clock,
       ids: this.ids,
-    });
+    }, this.dispatches, this.routeHealth, this.credentialPool);
   }
 
   upsertProvider(provider: ProviderDefinition, expectedRevision: number | null = null): CatalogMutationReceipt {
@@ -110,7 +147,6 @@ export class ProviderControlPlane {
       credentialId: record.credentialId,
       providerId: record.providerId,
       integrationId: record.integrationId,
-      secretRef: record.secretRef,
       fingerprint: record.fingerprint,
       credentialVersion: record.version,
     });
@@ -144,6 +180,22 @@ export class ProviderControlPlane {
   }
 
   async dispatch(request: ProviderDispatchRequest, signal?: AbortSignal): Promise<ProviderDispatchResult> {
+    const claim = this.dispatches.claim(request);
+    if (claim.disposition === "cached" && claim.result !== null) {
+      this.emit("provider.dispatch.cache_hit", {
+        dispatchId: request.dispatchId,
+        routeId: request.routeId,
+        lifecycleEpoch: claim.snapshot.epoch,
+      }, {
+        runId: request.runId,
+        taskId: request.taskId,
+        nodeId: request.nodeId,
+        routeId: request.routeId,
+        dispatchId: request.dispatchId,
+        correlationId: request.turnId,
+      });
+      return claim.result;
+    }
     this.emit("provider.dispatch.started", {
       dispatchId: request.dispatchId,
       routeId: request.routeId,
@@ -158,27 +210,20 @@ export class ProviderControlPlane {
       dispatchId: request.dispatchId,
       correlationId: request.turnId,
     });
+    const cancellation = this.cancellations.bind(request.dispatchId, signal);
+    let result: ProviderDispatchResult;
     try {
-      const result = await this.transport.dispatch(request, signal);
-      this.emit("provider.dispatch.completed", {
-        dispatchId: result.dispatchId,
-        routeId: result.routeId,
-        providerId: result.providerId,
-        modelId: result.modelId,
-        attemptCount: result.attempts.length,
-        frameCount: result.frames.length,
-        stopReason: result.stopReason,
-      }, {
-        runId: request.runId,
-        taskId: request.taskId,
-        nodeId: request.nodeId,
-        routeId: result.routeId,
-        dispatchId: result.dispatchId,
-        causationId: request.routeId,
-        correlationId: request.turnId,
-      });
-      return result;
+      result = await this.transport.dispatch(request, cancellation.signal, claim.snapshot.ownerToken);
     } catch (error) {
+      const outcome = error instanceof ProviderControlPlaneError && error.kind === "request_aborted"
+        ? "aborted"
+        : "failed";
+      cancellation.release(outcome);
+      try {
+        this.dispatches.fail(request.dispatchId, claim.snapshot.ownerToken, error);
+      } catch (lifecycleError) {
+        throw new AggregateError([error, lifecycleError], "provider dispatch and lifecycle settlement both failed");
+      }
       const failure = error && typeof error === "object" && "safe" in error && typeof error.safe === "function"
         ? (error as { safe(): unknown }).safe()
         : { message: error instanceof Error ? error.message : String(error) };
@@ -197,6 +242,26 @@ export class ProviderControlPlane {
       });
       throw error;
     }
+    this.dispatches.succeed(request.dispatchId, claim.snapshot.ownerToken, result);
+    cancellation.release("succeeded");
+    this.emit("provider.dispatch.completed", {
+      dispatchId: result.dispatchId,
+      routeId: result.routeId,
+      providerId: result.providerId,
+      modelId: result.modelId,
+      attemptCount: result.attempts.length,
+      frameCount: result.frames.length,
+      stopReason: result.stopReason,
+    }, {
+      runId: request.runId,
+      taskId: request.taskId,
+      nodeId: request.nodeId,
+      routeId: result.routeId,
+      dispatchId: result.dispatchId,
+      causationId: request.routeId,
+      correlationId: request.turnId,
+    });
+    return result;
   }
 
   health(): ProviderControlPlaneHealth {
@@ -210,6 +275,7 @@ export class ProviderControlPlane {
   }
 
   close(): void {
+    this.cancellations.close();
     this.store.close();
   }
 

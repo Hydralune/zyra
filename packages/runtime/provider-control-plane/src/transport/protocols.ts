@@ -1,20 +1,4 @@
 import type {
-  ChatCompletionCreateParamsStreaming,
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from "../wire/openai-chat.ts";
-import type {
-  ResponseCreateParamsStreaming,
-  ResponseInputItem,
-  Tool as OpenAIResponsesTool,
-} from "../wire/openai-responses.ts";
-import type {
-  MessageCreateParamsStreaming,
-  MessageParam as AnthropicMessageParam,
-  Tool as AnthropicTool,
-} from "../wire/anthropic-messages.ts";
-import type {
-  DispatchMessage,
   ProviderDispatchRequest,
   ProviderRouteLease,
   ProviderStreamFrame,
@@ -22,11 +6,11 @@ import type {
 import type { IdFactory, JsonRecord } from "../canonical.ts";
 import { canonicalize, deepClone } from "../canonical.ts";
 import { ProviderControlPlaneError } from "../errors.ts";
+import { encodeNormalizedProviderBody } from "./provider-codecs.ts";
+import { decodeCompleteProviderResponse } from "./response-codecs.ts";
 
 export function encodeProviderBody(lease: ProviderRouteLease, request: ProviderDispatchRequest): string {
-  if (lease.protocol === "openai_chat") return JSON.stringify(openAiChatBody(lease, request));
-  if (lease.protocol === "openai_responses") return JSON.stringify(openAiResponsesBody(lease, request));
-  return JSON.stringify(anthropicBody(lease, request));
+  return encodeNormalizedProviderBody(lease, request).json;
 }
 
 export function protocolHeaders(lease: ProviderRouteLease): Record<string, string> {
@@ -62,6 +46,8 @@ export function decodeProviderEvent(
   }
   if (decoded === null || typeof decoded !== "object" || Array.isArray(decoded)) return [];
   const value = decoded as Record<string, unknown>;
+  const complete = decodeCompleteProviderResponse(lease.protocol, value, state);
+  if (complete !== null) return complete;
   return lease.protocol === "openai_chat"
     ? decodeOpenAiChat(value, eventName, state)
     : lease.protocol === "openai_responses"
@@ -117,94 +103,6 @@ export class ProtocolFrameState {
       metadata: deepClone(update.metadata ?? {}),
     };
   }
-}
-
-function openAiChatBody(lease: ProviderRouteLease, request: ProviderDispatchRequest): ChatCompletionCreateParamsStreaming {
-  const messages = request.messages.map((message) => chatMessage(message));
-  const tools: ChatCompletionTool[] | undefined = request.tools.length === 0
-    ? undefined
-    : request.tools.map((tool) => ({
-        type: "function",
-        function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
-      }));
-  return {
-    ...(lease.requestDefaults as object),
-    ...(request.extraBody as object),
-    model: lease.modelId,
-    messages,
-    stream: true,
-    stream_options: { include_usage: true },
-    max_completion_tokens: request.maximumOutputTokens,
-    ...(request.temperature === null ? {} : { temperature: request.temperature }),
-    ...(tools === undefined ? {} : { tools }),
-  } as ChatCompletionCreateParamsStreaming;
-}
-
-function chatMessage(message: DispatchMessage): ChatCompletionMessageParam {
-  const content = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
-  if (message.role === "tool") {
-    if (!message.toolCallId) throw new TypeError("tool message requires toolCallId");
-    return { role: "tool", content, tool_call_id: message.toolCallId };
-  }
-  if (message.role === "assistant") return { role: "assistant", content, ...(message.name ? { name: message.name } : {}) };
-  if (message.role === "system" || message.role === "developer") return { role: message.role, content, ...(message.name ? { name: message.name } : {}) };
-  return { role: "user", content, ...(message.name ? { name: message.name } : {}) };
-}
-
-function openAiResponsesBody(lease: ProviderRouteLease, request: ProviderDispatchRequest): ResponseCreateParamsStreaming {
-  const input: ResponseInputItem[] = request.messages.map((message) => ({
-    type: "message",
-    role: message.role === "tool" ? "user" : message.role,
-    content: typeof message.content === "string" ? message.content : JSON.stringify(message.content),
-  })) as ResponseInputItem[];
-  const tools: OpenAIResponsesTool[] | undefined = request.tools.length === 0
-    ? undefined
-    : request.tools.map((tool) => ({
-        type: "function",
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.inputSchema,
-        strict: true,
-      })) as OpenAIResponsesTool[];
-  return {
-    ...(lease.requestDefaults as object),
-    ...(request.extraBody as object),
-    model: lease.modelId,
-    input,
-    stream: true,
-    max_output_tokens: request.maximumOutputTokens,
-    ...(request.temperature === null ? {} : { temperature: request.temperature }),
-    ...(tools === undefined ? {} : { tools }),
-  } as ResponseCreateParamsStreaming;
-}
-
-function anthropicBody(lease: ProviderRouteLease, request: ProviderDispatchRequest): MessageCreateParamsStreaming {
-  const system: string[] = [];
-  const messages: AnthropicMessageParam[] = [];
-  for (const message of request.messages) {
-    const content = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
-    if (message.role === "system" || message.role === "developer") system.push(content);
-    else if (message.role === "assistant") messages.push({ role: "assistant", content });
-    else messages.push({ role: "user", content });
-  }
-  const tools: AnthropicTool[] | undefined = request.tools.length === 0
-    ? undefined
-    : request.tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.inputSchema as AnthropicTool["input_schema"],
-      }));
-  return {
-    ...(lease.requestDefaults as object),
-    ...(request.extraBody as object),
-    model: lease.modelId,
-    messages,
-    max_tokens: request.maximumOutputTokens,
-    stream: true,
-    ...(system.length === 0 ? {} : { system: system.join("\n\n") }),
-    ...(request.temperature === null ? {} : { temperature: request.temperature }),
-    ...(tools === undefined ? {} : { tools }),
-  } as MessageCreateParamsStreaming;
 }
 
 function decodeOpenAiChat(value: Record<string, unknown>, eventName: string | null, state: ProtocolFrameState): ProviderStreamFrame[] {

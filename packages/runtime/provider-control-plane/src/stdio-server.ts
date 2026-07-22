@@ -12,6 +12,7 @@ import { canonicalize } from "./canonical.ts";
 import { ProviderControlPlane } from "./control-plane.ts";
 import type { CredentialRegistration } from "./credentials.ts";
 import { ProviderControlPlaneError } from "./errors.ts";
+import type { CatalogDiscoveryDocument } from "./catalog-reconciler.ts";
 
 export const RPC_PROTOCOL = "zyra.provider-control-plane.rpc/v1" as const;
 
@@ -64,6 +65,18 @@ export class ProviderControlPlaneRpcServer {
         return this.controlPlane.catalog.snapshot();
       case "catalog.compat_v1":
         return this.controlPlane.catalog.compatibilityV1();
+      case "catalog.reconcile":
+        return this.controlPlane.catalogReconciler.reconcile(
+          payload.document as unknown as CatalogDiscoveryDocument,
+          {
+            expectedRevision: optionalRevision(payload.expectedRevision),
+            dryRun: payload.dryRun === true,
+          },
+        );
+      case "catalog.reconcile_runs":
+        return this.controlPlane.catalogReconciler.runs(
+          typeof payload.sourceId === "string" ? payload.sourceId : undefined,
+        );
       case "catalog.provider.get":
         return this.controlPlane.catalog.provider(String(payload.providerId ?? ""));
       case "catalog.provider.list":
@@ -112,6 +125,22 @@ export class ProviderControlPlaneRpcServer {
         return this.controlPlane.credentials.get(String(payload.credentialId ?? ""));
       case "credential.list":
         return this.controlPlane.credentials.list(typeof payload.providerId === "string" ? payload.providerId : undefined);
+      case "credential.pool":
+        return this.controlPlane.credentialPool.list(
+          typeof payload.providerId === "string" ? payload.providerId : undefined,
+        );
+      case "credential.pool.clear_cooldown":
+        return this.controlPlane.credentialPool.clearCooldown(String(payload.credentialId ?? ""));
+      case "credential.refresh.due":
+        return this.controlPlane.credentialRefresh.due(
+          typeof payload.providerId === "string" ? payload.providerId : undefined,
+        );
+      case "credential.refresh.get":
+        return typeof payload.refreshId === "string"
+          ? this.controlPlane.credentialRefresh.get(payload.refreshId)
+          : this.controlPlane.credentialRefresh.list(
+              typeof payload.credentialId === "string" ? payload.credentialId : undefined,
+            );
       case "credential.revoke":
         return this.controlPlane.credentials.revoke(
           String(payload.credentialId ?? ""),
@@ -135,11 +164,31 @@ export class ProviderControlPlaneRpcServer {
           typeof payload.runId === "string" ? payload.runId : undefined,
           typeof payload.taskId === "string" ? payload.taskId : undefined,
         );
+      case "route.health":
+        return typeof payload.providerId === "string" && typeof payload.modelId === "string"
+          ? this.controlPlane.routeHealth.snapshot(payload.providerId, payload.modelId)
+          : this.controlPlane.routeHealth.list();
       case "dispatch":
         rejectSecretBytes(payload);
         return this.controlPlane.dispatch(payload.request as unknown as ProviderDispatchRequest);
       case "dispatch.attempts":
         return this.controlPlane.store.listAttempts(String(payload.dispatchId ?? ""));
+      case "dispatch.lifecycle":
+        return typeof payload.dispatchId === "string"
+          ? this.controlPlane.dispatches.require(payload.dispatchId)
+          : this.controlPlane.dispatches.list(
+              typeof payload.routeId === "string" ? payload.routeId : undefined,
+            );
+      case "dispatch.cancel":
+        return this.controlPlane.cancellations.request(
+          String(payload.dispatchId ?? ""),
+          String(payload.reason ?? "cancelled by provider control API"),
+          String(payload.requestedBy ?? "provider-control-api"),
+        );
+      case "dispatch.cancellation":
+        return typeof payload.dispatchId === "string"
+          ? this.controlPlane.cancellations.get(payload.dispatchId)
+          : this.controlPlane.cancellations.list();
       case "events.list":
         return this.controlPlane.store.listEvents(
           typeof payload.runId === "string" ? payload.runId : undefined,

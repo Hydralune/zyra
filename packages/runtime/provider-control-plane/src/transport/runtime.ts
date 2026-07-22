@@ -26,6 +26,9 @@ import { ProviderControlPlaneStore } from "../store.ts";
 import { ProviderRoutePlanner, routeUrl } from "../routing.ts";
 import { ModelFallbackPolicy } from "../model-fallback-policy.ts";
 import { ProviderStreamSupervisor, type ProviderStreamCompletion } from "../stream-supervisor.ts";
+import { ProviderDispatchLifecycle } from "../dispatch-lifecycle.ts";
+import { ProviderRouteHealthRuntime, type ProviderAdmissionPermit } from "../route-health.ts";
+import { ProviderCredentialPoolRuntime } from "../credential-pool.ts";
 import { decodeProviderEvent, encodeProviderBody, protocolHeaders, ProtocolFrameState } from "./protocols.ts";
 import { readSse } from "./sse.ts";
 
@@ -45,6 +48,9 @@ export class ProviderTransportRuntime {
   private readonly routes: ProviderRoutePlanner;
   private readonly credentials: CredentialManager;
   private readonly fallback: ModelFallbackPolicy;
+  private readonly lifecycle: ProviderDispatchLifecycle | null;
+  private readonly routeHealth: ProviderRouteHealthRuntime | null;
+  private readonly credentialPool: ProviderCredentialPoolRuntime | null;
 
   constructor(
     store: ProviderControlPlaneStore,
@@ -52,6 +58,9 @@ export class ProviderTransportRuntime {
     credentials: CredentialManager,
     _secrets: SecretResolver,
     options: ProviderTransportOptions = {},
+    lifecycle: ProviderDispatchLifecycle | null = null,
+    routeHealth: ProviderRouteHealthRuntime | null = null,
+    credentialPool: ProviderCredentialPoolRuntime | null = null,
   ) {
     this.store = store;
     this.routes = routes;
@@ -61,9 +70,16 @@ export class ProviderTransportRuntime {
     this.ids = options.ids ?? new RandomIdFactory();
     this.userAgent = options.userAgent ?? "Zyra-ProviderControlPlane/1";
     this.fallback = new ModelFallbackPolicy();
+    this.lifecycle = lifecycle;
+    this.routeHealth = routeHealth;
+    this.credentialPool = credentialPool;
   }
 
-  async dispatch(request: ProviderDispatchRequest, signal?: AbortSignal): Promise<ProviderDispatchResult> {
+  async dispatch(
+    request: ProviderDispatchRequest,
+    signal?: AbortSignal,
+    lifecycleOwnerToken = "",
+  ): Promise<ProviderDispatchResult> {
     validateDispatchRequest(request);
     let lease = this.routes.require(request.routeId);
     assertDispatchIdentity(request, lease);
@@ -73,7 +89,7 @@ export class ProviderTransportRuntime {
     for (let attemptNumber = 1; attemptNumber <= lease.retryPolicy.maximumAttempts; attemptNumber += 1) {
       let result: ProviderDispatchResult | null = null;
       try {
-        result = await this.dispatchOnce(request, lease, attemptNumber, allAttempts, signal);
+        result = await this.dispatchOnce(request, lease, attemptNumber, allAttempts, signal, lifecycleOwnerToken);
         this.credentials.recordSuccessIfCurrent(lease.credentialId, lease.credentialVersion);
         return { ...result, attempts: deepClone(allAttempts) };
       } catch (error) {
@@ -103,6 +119,7 @@ export class ProviderTransportRuntime {
     attemptNumber: number,
     attempts: ProviderDispatchAttempt[],
     signal?: AbortSignal,
+    lifecycleOwnerToken = "",
   ): Promise<ProviderDispatchResult> {
     const body = encodeProviderBody(lease, { ...request, routeId: lease.routeId });
     const preparedRequestBytes = Buffer.byteLength(body);
@@ -134,6 +151,7 @@ export class ProviderTransportRuntime {
     };
     this.store.putAttempt(attempt);
     attempts.push(attempt);
+    this.credentialPool?.recordAttempt(lease);
 
     let responseBytes = 0;
     const frameState = new ProtocolFrameState(
@@ -147,6 +165,7 @@ export class ProviderTransportRuntime {
       { now: () => this.clock.now() },
     );
     let streamCompletion: ProviderStreamCompletion | null = null;
+    let admissionPermit: ProviderAdmissionPermit | null = null;
     const frames = [];
     const controller = new AbortController();
     const timeout = setTimeout(
@@ -172,6 +191,7 @@ export class ProviderTransportRuntime {
         "idempotency-key": request.idempotencyKey,
       });
       assertRouteEndpointAllowed(lease);
+      admissionPermit = this.routeHealth?.acquire(lease, combinedSignal) ?? null;
       bytesSent = preparedRequestBytes;
       attempt = { ...attempt, requestBytes: bytesSent };
       replaceAttempt(attempts, attempt);
@@ -221,6 +241,7 @@ export class ProviderTransportRuntime {
         const text = await response.text();
         responseBytes = Buffer.byteLength(text);
         const decodedFrames = decodeProviderEvent(lease, text, "response.completed", frameState);
+        if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(request.dispatchId, lifecycleOwnerToken, decodedFrames);
         streamSupervisor.observe(decodedFrames);
         frames.push(...decodedFrames);
       } else {
@@ -230,6 +251,7 @@ export class ProviderTransportRuntime {
         })) {
           responseBytes += Buffer.byteLength(event.data);
           const decodedFrames = decodeProviderEvent(lease, event.data, event.event, frameState);
+          if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(request.dispatchId, lifecycleOwnerToken, decodedFrames);
           streamSupervisor.observe(decodedFrames);
           frames.push(...decodedFrames);
         }
@@ -256,6 +278,10 @@ export class ProviderTransportRuntime {
       };
       replaceAttempt(attempts, attempt);
       this.store.putAttempt(attempt);
+      if (admissionPermit && this.routeHealth) {
+        this.routeHealth.recordSuccess(admissionPermit, this.clock.now() - startedAt, response.status);
+      }
+      this.credentialPool?.recordSuccess(lease);
       return {
         dispatchId: request.dispatchId,
         routeId: lease.routeId,
@@ -309,9 +335,23 @@ export class ProviderTransportRuntime {
       };
       replaceAttempt(attempts, attempt);
       this.store.putAttempt(attempt);
+      if (admissionPermit && this.routeHealth) {
+        this.routeHealth.recordFailure(admissionPermit, {
+          latencyMilliseconds: this.clock.now() - startedAt,
+          httpStatus: classified.httpStatus,
+          failureKind: classified.kind,
+          retryAfterMilliseconds: classified.retryAfterMilliseconds,
+        });
+      }
+      this.credentialPool?.recordFailure(
+        lease,
+        classified.kind,
+        classified.retryAfterMilliseconds,
+      );
       throw classified;
     } finally {
       clearTimeout(timeout);
+      if (admissionPermit && this.routeHealth) this.routeHealth.release(admissionPermit);
     }
   }
 }

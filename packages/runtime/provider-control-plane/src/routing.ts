@@ -25,6 +25,8 @@ import { ProviderCatalog, projectModel } from "./catalog.ts";
 import { CredentialManager } from "./credentials.ts";
 import { ProviderControlPlaneError } from "./errors.ts";
 import { ProviderControlPlaneStore } from "./store.ts";
+import { ProviderRouteHealthRuntime } from "./route-health.ts";
+import { ProviderCredentialPoolRuntime } from "./credential-pool.ts";
 
 interface Candidate {
   readonly provider: ProviderDefinition;
@@ -57,16 +59,22 @@ export class ProviderRoutePlanner {
   private readonly store: ProviderControlPlaneStore;
   private readonly catalog: ProviderCatalog;
   private readonly credentials: CredentialManager;
+  private readonly health: ProviderRouteHealthRuntime | null;
+  private readonly credentialPool: ProviderCredentialPoolRuntime | null;
 
   constructor(
     store: ProviderControlPlaneStore,
     catalog: ProviderCatalog,
     credentials: CredentialManager,
     options: RoutePlannerOptions = {},
+    health: ProviderRouteHealthRuntime | null = null,
+    credentialPool: ProviderCredentialPoolRuntime | null = null,
   ) {
     this.store = store;
     this.catalog = catalog;
     this.credentials = credentials;
+    this.health = health;
+    this.credentialPool = credentialPool;
     this.clock = options.clock ?? new SystemClock();
     this.ids = options.ids ?? new RandomIdFactory();
     this.leaseMilliseconds = options.leaseMilliseconds ?? 15 * 60_000;
@@ -98,10 +106,11 @@ export class ProviderRoutePlanner {
         },
       });
     }
+    const poolExcluded = this.credentialPool?.excludedCredentialIds(selected.provider.providerId) ?? [];
     const credential = this.credentials.select({
       providerId: selected.provider.providerId,
       modelId: selected.model.modelId,
-      excludedCredentialIds: request.constraints.excludedCredentialIds,
+      excludedCredentialIds: [...new Set([...request.constraints.excludedCredentialIds, ...poolExcluded])],
       requiredScopes: request.constraints.requiredScopes,
       minimumValidityMilliseconds: this.leaseMilliseconds,
     });
@@ -260,6 +269,7 @@ export class ProviderRoutePlanner {
       const provider = providers.get(rawModel.providerId);
       if (!provider) continue;
       const model = projectModel(rawModel, provider);
+      if (this.health !== null && !this.health.isAdmissible(provider.providerId, model.modelId)) continue;
       if (
         previous
         && !allowSameModel
@@ -269,6 +279,11 @@ export class ProviderRoutePlanner {
       if (!matchesConstraints(provider, model, request)) continue;
       const reasons: string[] = [];
       let score = model.releasedAt / 1_000_000_000;
+      if (this.health !== null) {
+        const health = this.health.snapshot(provider.providerId, model.modelId);
+        score += this.health.scoreAdjustment(provider.providerId, model.modelId);
+        reasons.push(`health generation ${health.generation} circuit ${health.circuit}`);
+      }
       if (request.preferredProviderId === provider.providerId) { score += 100; reasons.push("preferred provider"); }
       if (request.preferredModelId === model.modelId) { score += 200; reasons.push("preferred model"); }
       if (request.routeHint === `${provider.providerId}/${model.modelId}`) { score += 300; reasons.push("exact validated route hint"); }
