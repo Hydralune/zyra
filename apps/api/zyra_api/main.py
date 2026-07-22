@@ -62,6 +62,13 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/tasks/{task_id}/recovery/deltas"),
     ("GET", "/recovery/plans/{plan_id}"),
     ("POST", "/recovery/plans/{plan_id}/resume-waiting"),
+    ("GET", "/hardening/m1/status"),
+    ("GET", "/hardening/m1/reports"),
+    ("GET", "/hardening/m1/reports/{report_id}"),
+    ("GET", "/hardening/m1/chain"),
+    ("POST", "/hardening/m1/audit"),
+    ("POST", "/hardening/m1/reports/{report_id}/verify"),
+    ("POST", "/tasks/{task_id}/hardening/m1/foundation"),
 )
 
 for package_path in PACKAGE_PATHS:
@@ -316,6 +323,8 @@ from zyra_workers import (
 )
 from zyra_workers.subagents.typescript_port import TypeScriptAgentDurablePort
 from zyra_evaluation import evaluate_task_trace
+from zyra_evaluation.m1_hardening.api import M1HardeningApi
+from zyra_evaluation.m1_hardening.service import M1HardeningService
 from zyra_integrations import (
     LedgerAdvanceRequest,
     LedgerSelector,
@@ -1958,6 +1967,47 @@ def artifact_root_path() -> Path:
     if configured.is_absolute():
         return configured
     return PROJECT_ROOT / configured
+
+
+_M1_HARDENING_API_LOCK = threading.RLock()
+_M1_HARDENING_API_INSTANCE: M1HardeningApi | None = None
+_M1_HARDENING_API_KEY: tuple[str, str] | None = None
+
+
+def get_m1_hardening_api() -> M1HardeningApi:
+    global _M1_HARDENING_API_INSTANCE, _M1_HARDENING_API_KEY
+    hardening_root = (artifact_root_path() / "m1-hardening").resolve()
+    key = (str(PROJECT_ROOT.resolve()), str(hardening_root))
+    with _M1_HARDENING_API_LOCK:
+        if _M1_HARDENING_API_INSTANCE is None or _M1_HARDENING_API_KEY != key:
+            service = M1HardeningService(
+                PROJECT_ROOT,
+                source_workspace=PROJECT_ROOT.parent,
+                artifact_root=hardening_root,
+            )
+            _M1_HARDENING_API_INSTANCE = M1HardeningApi(
+                service,
+                default_baseline="44da53ad8ea909147709857e358b7d16e39f6313",
+            )
+            _M1_HARDENING_API_KEY = key
+        return _M1_HARDENING_API_INSTANCE
+
+
+def reset_m1_hardening_api() -> None:
+    global _M1_HARDENING_API_INSTANCE, _M1_HARDENING_API_KEY
+    with _M1_HARDENING_API_LOCK:
+        if _M1_HARDENING_API_INSTANCE is not None:
+            _M1_HARDENING_API_INSTANCE.service.cancel()
+        _M1_HARDENING_API_INSTANCE = None
+        _M1_HARDENING_API_KEY = None
+
+
+def _hardening_task_payload(store: SQLiteStore, task_id: str) -> Mapping[str, Any] | None:
+    state = store.load_task(task_id)
+    if state is None:
+        return None
+    value = to_jsonable(state)
+    return value if isinstance(value, Mapping) else None
 
 
 def permission_store_path() -> Path:
@@ -3785,6 +3835,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         parts = _path_parts(parsed.path)
         store = get_store()
 
+        hardening_response = get_m1_hardening_api().handle_get(
+            tuple(parts),
+            _flatten_query(parse_qs(parsed.query, keep_blank_values=True)),
+        )
+        if hardening_response is not None:
+            self._send_json(
+                hardening_response.status,
+                dict(hardening_response.body),
+                headers=dict(hardening_response.headers),
+            )
+            return
+
         if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
             return
 
@@ -5304,6 +5366,20 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
+
+        hardening_response = get_m1_hardening_api().handle_post(
+            tuple(parts),
+            payload,
+            task_loader=lambda task_id: _hardening_task_payload(store, task_id),
+            event_loader=lambda task_id: tuple(store.task_events(task_id)),
+        )
+        if hardening_response is not None:
+            self._send_json(
+                hardening_response.status,
+                dict(hardening_response.body),
+                headers=dict(hardening_response.headers),
+            )
             return
 
         recovery_response = get_recovery_runtime_api(store).route_post(tuple(parts), payload)

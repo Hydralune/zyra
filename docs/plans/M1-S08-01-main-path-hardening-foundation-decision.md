@@ -6,7 +6,7 @@ Status: frozen before production implementation
 
 ## Commit boundaries
 
-- `baseline_commit`: `44da53ae718334c6cefe87276638a2035019f1fc`
+- `baseline_commit`: `44da53ad8ea909147709857e358b7d16e39f6313`
 - `implementation_commit`: pending; will be the commit containing production runtime and direct tests, before evidence/state closeout
 - `evidence_commit`: pending; will contain the slice review, machine-readable evidence and final effective-line audit
 
