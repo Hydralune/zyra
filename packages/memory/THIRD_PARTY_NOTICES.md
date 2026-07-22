@@ -9,7 +9,9 @@ this package.
   document/knowledge boundaries and the index worker/task/sweeper lifecycle.
 - oh-my-pi, commit `c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca`, MIT License:
   bounded MMR, query-intent, temporal, polyphonic retrieval and derived-vector
-  rebuild mechanisms.
+  rebuild mechanisms. Intent, temporal parsing, RRF/polyphonic fusion and MMR
+  are retained as cropped TypeScript in `retrieval-algorithms`; the Python
+  boundary validates its typed protocol and remains the sole index/store owner.
 
 The corresponding source paths, target bindings, roles, tests and exclusions
 are recorded in Zyra's internalization ledger under owner `M1-S06A-01`.

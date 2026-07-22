@@ -22,6 +22,10 @@
       "name": "@zyra/memory-curator-state-machine",
       "version": "0.1.0",
     },
+    "packages/memory/retrieval-algorithms": {
+      "name": "@zyra/retrieval-algorithms",
+      "version": "0.1.0",
+    },
     "packages/memory/skill-memory-runtime": {
       "name": "@zyra/skill-memory-runtime",
       "version": "0.1.0",
@@ -82,6 +86,8 @@
     "@zyra/memory-curator-state-machine": ["@zyra/memory-curator-state-machine@workspace:packages/memory/curator-state-machine"],
 
     "@zyra/provider-control-plane": ["@zyra/provider-control-plane@workspace:packages/runtime/provider-control-plane"],
+
+    "@zyra/retrieval-algorithms": ["@zyra/retrieval-algorithms@workspace:packages/memory/retrieval-algorithms"],
 
     "@zyra/runtime-event-spine": ["@zyra/runtime-event-spine@workspace:packages/runtime/runtime-event-spine"],
 

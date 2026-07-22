@@ -24,7 +24,7 @@ from .retrieval_models import (
     RetrievalResult,
     stable_digest,
 )
-from .retrieval_query import enrich_query, fts_match_expression
+from .retrieval_query import fts_match_expression
 
 
 SCHEMA_VERSION = 2
@@ -627,7 +627,7 @@ class SQLiteRetrievalIndex:
         )
 
     def search_fts(self, query: RetrievalQuery, *, scope_key: str = "") -> tuple[RetrievalHit, ...]:
-        enriched = enrich_query(query)
+        enriched = query.validated()
         expression = fts_match_expression(enriched.text, match_all=False, prefix=False)
         if not expression:
             return ()

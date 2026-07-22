@@ -174380,7 +174380,7 @@
           "workspace_patch_invalidation"
         ],
         "ui_panels": [],
-        "worker_runtime": "combine_retrieval_hits"
+        "worker_runtime": "rankRetrievalCandidates"
       },
       "main_path_status": "tested_main_path",
       "metadata": {
@@ -174389,59 +174389,65 @@
         "canonical_memory_owner": "SQLiteStore/MemoryRecordStore",
         "canonical_workspace_owner": "WorkspaceManagerRuntime+WorkspaceFileRevision",
         "index_is_derived": true,
-        "migration_mode": "bounded_cross_language_mechanism_port",
+        "migration_mode": "cropped_migration_same_language_typed_protocol",
         "owner_unit": "M1-S06A-01",
         "root_source_runtime_dependency": false,
         "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
         "source_role": "supplementary_implementation"
       },
-      "migration_strategy": "reimplemented_pattern",
-      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; Only bounded ranking, temporal/intent interpretation and rebuild-safety mechanisms fill specific primary gaps. OMP memory storage, embedding ownership, agent loop and process runtime are not copied and do not become a second canonical owner.",
+      "migration_strategy": "direct_port",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; OMP intent, temporal, RRF/polyphonic fusion and MMR remain TypeScript behind a validated typed process protocol. Python retains the canonical memory/index store, lifecycle, filters, hydration and delivery journals; OMP storage and embedding ownership are not migrated.",
       "owner_unit": "M1-S06A-01",
       "runtime_entry": {
         "config_refs": [
-          "packages/memory/zyra_memory/retrieval_query.py",
-          "packages/memory/zyra_memory/vector_adapter.py",
-          "packages/memory/zyra_memory/retrieval_context.py",
-          "packages/memory/zyra_memory/skill_memory_index.py",
-          "packages/code_index/zyra_code_index/symbols.py",
-          "packages/code_index/zyra_code_index/service.py"
+          "packages/memory/retrieval-algorithms/src/intent.ts",
+          "packages/memory/retrieval-algorithms/src/temporal.ts",
+          "packages/memory/retrieval-algorithms/src/ranking.ts",
+          "packages/memory/retrieval-algorithms/src/protocol.ts",
+          "packages/memory/zyra_memory/retrieval_typescript_port.py",
+          "packages/memory/zyra_memory/memory_index.py",
+          "packages/memory/zyra_memory/vector_adapter.py"
         ],
-        "function": "combine_retrieval_hits",
+        "function": "rankRetrievalCandidates",
         "health_check": "python -m pytest tests/unit/test_retrieval_index_adapters_foundation.py tests/integration/test_index_worker_process_recovery.py tests/unit/test_code_index_foundation.py tests/integration/test_retrieval_api_main_path.py tests/integration/test_code_index_api_main_path.py -q",
-        "module": "zyra_memory.retrieval_query",
+        "module": "@zyra/retrieval-algorithms",
         "protocol": "zyra-retrieval-index-v1"
       },
       "source_path": "packages/mnemopi/src/core/mmr.ts;packages/mnemopi/src/core/query-intent.ts;packages/mnemopi/src/core/temporal-parser.ts;packages/mnemopi/src/core/polyphonic-recall.ts;packages/mnemopi/src/core/vector-index.ts;packages/mnemopi/src/core/memory.ts",
       "source_repo": "oh-my-pi",
       "target_bindings": [
         {
-          "path": "packages/memory/zyra_memory/retrieval_query.py",
+          "path": "packages/memory/retrieval-algorithms/src/intent.ts",
           "required_for_main_path": true,
           "role": "primary"
         },
         {
+          "path": "packages/memory/retrieval-algorithms/src/temporal.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/retrieval-algorithms/src/ranking.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/retrieval-algorithms/src/protocol.ts",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/retrieval_typescript_port.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/memory/zyra_memory/memory_index.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
           "path": "packages/memory/zyra_memory/vector_adapter.py",
-          "required_for_main_path": true,
-          "role": "supporting"
-        },
-        {
-          "path": "packages/memory/zyra_memory/retrieval_context.py",
-          "required_for_main_path": true,
-          "role": "supporting"
-        },
-        {
-          "path": "packages/memory/zyra_memory/skill_memory_index.py",
-          "required_for_main_path": true,
-          "role": "supporting"
-        },
-        {
-          "path": "packages/code_index/zyra_code_index/symbols.py",
-          "required_for_main_path": true,
-          "role": "supporting"
-        },
-        {
-          "path": "packages/code_index/zyra_code_index/service.py",
           "required_for_main_path": true,
           "role": "supporting"
         }
@@ -176962,10 +176968,10 @@
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 31,
+      "direct_port": 32,
       "not_selected": 14,
       "planned_adapter": 378,
-      "reimplemented_pattern": 237,
+      "reimplemented_pattern": 236,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 734,

@@ -80,21 +80,23 @@ DECISIONS: tuple[dict[str, Any], ...] = (
             "and interrupted derived-index rebuild recovery supplement the AgentScope lifecycle."
         ),
         "target_paths": [
-            "packages/memory/zyra_memory/retrieval_query.py",
+            "packages/memory/retrieval-algorithms/src/intent.ts",
+            "packages/memory/retrieval-algorithms/src/temporal.ts",
+            "packages/memory/retrieval-algorithms/src/ranking.ts",
+            "packages/memory/retrieval-algorithms/src/protocol.ts",
+            "packages/memory/zyra_memory/retrieval_typescript_port.py",
+            "packages/memory/zyra_memory/memory_index.py",
             "packages/memory/zyra_memory/vector_adapter.py",
-            "packages/memory/zyra_memory/retrieval_context.py",
-            "packages/memory/zyra_memory/skill_memory_index.py",
-            "packages/code_index/zyra_code_index/symbols.py",
-            "packages/code_index/zyra_code_index/service.py",
         ],
         "source_role": "supplementary_implementation",
-        "migration_strategy": "reimplemented_pattern",
-        "runtime_module": "zyra_memory.retrieval_query",
-        "runtime_function": "combine_retrieval_hits",
+        "migration_strategy": "direct_port",
+        "migration_mode": "cropped_migration_same_language_typed_protocol",
+        "runtime_module": "@zyra/retrieval-algorithms",
+        "runtime_function": "rankRetrievalCandidates",
         "rationale": (
-            "Only bounded ranking, temporal/intent interpretation and rebuild-safety mechanisms fill "
-            "specific primary gaps. OMP memory storage, embedding ownership, agent loop and process "
-            "runtime are not copied and do not become a second canonical owner."
+            "OMP intent, temporal, RRF/polyphonic fusion and MMR remain TypeScript behind a validated "
+            "typed process protocol. Python retains the canonical memory/index store, lifecycle, filters, "
+            "hydration and delivery journals; OMP storage and embedding ownership are not migrated."
         ),
     },
 )

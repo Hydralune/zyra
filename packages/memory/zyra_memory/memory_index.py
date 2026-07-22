@@ -21,8 +21,9 @@ from .retrieval_models import (
     VectorAvailability,
     stable_digest,
 )
-from .retrieval_query import combine_retrieval_hits, enrich_query, filter_hit_in_memory
+from .retrieval_query import filter_hit_in_memory
 from .retrieval_store import SQLiteRetrievalIndex
+from .retrieval_typescript_port import TypeScriptRetrievalAlgorithmsPort
 from .vector_adapter import UnavailableVectorAdapter, VectorSearchAdapter
 
 
@@ -92,6 +93,8 @@ class MemoryIndexRuntime:
         heartbeat_interval_seconds: float | None = None,
         clock: Any | None = None,
         event_sink: Any | None = None,
+        typescript_port: Any | None = None,
+        enable_typescript_supplement: bool = True,
     ) -> None:
         self.canonical_store = canonical_store
         self.artifact_store = artifact_store
@@ -99,6 +102,14 @@ class MemoryIndexRuntime:
         self.queue = IndexBuildQueue(self.index)
         self.leases = IndexLeaseStore(self.queue)
         self.vector_adapter = vector_adapter or UnavailableVectorAdapter()
+        if enable_typescript_supplement and typescript_port is None:
+            project_root = Path(__file__).resolve().parents[3]
+            typescript_port = TypeScriptRetrievalAlgorithmsPort(
+                project_root=project_root
+            )
+        self.typescript_port = (
+            typescript_port if enable_typescript_supplement else None
+        )
         self.worker = IndexWorkerRuntime(
             worker_id=worker_id,
             queue=self.queue,
@@ -257,7 +268,11 @@ class MemoryIndexRuntime:
         query_filter = filters or RetrievalFilter(task_ids=(task_id,))
         if not query_filter.task_ids:
             query_filter = replace(query_filter, task_ids=(task_id,))
-        query = enrich_query(
+        if self.typescript_port is None:
+            raise RuntimeError(
+                "TypeScript retrieval algorithms are disabled; no Python ranking fallback is permitted"
+            )
+        query = self.typescript_port.enrich_query(
             RetrievalQuery(
                 text=text,
                 filters=query_filter,
@@ -290,7 +305,7 @@ class MemoryIndexRuntime:
         warnings: list[str] = []
         if generation == 0:
             warnings.append("index_not_ready")
-        retrieval = combine_retrieval_hits(
+        retrieval = self.typescript_port.rank(
             query,
             fts_hits=fts_hits,
             vector_hits=vector_hits,
@@ -349,6 +364,16 @@ class MemoryIndexRuntime:
             "canonical_owner": type(self.canonical_store).__name__,
             "derived_state": True,
             "rebuildable": True,
+            "retrieval_algorithms": (
+                self.typescript_port.health()
+                if self.typescript_port is not None
+                else {
+                    "protocol": "zyra.retrieval-algorithms.v1",
+                    "available": False,
+                    "disabled": True,
+                    "fallback": False,
+                }
+            ),
         }
         if task_id:
             value["scope"] = self.index.scope_state(self.task_scope(task_id))

@@ -1,0 +1,10 @@
+{
+  "name": "@zyra/retrieval-algorithms",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "bun test ./test/retrieval-algorithms.test.ts"
+  }
+}

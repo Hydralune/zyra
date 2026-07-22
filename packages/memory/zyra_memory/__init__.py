@@ -20,6 +20,7 @@ from .retrieval_models import (
     IndexPublication,
     IndexSourceKind,
     PublicationFencedError,
+    QueryIntentCategory,
     RetrievalBudget,
     RetrievalDiagnostics,
     RetrievalFilter,
@@ -29,6 +30,11 @@ from .retrieval_models import (
     VectorAvailability,
 )
 from .retrieval_store import SQLiteRetrievalIndex
+from .retrieval_typescript_port import (
+    RETRIEVAL_ALGORITHM_PROTOCOL,
+    TypeScriptRetrievalAlgorithmError,
+    TypeScriptRetrievalAlgorithmsPort,
+)
 from .skill_memory_index import SkillExperience, SkillMemoryIndex
 from .procedure_miner import (
     ProcedureMinerPolicy,
@@ -249,12 +255,14 @@ __all__ = [
     "MemoryIndexRuntime",
     "MemoryIndexSyncResult",
     "PublicationFencedError",
+    "QueryIntentCategory",
     "RetrievalBudget",
     "RetrievalDiagnostics",
     "RetrievalFilter",
     "RetrievalHit",
     "RetrievalQuery",
     "RetrievalResult",
+    "RETRIEVAL_ALGORITHM_PROTOCOL",
     "SQLiteRetrievalIndex",
     "SkillExperience",
     "SkillMemoryIndex",
@@ -335,6 +343,8 @@ __all__ = [
     "TypeScriptConsolidationReceipt",
     "TypeScriptCuratorStateError",
     "TypeScriptCuratorStatePort",
+    "TypeScriptRetrievalAlgorithmError",
+    "TypeScriptRetrievalAlgorithmsPort",
     "AuditContractConsumer",
     "CompactRuntimeContractConsumer",
     "ContextEffect",
