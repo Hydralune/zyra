@@ -211,6 +211,8 @@ class CleanEnvironment:
 
     @classmethod
     def build(cls, root: Path, additions: Mapping[str, str] | None = None) -> dict[str, str]:
+        temporary = (root / ".cleanroom-tmp").resolve()
+        temporary.mkdir(parents=True, exist_ok=True)
         environment: dict[str, str] = {}
         for key, value in os.environ.items():
             upper = key.upper()
@@ -227,6 +229,9 @@ class CleanEnvironment:
                 "ZYRA_CLEANROOM": "1",
                 "ZYRA_PROJECT_ROOT": str(root),
                 "ZYRA_ARTIFACT_ROOT": str(root / ".cleanroom-artifacts"),
+                "TEMP": str(temporary),
+                "TMP": str(temporary),
+                "TMPDIR": str(temporary),
             }
         )
         for key, value in (additions or {}).items():

@@ -8,6 +8,7 @@ from pathlib import Path
 from zyra_evaluation.m1_hardening.benchmark import BenchmarkAnalyzer
 from zyra_evaluation.m1_hardening.cleanroom import (
     CleanroomBoundaryScanner,
+    CleanEnvironment,
     CleanroomVerifier,
     default_cleanroom_commands,
 )
@@ -195,6 +196,16 @@ def test_cleanroom_materializes_committed_workspace_packages_without_install(tmp
     assert materialized == ["@zyra/memory-runtime"]
     assert (target / "package.json").is_file()
     assert (target / "src" / "index.ts").read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
+
+
+def test_clean_environment_keeps_process_temporary_state_inside_archive(tmp_path: Path) -> None:
+    environment = CleanEnvironment.build(tmp_path)
+
+    temporary = (tmp_path / ".cleanroom-tmp").resolve()
+    assert temporary.is_dir()
+    assert Path(environment["TEMP"]).resolve() == temporary
+    assert Path(environment["TMP"]).resolve() == temporary
+    assert Path(environment["TMPDIR"]).resolve() == temporary
 
 
 def test_evidence_admission_accepts_digest_bound_runtime_evidence_and_rejects_tampering() -> None:
