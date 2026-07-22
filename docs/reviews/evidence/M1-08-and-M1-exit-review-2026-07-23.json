@@ -1,0 +1,244 @@
+{
+  "schema": "zyra.m1-08-m1-exit-review/v1",
+  "review_date": "2026-07-23",
+  "review_type": [
+    "M1-08_numeric_stage_aggregate",
+    "M1_milestone_exit"
+  ],
+  "taskbook": "G:/agent-zoo/docs/执行单元完成后通用审查任务书.md",
+  "verdict": {
+    "engineering_remediation": "passed",
+    "m1_08_aggregate": "blocked_on_external_and_source_pool_gates",
+    "m1_s08_02": "blocked",
+    "m1_milestone_exit": "blocked",
+    "execution_state_updated": false,
+    "reason": "Current Zyra-owned paths and cleanroom pass, but real edge/cloud/live/sealed/benchmark evidence and the whole-M1 source-pool gate remain unresolved."
+  },
+  "commits": {
+    "m1_baseline": "68587549447cacfdbf7992387823b5af6f7f9cf3",
+    "m1_08_baseline": "44da53ad8ea909147709857e358b7d16e39f6313",
+    "m1_s08_02_baseline": "8065bac109a3bed9ba01e0e92392fec4d05bfca3",
+    "original_implementation_target": "e7105fdefebe4723c53bd58a3f0353b73744ece0",
+    "monitor_trigger": "c464dc0162f20a9f0d0f41931c60446110573ec2",
+    "owner_matrix_fix": "b6a4b9f642a0c999dec59f05bcd7fc66a9116c76",
+    "final_implementation_target": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+    "evidence_commit": "this_commit"
+  },
+  "findings": {
+    "fixed": [
+      "disconnect probes replayed empty payloads and selected the wrong step",
+      "MCP was absent from the unique owner matrix",
+      "cleanroom did not execute the disconnect matrix",
+      "cross-thread lock ownership, session reuse and unreleased leases broke restore",
+      "TypeScript environment forwarding hid kill switches and stdio masked errors",
+      "sandbox read bypassed the gateway enabled check",
+      "provider, runtime-event and watchdog scenarios did not hit their canonical owners",
+      "edge-local fanout could be misreported as edge evidence",
+      "historical ledger rows pointed at retired Python and main.mjs targets",
+      "OpenClaw remained incorrectly required after the forward exclusion boundary",
+      "ledger string scanning treated deny-list definitions as runtime dependencies"
+    ],
+    "unresolved": [
+      "no real isolated edge endpoint",
+      "no real cloud endpoint and two-provider wire/model receipt",
+      "no two admitted cross-domain live tasks",
+      "no sealed zero-human 1000-action/2000-transition run",
+      "no sparse-topology entropy comparison and ablation metrics",
+      "no final causal visualization, pseudocode and complexity artifact",
+      "whole-M1 diff contains 130176 raw vendor/source-pool lines excluded from credit but blocked by the line gate"
+    ]
+  },
+  "owner_disconnect_matrix": {
+    "unique_capabilities": 18,
+    "executed_passed_and_restored": 17,
+    "blocked": 1,
+    "blocked_capability": "edge-worker",
+    "blocked_error": "edge_live_dispatch_unavailable",
+    "observed_worker_locations": [
+      "local"
+    ],
+    "fake_edge_credit": false
+  },
+  "line_audits": {
+    "review_fix": {
+      "baseline": "c464dc0162f20a9f0d0f41931c60446110573ec2",
+      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+      "effective_production_lines": 694,
+      "raw_added_lines": 1112,
+      "raw_deleted_lines": 111,
+      "bucket_raw_added": {
+        "production": 848,
+        "test": 264
+      },
+      "effective_by_language": {
+        "python": 656,
+        "typescript": 38
+      },
+      "status": "passed"
+    },
+    "m1_s08_02": {
+      "baseline": "8065bac109a3bed9ba01e0e92392fec4d05bfca3",
+      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+      "minimum": 7000,
+      "effective_production_lines": 8659,
+      "raw_added_lines": 12105,
+      "raw_deleted_lines": 61,
+      "bucket_raw_added": {
+        "docs": 468,
+        "production": 10843,
+        "test": 794
+      },
+      "status": "passed"
+    },
+    "m1_08": {
+      "baseline": "44da53ad8ea909147709857e358b7d16e39f6313",
+      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+      "minimum": 16000,
+      "effective_production_lines": 17842,
+      "raw_added_lines": 24430,
+      "raw_deleted_lines": 45,
+      "bucket_raw_added": {
+        "docs": 831,
+        "production": 22431,
+        "test": 1168
+      },
+      "effective_by_language": {
+        "python": 17804,
+        "typescript": 38
+      },
+      "status": "passed"
+    },
+    "whole_m1": {
+      "baseline": "68587549447cacfdbf7992387823b5af6f7f9cf3",
+      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+      "effective_production_lines": 281708,
+      "raw_added_lines": 1122889,
+      "raw_deleted_lines": 3149,
+      "bucket_raw_added": {
+        "data": 179152,
+        "docs": 139428,
+        "mock_fixture": 197,
+        "other": 1,
+        "production": 567477,
+        "productized_script": 27674,
+        "test": 78784,
+        "vendor_like_source_pool": 130176
+      },
+      "bucket_effective": {
+        "production": 264844,
+        "productized_script": 16864,
+        "vendor_like_source_pool": 0
+      },
+      "effective_by_language": {
+        "python": 267178,
+        "typescript": 14530
+      },
+      "status": "blocked",
+      "blocking_code": "line-audit.vendor_source_added"
+    }
+  },
+  "ledger_audit": {
+    "strict_ok": true,
+    "errors": 0,
+    "blockers": 0,
+    "warnings": 695,
+    "warning_codes": {
+      "PLANNED_TARGET_NOT_MATERIALIZED": 452,
+      "MISSING_LICENSE_NOTICE": 203,
+      "SOURCE_PATH_NOT_VERIFIED": 28,
+      "CONFLICTING_TARGET_OWNER": 11,
+      "EXECUTION_UNIT_COVERAGE_INCOMPLETE": 1
+    },
+    "m1_warnings": 487,
+    "m1_warning_codes": {
+      "PLANNED_TARGET_NOT_MATERIALIZED": 284,
+      "MISSING_LICENSE_NOTICE": 203
+    },
+    "connected_m1_warnings": 0,
+    "openclaw_history_preserved": true,
+    "openclaw_forward_required": false
+  },
+  "cleanroom": {
+    "schema": "zyra.m1-cleanroom-receipt/v1",
+    "target_commit": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+    "status": "passed",
+    "archive_digest": "b4fb4036138fbcf291fc318244a3061d5ea857f928dbde500ac1bc0dbe1f1061",
+    "receipt_digest": "0e3b08b84ed250c75a5f68926f8b0551cfbb8d93dccc27ac6f07a694080612c2",
+    "archive_member_count": 6807,
+    "file_count": 6532,
+    "workspace_package_count": 9,
+    "source_dirty": false,
+    "symlink_count": 0,
+    "residual_count": 0,
+    "outside_link_count": 0,
+    "forbidden_reference_count": 0,
+    "limitations": [],
+    "cleanup_ok": true,
+    "commands": [
+      {
+        "id": "python-compile",
+        "duration_ms": 3697,
+        "exit_code": 0,
+        "result": "passed"
+      },
+      {
+        "id": "m1-hardening-unit",
+        "duration_ms": 999,
+        "exit_code": 0,
+        "result": "13 passed in 0.54s"
+      },
+      {
+        "id": "m1-hardening-integration",
+        "duration_ms": 851180,
+        "exit_code": 0,
+        "result": "15 passed in 850.45s"
+      }
+    ]
+  },
+  "other_tests": [
+    {
+      "scope": "focused Python review paths",
+      "result": "22 passed"
+    },
+    {
+      "scope": "provider Node tests",
+      "result": "12 passed"
+    },
+    {
+      "scope": "E04/E02/protocol TypeScript",
+      "result": "127 passed, 0 failed"
+    },
+    {
+      "scope": "ledger migration, OpenClaw boundary and AST dependency scanner",
+      "result": "4 passed"
+    },
+    {
+      "scope": "ledger control-plane adjacent group",
+      "result": "38 passed, 1 pre-existing delegated-MCP route assertion failed"
+    }
+  ],
+  "exit_blockers": [
+    "two_cross_domain_live_tasks",
+    "sealed_zero_human_policy",
+    "minimum_1000_effective_actions",
+    "minimum_2000_canonical_transitions",
+    "real_local_edge_cloud_dispatch",
+    "two_real_provider_wire_model_integrations",
+    "dynamic_sparse_low_entropy_baselines",
+    "long_horizon_message_budget_metrics",
+    "live_fault_change_node_failure_recovery",
+    "causal_visualization_pseudocode_complexity",
+    "whole_m1_vendor_source_pool_line_gate"
+  ],
+  "authoritative_state": {
+    "path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "completed_through": "M1-S08-01",
+    "next_slice": "docs/milestones/M1-runtime-memory-scheduler-fault/slice-08-02-main-path-hardening-integration.md",
+    "unchanged": true
+  },
+  "deadline": {
+    "official_submission_date": "2026-09-15",
+    "review_date": "2026-07-23",
+    "calendar_days_remaining": 54
+  }
+}
