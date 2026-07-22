@@ -1,0 +1,386 @@
+{
+  "schema": "zyra.completion-gate-remediation-evidence/v1",
+  "slice_id": "M1-S07A-02",
+  "date": "2026-07-22",
+  "status": "blocked_parent_effective_code_shortfall",
+  "original_evidence_frozen": true,
+  "original_evidence_commit": "66b3c42da106a799b65eea3e17a7efcdff0b5f2b",
+  "original_review_record": "docs/reviews/M1-S07A-02-worker-lifecycle-resource-pool-integration-review.md",
+  "original_evidence_record": "docs/reviews/evidence/M1-S07A-02-worker-lifecycle-resource-pool-integration.json",
+  "original_records_modified": false,
+  "gate_read": {
+    "original_completion": false,
+    "remediation": true,
+    "files_read_from_start_to_eof": [
+      "G:/agent-zoo/docs/milestones/M1-runtime-memory-scheduler-fault/m1-s07a-02-inflight-completion-gate-2026-07-22.md",
+      "G:/agent-zoo/docs/milestones/effective-code-language-migration-gate-2026-07-22.md"
+    ],
+    "gate_file_last_write_times": {
+      "inflight_gate": "2026-07-22T11:27:06.4825313+08:00",
+      "unified_gate": "2026-07-22T11:27:04.2695272+08:00"
+    },
+    "finding": "Both gates predate the implementation and evidence commits, but the original evidence omitted their required per-file buckets, large-file review and parent-range recomputation."
+  },
+  "commit_boundaries": {
+    "slice_baseline_commit": "8981599da7312f2bfba7b3303498efebb8339e39",
+    "slice_implementation_commit": "16f24689c1817a1f74fec9afb451d24b97983670",
+    "slice_evidence_commit": "66b3c42da106a799b65eea3e17a7efcdff0b5f2b",
+    "implementation_parent": "8981599da7312f2bfba7b3303498efebb8339e39",
+    "evidence_parent": "16f24689c1817a1f74fec9afb451d24b97983670",
+    "parent_07a_baseline_commit": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b",
+    "first_07a_implementation_commit": "83251b198abe88e6b848f1095b6faed1005cd39d",
+    "first_07a_implementation_parent": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b",
+    "remediation_audit_test_commit": "72732e2167772b306dfd1921912995b48389ed99",
+    "statistics_range": "8981599da7312f2bfba7b3303498efebb8339e39..16f24689c1817a1f74fec9afb451d24b97983670",
+    "parent_statistics_range": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b..16f24689c1817a1f74fec9afb451d24b97983670",
+    "later_patch_counted_for_original": false
+  },
+  "audit_tool": {
+    "path": "scripts/audit_m1_s07a02_effective_code_gate.py",
+    "commit": "72732e2167772b306dfd1921912995b48389ed99",
+    "classification": "nonproduction_tooling",
+    "counted_as_effective_production": false,
+    "raw_method": "target-side added lines from git diff --unified=0",
+    "ownership_method": "git blame at the frozen implementation target",
+    "command": "python scripts/audit_m1_s07a02_effective_code_gate.py --scope both --summary-only --fail-on-gate",
+    "expected_exit": 1,
+    "expected_blocker": "parent effective production 14646 < 15000"
+  },
+  "source_language_decisions": [
+    {
+      "source_role": "primary_implementation",
+      "source_repo": "agentscope",
+      "source_paths": "src/agentscope/app/_manager/_chat_run_registry.py; _wakeup_dispatcher.py; _cancel_dispatcher.py; _background_task_manager.py; middleware/_inbox_middleware.py; _service/_session.py",
+      "source_language": "python",
+      "target_paths": "packages/scheduler/zyra_scheduler/worker_pool/** and API integration",
+      "target_language": "python",
+      "migration_mode": "cropped_migration/same_language_module_integration",
+      "canonical_owner": "WorkerPoolStore and WorkerPoolIntegrationRepository",
+      "preexisting_decision_reference": "slice-07a-02 sections 24-28 and 71-79 plus parent source-role ruling"
+    },
+    {
+      "source_role": "supplementary_implementation",
+      "source_repo": "oh-my-pi",
+      "source_paths": "packages/coding-agent/src/task/index.ts; executor.ts; parallel.ts; provider-concurrency.ts; async/job-manager.ts",
+      "source_language": "typescript",
+      "target_paths": "packages/runtime/claude-runtime/src/omp-worker-control/**",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "canonical_owner": "process-local OmpSessionAdmissionRuntime under Python durable lease custody",
+      "preexisting_decision_reference": "slice-07a-02 sections 24-28 and 71-79 plus parent source-role ruling"
+    },
+    {
+      "source_role": "supplementary_protocol_adapter",
+      "source_repo": "oh-my-pi",
+      "source_paths": "OMP task/async-job contract boundary",
+      "source_language": "typescript",
+      "target_paths": "packages/workers/zyra_workers/edge_pool/integration.py",
+      "target_language": "python",
+      "migration_mode": "protocol_adapter",
+      "canonical_owner": "none; Python WorkerPoolStore and edge connector remain canonical",
+      "preexisting_decision_reference": "slice-07a-02 section 75 allowed protocol_adapter; exact post-hoc path is recorded as actual fact, not retroactive authorization",
+      "effective_production": 0,
+      "reason": "The entire adapter is separately excluded and cannot offset OMP original-language or parent mature implementation obligations."
+    }
+  ],
+  "file_bucket_columns": [
+    "path",
+    "language",
+    "source_role",
+    "raw",
+    "production_runtime",
+    "ui_behavior",
+    "ui_presentation",
+    "type_declaration",
+    "schema_dto_data",
+    "adapter_only",
+    "generated",
+    "test_mock_fixture",
+    "nonproduction_tooling",
+    "docs_comments_blank",
+    "effective_production"
+  ],
+  "file_buckets": [
+    ["apps/api/zyra_api/main.py", "python", "zyra_integration", 156, 156, 0, 0, 0, 0, 0, 0, 0, 0, 0, 156],
+    ["apps/api/zyra_api/worker_pool_api.py", "python", "zyra_integration", 134, 133, 0, 0, 0, 0, 0, 0, 0, 0, 1, 133],
+    ["packages/integrations/zyra_integrations/data/internalization_ledger_seed.json", "json", "evidence_data", 458, 0, 0, 0, 0, 458, 0, 0, 0, 0, 0, 0],
+    ["packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts", "typescript", "omp_supplementary_same_language", 23, 17, 0, 0, 6, 0, 0, 0, 0, 0, 0, 17],
+    ["packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts", "typescript", "omp_supplementary_same_language", 72, 70, 0, 0, 0, 0, 0, 0, 0, 0, 2, 70],
+    ["packages/runtime/claude-runtime/src/omp-worker-control/index.ts", "typescript", "omp_supplementary_same_language", 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    ["packages/runtime/claude-runtime/src/omp-worker-control/session-runtime.ts", "typescript", "omp_supplementary_same_language", 672, 535, 0, 0, 89, 0, 0, 0, 0, 0, 48, 535],
+    ["packages/runtime/claude-runtime/test/omp-worker-control.test.ts", "typescript", "mixed_verification", 232, 0, 0, 0, 0, 0, 0, 0, 232, 0, 0, 0],
+    ["packages/scheduler/zyra_scheduler/__init__.py", "python", "agentscope_primary_exports", 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0],
+    ["packages/scheduler/zyra_scheduler/worker_pool/__init__.py", "python", "agentscope_primary_exports", 122, 0, 0, 0, 122, 0, 0, 0, 0, 0, 0, 0],
+    ["packages/scheduler/zyra_scheduler/worker_pool/admission.py", "python", "agentscope_primary_same_language", 481, 431, 0, 0, 7, 5, 0, 0, 0, 0, 38, 431],
+    ["packages/scheduler/zyra_scheduler/worker_pool/application.py", "python", "agentscope_primary_same_language", 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5],
+    ["packages/scheduler/zyra_scheduler/worker_pool/checkpoint.py", "python", "agentscope_primary_same_language", 399, 360, 0, 0, 1, 15, 0, 0, 0, 0, 23, 360],
+    ["packages/scheduler/zyra_scheduler/worker_pool/control.py", "python", "agentscope_primary_same_language", 601, 546, 0, 0, 7, 11, 0, 0, 0, 0, 37, 546],
+    ["packages/scheduler/zyra_scheduler/worker_pool/health_bridge.py", "python", "agentscope_primary_same_language", 616, 461, 0, 0, 7, 84, 0, 0, 0, 0, 64, 461],
+    ["packages/scheduler/zyra_scheduler/worker_pool/integration.py", "python", "agentscope_primary_same_language", 1097, 1000, 0, 0, 12, 45, 0, 0, 0, 0, 40, 1000],
+    ["packages/scheduler/zyra_scheduler/worker_pool/integration_models.py", "python", "agentscope_primary_same_language", 1077, 290, 0, 0, 1, 682, 0, 0, 0, 0, 104, 290],
+    ["packages/scheduler/zyra_scheduler/worker_pool/integration_store.py", "python", "agentscope_primary_same_language", 943, 783, 0, 0, 1, 107, 0, 0, 0, 0, 52, 783],
+    ["packages/scheduler/zyra_scheduler/worker_pool/invariants.py", "python", "agentscope_primary_same_language", 505, 427, 0, 0, 1, 51, 0, 0, 0, 0, 26, 427],
+    ["packages/scheduler/zyra_scheduler/worker_pool/leases.py", "python", "agentscope_primary_same_language", 20, 17, 0, 0, 1, 0, 0, 0, 0, 0, 2, 17],
+    ["packages/scheduler/zyra_scheduler/worker_pool/projection.py", "python", "agentscope_primary_same_language", 247, 141, 0, 0, 1, 81, 0, 0, 0, 0, 24, 141],
+    ["packages/scheduler/zyra_scheduler/worker_pool/recovery_handoff.py", "python", "agentscope_primary_same_language", 332, 230, 0, 0, 1, 79, 0, 0, 0, 0, 22, 230],
+    ["packages/scheduler/zyra_scheduler/worker_pool/renewal.py", "python", "agentscope_primary_same_language", 249, 206, 0, 0, 3, 23, 0, 0, 0, 0, 17, 206],
+    ["packages/scheduler/zyra_scheduler/worker_pool/scheduler_bridge.py", "python", "agentscope_primary_same_language", 335, 230, 0, 0, 1, 76, 0, 0, 0, 0, 28, 230],
+    ["packages/scheduler/zyra_scheduler/worker_pool/store.py", "python", "agentscope_primary_same_language", 51, 40, 0, 0, 0, 0, 0, 0, 0, 0, 11, 40],
+    ["packages/workers/zyra_workers/edge_pool/__init__.py", "python", "zyra_exports", 4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0],
+    ["packages/workers/zyra_workers/edge_pool/integration.py", "python", "omp_protocol_adapter", 222, 0, 0, 0, 1, 26, 174, 0, 0, 0, 21, 0],
+    ["scripts/sync_worker_pool_integration_source_ledger.py", "python", "nonproduction_tooling", 293, 0, 0, 0, 0, 0, 0, 0, 0, 293, 0, 0],
+    ["tests/integration/test_worker_pool_integration_runtime.py", "python", "mixed_verification", 1003, 0, 0, 0, 0, 0, 0, 0, 1003, 0, 0, 0]
+  ],
+  "slice_totals": {
+    "raw": 10352,
+    "production_runtime": 6078,
+    "ui_behavior": 0,
+    "ui_presentation": 0,
+    "type_declaration": 269,
+    "schema_dto_data": 1743,
+    "adapter_only": 174,
+    "generated": 0,
+    "test_mock_fixture": 1235,
+    "nonproduction_tooling": 293,
+    "docs_comments_blank": 560,
+    "effective_production": 6078,
+    "minimum": 6000,
+    "shortfall": 0,
+    "ok": true
+  },
+  "source_role_language_summary": [
+    {
+      "source_role": "agentscope_primary_same_language",
+      "language": "python",
+      "migration_mode": "cropped_migration/same_language_module_integration",
+      "raw": 7082,
+      "production": 5167,
+      "test": 0,
+      "adapter": 0,
+      "generated_data_docs": 1915,
+      "default_entry": "task/subagent API -> scheduler.admit -> WorkerPoolIntegrationRuntime",
+      "disable_mutation": "ZYRA_WORKER_LEASE_STORE_DISABLED and binding-insert rollback"
+    },
+    {
+      "source_role": "oh-my-pi_supplementary_same_language",
+      "language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "raw": 768,
+      "production": 622,
+      "test": 0,
+      "adapter": 0,
+      "generated_data_docs": 146,
+      "default_entry": "OmpWorkerDispatchRuntime.execute -> session.enter -> semaphore.acquire -> operation",
+      "disable_mutation": "ZYRA_OMP_WORKER_CONTROL_DISABLED keeps operation counter unchanged"
+    },
+    {
+      "source_role": "oh-my-pi_supplementary_protocol_adapter",
+      "language": "python",
+      "migration_mode": "protocol_adapter",
+      "raw": 222,
+      "production": 0,
+      "test": 0,
+      "adapter": 174,
+      "generated_data_docs": 48,
+      "default_entry": "edge-only WorkerPoolIntegrationRuntime.execute_edge",
+      "disable_mutation": "edge connector disabled/no-local-fallback behavior",
+      "counts_toward_original_language": false
+    },
+    {
+      "source_role": "zyra_integration",
+      "language": "python",
+      "migration_mode": "default-path integration",
+      "raw": 290,
+      "production": 289,
+      "test": 0,
+      "adapter": 0,
+      "generated_data_docs": 1,
+      "default_entry": "HTTP task/subagent/control routes",
+      "disable_mutation": "lease-store API pre-execution failure"
+    }
+  ],
+  "large_or_high_ratio_file_reviews": [
+    {
+      "path": "packages/runtime/claude-runtime/src/omp-worker-control/session-runtime.ts",
+      "trigger": "raw > 500",
+      "upstream": "OMP Semaphore/AsyncJob/session mechanisms",
+      "executable_symbols": "enter, park, revive, cancel, yieldOnce, settle, rehydrate",
+      "entry": "OmpWorkerDispatchRuntime.execute",
+      "state_error_owner": "process-local permits/projection only; validation and abort cleanup; Python durable owner unchanged",
+      "test": "OMP session concurrency, abort, duplicate admission/revive, checksum and disable mutation"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/control.py",
+      "trigger": "raw > 500",
+      "upstream": "AgentScope cancel/wakeup ordering",
+      "executable_symbols": "submit, claim, apply, submit_and_apply, recover_pending",
+      "entry": "worker-pool control and task cancel routes",
+      "state_error_owner": "durable intent and fence before process/edge effect",
+      "test": "cancel projection failure remains fenced; drain/wake/park/revive"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/health_bridge.py",
+      "trigger": "raw > 500",
+      "upstream": "AgentScope heartbeat/session lifecycle",
+      "executable_symbols": "sweep, _mark_binding_lost, _persist_recovery, _aggregate_route_signals",
+      "entry": "health sweep API and scheduler health bridge",
+      "state_error_owner": "LOST/expired lease, 05D health and 07C persisted evidence",
+      "test": "heartbeat -> LOST -> 05D -> 07C and explicit-generation recovery"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+      "trigger": "raw > 500",
+      "upstream": "AgentScope lifecycle plus Zyra graph custody",
+      "executable_symbols": "admit, start, progress, yield_once, complete, execute_edge, failover, reconcile",
+      "entry": "scheduler and API default worker paths",
+      "state_error_owner": "physical binding/lease orchestration without logical or graph owner transfer",
+      "test": "atomic admission, replay, graph conflict, failover, fence"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/integration_models.py",
+      "trigger": "raw > 500 and schema/DTO > 30%",
+      "upstream": "Zyra contract adaptation",
+      "executable_symbols": "post-init validation, terminal/advance/digest helpers only",
+      "entry": "all worker-pool runtimes",
+      "state_error_owner": "validation only; 682 DTO/schema lines excluded",
+      "test": "alias/mutation, tampered digest, restore correlation"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/integration_store.py",
+      "trigger": "raw > 500",
+      "upstream": "AgentScope durable registry ordering",
+      "executable_symbols": "insert/update binding, control claim/CAS, yield/recovery/checkpoint persistence",
+      "entry": "WorkerPoolIntegrationRuntime and control/checkpoint runtimes",
+      "state_error_owner": "same canonical SQLite transaction; DDL schema excluded",
+      "test": "atomic binding rollback, restart, single yield, pending control"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/invariants.py",
+      "trigger": "raw > 500",
+      "upstream": "Zyra-owned safety invariants",
+      "executable_symbols": "audit, assert_safe, assert_completion, binding/control violations",
+      "entry": "integration start/complete/reconcile",
+      "state_error_owner": "fail-closed lease/binding/graph/control consistency",
+      "test": "random replay, worker generation, terminal/live mismatch"
+    },
+    {
+      "path": "tests/integration/test_worker_pool_integration_runtime.py",
+      "trigger": "raw > 500",
+      "upstream": "none",
+      "executable_symbols": "test-only",
+      "entry": "pytest",
+      "state_error_owner": "none",
+      "test": "1003 lines excluded from production"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/projection.py",
+      "trigger": "schema/DTO > 30%",
+      "upstream": "M2 handoff contract",
+      "executable_symbols": "SQL run-filter/cursor validation and projection",
+      "entry": "worker-pool handoff API",
+      "state_error_owner": "read-only cursor projection; 81 mapping lines excluded",
+      "test": "interleaved run cursor checksum"
+    },
+    {
+      "path": "packages/workers/zyra_workers/edge_pool/integration.py",
+      "trigger": "adapter-only > 30%",
+      "upstream": "OMP/edge protocol boundary",
+      "executable_symbols": "execute and cancel adapter",
+      "entry": "edge-only execution",
+      "state_error_owner": "no canonical owner; no local fallback",
+      "test": "real two-edge execution, cancellation and old-fence rejection",
+      "effective_production": 0
+    },
+    {
+      "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+      "trigger": "schema/data > 30%",
+      "classification": "458 data lines excluded; no runtime entry"
+    },
+    {
+      "path": "packages/runtime/claude-runtime/src/omp-worker-control/index.ts",
+      "trigger": "type/export > 30%",
+      "classification": "one export line excluded"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/__init__.py",
+      "trigger": "type/export > 30%",
+      "classification": "two export lines excluded"
+    },
+    {
+      "path": "packages/scheduler/zyra_scheduler/worker_pool/__init__.py",
+      "trigger": "type/export > 30%",
+      "classification": "122 export lines excluded"
+    },
+    {
+      "path": "packages/workers/zyra_workers/edge_pool/__init__.py",
+      "trigger": "type/export > 30%",
+      "classification": "four export lines excluded"
+    }
+  ],
+  "lease_before_execution": {
+    "call_chain": "POST subagent -> _acquire_subagent_physical_dispatch -> scheduler.admit -> integration.start -> signed physical projection -> _run_typescript_agent_request -> OmpWorkerDispatchRuntime.execute -> sessions.enter -> semaphore.acquire -> operation",
+    "canonical_lease_precedes_typescript_child": true,
+    "typescript_session_and_semaphore_precede_operation": true,
+    "post_execution_telemetry_used_as_admission": false
+  },
+  "disable_mutation_evidence": [
+    {
+      "test": "test_subagent_api_lease_store_disable_blocks_before_typescript_execution",
+      "commit": "72732e2167772b306dfd1921912995b48389ed99",
+      "effect": "ZYRA_WORKER_LEASE_STORE_DISABLED returns 409 before the injected TypeScript executor, creates no logical child record and no child lease",
+      "result": "passed"
+    },
+    {
+      "test": "OMP dispatch gate changes real execution and fails closed when disabled",
+      "frozen_target": "16f24689c1817a1f74fec9afb451d24b97983670",
+      "effect": "ZYRA_OMP_WORKER_CONTROL_DISABLED leaves operation execution counter unchanged",
+      "result": "passed"
+    },
+    {
+      "test": "session capacity and disable matrix",
+      "frozen_target": "16f24689c1817a1f74fec9afb451d24b97983670",
+      "effect": "binding insert fault rolls back attempt/lease; lease store, integration and graph disable fail closed",
+      "result": "passed"
+    }
+  ],
+  "parent_recomputation": {
+    "base": "f2db58c4ab4726f5d3ec2878c12114a3a2dc0e9b",
+    "target": "16f24689c1817a1f74fec9afb451d24b97983670",
+    "allowed_07a_implementation_commits": [
+      "83251b198abe88e6b848f1095b6faed1005cd39d",
+      "150389567046f0cf43205b2e649e74f8543421ae",
+      "16f24689c1817a1f74fec9afb451d24b97983670"
+    ],
+    "method": "Final target-side added lines counted once; git blame excludes evidence and non-07A remediation commits, preventing cross-slice moves or duplicate additions from being counted twice.",
+    "raw": 32306,
+    "effective_production": 14646,
+    "type_declaration": 692,
+    "schema_dto_data": 3801,
+    "adapter_only": 174,
+    "generated": 0,
+    "test_mock_fixture": 2495,
+    "nonproduction_tooling": 877,
+    "docs_comments_blank": 1493,
+    "unrelated_or_evidence_scope": 8128,
+    "minimum": 15000,
+    "shortfall": 354,
+    "ok": false
+  },
+  "verification": {
+    "related_python": "32 passed in 154.26s",
+    "typescript_omp": "11 passed",
+    "typescript_noemit": "passed",
+    "audit_tool_compile": "passed",
+    "gate_command": "expected exit 1 with exactly one blocker: parent effective production 14646 < 15000"
+  },
+  "verdict": {
+    "slice_effective_code": "pass",
+    "source_original_language": "pass",
+    "type_interface_generated_exclusion": "pass",
+    "lease_before_execution": "pass",
+    "disable_mutation": "pass_after_remediation_test",
+    "parent_cumulative_effective_code": "fail",
+    "overall": "blocker",
+    "required_state": "M1-S07A-02 must not remain completed; M1-07A must reopen; progression returns to M1-S07A-02 remediation/planning."
+  }
+}
