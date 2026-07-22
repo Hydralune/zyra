@@ -80,6 +80,7 @@ export class CrossRuntimeFaultSupervisor {
   #batchCount = 0;
   #batchDeadlineCount = 0;
   #batchSettlementCount = 0;
+  #workerHeartbeatSequence = 0;
 
   constructor(emit: SupplementaryObservationEmitter, now: () => number = () => Date.now()) {
     this.toolExecution = new ToolExecutionSupervisor(emit, now);
@@ -405,11 +406,13 @@ export class CrossRuntimeFaultSupervisor {
     }
   }
 
-  heartbeatWorker(sequence: number, atMs?: number): boolean {
+  heartbeatWorker(sequence?: number, atMs?: number): boolean {
     const input = this.#requireInput();
     const workerId = asString(input.metadata?.worker_id);
     if (!workerId) return false;
-    return this.workerRestarts.heartbeat(workerId, 0, sequence, atMs);
+    const selectedSequence = sequence ?? this.#workerHeartbeatSequence + 1;
+    this.#workerHeartbeatSequence = Math.max(this.#workerHeartbeatSequence, selectedSequence);
+    return this.workerRestarts.heartbeat(workerId, 0, selectedSequence, atMs);
   }
 
   async sweepWorkers(atMs?: number): Promise<string[]> {
