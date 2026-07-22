@@ -11,6 +11,8 @@ from .contracts import (
     CheckpointPhase,
     PendingWriteState,
     RecoveryAction,
+    RecoveryAttemptStatus,
+    RecoveryOutcomeKind,
     RecoveryPlanStatus,
     RouteLayer,
     SideEffectState,
@@ -118,6 +120,7 @@ class RecoveryInvariantAuditor:
         findings.extend(self._checkpoint_findings(task_id, checkpoints))
         findings.extend(self._route_findings(routes))
         findings.extend(self._feedback_findings(plans, outcomes, routes, feedback))
+        findings.extend(self._integration_findings(plans, outcomes, routes, feedback, checkpoints))
         findings.extend(self._journal_findings(task_id))
         findings = self._dedupe(findings)
         counts = {
@@ -281,7 +284,9 @@ class RecoveryInvariantAuditor:
                         outcome.outcome_id,
                     ))
                 linked_memory = [item for item in feedback if outcome.outcome_id in item.evidence_refs]
-                if not linked_memory:
+                integrated = bool(plan.provenance.get("state_fusion_digest"))
+                requires_memory = not integrated or outcome.success
+                if requires_memory and not linked_memory:
                     findings.append(self._finding(
                         "outcome_without_routing_memory",
                         AuditSeverity.ERROR,
@@ -525,6 +530,392 @@ class RecoveryInvariantAuditor:
                     "routing_memory",
                     record.record_id,
                 ))
+        return findings
+
+    def _integration_findings(
+        self,
+        plans: Sequence[Any],
+        outcomes: Sequence[Any],
+        routes: Sequence[Any],
+        feedback: Sequence[Any],
+        checkpoints: Sequence[Any],
+    ) -> list[RecoveryAuditFinding]:
+        """Audit the 07C-02 applied-proof, isolation, and exact-resume contract.
+
+        Foundation plans remain valid without an integration observation.  The
+        stronger rules are activated only by the non-empty state-fusion digest
+        written by the integrated ingress path.
+        """
+        findings: list[RecoveryAuditFinding] = []
+        plan_by_id = {item.plan_id: item for item in plans}
+        outcomes_by_plan: dict[str, list[Any]] = defaultdict(list)
+        routes_by_plan: dict[str, list[Any]] = defaultdict(list)
+        feedback_by_outcome: dict[str, list[Any]] = defaultdict(list)
+        feedback_by_plan: dict[str, list[Any]] = defaultdict(list)
+        for outcome in outcomes:
+            outcomes_by_plan[outcome.plan_id].append(outcome)
+        for decision in routes:
+            routes_by_plan[decision.plan_id].append(decision)
+        outcome_ids = {item.outcome_id for item in outcomes}
+        for record in feedback:
+            for evidence_ref in record.evidence_refs:
+                if evidence_ref in outcome_ids:
+                    feedback_by_outcome[evidence_ref].append(record)
+            for plan in plans:
+                if plan.signal.signal_id in record.evidence_refs:
+                    feedback_by_plan[plan.plan_id].append(record)
+
+        for plan in plans:
+            fusion_digest = str(plan.provenance.get("state_fusion_digest") or "")
+            if not fusion_digest:
+                continue
+            plan_outcomes = outcomes_by_plan.get(plan.plan_id, [])
+            receipts = self.store.action_receipts(plan_id=plan.plan_id)
+            if not str(plan.provenance.get("observation_digest") or ""):
+                findings.append(self._finding(
+                    "integrated_plan_observation_missing",
+                    AuditSeverity.ERROR,
+                    "integrated recovery plan is not linked to its typed owner observation",
+                    "plan",
+                    plan.plan_id,
+                ))
+            if plan.provenance.get("policy_owner") != "python.RecoveryDecisionRuntime":
+                findings.append(self._finding(
+                    "integrated_plan_policy_owner_mismatch",
+                    AuditSeverity.BLOCKER,
+                    "integrated recovery plan does not preserve the canonical Python policy owner",
+                    "plan",
+                    plan.plan_id,
+                ))
+            if plan.provenance.get("llm_selected_action") is not False:
+                findings.append(self._finding(
+                    "integrated_plan_model_authority",
+                    AuditSeverity.BLOCKER,
+                    "integrated recovery plan permits model-owned action selection",
+                    "plan",
+                    plan.plan_id,
+                ))
+            if not plan_outcomes and plan.status is not RecoveryPlanStatus.PLANNED:
+                findings.append(self._finding(
+                    "integrated_plan_outcome_missing",
+                    AuditSeverity.BLOCKER,
+                    "started integrated recovery plan has no durable outcome",
+                    "plan",
+                    plan.plan_id,
+                ))
+            findings.extend(self._integrated_receipt_findings(plan, receipts))
+            for outcome in plan_outcomes:
+                linked_feedback = feedback_by_outcome.get(outcome.outcome_id, [])
+                findings.extend(self._integrated_outcome_findings(
+                    plan,
+                    outcome,
+                    receipts,
+                    linked_feedback,
+                ))
+            findings.extend(self._integrated_route_findings(
+                plan,
+                routes_by_plan.get(plan.plan_id, []),
+                feedback_by_plan.get(plan.plan_id, []),
+            ))
+
+        findings.extend(self._integrated_checkpoint_findings(checkpoints))
+        for decision in routes:
+            if decision.plan_id not in plan_by_id:
+                findings.append(self._finding(
+                    "orphan_integrated_route_decision",
+                    AuditSeverity.BLOCKER,
+                    "route decision cannot be traced to a durable recovery plan",
+                    "route_decision",
+                    decision.route_decision_id,
+                ))
+        return findings
+
+    def _integrated_receipt_findings(
+        self,
+        plan: Any,
+        receipts: Sequence[Any],
+    ) -> list[RecoveryAuditFinding]:
+        findings: list[RecoveryAuditFinding] = []
+        receipt_ids: set[str] = set()
+        external_refs: set[tuple[str, str]] = set()
+        for receipt in receipts:
+            if receipt.receipt_id in receipt_ids:
+                findings.append(self._finding(
+                    "integrated_receipt_identity_reused",
+                    AuditSeverity.BLOCKER,
+                    "integrated recovery reused an action receipt identity",
+                    "receipt",
+                    receipt.receipt_id,
+                ))
+            receipt_ids.add(receipt.receipt_id)
+            if receipt.changed_execution and not receipt.external_receipt_ref and not (
+                receipt.route_decision or receipt.checkpoint_receipt
+            ):
+                findings.append(self._finding(
+                    "integrated_changed_receipt_unfenced",
+                    AuditSeverity.BLOCKER,
+                    "changed integrated action lacks a canonical external, route, or checkpoint receipt",
+                    "receipt",
+                    receipt.receipt_id,
+                ))
+            if receipt.external_receipt_ref:
+                owner_ref = (receipt.owner, receipt.external_receipt_ref)
+                if owner_ref in external_refs and receipt.status is not RecoveryAttemptStatus.DEFERRED:
+                    findings.append(self._finding(
+                        "integrated_external_receipt_replayed",
+                        AuditSeverity.BLOCKER,
+                        "canonical owner receipt was consumed by multiple applied actions",
+                        "receipt",
+                        receipt.receipt_id,
+                        evidence_refs=(receipt.external_receipt_ref,),
+                    ))
+                external_refs.add(owner_ref)
+            if receipt.plan_id != plan.plan_id:
+                findings.append(self._finding(
+                    "integrated_receipt_cross_plan",
+                    AuditSeverity.BLOCKER,
+                    "integrated action receipt belongs to another recovery plan",
+                    "receipt",
+                    receipt.receipt_id,
+                ))
+        return findings
+
+    def _integrated_outcome_findings(
+        self,
+        plan: Any,
+        outcome: Any,
+        receipts: Sequence[Any],
+        linked_feedback: Sequence[Any],
+    ) -> list[RecoveryAuditFinding]:
+        findings: list[RecoveryAuditFinding] = []
+        if outcome.kind is RecoveryOutcomeKind.WAITING:
+            if linked_feedback:
+                findings.append(self._finding(
+                    "waiting_outcome_wrote_routing_memory",
+                    AuditSeverity.BLOCKER,
+                    "waiting permission/auth/backoff outcome wrote routing memory before an applied proof",
+                    "outcome",
+                    outcome.outcome_id,
+                    evidence_refs=tuple(item.record_id for item in linked_feedback),
+                ))
+            if not any(item.status is RecoveryAttemptStatus.DEFERRED for item in receipts):
+                findings.append(self._finding(
+                    "waiting_outcome_without_deferred_receipt",
+                    AuditSeverity.ERROR,
+                    "waiting integrated outcome has no deferred canonical owner receipt",
+                    "outcome",
+                    outcome.outcome_id,
+                ))
+            if plan.status not in {
+                RecoveryPlanStatus.WAITING_PERMISSION,
+                RecoveryPlanStatus.WAITING_AUTH,
+                RecoveryPlanStatus.WAITING_BACKOFF,
+            }:
+                findings.append(self._finding(
+                    "waiting_outcome_plan_status_mismatch",
+                    AuditSeverity.BLOCKER,
+                    "waiting integrated outcome does not leave its plan in a waiting state",
+                    "outcome",
+                    outcome.outcome_id,
+                ))
+            return findings
+
+        proof_id = str(outcome.metadata.get("applied_proof_id") or "")
+        continuation_id = str(outcome.metadata.get("continuation_receipt_id") or "")
+        proof_before_feedback = outcome.metadata.get("feedback_after_applied_proof") is True
+        if outcome.success:
+            if not proof_id:
+                findings.append(self._finding(
+                    "integrated_success_without_applied_proof",
+                    AuditSeverity.BLOCKER,
+                    "successful integrated recovery lacks an applied-outcome proof",
+                    "outcome",
+                    outcome.outcome_id,
+                ))
+            if not continuation_id:
+                findings.append(self._finding(
+                    "integrated_success_without_continuation",
+                    AuditSeverity.BLOCKER,
+                    "successful integrated recovery lacks a changed downstream continuation receipt",
+                    "outcome",
+                    outcome.outcome_id,
+                ))
+            if not proof_before_feedback:
+                findings.append(self._finding(
+                    "integrated_feedback_order_unproven",
+                    AuditSeverity.BLOCKER,
+                    "integrated recovery does not prove routing memory was written after applied verification",
+                    "outcome",
+                    outcome.outcome_id,
+                ))
+            if not linked_feedback:
+                findings.append(self._finding(
+                    "integrated_applied_outcome_without_memory",
+                    AuditSeverity.BLOCKER,
+                    "applied integrated outcome was not fed to routing memory",
+                    "outcome",
+                    outcome.outcome_id,
+                ))
+            for record in linked_feedback:
+                if proof_id and proof_id not in record.evidence_refs:
+                    findings.append(self._finding(
+                        "integrated_memory_missing_proof_ref",
+                        AuditSeverity.BLOCKER,
+                        "routing memory does not cite the applied-outcome proof",
+                        "routing_memory",
+                        record.record_id,
+                        evidence_refs=(proof_id,),
+                    ))
+                if record.created_at < outcome.created_at:
+                    findings.append(self._finding(
+                        "integrated_memory_precedes_outcome",
+                        AuditSeverity.BLOCKER,
+                        "routing memory timestamp precedes its durable outcome",
+                        "routing_memory",
+                        record.record_id,
+                        evidence_refs=(outcome.outcome_id,),
+                    ))
+        elif linked_feedback:
+            findings.append(self._finding(
+                "unverified_failure_wrote_routing_memory",
+                AuditSeverity.BLOCKER,
+                "failed integrated attempt wrote routing memory without an applied proof",
+                "outcome",
+                outcome.outcome_id,
+                evidence_refs=tuple(item.record_id for item in linked_feedback),
+            ))
+        return findings
+
+    def _integrated_route_findings(
+        self,
+        plan: Any,
+        decisions: Sequence[Any],
+        feedback: Sequence[Any],
+    ) -> list[RecoveryAuditFinding]:
+        findings: list[RecoveryAuditFinding] = []
+        for decision in decisions:
+            applied = [item for item in decision.changes if item.applied]
+            requested = [item for item in decision.changes if item.requested]
+            if any(item not in requested for item in applied):
+                findings.append(self._finding(
+                    "integrated_route_applied_without_request",
+                    AuditSeverity.BLOCKER,
+                    "route owner applied a layer that was not requested",
+                    "route_decision",
+                    decision.route_decision_id,
+                ))
+            explicit = bool(plan.provenance.get("explicit_escalation")) or decision.escalation not in {"", "none"}
+            if len(applied) > 1 and not explicit:
+                findings.append(self._finding(
+                    "integrated_cross_layer_route_without_escalation",
+                    AuditSeverity.BLOCKER,
+                    "multiple route layers changed without an explicit escalation receipt",
+                    "route_decision",
+                    decision.route_decision_id,
+                    metadata={"layers": [item.layer.value for item in applied]},
+                ))
+            selected_layer = plan.decision.selected.route_layer
+            if selected_layer is not None and applied and selected_layer not in {item.layer for item in applied}:
+                findings.append(self._finding(
+                    "integrated_selected_route_layer_not_applied",
+                    AuditSeverity.BLOCKER,
+                    "applied route differs from the layer selected by RecoveryDecisionRuntime",
+                    "route_decision",
+                    decision.route_decision_id,
+                    metadata={
+                        "selected": selected_layer.value,
+                        "applied": [item.layer.value for item in applied],
+                    },
+                ))
+            matching_feedback = [
+                item for item in feedback
+                if decision.route_decision_id in item.evidence_refs
+                or item.metadata.get("route_decision_id") == decision.route_decision_id
+            ]
+            applied_layers = tuple(item.layer for item in applied)
+            for record in matching_feedback:
+                if tuple(record.route_layers) != tuple(item.layer for item in decision.changes):
+                    findings.append(self._finding(
+                        "integrated_memory_route_layer_mismatch",
+                        AuditSeverity.ERROR,
+                        "routing memory layer projection differs from its canonical route decision",
+                        "routing_memory",
+                        record.record_id,
+                        metadata={
+                            "applied_layers": [item.value for item in applied_layers],
+                            "memory_layers": [item.value for item in record.route_layers],
+                        },
+                    ))
+        return findings
+
+    def _integrated_checkpoint_findings(
+        self,
+        checkpoints: Sequence[Any],
+    ) -> list[RecoveryAuditFinding]:
+        findings: list[RecoveryAuditFinding] = []
+        seen_resume_tokens: dict[str, str] = {}
+        for checkpoint in checkpoints:
+            receipts = self.store.checkpoint_receipts(checkpoint.checkpoint_id)
+            for receipt in receipts:
+                if receipt.phase is not CheckpointPhase.RESUMED:
+                    continue
+                if not receipt.resume_token:
+                    findings.append(self._finding(
+                        "integrated_resume_token_missing",
+                        AuditSeverity.BLOCKER,
+                        "resumed checkpoint lacks a stable exact-resume token",
+                        "checkpoint_receipt",
+                        receipt.receipt_id,
+                    ))
+                previous = seen_resume_tokens.get(receipt.resume_token)
+                if previous and previous != receipt.checkpoint_id:
+                    findings.append(self._finding(
+                        "integrated_resume_token_cross_checkpoint",
+                        AuditSeverity.BLOCKER,
+                        "exact-resume token was reused by another checkpoint",
+                        "checkpoint_receipt",
+                        receipt.receipt_id,
+                        evidence_refs=(previous, receipt.checkpoint_id),
+                    ))
+                seen_resume_tokens[receipt.resume_token] = receipt.checkpoint_id
+                completed = set(checkpoint.completed_step_ids)
+                if not set(receipt.bypassed_step_ids).issubset(completed):
+                    findings.append(self._finding(
+                        "integrated_resume_bypass_not_completed",
+                        AuditSeverity.BLOCKER,
+                        "exact resume bypasses a step that is not committed in the checkpoint",
+                        "checkpoint_receipt",
+                        receipt.receipt_id,
+                        evidence_refs=tuple(sorted(set(receipt.bypassed_step_ids) - completed)),
+                    ))
+                processed = set(checkpoint.processed_response_ids)
+                if not set(receipt.skipped_response_ids).issubset(processed):
+                    findings.append(self._finding(
+                        "integrated_resume_response_fence_mismatch",
+                        AuditSeverity.BLOCKER,
+                        "exact resume skips a response absent from the processed-response fence",
+                        "checkpoint_receipt",
+                        receipt.receipt_id,
+                    ))
+                if len(receipt.fenced_effect_keys) != len(set(receipt.fenced_effect_keys)):
+                    findings.append(self._finding(
+                        "integrated_resume_duplicate_effect_fence",
+                        AuditSeverity.ERROR,
+                        "exact-resume receipt repeats a side-effect fence",
+                        "checkpoint_receipt",
+                        receipt.receipt_id,
+                    ))
+                for fence_key in receipt.fenced_effect_keys:
+                    fence = self.store.side_effect_fence(fence_key)
+                    if fence is None or fence.state is not SideEffectState.COMMITTED:
+                        findings.append(self._finding(
+                            "integrated_resume_effect_fence_not_committed",
+                            AuditSeverity.BLOCKER,
+                            "exact resume preserves a missing or uncommitted side-effect fence",
+                            "checkpoint_receipt",
+                            receipt.receipt_id,
+                            evidence_refs=(fence_key,),
+                        ))
         return findings
 
     def _journal_findings(self, task_id: str) -> list[RecoveryAuditFinding]:

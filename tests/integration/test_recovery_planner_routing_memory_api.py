@@ -308,6 +308,9 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                 self.assertTrue(restarted["success"])
                 self.assertEqual(restarted["candidate"]["plan_id"], planned_id)
                 self.assertTrue(restarted["result"]["applied_proof"]["applied"])
+                integrated_view = _get(base_url, f"/tasks/{task_id}/recovery")
+                self.assertTrue(integrated_view["runtime_audit"]["ok"], integrated_view["runtime_audit"])
+                self.assertEqual(integrated_view["runtime_audit"]["blocker_count"], 0)
 
                 os.environ["ZYRA_DISABLE_RECOVERY_CLASSIFIER"] = "true"
                 disabled_status, disabled = _post_with_status(

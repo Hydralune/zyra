@@ -36,6 +36,7 @@ from zyra_scheduler.recovery_runtime import (
     RecoveryFeedbackIntegrationRuntime,
     RecoveryIngressRejected,
     RecoveryIngressRuntime,
+    RecoveryInvariantAuditor,
     RecoveryPlanStore,
     RecoveryRefs,
     RecoverySemanticRuntime,
@@ -377,6 +378,8 @@ class RecoveryPlannerRoutingMemoryIntegrationTests(unittest.TestCase):
                 },
                 worker_state={"worker_id": "worker-permission", "available": True},
                 metadata={
+                    "state_fusion_digest": "fusion-permission-1",
+                    "observation_digest": "observation-permission-1",
                     "state_fusion": {
                         "family_count": 3,
                         "families": ["session", "permission", "worker"],
@@ -415,6 +418,7 @@ class RecoveryPlannerRoutingMemoryIntegrationTests(unittest.TestCase):
             self.assertEqual(permission_result.outcome.kind.value, "waiting")
             self.assertFalse(permission_result.routing_memory_id)
             self.assertFalse(permission_result.receipts[0].after["tool_dispatch_allowed"])
+            self.assertTrue(RecoveryInvariantAuditor(store).audit_task("task-permission").ok)
 
             checkpoint = _checkpoint(
                 store,
@@ -452,6 +456,8 @@ class RecoveryPlannerRoutingMemoryIntegrationTests(unittest.TestCase):
                 },
                 permission_state={"mode": "default", "tool_dispatch_allowed": False},
                 metadata={
+                    "state_fusion_digest": "fusion-compact-1",
+                    "observation_digest": "observation-compact-1",
                     "state_fusion": {
                         "family_count": 3,
                         "families": ["session", "checkpoint", "permission"],
@@ -508,6 +514,7 @@ class RecoveryPlannerRoutingMemoryIntegrationTests(unittest.TestCase):
             self.assertTrue(compact_result.applied_proof["applied"])
             self.assertTrue(compact_result.routing_memory_id)
             self.assertEqual(compact_result.receipts[1].checkpoint_receipt.phase.value, "resumed")
+            self.assertTrue(RecoveryInvariantAuditor(store).audit_task("task-compact").ok)
 
     def test_applied_outcome_gate_semantics_and_feedback_change_later_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
