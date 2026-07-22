@@ -1,0 +1,272 @@
+{
+  "schema": "zyra.slice-evidence/v2",
+  "slice_id": "M1-S07C-02",
+  "parent_unit": "M1-07C",
+  "date": "2026-07-22",
+  "status": "complete",
+  "baseline_commit": "fabe347207bc3d2d144ad68c029cb288f09e73a8",
+  "parent_baseline_commit": "aa494526ed7f32b177f9a10fa3a93d8a684e0264",
+  "preimplementation_decision_commit": "05386ef",
+  "implementation_commits": [
+    "774c8f87d9cdf193596d20fedf72fb3034bc5e38",
+    "8de780f9410308725859a9994bdc2e27e5ba6042"
+  ],
+  "final_implementation_target": "8de780f9410308725859a9994bdc2e27e5ba6042",
+  "evidence_commit": "created by committing this record, review, audit tooling, ledger sync and ledger seed",
+  "next_entry": {
+    "document": "docs/执行单元完成后通用审查任务书.md",
+    "scope": ["M1-07A", "M1-07B", "M1-07C"],
+    "after_success": "M1-S08-01"
+  },
+  "commit_gate": {
+    "decision_precedes_production": true,
+    "implementation_commits_not_amended_or_squashed": true,
+    "implementation_contains_code_and_direct_tests": true,
+    "evidence_is_after_final_implementation_target": true,
+    "counted_range": "fabe347207bc3d2d144ad68c029cb288f09e73a8..8de780f9410308725859a9994bdc2e27e5ba6042"
+  },
+  "canonical_owners": {
+    "classification_and_policy": "existing Python RecoverySignalClassifier and RecoveryDecisionRuntime",
+    "plan_action_checkpoint_receipt_feedback_store": "Python RecoveryPlanStore",
+    "integration_orchestration": "Python RecoveryIntegrationRuntime",
+    "exact_resume": "Python ExactRecoveryRuntime over existing checkpoint/store contracts",
+    "branch_commit": "Python BranchRecoveryRuntime over immutable snapshots and explicit deltas",
+    "applied_verification": "Python RecoveryVerificationRuntime",
+    "route_and_memory_gate": "Python RouteMemoryRuntime and FeedbackIntegrationRuntime",
+    "restart_and_continuation": "Python RecoveryRestartRuntime and ContinuationRuntime",
+    "task_state": "existing SQLiteStore and TaskState",
+    "graph_topology": "existing GraphStateCustody",
+    "worker_attempt_and_lease": "M1-S07A worker pool runtime",
+    "backend_workspace": "M1-S05D BackendRegistry",
+    "provider_model_credential_transport": "M1-S05D ProviderControlPlane",
+    "permission": "existing PermissionControlPlane",
+    "memory_and_compact": "existing MemoryFabric",
+    "typescript_supplement": "process-local OmpIntegrationRuntime receipts only"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_same_language_recovery_integration_migration",
+      "ledger_id": "ile_oh_my_pi_490e53f66a4d5834",
+      "selected_mechanisms": [
+        "provider and credential rotation receipts",
+        "partial-stream committed-call deduplication",
+        "bounded MCP reconnect circuit breaker",
+        "worktree WIP preservation and conflict receipt",
+        "background task durable-generation restart"
+      ],
+      "excluded": [
+        "OMP durable session, provider, task and worktree stores",
+        "OMP CLI/TUI and RoboOmp owner",
+        "second recovery policy, route, checkpoint, task or memory owner"
+      ]
+    },
+    {
+      "source_repo": "langgraph",
+      "source_role": "conformance_only",
+      "migration_mode": "exact_resume_conformance_only",
+      "selected_semantics": [
+        "checkpoint identity and lineage",
+        "pending versus committed writes",
+        "stable task and response correlation",
+        "atomic commit and exact resume"
+      ],
+      "excluded": [
+        "StateGraph compiler",
+        "generic channels and reducers",
+        "Pregel planner and runner",
+        "stream controller, ToolNode, Store, SDK and deploy runtime"
+      ],
+      "production_migration_quota": false,
+      "runtime_dependency": false,
+      "ledger_production_entry": false
+    },
+    {
+      "source_repo": "claude-code-best",
+      "source_role": "conformance_reference",
+      "selected_semantics": [
+        "permission settlement before tool execution",
+        "compact and session resume identity",
+        "MCP, subagent and API failure receipts"
+      ],
+      "production_migration_quota": false,
+      "ledger_production_entry": false
+    }
+  ],
+  "ledger_custody": {
+    "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+    "owner_unit": "M1-S07C-02",
+    "expected_entry_count": 1,
+    "entry_id": "ile_oh_my_pi_490e53f66a4d5834",
+    "sync_script": "scripts/sync_recovery_planner_integration_source_ledger.py",
+    "scope": "production implementation roles only"
+  },
+  "line_buckets": {
+    "audit_command": "python scripts/audit_m1_s07c02_effective_code_gate.py --summary-only --fail-on-gate",
+    "audit_tool_is_nonproduction": true,
+    "raw_additions": 10466,
+    "effective_production": 7062,
+    "type_declaration_excluded": 316,
+    "schema_dto_data_excluded": 1376,
+    "test_mock_fixture_excluded": 995,
+    "docs_comments_blank_excluded": 717,
+    "adapter_only_excluded": 0,
+    "generated_vendor_source_pool_excluded": 0,
+    "minimum_required": 7000,
+    "margin": 62,
+    "shortfall": 0,
+    "effective_by_language": {
+      "python": 6312,
+      "typescript": 750
+    },
+    "effective_by_source_role_and_language": {
+      "zyra_owned_recovery_primary_python": 5953,
+      "zyra_owned_recovery_main_path_python": 359,
+      "oh_my_pi_supplementary_same_language_typescript": 750
+    },
+    "notable_files": [
+      {"path":"apps/api/zyra_api/main.py","raw":250,"effective":237},
+      {"path":"apps/api/zyra_api/recovery_api.py","raw":123,"effective":122},
+      {"path":"packages/runtime/claude-runtime/src/recovery/omp-integration-runtime.ts","raw":903,"effective":631},
+      {"path":"packages/runtime/claude-runtime/src/recovery/omp-recovery-runtime.ts","raw":128,"effective":119},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/action_runtime.py","raw":140,"effective":115},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/audit_runtime.py","raw":392,"effective":378},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/branch_recovery_runtime.py","raw":484,"effective":354},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/causal_runtime.py","raw":615,"effective":478},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/component_runtime.py","raw":392,"effective":274},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/continuation_runtime.py","raw":477,"effective":340},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/exact_recovery_runtime.py","raw":808,"effective":618},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/feedback_integration_runtime.py","raw":502,"effective":345},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/ingress_runtime.py","raw":665,"effective":531},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/integration_runtime.py","raw":607,"effective":491},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/restart_runtime.py","raw":459,"effective":312},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/route_memory_runtime.py","raw":493,"effective":340},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/semantic_runtime.py","raw":635,"effective":485},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/state_fusion_runtime.py","raw":563,"effective":415},
+      {"path":"packages/scheduler/zyra_scheduler/recovery_runtime/verification_runtime.py","raw":631,"effective":428}
+    ],
+    "gate_ok": true
+  },
+  "parent_effective_code_gate": {
+    "range": "aa494526ed7f32b177f9a10fa3a93d8a684e0264..8de780f9410308725859a9994bdc2e27e5ba6042",
+    "raw_additions": 23788,
+    "effective_production": 15469,
+    "minimum_required": 15000,
+    "margin": 469,
+    "foundation_frozen_effective": 8429,
+    "integration_effective": 7062,
+    "mechanical_slice_sum": 15491,
+    "direct_recompute_delta": -22,
+    "verdict_uses_direct_recompute": true,
+    "gate_ok": true
+  },
+  "main_paths": [
+    {
+      "entry": "recovery observation and batch API",
+      "effect": "typed ingress -> canonical state fusion -> existing policy/action -> applied verification -> changed continuation -> memory and causal trace",
+      "disconnect_effect": "disabled or unready component returns fail-closed result and performs no legacy fallback"
+    },
+    {
+      "entry": "exact recovery prepare/execute/crash/resume/complete",
+      "effect": "pending writes, requests and messages resume under signature and side-effect fences",
+      "disconnect_effect": "signature mismatch, committed-effect replay and processed-response replay tests fail closed"
+    },
+    {
+      "entry": "branch recovery commit",
+      "effect": "immutable COW delta with explicit read/write-set and stable lexical commit",
+      "disconnect_effect": "alias, collision and completion-order adversarial tests fail"
+    },
+    {
+      "entry": "restart and task recovery GET",
+      "effect": "durable plan cursor and canonical owner refs restore causal recovery view",
+      "disconnect_effect": "restart/readiness/audit main-path assertions fail"
+    },
+    {
+      "entry": "Claude runtime OMP integration receipt",
+      "effect": "provider, partial-stream, MCP, worktree and background-task evidence enters typed Python ingress without policy ownership",
+      "disconnect_effect": "original-language supplementary behavior tests fail"
+    }
+  ],
+  "semantic_matrix": {
+    "permission_without_settlement_executes_tool": false,
+    "failed_or_waiting_outcome_writes_success_memory": false,
+    "memory_without_applied_owner_receipt": false,
+    "memory_without_changed_downstream_continuation": false,
+    "processed_response_or_committed_side_effect_replayed": false,
+    "branch_delta_aliases_canonical_snapshot": false,
+    "parallel_completion_order_controls_commit": false,
+    "provider_route_can_masquerade_as_worker_or_backend_route": false,
+    "ingress_can_choose_action_without_existing_classifier": false,
+    "llm_can_apply_route_checkpoint_or_permission": false,
+    "langgraph_runtime_dependency": false,
+    "omp_durable_owner_dependency": false,
+    "openclaw_source_or_runtime_dependency": false
+  },
+  "verification": {
+    "direct_python_final": {
+      "command": "python -m pytest -q tests/unit/test_recovery_planner_routing_memory_integration.py tests/integration/test_recovery_planner_routing_memory_api.py",
+      "result": "8 passed in 28.42s"
+    },
+    "current_and_adjacent_python": {
+      "command": "07C foundation/integration/API plus 07B watchdog foundation/integration and 07A worker pool foundation/integration",
+      "result": "63 passed, 6 subtests passed in 121.03s"
+    },
+    "typescript_original_language": {
+      "command": "node --experimental-strip-types --test test/watchdog.test.ts test/recovery.test.ts test/recovery-integration.test.ts",
+      "result": "15 passed"
+    },
+    "typescript_typecheck": "pass",
+    "python_compileall": "pass",
+    "effective_code_gate": "pass, slice 7062/7000 and parent 15469/15000",
+    "source_ledger_sync": "07C-01 and 07C-02 aligned; exactly one M1-S07C-02 production decision",
+    "source_ledger_targeted_audit": "0 current-unit findings",
+    "diff_check": "pass",
+    "forbidden_dependency_scan": "0 sibling source-repo runtime path, cache/vendor/source-pool path, OpenClaw path, new dependency or lockfile",
+    "focused_clean_state_replay": {
+      "target": "detached 8de780f9410308725859a9994bdc2e27e5ba6042",
+      "python_module_loaded_from_cleanroom": true,
+      "python_result": "12 passed, 6 subtests passed in 29.71s",
+      "typescript_result": "15 passed",
+      "temporary_worktree_removed": true
+    }
+  },
+  "known_external_or_baseline_findings": [
+    {
+      "blocking_for_slice": false,
+      "finding": "Extended worker_pool_api_main_path selection has 6 passed and 1 existing fanout failure: the second concurrent child receipt is failed rather than succeeded.",
+      "owner": "existing worker/subagent integration owner or M1-07 aggregate"
+    },
+    {
+      "blocking_for_slice": false,
+      "finding": "Ledger-related eight-file selection has 64 passed and 4 existing cross-owner failures: planned/unmaterialized target, delegated MCP POST connect discovery, protected M1-01B completion gate and M0-M3 audit.",
+      "owner": "protected ledger/MCP owners and M1-07 aggregate"
+    }
+  ],
+  "competition_gate_claims": {
+    "closed_by_this_slice": [],
+    "not_claimed": [
+      "two cross-domain live tasks",
+      "single-run 2000 canonical transitions",
+      "sealed zero-human benchmark",
+      "dynamic sparse topology entropy comparison",
+      "real local isolated-edge cloud dispatch matrix",
+      "final multi-model and delivery freeze"
+    ]
+  },
+  "parent_closeout": {
+    "parent_complete": true,
+    "parent_effective_production": 15469,
+    "parent_minimum_effective_lines": 15000,
+    "next_mandatory_gate": "M1-07 numeric-stage aggregate review",
+    "aggregate_review_complete": false
+  },
+  "root_document_boundary": {
+    "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "inside_zyra_git": false,
+    "update_after_evidence_commit": true
+  }
+}
