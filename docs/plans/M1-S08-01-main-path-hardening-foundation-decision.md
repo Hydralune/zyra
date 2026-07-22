@@ -7,7 +7,7 @@ Status: frozen before production implementation
 ## Commit boundaries
 
 - `baseline_commit`: `44da53ad8ea909147709857e358b7d16e39f6313`
-- `implementation_commit`: pending; will be the commit containing production runtime and direct tests, before evidence/state closeout
+- `implementation_commit`: `6717ccc177139046a60a5d831c1d9b6129df315a`
 - `evidence_commit`: pending; will contain the slice review, machine-readable evidence and final effective-line audit
 
 The baseline is the verified M1-S07C aggregate-review head. Documentation in this decision commit is excluded from effective production code. No production file for M1-S08-01 was changed before this decision was frozen.

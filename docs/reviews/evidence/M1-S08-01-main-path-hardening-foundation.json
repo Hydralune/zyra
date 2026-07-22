@@ -1,0 +1,83 @@
+{
+  "schema": "zyra.m1-slice-evidence/v1",
+  "slice_id": "M1-S08-01",
+  "date": "2026-07-22",
+  "baseline_commit": "44da53ad8ea909147709857e358b7d16e39f6313",
+  "decision_commit": "3a16f182745dd2a3506bd7d07b8e8ef9f77b58a5",
+  "implementation_commit": "6717ccc177139046a60a5d831c1d9b6129df315a",
+  "evidence_commit": "pending_this_commit",
+  "verdict": "foundation_complete_parent_open",
+  "next_slice": "M1-S08-02-main-path-hardening-integration",
+  "effective_line_audit": {
+    "status": "passed",
+    "minimum": 9000,
+    "effective_production": 9193,
+    "margin": 193,
+    "raw_added": 12092,
+    "raw_deleted": 0,
+    "bucket_raw_added": {"docs": 114, "production": 11603, "test": 375},
+    "bucket_effective": {"docs": 0, "production": 9193, "test": 0},
+    "exclusions": {
+      "blank": 802,
+      "comment": 3,
+      "docs": 114,
+      "docstring_or_literal": 10,
+      "import": 258,
+      "pass_only": 12,
+      "protocol": 14,
+      "schema_dto_field": 383,
+      "schema_dto_header": 40,
+      "signature_continuation": 888,
+      "test": 375
+    },
+    "effective_by_language": {"python": 9193},
+    "generated": 0,
+    "data": 0,
+    "vendor_like_source_pool": 0,
+    "adapter_only": 0,
+    "mock_fixture_only": 0
+  },
+  "catalog": {
+    "items": 43,
+    "capabilities": 38,
+    "roles": {"primary": 18, "supplementary": 6, "conformance": 2, "reference": 7, "experimental": 2, "deferred": 8},
+    "maturity": {"active_real": 24, "conformance_verified": 9, "experimental": 2, "deferred": 8},
+    "repositories": {"AgentScope": 1, "LangGraph": 1, "OpenHands": 3, "Zyra-owned": 1, "browser-use": 3, "claude-code-best": 8, "oh-my-pi": 24, "opencode": 2},
+    "openclaw": "excluded_forward_only"
+  },
+  "state_custody": {
+    "family_count": 12,
+    "families": ["task_session", "runtime_event", "permission", "memory", "worker_lease", "provider_backend", "graph_topology", "recovery", "workspace", "skill_invocation", "browser_session", "code_index"]
+  },
+  "dynamic_probes": {
+    "langgraph": ["runtime-topology-mutation", "nested-alias-isolation", "deterministic-permutation", "explicit-write-conflict", "pending-committed-separation", "side-effect-idempotency-fence", "codeworker-loop-cohesion"],
+    "disable": [
+      {"probe_id": "disable-graph-state-store", "expected_failure": "graph_custody_disabled", "fallback_masked": false, "restored": true},
+      {"probe_id": "query-engine-typescript-runtime", "transport": "live_http", "disabled_ok": false, "fallback_masked": false}
+    ]
+  },
+  "main_path": {
+    "transport": "real_http",
+    "stages": ["task-create", "control-export-artifact", "codeworker-permission-suspension", "requirement-change", "codeworker-runtime-disable", "task-event-readback"],
+    "unauthorized_workspace_side_effect": false,
+    "report_persist_load_verify": true
+  },
+  "validation": [
+    {"command": ".\\.venv\\Scripts\\python.exe -m pytest -q tests\\unit\\test_m1_hardening_foundation.py", "result": "7 passed in 8.54s"},
+    {"command": ".\\.venv\\Scripts\\python.exe -m pytest -q tests\\integration\\test_m1_hardening_main_path.py", "result": "1 passed in 83.16s"},
+    {"command": "targeted adjacent graph/provider/event/control tests", "result": "11 passed in 20.38s"},
+    {"command": "python -m compileall", "result": "passed"},
+    {"command": "python -m zyra_evaluation.m1_hardening ... status --compact", "result": "passed"},
+    {"command": "git diff --check", "result": "passed"}
+  ],
+  "deferred_mandatory_gates": [
+    "complete disable matrix",
+    "two cross-domain live tasks",
+    "sealed single-run 1000 effective actions and 2000 canonical transitions",
+    "dynamic sparse low-entropy comparison",
+    "real local isolated-edge cloud dispatch",
+    "two real provider wire dialects and multi-model compatibility",
+    "zero-human fault recovery and M1 exit evidence",
+    "complete cleanroom and aggregate regression"
+  ]
+}
