@@ -202,6 +202,7 @@ class CodeWorkerRuntime:
         request_metadata = {
             **request.metadata,
             "session_id": session_id,
+            "worker_id": str(request.metadata.get("worker_id") or request.worker_name),
             "canonical_runtime_owner": "typescript",
             "python_runtime_role": "process-durability-side-effect-host",
             # The TypeScript E03 capability lattice must derive child roots

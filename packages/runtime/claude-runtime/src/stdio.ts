@@ -241,7 +241,13 @@ class JsonlRuntimeHost implements RuntimeHost {
     this.watchdog.stop();
   }
 
+  watchdogSnapshot(): JsonObject {
+    return this.watchdog.supervision.snapshot();
+  }
+
   async emitEvent(event: RuntimeEvent): Promise<void> {
+    this.watchdog.supervision.heartbeatWorker();
+    await this.watchdog.supervision.sweepWorkers();
     await this.watchdog.supervision.observeRuntimeEvent(event as unknown as JsonObject);
     this.send("runtime.event", event as unknown as JsonObject);
   }
@@ -307,7 +313,12 @@ class JsonlRuntimeHost implements RuntimeHost {
 
   async checkpointState(snapshot: JsonObject): Promise<void> {
     const correlationId = asString(snapshot.checkpointPhase) + ":" + String(snapshot.checkpointEventSequence ?? "");
-    this.send("runtime.checkpoint", { snapshot }, correlationId);
+    this.send("runtime.checkpoint", {
+      snapshot: {
+        ...snapshot,
+        faultSupervision: this.watchdog.supervision.snapshot(),
+      },
+    }, correlationId);
     const frame = await this.read("runtime.checkpoint.result", correlationId);
     if (frame.payload.accepted !== true) {
       throw new RuntimeProtocolError("runtime_checkpoint_rejected", asString(frame.payload.error) || "runtime checkpoint rejected");
@@ -540,6 +551,7 @@ export async function runStdioRuntimeWithStreams(
       sessionSnapshot: {
         ...result.sessionSnapshot,
         typescriptCapabilities: permissionedHost.snapshot(),
+        faultSupervision: host.watchdogSnapshot(),
       },
       metadata: {
         ...result.metadata,

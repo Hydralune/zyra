@@ -186,6 +186,19 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
             self.assertEqual(observation["category"], "permission")
             self.assertEqual(observation["code"], "permission_denied")
             self.assertEqual(observation["refs"]["task_id"], state.task_id)
+            snapshot_artifact = next(
+                artifact
+                for artifact in run.worker_result.artifacts
+                if artifact.artifact_id
+                == run.worker_result.metadata["query_session_snapshot_artifact_id"]
+            )
+            snapshot = json.loads(Path(snapshot_artifact.uri).read_text(encoding="utf-8"))
+            runtime_snapshot = snapshot["typescript_runtime_snapshot"]
+            self.assertIn("faultSupervision", runtime_snapshot, tuple(runtime_snapshot))
+            supervision = runtime_snapshot["faultSupervision"]
+            worker = supervision["worker_restarts"]["workers"]["CodeWorkerRuntime"]
+            self.assertGreater(worker["heartbeat_sequence"], 0)
+            self.assertEqual(worker["phase"], "running")
 
     def test_context_budget_changes_runtime_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

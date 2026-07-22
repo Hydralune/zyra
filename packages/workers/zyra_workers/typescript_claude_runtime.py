@@ -572,6 +572,7 @@ class TypeScriptClaudeQueryEngine:
                 if "e02" in checkpoint and self._latest_runtime_checkpoint:
                     checkpoint = {
                         **self._latest_runtime_checkpoint,
+                        **checkpoint,
                         "e02": checkpoint["e02"],
                         "checkpointPhase": checkpoint.get("checkpointPhase"),
                         "checkpointEventSequence": max(
