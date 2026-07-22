@@ -1,0 +1,273 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M1-S07A-02",
+  "date": "2026-07-22",
+  "status": "complete_after_critical_review",
+  "parent_status": "complete",
+  "next_entry": "M1-S07B-01",
+  "baseline_commit": "8981599da7312f2bfba7b3303498efebb8339e39",
+  "implementation_commit": "16f24689c1817a1f74fec9afb451d24b97983670",
+  "final_review_target": "16f24689c1817a1f74fec9afb451d24b97983670",
+  "owners": {
+    "logical_task_identity": "M1-S03D TypeScript AgentTaskRuntime",
+    "physical_worker_state": "Python WorkerPoolStore and WorkerPoolIntegrationRepository",
+    "session_local_admission": "TypeScript OmpSessionAdmissionRuntime",
+    "dynamic_topology": "GraphStateStore and GraphStateCustody",
+    "workspace": "M1-S05A WorkspaceManagerRuntime",
+    "gateway": "M1-S05B SandboxGatewayRuntime",
+    "events": "M1-S05C RuntimeEventStore",
+    "backend_health": "M1-S05D BackendRegistry",
+    "recovery_handoff": "M1-S07C recovery planner contract"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "agentscope",
+      "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+      "role": "primary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_same_language_migration_with_zyra_cas_lease_graph_and_checkpoint_ownership",
+      "sampled_source_symbols": [
+        "ChatRunRegistry",
+        "WakeupDispatcher",
+        "CancelDispatcher",
+        "BackgroundTaskManager",
+        "InboxMiddleware",
+        "SessionService"
+      ],
+      "runtime_owner": "WorkerPoolStore and WorkerPoolIntegrationRepository"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_same_language_session_control_with_read_only_python_lease_projection",
+      "sampled_source_paths": [
+        "packages/coding-agent/src/task/index.ts",
+        "packages/coding-agent/src/task/executor.ts",
+        "packages/coding-agent/src/task/parallel.ts",
+        "packages/coding-agent/src/task/provider-concurrency.ts",
+        "packages/coding-agent/src/async/job-manager.ts"
+      ],
+      "sampled_source_symbols": [
+        "TaskTool.execute",
+        "Semaphore",
+        "mapWithConcurrencyLimit",
+        "AsyncJobManager",
+        "park/revive"
+      ],
+      "runtime_owner": "TypeScript OmpSessionAdmissionRuntime under Python canonical lease custody"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "agentscope",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_same_language_migration_with_zyra_cas_lease_graph_and_checkpoint_ownership",
+      "expected_production_languages": [
+        "python"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1
+      },
+      "production_paths": [
+        "packages/scheduler/zyra_scheduler/worker_pool/integration.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/integration_models.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/integration_store.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/admission.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/renewal.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/control.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/checkpoint.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/invariants.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/projection.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/recovery_handoff.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/health_bridge.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/scheduler_bridge.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/application.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/leases.py",
+        "packages/scheduler/zyra_scheduler/worker_pool/store.py",
+        "packages/workers/zyra_workers/edge_pool/integration.py",
+        "apps/api/zyra_api/worker_pool_api.py",
+        "apps/api/zyra_api/main.py"
+      ]
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_same_language_session_control_with_read_only_python_lease_projection",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "production_paths": [
+        "packages/runtime/claude-runtime/src/omp-worker-control/contracts.ts",
+        "packages/runtime/claude-runtime/src/omp-worker-control/dispatch-runtime.ts",
+        "packages/runtime/claude-runtime/src/omp-worker-control/session-runtime.ts",
+        "packages/runtime/claude-runtime/src/omp-worker-control/index.ts"
+      ]
+    }
+  ],
+  "ledger_custody": {
+    "path": "packages/integrations/zyra_integrations/data/internalization_ledger_seed.json",
+    "owner_unit": "M1-S07A-02",
+    "expected_entry_count": 2
+  },
+  "language_custody_result": {
+    "command_target": "16f24689c1817a1f74fec9afb451d24b97983670",
+    "agentscope_python_production_added": 7470,
+    "oh_my_pi_typescript_production_added": 768,
+    "violations": [],
+    "ok": true
+  },
+  "non_implementation_roles": {
+    "conformance_only": [
+      "langgraph checkpoint identity and exact-resume semantics"
+    ],
+    "reference_only": [
+      "claude-code-best task/background mapping patterns"
+    ],
+    "excluded_forward_only": [
+      "openclaw"
+    ]
+  },
+  "main_paths": [
+    {
+      "name": "atomic_capacity_admission",
+      "entry": "POST /tasks/{task_id}/subagents and WorkerPoolIntegrationRuntime.admit",
+      "effect": "capacity, attempt, lease and binding commit in one canonical SQLite transaction before dispatch",
+      "disconnect_effect": "ZYRA_WORKER_LEASE_STORE_DISABLED=1 rejects dispatch with fallback=false"
+    },
+    {
+      "name": "progress_renewal_and_single_yield",
+      "entry": "worker progress, park/revive and terminal settlement",
+      "effect": "renewal requires new progress, park releases session capacity, revive reacquires it, and typed yield is committed exactly once",
+      "disconnect_effect": "stale or duplicate progress cannot extend the canonical lease"
+    },
+    {
+      "name": "durable_control",
+      "entry": "POST /tasks/{task_id}/worker-pool-control and cancel route",
+      "effect": "cancel/drain/wake/stop/park/revive persist intent and fence canonical state before process or edge effects",
+      "disconnect_effect": "projection failures are recorded but cannot undo cancellation fencing"
+    },
+    {
+      "name": "exact_checkpoint_and_projection",
+      "entry": "worker-pool checkpoint, handoff and recovery-handoff routes",
+      "effect": "checkpoint correlates lease fingerprints, graph revision, control digest and journal head; M2 cursor and 07C evidence derive from canonical rows",
+      "disconnect_effect": "tampered checkpoint or projection checksum fails closed"
+    },
+    {
+      "name": "health_and_real_edge_failover",
+      "entry": "heartbeat sweep and edge-only child execution",
+      "effect": "LOST state expires the lease, updates real 05D backend health and emits persisted 07C recovery evidence; edge failover never falls back local",
+      "disconnect_effect": "edge cancellation/failover tests fail and no substitute local execution occurs"
+    }
+  ],
+  "line_buckets": {
+    "range": "8981599da7312f2bfba7b3303498efebb8339e39..16f24689c1817a1f74fec9afb451d24b97983670",
+    "whole_commit_added": 10352,
+    "whole_commit_deleted": 113,
+    "raw_production_candidate": 8366,
+    "raw_production_by_language": {
+      "python_added": 7598,
+      "typescript_added": 768
+    },
+    "nonblank_noncomment_production": 7855,
+    "conservative_effective_production": 6700,
+    "minimum_required": 6000,
+    "shortfall": 0,
+    "tests_raw_added_excluded": 1235,
+    "scripts_raw_added_excluded": 293,
+    "ledger_seed_data_added_excluded": 458,
+    "conservative_production_adjustments_excluded": 1155,
+    "generated_counted": 0,
+    "vendor_like_counted": 0,
+    "adapter_only_counted": 0,
+    "mock_fixture_counted": 0,
+    "conservative_method": "Start from added nonblank/non-comment production lines, then exclude 300 repetitive DTO/serialization lines, 200 edge adapter lines, 285 API composition lines, 129 export-only lines, 91 compatibility-plumbing lines and an additional 150 declarative/docstring reserve.",
+    "parent_foundation_effective": 9970,
+    "parent_cumulative_effective": 16670,
+    "parent_minimum_required": 15000,
+    "repository_tool_report": {
+      "raw_added": 10352,
+      "raw_deleted": 113,
+      "effective_added_including_tests_and_tooling": 9894,
+      "excluded_added": 458,
+      "minimum_effective_lines": 6000,
+      "line_count_ok": true,
+      "global_audit_ok": false,
+      "global_blocker_count": 11,
+      "acceptance_note": "The generic tool includes tests and scripts and reports protected historical blockers; the production-only conservative value is authoritative for this slice."
+    }
+  },
+  "verification": {
+    "worktree": [
+      {
+        "command": "related Python worker pool, graph, edge, API and custody tests",
+        "result": "31 passed"
+      },
+      {
+        "command": "OMP worker-control Bun tests",
+        "result": "11 passed"
+      },
+      {
+        "command": "TypeScript noEmit and Python compileall",
+        "result": "pass"
+      },
+      {
+        "command": "source ledger sync --check",
+        "result": "aligned, exactly 2 M1-S07A-02 decisions"
+      }
+    ],
+    "cleanroom": {
+      "target": "16f24689c1817a1f74fec9afb451d24b97983670",
+      "fresh_archive": true,
+      "frozen_install": "pass, Bun 1.2.15, 17 packages",
+      "python_isolated_basetemp": true,
+      "python_bytecode_and_pytest_cache_disabled": true,
+      "python_tests": "31 passed in 171.79s",
+      "typescript_omp_tests": "11 passed",
+      "typescript_noemit": "pass",
+      "python_compileall": "pass",
+      "api_sqlite_handle_regression": "1 passed",
+      "ledger_sync": "aligned, 2 decisions",
+      "forbidden_dependency_scan": "0 root-source relative paths and 0 parent-path package links"
+    }
+  },
+  "baseline_known_failures": [
+    {
+      "blocking_for_slice": false,
+      "suite": "python -m unittest discover -s tests",
+      "current_observation": "after one current handle regression was fixed, fail-fast stopped at test_browser_worker_permission_api_resumes_exact_network_action_once",
+      "baseline_result": "the same permission API test fails on detached baseline 8981599 before this slice",
+      "classification_owner": "M1-07 numeric-stage aggregate review or the protected browser permission owner"
+    },
+    {
+      "blocking_for_slice": false,
+      "tool": "verify_m5.py",
+      "reason": "an old browser scenario expected edge-worker recovery while the live browser session reset and current recovery selected local-code-worker; this assertion predates the slice contract"
+    },
+    {
+      "blocking_for_slice": false,
+      "tool": "verify_internalization_ledger.py",
+      "global_blocker_count": 11,
+      "current_unit_blocker_count": 0,
+      "reason": "protected historical M1-01B target-path debt is outside this slice"
+    }
+  ],
+  "residual_work": {
+    "next_slice": "M1-S07B-01",
+    "parent_complete": true,
+    "numeric_stage_complete": false,
+    "full_repository_suite_owner": "M1-07 numeric-stage aggregate review",
+    "competition_gates_closed": false
+  },
+  "root_document_boundary": {
+    "execution_state_path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
+    "inside_zyra_git": false,
+    "update_after_evidence_commit": true
+  }
+}
