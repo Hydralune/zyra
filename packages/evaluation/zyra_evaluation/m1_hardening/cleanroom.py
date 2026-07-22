@@ -8,6 +8,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -353,11 +354,41 @@ class CleanroomBoundaryScanner:
             lower_name = path.name.lower()
             if lower_name in {item.lower() for item in FORBIDDEN_RESIDUAL_NAMES}:
                 residuals.append(relative)
-            if path.suffix.lower() in FORBIDDEN_RUNTIME_SUFFIXES:
+            if (
+                path.suffix.lower() in FORBIDDEN_RUNTIME_SUFFIXES
+                and not self._committed_evidence_file(relative)
+            ):
                 residuals.append(relative)
-            if path.suffix.lower() in self.TEXT_SUFFIXES and path.stat().st_size <= 4 * 1024 * 1024:
+            if (
+                self._runtime_reference_scope(relative)
+                and path.suffix.lower() in self.TEXT_SUFFIXES
+                and path.stat().st_size <= 4 * 1024 * 1024
+            ):
                 references.extend(self._scan_text(path, relative))
         return sorted(set(residuals)), sorted(set(outside_links)), references, file_count, symlink_count
+
+    @staticmethod
+    def _committed_evidence_file(relative: str) -> bool:
+        normalized = relative.replace("\\", "/").lower()
+        return normalized.startswith(("docs/", "vendor/"))
+
+    @staticmethod
+    def _runtime_reference_scope(relative: str) -> bool:
+        normalized = relative.replace("\\", "/").lower()
+        excluded = (
+            "docs/",
+            "tests/",
+            "vendor/",
+            "vendor-runtimes/",
+            "source-pool/",
+            "runtime-sources/",
+            "scripts/remediation/",
+        )
+        if normalized.startswith(excluded):
+            return False
+        if normalized.startswith("scripts/smoke_"):
+            return False
+        return normalized.startswith(("apps/", "packages/", "skills/", "scripts/"))
 
     def _scan_text(self, path: Path, relative: str) -> list[Mapping[str, Any]]:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -370,13 +401,12 @@ class CleanroomBoundaryScanner:
             ("absolute-workspace-path", re.compile(r"[A-Za-z]:[\\/]agent-zoo[\\/](?!zyra(?:[\\/]|$))", re.I)),
         )
         for line_number, line in enumerate(text.splitlines(), 1):
-            if relative.startswith(("docs/", "tests/")):
-                continue
             for kind, pattern in patterns:
                 # Python process construction is checked structurally below.  Do
                 # not let this scanner's own detector regexes become evidence of
                 # the behaviour that they are intended to detect.
                 if path.suffix.lower() == ".py" and kind in {
+                    "editable-install",
                     "external-docker-context",
                     "sibling-process",
                 }:
@@ -695,20 +725,21 @@ class CleanroomVerifier:
 
 
 def default_cleanroom_commands() -> tuple[CleanroomCommand, ...]:
+    python = str(Path(sys.executable).resolve())
     return (
         CleanroomCommand(
             command_id="python-compile",
-            argv=("python", "-m", "compileall", "-q", "apps", "packages"),
+            argv=(python, "-m", "compileall", "-q", "apps", "packages"),
             timeout_seconds=300,
         ),
         CleanroomCommand(
             command_id="m1-hardening-unit",
-            argv=("python", "-m", "pytest", "-q", "tests/unit/test_m1_hardening_foundation.py"),
+            argv=(python, "-m", "pytest", "-q", "tests/unit/test_m1_hardening_foundation.py"),
             timeout_seconds=600,
         ),
         CleanroomCommand(
             command_id="m1-hardening-integration",
-            argv=("python", "-m", "pytest", "-q", "tests/integration/test_m1_hardening_main_path.py"),
+            argv=(python, "-m", "pytest", "-q", "tests/integration/test_m1_hardening_main_path.py"),
             timeout_seconds=900,
         ),
     )

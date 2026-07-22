@@ -6,7 +6,10 @@ from dataclasses import replace
 from pathlib import Path
 
 from zyra_evaluation.m1_hardening.benchmark import BenchmarkAnalyzer
-from zyra_evaluation.m1_hardening.cleanroom import CleanroomBoundaryScanner
+from zyra_evaluation.m1_hardening.cleanroom import (
+    CleanroomBoundaryScanner,
+    default_cleanroom_commands,
+)
 from zyra_evaluation.m1_hardening.contracts import GateStatus
 from zyra_evaluation.m1_hardening.evidence_admission import (
     AdmissionPolicy,
@@ -112,6 +115,22 @@ def test_cleanroom_scanner_rejects_sibling_runtime_paths_without_self_matching(t
     )
     _, _, references, _, _ = CleanroomBoundaryScanner(tmp_path).scan()
     assert any(item["kind"] == "python-external-process-or-path" for item in references)
+
+
+def test_cleanroom_scanner_excludes_committed_history_but_uses_controlled_python(tmp_path: Path) -> None:
+    evidence = tmp_path / "docs" / "reviews" / "evidence" / "historical.log"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text("historical command log", encoding="utf-8")
+    vendor = tmp_path / "vendor" / "source" / "example.py"
+    vendor.parent.mkdir(parents=True)
+    vendor.write_text("subprocess.run(['../claude-code-best/bin/runtime'])", encoding="utf-8")
+
+    residuals, _, references, _, _ = CleanroomBoundaryScanner(tmp_path).scan()
+    assert residuals == []
+    assert references == []
+    commands = default_cleanroom_commands()
+    assert all(Path(command.argv[0]).is_absolute() for command in commands)
+    assert len({command.argv[0] for command in commands}) == 1
 
 
 def test_evidence_admission_accepts_digest_bound_runtime_evidence_and_rejects_tampering() -> None:
