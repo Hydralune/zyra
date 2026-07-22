@@ -36,15 +36,27 @@ class SchedulerApiTests(unittest.TestCase):
                 created = _post(base_url, "/tasks", {"goal": "M5 API scheduler task.", "auto_run": True})
                 task_id = created["task"]["task_id"]
                 scheduler = _get(base_url, f"/tasks/{task_id}/scheduler")
-                injected = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/inject BrowserWorker timeout"})
+                injected = _post(
+                    base_url,
+                    f"/tasks/{task_id}/commands",
+                    {"text": "/inject worker_lost worker_id=BrowserWorker"},
+                )
                 recovery = _get(base_url, f"/tasks/{task_id}/recovery")
                 command = _post(base_url, f"/tasks/{task_id}/commands", {"text": "/scheduler"})
 
                 self.assertEqual(health["phase"], "m5-resource-scheduler-fault-recovery")
                 self.assertGreaterEqual(len(manifests["manifests"]), 4)
                 self.assertTrue(scheduler["preview_decision"]["selected_manifest_id"])
-                self.assertEqual(injected["command_result"]["data"]["latest_recovery_plan"]["selected_manifest_id"], injected["task"]["metadata"]["last_recovery_plan"]["selected_manifest_id"])
-                self.assertTrue(recovery["recovery_plans"])
+                self.assertEqual(
+                    injected["command_result"]["data"]["signal"]["kind"],
+                    "worker_unavailable",
+                )
+                self.assertEqual(
+                    injected["command_result"]["data"]["handoff"]["metadata"]["consumer"],
+                    "M1-S07C.RecoveryPlanner",
+                )
+                self.assertTrue(injected["task"]["metadata"]["fault_injection"])
+                self.assertIsInstance(recovery["recovery_plans"], list)
                 self.assertEqual(command["command_result"]["name"], "/scheduler")
                 self.assertTrue(command["command_result"]["data"]["manifests"])
             finally:

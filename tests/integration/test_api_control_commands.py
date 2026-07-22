@@ -558,7 +558,11 @@ class ApiControlCommandTests(unittest.TestCase):
                 )
                 _post(base_url, f"/tasks/{task_id}/skills", {"skill_name": "trace-summary"})
                 _post(base_url, f"/tasks/{task_id}/commands", {"text": "/change add replay evidence"})
-                _post(base_url, f"/tasks/{task_id}/commands", {"text": "/inject node=execute transient failure"})
+                _post(
+                    base_url,
+                    f"/tasks/{task_id}/commands",
+                    {"text": "/inject worker_lost worker_id=worker-control-test"},
+                )
 
                 ingested = _post(base_url, f"/tasks/{task_id}/memory/ingest", {})
                 memory = _get(base_url, f"/tasks/{task_id}/memory?q=replay")

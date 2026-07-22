@@ -45,6 +45,9 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/tasks/{task_id}/memory/procedures/routing"),
     ("POST", "/tasks/{task_id}/memory/procedures/recovery"),
     ("POST", "/tasks/{task_id}/memory/procedures/context"),
+    ("GET", "/tasks/{task_id}/faults"),
+    ("POST", "/tasks/{task_id}/faults/inject"),
+    ("POST", "/tasks/{task_id}/faults/observers"),
 )
 
 for package_path in PACKAGE_PATHS:
@@ -105,6 +108,11 @@ from zyra_scheduler import (
     backend_registry_path,
     cancel_pending_dispatches,
     source_to_target_ledger,
+)
+from zyra_scheduler.fault_runtime import (
+    FaultApiError,
+    FaultRuntimeApiService,
+    FaultRuntimeApplication,
 )
 from zyra_commands import (
     CommandOrigin,
@@ -421,6 +429,29 @@ def reset_worker_pool_api() -> None:
         _WORKER_POOL_API = None
         _WORKER_POOL_RUNTIME = None
         _WORKER_POOL_KEY = None
+
+
+def fault_runtime_path() -> Path:
+    configured_value = os.environ.get("ZYRA_FAULT_RUNTIME_STORE", "").strip()
+    if configured_value:
+        configured = Path(configured_value)
+        return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    canonical = sqlite_path()
+    return canonical.with_name(f"{canonical.stem}.fault-runtime.sqlite3")
+
+
+def get_fault_runtime_api(store: SQLiteStore | None = None) -> FaultRuntimeApiService:
+    canonical = store or get_store()
+    fault_path = fault_runtime_path().resolve()
+    backend_path = backend_registry_path(artifact_root_path()).resolve()
+    application = FaultRuntimeApplication(
+        fault_path,
+        event_sink=lambda event: persist_events(canonical, [event]),
+        memory=_memory_fabric(canonical),
+        scheduler_health=BackendRegistryHealthAdapter(backend_path),
+        task_state_resolver=canonical.load_task,
+    )
+    return FaultRuntimeApiService(application)
 
 
 def memory_index_path() -> Path:
@@ -2497,6 +2528,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "faults":
+            fault_task = store.load_task(parts[1])
+            fault_api = get_fault_runtime_api(store)
+            try:
+                fault_response = fault_api.route_get(
+                    tuple(parts),
+                    task_state=fault_task,
+                )
+            finally:
+                fault_api.close()
+            self._send_json(
+                fault_response.status,
+                dict(fault_response.body),
+                headers=dict(fault_response.headers),
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "code-index":
             state = store.load_task(parts[1])
             if state is None:
@@ -4003,6 +4051,31 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 worker_pool_response.status,
                 dict(worker_pool_response.body),
                 headers=dict(worker_pool_response.headers),
+            )
+            return
+
+        if (
+            len(parts) == 4
+            and parts[0] == "tasks"
+            and parts[2] == "faults"
+            and parts[3] in {"inject", "observers"}
+        ):
+            fault_api = get_fault_runtime_api(store)
+            try:
+                fault_response = fault_api.route_post(
+                    tuple(parts),
+                    payload,
+                    task_state=worker_pool_task,
+                    requested_by=str(payload.get("actor_id") or "api-user"),
+                )
+            finally:
+                fault_api.close()
+            if worker_pool_task is not None and fault_response.status < HTTPStatus.BAD_REQUEST:
+                store.save_checkpoint(worker_pool_task)
+            self._send_json(
+                fault_response.status,
+                dict(fault_response.body),
+                headers=dict(fault_response.headers),
             )
             return
 
@@ -7047,8 +7120,38 @@ def _control_context_for_task(state: Any, store: SQLiteStore) -> RuntimeControlC
             metadata={"runtime_status": str(projected.get("runtime_status") or "stateful")},
         )
 
+    def fault_inject(request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
+        raw = str(request.arguments.get("raw") or "").strip()
+        fault_api = get_fault_runtime_api(store)
+        try:
+            receipt = fault_api.command_inject(
+                raw,
+                state=state,
+                requested_by=str(request.metadata.get("actor_id") or "control-user"),
+                idempotency_key=request.idempotency_key or request.request_id,
+            )
+        finally:
+            fault_api.close()
+        state.metadata.setdefault("control_mutations", []).append({
+            "request_id": request.request_id,
+            "command": request.canonical_name,
+            "injection_id": receipt.get("request", {}).get("injection_id", ""),
+            "signal_id": (receipt.get("signal") or {}).get("signal_id", ""),
+            "same_run": True,
+        })
+        store.save_checkpoint(state)
+        return ControlResult(
+            display_text="Same-run fault boundary injected and projected.",
+            data=dict(receipt),
+            metadata={
+                "runtime_status": "stateful",
+                "canonical_fault_owner": "python.FaultStateStore",
+                "legacy_symbolic_inject": False,
+            },
+        )
+
     handlers["task.change"] = legacy_real_mutation
-    handlers["task.inject"] = legacy_real_mutation
+    handlers["task.inject"] = fault_inject
     handlers["artifact.export"] = legacy_real_mutation
     handlers["task.evaluate"] = legacy_real_mutation
 

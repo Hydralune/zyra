@@ -33,6 +33,7 @@ import {
   type RuntimeFrame,
   type RuntimeFrameKind,
 } from "./protocol.ts";
+import { RuntimeWatchdogObserver } from "./watchdog/index.ts";
 
 type LineIterator = AsyncIterator<string>;
 
@@ -205,6 +206,7 @@ class JsonlRuntimeHost implements RuntimeHost {
   private aborted = false;
   private readonly runId: string;
   private readonly lines: LineIterator;
+  private readonly watchdog: RuntimeWatchdogObserver;
 
   constructor(
     runId: string,
@@ -215,6 +217,15 @@ class JsonlRuntimeHost implements RuntimeHost {
     this.runId = runId;
     this.lines = lines;
     this.inputSequence.accept(consumedInputSequence);
+    this.watchdog = new RuntimeWatchdogObserver((event) => this.emitEvent(event));
+  }
+
+  configureWatchdog(input: RuntimeRunInput): void {
+    this.watchdog.configure(input);
+  }
+
+  async observeRuntimeError(error: unknown): Promise<void> {
+    await this.watchdog.observeProviderError(error);
   }
 
   async emitEvent(event: RuntimeEvent): Promise<void> {
@@ -225,6 +236,8 @@ class JsonlRuntimeHost implements RuntimeHost {
     batch: ToolBatch,
     requests: ToolExecutionRequest[],
   ): Promise<ToolExecutionResponse[]> {
+    const startedAt = Date.now();
+    const deadlineMs = 30_000;
     const payloads = requests.map((request) => ({
       tool_call_id: request.toolCallId,
       tool_name: request.toolName,
@@ -243,15 +256,32 @@ class JsonlRuntimeHost implements RuntimeHost {
     this.send("tool.batch.request", {
       batch_id: batch.batchId,
       execution_mode: batch.executionMode,
-      timeout_ms: 30_000,
+      timeout_ms: deadlineMs,
       requests: payloads,
     }, batch.batchId);
-    const frame = await this.read("tool.batch.result", batch.batchId);
+    let frame: RuntimeFrame;
+    try {
+      frame = await this.read("tool.batch.result", batch.batchId);
+    } catch (error) {
+      await this.watchdog.observeTransportClosed("pipe_closed", {}, {
+        batch_id: batch.batchId,
+        pending_tool_call_ids: requests.map((item) => item.toolCallId),
+      });
+      throw error;
+    }
     const results = Array.isArray(frame.payload.results) ? frame.payload.results : [];
     if (results.length !== requests.length) {
       throw new RuntimeProtocolError("tool_batch_cardinality", "tool batch result cardinality mismatch");
     }
-    return results.map((result) => normalizeToolResult(asObject(result)));
+    const normalized = results.map((result) => normalizeToolResult(asObject(result)));
+    await this.watchdog.observeToolBatch(
+      batch,
+      requests,
+      normalized,
+      Math.max(0, Date.now() - startedAt),
+      deadlineMs,
+    );
+    return normalized;
   }
 
   async checkpointState(snapshot: JsonObject): Promise<void> {
@@ -434,6 +464,7 @@ export async function runStdioRuntimeWithStreams(
   });
   try {
     const input = normalizeRunInput(start.payload, start.run_id);
+    host.configureWatchdog(input);
     capabilities = await TypeScriptCapabilityRuntime.open(input, {
       emitEvent: (event) => host.emitEvent(event),
       checkpoint: (snapshot) => host.checkpointState({
@@ -508,6 +539,11 @@ export async function runStdioRuntimeWithStreams(
     } as unknown as JsonObject);
   } catch (caught) {
     let error: unknown = caught;
+    try {
+      await host.observeRuntimeError(error);
+    } catch {
+      // The terminal runtime error remains authoritative if watchdog projection fails.
+    }
     if (!terminalResultSent && capabilities !== null) {
       try {
         await capabilities.close();

@@ -253,7 +253,7 @@ def _dynamic_control_scenario(root: Path, out: Path) -> ScenarioRunRecord:
     events.extend(ensure_default_graph(state))
     for text in [
         "/change add stricter verifier evidence and preserve current run",
-        "/inject browser_worker_timeout node=execute",
+        "/inject browser_crash browser_session_id=competition-browser-session node_id=execute",
     ]:
         parsed = parse_slash_command(text, run_id=state.run_id, task_id=state.task_id)
         if parsed is None:
