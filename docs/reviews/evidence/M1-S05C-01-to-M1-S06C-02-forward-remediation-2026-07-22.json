@@ -1,0 +1,106 @@
+{
+  "schema": "zyra.review.forward-remediation.v1",
+  "review_date": "2026-07-22",
+  "scope": [
+    "M1-S05C-01",
+    "M1-S05C-02",
+    "M1-S05D-01",
+    "M1-S05D-02",
+    "M1-S06A-01",
+    "M1-S06A-02",
+    "M1-S06B-01",
+    "M1-S06B-02",
+    "M1-S06C-01",
+    "M1-S06C-02"
+  ],
+  "verdict": "FORWARD_REMEDIATION_PASS",
+  "historical_verdict_preserved": true,
+  "remediation_baseline": "6f99f7ec24c5617e21e768fea47d2f70617887af",
+  "implementation_commits": {
+    "retrieval_typescript_algorithms": "60af927d4b74ae9785ca5176fdd505fcce8b318f",
+    "provider_control_plane": "eb16281ec422ab3b0e3b8472434d3037c3d5c694",
+    "adjacent_lifecycle_regressions": "4c838265a90fb1059a9390c5d37ba6b52a47f114"
+  },
+  "historical_verdicts": {
+    "M1-S05C-01": "FAIL",
+    "M1-S05C-02": "FAIL",
+    "M1-S05D-01": "BLOCKER",
+    "M1-S05D-02": "FAIL",
+    "M1-S06A-01": "BLOCKER",
+    "M1-S06A-02": "BLOCKER",
+    "M1-S06B-01": "PASS",
+    "M1-S06B-02": "FAIL",
+    "M1-S06C-01": "PASS",
+    "M1-S06C-02": "FAIL"
+  },
+  "effective_line_buckets": {
+    "provider_control_plane": {
+      "language": "TypeScript",
+      "new_module_raw_additions": 4169,
+      "new_module_conservative_effective": 3602,
+      "main_path_integration_raw_additions": 224,
+      "main_path_integration_conservative_effective": 224,
+      "total_conservative_effective": 3826,
+      "required_deficit": 3294,
+      "type_only_wire_declarations_counted": 0,
+      "test_additions_excluded": 525
+    },
+    "retrieval_algorithms": {
+      "production_language": "TypeScript",
+      "raw_additions": 939,
+      "conservative_effective": 851,
+      "python_validated_adapter_additions": 670,
+      "python_main_path_integration_additions": 81,
+      "test_additions_excluded": 333,
+      "generated_or_vendor_counted": 0
+    },
+    "adjacent_regression_fix": {
+      "production_language": "Python",
+      "raw_additions": 64,
+      "test_additions_excluded": 70,
+      "counted_toward_05d_or_06a_gate": false
+    }
+  },
+  "state_owners": {
+    "provider_catalog_credentials_routes_dispatch": "packages/runtime/provider-control-plane",
+    "backend_lifecycle": "Python backend registry",
+    "canonical_memory_and_index_jobs": "Python MemoryIndexRuntime and durable stores",
+    "retrieval_analysis_and_ranking": "TypeScript pure algorithms without canonical persistence"
+  },
+  "sensitivity": {
+    "provider": [
+      "predispatch admission and cancellation send zero bytes",
+      "idempotency digest drift fails",
+      "401 rotates credential and performs another real request",
+      "duplicate orphan or synthetic tool-result pairing fails"
+    ],
+    "retrieval": [
+      "missing TypeScript runtime fails closed",
+      "mutated response digest candidate identity or budget fails",
+      "explicit caller intent and temporal filters are preserved"
+    ],
+    "lifecycle": [
+      "bridge reset/get concurrency is serialized",
+      "replayed applied skill-memory release is idempotent",
+      "SQLite context managers close connections"
+    ]
+  },
+  "verification": [
+    {"scope": "workspace TypeScript", "result": "PASS"},
+    {"scope": "provider original Bun tests", "passed": 11, "failed": 0},
+    {"scope": "provider remediation Bun tests", "passed": 9, "failed": 0},
+    {"scope": "provider Node strip-only tests", "passed": 20, "failed": 0},
+    {"scope": "retrieval TypeScript tests", "passed": 6, "failed": 0},
+    {"scope": "retrieval Python foundation integration and port", "passed": 12, "failed": 0},
+    {"scope": "retrieval API and CodeWorker", "passed": 8, "failed": 0},
+    {"scope": "provider Python port backend API and failover", "passed": 12, "failed": 0},
+    {"scope": "lifecycle composition", "passed": 24, "failed": 0, "elapsed_seconds": 189.53},
+    {"scope": "retrieval ledger sync check", "result": "PASS"},
+    {"scope": "forbidden parent repository runtime paths", "hits": 0}
+  ],
+  "limitations": [
+    "BrowserWorker does not gain a separate Provider Control Plane LLM dispatch path in this remediation.",
+    "Historical baseline-to-implementation verdicts are not rewritten.",
+    "Milestone-exit sealed autonomous, 2000-transition, real local-edge-cloud, full cleanroom and broad long regression gates are not claimed."
+  ]
+}
