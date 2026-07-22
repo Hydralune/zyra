@@ -34,6 +34,7 @@ from zyra_evaluation.m1_hardening.owner_probes import (
     OwnerDisableContract,
     OwnerProbeCatalog,
 )
+from zyra_evaluation.m1_hardening.service import AuditOptions
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -371,3 +372,18 @@ def test_exit_policy_stays_blocked_without_external_evidence_and_line_proof() ->
     assert bundle.decision is ExitDecision.BLOCKED
     assert gate.status is GateStatus.BLOCKED
     assert any(finding.code == "exit.requirement_unresolved" for finding in gate.findings)
+
+
+def test_final_foundation_audit_cannot_disable_effective_line_gate() -> None:
+    options = AuditOptions(
+        baseline_commit=BASELINE,
+        final_completion=True,
+        include_line_audit=False,
+    )
+
+    try:
+        options.validate()
+    except ValueError as error:
+        assert "cannot disable" in str(error)
+    else:
+        raise AssertionError("final completion must retain the effective line gate")

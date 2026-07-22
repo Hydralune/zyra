@@ -92,6 +92,11 @@ def test_public_api_foundation_scenario_mutates_state_and_fails_closed() -> None
                     baseline_commit="44da53ad8ea909147709857e358b7d16e39f6313",
                     minimum_effective_lines=0,
                     line_audit_head="HEAD",
+                    # A git archive intentionally has no .git directory.  The
+                    # exact implementation-commit line gate is executed and
+                    # recorded separately; keep every behavioural foundation
+                    # gate active in cleanroom without fabricating Git state.
+                    include_line_audit=os.environ.get("ZYRA_CLEANROOM") != "1",
                     persist=True,
                     run_dynamic_graph_probes=True,
                     run_disable_probes=True,

@@ -84,6 +84,8 @@ class AuditOptions:
             raise ValueError("gate timeout must be positive")
         if self.audit_lease_seconds <= 0:
             raise ValueError("audit lease must be positive")
+        if self.final_completion and not self.include_line_audit:
+            raise ValueError("final completion cannot disable the effective line audit")
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,7 +340,8 @@ class M1HardeningService:
         self.disable_probes = DisableModuleProbe()
         for probe in default_disable_probes(self.artifact_root):
             self.disable_probes.register(probe)
-        self.policy = GatePolicyEngine(tuple(policies or default_gate_policies()))
+        self.policies = tuple(policies or default_gate_policies())
+        self.policy = GatePolicyEngine(self.policies)
         self.evidence_auditor = EvidenceLinkAuditor()
         self.store = HardeningReportStore(self.artifact_root / "reports")
         self._active_graph: GateExecutionGraph | None = None
@@ -377,7 +380,12 @@ class M1HardeningService:
             if scenario_run is not None:
                 self._attach_scenario_disable_evidence(gates, scenario_run.disable_evidence)
             report = self._report(context, options, gates, receipts, scenario_run=scenario_run)
-            disposition = self.policy.evaluate(report, final_completion=options.final_completion)
+            policy = self.policy
+            if not options.include_line_audit:
+                policy = GatePolicyEngine(
+                    item for item in self.policies if item.gate_id != "effective-line-audit"
+                )
+            disposition = policy.evaluate(report, final_completion=options.final_completion)
             evidence_audit = self.evidence_auditor.evaluate(report)
             report.metadata.update(
                 {
