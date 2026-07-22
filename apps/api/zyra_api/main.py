@@ -1107,81 +1107,324 @@ def _recovery_owner_callbacks(store: SQLiteStore) -> CanonicalOwnerCallbacks:
     )
 
 
+_RECOVERY_EXECUTION_CONTINUATION_ACTIONS = frozenset({
+    "retry",
+    "reroute",
+    "switch_backend",
+    "switch_provider",
+    "degrade_model",
+    "replan",
+    "compact",
+    "resume_checkpoint",
+})
+
+
+def _recovery_continuation_request_digest(request: Mapping[str, Any]) -> str:
+    payload = {
+        "run_id": str(request.get("run_id") or ""),
+        "task_id": str(request.get("task_id") or ""),
+        "plan_id": str(request.get("plan_id") or ""),
+        "signal_id": str(request.get("signal_id") or ""),
+        "action": str(request.get("action") or ""),
+        "action_receipt_ids": list(request.get("action_receipt_ids") or ()),
+        "route_decision_id": str(request.get("route_decision_id") or ""),
+        "checkpoint_id": str(request.get("checkpoint_id") or ""),
+        "context_digest": str(request.get("context_digest") or ""),
+    }
+    encoded = json.dumps(to_jsonable(payload), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _reopen_task_for_recovery_continuation(state: Any, action: str) -> bool:
+    """Reopen only the graph stages whose execution must consume a recovery result."""
+
+    if action not in _RECOVERY_EXECUTION_CONTINUATION_ACTIONS:
+        return False
+    if state.status == PlanNodeStatus.CANCELLED:
+        raise RuntimeError("cancelled tasks cannot dispatch a recovery continuation")
+    stages = {"execute", "verify", "finalize"}
+    if action == "replan":
+        stages.add("route")
+    changed = state.status != PlanNodeStatus.PENDING
+    state.status = PlanNodeStatus.PENDING
+    for node in state.plan_nodes.values():
+        if str(node.metadata.get("stage") or "") not in stages:
+            continue
+        if node.status in {PlanNodeStatus.CANCELLED, PlanNodeStatus.SUPERSEDED}:
+            continue
+        changed = changed or node.status != PlanNodeStatus.PENDING
+        node.status = PlanNodeStatus.PENDING
+        node.updated_at = now_iso()
+    state.updated_at = now_iso()
+    return changed
+
+
+def _recovery_execution_projection(state: Any) -> dict[str, Any]:
+    execute_nodes = [
+        node
+        for node in state.plan_nodes.values()
+        if str(node.metadata.get("stage") or "") == "execute"
+    ]
+    execute = execute_nodes[-1] if execute_nodes else None
+    raw_backend_dispatch = (
+        dict(execute.metadata.get("backend_dispatch") or {})
+        if execute is not None and isinstance(execute.metadata.get("backend_dispatch"), Mapping)
+        else {}
+    )
+    raw_envelope = dict(raw_backend_dispatch.get("final_envelope") or {})
+    raw_route_ref = dict(raw_backend_dispatch.get("provider_route_ref") or {})
+    backend_dispatch = {
+        "final_envelope": {
+            key: raw_envelope.get(key)
+            for key in (
+                "envelope_id",
+                "backend_id",
+                "backend_lease_id",
+                "provider_route_id",
+                "provider_transport_id",
+                "runtime_worker",
+            )
+            if raw_envelope.get(key) not in (None, "")
+        },
+        "provider_route_ref": {
+            key: raw_route_ref.get(key)
+            for key in ("route_id", "transport_id", "catalog_revision")
+            if raw_route_ref.get(key) not in (None, "")
+        },
+        "state_owner": str(raw_backend_dispatch.get("state_owner") or ""),
+    }
+    return {
+        "status": str(state.status),
+        "artifact_count": len(state.artifacts),
+        "execute_node_id": str(getattr(execute, "node_id", "")),
+        "execute_status": str(getattr(execute, "status", "")),
+        "assigned_worker_id": str(getattr(execute, "assigned_worker_id", "") or ""),
+        "worker_error": str((getattr(execute, "metadata", {}) or {}).get("worker_error") or ""),
+        "result_summary": str((getattr(execute, "metadata", {}) or {}).get("result_summary") or ""),
+        "backend_dispatch": backend_dispatch,
+        "worker_pool": dict(state.metadata.get("worker_pool") or {}),
+        "backend_route": dict(state.metadata.get("backend_route") or {}),
+        "provider_route": dict(state.metadata.get("provider_route") or {}),
+    }
+
+
 def _recovery_continuation_owners(
     store: SQLiteStore,
 ) -> dict[str, CallbackContinuationOwner]:
-    """Bind recovery continuation to observable runtime owner dispatches."""
+    """Bind recovery continuation to a fenced graph/worker dispatch, not an event ACK."""
 
     def port(key: str, owner: str) -> CallbackContinuationOwner:
         def continue_execution(request: Mapping[str, Any]) -> Mapping[str, Any]:
             task_id = str(request.get("task_id") or "")
             run_id = str(request.get("run_id") or "")
-            state = store.load_task(task_id)
-            if state is None:
-                return {
-                    "accepted": False,
-                    "changed": False,
-                    "error_code": "task_not_found",
-                    "message": f"continuation task does not exist: {task_id}",
-                }
-            if str(state.run_id) != run_id:
-                return {
-                    "accepted": False,
-                    "changed": False,
-                    "error_code": "run_identity_mismatch",
-                    "message": "continuation owner rejected cross-run dispatch",
-                }
-            previous = dict(request.get("previous_projection") or {})
-            generation = int(previous.get("generation") or 0) + 1
             action = str(request.get("action") or "")
-            event = EventRecord(
-                run_id=run_id,
-                task_id=task_id,
-                node_id=state.root_node_id,
-                event_type=EventType.AGENT_MESSAGE,
-                payload={
-                    "recovery_continuation": {
-                        "owner": owner,
-                        "owner_key": key,
-                        "plan_id": str(request.get("plan_id") or ""),
-                        "signal_id": str(request.get("signal_id") or ""),
-                        "action": action,
-                        "generation": generation,
-                        "route_decision_id": str(request.get("route_decision_id") or ""),
-                        "checkpoint_id": str(request.get("checkpoint_id") or ""),
-                        "action_receipt_ids": list(request.get("action_receipt_ids") or ()),
-                        "permission_blocks_tool": action == "ask_permission",
-                        "recovery_owner_dispatch": True,
+            idempotency_key = str(request.get("idempotency_key") or "").strip()
+            request_digest = _recovery_continuation_request_digest(request)
+            if not task_id or not run_id or not idempotency_key:
+                return {
+                    "accepted": False,
+                    "changed": False,
+                    "error_code": "continuation_identity_missing",
+                    "message": "recovery continuation requires run, task and idempotency identity",
+                }
+            with _task_lock(task_id):
+                state = store.load_task(task_id)
+                if state is None:
+                    return {
+                        "accepted": False,
+                        "changed": False,
+                        "error_code": "task_not_found",
+                        "message": f"continuation task does not exist: {task_id}",
                     }
-                },
-            )
-            persist_events(store, [event])
-            return {
-                "accepted": True,
-                "changed": True,
-                "dispatch_id": event.event_id,
-                "before": {
-                    "generation": int(previous.get("generation") or 0),
-                    "dispatch_id": str(previous.get("dispatch_id") or ""),
-                },
-                "after": {
-                    "generation": generation,
-                    "dispatch_id": event.event_id,
-                    "owner": owner,
+                if str(state.run_id) != run_id:
+                    return {
+                        "accepted": False,
+                        "changed": False,
+                        "error_code": "run_identity_mismatch",
+                        "message": "continuation owner rejected cross-run dispatch",
+                    }
+                before = _recovery_execution_projection(state)
+                if action not in _RECOVERY_EXECUTION_CONTINUATION_ACTIONS:
+                    action_receipts = [str(item) for item in request.get("action_receipt_ids") or () if str(item)]
+                    changed = action in {"ask_permission", "authenticate_mcp", "abort"} and bool(action_receipts)
+                    return {
+                        "accepted": changed,
+                        "changed": changed,
+                        "before": before,
+                        "after": _recovery_execution_projection(state),
+                        "canonical_ref": {
+                            "owner": owner,
+                            "action_receipt_ids": action_receipts,
+                            "event_only": False,
+                            "worker_dispatch_consumed": False,
+                        },
+                        "receipt_id": action_receipts[-1] if action_receipts else "",
+                        "message": f"{owner} retained the canonical blocked or terminal state",
+                        "metadata": {"tool_dispatch_allowed": False, "event_only": False},
+                    }
+
+                fences = dict(state.metadata.get("recovery_continuation_fences") or {})
+                existing = fences.get(idempotency_key)
+                if isinstance(existing, Mapping):
+                    if str(existing.get("request_digest") or "") != request_digest:
+                        return {
+                            "accepted": False,
+                            "changed": False,
+                            "error_code": "continuation_idempotency_conflict",
+                            "message": "continuation idempotency key changed request content",
+                        }
+                    if str(existing.get("phase") or "") == "committed" and isinstance(existing.get("receipt"), Mapping):
+                        replay = dict(existing["receipt"])
+                        replay["metadata"] = {**dict(replay.get("metadata") or {}), "replayed": True}
+                        return replay
+                    return {
+                        "accepted": False,
+                        "changed": False,
+                        "error_code": "continuation_dispatch_indeterminate",
+                        "message": "a prepared recovery dispatch cannot be replayed without its committed receipt",
+                    }
+
+                _reopen_task_for_recovery_continuation(state, action)
+                recovery_session_id = (
+                    f"query:{run_id}:{task_id}:recovery:"
+                    f"{str(request.get('plan_id') or request_digest[:24])}"
+                )
+                runtime_hints = dict(state.metadata.get("runtime_hints") or {})
+                runtime_hints["session_id"] = recovery_session_id
+                state.metadata["runtime_hints"] = runtime_hints
+                state.metadata["recovery_continuation_session"] = {
+                    "session_id": recovery_session_id,
+                    "plan_id": str(request.get("plan_id") or ""),
                     "action": action,
-                },
-                "canonical_ref": {
-                    "event_id": event.event_id,
-                    "owner": owner,
-                    "generation": generation,
-                },
-                "receipt_id": event.event_id,
-                "message": f"{owner} accepted recovery continuation",
-                "metadata": {
-                    "event_type": event.event_type.value,
-                    "tool_dispatch_allowed": action not in {"ask_permission", "authenticate_mcp", "abort"},
-                },
-            }
+                    "custody_mode": "new_fenced_session",
+                    "persisted_custody_token": False,
+                }
+                fences[idempotency_key] = {
+                    "phase": "prepared",
+                    "request_digest": request_digest,
+                    "plan_id": str(request.get("plan_id") or ""),
+                    "action": action,
+                    "prepared_at": now_iso(),
+                }
+                state.metadata["recovery_continuation_fences"] = dict(list(fences.items())[-64:])
+                store.save_checkpoint(state)
+
+                pool_api = get_worker_pool_api()
+                pool_journal = pool_api.pool.store.journal(limit=10000)
+                pool_sequence = pool_journal[-1].sequence if pool_journal else 0
+                events: list[EventRecord] = []
+                try:
+                    pool_api.ensure_task_lease(
+                        state,
+                        payload={"idempotency_key": f"{idempotency_key}:worker-lease"},
+                    )
+                    events = run_task_graph(state, execution_context=graph_execution_context())
+                    pool_api.finalize_task(
+                        state,
+                        success=state.status == PlanNodeStatus.COMPLETED,
+                        summary=f"recovery continuation finished with status {state.status}",
+                    )
+                    events.extend(
+                        event
+                        for event in pool_api.pool.events.project_after(pool_api.pool.store, pool_sequence)
+                        if event.run_id == run_id and event.task_id == task_id
+                    )
+                    after = _recovery_execution_projection(state)
+                    worker_dispatch = dict(after.get("backend_dispatch") or {})
+                    consumed = bool(worker_dispatch.get("final_envelope"))
+                    if not events or not consumed or state.status != PlanNodeStatus.COMPLETED:
+                        raise RuntimeError(
+                            "recovery continuation did not complete a canonical worker/backend dispatch: "
+                            f"event_count={len(events)}, backend_dispatch_consumed={consumed}, "
+                            f"task_status={state.status}"
+                        )
+                    persist_events(store, events)
+                    event_ids = [event.event_id for event in events]
+                    dispatch_id = event_ids[-1]
+                    canonical_ref = {
+                        "event_id": dispatch_id,
+                        "execution_event_ids": event_ids,
+                        "owner": owner,
+                        "event_only": False,
+                        "worker_dispatch_consumed": True,
+                        "worker_id": str(after.get("assigned_worker_id") or ""),
+                        "worker_lease_id": str((after.get("worker_pool") or {}).get("lease_id") or ""),
+                        "backend_id": str(
+                            ((worker_dispatch.get("final_envelope") or {}).get("backend_id"))
+                            or ((after.get("backend_route") or {}).get("backend_id"))
+                            or ""
+                        ),
+                        "provider_route_id": str(
+                            ((worker_dispatch.get("provider_route_ref") or {}).get("route_id"))
+                            or ((after.get("provider_route") or {}).get("route_id"))
+                            or ""
+                        ),
+                        "session_id": recovery_session_id,
+                    }
+                    receipt = {
+                        "accepted": True,
+                        "changed": before != after,
+                        "dispatch_id": dispatch_id,
+                        "before": before,
+                        "after": after,
+                        "canonical_ref": canonical_ref,
+                        "receipt_id": dispatch_id,
+                        "message": f"{owner} completed the recovery continuation through the task graph",
+                        "metadata": {
+                            "execution_event_count": len(event_ids),
+                            "tool_dispatch_allowed": True,
+                            "event_only": False,
+                            "replayed": False,
+                        },
+                    }
+                    fences = dict(state.metadata.get("recovery_continuation_fences") or {})
+                    fences[idempotency_key] = {
+                        "phase": "committed",
+                        "request_digest": request_digest,
+                        "plan_id": str(request.get("plan_id") or ""),
+                        "action": action,
+                        "committed_at": now_iso(),
+                        "receipt": receipt,
+                    }
+                    state.metadata["recovery_continuation_fences"] = dict(list(fences.items())[-64:])
+                    store.save_checkpoint(state)
+                    return receipt
+                except Exception as error:
+                    failed_state = store.load_task(task_id) or state
+                    failed_fences = dict(failed_state.metadata.get("recovery_continuation_fences") or {})
+                    failed_fences[idempotency_key] = {
+                        "phase": "failed",
+                        "request_digest": request_digest,
+                        "plan_id": str(request.get("plan_id") or ""),
+                        "action": action,
+                        "failed_at": now_iso(),
+                        "error_type": type(error).__name__,
+                        "error_message": str(error)[:2000],
+                        "execution_projection": _recovery_execution_projection(state),
+                        "event_tail": [
+                            {
+                                "event_id": event.event_id,
+                                "event_type": str(event.event_type),
+                                "node_id": str(event.node_id or ""),
+                                "transition": str(event.payload.get("transition") or ""),
+                                "summary": str(event.payload.get("summary") or "")[:300],
+                                "error": str(event.payload.get("error") or ""),
+                                "message": str(event.payload.get("message") or "")[:300],
+                            }
+                            for event in events[-12:]
+                        ],
+                    }
+                    failed_state.metadata["recovery_continuation_fences"] = dict(list(failed_fences.items())[-64:])
+                    store.save_checkpoint(failed_state)
+                    return {
+                        "accepted": False,
+                        "changed": False,
+                        "before": before,
+                        "after": _recovery_execution_projection(failed_state),
+                        "error_code": "continuation_dispatch_failed",
+                        "message": str(error)[:2000],
+                        "metadata": {"event_only": False, "replay_forbidden": True},
+                    }
 
         return CallbackContinuationOwner(owner, continue_execution)
 

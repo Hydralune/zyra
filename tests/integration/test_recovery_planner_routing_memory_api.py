@@ -156,7 +156,21 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                         "context": {"checkpoint_state": {"candidate_step_ids": ["step-4", "step-5"]}},
                     },
                 )
-                self.assertEqual(replan_status, 202)
+                replan_state = module.get_store().load_task(task_id)
+                self.assertEqual(
+                    replan_status,
+                    202,
+                    {
+                        "response": replanned,
+                        "failed_continuations": {
+                            key: value
+                            for key, value in replan_state.metadata.get(
+                                "recovery_continuation_fences", {}
+                            ).items()
+                            if value.get("phase") == "failed"
+                        },
+                    },
+                )
                 self.assertEqual(replanned["plan"]["decision"]["selected"]["action"], "replan")
                 self.assertGreaterEqual(replanned["plan"]["provenance"]["memory_evidence_count"], 1)
                 self.assertTrue(replanned["execution"]["outcome"]["success"])
@@ -259,6 +273,19 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                 self.assertTrue(integrated["feedback_influence"]["accepted"])
                 self.assertTrue(integrated["feedback_influence"]["changed_later_decision"])
                 self.assertTrue(integrated["causal_trace"]["complete"])
+                continued_state = module.get_store().load_task(task_id)
+                self.assertIsNotNone(continued_state)
+                self.assertEqual(
+                    str(continued_state.status),
+                    "completed",
+                    integrated["attempts"][0]["result"]["execution"]["applied_proof"],
+                )
+                self.assertTrue(continued_state.artifacts)
+                continuation_state = continued_state.metadata["recovery_continuation"]
+                owner_receipt = continuation_state["owner_receipt"]
+                self.assertTrue(owner_receipt["canonical_ref"]["execution_event_ids"])
+                self.assertFalse(owner_receipt["canonical_ref"]["event_only"])
+                self.assertTrue(owner_receipt["canonical_ref"]["worker_dispatch_consumed"])
                 kinds = set(integrated["causal_trace"]["fact_kinds"])
                 self.assertTrue({
                     "recovery_signal",
@@ -304,7 +331,21 @@ class RecoveryPlannerRoutingMemoryApiTests(unittest.TestCase):
                     f"/recovery/plans/{planned_id}/restart",
                     {"task_id": task_id},
                 )
-                self.assertEqual(restart_status, 200, restarted)
+                restart_state = module.get_store().load_task(task_id)
+                self.assertEqual(
+                    restart_status,
+                    200,
+                    {
+                        "response": restarted,
+                        "continuation_fences": {
+                            key: value
+                            for key, value in restart_state.metadata.get(
+                                "recovery_continuation_fences", {}
+                            ).items()
+                            if value.get("phase") == "failed"
+                        },
+                    },
+                )
                 self.assertTrue(restarted["success"])
                 self.assertEqual(restarted["candidate"]["plan_id"], planned_id)
                 self.assertTrue(restarted["result"]["applied_proof"]["applied"])

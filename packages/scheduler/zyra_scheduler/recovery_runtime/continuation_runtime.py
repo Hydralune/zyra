@@ -219,6 +219,24 @@ class RecoveryContinuationRuntime:
                 raise RecoveryContinuationRejected("permission-blocked continuation cannot dispatch a tool")
             if request.action in {RecoveryAction.COMPACT, RecoveryAction.RESUME_CHECKPOINT} and projection.context_revision <= before.context_revision:
                 raise RecoveryContinuationRejected("compact/resume continuation did not change context revision")
+            # The canonical owner may have completed a graph/worker dispatch and
+            # persisted a newer TaskState while this runtime was awaiting its
+            # receipt.  Merge the projection into that latest state; saving the
+            # pre-dispatch snapshot would otherwise erase the real execution.
+            latest_state = self.store.load_task(request.task_id)
+            if latest_state is None:
+                raise RecoveryContinuationRejected(
+                    f"task state disappeared after continuation dispatch: {request.task_id}"
+                )
+            if str(getattr(latest_state, "run_id", "")) != request.run_id:
+                raise RecoveryContinuationRejected("continuation owner changed run identity")
+            latest_metadata = getattr(latest_state, "metadata", None)
+            if not isinstance(latest_metadata, dict):
+                raise RecoveryContinuationRejected(
+                    "latest task metadata cannot hold the continuation projection"
+                )
+            state = latest_state
+            metadata = latest_metadata
             metadata["recovery_continuation"] = {
                 "idempotency_key": request.idempotency_key,
                 "request_digest": request_digest,

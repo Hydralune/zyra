@@ -19,9 +19,64 @@ for package_path in [
 
 from zyra_core import EventType, PlanNodeStatus, create_task_state
 from zyra_orchestration import GraphExecutionContext, ensure_default_graph, run_task_graph
+from zyra_orchestration.task_graph import _code_constraints, _worker_request_metadata
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_recovery_route_projection_overrides_stale_dispatch_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Consume the canonical recovery route.")
+            state.metadata.update(
+                {
+                    "worker_pool": {
+                        "worker_id": "recovered-worker",
+                        "lease_id": "worker-lease-recovery",
+                        "attempt_id": "worker-attempt-recovery",
+                    },
+                    "backend_route": {
+                        "backend_id": "recovered-backend",
+                        "lease_id": "backend-lease-recovery",
+                    },
+                    "provider_route": {"route_id": "provider-route-recovery"},
+                    "runtime_hints": {"session_id": "query:run:task:recovery:plan"},
+                }
+            )
+            ensure_default_graph(state)
+            execute = next(
+                node
+                for node in state.plan_nodes.values()
+                if node.metadata.get("stage") == "execute"
+            )
+            context = GraphExecutionContext.from_paths(
+                project_root=ROOT,
+                workspace_root=Path(tmpdir) / "workspace",
+                artifact_root=Path(tmpdir) / "artifacts",
+            )
+
+            metadata = _worker_request_metadata(
+                state,
+                execute,
+                context,
+                resource_decision={
+                    "decision_id": "stale-decision",
+                    "selected_manifest_id": "stale-worker",
+                    "selected_backend_id": "stale-backend",
+                    "provider_route_id": "stale-provider-route",
+                },
+                selected_manifest={"worker_id": "stale-worker"},
+            )
+
+            self.assertEqual(metadata["worker_manifest_id"], "recovered-worker")
+            self.assertEqual(metadata["worker_lease_id"], "worker-lease-recovery")
+            self.assertEqual(metadata["worker_attempt_id"], "worker-attempt-recovery")
+            self.assertEqual(metadata["backend_id"], "recovered-backend")
+            self.assertEqual(metadata["backend_lease_id"], "backend-lease-recovery")
+            self.assertEqual(metadata["provider_route_id"], "provider-route-recovery")
+            self.assertEqual(
+                _code_constraints(state, state.metadata["runtime_hints"])["session_id"],
+                "query:run:task:recovery:plan",
+            )
+
     def test_default_graph_runs_to_completion(self) -> None:
         state = create_task_state("Run a graph.")
         created_events = ensure_default_graph(state)

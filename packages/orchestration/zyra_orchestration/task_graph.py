@@ -394,7 +394,16 @@ def _run_selected_worker(
 
     hints = _runtime_hints(state)
     resource_decision = _node_resource_decision(node)
-    selected_manifest = _selected_manifest(resource_decision, node.assigned_worker_id)
+    worker_projection = state.metadata.get("worker_pool")
+    recovery_worker_id = (
+        str(worker_projection.get("worker_id") or "")
+        if isinstance(worker_projection, Mapping)
+        else ""
+    )
+    selected_manifest = _selected_manifest(
+        {} if recovery_worker_id else resource_decision,
+        recovery_worker_id or node.assigned_worker_id,
+    )
     preferred_worker = str(
         (selected_manifest or {}).get("runtime_worker")
         or resource_decision.get("selected_worker")
@@ -442,7 +451,11 @@ def _run_selected_worker(
             runtime=runtime,
             runtime_worker="BrowserWorker",
             workspace_root=workspace_root,
-            preferred_backend_id=str(request_metadata.get("worker_manifest_id") or "") or None,
+            preferred_backend_id=str(
+                request_metadata.get("backend_id")
+                or request_metadata.get("worker_manifest_id")
+                or ""
+            ) or None,
             provider_route_id=str(request_metadata.get("provider_route_id") or "") or None,
         )
 
@@ -479,7 +492,11 @@ def _run_selected_worker(
         runtime=runtime,
         runtime_worker="CodeWorkerRuntime",
         workspace_root=workspace_root,
-        preferred_backend_id=str(request_metadata.get("worker_manifest_id") or "") or None,
+        preferred_backend_id=str(
+            request_metadata.get("backend_id")
+            or request_metadata.get("worker_manifest_id")
+            or ""
+        ) or None,
         provider_route_id=str(request_metadata.get("provider_route_id") or "") or None,
     )
 
@@ -745,16 +762,53 @@ def _worker_request_metadata(
     selected_manifest: dict[str, str],
 ) -> dict[str, str]:
     hints = _runtime_hints(state)
+    worker_projection = (
+        dict(state.metadata.get("worker_pool") or {})
+        if isinstance(state.metadata.get("worker_pool"), Mapping)
+        else {}
+    )
+    backend_projection = (
+        dict(state.metadata.get("backend_route") or {})
+        if isinstance(state.metadata.get("backend_route"), Mapping)
+        else {}
+    )
+    provider_projection = (
+        dict(state.metadata.get("provider_route") or {})
+        if isinstance(state.metadata.get("provider_route"), Mapping)
+        else {}
+    )
     provider_route_id = str(
-        hints.get("provider_route_id")
+        provider_projection.get("route_id")
+        or provider_projection.get("routeId")
+        or hints.get("provider_route_id")
         or state.metadata.get("provider_route_id")
         or resource_decision.get("provider_route_id")
+        or ""
+    )
+    worker_manifest_id = str(
+        worker_projection.get("worker_id")
+        or resource_decision.get("selected_manifest_id")
+        or selected_manifest.get("worker_id")
+        or ""
+    )
+    backend_id = str(
+        backend_projection.get("backend_id")
+        or backend_projection.get("backendId")
+        or resource_decision.get("selected_backend_id")
         or ""
     )
     metadata = {
         "scheduler": "m5-resource-scheduler" if resource_decision else "",
         "resource_decision_id": str(resource_decision.get("decision_id") or ""),
-        "worker_manifest_id": str(resource_decision.get("selected_manifest_id") or selected_manifest.get("worker_id") or ""),
+        "worker_manifest_id": worker_manifest_id,
+        "worker_lease_id": str(worker_projection.get("lease_id") or ""),
+        "worker_attempt_id": str(worker_projection.get("attempt_id") or ""),
+        "backend_id": backend_id,
+        "backend_lease_id": str(
+            backend_projection.get("lease_id")
+            or backend_projection.get("backend_lease_id")
+            or ""
+        ),
         "backend": str(resource_decision.get("selected_backend") or selected_manifest.get("backend") or ""),
         "location": str(resource_decision.get("selected_location") or selected_manifest.get("location") or ""),
         "model_split": json.dumps(resource_decision.get("model_split") or {}, ensure_ascii=False, sort_keys=True),
@@ -796,7 +850,13 @@ def _runtime_hints(state: TaskState) -> dict[str, Any]:
 
 def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]:
     if isinstance(hints.get("tool_plan"), list):
-        return {"tool_plan": hints["tool_plan"], "permission_mode": "acceptEdits"}
+        constraints: dict[str, Any] = {
+            "tool_plan": hints["tool_plan"],
+            "permission_mode": "acceptEdits",
+        }
+        if str(hints.get("session_id") or ""):
+            constraints["session_id"] = str(hints["session_id"])
+        return constraints
     relative_path = f"runs/{state.task_id}/execution-summary.md"
     content = "\n".join(
         [
@@ -815,13 +875,16 @@ def _code_constraints(state: TaskState, hints: dict[str, Any]) -> dict[str, Any]
             "",
         ]
     )
-    return {
+    constraints = {
         "permission_mode": "acceptEdits",
         "tool_plan": [
             {"tool_name": "file_write", "arguments": {"path": relative_path, "content": content}},
             {"tool_name": "file_read", "arguments": {"path": relative_path}},
         ]
     }
+    if str(hints.get("session_id") or ""):
+        constraints["session_id"] = str(hints["session_id"])
+    return constraints
 
 
 def _browser_constraints(
