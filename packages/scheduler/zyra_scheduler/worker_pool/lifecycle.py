@@ -147,6 +147,7 @@ class WorkerLifecycleRuntime:
                 "stopped_at": "",
                 "failure_code": "",
                 "failure_reason": "",
+                "metadata": self._without_stop_intent(current.metadata),
             },
         )
 
@@ -202,15 +203,85 @@ class WorkerLifecycleRuntime:
             return worker
         active = self._active_lease_count(worker_id)
         if active and not force:
-            return self.begin_drain(worker_id, reason=reason)
+            draining = self.begin_drain(worker_id, reason=reason)
+            requested_at = utc_iso()
+            return self.store.update_worker(
+                draining.advance(
+                    WorkerLifecycleState.DRAINING,
+                    drain_requested_at=draining.drain_requested_at or requested_at,
+                    metadata={
+                        **dict(draining.metadata),
+                        "stop_after_drain": True,
+                        "stop_requested_at": requested_at,
+                        "stop_reason": reason,
+                    },
+                ),
+                expected_version=draining.version,
+                operation="worker_stop_deferred",
+                journal_payload={
+                    "reason": reason,
+                    "active_lease_count": active,
+                    "stop_after_drain": True,
+                },
+            )
         if worker.state is not WorkerLifecycleState.STOPPING:
             worker = self.transition(worker_id, WorkerLifecycleState.STOPPING, reason=reason)
         return self.transition(
             worker_id,
             WorkerLifecycleState.STOPPED,
             reason="worker stopped",
-            changes={"stopped_at": utc_iso()},
+            changes={
+                "stopped_at": utc_iso(),
+                "metadata": self._without_stop_intent(worker.metadata),
+            },
         )
+
+    def settle_after_lease(self, worker_id: str) -> WorkerInstance:
+        """Converge worker lifecycle after a lease becomes terminal.
+
+        A normal busy worker returns to idle. A worker carrying durable
+        ``stop_after_drain`` intent completes its graceful shutdown exactly
+        when the last active/draining lease has settled.
+        """
+
+        worker = self.store.require_worker(worker_id)
+        if self._active_lease_count(worker_id):
+            return worker
+        if worker.state is WorkerLifecycleState.BUSY:
+            return self.transition(
+                worker_id,
+                WorkerLifecycleState.IDLE,
+                reason="worker has no active leases",
+            )
+        if worker.state is WorkerLifecycleState.DRAINING:
+            if not bool(worker.metadata.get("stop_after_drain")):
+                return worker
+            reason = str(worker.metadata.get("stop_reason") or "graceful worker stop completed")
+            stopping = self.transition(
+                worker_id,
+                WorkerLifecycleState.STOPPING,
+                reason=reason,
+            )
+            return self.transition(
+                worker_id,
+                WorkerLifecycleState.STOPPED,
+                reason="worker stopped after its final lease settled",
+                changes={
+                    "stopped_at": utc_iso(),
+                    "metadata": self._without_stop_intent(stopping.metadata),
+                },
+            )
+        if worker.state is WorkerLifecycleState.STOPPING:
+            return self.transition(
+                worker_id,
+                WorkerLifecycleState.STOPPED,
+                reason="worker stopped after its final lease settled",
+                changes={
+                    "stopped_at": utc_iso(),
+                    "metadata": self._without_stop_intent(worker.metadata),
+                },
+            )
+        return worker
 
     def mark_lost(self, worker_id: str, *, reason: str, failure_code: str = "heartbeat_timeout") -> WorkerInstance:
         worker = self.store.require_worker(worker_id)
@@ -241,10 +312,7 @@ class WorkerLifecycleRuntime:
         return self.transition(worker_id, WorkerLifecycleState.BUSY, reason="worker accepted a lease")
 
     def mark_idle_if_unleased(self, worker_id: str) -> WorkerInstance:
-        worker = self.store.require_worker(worker_id)
-        if self._active_lease_count(worker_id) or worker.state is not WorkerLifecycleState.BUSY:
-            return worker
-        return self.transition(worker_id, WorkerLifecycleState.IDLE, reason="worker has no active leases")
+        return self.settle_after_lease(worker_id)
 
     def transition(
         self,
@@ -288,3 +356,11 @@ class WorkerLifecycleRuntime:
                 states=(LeaseState.ACTIVE, LeaseState.DRAINING),
             )
         )
+
+    @staticmethod
+    def _without_stop_intent(metadata: Mapping[str, Any]) -> dict[str, Any]:
+        result = dict(metadata)
+        result.pop("stop_after_drain", None)
+        result.pop("stop_requested_at", None)
+        result.pop("stop_reason", None)
+        return result

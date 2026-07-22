@@ -14,7 +14,14 @@ from .integration_models import (
     PhysicalDispatchBinding,
 )
 from .integration_store import WorkerPoolIntegrationRepository
-from .models import CancellationRequest, LeaseState, WorkerLifecycleState, stable_digest
+from .models import (
+    CancellationRequest,
+    LeaseState,
+    WakeupRecord,
+    WakeupState,
+    WorkerLifecycleState,
+    stable_digest,
+)
 
 
 class ProjectionControlPort(Protocol):
@@ -25,6 +32,11 @@ class ProjectionControlPort(Protocol):
 
 class ExecutionCancellationPort(Protocol):
     def cancel(self, binding: PhysicalDispatchBinding, *, reason: str) -> bool: ...
+
+
+class WakeExecutionPort(Protocol):
+    def is_session_active(self, worker_id: str) -> bool: ...
+    def dispatch(self, wakeup: WakeupRecord) -> Mapping[str, Any] | bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,11 +68,13 @@ class WorkerControlRuntime:
         *,
         projection_control: ProjectionControlPort | None = None,
         execution_cancellation: ExecutionCancellationPort | None = None,
+        wake_execution: WakeExecutionPort | None = None,
     ) -> None:
         self.pool = pool
         self.repository = repository
         self.projection_control = projection_control
         self.execution_cancellation = execution_cancellation
+        self.wake_execution = wake_execution
 
     def submit(
         self,
@@ -439,25 +453,75 @@ class WorkerControlRuntime:
                         metadata={"active_lease_ids": [item.lease_id for item in active]},
                     )
                 current_worker = self.pool.lifecycle.finish_drain(command.worker_id)
-            worker = self.pool.lifecycle.wake(command.worker_id, reason=command.reason)
-            wakeups = self.pool.inbox.dispatch_wakeups(
-                dispatcher_id=f"control:{command.command_id}",
-                is_session_active=lambda _worker_id: False,
-                on_wakeup=lambda _wakeup: None,
-                limit=100,
+            recovered = self.pool.inbox.recover_wakeup_claims()
+            queued = self.pool.store.list_wakeups(
+                worker_id=command.worker_id,
+                states=(WakeupState.QUEUED, WakeupState.REQUEUED),
             )
+            if queued and (
+                os.getenv("ZYRA_WORKER_WAKE_DISPATCH_DISABLED") == "1"
+                or self.wake_execution is None
+            ):
+                raise WorkerPoolError(
+                    WorkerPoolErrorCode.EXECUTION_REJECTED,
+                    "durable wakeup has no enabled execution dispatch port",
+                    operation="wake_worker_control",
+                    worker_id=command.worker_id,
+                    metadata={"queued_wakeup_ids": [item.wakeup_id for item in queued]},
+                )
+            if queued:
+                wakeups = self.pool.inbox.dispatch_wakeups(
+                    dispatcher_id=f"control:{command.command_id}",
+                    worker_id=command.worker_id,
+                    is_session_active=self.wake_execution.is_session_active,
+                    on_wakeup=self.wake_execution.dispatch,
+                    limit=100,
+                )
+                worker = self.pool.store.require_worker(command.worker_id)
+            else:
+                worker = self.pool.lifecycle.wake(command.worker_id, reason=command.reason)
+                wakeups = ()
             return {
                 "changed": True,
                 "worker": worker.to_dict(),
                 "dispatched_wakeup_ids": [item.wakeup_id for item in wakeups],
+                "recovered_wakeup_ids": [item.wakeup_id for item in recovered],
+                "wake_dispatch_port_used": bool(queued),
                 "accepting_leases": worker.accepting_leases,
             }
         if command.kind is ControlKind.STOP:
             worker = self.pool.lifecycle.stop(command.worker_id, force=False, reason=command.reason)
+            draining_leases: list[str] = []
+            if worker.state is WorkerLifecycleState.DRAINING:
+                for lease in self.pool.store.list_leases(
+                    worker_id=command.worker_id,
+                    states=(LeaseState.ACTIVE, LeaseState.DRAINING),
+                ):
+                    if lease.state is LeaseState.ACTIVE:
+                        lease = self.pool.leases.begin_drain(lease.lease_id, reason=command.reason)
+                    draining_leases.append(lease.lease_id)
+                    related = self.repository.binding_for_lease(lease.lease_id)
+                    if related is not None and related.phase is AdmissionPhase.DISPATCHED:
+                        self.repository.update_binding(
+                            related.advance(
+                                AdmissionPhase.DRAINING,
+                                metadata={
+                                    **dict(related.metadata),
+                                    "last_control_command_id": command.command_id,
+                                    "stop_after_drain": True,
+                                },
+                            ),
+                            expected_version=related.version,
+                            operation="dispatch_stopping_after_drain",
+                            payload={"control_command_id": command.command_id},
+                        )
             return {
                 "changed": True,
                 "worker": worker.to_dict(),
-                "draining_before_stop": worker.state is WorkerLifecycleState.DRAINING,
+                "draining_before_stop": bool(draining_leases),
+                "draining_lease_ids": draining_leases,
+                "stop_after_drain": bool(worker.metadata.get("stop_after_drain")),
+                "new_admission_blocked": not worker.accepting_leases,
             }
         if command.kind is ControlKind.PARK:
             if binding is None:
@@ -597,5 +661,6 @@ __all__ = [
     "ControlDispatchReport",
     "ExecutionCancellationPort",
     "ProjectionControlPort",
+    "WakeExecutionPort",
     "WorkerControlRuntime",
 ]

@@ -71,6 +71,7 @@ class WorkerPoolApiService:
         graph_custody: GraphStateCustody,
         *,
         backend_health: Any | None = None,
+        wake_execution: Any | None = None,
     ) -> None:
         self.pool = pool
         self.graph_custody = graph_custody
@@ -80,6 +81,7 @@ class WorkerPoolApiService:
             pool,
             graph_custody,
             backend_health=backend_health,
+            wake_execution=wake_execution,
         )
 
     def close(self) -> None:

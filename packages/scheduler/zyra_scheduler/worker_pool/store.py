@@ -1321,23 +1321,29 @@ class WorkerPoolStore:
         *,
         claim_owner: str,
         limit: int,
+        worker_id: str = "",
         now: str | None = None,
     ) -> tuple[WakeupRecord, ...]:
         current_time = now or utc_iso()
         claimed: list[WakeupRecord] = []
         with self.transaction() as connection:
+            clauses = ["state IN (?,?)", "available_at<=?"]
+            params: list[Any] = [
+                WakeupState.QUEUED.value,
+                WakeupState.REQUEUED.value,
+                current_time,
+            ]
+            if worker_id:
+                clauses.append("worker_id=?")
+                params.append(worker_id)
+            params.append(max(1, int(limit)))
             rows = connection.execute(
-                """
+                f"""
                 SELECT payload_json FROM worker_wakeups
-                WHERE state IN (?,?) AND available_at<=?
+                WHERE {' AND '.join(clauses)}
                 ORDER BY updated_at ASC, wakeup_id ASC LIMIT ?
-                """,
-                (
-                    WakeupState.QUEUED.value,
-                    WakeupState.REQUEUED.value,
-                    current_time,
-                    max(1, int(limit)),
-                ),
+                """,  # noqa: S608
+                params,
             ).fetchall()
             for row in rows:
                 current = WakeupRecord.from_dict(self._decode(row["payload_json"]))
@@ -1356,6 +1362,35 @@ class WorkerPoolStore:
             if rows:
                 self._bump_revision(connection)
         return tuple(claimed)
+
+    def list_wakeups(
+        self,
+        *,
+        worker_id: str = "",
+        task_id: str = "",
+        states: Sequence[WakeupState] = (),
+    ) -> tuple[WakeupRecord, ...]:
+        clauses = ["1=1"]
+        params: list[Any] = []
+        if worker_id:
+            clauses.append("worker_id=?")
+            params.append(worker_id)
+        if task_id:
+            clauses.append("task_id=?")
+            params.append(task_id)
+        if states:
+            clauses.append(f"state IN ({','.join('?' for _ in states)})")
+            params.extend(item.value for item in states)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT payload_json FROM worker_wakeups
+                WHERE {' AND '.join(clauses)}
+                ORDER BY updated_at ASC, wakeup_id ASC
+                """,  # noqa: S608
+                params,
+            ).fetchall()
+        return tuple(WakeupRecord.from_dict(self._decode(row["payload_json"])) for row in rows)
 
     def update_wakeup(
         self,

@@ -37,13 +37,14 @@ from zyra_scheduler.worker_pool import (
     SchedulerDispatchContext,
     WorkerLifecycleState,
     WorkerLocation,
+    WakeupState,
     WorkerPoolError,
     WorkerPoolFoundationRuntime,
     WorkerPoolIntegrationRuntime,
     YieldKind,
     make_foreign_refs,
 )
-from zyra_scheduler.worker_pool.models import parse_utc, utc_iso
+from zyra_scheduler.worker_pool.models import parse_utc, stable_digest, utc_iso
 from zyra_workers.edge_pool import (
     EdgeWorkerGatewayRuntime,
     EdgeWorkerProcessConnector,
@@ -187,6 +188,38 @@ def _admit(runtime: WorkerPoolIntegrationRuntime, task_id: str, **kwargs: Any):
     return context, plan, result, lease
 
 
+def _dispatch_projection(runtime: WorkerPoolIntegrationRuntime, binding_id: str) -> dict[str, Any]:
+    binding = runtime.repository.get_binding(binding_id)
+    assert binding is not None
+    lease = runtime.pool.store.require_lease(binding.lease_id)
+    worker = runtime.pool.store.require_worker(binding.worker_id)
+    manifest = runtime.pool.store.latest_manifest(worker.worker_id)
+    assert manifest is not None
+    unsigned = {
+        "schema": "zyra.worker-pool-dispatch/v1",
+        "required": True,
+        "canonical_owner": "python.WorkerPoolStore",
+        "projection_owner": "typescript.OmpWorkerDispatchRuntime",
+        "task_id": binding.task_id,
+        "attempt_id": binding.attempt_id,
+        "attempt": binding.attempt_number,
+        "lease_id": binding.lease_id,
+        "worker_id": binding.worker_id,
+        "backend_id": binding.backend_id,
+        "fence_epoch": binding.fence_epoch,
+        "manifest_digest": manifest.digest,
+        "concurrency_limit": manifest.resource_capacity.process_slots,
+        "lease_state": lease.state.value,
+        "logical_task_not_duplicated": True,
+        "integration_binding_id": binding.binding_id,
+        "graph_ref": binding.foreign_refs.graph.to_dict(),
+        "workspace_ref": binding.foreign_refs.workspace.to_dict(),
+        "gateway_ref": binding.foreign_refs.gateway.to_dict(),
+        "route_ref": binding.foreign_refs.backend_route.to_dict(),
+    }
+    return {**unsigned, "projection_digest": stable_digest(unsigned)}
+
+
 def test_scheduler_admission_drain_wake_progress_and_typed_yield_change_real_state(
     tmp_path: Path,
 ) -> None:
@@ -271,6 +304,194 @@ def test_scheduler_admission_drain_wake_progress_and_typed_yield_change_real_sta
     assert runtime.pool.store.require_worker("worker-a").accepting_leases is True
     _, _, replacement, _ = _admit(runtime, "task-after-wake", preferred=("worker-a",))
     assert replacement.binding.worker_id == "worker-a"
+
+
+def test_execution_gate_rechecks_canonical_state_and_rejects_resigned_mutations(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    runtime = _runtime(tmp_path)
+    _, _, admission, lease = _admit(runtime, "task-execution-gate")
+    runtime.start(
+        admission.binding.binding_id,
+        fence_token=lease.fence_token,
+        backend_dispatch_id="backend-execution-gate",
+    )
+    projection = _dispatch_projection(runtime, admission.binding.binding_id)
+    authorized = runtime.execution_gate.authorize_projection(
+        projection,
+        expected_task_id="task-execution-gate",
+        expected_run_id="run-integration",
+        expected_session_id="session-integration",
+    )
+    assert authorized["lease_id"] == lease.lease_id
+    assert authorized["commit_still_requires_fence"] is True
+    assert any(
+        item.operation == "worker_execution_authorized"
+        for item in runtime.pool.store.journal(task_id="task-execution-gate")
+    )
+
+    mutations = {
+        "lease_id": "lease_forged",
+        "worker_id": "worker-forged",
+        "fence_epoch": lease.fence_epoch + 1,
+        "manifest_digest": "0" * 64,
+        "integration_binding_id": "binding_forged",
+    }
+    for field, value in mutations.items():
+        forged = dict(projection)
+        forged[field] = value
+        forged.pop("projection_digest", None)
+        forged["projection_digest"] = stable_digest(forged)
+        with pytest.raises(WorkerPoolError, match="projection|binding"):
+            runtime.execution_gate.authorize_projection(
+                forged,
+                expected_task_id="task-execution-gate",
+                expected_run_id="run-integration",
+                expected_session_id="session-integration",
+            )
+
+    runtime.control.submit_cancel(
+        task_id="task-execution-gate",
+        run_id="run-integration",
+        reason="pending cancellation must win before code starts",
+        actor_id="operator",
+        idempotency_key="execution-gate-pending-cancel",
+    )
+    with pytest.raises(WorkerPoolError, match="pending durable control"):
+        runtime.execution_gate.authorize_projection(
+            projection,
+            expected_task_id="task-execution-gate",
+            expected_run_id="run-integration",
+            expected_session_id="session-integration",
+        )
+
+    monkeypatch.setenv("ZYRA_WORKER_EXECUTION_GATE_DISABLED", "1")
+    with pytest.raises(WorkerPoolError, match="execution gate is disabled"):
+        runtime.execution_gate.authorize_projection(
+            projection,
+            expected_task_id="task-execution-gate",
+            expected_run_id="run-integration",
+        )
+
+
+def test_graceful_stop_survives_restart_and_converges_after_final_lease(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    _, _, admission, lease = _admit(runtime, "task-graceful-stop")
+    runtime.start(
+        admission.binding.binding_id,
+        fence_token=lease.fence_token,
+        backend_dispatch_id="backend-graceful-stop",
+    )
+    admitted_projection = _dispatch_projection(runtime, admission.binding.binding_id)
+    stopped = runtime.control.submit_and_apply(
+        ControlKind.STOP,
+        claim_owner="stop-control",
+        actor_id="operator",
+        reason="rolling shutdown after in-flight work",
+        idempotency_key="stop-worker-a-after-drain",
+        worker_id="worker-a",
+    )
+    assert stopped.phase is ControlPhase.APPLIED
+    assert stopped.effect["stop_after_drain"] is True
+    assert runtime.pool.store.require_worker("worker-a").state is WorkerLifecycleState.DRAINING
+    assert runtime.pool.store.require_lease(lease.lease_id).state is LeaseState.DRAINING
+    assert runtime.repository.get_binding(admission.binding.binding_id).phase is AdmissionPhase.DRAINING
+
+    restarted_pool = _pool(tmp_path / "pool.sqlite3")
+    graph_store = GraphStateStore(tmp_path / "graph.sqlite3")
+    graph_store.initialize()
+    restarted = WorkerPoolIntegrationRuntime(
+        restarted_pool,
+        GraphStateCustody(graph_store),
+    )
+    authorized = restarted.execution_gate.authorize_projection(
+        admitted_projection,
+        expected_task_id="task-graceful-stop",
+        expected_run_id="run-integration",
+        expected_session_id="session-integration",
+    )
+    assert authorized["lease_state"] == "draining"
+    restarted.complete(
+        admission.binding.binding_id,
+        fence_token=lease.fence_token,
+        outcome=ExecutionOutcome.SUCCEEDED,
+        summary="in-flight work completed before shutdown",
+    )
+    final_worker = restarted.pool.store.require_worker("worker-a")
+    assert final_worker.state is WorkerLifecycleState.STOPPED
+    assert "stop_after_drain" not in final_worker.metadata
+    with pytest.raises((WorkerPoolError, ValueError), match="no worker|capacity|registered"):
+        _admit(restarted, "task-after-stop", preferred=("worker-a",))
+
+
+def test_wake_dispatch_is_target_scoped_acknowledged_after_accept_and_fail_closed(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    runtime = _runtime(tmp_path, workers=("worker-a", "worker-b"))
+    runtime.pool.lifecycle.park("worker-a")
+    runtime.pool.lifecycle.park("worker-b")
+    _, wake_a = runtime.pool.inbox.enqueue(
+        worker_id="worker-a",
+        task_id="wake-task-a",
+        run_id="run-integration",
+        message_kind="resume",
+        payload={"task_id": "wake-task-a"},
+    )
+    _, wake_b = runtime.pool.inbox.enqueue(
+        worker_id="worker-b",
+        task_id="wake-task-b",
+        run_id="run-integration",
+        message_kind="resume",
+        payload={"task_id": "wake-task-b"},
+    )
+    assert wake_a is not None and wake_b is not None
+
+    class RecordingWakePort:
+        def __init__(self) -> None:
+            self.dispatched: list[str] = []
+
+        def is_session_active(self, worker_id: str) -> bool:
+            return False
+
+        def dispatch(self, wakeup: Any) -> dict[str, Any]:
+            self.dispatched.append(wakeup.wakeup_id)
+            return {"accepted": True, "task_id": wakeup.task_id}
+
+    port = RecordingWakePort()
+    runtime.control.wake_execution = port
+    command = runtime.control.submit_and_apply(
+        ControlKind.WAKE,
+        claim_owner="wake-control",
+        actor_id="operator",
+        reason="resume only worker-a",
+        idempotency_key="wake-target-worker-a",
+        worker_id="worker-a",
+    )
+    assert command.phase is ControlPhase.APPLIED
+    assert command.effect["dispatched_wakeup_ids"] == [wake_a.wakeup_id]
+    assert port.dispatched == [wake_a.wakeup_id]
+    assert runtime.pool.store.list_wakeups(worker_id="worker-a")[0].state is WakeupState.DISPATCHED
+    assert runtime.pool.store.list_wakeups(worker_id="worker-b")[0].state is WakeupState.QUEUED
+    assert runtime.pool.store.require_worker("worker-a").state is WorkerLifecycleState.IDLE
+    assert runtime.pool.store.require_worker("worker-b").state is WorkerLifecycleState.PARKED
+
+    monkeypatch.setenv("ZYRA_WORKER_WAKE_DISPATCH_DISABLED", "1")
+    blocked = runtime.control.submit_and_apply(
+        ControlKind.WAKE,
+        claim_owner="wake-control",
+        actor_id="operator",
+        reason="disabled port must not consume worker-b wake",
+        idempotency_key="wake-target-worker-b-disabled",
+        worker_id="worker-b",
+    )
+    assert blocked.phase is ControlPhase.FAILED
+    assert "no enabled execution dispatch port" in blocked.error
+    assert runtime.pool.store.list_wakeups(worker_id="worker-b")[0].state is WakeupState.QUEUED
+    assert runtime.pool.store.require_worker("worker-b").state is WorkerLifecycleState.PARKED
 
 
 def test_park_revive_retain_live_lease_and_terminal_attempt_cannot_be_parked(

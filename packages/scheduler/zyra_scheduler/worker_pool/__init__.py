@@ -28,6 +28,7 @@ from .errors import (
     WorkerPoolError,
     WorkerPoolErrorCode,
 )
+from .execution_gate import WorkerExecutionGateRuntime
 from .heartbeat import HeartbeatPolicy, HeartbeatSweepResult, WorkerHeartbeatRuntime
 from .health_bridge import (
     BackendHealthMutationReceipt,
@@ -74,7 +75,12 @@ from .models import (
 from .store import WorkerPoolStore
 from .admission import AdmissionPorts, WorkerAdmissionRuntime, WorkerCapacityRuntime
 from .checkpoint import ExactWorkerCheckpointRuntime, StartupIntegrationRecovery
-from .control import ControlDispatchReport, ExecutionCancellationPort, WorkerControlRuntime
+from .control import (
+    ControlDispatchReport,
+    ExecutionCancellationPort,
+    WakeExecutionPort,
+    WorkerControlRuntime,
+)
 from .integration import (
     DispatchStartReceipt,
     EdgeDispatchReceipt,
@@ -213,6 +219,7 @@ __all__ = [
     "ControlCommand",
     "ControlDispatchReport",
     "ExecutionCancellationPort",
+    "WakeExecutionPort",
     "ControlKind",
     "ControlPhase",
     "DispatchAdmissionRequest",
@@ -242,6 +249,7 @@ __all__ = [
     "WorkerControlRuntime",
     "WorkerPoolIntegrationRepository",
     "WorkerPoolIntegrationRuntime",
+    "WorkerExecutionGateRuntime",
     "YieldKind",
     "capability_requirement_from_dict",
     "make_foreign_refs",

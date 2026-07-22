@@ -16,8 +16,9 @@ from zyra_orchestration.graph_custody import (
 from .admission import AdmissionPorts, WorkerAdmissionRuntime
 from .application import WorkerPoolFoundationRuntime
 from .checkpoint import ExactWorkerCheckpointRuntime, StartupIntegrationRecovery
-from .control import ProjectionControlPort, WorkerControlRuntime
+from .control import ProjectionControlPort, WakeExecutionPort, WorkerControlRuntime
 from .errors import WorkerPoolError, WorkerPoolErrorCode
+from .execution_gate import WorkerExecutionGateRuntime
 from .integration_models import (
     AdmissionPhase,
     AdmissionPolicy,
@@ -135,6 +136,7 @@ class WorkerPoolIntegrationRuntime:
         backend_health: RenewalBackendHealthPort | WorkerRouteHealthSink | None = None,
         edge_execution: EdgeExecutionPort | None = None,
         event_sink: EventSinkPort | None = None,
+        wake_execution: WakeExecutionPort | None = None,
     ) -> None:
         self.pool = pool
         self.graph_custody = graph_custody
@@ -160,7 +162,9 @@ class WorkerPoolIntegrationRuntime:
             self.repository,
             projection_control=projection_control,
             execution_cancellation=edge_execution,
+            wake_execution=wake_execution,
         )
+        self.execution_gate = WorkerExecutionGateRuntime(pool, self.repository)
         self.checkpoints = ExactWorkerCheckpointRuntime(pool, self.repository, graph_custody)
         self.invariants = WorkerPoolInvariantRuntime(pool, self.repository, graph_custody)
         self.projection = WorkerPoolProjectionRuntime(pool, self.repository, graph_custody)

@@ -200,30 +200,21 @@ class WorkerInboxRuntime:
         dispatcher_id: str,
         is_session_active: Callable[[str], bool],
         on_wakeup: Callable[[WakeupRecord], Any],
+        worker_id: str = "",
         limit: int = 32,
         requeue_delay_seconds: float = 0.25,
     ) -> tuple[WakeupRecord, ...]:
         dispatched: list[WakeupRecord] = []
-        for wakeup in self.store.claim_wakeups(claim_owner=dispatcher_id, limit=limit):
+        for wakeup in self.store.claim_wakeups(
+            claim_owner=dispatcher_id,
+            worker_id=worker_id,
+            limit=limit,
+        ):
             if is_session_active(wakeup.worker_id):
-                updated = WakeupRecord.from_dict(
-                    {
-                        **wakeup.to_dict(),
-                        "state": WakeupState.REQUEUED.value,
-                        "available_at": utc_iso(
-                            parse_utc(utc_iso()) + timedelta(seconds=max(0.0, requeue_delay_seconds))
-                        ),
-                        "claim_owner": "",
-                        "version": wakeup.version + 1,
-                        "metadata": {
-                            **dict(wakeup.metadata),
-                            "requeue_reason": "worker session is already active and will drain inbox",
-                        },
-                    }
-                )
-                self.store.update_wakeup(
-                    updated,
-                    expected_version=wakeup.version,
+                self._requeue_wakeup(
+                    wakeup,
+                    reason="worker session is already active and will drain inbox",
+                    delay_seconds=requeue_delay_seconds,
                     operation="wakeup_requeued_active_session",
                 )
                 continue
@@ -232,7 +223,27 @@ class WorkerInboxRuntime:
             except WorkerPoolError as error:
                 if error.code is not WorkerPoolErrorCode.INVALID_WORKER_TRANSITION:
                     raise
-            on_wakeup(wakeup)
+            try:
+                result = on_wakeup(wakeup)
+                accepted = result is not False
+                if isinstance(result, Mapping):
+                    accepted = bool(result.get("accepted", True))
+                if not accepted:
+                    raise WorkerPoolError(
+                        WorkerPoolErrorCode.EXECUTION_REJECTED,
+                        "wakeup execution port rejected the dispatch",
+                        operation="dispatch_worker_wakeup",
+                        worker_id=wakeup.worker_id,
+                        task_id=wakeup.task_id,
+                    )
+            except Exception as error:
+                self._requeue_wakeup(
+                    wakeup,
+                    reason=f"{type(error).__name__}: {error}",
+                    delay_seconds=requeue_delay_seconds,
+                    operation="wakeup_requeued_dispatch_failure",
+                )
+                raise
             updated = WakeupRecord.from_dict(
                 {
                     **wakeup.to_dict(),
@@ -249,6 +260,29 @@ class WorkerInboxRuntime:
                 )
             )
         return tuple(dispatched)
+
+    def recover_wakeup_claims(self, *, now: str | None = None) -> tuple[WakeupRecord, ...]:
+        current = parse_utc(now or utc_iso())
+        recovered: list[WakeupRecord] = []
+        for wakeup in self.store.list_wakeups(states=(WakeupState.CLAIMED,)):
+            if not wakeup.claimed_at:
+                expired = True
+            else:
+                expired = (
+                    parse_utc(wakeup.claimed_at) + timedelta(seconds=self.claim_ttl_seconds)
+                    <= current
+                )
+            if not expired:
+                continue
+            recovered.append(
+                self._requeue_wakeup(
+                    wakeup,
+                    reason="wakeup claim owner did not acknowledge before deadline",
+                    delay_seconds=0,
+                    operation="wakeup_claim_recovered",
+                )
+            )
+        return tuple(recovered)
 
     def recover_expired_claims(self, *, now: str | None = None) -> tuple[InboxEnvelope, ...]:
         current = parse_utc(now or utc_iso())
@@ -289,6 +323,36 @@ class WorkerInboxRuntime:
                 operation="require_inbox_envelope",
             )
         return envelope
+
+    def _requeue_wakeup(
+        self,
+        wakeup: WakeupRecord,
+        *,
+        reason: str,
+        delay_seconds: float,
+        operation: str,
+    ) -> WakeupRecord:
+        updated = WakeupRecord.from_dict(
+            {
+                **wakeup.to_dict(),
+                "state": WakeupState.REQUEUED.value,
+                "available_at": utc_iso(
+                    parse_utc(utc_iso()) + timedelta(seconds=max(0.0, delay_seconds))
+                ),
+                "claim_owner": "",
+                "claimed_at": "",
+                "version": wakeup.version + 1,
+                "metadata": {
+                    **dict(wakeup.metadata),
+                    "requeue_reason": reason,
+                },
+            }
+        )
+        return self.store.update_wakeup(
+            updated,
+            expected_version=wakeup.version,
+            operation=operation,
+        )
 
     @staticmethod
     def _assert_claim(envelope: InboxEnvelope, claim_owner: str) -> None:

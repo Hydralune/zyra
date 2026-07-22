@@ -99,7 +99,11 @@ def test_subagent_api_admits_through_typescript_omp_gate_before_child_execution(
             for item in journal
             if item.get("task_id") == "physical-e03-child"
         ]
-        assert operations.index("attempt_started") < operations.index("execution_receipt_committed")
+        assert (
+            operations.index("attempt_started")
+            < operations.index("worker_execution_authorized")
+            < operations.index("execution_receipt_committed")
+        )
 
 
 def test_subagent_api_fails_closed_and_records_failed_receipt_when_omp_gate_is_disabled(
@@ -183,6 +187,96 @@ def test_subagent_api_lease_store_disable_blocks_before_typescript_execution(
         assert executions == []
         assert api_main.get_typescript_agent_port().records(parent_task_id=task_id) == ()
         assert _get(base_url, "/worker-pool/leases?task_id=lease-disabled-child")["leases"] == []
+
+
+def test_subagent_execution_gate_disable_blocks_before_code_worker_run(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    executions: list[str] = []
+
+    def forbidden_run(*_args: Any, **_kwargs: Any) -> Any:
+        executions.append("code-worker-run")
+        raise AssertionError("CodeWorkerRuntime ran while its canonical execution gate was disabled")
+
+    monkeypatch.setattr(api_main.CodeWorkerRuntime, "run", forbidden_run)
+    monkeypatch.setenv("ZYRA_WORKER_EXECUTION_GATE_DISABLED", "1")
+    with _api(tmp_path) as base_url:
+        created = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Execution gate must run after lease admission but before worker code.", "auto_run": False},
+        )
+        status, rejected = _post_with_status(
+            base_url,
+            f"/tasks/{created['task']['task_id']}/subagents",
+            {
+                "prompt": "This code worker operation must never start.",
+                "execution_mode": "foreground",
+                "subagent_task_id": "execution-gate-disabled-child",
+                "idempotency_key": "execution-gate-disabled-create",
+                "request_id": "execution-gate-disabled-request",
+            },
+        )
+        assert status == 409
+        assert rejected["error"] == "typescript_subagent_execution_failed"
+        assert "execution gate is disabled" in rejected["message"]
+        assert executions == []
+        leases = _get(
+            base_url,
+            "/worker-pool/leases?task_id=execution-gate-disabled-child",
+        )["leases"]
+        assert len(leases) == 1
+        assert leases[0]["state"] == "released"
+        assert rejected["physical_receipt"]["outcome"] == "failed"
+
+
+def test_parent_cancel_fences_permission_suspended_child_physical_lease(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        created = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Cancel a child between physical admission and logical creation.", "auto_run": False},
+        )
+        parent_id = created["task"]["task_id"]
+        status, suspended = _post_with_status(
+            base_url,
+            f"/tasks/{parent_id}/subagents",
+            {
+                "prompt": "Suspend for approval so the physical lease remains in flight.",
+                "execution_mode": "foreground",
+                "subagent_task_id": "suspended-child-physical-lease",
+                "idempotency_key": "suspended-child-create",
+                "request_id": "suspended-child-request",
+            },
+        )
+        assert status == 409
+        assert suspended["error"] == "permission_suspended"
+        before = _get(
+            base_url,
+            "/worker-pool/leases?task_id=suspended-child-physical-lease",
+        )["leases"]
+        assert len(before) == 1 and before[0]["state"] == "active"
+
+        cancelled = _post(
+            base_url,
+            f"/tasks/{parent_id}/cancel",
+            {"reason": "parent cancelled before logical child creation committed"},
+        )
+        child_controls = cancelled["cancelled_physical_children"]
+        assert any(
+            item["task_id"] == "suspended-child-physical-lease"
+            and item["effect"]["old_fence_blocks_late_commit"] is True
+            for item in child_controls
+        )
+        after = _get(
+            base_url,
+            "/worker-pool/leases?task_id=suspended-child-physical-lease",
+        )["leases"]
+        assert after[0]["state"] == "cancelled"
+        assert cancelled["subagent_cancel_errors"] == []
 
 
 def test_subagent_fanout_maps_each_child_to_one_physical_attempt_and_receipt(

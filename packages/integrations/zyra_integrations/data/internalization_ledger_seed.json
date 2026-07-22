@@ -176952,6 +176952,8 @@
           "scheduler_capacity_admission",
           "task_and_subagent_api",
           "durable_worker_control",
+          "canonical_pre_execution_lease_gate",
+          "graceful_stop_after_drain",
           "real_edge_process_failover",
           "m2_worker_state_handoff",
           "m1_07c_recovery_handoff"
@@ -176975,7 +176977,9 @@
         "source_callsites": [
           "persist control intent before cancel/wakeup side effects",
           "single-flight session admission and active-run recovery",
-          "inbox-before-wakeup ordering and restart-safe dispatch"
+          "inbox-before-wakeup ordering and restart-safe dispatch",
+          "canonical lease recheck immediately before physical execution",
+          "graceful stop convergence after the final in-flight lease"
         ],
         "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
         "source_language": "python",
@@ -177009,6 +177013,10 @@
           "packages/scheduler/zyra_scheduler/worker_pool/leases.py",
           "packages/scheduler/zyra_scheduler/worker_pool/renewal.py",
           "packages/scheduler/zyra_scheduler/worker_pool/control.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/execution_gate.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/inbox.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/lifecycle.py",
+          "packages/scheduler/zyra_scheduler/worker_pool/store.py",
           "packages/scheduler/zyra_scheduler/worker_pool/checkpoint.py",
           "packages/scheduler/zyra_scheduler/worker_pool/invariants.py",
           "packages/scheduler/zyra_scheduler/worker_pool/projection.py",
@@ -177079,6 +177087,26 @@
         },
         {
           "path": "packages/scheduler/zyra_scheduler/worker_pool/control.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/execution_gate.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/inbox.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/lifecycle.py",
+          "required_for_main_path": true,
+          "role": "supporting"
+        },
+        {
+          "path": "packages/scheduler/zyra_scheduler/worker_pool/store.py",
           "required_for_main_path": true,
           "role": "supporting"
         },
@@ -177201,6 +177229,8 @@
           "scheduler_capacity_admission",
           "task_and_subagent_api",
           "durable_worker_control",
+          "canonical_pre_execution_lease_gate",
+          "graceful_stop_after_drain",
           "real_edge_process_failover",
           "m2_worker_state_handoff",
           "m1_07c_recovery_handoff"

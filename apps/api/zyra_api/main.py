@@ -335,6 +335,8 @@ from zyra_scheduler.worker_pool import (
     DispatchMode as PhysicalDispatchMode,
     WorkerLocation as PhysicalWorkerLocation,
     ControlKind,
+    WorkerPoolError,
+    WorkerPoolErrorCode,
     SchedulerDispatchContext as PhysicalSchedulerDispatchContext,
 )
 
@@ -1141,6 +1143,62 @@ def reset_subagent_runtime() -> None:
         _TYPESCRIPT_AGENT_PORT_KEY = None
 
 
+def _authorize_typescript_agent_physical_execution(
+    state: Any,
+    *,
+    tool_name: str,
+    arguments: Mapping[str, Any],
+    parent_session_id: str,
+) -> Mapping[str, Any] | tuple[Mapping[str, Any], ...] | None:
+    """Re-read the canonical physical attempt immediately before E03 runs."""
+
+    if tool_name not in {"Agent", "agent_resume"}:
+        return None
+    gate = get_worker_pool_api().integration.execution_gate
+    if tool_name == "Agent":
+        projection = arguments.get("physical_dispatch")
+        if isinstance(projection, Mapping):
+            task_id = str(arguments.get("task_id") or projection.get("task_id") or "")
+            return gate.authorize_projection(
+                projection,
+                expected_task_id=task_id,
+                expected_run_id=state.run_id,
+                expected_session_id=parent_session_id,
+                operation="execute_typescript_agent_task",
+            )
+        raw_requests = arguments.get("requests")
+        if not isinstance(raw_requests, list):
+            raise WorkerPoolError(
+                WorkerPoolErrorCode.EXECUTION_REJECTED,
+                "TypeScript Agent execution requires a physical dispatch lease",
+                operation="execute_typescript_agent_task",
+                task_id=state.task_id,
+            )
+        projections: list[Mapping[str, Any]] = []
+        for item in raw_requests:
+            if not isinstance(item, Mapping) or not isinstance(item.get("physical_dispatch"), Mapping):
+                raise WorkerPoolError(
+                    WorkerPoolErrorCode.EXECUTION_REJECTED,
+                    "every TypeScript Agent fanout item requires a physical dispatch lease",
+                    operation="execute_typescript_agent_fanout",
+                    task_id=state.task_id,
+                )
+            projections.append(item["physical_dispatch"])
+        return gate.authorize_many(
+            projections,
+            expected_run_id=state.run_id,
+            expected_session_id=parent_session_id,
+            operation="execute_typescript_agent_fanout",
+        )
+    task_id = str(arguments.get("task_id") or "")
+    return gate.authorize_task(
+        task_id,
+        expected_run_id=state.run_id,
+        expected_session_id=parent_session_id,
+        operation="resume_typescript_agent_task",
+    )
+
+
 def _run_typescript_agent_request(
     state: Any,
     *,
@@ -1160,6 +1218,12 @@ def _run_typescript_agent_request(
         worker_id="CodeWorkerRuntime",
     )
     worker_workspace_root = workspace_manager.internal_task_root(workspace_access)
+    _authorize_typescript_agent_physical_execution(
+        state,
+        tool_name=tool_name,
+        arguments=arguments,
+        parent_session_id=parent_session_id,
+    )
     bounded_arguments = {
         **arguments,
         # The E03 physical isolation port is bound to this task workspace.  A
@@ -4171,6 +4235,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             agent_port = get_typescript_agent_port()
             cancelled_subagents = []
+            cancelled_physical_children: list[dict[str, Any]] = []
+            cancelled_physical_task_ids: set[str] = set()
             subagent_cancel_errors: list[dict[str, str]] = []
             for child in agent_port.records(parent_task_id=state.task_id):
                 if child.status.terminal:
@@ -4192,11 +4258,64 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 events.extend(cancel_run.event_records)
                 if cancel_run.worker_result.ok:
                     cancelled_subagents.append(agent_port.get_task(child.task_id))
+                    physical = get_worker_pool_api().integration.control.submit_and_apply(
+                        ControlKind.CANCEL,
+                        claim_owner="task-control-api",
+                        actor_id="task-control-api",
+                        reason=reason,
+                        idempotency_key=(
+                            f"parent-cancel-physical:{state.task_id}:"
+                            f"{child.task_id}:{child.revision}"
+                        ),
+                        task_id=child.task_id,
+                        run_id=state.run_id,
+                    )
+                    if physical.phase.value != "applied":
+                        subagent_cancel_errors.append({
+                            "task_id": child.task_id,
+                            "error": physical.error or "physical_child_lease_cancel_failed",
+                        })
+                    else:
+                        cancelled_physical_children.append(physical.to_dict())
+                        cancelled_physical_task_ids.add(child.task_id)
                 else:
                     subagent_cancel_errors.append({
                         "task_id": child.task_id,
                         "error": str(cancel_run.worker_result.error or "typescript_agent_cancel_rejected"),
                     })
+            # Admission deliberately precedes E03 execution. A permission-
+            # suspended or crashed child can therefore own a physical binding
+            # before the TypeScript logical registry contains a task record.
+            # Sweep parent-correlated bindings so those leases cannot survive a
+            # parent cancel merely because logical creation never committed.
+            for binding in get_worker_pool_api().integration.repository.list_bindings(
+                run_id=state.run_id
+            ):
+                if binding.terminal or binding.task_id in cancelled_physical_task_ids:
+                    continue
+                if str(binding.metadata.get("parent_task_id") or "") != state.task_id:
+                    continue
+                physical = get_worker_pool_api().integration.control.submit_and_apply(
+                    ControlKind.CANCEL,
+                    claim_owner="task-control-api",
+                    actor_id="task-control-api",
+                    reason=reason,
+                    idempotency_key=(
+                        f"parent-cancel-orphan-physical:{state.task_id}:"
+                        f"{binding.binding_id}:{binding.version}"
+                    ),
+                    task_id=binding.task_id,
+                    run_id=state.run_id,
+                    binding_id=binding.binding_id,
+                )
+                if physical.phase.value != "applied":
+                    subagent_cancel_errors.append({
+                        "task_id": binding.task_id,
+                        "error": physical.error or "orphan_physical_child_lease_cancel_failed",
+                    })
+                else:
+                    cancelled_physical_children.append(physical.to_dict())
+                    cancelled_physical_task_ids.add(binding.task_id)
             persist_events(store, events)
             store.save_checkpoint(state)
             curator = curate_terminal_task(store, state)
@@ -4206,6 +4325,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "task": to_jsonable(state),
                     "events": [to_jsonable(event) for event in events],
                     "cancelled_subagents": [item.safe_dict() for item in cancelled_subagents],
+                    "cancelled_physical_children": cancelled_physical_children,
                     "subagent_cancel_errors": subagent_cancel_errors,
                     "canonical_agent_owner": "typescript",
                     "backend_dispatch_control": backend_cancel.to_dict(),
@@ -4537,6 +4657,34 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "turns": list(payload.get("turns") or ()),
                 })
             request_id = str(payload.get("request_id") or new_id(f"agent{action}"))
+            physical_control = None
+            if action == "resume":
+                physical_binding = get_worker_pool_api().integration.repository.latest_binding(
+                    record.task_id
+                )
+                if physical_binding is not None and physical_binding.phase.value == "parked":
+                    revived = get_worker_pool_api().integration.control.submit_and_apply(
+                        ControlKind.REVIVE,
+                        claim_owner="subagent-control-api",
+                        actor_id="subagent-control-api",
+                        reason="logical subagent resume requires physical dispatch revive",
+                        idempotency_key=f"subagent-revive:{record.task_id}:{expected}",
+                        task_id=record.task_id,
+                        run_id=state.run_id,
+                        binding_id=physical_binding.binding_id,
+                    )
+                    physical_control = revived.to_dict()
+                    if revived.phase.value != "applied":
+                        self._send_json(
+                            HTTPStatus.CONFLICT,
+                            {
+                                "ok": False,
+                                "error": "subagent_physical_revive_failed",
+                                "message": revived.error,
+                                "physical_control": physical_control,
+                            },
+                        )
+                        return
             run = _run_typescript_agent_request(
                 state,
                 tool_name={
@@ -4551,7 +4699,6 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             persist_events(store, run.event_records)
             updated = runtime.get_task(record.task_id)
-            physical_control = None
             if action == "cancel" and run.worker_result.ok:
                 physical_control = get_worker_pool_api().integration.control.submit_and_apply(
                     ControlKind.CANCEL,
