@@ -5,7 +5,6 @@ import {
   type CanonicalProjectionState,
   type CausalEventProjection,
   type CommandProjection,
-  type NodeProjection,
   type OverlayProjection,
   type PermissionProjection,
   type ProjectionSelector,
@@ -14,6 +13,7 @@ import {
   type WorkerProjection,
 } from "./contracts.ts"
 import { projectionSelector } from "./selectors.ts"
+import { buildTopologyProjection } from "../features/topology/projection/projector.ts"
 
 export interface TopologyPanelNode {
   id: string
@@ -163,13 +163,11 @@ export function buildTopologyPanel(
   state: CanonicalProjectionState,
   taskId: string,
 ): TopologyPanelView {
-  const nodes = Object.values(state.nodes)
-    .filter((node) => node.taskId === taskId)
-    .sort(compareSequence)
+  const topology = buildTopologyProjection(state, taskId)
+  const nodes = topology.nodes
   const workers = Object.values(state.workers)
     .filter((worker) => worker.taskId === taskId)
     .sort(compareSequence)
-  const nodeIds = new Set(nodes.map((node) => node.id))
   const workersByNode = new Map<string, WorkerProjection[]>()
   for (const worker of workers) {
     if (!worker.nodeId) continue
@@ -177,121 +175,66 @@ export function buildTopologyPanel(
     values.push(worker)
     workersByNode.set(worker.nodeId, values)
   }
-  const edges: TopologyPanelEdge[] = []
-  const edgeIds = new Set<string>()
-  const missing = new Set<string>()
   const incoming = new Map<string, number>()
   const outgoing = new Map<string, number>()
-  const addEdge = (
-    sourceId: string,
-    targetId: string,
-    kind: TopologyPanelEdge["kind"],
-    targetMissing: boolean,
-  ) => {
-    const id = `${kind}:${sourceId}->${targetId}`
-    if (edgeIds.has(id)) return
-    edgeIds.add(id)
-    edges.push(Object.freeze({ id, sourceId, targetId, kind, missing: targetMissing }))
-    if (kind !== "worker") {
-      incoming.set(targetId, (incoming.get(targetId) ?? 0) + 1)
-      outgoing.set(sourceId, (outgoing.get(sourceId) ?? 0) + 1)
-    }
-    if (targetMissing) missing.add(targetId)
-  }
+  const graphEdges: TopologyPanelEdge[] = topology.edges
+    .filter((edge) => edge.edgeKind === "dependency" || edge.edgeKind === "parent")
+    .map((edge) => {
+      incoming.set(edge.targetId, (incoming.get(edge.targetId) ?? 0) + 1)
+      outgoing.set(edge.sourceId, (outgoing.get(edge.sourceId) ?? 0) + 1)
+      return Object.freeze({
+        id: edge.id,
+        sourceId: edge.sourceId,
+        targetId: edge.targetId,
+        kind: edge.edgeKind as "dependency" | "parent",
+        missing: edge.sourceMissing || edge.targetMissing,
+      })
+    })
+  const workerEdges: TopologyPanelEdge[] = []
   for (const node of nodes) {
-    for (const dependencyId of node.dependencyIds) {
-      addEdge(dependencyId, node.id, "dependency", !nodeIds.has(dependencyId))
-    }
-    if (node.parentId) {
-      addEdge(node.parentId, node.id, "parent", !nodeIds.has(node.parentId))
-    }
     for (const worker of workersByNode.get(node.id) ?? []) {
-      addEdge(node.id, worker.id, "worker", false)
+      workerEdges.push(
+        Object.freeze({
+          id: `worker:${node.id}->${worker.id}`,
+          sourceId: node.id,
+          targetId: worker.id,
+          kind: "worker",
+          missing: false,
+        }),
+      )
     }
   }
+  const edges = [...graphEdges, ...workerEdges]
   edges.sort(compareEdge)
   const rows = nodes.map((node) =>
     Object.freeze({
       id: node.id,
-      lifecycle: node.lifecycle,
+      lifecycle: node.state,
       terminal: node.terminal,
       revision: node.revision,
       sequence: node.sequence,
       role: node.role,
-      dependencyIds: Object.freeze([...node.dependencyIds]),
+      dependencyIds: Object.freeze([...node.dependencies]),
       childNodeIds: Object.freeze([...node.childNodeIds]),
       workerIds: Object.freeze(
         (workersByNode.get(node.id) ?? []).map((worker) => worker.id).sort(),
       ),
-      missingDependencyIds: Object.freeze(
-        node.dependencyIds.filter((id) => !nodeIds.has(id)).sort(),
-      ),
+      missingDependencyIds: Object.freeze([...node.missingDependencyIds]),
       incoming: incoming.get(node.id) ?? 0,
       outgoing: outgoing.get(node.id) ?? 0,
     }),
   )
   return Object.freeze({
     taskId,
-    revision: state.revision,
+    revision: topology.projectionRevision,
     nodes: Object.freeze(rows),
     workers: Object.freeze(workers),
     edges: Object.freeze(edges),
     roots: Object.freeze(rows.filter((node) => node.incoming === 0).map((node) => node.id)),
     leaves: Object.freeze(rows.filter((node) => node.outgoing === 0).map((node) => node.id)),
-    missingDependencies: Object.freeze([...missing].sort()),
-    cycles: Object.freeze(
-      detectTopologyCycles(nodes).map((cycle) => Object.freeze(cycle)),
-    ),
+    missingDependencies: topology.analysis.missingNodeIds,
+    cycles: topology.analysis.cycles,
   })
-}
-
-function detectTopologyCycles(nodes: readonly NodeProjection[]): string[][] {
-  const nodeIds = new Set(nodes.map((node) => node.id))
-  const graph = new Map(
-    nodes.map((node) => [
-      node.id,
-      node.dependencyIds.filter((id) => nodeIds.has(id)),
-    ]),
-  )
-  const visiting = new Set<string>()
-  const visited = new Set<string>()
-  const stack: string[] = []
-  const cycleKeys = new Set<string>()
-  const result: string[][] = []
-  const visit = (id: string) => {
-    if (visiting.has(id)) {
-      const offset = stack.indexOf(id)
-      const normalized = normalizeCycle([...stack.slice(offset), id])
-      const key = normalized.join(">")
-      if (!cycleKeys.has(key)) {
-        cycleKeys.add(key)
-        result.push(normalized)
-      }
-      return
-    }
-    if (visited.has(id)) return
-    visiting.add(id)
-    stack.push(id)
-    for (const dependency of graph.get(id) ?? []) visit(dependency)
-    stack.pop()
-    visiting.delete(id)
-    visited.add(id)
-  }
-  for (const id of [...graph.keys()].sort()) visit(id)
-  return result.sort((left, right) => left.join().localeCompare(right.join()))
-}
-
-function normalizeCycle(cycle: readonly string[]): string[] {
-  const values = cycle.slice(0, -1)
-  if (values.length === 0) return []
-  let best = [...values]
-  for (let index = 1; index < values.length; index += 1) {
-    const candidate = [...values.slice(index), ...values.slice(0, index)]
-    if (candidate.join("\0").localeCompare(best.join("\0")) < 0) {
-      best = candidate
-    }
-  }
-  return [...best, best[0]!]
 }
 
 export function selectTimelinePanel(
