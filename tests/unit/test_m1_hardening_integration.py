@@ -559,6 +559,37 @@ def test_line_audit_excludes_only_source_pool_already_inside_explicit_protection
     assert newly_added.metrics["unprotected_vendor_raw_added"] == 1
 
 
+def test_line_audit_classifies_source_from_audited_revision() -> None:
+    class Diff:
+        @staticmethod
+        def numstat(baseline: str, head: str = "HEAD"):
+            assert (baseline, head) == ("baseline", "target")
+            return {"packages/runtime/example.py": (1, 0)}
+
+        @staticmethod
+        def added_lines(baseline: str, head: str = "HEAD"):
+            assert (baseline, head) == ("baseline", "target")
+            return {"packages/runtime/example.py": {1}}
+
+        @staticmethod
+        def file_text(revision: str, path: str) -> str:
+            assert revision == "target"
+            assert path == "packages/runtime/example.py"
+            return "result = execute_runtime()\n"
+
+    auditor = EffectiveLineAuditor(ROOT)
+    auditor.git = Diff()
+
+    gate = auditor.evaluate(
+        "baseline",
+        head="target",
+        minimum_effective_production=1,
+    )
+
+    assert gate.status is GateStatus.PASSED, gate.to_dict()
+    assert gate.metrics["effective_production_lines"] == 1
+
+
 def test_live_tier_gate_never_accepts_loopback_as_edge_or_cloud() -> None:
     observations = [
         {

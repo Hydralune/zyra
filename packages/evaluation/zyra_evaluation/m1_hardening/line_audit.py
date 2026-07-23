@@ -112,6 +112,22 @@ class GitDiffReader:
                 result[parts[-1]] = parts[0]
         return result
 
+    def file_text(self, revision: str, path: str) -> str:
+        """Read source from the audited revision, never from the worktree."""
+
+        completed = subprocess.run(
+            ["git", "show", f"{revision}:{path}"],
+            cwd=self.root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+        return completed.stdout if completed.returncode == 0 else ""
+
     def is_ancestor(self, ancestor: str, descendant: str) -> bool:
         completed = subprocess.run(
             ["git", "merge-base", "--is-ancestor", ancestor, descendant],
@@ -386,7 +402,15 @@ class EffectiveLineAuditor:
         added_lines = self.git.added_lines(baseline, head)
         audits: list[FileLineAudit] = []
         for path, (added, deleted) in sorted(numstat.items()):
-            audits.append(self._audit_file(path, added, deleted, added_lines.get(path, set())))
+            audits.append(
+                self._audit_file(
+                    path,
+                    added,
+                    deleted,
+                    added_lines.get(path, set()),
+                    head=head,
+                )
+            )
         effective = sum(item.effective_production_lines for item in audits)
         bucket_raw: Counter[str] = Counter()
         bucket_effective: Counter[str] = Counter()
@@ -502,18 +526,16 @@ class EffectiveLineAuditor:
         added: int,
         deleted: int,
         line_numbers: set[int],
+        *,
+        head: str,
     ) -> FileLineAudit:
-        path = self.root / path_value
         bucket = self._bucket(path_value)
-        language = self._language(path.suffix.lower())
+        language = self._language(Path(path_value).suffix.lower())
         countable = bucket in {LineBucket.PRODUCTION, LineBucket.SCRIPT}
         exclusions: Counter[str] = Counter()
         effective_lines: set[int] = set()
-        if countable and path.is_file() and language in {"python", "typescript", "javascript", "rust"}:
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                text = ""
+        if countable and language in {"python", "typescript", "javascript", "rust"}:
+            text = self.git.file_text(head, path_value)
             if language == "python":
                 effective_lines, exclusions = self.python.classify(text, set(line_numbers))
             else:
