@@ -315,6 +315,7 @@ class M1IntegrationService:
                 CrossScenarioConsistencyGate().evaluate(
                     scenario_evidence,
                     final_completion=options.final_completion,
+                    supporting_gates=tuple(gates),
                 )
             )
             gates.append(
@@ -469,21 +470,21 @@ class M1IntegrationService:
 
     @staticmethod
     def _aggregate_foundation_gates(audits: Sequence[AuditOutcome]) -> list[GateResult]:
-        grouped: dict[str, list[GateResult]] = {}
+        grouped: dict[str, list[tuple[AuditOutcome, GateResult]]] = {}
         excluded = {"disable-module-probe", "effective-line-audit"}
         for audit in audits:
             for gate in audit.report.gates:
                 if gate.gate_id.startswith("scenario:") or gate.gate_id in excluded:
                     continue
-                grouped.setdefault(gate.gate_id, []).append(gate)
+                grouped.setdefault(gate.gate_id, []).append((audit, gate))
         aggregates: list[GateResult] = []
-        for gate_id, children in sorted(grouped.items()):
+        for gate_id, executions in sorted(grouped.items()):
             result = GateResult(
                 gate_id=gate_id,
                 status=GateStatus.NOT_RUN,
-                summary=f"Aggregate of {len(children)} executed foundation audits.",
+                summary=f"Aggregate of {len(executions)} executed foundation audits.",
             )
-            for index, child in enumerate(children):
+            for index, (audit, child) in enumerate(executions):
                 for finding in child.findings:
                     if finding.severity.failing:
                         result.add(
@@ -498,11 +499,30 @@ class M1IntegrationService:
                             )
                         )
                 result.evidence.extend(child.evidence)
+                result.evidence.append(
+                    EvidencePointer(
+                        kind="foundation_audit_execution",
+                        location=audit.report.report_id,
+                        summary=(
+                            f"{gate_id} executed for integration scenario "
+                            f"{audit.report.scenario_id or audit.report.task_id}"
+                        ),
+                        revision=audit.report.generated_at,
+                        causation_id=audit.report.run_id,
+                        metadata={
+                            "child_status": child.status.value,
+                            "metrics_digest": stable_digest(child.metrics),
+                            "task_id": audit.report.task_id,
+                        },
+                    )
+                )
             result.metrics.update(
                 {
-                    "audit_count": len(children),
-                    "child_status": [child.status.value for child in children],
-                    "metrics_digests": [stable_digest(child.metrics) for child in children],
+                    "audit_count": len(executions),
+                    "child_status": [child.status.value for _, child in executions],
+                    "metrics_digests": [
+                        stable_digest(child.metrics) for _, child in executions
+                    ],
                 }
             )
             aggregates.append(result.finish())
@@ -544,6 +564,20 @@ class M1IntegrationService:
             )
             if passed and capability:
                 passed_capabilities.add(capability)
+                result.evidence.append(
+                    EvidencePointer(
+                        kind="owner_disconnect_receipt",
+                        location=probe_id,
+                        summary=f"{capability} failed closed and restored without fallback masking.",
+                        revision=str((receipt.get("restore_receipt") or {}).get("reset_epoch") or ""),
+                        causation_id=str(receipt.get("causation_id") or ""),
+                        metadata={
+                            "status": "passed",
+                            "expected_failure_observed": True,
+                            "material_difference": receipt.get("material_difference") is True,
+                        },
+                    )
+                )
             else:
                 result.add(
                     Finding(

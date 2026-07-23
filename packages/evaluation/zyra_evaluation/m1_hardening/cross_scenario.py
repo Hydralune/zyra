@@ -100,6 +100,7 @@ class CrossScenarioConsistencyGate:
         scenarios: Sequence[ScenarioEvidence],
         *,
         final_completion: bool,
+        supporting_gates: Sequence[GateResult] = (),
     ) -> GateResult:
         result = GateResult(
             gate_id="m1-cross-scenario-consistency",
@@ -113,7 +114,12 @@ class CrossScenarioConsistencyGate:
         self._partition_findings(partitions, result)
         self._side_effect_findings(projections, result)
         self._scenario_semantic_findings(scenarios, projections, result, final_completion=final_completion)
-        self._cross_cutting_findings(projections, result, final_completion=final_completion)
+        self._cross_cutting_findings(
+            scenarios,
+            supporting_gates,
+            result,
+            final_completion=final_completion,
+        )
         result.metrics.update(
             {
                 "scenario_count": len(scenarios),
@@ -283,14 +289,24 @@ class CrossScenarioConsistencyGate:
                     )
                 )
             for event in partition.events:
-                parent = event.parent_event_id or event.causation_id
-                if parent and parent not in partition.by_id and not event.payload.get("external_causation"):
+                parent = event.parent_event_id
+                causal_event = (
+                    event.causation_id
+                    if event.causation_id.startswith(("event_", "event-", "evt_", "evt-"))
+                    else ""
+                )
+                missing = parent or causal_event
+                if (
+                    missing
+                    and missing not in partition.by_id
+                    and not event.payload.get("external_causation")
+                ):
                     result.add(
                         Finding(
                             code="cross.causation_orphan",
                             severity=Severity.ERROR,
                             summary="Scenario event references a missing causal parent.",
-                            detail=f"{event.event_id} -> {parent}",
+                            detail=f"{event.event_id} -> {missing}",
                         )
                     )
 
@@ -368,10 +384,7 @@ class CrossScenarioConsistencyGate:
             by_run[event.run_id].append(event)
         for scenario in scenarios:
             events = by_run.get(scenario.run_id, ())
-            text = " ".join(
-                event.event_type + " " + json.dumps(event.payload, ensure_ascii=False, default=str).lower()
-                for event in events
-            )
+            text = self._scenario_semantic_text(scenario, events)
             checks = self._checks_for_kind(scenario.kind)
             for check_id, tokens in checks:
                 if not all(token in text for token in tokens):
@@ -395,6 +408,34 @@ class CrossScenarioConsistencyGate:
                         detail=scenario.scenario_id,
                     )
                 )
+
+    @staticmethod
+    def _scenario_semantic_text(
+        scenario: ScenarioEvidence,
+        events: Sequence[EventProjection],
+    ) -> str:
+        values = [
+            event.event_type
+            + " "
+            + json.dumps(event.payload, ensure_ascii=False, default=str).lower()
+            for event in events
+        ]
+        values.extend(
+            f"step {step.step_id} {step.path}"
+            for step in scenario.steps
+            if step.ok
+        )
+        values.extend(
+            "assertion "
+            + assertion.assertion_id
+            + " "
+            + str(assertion.observed).lower()
+            + " "
+            + assertion.source_location.lower()
+            for assertion in scenario.assertions
+            if assertion.passed
+        )
+        return "\n".join(values).lower()
 
     @staticmethod
     def _checks_for_kind(kind: ScenarioKind) -> tuple[tuple[str, tuple[str, ...]], ...]:
@@ -427,53 +468,52 @@ class CrossScenarioConsistencyGate:
 
     @staticmethod
     def _cross_cutting_findings(
-        projections: Sequence[EventProjection],
+        scenarios: Sequence[ScenarioEvidence],
+        supporting_gates: Sequence[GateResult],
         result: GateResult,
         *,
         final_completion: bool,
     ) -> None:
-        text = "\n".join(
-            event.event_type + " " + json.dumps(event.payload, ensure_ascii=False, default=str).lower()
-            for event in projections
-        )
-        requirements = {
-            "safe-patch": (
-                ("patch", "stale"),
-                ("patch", "rollback"),
-                ("patch", "history"),
-                ("patch", "dirty"),
-            ),
-            "deny-friction-recovery": (
-                ("deny", "friction"),
-                ("deny", "recovery"),
-            ),
-            "secret-injection": (
-                ("secret", "redact"),
-                ("prompt", "injection"),
-                ("policy", "immutable"),
-            ),
-            "code-index-effect": (
-                ("code_index", "context"),
-                ("code_index", "patch"),
-                ("code_index", "test"),
-                ("code_index", "recovery"),
-            ),
+        gates = {gate.gate_id: gate for gate in supporting_gates}
+        required_gates = {
+            "patch-git": "safe-patch and dirty-worktree protection",
+            "deny-policy": "progressive-friction denial recovery",
+            "secrets-prompt-injection": "secret and prompt-injection protection",
+            "code-index": "code-index context/patch/test/recovery effects",
         }
-        for group, alternatives in requirements.items():
-            matched = sum(all(token in text for token in pair) for pair in alternatives)
-            required = len(alternatives) if group != "deny-friction-recovery" else 2
-            if matched < required:
+        support_status: dict[str, str] = {}
+        for gate_id, capability in required_gates.items():
+            gate = gates.get(gate_id)
+            support_status[gate_id] = gate.status.value if gate is not None else "missing"
+            if gate is None or not gate.ok or not gate.evidence:
                 result.add(
                     Finding(
                         code="cross.cross_cutting_effect_missing",
                         severity=Severity.BLOCKER if final_completion else Severity.WARNING,
-                        summary="Integration evidence lacks a mandatory cross-cutting semantic effect.",
-                        detail=f"{group}: required={required}; observed={matched}",
+                        summary="Integration evidence lacks a passed, traceable cross-cutting owner gate.",
+                        detail=(
+                            f"{gate_id}/{capability}: "
+                            f"status={support_status[gate_id]}; "
+                            f"evidence={len(gate.evidence) if gate is not None else 0}"
+                        ),
                     )
                 )
-        if "code_index_disabled" not in text or not any(
-            token in text for token in ("behavior_changed", "selection_changed", "context_changed")
-        ):
+        code_index_receipts = [
+            receipt
+            for scenario in scenarios
+            for receipt in scenario.disconnect_evidence
+            if str(receipt.get("probe_id") or "") == "disable-code-index"
+        ]
+        material_code_index = any(
+            str(receipt.get("status") or "").lower() == "passed"
+            and receipt.get("expected_failure_observed") is True
+            and receipt.get("material_difference") is True
+            and receipt.get("fallback_masked") is not True
+            and isinstance(receipt.get("difference"), Mapping)
+            and receipt["difference"].get("semantic_change") is True
+            for receipt in code_index_receipts
+        )
+        if not material_code_index:
             result.add(
                 Finding(
                     code="cross.code_index_disable_difference_missing",
@@ -481,6 +521,9 @@ class CrossScenarioConsistencyGate:
                     summary="Code-index evidence does not prove an enabled/disabled semantic difference.",
                 )
             )
+        result.metrics["cross_cutting_support_status"] = support_status
+        result.metrics["code_index_disconnect_receipt_count"] = len(code_index_receipts)
+        result.metrics["code_index_material_difference"] = material_code_index
 
 
 class TopologyAdversarialGate:
@@ -551,6 +594,23 @@ class TopologyAdversarialGate:
                 "deterministic": deterministic,
             }
         )
+        if topology:
+            result.evidence.append(
+                EvidencePointer(
+                    kind="topology_event_chain",
+                    location=f"{topology[0].run_id}/{topology[0].task_id}",
+                    summary=(
+                        f"topology_events={len(topology)}; "
+                        f"external_mutations={len(external)}; permutations={permutation_count}"
+                    ),
+                    revision=str(max((item.revision for item in topology), default=0)),
+                    causation_id=topology[0].causation_id,
+                    metadata={
+                        "deterministic": deterministic,
+                        "permutation_digest_count": len(digests),
+                    },
+                )
+            )
         return result.finish(default_partial=not final_completion)
 
     @staticmethod

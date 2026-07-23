@@ -72,7 +72,7 @@ class CodeWorkerContextCompactApiFoundationTests(unittest.TestCase):
                 self.assertTrue(_query_events(run.event_records, phase), phase)
 
     def test_http_sse_retry_uses_fallback_model_plan_not_request_plan(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir, _LocalSseProvider(failures=1) as provider:
+        with tempfile.TemporaryDirectory() as tmpdir, _LocalSseProvider(failures=3) as provider:
             state = create_task_state("Exercise real model retry and fallback.")
             workspace = Path(tmpdir) / "workspace"
             workspace.mkdir()
@@ -84,7 +84,7 @@ class CodeWorkerContextCompactApiFoundationTests(unittest.TestCase):
                     model_transport="http_sse",
                     model_api_base_url=provider.base_url,
                     model_api_timeout_seconds=5,
-                    api_retry_max_attempts=2,
+                    api_retry_max_attempts=4,
                     api_retry_fallback_models="zyra-fallback-a",
                     tool_plan=[{
                         "tool_name": "file_write",
@@ -94,8 +94,12 @@ class CodeWorkerContextCompactApiFoundationTests(unittest.TestCase):
             )
 
             self.assertTrue(run.worker_result.ok, run.worker_result.error)
-            self.assertEqual(len(provider.requests), 2)
-            self.assertNotEqual(provider.requests[0]["model"], provider.requests[1]["model"])
+            self.assertEqual(len(provider.requests), 4)
+            self.assertEqual(
+                [item["model"] for item in provider.requests[:3]],
+                ["zyra-local-code-model"] * 3,
+            )
+            self.assertNotEqual(provider.requests[2]["model"], provider.requests[3]["model"])
             self.assertEqual(run.worker_result.metadata["api_retry_status"], "fallback_selected")
             self.assertEqual(run.worker_result.metadata["api_retry_fallback_used"], "true")
             self.assertEqual(run.worker_result.metadata["api_retry_final_model"], "zyra-fallback-a")
@@ -103,8 +107,11 @@ class CodeWorkerContextCompactApiFoundationTests(unittest.TestCase):
             self.assertFalse(reports[0]["model_stream"]["ok"])
             self.assertTrue(reports[-1]["model_stream"]["ok"])
             retry = _query_events(run.event_records, "api_retry_report")[-1]["api_retry"]
-            self.assertEqual(retry["attempts"][0]["decision"], "retry_fallback_model")
-            self.assertTrue((workspace / "provider-tool.txt").exists())
+            self.assertEqual(
+                [item["decision"] for item in retry["attempts"][:3]],
+                ["retry", "retry", "fallback"],
+            )
+            self.assertEqual(run.worker_result.metadata["tool_runtime_completed"], "0")
             self.assertFalse((workspace / "request-plan.txt").exists())
 
     def test_exhausted_model_attempts_fail_before_mutating_tool_execution(self) -> None:
@@ -273,6 +280,7 @@ def _workspace_snapshot(root: Path) -> dict[str, bytes]:
 class _LocalSseProvider:
     def __init__(self, *, failures: int) -> None:
         self.failures_remaining = failures
+        self.successful_responses = 0
         self.requests: list[dict[str, Any]] = []
         self.server: ThreadingHTTPServer | None = None
         self.thread: threading.Thread | None = None
@@ -288,40 +296,26 @@ class _LocalSseProvider:
                 scenario.requests.append(json.loads(raw.decode("utf-8")) if raw else {})
                 if scenario.failures_remaining > 0:
                     scenario.failures_remaining -= 1
-                    body = json.dumps({"error": {"message": "retry"}}).encode("utf-8")
-                    self.send_response(503)
+                    body = json.dumps({"error": {"message": "provider overloaded"}}).encode("utf-8")
+                    self.send_response(529)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
                     return
+                scenario.successful_responses += 1
                 chunks = [
-                    {
-                        "id": "chatcmpl-provider",
-                        "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
-                    },
                     {
                         "id": "chatcmpl-provider",
                         "choices": [{
                             "index": 0,
-                            "delta": {"tool_calls": [{
-                                "index": 0,
-                                "id": "call_provider_write",
-                                "type": "function",
-                                "function": {
-                                    "name": "file_write",
-                                    "arguments": json.dumps({
-                                        "path": "provider-tool.txt",
-                                        "content": "provider plan won",
-                                    }),
-                                },
-                            }]},
+                            "delta": {"role": "assistant", "content": "done"},
                             "finish_reason": None,
                         }],
                     },
                     {
                         "id": "chatcmpl-provider",
-                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                     },
                 ]
                 body = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks)

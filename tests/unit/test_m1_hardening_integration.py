@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
+import urllib.request
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,8 +17,17 @@ from zyra_evaluation.m1_hardening.cleanroom import (
     CleanroomVerifier,
     default_cleanroom_commands,
 )
-from zyra_evaluation.m1_hardening.contracts import GateResult, GateStatus
-from zyra_evaluation.m1_hardening.cross_scenario import TopologyAdversarialGate
+from zyra_evaluation.m1_hardening.contracts import (
+    EvidencePointer,
+    GateResult,
+    GateStatus,
+)
+from zyra_evaluation.m1_hardening.cross_scenario import (
+    CausalPartition,
+    CrossScenarioConsistencyGate,
+    EventProjection,
+    TopologyAdversarialGate,
+)
 from zyra_evaluation.m1_hardening.disable import DisableProbeRunner, ProbeStatus
 from zyra_evaluation.m1_hardening.evidence_admission import (
     AdmissionPolicy,
@@ -39,6 +50,7 @@ from zyra_evaluation.m1_hardening.integration_service import (
 )
 from zyra_evaluation.m1_hardening.line_audit import EffectiveLineAuditor
 from zyra_evaluation.m1_hardening.integration_scenarios import (
+    ProviderFailoverProbeServer,
     default_integration_scenarios,
     scenario_catalog_gate,
 )
@@ -117,6 +129,166 @@ def test_six_scenario_catalog_and_owner_matrix_resolve_real_product_owners() -> 
         for definition in definitions
         for disconnect in definition.disconnects
     )
+    failover = next(
+        item for item in definitions if item.kind.value == "api-stream-provider-failover"
+    )
+    failover_request = next(
+        item for item in failover.requests if item.step_id == "provider-stall-worker"
+    )
+    assert failover_request.payload["model_transport"] == "http_sse"
+    assert failover_request.payload["api_retry_max_attempts"] == 4
+    assert {
+        "retry-fallback-selected",
+        "failover-model-changed",
+        "failover-used",
+    }.issubset({item.assertion_id for item in failover.assertions})
+
+
+def test_provider_failover_probe_exercises_real_http_outage_then_sse_recovery() -> None:
+    probe = ProviderFailoverProbeServer().start()
+    try:
+        statuses: list[int] = []
+        for attempt in range(4):
+            request = urllib.request.Request(
+                probe.base_url + "/chat/completions",
+                data=json.dumps({"model": f"model-{attempt}"}).encode("utf-8"),
+                method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    statuses.append(response.status)
+                    body = response.read().decode("utf-8")
+            except urllib.error.HTTPError as error:
+                statuses.append(error.code)
+    finally:
+        probe.stop()
+
+    receipt = probe.receipt()
+    assert statuses == [529, 529, 529, 200]
+    assert "data: [DONE]" in body
+    assert receipt["bounded_capacity_outage_observed"] is True
+    assert receipt["recovered_stream_observed"] is True
+    assert receipt["models"] == ["model-0", "model-1", "model-2", "model-3"]
+
+
+def test_cross_scenario_distinguishes_external_correlation_from_event_parent() -> None:
+    external = EventProjection.from_mapping(
+        {
+            "event_id": "event_child",
+            "run_id": "run-1",
+            "task_id": "task-1",
+            "event_type": "control_command",
+            "sequence": 1,
+            "causation_id": "controlreq_external",
+            "payload": {},
+        },
+        0,
+    )
+    missing_event_parent = EventProjection.from_mapping(
+        {
+            "event_id": "event_orphan",
+            "run_id": "run-1",
+            "task_id": "task-1",
+            "event_type": "agent_message",
+            "sequence": 2,
+            "causation_id": "event_missing",
+            "payload": {},
+        },
+        1,
+    )
+    result = GateResult(
+        gate_id="test-cross-causation",
+        status=GateStatus.NOT_RUN,
+        summary="test",
+    )
+
+    CrossScenarioConsistencyGate._partition_findings(
+        (CausalPartition("run-1", "task-1", [external]),),
+        result,
+    )
+    assert result.findings == []
+
+    CrossScenarioConsistencyGate._partition_findings(
+        (CausalPartition("run-1", "task-1", [external, missing_event_parent]),),
+        result,
+    )
+    assert [item.code for item in result.findings] == ["cross.causation_orphan"]
+
+
+def test_cross_cutting_support_requires_traceable_gates_and_material_code_index() -> None:
+    scenario = SimpleNamespace(
+        disconnect_evidence=(
+            {
+                "probe_id": "disable-code-index",
+                "status": "passed",
+                "expected_failure_observed": True,
+                "material_difference": True,
+                "fallback_masked": False,
+                "difference": {"semantic_change": True},
+            },
+        )
+    )
+    supporting = tuple(
+        GateResult(
+            gate_id=gate_id,
+            status=GateStatus.PASSED,
+            summary="passed",
+            evidence=[
+                EvidencePointer(
+                    kind="foundation_audit_execution",
+                    location=f"audit-{gate_id}",
+                    summary="executed",
+                )
+            ],
+        )
+        for gate_id in (
+            "patch-git",
+            "deny-policy",
+            "secrets-prompt-injection",
+            "code-index",
+        )
+    )
+    result = GateResult(
+        gate_id="test-cross-cutting",
+        status=GateStatus.NOT_RUN,
+        summary="test",
+    )
+
+    CrossScenarioConsistencyGate._cross_cutting_findings(
+        (scenario,),
+        supporting,
+        result,
+        final_completion=True,
+    )
+
+    assert result.findings == []
+    assert result.metrics["code_index_material_difference"] is True
+
+
+def test_foundation_aggregate_adds_execution_evidence_for_metric_only_gate() -> None:
+    child = GateResult(
+        gate_id="patch-git",
+        status=GateStatus.PASSED,
+        summary="child",
+        metrics={"runtime": "observed"},
+    )
+    audit = SimpleNamespace(
+        report=SimpleNamespace(
+            gates=(child,),
+            report_id="audit-1",
+            scenario_id="scenario-1",
+            task_id="task-1",
+            run_id="run-1",
+            generated_at="2026-07-23T00:00:00Z",
+        )
+    )
+
+    aggregate = M1IntegrationService._aggregate_foundation_gates((audit,))[0]
+
+    assert aggregate.status is GateStatus.PASSED
+    assert len(aggregate.evidence) == 1
+    assert aggregate.evidence[0].kind == "foundation_audit_execution"
 
 
 def test_environment_disconnect_probe_disables_real_process_flag_and_restores() -> None:

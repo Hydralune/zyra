@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from dataclasses import dataclass, field
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Mapping, MutableMapping, Sequence
 from urllib.parse import quote
 
@@ -128,6 +130,140 @@ class ScenarioExecutionContext:
 DisconnectExecutor = Callable[[DisconnectRequirement, ScenarioExecutionContext], Mapping[str, Any]]
 
 
+class ProviderFailoverProbeServer:
+    """Real loopback HTTP/SSE fault source for the provider failover scenario.
+
+    Three provider requests return an observable capacity outage.  The next
+    request is a valid SSE completion.  The canonical TypeScript model stream
+    therefore has to exhaust its same-route retry allowance, select a fallback
+    model and recover; no result is injected into the worker runtime.
+    """
+
+    def __init__(self, *, outage_attempts: int = 3) -> None:
+        if outage_attempts < 0:
+            raise ValueError("outage_attempts must be non-negative")
+        self.outage_attempts = int(outage_attempts)
+        self._server: ThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._requests: list[dict[str, Any]] = []
+        self._statuses: list[int] = []
+        self.base_url = ""
+
+    def start(self) -> "ProviderFailoverProbeServer":
+        if self._server is not None:
+            raise RuntimeError("provider failover probe server is already running")
+        probe = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                try:
+                    length = max(0, int(self.headers.get("Content-Length", "0")))
+                except ValueError:
+                    length = 0
+                raw = self.rfile.read(length)
+                try:
+                    request = json.loads(raw.decode("utf-8")) if raw else {}
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    request = {}
+                with probe._lock:
+                    attempt = len(probe._requests) + 1
+                    probe._requests.append(dict(request) if isinstance(request, Mapping) else {})
+                if attempt <= probe.outage_attempts:
+                    body = json.dumps(
+                        {
+                            "error": {
+                                "code": "provider_capacity_overloaded",
+                                "message": "M1 integration injected a bounded provider capacity outage.",
+                            }
+                        }
+                    ).encode("utf-8")
+                    self.send_response(529)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    with probe._lock:
+                        probe._statuses.append(529)
+                    return
+                chunks = (
+                    {
+                        "id": "chatcmpl-m1-provider-failover",
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {"role": "assistant", "content": "recovered"},
+                                "finish_reason": None,
+                            }
+                        ],
+                    },
+                    {
+                        "id": "chatcmpl-m1-provider-failover",
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {},
+                                "finish_reason": "stop",
+                            }
+                        ],
+                    },
+                )
+                body = "".join(
+                    f"data: {json.dumps(chunk, separators=(',', ':'))}\n\n"
+                    for chunk in chunks
+                )
+                body += "data: [DONE]\n\n"
+                encoded = body.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+                with probe._lock:
+                    probe._statuses.append(200)
+
+            def log_message(self, format: str, *args: Any) -> None:
+                return
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever,
+            name="m1-provider-failover-probe",
+            daemon=True,
+        )
+        self._thread.start()
+        self.base_url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        return self
+
+    def stop(self) -> None:
+        if self._server is not None:
+            self._server.shutdown()
+            self._server.server_close()
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+        self._server = None
+        self._thread = None
+
+    def receipt(self) -> Mapping[str, Any]:
+        with self._lock:
+            requests = list(self._requests)
+            statuses = list(self._statuses)
+        return {
+            "schema": "zyra.m1-provider-failover-probe/v1",
+            "transport": "loopback_http_sse",
+            "request_count": len(requests),
+            "statuses": statuses,
+            "models": [str(item.get("model") or "") for item in requests],
+            "configured_outage_attempts": self.outage_attempts,
+            "bounded_capacity_outage_observed": (
+                statuses[: self.outage_attempts] == [529] * self.outage_attempts
+            ),
+            "recovered_stream_observed": (
+                len(statuses) >= self.outage_attempts + 1 and statuses[-1] == 200
+            ),
+        }
+
+
 class IntegrationScenarioExecutor:
     def __init__(
         self,
@@ -157,10 +293,21 @@ class IntegrationScenarioExecutor:
             }
         )
         started = utc_now()
-        for request in definition.requests:
-            if request.optional and not runtime.execute_optional_steps:
-                continue
-            self._execute_request(context, request)
+        provider_probe = (
+            ProviderFailoverProbeServer().start()
+            if definition.kind is ScenarioKind.STREAM_FAILOVER
+            else None
+        )
+        if provider_probe is not None:
+            context.bindings["provider_fault_base_url"] = provider_probe.base_url
+        try:
+            for request in definition.requests:
+                if request.optional and not runtime.execute_optional_steps:
+                    continue
+                self._execute_request(context, request)
+        finally:
+            if provider_probe is not None:
+                provider_probe.stop()
         self._load_canonical_views(context)
         self._evaluate_assertions(context)
         cleanup_receipt = self._release_scenario_worker_leases(context)
@@ -189,6 +336,9 @@ class IntegrationScenarioExecutor:
                 "binding_names": sorted(context.bindings),
                 "final_completion": runtime.final_completion,
                 "worker_lease_cleanup": cleanup_receipt,
+                "provider_failover_probe": (
+                    dict(provider_probe.receipt()) if provider_probe is not None else {}
+                ),
             },
         )
         return evidence, self.gate.evaluate(
@@ -1254,12 +1404,21 @@ def _stream_failover_scenario() -> ScenarioDefinition:
                 method="POST",
                 path="/tasks/{{task_id}}/workers/code",
                 payload={
-                    "query_turns": [[{"type": "text", "text": "produce failover evidence"}]],
+                    "raw_input": "Exercise bounded provider capacity failures and recover on the fallback model.",
+                    # This canonical request intent seeds retrieval before the
+                    # HTTP provider response becomes available.  HTTP/SSE
+                    # remains the owner of the executed turn.
+                    "query_turns": [
+                        [{"tool_name": "trace", "arguments": {"limit": 1}}]
+                    ],
                     "max_turns": 1,
-                    "provider_fault": "stream_stall",
-                    "require_provider_failover": True,
+                    "model_transport": "http_sse",
+                    "model_api_base_url": "{{provider_fault_base_url}}",
+                    "model_api_timeout_seconds": 5,
+                    "api_retry_max_attempts": 4,
+                    "api_retry_fallback_models": ["zyra-m1-fallback-model"],
                 },
-                expected_statuses=(201, 202, 409, 502, 503, 504),
+                expected_statuses=(201,),
             ),
             RequestSpec(
                 step_id="watchdog-ingest",
@@ -1289,6 +1448,30 @@ def _stream_failover_scenario() -> ScenarioDefinition:
                 "equals",
                 "typescript",
                 summary="Provider failover remains in the canonical TypeScript owner.",
+            ),
+            ScenarioAssertion(
+                "retry-fallback-selected",
+                "response",
+                "provider-stall-worker.worker_result.metadata.api_retry_status",
+                "equals",
+                "fallback_selected",
+                summary="The first provider outage must activate bounded retry and fallback selection.",
+            ),
+            ScenarioAssertion(
+                "failover-model-changed",
+                "response",
+                "provider-stall-worker.worker_result.metadata.api_retry_final_model",
+                "equals",
+                "zyra-m1-fallback-model",
+                summary="The recovered request must execute on the declared fallback model.",
+            ),
+            ScenarioAssertion(
+                "failover-used",
+                "response",
+                "provider-stall-worker.worker_result.metadata.api_retry_fallback_used",
+                "equals",
+                "true",
+                summary="The canonical runtime must report a material provider fallback.",
             ),
             ScenarioAssertion(
                 "failover-events-produced",

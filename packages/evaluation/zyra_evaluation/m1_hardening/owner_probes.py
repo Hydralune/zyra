@@ -12,6 +12,7 @@ from .disable import DisableModuleProbe, DisableProbeBlocked, ProbeHandle
 from .integration_contracts import DisconnectRequirement, ExpectedEffect, stable_digest, utc_now
 from .integration_scenarios import (
     IntegrationScenarioExecutor,
+    ProviderFailoverProbeServer,
     ScenarioExecutionContext,
 )
 from .owner_matrix import REQUIRED_DISABLE_CAPABILITIES
@@ -474,6 +475,21 @@ class ScenarioPrefixOwnerExercise:
                 "scenario_kind": self.context.definition.kind.value,
             }
         )
+        # The watchdog probe must reach the explicit watchdog-ingest request.
+        # Replaying the scenario's provider outage while the watchdog is
+        # disabled would fail earlier inside the TypeScript provider stream
+        # and wrap the causal owner error as a generic process failure.
+        provider_probe = (
+            ProviderFailoverProbeServer(
+                outage_attempts=(
+                    0 if self.requirement.probe_id == "disable-watchdog" else 3
+                )
+            ).start()
+            if self.context.definition.kind.value == "api-stream-provider-failover"
+            else None
+        )
+        if provider_probe is not None:
+            fresh.bindings["provider_fault_base_url"] = provider_probe.base_url
         executor = IntegrationScenarioExecutor(self.context.transport)
         result: dict[str, Any] | None = None
         try:
@@ -515,6 +531,8 @@ class ScenarioPrefixOwnerExercise:
                 )
             return result
         finally:
+            if provider_probe is not None:
+                provider_probe.stop()
             task_id = str(fresh.bindings.get("task_id") or "")
             if task_id:
                 # POST /tasks reserves a physical worker lease even when the
@@ -523,33 +541,12 @@ class ScenarioPrefixOwnerExercise:
                 # cancellation path or a complete owner matrix exhausts the
                 # worker pool and produces order-dependent false failures.
                 try:
-                    target_response = fresh.steps[-1].response if fresh.steps else {}
-                    physical_workers = target_response.get("physical_workers")
-                    if isinstance(physical_workers, Sequence) and not isinstance(
-                        physical_workers, (str, bytes, bytearray)
-                    ):
-                        for item in physical_workers:
-                            if not isinstance(item, Mapping):
-                                continue
-                            self.context.transport.post(
-                                f"/tasks/{task_id}/worker-pool-control",
-                                {
-                                    "kind": "cancel",
-                                    "reason": "M1 owner disconnect child probe completed",
-                                    "lease_id": str(item.get("lease_id") or ""),
-                                    "binding_id": str(
-                                        item.get("integration_binding_id")
-                                        or item.get("binding_id")
-                                        or ""
-                                    ),
-                                    "worker_id": str(item.get("worker_id") or ""),
-                                    "idempotency_key": (
-                                        f"{self.spec.probe_id}:{task_id}:"
-                                        f"{item.get('lease_id') or item.get('binding_id') or 'child'}:cleanup"
-                                    ),
-                                },
-                                headers={},
-                            )
+                    # The task-scoped cancellation owner releases every active
+                    # attempt/lease.  Issuing an additional worker-targeted
+                    # CANCEL first is not equivalent cleanup: the edge
+                    # execution adapter interprets it as worker/job loss and
+                    # persists unhealthy worker state into the next probe
+                    # phase, so restore can never reproduce the baseline.
                     self.context.transport.post(
                         f"/tasks/{task_id}/worker-pool-cancel",
                         {

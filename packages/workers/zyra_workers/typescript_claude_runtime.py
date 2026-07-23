@@ -546,7 +546,12 @@ class TypeScriptClaudeQueryEngine:
                         payload,
                         transport_sequence=int(frame["sequence"]),
                     )
-                self._forward_fault_observation(payload)
+                self._forward_fault_observation(
+                    payload,
+                    run_id=run_id,
+                    task_id=task_id,
+                    node_id=node_id,
+                )
                 self._append_host_event(
                     self._event_record(
                         run_id=run_id,
@@ -1953,7 +1958,14 @@ class TypeScriptClaudeQueryEngine:
         ):
             self._runtime_event_ingress.emit_legacy_host_event(event)
 
-    def _forward_fault_observation(self, payload: Mapping[str, Any]) -> None:
+    def _forward_fault_observation(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        run_id: str,
+        task_id: str,
+        node_id: str | None,
+    ) -> None:
         """Forward only the typed 07B watchdog envelope at the real frame boundary.
 
         QueryEngine also emits a compact ``tool_failure_signal`` used by the
@@ -1973,6 +1985,13 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_watchdog_refs_missing",
                 "Structured TypeScript watchdog observation lacks refs.",
             )
+        for field, expected in (("run_id", run_id), ("task_id", task_id)):
+            observed = str(payload.get(field) or refs.get(field) or "")
+            if observed and observed != expected:
+                raise TypeScriptRuntimeError(
+                    "typescript_watchdog_scope_mismatch",
+                    f"Structured TypeScript watchdog {field} is outside the active request.",
+                )
         sink = self._fault_observation_sink
         if sink is None:
             if self._fault_observation_sink_required:
@@ -1981,7 +2000,14 @@ class TypeScriptClaudeQueryEngine:
                     "Default CodeWorker path cannot persist a structured watchdog observation.",
                 )
             return
-        sink(dict(payload))
+        sink(
+            {
+                **dict(payload),
+                "run_id": run_id,
+                "task_id": task_id,
+                "node_id": node_id,
+            }
+        )
 
     def _write_artifact(
         self,

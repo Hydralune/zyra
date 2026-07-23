@@ -186,6 +186,9 @@ class CodeWorkerCleanProductizedRuntimeTests(unittest.TestCase):
             self.assertEqual(observation["category"], "permission")
             self.assertEqual(observation["code"], "permission_denied")
             self.assertEqual(observation["refs"]["task_id"], state.task_id)
+            self.assertEqual(captured[0]["run_id"], state.run_id)
+            self.assertEqual(captured[0]["task_id"], state.task_id)
+            self.assertEqual(captured[0]["node_id"], state.root_node_id)
             snapshot_artifact = next(
                 artifact
                 for artifact in run.worker_result.artifacts
