@@ -353,6 +353,12 @@ class WorkerControlRuntime:
             lease_id=command.lease_id,
         )
         if command.kind is ControlKind.CANCEL:
+            effective_task_id = binding.task_id if binding is not None else command.task_id
+            effective_run_id = (
+                binding.run_id
+                if binding is not None
+                else command.run_id or "worker-control"
+            )
             projection = None
             projection_error = ""
             execution_cancelled = False
@@ -362,8 +368,8 @@ class WorkerControlRuntime:
             # window where the old fence can still commit an artifact.
             receipt = self.pool.cancellation.cancel(
                 CancellationRequest(
-                    task_id=command.task_id,
-                    run_id=command.run_id or (binding.run_id if binding else "worker-control"),
+                    task_id=effective_task_id,
+                    run_id=effective_run_id,
                     reason=command.reason,
                     actor_id=command.actor_id,
                     attempt_id=command.attempt_id,
@@ -375,7 +381,10 @@ class WorkerControlRuntime:
             if self.projection_control is not None:
                 try:
                     projection = dict(
-                        self.projection_control.cancel(command.task_id, reason=command.reason)
+                        self.projection_control.cancel(
+                            effective_task_id,
+                            reason=command.reason,
+                        )
                     )
                 except Exception as error:
                     projection_error = f"{type(error).__name__}: {error}"

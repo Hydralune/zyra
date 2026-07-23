@@ -618,6 +618,36 @@ def test_cancel_is_durable_blocks_completion_and_recovery_handoff_names_07c_owne
     assert response.body["consumer"] == "M1-S07C.RecoveryPlanner"
 
 
+def test_targeted_binding_cancel_uses_child_task_custody_not_parent_route_task(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    _, _, admission, lease = _admit(runtime, "child-task")
+    runtime.start(
+        admission.binding.binding_id,
+        fence_token=lease.fence_token,
+        backend_dispatch_id="backend-child",
+    )
+
+    command = runtime.control.submit_and_apply(
+        ControlKind.CANCEL,
+        claim_owner="parent-fanout-cleanup",
+        actor_id="parent-fanout-cleanup",
+        reason="release one completed fanout child",
+        idempotency_key="cancel:parent-route:child-binding",
+        task_id="parent-route-task",
+        run_id="run-integration",
+        lease_id=lease.lease_id,
+        binding_id=admission.binding.binding_id,
+    )
+
+    assert command.phase is ControlPhase.APPLIED
+    assert command.effect["cancellation"]["task_id"] == "child-task"
+    assert command.effect["cancellation"]["cancelled_lease_ids"] == [lease.lease_id]
+    assert runtime.pool.store.require_lease(lease.lease_id).state is LeaseState.CANCELLED
+    assert runtime.repository.get_binding(admission.binding.binding_id).phase is AdmissionPhase.CANCELLED
+
+
 def test_checkpoint_restart_restores_active_draining_and_pending_control_without_process_registry(
     tmp_path: Path,
 ) -> None:

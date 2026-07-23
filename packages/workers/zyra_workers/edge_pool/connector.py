@@ -99,6 +99,7 @@ class EdgeWorkerProcessConnector:
         secret: bytes,
         python_executable: str | Path | None = None,
         package_roots: Sequence[str | Path] = (),
+        host: str = "127.0.0.1",
         startup_timeout_seconds: float = 10.0,
         request_timeout_seconds: float = 10.0,
         enabled: bool = True,
@@ -109,6 +110,9 @@ class EdgeWorkerProcessConnector:
         self.secret = bytes(secret)
         self.python_executable = str(python_executable or sys.executable)
         self.package_roots = tuple(str(Path(item).resolve()) for item in package_roots)
+        self.host = str(host).strip()
+        if not self.host:
+            raise ValueError("edge connector host is empty")
         self.startup_timeout_seconds = float(startup_timeout_seconds)
         self.request_timeout_seconds = float(request_timeout_seconds)
         self.enabled = bool(enabled)
@@ -145,7 +149,7 @@ class EdgeWorkerProcessConnector:
                 "-m",
                 "zyra_workers.edge_pool.server",
                 "--host",
-                "127.0.0.1",
+                self.host,
                 "--port",
                 "0",
                 "--worker-id",

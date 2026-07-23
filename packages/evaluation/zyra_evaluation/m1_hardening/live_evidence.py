@@ -29,6 +29,20 @@ class WireDialect(StrEnum):
     ANTHROPIC_COMPATIBLE = "anthropic-compatible"
 
 
+def _endpoint_from_mapping(value: Any) -> str:
+    """Recover a credential-free endpoint from its persisted identity."""
+
+    if not isinstance(value, Mapping):
+        return str(value or "")
+    scheme = str(value.get("scheme") or "").lower()
+    host = str(value.get("host") or "").lower()
+    if not scheme or not host:
+        return ""
+    raw_port = value.get("port")
+    port = f":{int(raw_port)}" if isinstance(raw_port, int) and raw_port > 0 else ""
+    return f"{scheme}://{host}{port}/"
+
+
 @dataclass(frozen=True, slots=True)
 class EndpointAttestation:
     tier: LiveTier
@@ -58,7 +72,7 @@ class EndpointAttestation:
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "EndpointAttestation":
         tier = _enum(LiveTier, value.get("tier"), LiveTier.LOCAL)
-        endpoint = str(value.get("endpoint") or value.get("url") or "")
+        endpoint = _endpoint_from_mapping(value.get("endpoint") or value.get("url"))
         identity = endpoint_identity(endpoint) if endpoint else {}
         artifacts = value.get("artifact_ids") or value.get("artifacts") or ()
         return cls(
@@ -180,7 +194,7 @@ class ProviderWireAttestation:
             provider_id=str(value.get("provider_id") or value.get("provider") or ""),
             model_id=str(value.get("model_id") or value.get("model") or ""),
             dialect=_enum(WireDialect, value.get("dialect"), WireDialect.OPENAI_COMPATIBLE),
-            endpoint=str(value.get("endpoint") or value.get("url") or ""),
+            endpoint=_endpoint_from_mapping(value.get("endpoint") or value.get("url")),
             request_id=str(value.get("request_id") or ""),
             attempt_id=str(value.get("attempt_id") or ""),
             route_id=str(value.get("route_id") or ""),
@@ -600,7 +614,17 @@ class ProviderWireEvidenceGate:
                     location=location,
                 )
             )
-        self._validate_dialect_shape(observation, result)
+        managed_cli = (
+            str(observation.metadata.get("transport_kind") or "")
+            == "provider_owned_managed_cli"
+        )
+        if managed_cli:
+            self._validate_managed_cli(observation, result)
+        self._validate_dialect_shape(
+            observation,
+            result,
+            managed_cli=managed_cli,
+        )
         if observation.response_status < 200 or observation.response_status >= 300:
             result.add(
                 Finding(
@@ -654,12 +678,58 @@ class ProviderWireEvidenceGate:
             )
 
     @staticmethod
-    def _validate_dialect_shape(observation: ProviderWireAttestation, result: GateResult) -> None:
+    def _validate_managed_cli(
+        observation: ProviderWireAttestation,
+        result: GateResult,
+    ) -> None:
+        metadata = observation.metadata
+        cli_kind = str(metadata.get("cli_kind") or "")
+        expected_cli = (
+            "codex"
+            if observation.dialect is WireDialect.OPENAI_COMPATIBLE
+            else "claude"
+        )
+        checks = {
+            "authenticated_session": metadata.get("authenticated_session") is True,
+            "auth_custodian": metadata.get("auth_custodian") == "provider_cli",
+            "status_source": metadata.get("status_source") == "provider_cli_success_exit",
+            "command_id": bool(str(metadata.get("command_id") or "")),
+            "cli_version": bool(str(metadata.get("cli_version") or "")),
+            "cli_kind": cli_kind == expected_cli,
+        }
+        failed = sorted(name for name, passed in checks.items() if not passed)
+        if failed:
+            result.add(
+                Finding(
+                    code="provider.managed_cli_custody_invalid",
+                    severity=Severity.BLOCKER,
+                    summary="Managed provider evidence lacks provider-owned credential and process custody.",
+                    detail=", ".join(failed),
+                    location=observation.provider_id,
+                )
+            )
+        if metadata.get("direct_wire_headers_observed") is not False:
+            result.add(
+                Finding(
+                    code="provider.managed_cli_header_claim_invalid",
+                    severity=Severity.ERROR,
+                    summary="Managed CLI evidence must not claim unobserved authorization headers.",
+                    location=observation.provider_id,
+                )
+            )
+
+    @staticmethod
+    def _validate_dialect_shape(
+        observation: ProviderWireAttestation,
+        result: GateResult,
+        *,
+        managed_cli: bool = False,
+    ) -> None:
         path = observation.request_path.lower()
         headers = {str(key).lower(): str(value).lower() for key, value in observation.request_headers.items()}
         if observation.dialect is WireDialect.OPENAI_COMPATIBLE:
             path_ok = any(token in path for token in ("/chat/completions", "/responses"))
-            auth_ok = "authorization" in headers
+            auth_ok = managed_cli or "authorization" in headers
             if not path_ok or not auth_ok:
                 result.add(
                     Finding(
@@ -672,7 +742,9 @@ class ProviderWireEvidenceGate:
                 )
         if observation.dialect is WireDialect.ANTHROPIC_COMPATIBLE:
             path_ok = "/messages" in path
-            auth_ok = "x-api-key" in headers and "anthropic-version" in headers
+            auth_ok = managed_cli or (
+                "x-api-key" in headers and "anthropic-version" in headers
+            )
             if not path_ok or not auth_ok:
                 result.add(
                     Finding(

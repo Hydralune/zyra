@@ -68,6 +68,7 @@ class AuditOptions:
     selected_disable_probe_ids: tuple[str, ...] = ()
     minimum_effective_lines: int = 9000
     line_audit_head: str = "HEAD"
+    protected_source_pool_commit: str = ""
     include_line_audit: bool = True
     include_cross_cutting: bool = True
     include_scenario: bool = True
@@ -635,6 +636,7 @@ class M1HardeningService:
                         options.baseline_commit,
                         head=options.line_audit_head,
                         minimum_effective_production=options.minimum_effective_lines,
+                        protected_source_pool_commit=options.protected_source_pool_commit,
                     ),
                 )
             )

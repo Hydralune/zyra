@@ -12,7 +12,13 @@ from .benchmark import LongHorizonBenchmarkGate
 from .cleanroom import CleanroomCommand, CleanroomReceipt, CleanroomVerifier, default_cleanroom_commands
 from .contracts import EvidencePointer, Finding, GateResult, GateStatus, HardeningContext, Severity, utc_now
 from .cross_scenario import CrossScenarioConsistencyGate, TopologyAdversarialGate
-from .evidence_admission import EvidenceAdmissionController
+from .evidence_admission import (
+    EvidenceAdmissionController,
+    EvidenceEnvelope,
+    EvidenceEnvelopeFactory,
+    EvidenceKind,
+    EvidenceOrigin,
+)
 from .exit_gate import ExitBundleBuilder, ExitPolicy, LineEvidence, M1ExitBundle
 from .handoff import (
     HandoffBuilder,
@@ -51,6 +57,7 @@ class IntegrationOptions:
     cleanroom_commands: tuple[CleanroomCommand, ...] = ()
     scenario_timeout_seconds: float = 120.0
     benchmark_run_id: str = ""
+    benchmark_events: tuple[Mapping[str, Any], ...] = ()
     sealed_policy: Mapping[str, Any] = field(default_factory=dict)
     line_evidence: tuple[Mapping[str, Any], ...] = ()
     tier_observations: tuple[Mapping[str, Any], ...] = ()
@@ -298,7 +305,11 @@ class M1IntegrationService:
             )
             gates.extend((tier_gate, provider_gate, live_gate))
 
-            benchmark_events = self._benchmark_events(scenario_evidence, options.benchmark_run_id)
+            benchmark_events = (
+                list(options.benchmark_events)
+                if options.benchmark_events
+                else self._benchmark_events(scenario_evidence, options.benchmark_run_id)
+            )
             benchmark_run_id = options.benchmark_run_id or self._single_run_id(benchmark_events)
             gates.append(
                 CrossScenarioConsistencyGate().evaluate(
@@ -312,20 +323,13 @@ class M1IntegrationService:
                     final_completion=options.final_completion,
                 )
             )
-            gates.append(
-                self.benchmark.evaluate(
-                    benchmark_events,
-                    run_id=benchmark_run_id,
-                    declared_policy=options.sealed_policy,
-                    final_completion=options.final_completion,
-                )
-            )
-            _, admission_gate = EvidenceAdmissionController().admit(
-                options.evidence_envelopes,
-                expected_target_commit=options.implementation_commit,
+            benchmark_gate = self.benchmark.evaluate(
+                benchmark_events,
+                run_id=benchmark_run_id,
+                declared_policy=options.sealed_policy,
                 final_completion=options.final_completion,
             )
-            gates.append(admission_gate)
+            gates.append(benchmark_gate)
 
             if options.run_cleanroom:
                 cleanroom_receipt, cleanroom_gate = self.cleanroom.verify(
@@ -347,7 +351,28 @@ class M1IntegrationService:
             )
             handoff_gate = HandoffGate().evaluate(handoff, final_completion=options.final_completion)
             gates.append(handoff_gate)
-            gates.append(self._line_evidence_gate(options.line_evidence, final_completion=options.final_completion))
+            line_gate = self._line_evidence_gate(
+                options.line_evidence,
+                final_completion=options.final_completion,
+            )
+            gates.append(line_gate)
+            automatic_envelopes = self._automatic_evidence_envelopes(
+                integration_run_id=run_id,
+                benchmark_run_id=benchmark_run_id,
+                options=options,
+                scenarios=scenario_evidence,
+                benchmark_events=benchmark_events,
+                benchmark_gate=benchmark_gate,
+                cleanroom=cleanroom_receipt,
+                handoff=handoff,
+                base_audits=base_audits,
+            )
+            _, admission_gate = EvidenceAdmissionController().admit(
+                (*options.evidence_envelopes, *automatic_envelopes),
+                expected_target_commit=options.implementation_commit,
+                final_completion=options.final_completion,
+            )
+            gates.append(admission_gate)
             if options.persist:
                 artifact_paths.append(str(self.handoff_store.persist(handoff)))
 
@@ -639,6 +664,174 @@ class M1IntegrationService:
             report_id=report_id,
             metadata={"migration_mode": "audit_and_hardening_only"},
         )
+
+    @staticmethod
+    def _automatic_evidence_envelopes(
+        *,
+        integration_run_id: str,
+        benchmark_run_id: str,
+        options: IntegrationOptions,
+        scenarios: Sequence[ScenarioEvidence],
+        benchmark_events: Sequence[Mapping[str, Any]],
+        benchmark_gate: GateResult,
+        cleanroom: CleanroomReceipt | None,
+        handoff: M2HandoffContract,
+        base_audits: Sequence[AuditOutcome],
+    ) -> tuple[EvidenceEnvelope, ...]:
+        if not options.final_completion:
+            return ()
+        factory = EvidenceEnvelopeFactory()
+        contents: dict[EvidenceKind, Mapping[str, Any]] = {}
+        if scenarios:
+            contents[EvidenceKind.SCENARIO] = {
+                "scenario_count": len(scenarios),
+                "passed_count": sum(item.passed for item in scenarios),
+                "scenario_digests": {
+                    item.scenario_id: item.digest() for item in scenarios
+                },
+            }
+            disconnects = [
+                {
+                    "probe_id": str(value.get("probe_id") or ""),
+                    "capability": str(value.get("capability") or ""),
+                    "status": str(value.get("status") or ""),
+                    "expected_failure_observed": value.get("expected_failure_observed") is True,
+                    "fallback_masked": value.get("fallback_masked") is True,
+                }
+                for item in scenarios
+                for value in item.disconnect_evidence
+            ]
+            if disconnects:
+                contents[EvidenceKind.DISCONNECT] = {
+                    "execution_count": len(disconnects),
+                    "executions": disconnects,
+                    "content_digest": stable_digest(disconnects),
+                }
+        if benchmark_events:
+            contents[EvidenceKind.CANONICAL_EVENT] = {
+                "benchmark_run_id": benchmark_run_id,
+                "event_count": len(benchmark_events),
+                "first_event_id": str(benchmark_events[0].get("event_id") or ""),
+                "last_event_id": str(benchmark_events[-1].get("event_id") or ""),
+                "event_stream_digest": stable_digest(benchmark_events),
+            }
+        custody_digests: list[str] = []
+        coverage_digests: list[str] = []
+        for audit in base_audits:
+            custody = audit.report.gate("m1-state-custody")
+            coverage = audit.report.gate("source-to-target-coverage")
+            if custody:
+                custody_digests.append(stable_digest(custody.metrics))
+            if coverage:
+                coverage_digests.append(stable_digest(coverage.metrics))
+        if custody_digests:
+            contents[EvidenceKind.STATE_CUSTODY] = {
+                "audit_count": len(custody_digests),
+                "gate_metric_digests": sorted(custody_digests),
+                "aggregate_digest": stable_digest(sorted(custody_digests)),
+            }
+        if coverage_digests:
+            contents[EvidenceKind.SOURCE_COVERAGE] = {
+                "audit_count": len(coverage_digests),
+                "gate_metric_digests": sorted(coverage_digests),
+                "aggregate_digest": stable_digest(sorted(coverage_digests)),
+            }
+        if options.line_evidence:
+            contents[EvidenceKind.LINE_AUDIT] = {
+                "slice_count": len(options.line_evidence),
+                "line_evidence": [dict(item) for item in options.line_evidence],
+                "aggregate_digest": stable_digest(options.line_evidence),
+            }
+        if cleanroom is not None:
+            cleanroom_value = cleanroom.to_dict()
+            contents[EvidenceKind.CLEANROOM] = {
+                "target_commit": cleanroom.target_commit,
+                "receipt_digest": cleanroom_value.get("content_digest"),
+                "command_count": len(cleanroom.commands),
+                "passed": all(item.ok for item in cleanroom.commands),
+            }
+        if options.tier_observations:
+            contents[EvidenceKind.EXECUTION_TIER] = {
+                "observation_count": len(options.tier_observations),
+                "tiers": [
+                    str(item.get("tier") or "") for item in options.tier_observations
+                ],
+                "observations_digest": stable_digest(options.tier_observations),
+            }
+        if options.provider_observations:
+            contents[EvidenceKind.PROVIDER_WIRE] = {
+                "observation_count": len(options.provider_observations),
+                "providers": [
+                    str(item.get("provider_id") or "")
+                    for item in options.provider_observations
+                ],
+                "dialects": [
+                    str(item.get("dialect") or "")
+                    for item in options.provider_observations
+                ],
+                "observations_digest": stable_digest(options.provider_observations),
+            }
+        if benchmark_gate.ok:
+            contents[EvidenceKind.BENCHMARK] = {
+                "benchmark_run_id": benchmark_run_id,
+                "status": benchmark_gate.status.value,
+                "effective_action_count": benchmark_gate.metrics.get(
+                    "effective_action_count"
+                ),
+                "effective_transition_count": benchmark_gate.metrics.get(
+                    "effective_transition_count"
+                ),
+                "snapshot_digest": benchmark_gate.metrics.get("snapshot_digest"),
+                "child_status": dict(benchmark_gate.metrics.get("child_status") or {}),
+            }
+        handoff_value = handoff.to_dict()
+        contents[EvidenceKind.HANDOFF] = {
+            "report_id": handoff.report_id,
+            "content_digest": handoff_value.get("content_digest"),
+            "surface_count": len(handoff.surfaces),
+            "source_chain_count": len(handoff.source_chains),
+        }
+        envelopes: list[EvidenceEnvelope] = []
+        for kind in EvidenceKind:
+            content = contents.get(kind)
+            if content is None:
+                continue
+            runtime_partition = kind in {
+                EvidenceKind.SCENARIO,
+                EvidenceKind.DISCONNECT,
+                EvidenceKind.CANONICAL_EVENT,
+                EvidenceKind.BENCHMARK,
+            }
+            envelopes.append(
+                factory.create(
+                    evidence_id=f"m1:{integration_run_id}:{kind.value}",
+                    kind=kind,
+                    origin=(
+                        EvidenceOrigin.LIVE_RUNTIME
+                        if kind
+                        in {
+                            EvidenceKind.SCENARIO,
+                            EvidenceKind.DISCONNECT,
+                            EvidenceKind.CANONICAL_EVENT,
+                            EvidenceKind.EXECUTION_TIER,
+                            EvidenceKind.PROVIDER_WIRE,
+                            EvidenceKind.BENCHMARK,
+                        }
+                        else EvidenceOrigin.LOCAL_AUDITOR
+                    ),
+                    producer=f"zyra.m1-hardening.{kind.value}",
+                    content=content,
+                    baseline_commit=options.baseline_commit,
+                    target_commit=options.implementation_commit,
+                    run_id=integration_run_id if runtime_partition else "",
+                    task_id="m1-integration" if runtime_partition else "",
+                    metadata={
+                        "automatic_final_admission": True,
+                        "benchmark_run_id": benchmark_run_id,
+                    },
+                )
+            )
+        return tuple(envelopes)
 
     def _build_exit_bundle(
         self,

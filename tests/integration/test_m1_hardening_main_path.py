@@ -224,6 +224,20 @@ def test_public_api_exposes_integration_status_and_executes_each_main_path(
         assert run.final_revision > run.baseline_revision
         if scenario_id == "m1-integration-query-session-context-tool":
             assert run.artifacts
+        if scenario_id == "m1-integration-subagent-worker-recovery":
+            fanout = next(step for step in run.steps if step.step_id == "fanout-subagent")
+            assert fanout.status == 201, fanout.response
+            assert {
+                str(item.get("worker_location") or "")
+                for item in fanout.response.get("physical_workers") or ()
+            } == {"local", "edge"}
+            edge_worker = next(
+                item
+                for item in fanout.response["physical_workers"]
+                if item.get("worker_location") == "edge"
+            )
+            assert edge_worker["edge_gateway_receipt"]["accepted"] is True
+            assert edge_worker["edge_gateway_receipt"]["artifact_refs"]
         assert all(step.ok for step in run.steps)
 
 
@@ -281,9 +295,12 @@ def test_public_api_scenarios_execute_real_owner_disconnects_without_lease_exhau
                     "status": item.get("status"),
                     "error_code": item.get("error_code"),
                     "error_message": item.get("error_message") or item.get("message"),
+                    "baseline_semantic": (item.get("baseline") or {}).get("semantic"),
                     "disabled": item.get("disabled"),
+                    "restored_semantic": (item.get("restored") or {}).get("semantic"),
                     "difference": item.get("difference"),
                     "restore_receipt": item.get("restore_receipt"),
+                    "post_restore": (item.get("metadata") or {}).get("post_restore"),
                 }
                 for item in evidence[0].disconnect_evidence
             ],
@@ -293,17 +310,7 @@ def test_public_api_scenarios_execute_real_owner_disconnects_without_lease_exhau
             item.capability for item in suite.definition(scenario_id).disconnects
         }
         assert set(receipts) == expected_capabilities
-        if scenario_id == "m1-integration-subagent-worker-recovery":
-            # The production subagent bridge currently pins physical dispatch
-            # to the local worker.  Preserve this as a visible M1 exit blocker
-            # instead of letting an edge disable flag falsify a passing probe.
-            assert not gate.ok, json.dumps(diagnostic, indent=2)
-            edge = receipts.pop("edge-worker")
-            assert edge["status"] == "blocked"
-            assert edge["error_code"] == "edge_live_dispatch_unavailable"
-            assert edge["observed_worker_locations"] == ["local"]
-        else:
-            assert gate.ok, json.dumps(diagnostic, indent=2)
+        assert gate.ok, json.dumps(diagnostic, indent=2)
         assert all(item["status"] == "passed" for item in receipts.values())
         assert all(item.get("expected_failure_observed") or item.get("material_difference") for item in receipts.values())
         assert all(item.get("fallback_masked") is False for item in receipts.values())

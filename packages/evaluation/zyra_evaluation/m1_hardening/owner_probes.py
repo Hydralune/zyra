@@ -287,10 +287,15 @@ class HttpOwnerExercise:
             "ok": ok,
             "status": status,
             "error": str(error or ""),
+            "error_detail": str(response.get("message") or ""),
             "canonical_owner": str(owner or ""),
             "fallback": cls._as_bool(fallback),
             "response_digest": stable_digest(response),
-            "semantic": cls._semantic_projection(response),
+            "semantic": (
+                cls._fanout_semantic_projection(response)
+                if spec.path.endswith("/subagents/fanout")
+                else cls._semantic_projection(response)
+            ),
         }
 
     @staticmethod
@@ -341,6 +346,52 @@ class HttpOwnerExercise:
                 "signals": HttpOwnerExercise._semantic_signals(worker_result),
             }
         return projected
+
+    @staticmethod
+    def _fanout_semantic_projection(value: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Project stable fanout facts, excluding asynchronous child status."""
+
+        workers = value.get("physical_workers")
+        physical: list[dict[str, Any]] = []
+        if isinstance(workers, Sequence) and not isinstance(
+            workers, (str, bytes, bytearray)
+        ):
+            for item in workers:
+                if not isinstance(item, Mapping):
+                    continue
+                gateway = item.get("edge_gateway_receipt")
+                physical.append(
+                    {
+                        "location": str(item.get("worker_location") or ""),
+                        "gateway_accepted": (
+                            bool(gateway.get("accepted"))
+                            if isinstance(gateway, Mapping)
+                            else None
+                        ),
+                        "artifact_returned": (
+                            bool(gateway.get("artifact_refs"))
+                            if isinstance(gateway, Mapping)
+                            else None
+                        ),
+                    }
+                )
+        return {
+            "ok": bool(value.get("ok")),
+            "error": str(value.get("error") or ""),
+            "canonical_owner": str(
+                value.get("canonical_owner")
+                or value.get("canonical_entrypoint")
+                or ""
+            ),
+            "physical_workers": sorted(
+                physical,
+                key=lambda item: (
+                    item["location"],
+                    str(item["gateway_accepted"]),
+                    str(item["artifact_returned"]),
+                ),
+            ),
+        }
 
     @staticmethod
     def _semantic_signals(value: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -486,7 +537,11 @@ class ScenarioPrefixOwnerExercise:
                                     "kind": "cancel",
                                     "reason": "M1 owner disconnect child probe completed",
                                     "lease_id": str(item.get("lease_id") or ""),
-                                    "binding_id": str(item.get("binding_id") or ""),
+                                    "binding_id": str(
+                                        item.get("integration_binding_id")
+                                        or item.get("binding_id")
+                                        or ""
+                                    ),
                                     "worker_id": str(item.get("worker_id") or ""),
                                     "idempotency_key": (
                                         f"{self.spec.probe_id}:{task_id}:"

@@ -345,6 +345,10 @@ class DisableProbeRunner:
                         )
                         execution.restore_receipt = restored
                         post_restore = self._call(probe.exercise, probe.timeout_seconds, "post-restore exercise")
+                        execution.metadata = {
+                            **dict(execution.metadata),
+                            "post_restore": post_restore,
+                        }
                         if execution.baseline:
                             restore_difference = self.comparator.compare(execution.baseline, post_restore)
                             if not self.comparator.restored_equivalent(

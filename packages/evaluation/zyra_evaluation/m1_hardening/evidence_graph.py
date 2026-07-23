@@ -115,40 +115,43 @@ class CausalEvidenceGraph:
 
     def strongly_connected_components(self) -> tuple[tuple[str, ...], ...]:
         graph = self.adjacency()
-        index = 0
-        indices: dict[str, int] = {}
-        low: dict[str, int] = {}
-        stack: list[str] = []
-        on_stack: set[str] = set()
+        reverse = self.reverse_adjacency()
+        visited: set[str] = set()
+        finish_order: list[str] = []
+        for root in sorted(self.nodes):
+            if root in visited:
+                continue
+            visited.add(root)
+            stack: list[tuple[str, Any]] = [
+                (root, iter(sorted(graph.get(root, set()))))
+            ]
+            while stack:
+                node_id, targets = stack[-1]
+                try:
+                    target = next(targets)
+                except StopIteration:
+                    stack.pop()
+                    finish_order.append(node_id)
+                    continue
+                if target not in visited:
+                    visited.add(target)
+                    stack.append((target, iter(sorted(graph.get(target, set())))))
         components: list[tuple[str, ...]] = []
-
-        def visit(node_id: str) -> None:
-            nonlocal index
-            indices[node_id] = index
-            low[node_id] = index
-            index += 1
-            stack.append(node_id)
-            on_stack.add(node_id)
-            for target in graph.get(node_id, set()):
-                if target not in indices:
-                    visit(target)
-                    low[node_id] = min(low[node_id], low[target])
-                elif target in on_stack:
-                    low[node_id] = min(low[node_id], indices[target])
-            if low[node_id] != indices[node_id]:
-                return
+        assigned: set[str] = set()
+        for root in reversed(finish_order):
+            if root in assigned:
+                continue
             component: list[str] = []
+            stack = [root]
+            assigned.add(root)
             while stack:
                 member = stack.pop()
-                on_stack.remove(member)
                 component.append(member)
-                if member == node_id:
-                    break
+                for source in sorted(reverse.get(member, set()), reverse=True):
+                    if source not in assigned:
+                        assigned.add(source)
+                        stack.append(source)
             components.append(tuple(sorted(component)))
-
-        for node_id in sorted(self.nodes):
-            if node_id not in indices:
-                visit(node_id)
         return tuple(sorted(components))
 
     def to_dict(self, *, include_nodes: bool = True) -> dict[str, Any]:

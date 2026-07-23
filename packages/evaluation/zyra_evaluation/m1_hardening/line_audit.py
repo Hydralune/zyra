@@ -112,6 +112,20 @@ class GitDiffReader:
                 result[parts[-1]] = parts[0]
         return result
 
+    def is_ancestor(self, ancestor: str, descendant: str) -> bool:
+        completed = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+            cwd=self.root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        return completed.returncode == 0
+
     def _git(self, *args: str) -> str:
         completed = subprocess.run(
             ["git", *args],
@@ -361,6 +375,7 @@ class EffectiveLineAuditor:
         *,
         head: str = "HEAD",
         minimum_effective_production: int = 0,
+        protected_source_pool_commit: str = "",
     ) -> GateResult:
         result = GateResult(
             gate_id="effective-line-audit",
@@ -392,13 +407,64 @@ class EffectiveLineAuditor:
                     detail=f"effective={effective}; required={minimum_effective_production}",
                 )
             )
-        if bucket_raw[LineBucket.VENDOR] or bucket_effective[LineBucket.VENDOR]:
+        protected_vendor_raw = 0
+        unprotected_vendor_raw = bucket_raw[LineBucket.VENDOR]
+        protection_valid = False
+        if protected_source_pool_commit:
+            protection_valid = self.git.is_ancestor(
+                baseline,
+                protected_source_pool_commit,
+            ) and self.git.is_ancestor(protected_source_pool_commit, head)
+            if protection_valid:
+                protected_numstat = self.git.numstat(
+                    baseline,
+                    protected_source_pool_commit,
+                )
+                current_numstat = self.git.numstat(
+                    protected_source_pool_commit,
+                    head,
+                )
+                protected_vendor_raw = sum(
+                    added
+                    for path, (added, _deleted) in protected_numstat.items()
+                    if self._bucket(path) == LineBucket.VENDOR
+                )
+                unprotected_vendor_raw = sum(
+                    added
+                    for path, (added, _deleted) in current_numstat.items()
+                    if self._bucket(path) == LineBucket.VENDOR
+                )
+            else:
+                result.add(
+                    Finding(
+                        code="line-audit.source_pool_protection_invalid",
+                        severity=Severity.BLOCKER,
+                        summary="Protected source-pool boundary is not on the audited commit ancestry.",
+                        detail=(
+                            f"baseline={baseline}; protected={protected_source_pool_commit}; "
+                            f"head={head}"
+                        ),
+                    )
+                )
+        if unprotected_vendor_raw:
             result.add(
                 Finding(
                     code="line-audit.vendor_source_added",
                     severity=Severity.BLOCKER,
                     summary="Vendor/source-pool content was added within the slice diff.",
-                    detail=f"raw={bucket_raw[LineBucket.VENDOR]}",
+                    detail=f"unprotected_raw={unprotected_vendor_raw}",
+                )
+            )
+        elif protected_vendor_raw:
+            result.add(
+                Finding(
+                    code="line-audit.protected_source_pool_excluded",
+                    severity=Severity.WARNING,
+                    summary="Protected historical source-pool content receives zero line credit.",
+                    detail=(
+                        f"protected_raw={protected_vendor_raw}; "
+                        f"protected_commit={protected_source_pool_commit}"
+                    ),
                 )
             )
         if bucket_effective[LineBucket.ADAPTER] > 0:
@@ -414,6 +480,10 @@ class EffectiveLineAuditor:
                 "baseline": baseline,
                 "head": head,
                 "minimum_effective_production": minimum_effective_production,
+                "protected_source_pool_commit": protected_source_pool_commit,
+                "source_pool_protection_valid": protection_valid,
+                "protected_vendor_raw_added": protected_vendor_raw,
+                "unprotected_vendor_raw_added": unprotected_vendor_raw,
                 "effective_production_lines": effective,
                 "raw_added_lines": sum(item.added_lines for item in audits),
                 "raw_deleted_lines": sum(item.deleted_lines for item in audits),

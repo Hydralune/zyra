@@ -320,11 +320,15 @@ from zyra_workers import (
     MemoryCuratorOperation,
     MemoryCuratorWorkerRequest,
     MemoryCuratorWorkerRuntime,
+    EdgeWorkerGatewayRuntime,
+    EdgeWorkerProcessConnector,
+    EdgeWorkerRegistrationRuntime,
     build_memory_curator_runtime,
     browser_use_health_summary,
     default_browser_action_registry,
     inspect_browser_use_runtime,
 )
+from zyra_workers.edge_pool import IntegratedEdgeExecutionAdapter
 from zyra_workers.subagents.typescript_port import TypeScriptAgentDurablePort
 from zyra_evaluation import evaluate_task_trace
 from zyra_evaluation.m1_hardening.api import M1HardeningApi
@@ -407,6 +411,7 @@ else:  # pragma: no cover - direct development script entry.
 
 from zyra_orchestration.graph_custody import GraphStateCustody, GraphStateStore
 from zyra_scheduler.worker_pool import (
+    BackendCapability as PhysicalBackendCapability,
     BackendRegistryHealthAdapter,
     ExecutionOutcome as PhysicalExecutionOutcome,
     ResourceVector as PhysicalResourceVector,
@@ -419,10 +424,14 @@ from zyra_scheduler.worker_pool import (
     SchedulerDispatchContext as PhysicalSchedulerDispatchContext,
 )
 from zyra_scheduler.backend_registry import (
+    BackendDefinition,
+    BackendKind,
     BackendLocation,
     BackendRegistry,
+    BackendResourceLimits,
     BackendRegistryStore,
     BackendSelectionRequest,
+    WorkspacePolicy,
     ensure_default_backends,
 )
 
@@ -463,6 +472,19 @@ _WORKER_POOL_LOCK = threading.RLock()
 _WORKER_POOL_RUNTIME: WorkerPoolFoundationRuntime | None = None
 _WORKER_POOL_API: WorkerPoolApiService | None = None
 _WORKER_POOL_KEY: tuple[str, str, str] | None = None
+_API_EDGE_CONNECTOR: EdgeWorkerProcessConnector | None = None
+_API_EDGE_REGISTRATION: EdgeWorkerRegistrationRuntime | None = None
+_API_EDGE_ADAPTER: IntegratedEdgeExecutionAdapter | None = None
+_API_EDGE_KEY: tuple[int, str] | None = None
+
+
+def _worker_pool_secret(pool_path: Path) -> bytes:
+    configured = os.environ.get("ZYRA_WORKER_POOL_SECRET", "").encode("utf-8")
+    return (
+        hashlib.sha256(configured).digest()
+        if configured
+        else hashlib.sha256(f"zyra-worker-pool:{pool_path}".encode("utf-8")).digest()
+    )
 
 
 def get_worker_pool_api() -> WorkerPoolApiService:
@@ -475,12 +497,7 @@ def get_worker_pool_api() -> WorkerPoolApiService:
         if _WORKER_POOL_API is None or _WORKER_POOL_KEY != key:
             if _WORKER_POOL_API is not None:
                 _WORKER_POOL_API.close()
-            configured = os.environ.get("ZYRA_WORKER_POOL_SECRET", "").encode("utf-8")
-            secret = (
-                hashlib.sha256(configured).digest()
-                if configured
-                else hashlib.sha256(f"zyra-worker-pool:{pool_path}".encode("utf-8")).digest()
-            )
+            secret = _worker_pool_secret(pool_path)
             _WORKER_POOL_RUNTIME = WorkerPoolFoundationRuntime(
                 pool_path,
                 attestation_secret=secret,
@@ -497,11 +514,161 @@ def get_worker_pool_api() -> WorkerPoolApiService:
         return _WORKER_POOL_API
 
 
+def ensure_api_edge_worker(
+    pool_api: WorkerPoolApiService | None = None,
+) -> tuple[str, IntegratedEdgeExecutionAdapter]:
+    """Attach one authenticated child-process edge worker to the API pool.
+
+    Edge execution is opt-in per fanout child.  The runtime is still part of
+    the production composition root: registration, heartbeat, lease,
+    gateway action, artifact and settlement all use the canonical 07A/05B
+    owners.  Disabling the connector never falls back to the local worker.
+    """
+
+    global _API_EDGE_CONNECTOR, _API_EDGE_REGISTRATION, _API_EDGE_ADAPTER, _API_EDGE_KEY
+    if os.environ.get("ZYRA_EDGE_POOL_DISABLED") == "1":
+        raise WorkerPoolError(
+            WorkerPoolErrorCode.EDGE_CONNECTOR_DISABLED,
+            "API edge worker is disabled and local fallback is forbidden",
+            operation="ensure_api_edge_worker",
+        )
+    selected = pool_api or get_worker_pool_api()
+    host = os.environ.get("ZYRA_EDGE_API_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    key = (id(selected), host)
+    with _WORKER_POOL_LOCK:
+        if (
+            _API_EDGE_KEY == key
+            and _API_EDGE_CONNECTOR is not None
+            and _API_EDGE_CONNECTOR.running
+            and _API_EDGE_ADAPTER is not None
+        ):
+            return _API_EDGE_CONNECTOR.worker_id, _API_EDGE_ADAPTER
+        if _API_EDGE_REGISTRATION is not None:
+            _API_EDGE_REGISTRATION.stop()
+        pool_path = worker_pool_path().resolve()
+        secret = _worker_pool_secret(pool_path)
+        connector = EdgeWorkerProcessConnector(
+            worker_id="api-edge-worker",
+            secret=secret,
+            package_roots=(
+                PROJECT_ROOT / "packages" / "core",
+                PROJECT_ROOT / "packages" / "scheduler",
+                PROJECT_ROOT / "packages" / "workers",
+            ),
+            host=host,
+            startup_timeout_seconds=15,
+            request_timeout_seconds=30,
+        )
+        registration = EdgeWorkerRegistrationRuntime(
+            connector,
+            selected.pool.lifecycle,
+            selected.pool.heartbeats,
+            attestor=selected.pool.attestor,
+        )
+        endpoint = registration.register(
+            backend=PhysicalBackendCapability(
+                backend_id="api-edge-sandbox-gateway",
+                backend_kind="sandbox_gateway",
+                enabled=True,
+                healthy=True,
+                capabilities=(
+                    "agent_task",
+                    "code_execution",
+                    "artifact_return",
+                    "edge_execution",
+                ),
+                tool_ids=("edge.json_transform",),
+                constraints={
+                    "sealed_capable": True,
+                    "gateway_owner": "SandboxGatewayRuntime",
+                },
+                labels={"dispatch_location": "edge"},
+            ),
+            resources=PhysicalResourceVector(
+                cpu_cores=1,
+                memory_mb=256,
+                disk_mb=512,
+                network_mbps=50,
+                process_slots=2,
+            ),
+            capabilities=(
+                "agent_task",
+                "code_execution",
+                "artifact_return",
+                "edge_execution",
+            ),
+            tool_ids=("edge.json_transform",),
+            replace_generation=True,
+        )
+        registry_store = BackendRegistryStore(
+            backend_registry_path(artifact_root_path())
+        )
+        try:
+            registry = BackendRegistry(registry_store)
+            ensure_default_backends(registry)
+            registry.register(
+                BackendDefinition(
+                    backend_id="api-edge-sandbox-gateway",
+                    display_name="Authenticated API Edge Worker",
+                    kind=BackendKind.LOCAL_PROCESS,
+                    location=BackendLocation.EDGE,
+                    runtime_worker="typescript.E03AgentControlCoordinator",
+                    capabilities=(
+                        "agent_task",
+                        "code_execution",
+                        "artifact_return",
+                        "edge_execution",
+                    ),
+                    workspace_policy=WorkspacePolicy(
+                        scope="artifact",
+                        artifact_only=True,
+                        require_existing=False,
+                        require_writable=True,
+                        isolation="independent-edge-process",
+                    ),
+                    limits=BackendResourceLimits(
+                        maximum_concurrency=2,
+                        turn_timeout_seconds=120,
+                        connect_timeout_seconds=15,
+                    ),
+                    priority=100,
+                    metadata={
+                        "execution_mode": "authenticated_tcp_child_process",
+                        "real_edge_dispatch": True,
+                        "authenticated_endpoint": endpoint.endpoint,
+                        "worker_id": connector.worker_id,
+                    },
+                )
+            )
+        finally:
+            registry_store.close()
+        gateway = EdgeWorkerGatewayRuntime(
+            connector,
+            selected.pool.leases,
+            artifact_root=artifact_root_path() / "edge-worker",
+        )
+        adapter = IntegratedEdgeExecutionAdapter(gateway, registration)
+        selected.integration.edge_execution = adapter
+        selected.integration.control.execution_cancellation = adapter
+        _API_EDGE_CONNECTOR = connector
+        _API_EDGE_REGISTRATION = registration
+        _API_EDGE_ADAPTER = adapter
+        _API_EDGE_KEY = key
+        return connector.worker_id, adapter
+
+
 def reset_worker_pool_api() -> None:
     """Forget API-owned worker/graph composition roots between workspace lifecycles."""
 
     global _WORKER_POOL_RUNTIME, _WORKER_POOL_API, _WORKER_POOL_KEY
+    global _API_EDGE_CONNECTOR, _API_EDGE_REGISTRATION, _API_EDGE_ADAPTER, _API_EDGE_KEY
     with _WORKER_POOL_LOCK:
+        if _API_EDGE_REGISTRATION is not None:
+            _API_EDGE_REGISTRATION.stop()
+        _API_EDGE_CONNECTOR = None
+        _API_EDGE_REGISTRATION = None
+        _API_EDGE_ADAPTER = None
+        _API_EDGE_KEY = None
         if _WORKER_POOL_API is not None:
             _WORKER_POOL_API.close()
         _WORKER_POOL_API = None
@@ -2636,6 +2803,50 @@ def _run_typescript_agent_request(
         "session_id": parent_session_id,
         "workspace_ref": workspace_access.to_public_dict(),
     }
+    if arguments.get("disable_retrieval_context") is True:
+        constraints["disable_retrieval_context"] = True
+    if arguments.get("sealed_bounded_read_only_fanout") is True:
+        constraints.update(
+            {
+                "permission_mode": "sealed",
+                "permission_interactive": False,
+                "permission_headless": True,
+                "e02PermissionPolicy": {
+                    "version": "zyra.e02-typescript-permission-policy-input.v1",
+                    "canonical_owner": "typescript",
+                    "mode": "sealed",
+                    "mode_revision": 1,
+                    "interactive": False,
+                    "headless": True,
+                    "rules": [
+                        {
+                            "rule_id": "managed-bounded-read-only-agent-fanout",
+                            "effect": "allow",
+                            "source": "managed",
+                            "tool_pattern": "Agent",
+                            "namespace_pattern": "agent",
+                            "operation_pattern": "execute",
+                            "argument_pattern": (
+                                '*"sealed_bounded_read_only_fanout":true*'
+                            ),
+                            "priority": 10_000,
+                            "enabled": True,
+                            "max_uses": 1,
+                            "scope": {"session_id": parent_session_id},
+                            "reason": (
+                                "managed sealed policy permits one workspace-isolated "
+                                "background fanout whose child tools are restricted to file_read"
+                            ),
+                            "metadata": {
+                                "bounded_tools": ["file_read"],
+                                "human_approval_required": False,
+                            },
+                        }
+                    ],
+                    "python_policy_fallback": False,
+                },
+            }
+        )
     if session_custody_token:
         constraints["session_custody_token"] = session_custody_token
     request = WorkerRequest(
@@ -2697,6 +2908,7 @@ def _acquire_subagent_physical_dispatch(
     task_id: str,
     owner_session_id: str,
     idempotency_key: str,
+    physical_location: str = "local",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Acquire and start the canonical 07A physical attempt before E03 runs.
 
@@ -2720,7 +2932,25 @@ def _acquire_subagent_physical_dispatch(
         )
     else:
         workspace_ref = str(raw_workspace_ref or f"workspace:{state.task_id}")
-    pool_api.ensure_default_local_worker()
+    requested_location = str(physical_location or "local").strip().lower()
+    if requested_location not in {"local", "edge"}:
+        raise WorkerPoolError(
+            WorkerPoolErrorCode.INVALID_ARGUMENT,
+            f"unsupported subagent physical location: {requested_location}",
+            operation="acquire_subagent_physical_dispatch",
+            task_id=task_id,
+        )
+    preferred_worker_id = "local-code-worker"
+    gateway_ref = "local-sandbox-gateway"
+    backend_route_id = "local-code-worker"
+    location = PhysicalWorkerLocation.LOCAL
+    if requested_location == "edge":
+        preferred_worker_id, _edge_adapter = ensure_api_edge_worker(pool_api)
+        gateway_ref = "api-edge-sandbox-gateway"
+        backend_route_id = "api-edge-sandbox-gateway"
+        location = PhysicalWorkerLocation.EDGE
+    else:
+        pool_api.ensure_default_local_worker()
     graph_id = pool_api.ensure_task_graph(state)
     graph = pool_api.graph_custody.current(graph_id)
     runtime_node = pool_api.integration.add_runtime_node_for_requirement(
@@ -2778,13 +3008,14 @@ def _acquire_subagent_physical_dispatch(
             graph_revision=graph_ref.revision,
             graph_node_id=f"runtime-subagent:{task_id}",
             workspace_ref=workspace_ref,
-            gateway_ref="local-sandbox-gateway",
-            backend_route_id="local-code-worker",
+            gateway_ref=gateway_ref,
+            backend_route_id=backend_route_id,
             required_capabilities=("agent_task",),
-            locations=(PhysicalWorkerLocation.LOCAL,),
+            locations=(location,),
             resources=PhysicalResourceVector(process_slots=1, memory_mb=64),
             execution_mode=PhysicalDispatchMode.BACKGROUND,
-            preferred_worker_ids=("local-code-worker",),
+            edge_only=location is PhysicalWorkerLocation.EDGE,
+            preferred_worker_ids=(preferred_worker_id,),
             lease_ttl_seconds=15 * 60.0,
             checkpoint_ref=str(state.metadata.get("checkpoint_id") or ""),
             idempotency_key=f"{idempotency_key}:integration:{attempt_number}",
@@ -2812,12 +3043,33 @@ def _acquire_subagent_physical_dispatch(
         if manifest is None:
             raise RuntimeError(f"worker {worker.worker_id} has no capability manifest")
         reused = admission.reused
-    started = pool_api.integration.start(
-        binding.binding_id,
-        fence_token=lease.fence_token,
-        backend_dispatch_id=f"typescript-e03:{task_id}:{binding.attempt_number}",
-    )
-    binding = started.binding
+    edge_receipt: Mapping[str, Any] | None = None
+    if worker.location is PhysicalWorkerLocation.EDGE:
+        edge_dispatch = pool_api.integration.execute_edge(
+            binding.binding_id,
+            fence_token=lease.fence_token,
+            payload={
+                "operation": "json_transform",
+                "input_payload": {
+                    "task_id": task_id,
+                    "run_id": state.run_id,
+                    "owner_session_id": owner_session_id,
+                    "logical_owner": "typescript.E03AgentControlCoordinator",
+                },
+                "artifact_name": f"{task_id}-edge-admission.json",
+                "job_id": f"edge-subagent:{task_id}:{binding.attempt_number}",
+                "metadata": {"parent_task_id": state.task_id},
+            },
+        )
+        binding = edge_dispatch.binding
+        edge_receipt = edge_dispatch.to_dict()
+    else:
+        started = pool_api.integration.start(
+            binding.binding_id,
+            fence_token=lease.fence_token,
+            backend_dispatch_id=f"typescript-e03:{task_id}:{binding.attempt_number}",
+        )
+        binding = started.binding
     unsigned_projection = {
         "schema": "zyra.worker-pool-dispatch/v1",
         "required": True,
@@ -2840,6 +3092,7 @@ def _acquire_subagent_physical_dispatch(
         "workspace_ref": binding.foreign_refs.workspace.to_dict(),
         "gateway_ref": binding.foreign_refs.gateway.to_dict(),
         "route_ref": binding.foreign_refs.backend_route.to_dict(),
+        "edge_gateway_receipt": edge_receipt,
     }
     projection = {
         **unsigned_projection,
@@ -2868,6 +3121,7 @@ def _acquire_subagent_physical_dispatch(
         "reused": reused,
         "integration_binding_id": binding.binding_id,
         "graph_ref": binding.foreign_refs.graph.to_dict(),
+        "edge_gateway_receipt": edge_receipt,
     }
     return projection, public
 
@@ -5864,6 +6118,39 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             request_id = str(payload.get("request_id") or new_id("agentfanout"))
+            sealed_bounded_read_only = (
+                payload.get("sealed_bounded_read_only") is True
+            )
+            if sealed_bounded_read_only:
+                invalid_children: list[int] = []
+                for index, item in enumerate(raw_items):
+                    child = item if isinstance(item, Mapping) else {}
+                    tools = tuple(str(value) for value in child.get("tools") or ())
+                    skills = tuple(str(value) for value in child.get("skills") or ())
+                    mcp_servers = tuple(
+                        str(value) for value in child.get("mcp_servers") or ()
+                    )
+                    if (
+                        child.get("background") is not True
+                        or tools != ("file_read",)
+                        or skills
+                        or mcp_servers
+                        or str(child.get("isolation") or "workspace") != "workspace"
+                    ):
+                        invalid_children.append(index)
+                if invalid_children:
+                    self._send_json(
+                        HTTPStatus.BAD_REQUEST,
+                        {
+                            "error": "sealed_bounded_fanout_invalid",
+                            "message": (
+                                "sealed bounded fanout requires background=true, "
+                                "tools=[file_read], no skill/MCP and workspace isolation"
+                            ),
+                            "invalid_child_indexes": invalid_children,
+                        },
+                    )
+                    return
             owner_session_id = str(
                 payload.get("session_id")
                 or state.metadata.get("query_session_id")
@@ -5884,6 +6171,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         task_id=child_task_id,
                         owner_session_id=owner_session_id,
                         idempotency_key=f"{request_id}:{index}",
+                        physical_location=str(child.get("physical_location") or "local"),
                     )
                     child["physical_dispatch"] = dispatch
                     prepared_requests.append(child)
@@ -5927,6 +6215,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 ),
                 "idempotency_key": str(payload.get("idempotency_key") or request_id),
                 "budget": {"max_children": max(2, int(payload.get("maximum_concurrency") or 4))},
+                "disable_retrieval_context": payload.get("disable_retrieval_context") is True,
+                "sealed_bounded_read_only_fanout": sealed_bounded_read_only,
             }
             try:
                 run = _run_typescript_agent_request(
@@ -6024,6 +6314,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     task_id=task_id,
                     owner_session_id=owner_session_id,
                     idempotency_key=str(payload.get("idempotency_key") or request_id),
+                    physical_location=str(payload.get("physical_location") or "local"),
                 )
             except Exception as error:
                 self._send_json(

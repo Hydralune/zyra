@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import statistics
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -279,7 +280,12 @@ class TransitionAdmission:
         after_digest: str,
         payload: Mapping[str, Any],
     ) -> str:
-        if any(token in event_type for token in EXCLUDED_EVENT_TOKENS):
+        normalized_type = re.sub(r"[^a-z0-9]+", "_", event_type).strip("_")
+        padded_type = f"_{normalized_type}_"
+        if any(
+            normalized_type == token or f"_{token}_" in padded_type
+            for token in EXCLUDED_EVENT_TOKENS
+        ):
             return "excluded_event_family"
         if payload.get("noop") is True or payload.get("semantic_mutation") is False:
             return "declared_noop"

@@ -9,6 +9,8 @@ from typing import Any, Mapping, Sequence
 
 from .contracts import HardeningContext
 from .integration_service import IntegrationOptions, M1IntegrationService
+from .live_probe import ManagedLiveEvidenceRuntime
+from .long_horizon_runtime import SealedLongHorizonRuntime
 from .reporting import ReportComparator
 from .release_reporting import ReleaseReportBuilder, ReleaseReportStore
 from .service import AuditOptions, M1HardeningService
@@ -52,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     integration.add_argument("--run-cleanroom", action="store_true")
     integration.add_argument("--scenario-timeout", type=float, default=120.0)
     integration.add_argument("--benchmark-run-id", default="")
+    integration.add_argument("--benchmark-events-json", default="")
     integration.add_argument("--sealed-policy-json", default="")
     integration.add_argument("--line-evidence-json", default="")
     integration.add_argument("--tier-evidence-json", default="")
@@ -59,6 +62,25 @@ def build_parser() -> argparse.ArgumentParser:
     integration.add_argument("--evidence-envelopes-json", default="")
     integration.add_argument("--unresolved-requirement", action="append", default=[])
     integration.add_argument("--no-persist", action="store_true")
+
+    live = subparsers.add_parser(
+        "live-evidence",
+        help="run two authenticated provider tools and real local/edge/cloud dispatch",
+    )
+    live.add_argument("--claude-executable", default="claude")
+    live.add_argument("--claude-model", default="claude-sonnet-5")
+    live.add_argument("--codex-executable", default="codex")
+    live.add_argument("--codex-model", default="gpt-5.5")
+    live.add_argument("--edge-host", default="")
+    live.add_argument("--run-id", default="")
+    live.add_argument("--maximum-budget-usd", type=float, default=0.20)
+
+    long_horizon = subparsers.add_parser(
+        "long-horizon",
+        help="execute two sealed live tasks with at least 1,000 real source actions",
+    )
+    long_horizon.add_argument("--run-id", default="")
+    long_horizon.add_argument("--actions-per-task", type=int, default=500)
 
     status = subparsers.add_parser("status", help="show catalog and report-store status")
     status.add_argument("--compact", action="store_true")
@@ -88,6 +110,11 @@ def _add_audit_options(parser: argparse.ArgumentParser, *, scenario_default: boo
     parser.add_argument("--baseline", default="", help="slice baseline Git commit")
     parser.add_argument("--head", default="HEAD", help="line-audit target Git identity")
     parser.add_argument("--minimum-effective-lines", type=int, default=9000)
+    parser.add_argument(
+        "--protected-source-pool-commit",
+        default="",
+        help="ancestor commit after which new vendor/source-pool additions remain blocking",
+    )
     parser.add_argument("--final-completion", action="store_true")
     parser.add_argument("--no-persist", action="store_true")
     parser.add_argument("--no-dynamic-graph-probes", action="store_true")
@@ -125,6 +152,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 foundation_service=service,
             )
             return _integration(integration_service, args)
+        if args.command == "live-evidence":
+            return _live_evidence(
+                ManagedLiveEvidenceRuntime(
+                    project_root,
+                    artifact_root=artifact_root,
+                ),
+                args,
+            )
+        if args.command == "long-horizon":
+            return _long_horizon(
+                SealedLongHorizonRuntime(
+                    project_root,
+                    artifact_root=artifact_root,
+                ),
+                args,
+            )
         if args.command == "status":
             _write_json(service.repository_status(), compact=args.compact)
             return 0
@@ -216,6 +259,9 @@ def _integration(service: M1IntegrationService, args: argparse.Namespace) -> int
     tier_evidence = tuple(_load_array(args.tier_evidence_json)) if args.tier_evidence_json else ()
     provider_evidence = tuple(_load_array(args.provider_evidence_json)) if args.provider_evidence_json else ()
     evidence_envelopes = tuple(_load_array(args.evidence_envelopes_json)) if args.evidence_envelopes_json else ()
+    benchmark_events = (
+        tuple(_load_array(args.benchmark_events_json)) if args.benchmark_events_json else ()
+    )
     implementation_commit = str(args.implementation_commit or "")
     if implementation_commit:
         implementation_commit = _git_identity(service.root, implementation_commit)
@@ -233,6 +279,7 @@ def _integration(service: M1IntegrationService, args: argparse.Namespace) -> int
         run_cleanroom=bool(args.run_cleanroom),
         scenario_timeout_seconds=float(args.scenario_timeout),
         benchmark_run_id=str(args.benchmark_run_id or ""),
+        benchmark_events=benchmark_events,
         sealed_policy=policy,
         line_evidence=line_evidence,
         tier_observations=tier_evidence,
@@ -250,9 +297,51 @@ def _integration(service: M1IntegrationService, args: argparse.Namespace) -> int
     return 0 if outcome.accepted else 2
 
 
+def _live_evidence(
+    runtime: ManagedLiveEvidenceRuntime,
+    args: argparse.Namespace,
+) -> int:
+    if args.maximum_budget_usd <= 0 or args.maximum_budget_usd > 5:
+        raise CliError("--maximum-budget-usd must be greater than 0 and at most 5")
+    try:
+        receipt = runtime.execute(
+            claude_executable=str(args.claude_executable),
+            claude_model=str(args.claude_model),
+            codex_executable=str(args.codex_executable),
+            codex_model=str(args.codex_model),
+            edge_host=str(args.edge_host or ""),
+            run_id=str(args.run_id or ""),
+            maximum_budget_usd=float(args.maximum_budget_usd),
+        )
+    except RuntimeError as error:
+        raise CliError(str(error)) from error
+    _write_json(receipt.to_dict())
+    return 0 if receipt.accepted else 2
+
+
+def _long_horizon(
+    runtime: SealedLongHorizonRuntime,
+    args: argparse.Namespace,
+) -> int:
+    try:
+        receipt = runtime.execute(
+            run_id=str(args.run_id or ""),
+            actions_per_task=int(args.actions_per_task),
+        )
+    except RuntimeError as error:
+        raise CliError(str(error)) from error
+    _write_json(receipt.to_dict())
+    return 0 if receipt.accepted else 2
+
+
 def _options(service: M1HardeningService, args: argparse.Namespace) -> AuditOptions:
     baseline = str(args.baseline or _git_identity(service.root, "HEAD~1"))
     policy = _json_argument(args.sealed_policy_json, expected=dict) if args.sealed_policy_json else {}
+    protected_source_pool_commit = (
+        _git_identity(service.root, args.protected_source_pool_commit)
+        if args.protected_source_pool_commit
+        else ""
+    )
     options = AuditOptions(
         baseline_commit=baseline,
         final_completion=bool(args.final_completion),
@@ -262,6 +351,7 @@ def _options(service: M1HardeningService, args: argparse.Namespace) -> AuditOpti
         selected_disable_probe_ids=tuple(args.disable_probe),
         minimum_effective_lines=args.minimum_effective_lines,
         line_audit_head=args.head,
+        protected_source_pool_commit=protected_source_pool_commit,
         include_line_audit=not args.no_line_audit,
         include_cross_cutting=not args.no_cross_cutting,
         include_scenario=bool(args.include_scenario),

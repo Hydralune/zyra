@@ -4,6 +4,7 @@ import json
 import os
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 from zyra_evaluation.m1_hardening.benchmark import BenchmarkAnalyzer
 from zyra_evaluation.m1_hardening.cleanroom import (
@@ -12,7 +13,7 @@ from zyra_evaluation.m1_hardening.cleanroom import (
     CleanroomVerifier,
     default_cleanroom_commands,
 )
-from zyra_evaluation.m1_hardening.contracts import GateStatus
+from zyra_evaluation.m1_hardening.contracts import GateResult, GateStatus
 from zyra_evaluation.m1_hardening.disable import DisableProbeRunner, ProbeStatus
 from zyra_evaluation.m1_hardening.evidence_admission import (
     AdmissionPolicy,
@@ -24,11 +25,26 @@ from zyra_evaluation.m1_hardening.evidence_admission import (
 )
 from zyra_evaluation.m1_hardening.exit_gate import ExitBundleBuilder, ExitDecision, ExitPolicy
 from zyra_evaluation.m1_hardening.handoff import HandoffBuilder, HandoffStore
+from zyra_evaluation.m1_hardening.integration_service import (
+    IntegrationOptions,
+    M1IntegrationService,
+)
+from zyra_evaluation.m1_hardening.line_audit import EffectiveLineAuditor
 from zyra_evaluation.m1_hardening.integration_scenarios import (
     default_integration_scenarios,
     scenario_catalog_gate,
 )
-from zyra_evaluation.m1_hardening.live_evidence import EndpointEvidenceGate
+from zyra_evaluation.m1_hardening.live_evidence import (
+    EndpointEvidenceGate,
+    ProviderWireEvidenceGate,
+    WireDialect,
+)
+from zyra_evaluation.m1_hardening.managed_provider import (
+    CapturedLine,
+    ManagedProviderProbe,
+    ManagedProviderSpec,
+    ProcessCapture,
+)
 from zyra_evaluation.m1_hardening.owner_matrix import OwnerMatrix, REQUIRED_DISABLE_CAPABILITIES
 from zyra_evaluation.m1_hardening.owner_probes import (
     EnvironmentOwnerDisconnectProbe,
@@ -41,6 +57,28 @@ from zyra_evaluation.m1_hardening.service import AuditOptions
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = "8" * 40
 TARGET = "9" * 40
+
+
+def _provider_capture(values: list[dict[str, object]]) -> ProcessCapture:
+    lines = tuple(
+        CapturedLine(
+            sequence=index,
+            timestamp=f"2026-07-23T00:00:{index:02d}Z",
+            raw=json.dumps(value, sort_keys=True),
+            value=value,
+        )
+        for index, value in enumerate(values)
+    )
+    return ProcessCapture(
+        command_id="managed-provider-test",
+        started_at="2026-07-23T00:00:00Z",
+        completed_at="2026-07-23T00:00:09Z",
+        exit_code=0,
+        lines=lines,
+        stderr_digest="0" * 64,
+        stderr_bytes=0,
+        executable_version="test-cli 1.0",
+    )
 
 
 def test_six_scenario_catalog_and_owner_matrix_resolve_real_product_owners() -> None:
@@ -249,6 +287,182 @@ def test_evidence_admission_accepts_digest_bound_runtime_evidence_and_rejects_ta
     assert "content_digest_mismatch" in receipts[0].reasons
 
 
+def test_final_integration_automatically_binds_all_required_evidence_kinds() -> None:
+    options = IntegrationOptions(
+        baseline_commit=BASELINE,
+        implementation_commit=TARGET,
+        final_completion=True,
+        execute_disconnects=True,
+        run_cleanroom=True,
+        line_evidence=(
+            {
+                "slice_id": "M1-S08-02",
+                "effective_added_lines": 7100,
+                "minimum_required": 7000,
+                "source_pool_lines": 0,
+            },
+        ),
+        tier_observations=(
+            {"tier": "local"},
+            {"tier": "edge"},
+            {"tier": "cloud"},
+        ),
+        provider_observations=(
+            {"provider_id": "anthropic", "dialect": "anthropic-compatible"},
+            {"provider_id": "openai", "dialect": "openai-compatible"},
+        ),
+    )
+    scenario = SimpleNamespace(
+        scenario_id="m1-integration-live",
+        passed=True,
+        disconnect_evidence=(
+            {
+                "probe_id": "disable-owner-live",
+                "capability": "runtime-owner",
+                "status": "passed",
+                "expected_failure_observed": True,
+                "fallback_masked": False,
+            },
+        ),
+        digest=lambda: "1" * 64,
+    )
+    benchmark_events = (
+        {
+            "event_id": "event-1",
+            "run_id": "run-live",
+            "task_id": "task-live",
+            "event_type": "artifact_committed",
+        },
+        {
+            "event_id": "event-2",
+            "run_id": "run-live",
+            "task_id": "task-live",
+            "event_type": "verification_completed",
+        },
+    )
+    benchmark_gate = GateResult(
+        gate_id="m1-long-horizon-benchmark",
+        status=GateStatus.PASSED,
+        summary="live benchmark",
+        metrics={
+            "effective_action_count": 1000,
+            "effective_transition_count": 2000,
+            "snapshot_digest": "2" * 64,
+            "child_status": {"sealed-autonomy": "passed"},
+        },
+    )
+    cleanroom = SimpleNamespace(
+        target_commit=TARGET,
+        commands=(SimpleNamespace(ok=True),),
+        to_dict=lambda: {"content_digest": "3" * 64},
+    )
+    handoff = SimpleNamespace(
+        report_id="handoff-live",
+        surfaces=(object(),),
+        source_chains=(object(),),
+        to_dict=lambda: {"content_digest": "4" * 64},
+    )
+    custody_gate = GateResult(
+        gate_id="m1-state-custody",
+        status=GateStatus.PASSED,
+        summary="custody",
+        metrics={"owner_count": 9},
+    )
+    coverage_gate = GateResult(
+        gate_id="source-to-target-coverage",
+        status=GateStatus.PASSED,
+        summary="coverage",
+        metrics={"covered_count": 12},
+    )
+    report = SimpleNamespace(
+        gate=lambda gate_id: (
+            custody_gate if gate_id == "m1-state-custody" else coverage_gate
+        )
+    )
+    audit = SimpleNamespace(report=report)
+
+    envelopes = M1IntegrationService._automatic_evidence_envelopes(
+        integration_run_id="m1-integration-live-run",
+        benchmark_run_id="run-live",
+        options=options,
+        scenarios=(scenario,),
+        benchmark_events=benchmark_events,
+        benchmark_gate=benchmark_gate,
+        cleanroom=cleanroom,
+        handoff=handoff,
+        base_audits=(audit,),
+    )
+    receipts, gate = EvidenceAdmissionController().admit(
+        envelopes,
+        expected_target_commit=TARGET,
+        final_completion=True,
+    )
+
+    assert {item.kind for item in envelopes} == set(EvidenceKind)
+    assert len(receipts) == len(EvidenceKind)
+    assert all(item.status is AdmissionStatus.ADMITTED for item in receipts)
+    assert gate.status is GateStatus.PASSED, gate.to_dict()
+
+
+def test_line_audit_excludes_only_source_pool_already_inside_explicit_protection() -> None:
+    class Diff:
+        @staticmethod
+        def numstat(baseline: str, head: str = "HEAD"):
+            if (baseline, head) == ("baseline", "target"):
+                return {"vendor-runtimes/upstream/runtime.py": (100, 0)}
+            if (baseline, head) == ("baseline", "target-new"):
+                return {"vendor-runtimes/upstream/runtime.py": (101, 0)}
+            if (baseline, head) == ("baseline", "protected"):
+                return {"vendor-runtimes/upstream/runtime.py": (100, 0)}
+            if (baseline, head) == ("protected", "target"):
+                return {}
+            if (baseline, head) == ("protected", "target-new"):
+                return {"vendor-runtimes/upstream/runtime.py": (1, 0)}
+            raise AssertionError((baseline, head))
+
+        @staticmethod
+        def added_lines(baseline: str, head: str = "HEAD"):
+            return {}
+
+        @staticmethod
+        def is_ancestor(ancestor: str, descendant: str) -> bool:
+            return (ancestor, descendant) in {
+                ("baseline", "protected"),
+                ("protected", "target"),
+                ("protected", "target-new"),
+            }
+
+    auditor = EffectiveLineAuditor(ROOT)
+    auditor.git = Diff()
+
+    unprotected = auditor.evaluate("baseline", head="target")
+    protected = auditor.evaluate(
+        "baseline",
+        head="target",
+        protected_source_pool_commit="protected",
+    )
+    newly_added = auditor.evaluate(
+        "baseline",
+        head="target-new",
+        protected_source_pool_commit="protected",
+    )
+
+    assert unprotected.status is GateStatus.BLOCKED
+    assert any(
+        item.code == "line-audit.vendor_source_added"
+        for item in unprotected.findings
+    )
+    assert protected.status is GateStatus.PASSED
+    assert protected.metrics["protected_vendor_raw_added"] == 100
+    assert protected.metrics["unprotected_vendor_raw_added"] == 0
+    assert any(
+        item.code == "line-audit.protected_source_pool_excluded"
+        for item in protected.findings
+    )
+    assert newly_added.status is GateStatus.BLOCKED
+    assert newly_added.metrics["unprotected_vendor_raw_added"] == 1
+
+
 def test_live_tier_gate_never_accepts_loopback_as_edge_or_cloud() -> None:
     observations = [
         {
@@ -278,6 +492,106 @@ def test_live_tier_gate_never_accepts_loopback_as_edge_or_cloud() -> None:
     gate = EndpointEvidenceGate().evaluate(observations, final_completion=True)
     assert gate.status is GateStatus.BLOCKED
     assert any("loopback" in finding.code for finding in gate.findings)
+
+
+def test_managed_provider_streams_admit_two_real_dialects_without_header_claims() -> None:
+    token = "ZYRA_PROVIDER_TOOL_TEST"
+    prompt = "read provider_input.txt"
+    probe = ManagedProviderProbe()
+    claude = probe.attestation_from_capture(
+        ManagedProviderSpec(
+            provider_id="anthropic-first-party",
+            cli_kind="claude",
+            executable="claude",
+            model_id="sonnet",
+            dialect=WireDialect.ANTHROPIC_COMPATIBLE,
+            endpoint="https://api.anthropic.com",
+            request_path="/v1/messages",
+        ),
+        _provider_capture(
+            [
+                {"type": "system", "subtype": "init", "model": "claude-sonnet-5"},
+                {
+                    "type": "assistant",
+                    "request_id": "anthropic-request-1",
+                    "message": {
+                        "model": "claude-sonnet-5",
+                        "content": [{"type": "tool_use", "id": "tool-claude", "name": "Read"}],
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [{"type": "tool_result", "tool_use_id": "tool-claude"}]
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "request_id": "anthropic-request-2",
+                    "message": {
+                        "model": "claude-sonnet-5",
+                        "content": [{"type": "text", "text": token}],
+                    },
+                },
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": token,
+                    "stop_reason": "end_turn",
+                },
+            ]
+        ),
+        expected_token=token,
+        prompt=prompt,
+        attempt_id="anthropic-attempt",
+    )
+    codex = probe.attestation_from_capture(
+        ManagedProviderSpec(
+            provider_id="openai-codex",
+            cli_kind="codex",
+            executable="codex",
+            model_id="gpt-5.6-sol",
+            dialect=WireDialect.OPENAI_COMPATIBLE,
+            endpoint="https://api.openai.com",
+            request_path="/v1/responses",
+        ),
+        _provider_capture(
+            [
+                {"type": "thread.started", "thread_id": "openai-thread-1"},
+                {
+                    "type": "item.started",
+                    "item": {"id": "tool-codex", "type": "command_execution"},
+                },
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": "tool-codex",
+                        "type": "command_execution",
+                        "status": "completed",
+                        "exit_code": 0,
+                    },
+                },
+                {
+                    "type": "item.completed",
+                    "item": {"id": "answer", "type": "agent_message", "text": token},
+                },
+                {"type": "turn.completed"},
+            ]
+        ),
+        expected_token=token,
+        prompt=prompt,
+        attempt_id="openai-attempt",
+    )
+
+    gate = ProviderWireEvidenceGate().evaluate(
+        [claude, codex],
+        final_completion=True,
+    )
+
+    assert gate.status is GateStatus.PASSED, gate.to_dict()
+    assert gate.metrics["providers"] == ["anthropic-first-party", "openai-codex"]
+    assert gate.metrics["dialects"] == ["anthropic-compatible", "openai-compatible"]
+    assert all(not item.request_headers for item in (claude, codex))
 
 
 def test_benchmark_admission_counts_mutations_and_excludes_heartbeat() -> None:
