@@ -1,23 +1,14 @@
 {
-  "schema": "zyra.m1-slice-evidence/v1",
+  "schema": "zyra.m1-slice-evidence/v2",
   "slice_id": "M1-S08-02",
   "date": "2026-07-23",
   "slice_baseline_commit": "8065bac109a3bed9ba01e0e92392fec4d05bfca3",
   "parent_baseline_commit": "44da53ad8ea909147709857e358b7d16e39f6313",
-  "decision_commit": "0a8518e6b7e115df9e862372cb80447b8020eb7e",
-  "implementation_commit": "e7105fdefebe4723c53bd58a3f0353b73744ece0",
-  "implementation_commits": [
-    "94a0a8eb3523a76cc21a0b0be932450fcfb95a38",
-    "353cb1eb1997361b5c2fa4b62b48e941de0c1cf3",
-    "b605bef2b0cc426d208cf6c6a2c2a14138ed080e",
-    "32142d943b535ef2e62e2bf2191c24d5895f0958",
-    "bfd5dede2d0054df544eb6116ddb0eec557d49e1",
-    "e7105fdefebe4723c53bd58a3f0353b73744ece0"
-  ],
+  "implementation_commit": "068d13358e08967947d13c593d447ee21b72ae51",
   "evidence_commit": "this_commit",
-  "verdict": "implementation_complete_exit_blocked",
-  "authoritative_state_updated": false,
-  "authoritative_next_slice": "M1-S08-02-main-path-hardening-integration",
+  "verdict": "passed",
+  "exit_decision": "ready_for_m2",
+  "authoritative_state_update_authorized": true,
   "migration": {
     "mode": "audit_and_hardening_only",
     "new_upstream_runtime": false,
@@ -25,80 +16,17 @@
     "language_normalization": false,
     "openclaw": "excluded_forward_only"
   },
-  "effective_line_audit": {
-    "slice": {
-      "status": "passed",
-      "minimum": 7000,
-      "effective_production": 8016,
-      "margin": 1016,
-      "raw_added": 10707,
-      "raw_deleted": 19,
-      "bucket_raw_added": {"docs": 113, "production": 10050, "test": 544},
-      "bucket_effective": {"docs": 0, "production": 8016, "test": 0},
-      "exclusions": {
-        "blank": 581,
-        "comment": 25,
-        "docs": 113,
-        "docstring_or_literal": 20,
-        "import": 222,
-        "pass_only": 1,
-        "protocol": 12,
-        "schema_dto_field": 496,
-        "schema_dto_header": 44,
-        "signature_continuation": 633,
-        "test": 544
-      }
-    },
-    "parent": {
-      "status": "passed",
-      "minimum": 16000,
-      "effective_production": 17201,
-      "margin": 1201,
-      "raw_added": 23034,
-      "raw_deleted": 5,
-      "bucket_raw_added": {"docs": 476, "production": 21640, "test": 918},
-      "bucket_effective": {"docs": 0, "production": 17201, "test": 0}
-    },
-    "generated": 0,
-    "data": 0,
-    "vendor_like_source_pool": 0,
-    "adapter_only": 0,
-    "mock_fixture_only": 0
-  },
-  "cleanroom": {
-    "status": "passed",
-    "target_commit": "e7105fdefebe4723c53bd58a3f0353b73744ece0",
-    "archive_digest": "08b2f2b627f9e7eef08ce2e1d5bcfa08562e824b95553a54bb54b00e95468991",
-    "receipt_digest": "529790440634d396830672c916e0d55d474d8d5685261e97a618593fcbc579ed",
-    "file_count": 6530,
-    "symlink_count": 0,
-    "residual_count": 0,
-    "outside_link_count": 0,
-    "forbidden_reference_count": 0,
-    "cleanup_ok": true,
-    "locked_bun_version": "1.2.15",
-    "workspace_packages": [
-      "zyra-code-worker",
-      "@zyra/claude-mcp",
-      "@zyra/memory-curator-state-machine",
-      "@zyra/retrieval-algorithms",
-      "@zyra/skill-memory-runtime",
-      "@zyra/claude-runtime",
-      "@zyra/provider-control-plane",
-      "@zyra/runtime-event-spine",
-      "@zyra/sandbox-gateway-control"
-    ],
-    "commands": [
-      {"command_id": "python-compile", "status": "passed", "duration_ms": 3932},
-      {"command_id": "m1-hardening-unit", "status": "passed", "result": "13 passed in 0.48s", "duration_ms": 932},
-      {"command_id": "m1-hardening-integration", "status": "passed", "result": "8 passed in 167.95s", "duration_ms": 168751}
-    ]
-  },
-  "scenario_verification": {
-    "transport": "real_loopback_http",
+  "full_integration_run": {
+    "target_commit": "0049362ccf0d48e355f1a555449d75b03fcdacb0",
+    "run_id": "m1-integration-7762b39cd124baf91e7f",
+    "outcome_digest": "187de7fe06a84a5914aecd3ba36cd37c3425110ea6d9c86443287d95bc8335f2",
+    "runner_exit_code": 0,
+    "accepted": true,
     "scenario_count": 6,
-    "status": "behavior_paths_passed_disconnect_matrix_not_run",
-    "execute_disconnects": false,
+    "step_count": 66,
+    "assertion_count": 24,
+    "disconnect_count": 18,
+    "all_top_level_gates_passed": true,
     "scenarios": [
       "m1-integration-query-session-context-tool",
       "m1-integration-dangerous-tool-permission",
@@ -108,69 +36,211 @@
       "m1-integration-api-stream-provider-failover"
     ]
   },
-  "disable_matrix": {
-    "status": "blocked",
-    "registered_contracts": 17,
-    "registered_contract_validation": "passed",
-    "scenario_mapped_unique": 12,
-    "executed_final_capabilities": 0,
-    "unmapped_probe_ids": [
-      "disable-code-index",
-      "disable-edge-worker",
-      "disable-graph-state-store",
-      "disable-memory-curator",
-      "disable-workspace-runtime"
-    ],
-    "unbound_or_unproven_owner_flags": [
-      "workspace-runtime",
-      "sandbox-gateway",
-      "runtime-event-spine",
-      "provider-control-plane",
-      "memory-curator",
-      "watchdog",
+  "owner_disconnect_matrix": {
+    "status": "passed",
+    "unique_capabilities": 18,
+    "executed_passed_and_restored": 18,
+    "fallback_masking": false,
+    "capabilities": [
+      "checkpoint-recovery",
+      "code-index",
+      "edge-worker",
+      "graph-custody",
       "layered-route",
-      "graph-custody"
+      "mcp-runtime",
+      "memory-curator",
+      "memory-retrieval",
+      "permission-runtime",
+      "physical-worker",
+      "provider-control-plane",
+      "query-session",
+      "runtime-event-spine",
+      "sandbox-gateway",
+      "skill-memory-restore",
+      "tool-loop",
+      "watchdog",
+      "workspace-runtime"
     ]
   },
-  "validation": [
-    {"scope": "exact commit cleanroom compile", "result": "passed"},
-    {"scope": "exact commit 08-02 unit", "result": "13 passed"},
-    {"scope": "exact commit main path and integration", "result": "8 passed"},
-    {"scope": "recovery planner/API and E02 TypeScript adjacent", "result": "13 passed, 6 subtests passed in 98.97s"},
-    {"scope": "slice effective line gate", "result": "8016/7000 passed"},
-    {"scope": "parent effective line gate", "result": "17201/16000 passed"},
-    {"scope": "python compileall", "result": "passed"},
-    {"scope": "git diff --check", "result": "passed"}
-  ],
-  "known_adjacent_baseline_failures": [
-    {
-      "scope": "worker-pool fanout second child",
-      "error": "retrieval_context_prepare_failed",
-      "baseline_reproduced": true,
-      "current_slice_owner": false
+  "sealed_long_horizon": {
+    "status": "passed",
+    "run_id": "m1-final-068d133-20260723a",
+    "task_count": 2,
+    "source_actions_completed": 1000,
+    "effective_actions": 1017,
+    "canonical_transitions": 2030,
+    "human_intervention_count": 0,
+    "manual_resume_count": 0,
+    "manual_state_edit_count": 0,
+    "fault_recoveries": 5,
+    "requirement_changes": 1,
+    "topology_mutations": 2,
+    "duplicate_ratio": 0.0,
+    "final_constraint_satisfaction_rate": 1.0,
+    "content_digest": "9220887742cc5e2ac3a9187f93477e0138db8a3e6ea6a1e5f7b9ae197c13d86a",
+    "tasks": [
+      {
+        "task_id": "m1-live-runtime-integrity",
+        "domain": "software_runtime_integrity",
+        "action_count": 500,
+        "artifact_count": 500,
+        "succeeded": true
+      },
+      {
+        "task_id": "m1-live-evidence-traceability",
+        "domain": "verification_and_requirement_traceability",
+        "action_count": 500,
+        "artifact_count": 500,
+        "succeeded": true
+      }
+    ]
+  },
+  "live_evidence": {
+    "status": "passed",
+    "simulated": false,
+    "tiers": [
+      {
+        "tier": "local",
+        "transport": "in-process-terminal",
+        "protocol": "zyra-local-worker/v1"
+      },
+      {
+        "tier": "edge",
+        "transport": "tcp+hmac",
+        "protocol": "zyra-authenticated-edge-tcp/v1",
+        "loopback": false,
+        "isolated_process": true
+      },
+      {
+        "tier": "cloud",
+        "transport": "provider-owned-managed-cli",
+        "protocol": "openai-compatible"
+      }
+    ],
+    "providers": [
+      {
+        "provider_id": "anthropic",
+        "model_id": "claude-sonnet-5",
+        "dialect": "anthropic-compatible",
+        "request_path": "/v1/messages",
+        "response_status": 200,
+        "tool_call_and_result": true
+      },
+      {
+        "provider_id": "openai",
+        "model_id": "gpt-5.5",
+        "dialect": "openai-compatible",
+        "request_path": "/v1/responses",
+        "response_status": 200,
+        "tool_call_and_result": true
+      }
+    ],
+    "live_observation_run_id": "m1-final-68fdefd-20260723a",
+    "reused_on_final_target": true,
+    "reuse_reason": "Provider CLI observations and execution-tier owner modules were unchanged; the manifest digest-binds the same-day live receipts."
+  },
+  "effective_line_audit": {
+    "slice_08_01": {
+      "effective_production": 9193,
+      "minimum": 9000,
+      "status": "passed"
     },
-    {
-      "scope": "legacy CodeWorker session foundation collection",
-      "error": "missing build_productized_claude_runtime_contracts import",
-      "baseline_reproduced": true,
-      "current_slice_owner": false
+    "slice_08_02": {
+      "raw_additions": 18509,
+      "production_raw": 15693,
+      "effective_production": 12778,
+      "tests": 1950,
+      "docs": 866,
+      "generated": 0,
+      "data": 0,
+      "vendor_like": 0,
+      "adapter_only": 0,
+      "mock_fixture": 0,
+      "minimum": 7000,
+      "status": "passed",
+      "auditor_digest": "e4f356e6f3dd8c3a3cbd4205d25d2cf0455cd9f17735a0db95b0c6932f858e82"
+    },
+    "parent_m1_08": {
+      "effective_production": 21926,
+      "minimum": 16000,
+      "status": "passed",
+      "auditor_digest": "351597f3c9b586f7288588be1ae6b048c6ffc92c7e6a006b7e39d2571f5f6010"
+    },
+    "whole_m1": {
+      "effective_production": 285538,
+      "protected_vendor_raw_added": 130176,
+      "unprotected_vendor_raw_added": 0,
+      "protected_source_pool_commit": "aecc6889ab072896d00c1ad962f3a18a174bfea9",
+      "status": "passed",
+      "auditor_digest": "d16f486857388b64752435d444e3906c1e5939d61dba09973075ee88910ebfe7"
     }
-  ],
-  "blocking_requirements": [
-    "complete and execute all 17 canonical owner disconnect probes with restore and no fallback masking",
-    "one sealed continuous run with at least 1000 effective actions and 2000 canonical transitions",
-    "two high-completion cross-domain live tasks",
-    "real local, isolated edge and cloud execution receipts",
-    "two real provider integrations using distinct wire dialects and models",
-    "dynamic sparse topology low-entropy comparison against full-connect, full-text and static-route baselines",
-    "zero-human fault, requirement-change and node-loss recovery evidence",
-    "all evidence envelopes admitted against the final implementation and evidence commits"
-  ],
+  },
+  "delta_reseal": {
+    "schema": "zyra.m1-delta-reseal-receipt/v1",
+    "target_commit": "068d13358e08967947d13c593d447ee21b72ae51",
+    "changed_paths": [
+      "packages/evaluation/zyra_evaluation/m1_hardening/integration_scenarios.py",
+      "tests/unit/test_m1_hardening_integration.py"
+    ],
+    "diff_digest": "4157dbf43c9cdb0f0eb918e14ad596bd8495c2b09479e36b9170d070af1911a5",
+    "runtime_or_scenario_definition_changed": false,
+    "full_scenario_rerun": false,
+    "full_scenario_rerun_reason": "Only the catalog evidence pointer and its unit assertion changed; project validation policy requires affected reruns rather than a second unrelated full run.",
+    "catalog_gate": "passed",
+    "catalog_evidence_count": 1,
+    "line_gate": "passed",
+    "cleanroom_gate": "passed",
+    "handoff_gate": "passed",
+    "exit_gate": "passed",
+    "attestation_count": 29,
+    "failed_attestation_count": 0,
+    "decision": "ready_for_m2",
+    "content_digest": "f318141ddfd85be0a93a9cca935e07c2d32aa56e56f3e326f89343d66e1140ec"
+  },
+  "exact_target_cleanroom": {
+    "status": "passed",
+    "target_commit": "068d13358e08967947d13c593d447ee21b72ae51",
+    "archive_digest": "412597069bd21ac9265df0b62684b80955bdfee106b8393c840a791bb4eb6621",
+    "receipt_digest": "416e8e10dfec8783366d088011ed3d33886eab95f057ce1987d0531df6b6c8b3",
+    "source_dirty": false,
+    "file_count": 6521,
+    "symlink_count": 0,
+    "residual_count": 0,
+    "outside_link_count": 0,
+    "forbidden_reference_count": 0,
+    "cleanup_ok": true,
+    "limitations": [],
+    "commands": [
+      {
+        "command_id": "python-compile",
+        "status": "passed",
+        "duration_ms": 4466
+      },
+      {
+        "command_id": "m1-hardening-unit",
+        "status": "passed",
+        "result": "25 passed in 5.60s",
+        "duration_ms": 6274
+      }
+    ]
+  },
+  "exit_bundle": {
+    "decision": "ready_for_m2",
+    "attestation_count": 29,
+    "failed_attestation_count": 0,
+    "content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+    "handoff_digest": "1702823771d1c434410d3fcc852718a5cef519d8153ff7757f593cd8eb4eb81c",
+    "limitations": []
+  },
+  "adjacent_validation": {
+    "result": "76 passed, 3 subtests passed",
+    "legacy_python_codeworker_integration": "superseded by the passing TypeScript-cutover foundation contract"
+  },
   "state_decision": {
-    "completed_through": "M1-S08-01",
-    "next_slice": "M1-S08-02-main-path-hardening-integration",
-    "protect_08_02": false,
-    "close_parent_m1_08": false,
-    "close_m1": false
-  }
+    "protect_m1_s08_02": true,
+    "close_parent_m1_08": true,
+    "close_m1": true,
+    "advance_to_m2": true
+  },
+  "blocking_requirements": []
 }

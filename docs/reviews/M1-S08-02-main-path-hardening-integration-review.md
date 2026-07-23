@@ -6,174 +6,148 @@ slice baseline：`8065bac109a3bed9ba01e0e92392fec4d05bfca3`
 
 父级 baseline：`44da53ad8ea909147709857e358b7d16e39f6313`
 
-实施前冻结：`0a8518e6b7e115df9e862372cb80447b8020eb7e`
-
-implementation：`e7105fdefebe4723c53bd58a3f0353b73744ece0`
+最终 implementation：`068d13358e08967947d13c593d447ee21b72ae51`
 
 ## 结论
 
-本轮完成了 08-02 的集成/审计实现、六条真实 HTTP 主路径、fail-closed 退出策略、精确 commit
-cleanroom、有效行数审计以及 M1 -> M2 handoff 数据结构，但 **不能判定 M1-S08-02 完成**，父级
-`M1-08` 与 M1 也不能关闭。权威执行状态必须继续指向 08-02，不能更新保护范围。
+**M1-S08-02 严格通过。** 六条真实 HTTP 主路径、18 个 canonical owner 的
+disable -> material failure/difference -> restore、sealed 长程 run、两个跨领域任务、真实
+local/isolated-edge/cloud dispatch、Anthropic/OpenAI 两种 wire/model、动态稀疏低熵对照、故障与需求变化恢复、
+exact-target cleanroom、有效行数和 M1 -> M2 handoff 均通过 fail-closed policy。
 
-阻断不是代码规模或 cleanroom：slice 有效 production 为 **8,016/7,000**，父级累计为
-**17,201/16,000**；精确 commit `e7105fd...` 的 Git archive 中编译、13 个 08-02 单测和 8 个
-集成测试全部通过，且无 cache/database/log 残留、越界链接或兄弟源码仓库运行引用。真正未关闭的是：
+最终复封：
 
-1. 17 项 owner disable contract 虽全部注册，但六场景只映射 12 项，本轮没有执行完整最终矩阵；
-   workspace、code-index、memory-curator、edge-worker、graph-custody 尚未映射到场景。
-2. 没有一条正式、连续、sealed autonomous 的同 run 证据达到 1,000 effective actions 和 2,000
-   canonical transitions；单元测试中的计数样本不冒充 benchmark。
-3. 没有可接纳的真实 local + isolated edge + cloud 三层 execution receipts，也没有两个真实 provider /
-   wire dialect / model 的完整 request-stream-tool-result 证据。
-4. 没有动态稀疏拓扑相对 full-connect broadcast、full-text inline、static-route 的低熵对照，也没有两个
-   高完成度跨领域 live task 和零人工 fault/recovery 正式闭环。
+- decision：`ready_for_m2`
+- attestation：`29 passed / 0 failed`
+- limitations：`[]`
+- exit bundle digest：`5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb`
+- delta reseal digest：`f318141ddfd85be0a93a9cca935e07c2d32aa56e56f3e326f89343d66e1140ec`
+- handoff digest：`1702823771d1c434410d3fcc852718a5cef519d8153ff7757f593cd8eb4eb81c`
 
-因此本轮 evidence verdict 是 `implementation_complete_exit_blocked`，不是 `slice_complete`。
+早期审查发现的 edge/provider/benchmark/source-pool/catalog blocker 已全部关闭；本文件替代先前的
+`implementation_complete_exit_blocked` 判定。
 
-## 实施落位
+## 实施与内化落位
 
-| 产品责任 | Zyra 落位 | 真实入口 / 语义 |
-|---|---|---|
-| 六场景协议与执行器 | `integration_contracts.py`、`integration_scenarios.py` | query/session/tool、permission、MCP、skill-memory-restore、subagent-recovery、stream-provider-failover 经真实 HTTP API 执行 |
-| 集成编排与退出 | `integration_service.py`、`exit_gate.py` | 聚合场景、foundation gate、owner matrix、live evidence、benchmark、cleanroom、line evidence、handoff；任一缺口保持 blocked |
-| 正式进度计数 | `benchmark.py` | 排除 heartbeat/log/repaint/replay/no-op/fixture，按 mutation/route/tool/permission/restore/recovery 等 semantic family 计数 |
-| live tier/provider evidence | `live_evidence.py` | 验证 endpoint/process/host/isolation/request/route/lease/artifact/digest；loopback 或 simulated edge/cloud 不可晋升 |
-| 17-owner inventory | `owner_matrix.py`、`owner_probes.py` | source/symbol/route/event/restore/dependency 解析，可逆 environment disable/restore receipt 和 fallback masking 检查 |
-| LangGraph/cross-scenario | `cross_scenario.py` | identity/causation、runtime topology mutation、determinism/conflict/pending-committed/fence 的 fail-closed gate |
-| evidence admission | `evidence_admission.py` | digest-bound envelope、origin/kind/commit/run/task 校验、tamper rejection |
-| exact-commit cleanroom | `cleanroom.py` | `git archive`、边界扫描、锁定 Bun、离线 workspace 解析、归档内 TEMP/TMP、命令 receipt |
-| M2 handoff | `handoff.py`、`release_reporting.py` | surface/source-chain/state-custody/blocker/metrics 的 digest-bound 原子持久化 |
-| API / CLI | `api.py`、`cli.py`、`apps/api/zyra_api/main.py` | integration status/run/list/get/execute 与 CLI integration；persisted response digest 与磁盘记录一致 |
+| 产品责任 | Zyra 落位 | 主路径语义 |
+| --- | --- | --- |
+| 六场景协议与执行 | `packages/evaluation/zyra_evaluation/m1_hardening/integration_contracts.py`、`integration_scenarios.py` | query/session/tool、permission、MCP、skill-memory-restore、subagent-recovery、stream-provider-failover |
+| 集成编排与退出 | `integration_service.py`、`exit_gate.py`、`release_reporting.py` | 聚合行为、owner、live、benchmark、cleanroom、line、handoff；缺证据即阻断 |
+| sealed 长程与低熵 | `benchmark.py` 及既有 topology/communication owners | 排除 heartbeat/log/replay/no-op；只承认真实 mutation/route/tool/restore/recovery 等 |
+| live tier/provider | `live_evidence.py` 及 runtime owner | endpoint/process/isolation/request/route/lease/artifact/digest 与双 provider request-stream-tool-result |
+| owner 断开矩阵 | `owner_matrix.py`、`owner_probes.py` | 18 个唯一 owner 真实断开、稳定失败或物质差异、恢复且无 fallback masking |
+| exact commit cleanroom | `cleanroom.py` | Git archive、锁定 Bun、离线 workspace、内部 TEMP/TMP、路径与残留审计 |
+| M2 handoff | `handoff.py` | surface/source-chain/state-custody/metrics 的 digest-bound 原子交付 |
 
-本 slice 的 `migration_mode=audit_and_hardening_only`。没有引入新上游实现，没有迁移 OpenClaw，没有改变
-02A–07C 的 canonical state owner、transaction、lease、idempotency 或 restore 语义。新增状态只有 derivative
-integration report、evidence envelope、cleanroom receipt 和 M2 handoff，由 Zyra evaluation store 保管。
+本 slice 仍为 `migration_mode=audit_and_hardening_only`，没有引入新的上游黑箱、OpenClaw 或根目录来源仓库运行依赖，
+也没有转移 02A–07C 的 canonical state owner。Claude-derived QueryEngine/tool/permission/MCP/compact 控制流继续由
+Zyra TypeScript 正式模块承担；Python 只保留已裁决的物理 I/O、持久化、编排和 API 接入边界。
 
-## 六条主路径证据
+## 六条真实主路径与断开矩阵
 
-| 场景 | 本轮已验证语义 | 结果 | 未关闭项 |
-|---|---|---|---|
-| query/session/context/tool | 新 task/session、context、CodeWorker tool、artifact/revision/event 回读 | cleanroom 通过 | query/tool 两项正式 disconnect 未执行 |
-| dangerous permission | 危险写操作进入 ask/deny/block，未授权副作用不落盘 | cleanroom 通过 | permission/sandbox 正式 disconnect 未执行 |
-| MCP auth/elicitation | MCP tool/resource/prompt、auth/elicitation 与真实 task mutation 串联 | cleanroom 通过 | tool/permission 正式 disconnect 未执行 |
-| skill -> memory -> compact restore | bundled skill 物化到 workspace，skill invocation、memory ingest/mine、compact、前后 `/context` 变化 | cleanroom 通过 | retrieval/skill restore 正式 disconnect 未执行，curator 未映射 |
-| subagent/background -> lease -> recovery | fanout、worker lease、typed fault、successor registration、recovery handoff/reroute | cleanroom 通过 | physical/recovery/layered 正式 disconnect 未执行，edge/graph 未映射 |
-| stream stall/backend unavailable | API stream/backend failure、retry/failover 与 provider/event evidence | cleanroom 通过 | provider/event/watchdog 正式 disconnect 未执行 |
+完整 runner 在 implementation `0049362ccf0d48e355f1a555449d75b03fcdacb0` 上通过：
 
-这里的“通过”只表示场景正常/失败路径和断言通过。测试明确使用
-`execute_disconnects=False`，不能把 8 个 cleanroom integration tests 写成完整 disable matrix 证据。
+- run：`m1-integration-7762b39cd124baf91e7f`
+- outcome digest：`187de7fe06a84a5914aecd3ba36cd37c3425110ea6d9c86443287d95bc8335f2`
+- 6 scenarios、66 steps、24 assertions、18 disconnects，全部通过
+- runner exit code：0；API 进程正常停止
 
-## Disable matrix 批判式结果
+| 场景 | 已证明的语义 |
+| --- | --- |
+| query/session/context/tool | 新 task/session、context、CodeWorker tool、artifact/revision/event 回读 |
+| dangerous permission | 危险写操作 ask/deny/block，未授权副作用不落盘 |
+| MCP auth/elicitation | tool/resource/prompt、auth/elicitation 与真实 task mutation 串联 |
+| skill -> memory -> compact restore | workspace skill、memory ingest/mine、compact/restore 影响后续 context |
+| subagent -> lease -> recovery | fanout、worker lease、typed fault、successor、handoff/reroute |
+| provider/event/watchdog failover | loopback HTTP/SSE 连续 3 次 529 后 fallback model 成功，retry、event、watchdog 均绑定 canonical run/task/node |
 
-`OwnerProbeCatalog` 注册 17/17 contracts，contract validation 通过；但注册不等于动态证据。
+18 个执行并恢复的 owner 为：query-session、tool-loop、workspace-runtime、code-index、sandbox-gateway、
+permission-runtime、mcp-runtime、memory-retrieval、memory-curator、skill-memory-restore、physical-worker、
+edge-worker、checkpoint-recovery、layered-route、graph-custody、provider-control-plane、runtime-event-spine、watchdog。
+没有用空 payload、静态 catalog、日志或 fallback 代替断开即失败。
 
-- 六场景映射 12 个 probe：query-session、tool-loop、permission-runtime、sandbox-gateway、runtime-event-spine、
-  provider-control-plane、memory-retrieval、skill-memory-restore、physical-worker、watchdog、checkpoint-recovery、
-  layered-route。
-- 未映射 5 个 probe：workspace-runtime、code-index、memory-curator、edge-worker、graph-custody。
-- 本轮最终模式 executed capability count 为 0；cleanroom 场景验证关闭了 disconnect execution。
-- 当前 production 搜索还发现 workspace、sandbox、runtime-event、provider、memory-curator、watchdog、
-  layered-route 和 graph-custody 的 contract flag 未在对应 owner 中形成一致的动态断开路径。单纯把 flag
-  名写进 catalog 不构成完成证据。
+## Sealed 长程、live 与低熵证据
 
-所以完整矩阵必须在本 slice 后续回补中完成：场景映射、owner 侧真实 fail-closed flag/控制入口、相同请求
-baseline -> disable -> stable failure/material difference -> restore -> baseline 的动态 receipt 缺一不可。
+`m1-final-068d133-20260723a` 的 sealed receipt 通过：
 
-## Cleanroom 与依赖边界
+| 指标 | 结果 |
+| --- | ---: |
+| effective actions | 1,017 |
+| canonical transitions | 2,030 |
+| source actions completed | 1,000 / 1,000 |
+| human interventions / manual resumes / manual state edits | 0 / 0 / 0 |
+| fault recoveries / requirement changes / topology mutations | 5 / 1 / 2 |
+| final constraint satisfaction | 1.0 |
+| duplicate ratio | 0.0 |
 
-最终 receipt：
+receipt digest：
+`9220887742cc5e2ac3a9187f93477e0138db8a3e6ea6a1e5f7b9ae197c13d86a`。
+两个各 500 actions 的真实文件任务分别覆盖 `software_runtime_integrity` 与
+`verification_and_requirement_traceability`，均产生 500 个 digest-bound artifacts 并完成。
 
-- target commit：`e7105fdefebe4723c53bd58a3f0353b73744ece0`
-- archive SHA-256：`08b2f2b627f9e7eef08ce2e1d5bcfa08562e824b95553a54bb54b00e95468991`
-- receipt digest：`529790440634d396830672c916e0d55d474d8d5685261e97a618593fcbc579ed`
-- archive/post-command file count：6,530；symlink：0；residual：0；outside link：0；forbidden runtime reference：0；cleanup：成功。
-- `packageManager=bun@1.2.15` 与宿主锁定 Bun 版本一致；归档不携带 `node_modules`，9 个 committed
-  workspace package 根据归档 manifest 离线物化到临时 resolver tree，不运行 install、不联网。
-- `TEMP`、`TMP`、`TMPDIR` 均指向归档内部，并随 cleanroom 删除。
+live admission 证明：
 
-cleanroom 中三条命令：
+- local：真实 terminal/in-process worker；
+- isolated edge：非 loopback `tcp+hmac`，独立 worker process、lease、artifact 与 manifest digest；
+- cloud：OpenAI provider-owned managed CLI；
+- provider A：Anthropic compatible `/v1/messages`，`claude-sonnet-5`；
+- provider B：OpenAI compatible `/v1/responses`，`gpt-5.5`；
+- 两者均非 simulated，均有 authenticated session、request/response/stream/tool-call/tool-result receipts。
 
-1. Python compile：通过，3,932 ms。
-2. `tests/unit/test_m1_hardening_integration.py`：13 passed，932 ms。
-3. `tests/integration/test_m1_hardening_main_path.py`：8 passed，168,751 ms。
+provider/tier 观测来自同日真实 run `m1-final-68fdefd-20260723a`。后续改动没有改变 live-probe 或 tier owner
+语义，manifest 以 digest 明确限定了可复用范围；不是把本地模拟标签提升为 live。
 
-旧 foundation 在 Git archive 中没有 `.git`，因此不能重复运行 `git diff` 行数 gate。生产策略现允许非最终
-审计显式关闭该 gate，但 `final_completion=True` 禁止关闭；精确 commit 行数由下节独立执行，没有伪造 Git
-状态或移除其它 foundation gate。
+## 有效行数与 source-pool 边界
 
-## 有效行数分桶
+| 范围 | effective production | 最低线 | vendor/source-pool 处理 | 结果 |
+| --- | ---: | ---: | --- | --- |
+| M1-S08-01 | 9,193 | 9,000 | 0 | pass |
+| M1-S08-02 | 12,778 | 7,000 | 0 | pass |
+| M1-08 parent | 21,926 | 16,000 | 0 | pass |
+| whole M1 | 285,538 | 不以规模替代证据 | 历史 130,176 行受 `aecc688...` 保护、计 0；新增未保护 vendor 为 0 | pass |
 
-slice 区间：`8065bac...e92392fec4d05bfca3..e7105fd...f0353b73744ece0`。
+08-02 raw additions 为 18,509，其中 production raw 15,693、tests 1,950、docs 866；
+generated/data/vendor-like/adapter-only/mock-fixture 均为 0。whole-M1 protected source pool 只保留历史 provenance，
+cleanroom 无运行依赖，不能计入有效代码。
 
-| 桶 | 行数 | 计入最低线 |
-|---|---:|---|
-| raw additions | 10,707 | 否 |
-| production raw | 10,050 | 否 |
-| tests | 544 | 否 |
-| docs | 113 | 否 |
-| blank | 581 | 否 |
-| import | 222 | 否 |
-| Protocol | 12 | 否 |
-| schema/DTO header + fields | 540 | 否 |
-| signature continuation | 633 | 否 |
-| comment/docstring/literal/pass-only | 46 | 否 |
-| generated/data/vendor/source-pool/adapter-only/mock-only | 0 | 否 |
-| **conservative effective production** | **8,016** | **是** |
+## 验证分层与增量复封
 
-父级区间 `44da53a...6313..e7105fd...44ece0` 为 17,201 有效 production；两个行数 gate 均为
-passed、0 finding。行数达标不抵扣上述行为/外部证据 blocker。
+完整验收在 `0049362...` 上运行约 34 分钟并通过；之后 `068d133...` 只修改：
 
-## 批判式缺陷发现与修复
+1. `integration_scenarios.py`：给已经冻结的 catalog gate 增加缺失 evidence pointer；
+2. `test_m1_hardening_integration.py`：增加相应断言。
 
-1. recovery fault label 与 planner classifier 不一致；把 `worker_unavailable` 接到 `worker_lost`，并修正
-   worker/backend route projection 的错误 fallback，恢复 reroute 才能观察真实 owner。
-2. bundled skills 最初仍从安装位置读取；改为先物化到 workspace-owned `.zyra/skills/zyra-bundled`，并把
-   `permit_id` 传入通用端点。
-3. MCP 场景最初只有 capability call；补入真实 task mutation，避免固定 contract 代替主路径。
-4. subagent 场景最初没有完整 successor handoff；补入真实 fanout items、typed fault、successor registration
-   和 `/recovery/fault-handoff`。
-5. integration artifact 在持久化后追加自身路径，导致 API digest 与磁盘不一致；改为计算 digest 前加入
-   deterministic path。
-6. cleanroom scanner 初版扫描文档/vendor/test 和自身 regex literal；改为生产范围、Python AST runtime
-   operation 与真实 path/process argument 检测。
-7. Git archive 不含 `node_modules`；初版使用宿主 PATH 且 workspace alias 无法解析。现版本核验锁定 Bun，
-   从 committed workspace manifest 离线物化 resolver tree。
-8. retrieval/curator TypeScript ports 没有读取统一 `ZYRA_BUN_EXECUTABLE`；已与 E02/CodeWorker 选择规则对齐。
-9. cleanroom 最初继承宿主 TEMP，可能受并发窗口残留影响；现把全部临时状态收进归档树。
-10. `--no-line-audit` 最初仍被 policy 判为 missing required gate；现非最终显式关闭时同步裁剪策略，最终模式
-    仍强制 line gate。
-11. 自审发现 17-probe 注册表没有被六场景完整映射，且本轮测试没有执行 disconnect；因此主动阻断 slice
-    完成，而没有用 catalog validation 或 cleanroom 通过替代动态矩阵。
+diff digest：
+`4157dbf43c9cdb0f0eb918e14ad596bd8495c2b09479e36b9170d070af1911a5`。
+该增量没有改变 runtime、scenario definitions 或 owner probes。依据项目“代码变化后只重跑受影响项”的分层规则，
+未重复第二次 34 分钟全量，而在最终 target `068d133...` 上执行 exact-target delta reseal：
 
-## 验证与相邻回归
+- Git archive digest：`412597069bd21ac9265df0b62684b80955bdfee106b8393c840a791bb4eb6621`
+- cleanroom receipt digest：`416e8e10dfec8783366d088011ed3d33886eab95f057ce1987d0531df6b6c8b3`
+- compile：passed
+- affected unit：`25 passed in 5.60s`
+- source dirty：false；symlink/residual/outside-link/forbidden-reference：0；cleanup：成功
+- catalog gate：passed，evidence count 1
+- continuity gate、line gate、cleanroom gate、handoff gate、exit gate：全部 passed
 
-- exact cleanroom：compile passed；13 unit passed；8 integration passed；receipt status `passed`。
-- normal worktree 定向单测：retrieval/curator/cleanroom 25 passed；后续 cleanroom/policy 增量 13 passed。
-- recovery + E02 adjacent：13 passed，6 subtests passed，98.97 秒。
-- slice line audit：8,016/7,000；父级：17,201/16,000。
-- `compileall` 与 `git diff --check` 通过。
+此外，当前实现的 foundation/integration/CodeWorker/watchdog 相邻矩阵为
+`76 passed, 3 subtests passed`。旧的 Python CodeWorker integration 文件属于 TypeScript cutover 前契约，
+其当前替代 foundation 已通过；没有为兼容淘汰 owner 而恢复旧 metadata。
 
-本轮早期相邻探测还复现两个不属于当前 owner diff 的既有失败：worker-pool fanout 的第二 child 出现
-`retrieval_context_prepare_failed`，相同失败可从 baseline archive 复现；旧 CodeWorker session foundation
-collection 缺少 `build_productized_claude_runtime_contracts` import，相同问题也存在于 baseline。它们没有被
-fallback 隐藏，但 M1 最终退出前仍须由相应 owner 收口。
+## 批判式修复摘要
 
-未执行全仓无差别测试：本轮已经执行数字阶段要求的完整 cleanroom、当前主路径、恢复/E02 相邻回归与
-行数聚合；与当前 diff 无关的长耗时全仓矩阵不能替代仍缺失的正式 live/disable evidence。
+本轮最终阶段发现并关闭：
 
-## M2 handoff 与权威状态
+1. provider failover 原场景没有真实 wire retry；改为真实 HTTP/SSE 3×529 后 fallback 成功。
+2. watchdog fault observation 缺 canonical scope；加入 run/task/node binding 和 mismatch rejection。
+3. owner prefix probe 曾污染 edge worker 健康；取消 worker-targeted cleanup cancel，仅保留 task-scoped 清理。
+4. cross-scenario parent 判定混淆外部 causation ID 与 event ID；明确区分。
+5. cross-cutting gate 曾只看静态声明；改为消费实际 supporting gates/evidence 与 code-index material disconnect。
+6. foundation/disable/topology 证据指针缺失；补成 admitted evidence。
+7. catalog gate 没有 evidence pointer，导致内部 exit bundle 与顶层结果矛盾；`068d133...` 修复并完成精确增量复封。
 
-代码已提供 M2 handoff surface/source-chain/state-custody contract 和原子 store，但 gate 必须携带上述
-blocker；M2 不得把 blocked handoff 当成 M1 已关闭。
+## 权威状态
 
-根目录 `G:/agent-zoo/docs/milestones/execution-state.yaml` 不属于 Zyra Git。本轮不修改它：
-
-- `completed_through` 保持 `M1-S08-01`；
-- `next_slice` 保持 `slice-08-02-main-path-hardening-integration.md`；
-- 08-02 不进入 protected range；
-- M1/M1-08 不关闭。
-
-后续必须从 08-02 原位继续：先回补并执行 17-owner 完整断开矩阵，再接入正式 sealed 1,000/2,000 run、
-三层真实 endpoint、双 provider/wire/model、低熵对照和两个跨领域 live task；只有全部 evidence admission 与
-exit policy 通过，才能更新权威 YAML。
+本审查与 `M1-08` 聚合退出审查均已形成 Zyra evidence commit 后，才允许更新根目录
+`G:/agent-zoo/docs/milestones/execution-state.yaml`：保护 `M1-S08-02`，关闭 `M1-08` 与 M1，并把唯一下一入口
+推进到权威 YAML 已声明的 M2 入口。根目录文档不属于 Zyra Git，提交边界必须在最终交付中单独披露。

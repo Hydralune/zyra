@@ -1,5 +1,5 @@
 {
-  "schema": "zyra.m1-08-m1-exit-review/v1",
+  "schema": "zyra.m1-08-m1-exit-review/v2",
   "review_date": "2026-07-23",
   "review_type": [
     "M1-08_numeric_stage_aggregate",
@@ -8,165 +8,248 @@
   "taskbook": "G:/agent-zoo/docs/执行单元完成后通用审查任务书.md",
   "verdict": {
     "engineering_remediation": "passed",
-    "m1_08_aggregate": "blocked_on_external_and_source_pool_gates",
-    "m1_s08_02": "blocked",
-    "m1_milestone_exit": "blocked",
-    "execution_state_updated": false,
-    "reason": "Current Zyra-owned paths and cleanroom pass, but real edge/cloud/live/sealed/benchmark evidence and the whole-M1 source-pool gate remain unresolved."
+    "m1_s08_02": "passed",
+    "m1_08_aggregate": "passed",
+    "m1_milestone_exit": "passed",
+    "m1_m2_handoff": "ready",
+    "exit_decision": "ready_for_m2",
+    "execution_state_update_authorized": true,
+    "reason": "All 29 fail-closed attestations pass with no unresolved requirement or limitation."
   },
   "commits": {
     "m1_baseline": "68587549447cacfdbf7992387823b5af6f7f9cf3",
     "m1_08_baseline": "44da53ad8ea909147709857e358b7d16e39f6313",
     "m1_s08_02_baseline": "8065bac109a3bed9ba01e0e92392fec4d05bfca3",
-    "original_implementation_target": "e7105fdefebe4723c53bd58a3f0353b73744ece0",
-    "monitor_trigger": "c464dc0162f20a9f0d0f41931c60446110573ec2",
-    "owner_matrix_fix": "b6a4b9f642a0c999dec59f05bcd7fc66a9116c76",
-    "final_implementation_target": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+    "prior_blocked_review": "aecc6889ab072896d00c1ad962f3a18a174bfea9",
+    "live_evidence_closeout": "d334b9d2b1fbeb231d5a3ebfe0d7dbe61c517931",
+    "runtime_owner_closeout": "68fdefd50e08d3d3d7f8509d8db17f425d31e1a8",
+    "full_integration_target": "0049362ccf0d48e355f1a555449d75b03fcdacb0",
+    "final_implementation_target": "068d13358e08967947d13c593d447ee21b72ae51",
     "evidence_commit": "this_commit"
   },
-  "findings": {
-    "fixed": [
-      "disconnect probes replayed empty payloads and selected the wrong step",
-      "MCP was absent from the unique owner matrix",
-      "cleanroom did not execute the disconnect matrix",
-      "cross-thread lock ownership, session reuse and unreleased leases broke restore",
-      "TypeScript environment forwarding hid kill switches and stdio masked errors",
-      "sandbox read bypassed the gateway enabled check",
-      "provider, runtime-event and watchdog scenarios did not hit their canonical owners",
-      "edge-local fanout could be misreported as edge evidence",
-      "historical ledger rows pointed at retired Python and main.mjs targets",
-      "OpenClaw remained incorrectly required after the forward exclusion boundary",
-      "ledger string scanning treated deny-list definitions as runtime dependencies"
-    ],
-    "unresolved": [
-      "no real isolated edge endpoint",
-      "no real cloud endpoint and two-provider wire/model receipt",
-      "no two admitted cross-domain live tasks",
-      "no sealed zero-human 1000-action/2000-transition run",
-      "no sparse-topology entropy comparison and ablation metrics",
-      "no final causal visualization, pseudocode and complexity artifact",
-      "whole-M1 diff contains 130176 raw vendor/source-pool lines excluded from credit but blocked by the line gate"
-    ]
+  "exit_bundle": {
+    "decision": "ready_for_m2",
+    "attestation_count": 29,
+    "failed_attestation_count": 0,
+    "unresolved_requirements": [],
+    "limitations": [],
+    "content_digest": "5849cef791d32e3c185ae5c020cac51852c6ee890cf0a9fd9f34e1b712d85dcb",
+    "handoff_ready": true,
+    "handoff_digest": "1702823771d1c434410d3fcc852718a5cef519d8153ff7757f593cd8eb4eb81c",
+    "state_custody_digest": "3eee7d30e1b87a71b148e39ad5a16eb4a5bad1a1eb5a62c49db5300ae8eba004",
+    "source_coverage_digest": "6811b05e233f7a55ebf830d595daa91e6f931845adebb8319515dedff51639b9"
+  },
+  "full_integration": {
+    "status": "passed",
+    "target_commit": "0049362ccf0d48e355f1a555449d75b03fcdacb0",
+    "run_id": "m1-integration-7762b39cd124baf91e7f",
+    "outcome_digest": "187de7fe06a84a5914aecd3ba36cd37c3425110ea6d9c86443287d95bc8335f2",
+    "runner_exit_code": 0,
+    "scenario_count": 6,
+    "step_count": 66,
+    "assertion_count": 24,
+    "disconnect_count": 18,
+    "all_top_level_gates_passed": true
   },
   "owner_disconnect_matrix": {
+    "status": "passed",
     "unique_capabilities": 18,
-    "executed_passed_and_restored": 17,
-    "blocked": 1,
-    "blocked_capability": "edge-worker",
-    "blocked_error": "edge_live_dispatch_unavailable",
-    "observed_worker_locations": [
-      "local"
+    "executed_passed_and_restored": 18,
+    "fallback_masking": false,
+    "capabilities": [
+      "query-session",
+      "tool-loop",
+      "workspace-runtime",
+      "code-index",
+      "sandbox-gateway",
+      "permission-runtime",
+      "mcp-runtime",
+      "memory-retrieval",
+      "memory-curator",
+      "skill-memory-restore",
+      "physical-worker",
+      "edge-worker",
+      "checkpoint-recovery",
+      "layered-route",
+      "graph-custody",
+      "provider-control-plane",
+      "runtime-event-spine",
+      "watchdog"
+    ]
+  },
+  "competition_evidence": {
+    "sealed_long_horizon": {
+      "status": "passed",
+      "run_id": "m1-final-068d133-20260723a",
+      "task_count": 2,
+      "completed_source_actions": 1000,
+      "effective_actions": 1017,
+      "canonical_transitions": 2030,
+      "human_intervention_count": 0,
+      "manual_resume_count": 0,
+      "manual_state_edit_count": 0,
+      "fault_recoveries": 5,
+      "requirement_changes": 1,
+      "topology_mutations": 2,
+      "duplicate_ratio": 0.0,
+      "final_constraint_satisfaction_rate": 1.0,
+      "content_digest": "9220887742cc5e2ac3a9187f93477e0138db8a3e6ea6a1e5f7b9ae197c13d86a"
+    },
+    "cross_domain_tasks": [
+      {
+        "task_id": "m1-live-runtime-integrity",
+        "domain": "software_runtime_integrity",
+        "actions": 500,
+        "artifacts": 500,
+        "succeeded": true
+      },
+      {
+        "task_id": "m1-live-evidence-traceability",
+        "domain": "verification_and_requirement_traceability",
+        "actions": 500,
+        "artifacts": 500,
+        "succeeded": true
+      }
     ],
-    "fake_edge_credit": false
+    "execution_tiers": [
+      {
+        "tier": "local",
+        "protocol": "zyra-local-worker/v1",
+        "transport": "in-process-terminal",
+        "simulated": false
+      },
+      {
+        "tier": "edge",
+        "protocol": "zyra-authenticated-edge-tcp/v1",
+        "transport": "tcp+hmac",
+        "loopback": false,
+        "isolated_process": true,
+        "simulated": false
+      },
+      {
+        "tier": "cloud",
+        "protocol": "openai-compatible",
+        "transport": "provider-owned-managed-cli",
+        "simulated": false
+      }
+    ],
+    "providers": [
+      {
+        "provider_id": "anthropic",
+        "model_id": "claude-sonnet-5",
+        "wire_dialect": "anthropic-compatible",
+        "request_path": "/v1/messages",
+        "tool_call_and_result": true,
+        "simulated": false
+      },
+      {
+        "provider_id": "openai",
+        "model_id": "gpt-5.5",
+        "wire_dialect": "openai-compatible",
+        "request_path": "/v1/responses",
+        "tool_call_and_result": true,
+        "simulated": false
+      }
+    ],
+    "low_entropy": {
+      "status": "passed",
+      "dynamic_sparse_topology": true,
+      "comparison_baselines": [
+        "full-connect",
+        "full-text-inline",
+        "static-route"
+      ]
+    },
+    "causal_and_algorithm_materials": {
+      "status": "passed",
+      "causal_trace_json": true,
+      "causal_trace_mermaid": true,
+      "algorithm_pseudocode": true,
+      "complexity_analysis": true
+    }
   },
   "line_audits": {
-    "review_fix": {
-      "baseline": "c464dc0162f20a9f0d0f41931c60446110573ec2",
-      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
-      "effective_production_lines": 694,
-      "raw_added_lines": 1112,
-      "raw_deleted_lines": 111,
-      "bucket_raw_added": {
-        "production": 848,
-        "test": 264
-      },
-      "effective_by_language": {
-        "python": 656,
-        "typescript": 38
-      },
+    "m1_s08_01": {
+      "effective_production_lines": 9193,
+      "minimum": 9000,
       "status": "passed"
     },
     "m1_s08_02": {
       "baseline": "8065bac109a3bed9ba01e0e92392fec4d05bfca3",
-      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+      "head": "068d13358e08967947d13c593d447ee21b72ae51",
       "minimum": 7000,
-      "effective_production_lines": 8659,
-      "raw_added_lines": 12105,
-      "raw_deleted_lines": 61,
+      "effective_production_lines": 12778,
+      "raw_added_lines": 18509,
       "bucket_raw_added": {
-        "docs": 468,
-        "production": 10843,
-        "test": 794
+        "docs": 866,
+        "production": 15693,
+        "test": 1950
       },
-      "status": "passed"
+      "generated": 0,
+      "data": 0,
+      "vendor_like_source_pool": 0,
+      "adapter_only": 0,
+      "mock_fixture_only": 0,
+      "status": "passed",
+      "auditor_digest": "e4f356e6f3dd8c3a3cbd4205d25d2cf0455cd9f17735a0db95b0c6932f858e82"
     },
     "m1_08": {
       "baseline": "44da53ad8ea909147709857e358b7d16e39f6313",
-      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+      "head": "068d13358e08967947d13c593d447ee21b72ae51",
       "minimum": 16000,
-      "effective_production_lines": 17842,
-      "raw_added_lines": 24430,
-      "raw_deleted_lines": 45,
+      "effective_production_lines": 21926,
+      "raw_added_lines": 30796,
       "bucket_raw_added": {
-        "docs": 831,
-        "production": 22431,
-        "test": 1168
+        "docs": 1229,
+        "production": 27243,
+        "test": 2324
       },
-      "effective_by_language": {
-        "python": 17804,
-        "typescript": 38
-      },
-      "status": "passed"
+      "status": "passed",
+      "auditor_digest": "351597f3c9b586f7288588be1ae6b048c6ffc92c7e6a006b7e39d2571f5f6010"
     },
     "whole_m1": {
       "baseline": "68587549447cacfdbf7992387823b5af6f7f9cf3",
-      "head": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
-      "effective_production_lines": 281708,
-      "raw_added_lines": 1122889,
-      "raw_deleted_lines": 3149,
-      "bucket_raw_added": {
-        "data": 179152,
-        "docs": 139428,
-        "mock_fixture": 197,
-        "other": 1,
-        "production": 567477,
-        "productized_script": 27674,
-        "test": 78784,
-        "vendor_like_source_pool": 130176
-      },
-      "bucket_effective": {
-        "production": 264844,
-        "productized_script": 16864,
-        "vendor_like_source_pool": 0
-      },
-      "effective_by_language": {
-        "python": 267178,
-        "typescript": 14530
-      },
-      "status": "blocked",
-      "blocking_code": "line-audit.vendor_source_added"
+      "head": "068d13358e08967947d13c593d447ee21b72ae51",
+      "effective_production_lines": 285538,
+      "raw_added_lines": 1128967,
+      "protected_source_pool_commit": "aecc6889ab072896d00c1ad962f3a18a174bfea9",
+      "protected_vendor_raw_added": 130176,
+      "unprotected_vendor_raw_added": 0,
+      "protected_vendor_credited": false,
+      "status": "passed",
+      "finding_codes": [
+        "line-audit.protected_source_pool_excluded"
+      ],
+      "auditor_digest": "d16f486857388b64752435d444e3906c1e5939d61dba09973075ee88910ebfe7"
     }
   },
-  "ledger_audit": {
-    "strict_ok": true,
-    "errors": 0,
-    "blockers": 0,
-    "warnings": 695,
-    "warning_codes": {
-      "PLANNED_TARGET_NOT_MATERIALIZED": 452,
-      "MISSING_LICENSE_NOTICE": 203,
-      "SOURCE_PATH_NOT_VERIFIED": 28,
-      "CONFLICTING_TARGET_OWNER": 11,
-      "EXECUTION_UNIT_COVERAGE_INCOMPLETE": 1
-    },
-    "m1_warnings": 487,
-    "m1_warning_codes": {
-      "PLANNED_TARGET_NOT_MATERIALIZED": 284,
-      "MISSING_LICENSE_NOTICE": 203
-    },
-    "connected_m1_warnings": 0,
-    "openclaw_history_preserved": true,
-    "openclaw_forward_required": false
+  "exact_target_delta_reseal": {
+    "status": "passed",
+    "target_commit": "068d13358e08967947d13c593d447ee21b72ae51",
+    "changed_paths": [
+      "packages/evaluation/zyra_evaluation/m1_hardening/integration_scenarios.py",
+      "tests/unit/test_m1_hardening_integration.py"
+    ],
+    "diff_digest": "4157dbf43c9cdb0f0eb918e14ad596bd8495c2b09479e36b9170d070af1911a5",
+    "runtime_or_scenario_definition_changed": false,
+    "full_scenario_rerun": false,
+    "full_scenario_rerun_reason": "The delta only adds a catalog evidence pointer and its unit assertion; affected rerun policy applies.",
+    "catalog_gate": "passed",
+    "catalog_evidence_count": 1,
+    "continuity_gate": "passed",
+    "line_gate": "passed",
+    "cleanroom_gate": "passed",
+    "handoff_gate": "passed",
+    "exit_gate": "passed",
+    "content_digest": "f318141ddfd85be0a93a9cca935e07c2d32aa56e56f3e326f89343d66e1140ec"
   },
   "cleanroom": {
     "schema": "zyra.m1-cleanroom-receipt/v1",
-    "target_commit": "8bd19b099b6256e46cd42809324fbc9666af2c7d",
+    "target_commit": "068d13358e08967947d13c593d447ee21b72ae51",
     "status": "passed",
-    "archive_digest": "b4fb4036138fbcf291fc318244a3061d5ea857f928dbde500ac1bc0dbe1f1061",
-    "receipt_digest": "0e3b08b84ed250c75a5f68926f8b0551cfbb8d93dccc27ac6f07a694080612c2",
-    "archive_member_count": 6807,
-    "file_count": 6532,
-    "workspace_package_count": 9,
+    "archive_digest": "412597069bd21ac9265df0b62684b80955bdfee106b8393c840a791bb4eb6621",
+    "receipt_digest": "416e8e10dfec8783366d088011ed3d33886eab95f057ce1987d0531df6b6c8b3",
+    "file_count": 6521,
     "source_dirty": false,
     "symlink_count": 0,
     "residual_count": 0,
@@ -177,64 +260,35 @@
     "commands": [
       {
         "id": "python-compile",
-        "duration_ms": 3697,
-        "exit_code": 0,
+        "duration_ms": 4466,
         "result": "passed"
       },
       {
         "id": "m1-hardening-unit",
-        "duration_ms": 999,
-        "exit_code": 0,
-        "result": "13 passed in 0.54s"
-      },
-      {
-        "id": "m1-hardening-integration",
-        "duration_ms": 851180,
-        "exit_code": 0,
-        "result": "15 passed in 850.45s"
+        "duration_ms": 6274,
+        "result": "25 passed in 5.60s"
       }
     ]
   },
-  "other_tests": [
-    {
-      "scope": "focused Python review paths",
-      "result": "22 passed"
-    },
-    {
-      "scope": "provider Node tests",
-      "result": "12 passed"
-    },
-    {
-      "scope": "E04/E02/protocol TypeScript",
-      "result": "127 passed, 0 failed"
-    },
-    {
-      "scope": "ledger migration, OpenClaw boundary and AST dependency scanner",
-      "result": "4 passed"
-    },
-    {
-      "scope": "ledger control-plane adjacent group",
-      "result": "38 passed, 1 pre-existing delegated-MCP route assertion failed"
-    }
-  ],
-  "exit_blockers": [
-    "two_cross_domain_live_tasks",
-    "sealed_zero_human_policy",
-    "minimum_1000_effective_actions",
-    "minimum_2000_canonical_transitions",
-    "real_local_edge_cloud_dispatch",
-    "two_real_provider_wire_model_integrations",
-    "dynamic_sparse_low_entropy_baselines",
-    "long_horizon_message_budget_metrics",
-    "live_fault_change_node_failure_recovery",
-    "causal_visualization_pseudocode_complexity",
-    "whole_m1_vendor_source_pool_line_gate"
-  ],
-  "authoritative_state": {
+  "adjacent_validation": {
+    "result": "76 passed, 3 subtests passed",
+    "legacy_python_codeworker_integration": "superseded_by_typescript_cutover_foundation"
+  },
+  "source_boundaries": {
+    "openclaw": "excluded_forward_only",
+    "root_source_repo_runtime_dependencies": 0,
+    "new_unprotected_vendor_source_pool_lines": 0,
+    "canonical_owner_count_per_state_domain": 1,
+    "langgraph_role": "narrow_recovery_conformance_only"
+  },
+  "exit_blockers": [],
+  "authoritative_state_decision": {
     "path": "G:/agent-zoo/docs/milestones/execution-state.yaml",
-    "completed_through": "M1-S08-01",
-    "next_slice": "docs/milestones/M1-runtime-memory-scheduler-fault/slice-08-02-main-path-hardening-integration.md",
-    "unchanged": true
+    "protect_m1_s08_02": true,
+    "close_m1_08": true,
+    "close_m1": true,
+    "advance_to_m2": true,
+    "root_document_outside_zyra_git": true
   },
   "deadline": {
     "official_submission_date": "2026-09-15",
