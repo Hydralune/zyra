@@ -339,8 +339,7 @@ export class CommandQueue {
     return [...values].sort((left, right) => {
       const priority = PRIORITY[left.priority] - PRIORITY[right.priority]
       if (priority) return priority
-      const created = left.createdAt - right.createdAt
-      return created || left.id.localeCompare(right.id)
+      return left.createdAt - right.createdAt
     })
   }
 

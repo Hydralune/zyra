@@ -10,6 +10,12 @@ import { EmptyState, ErrorState, LoadingState, PhaseRegion } from "../status/req
 import { buildTaskTree, type TaskTreeNode } from "../../shell/task-tree.ts"
 import { taskActionSet } from "../../shell/task-action-policy.ts"
 import { formatDuration, taskHealthLabel, taskMetrics } from "../../shell/task-metrics.ts"
+import { useProjectionSelector } from "../../app/hooks.ts"
+import {
+  selectTaskSummary,
+  selectEventsForTask,
+  selectRevision,
+} from "../../state/selectors.ts"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -142,6 +148,12 @@ function TaskActions({
 function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: TaskProjection }) {
   const tree = useMemo(() => buildTaskTree(task), [task])
   const metrics = useMemo(() => taskMetrics(task), [task])
+  const live = useProjectionSelector(runtime, selectTaskSummary(task.taskId))
+  const recentEvents = useProjectionSelector(
+    runtime,
+    selectEventsForTask(task.taskId, { limit: 8 }),
+  )
+  const projectionRevision = useProjectionSelector(runtime, selectRevision())
   return (
     <div className="task-detail-scroll">
       <header className="task-detail-header">
@@ -191,7 +203,50 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
           <dt>Dependencies</dt>
           <dd>{metrics.dependencyEdges}</dd>
         </div>
+        <div>
+          <dt>Projection revision</dt>
+          <dd>{projectionRevision}</dd>
+        </div>
+        <div>
+          <dt>Committed sequence</dt>
+          <dd>{live.lastSequence}</dd>
+        </div>
+        <div>
+          <dt>Live workers</dt>
+          <dd>{live.activeWorkers}/{live.workers}</dd>
+        </div>
+        <div>
+          <dt>Pending approvals</dt>
+          <dd>{live.pendingPermissions}</dd>
+        </div>
       </dl>
+
+      <section className="detail-section" aria-labelledby="recent-events-heading">
+        <div className="section-heading">
+          <h3 id="recent-events-heading">Canonical events</h3>
+          <span>{recentEvents.length}</span>
+        </div>
+        {recentEvents.length ? (
+          <ol className="plan-list">
+            {recentEvents.map((event) => (
+              <li className="plan-node" key={event.eventId}>
+                <span className="status-marker status-running" aria-hidden="true" />
+                <div>
+                  <div className="plan-node-heading">
+                    <strong>{event.eventType}</strong>
+                    <span className="tag tag-muted">#{event.sequence}</span>
+                  </div>
+                  <p>{event.summary}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="muted-copy">
+            The canonical event projection is restoring or waiting for its first committed event.
+          </p>
+        )}
+      </section>
 
       <section className="detail-section" aria-labelledby="plan-heading">
         <div className="section-heading">

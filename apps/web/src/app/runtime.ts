@@ -12,9 +12,15 @@ import { createBrowserRouter, WorkbenchRouter } from "../shell/router.ts"
 import { WorkbenchController } from "../shell/workbench-controller.ts"
 import { WorkbenchRouteLoader } from "../shell/route-loader.ts"
 import { AccessibilityAnnouncer } from "../shell/accessibility-announcer.ts"
+import {
+  createCanonicalProjectionStore,
+  type CanonicalProjectionStore,
+} from "../state/index.ts"
+import type { ProjectionIngressBinding } from "../state/contracts.ts"
 
 export interface WorkbenchRuntime {
   api: ReturnType<typeof createZyraApi>
+  projections: CanonicalProjectionStore
   router: WorkbenchRouter
   focus: FocusManager
   layout: LayoutRuntime
@@ -53,6 +59,11 @@ export function createWorkbenchRuntime(
   } = {},
 ): WorkbenchRuntime {
   const api = createZyraApi(options.client ?? configuredClientOptions())
+  const projections = createCanonicalProjectionStore({
+    id: "workbench",
+    autoPersist: true,
+    restore: true,
+  })
   const router = options.router ?? createBrowserRouter()
   const focus = options.focus ?? createBrowserFocusManager()
   const layout = createBrowserLayoutRuntime()
@@ -101,9 +112,34 @@ export function createWorkbenchRuntime(
       )
     }
   })
+  let projectionBinding: ProjectionIngressBinding | undefined
+  let projectionTaskId: string | undefined
+  let projectionRouteGeneration = 0
+  const bindProjectionRoute = (taskId?: string) => {
+    const generation = ++projectionRouteGeneration
+    projectionBinding?.close()
+    projectionBinding = undefined
+    if (projectionTaskId) projections.unpinTask(projectionTaskId)
+    projectionTaskId = undefined
+    if (!taskId) return
+    void projections.ready.then(() => {
+      if (generation !== projectionRouteGeneration || closed) return
+      projectionBinding = projections.bind(api.events, taskId)
+      projections.pinTask(taskId)
+      projectionTaskId = taskId
+    })
+  }
+  const unsubscribeProjectionRoute = router.listen((route) => {
+    bindProjectionRoute(route.kind === "task" ? route.taskId : undefined)
+  })
   let closed = false
+  const initialRoute = router.current
+  bindProjectionRoute(
+    initialRoute.kind === "task" ? initialRoute.taskId : undefined,
+  )
   return {
     api,
+    projections,
     router,
     focus,
     layout,
@@ -120,6 +156,13 @@ export function createWorkbenchRuntime(
     close(reason?: unknown) {
       if (closed) return
       closed = true
+      projectionRouteGeneration += 1
+      unsubscribeProjectionRoute()
+      projectionBinding?.close()
+      projectionBinding = undefined
+      if (projectionTaskId) projections.unpinTask(projectionTaskId)
+      projectionTaskId = undefined
+      void projections.close(String(reason ?? "Workbench closed."))
       unsubscribeLifecycle()
       commands.close(String(reason ?? "Workbench closed."))
       queue.close(String(reason ?? "Workbench closed."))

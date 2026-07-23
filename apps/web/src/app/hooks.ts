@@ -1,6 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import type { WorkbenchRuntime } from "./runtime.ts"
 import type { WorkbenchRoute } from "../shell/router.ts"
+import type { ProjectionSelector } from "../state/contracts.ts"
 
 export function useWorkbenchSnapshot(runtime: WorkbenchRuntime) {
   return useSyncExternalStore(
@@ -47,6 +48,21 @@ export function useAnnouncementSnapshot(runtime: WorkbenchRuntime) {
     runtime.announcer.subscribe,
     runtime.announcer.getSnapshot,
     runtime.announcer.getSnapshot,
+  )
+}
+
+export function useProjectionSelector<T>(
+  runtime: WorkbenchRuntime,
+  selector: ProjectionSelector<T>,
+): T {
+  const adapter = useMemo(
+    () => runtime.projections.externalSelector(selector),
+    [runtime, selector.key],
+  )
+  return useSyncExternalStore(
+    adapter.subscribe,
+    adapter.getSnapshot,
+    adapter.getSnapshot,
   )
 }
 
