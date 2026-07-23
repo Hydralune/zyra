@@ -20,7 +20,7 @@
     "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/provider-control-plane/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json && tsc -p packages/memory/curator-state-machine/tsconfig.json && tsc -p packages/memory/retrieval-algorithms/tsconfig.json && tsc -p packages/memory/skill-memory-runtime/tsconfig.json && tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p apps/web/tsconfig.json",
     "typecheck:web": "tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p apps/web/tsconfig.json",
     "test:web": "bun test ./packages/core/typed-api-client/test ./apps/web/test",
-    "build:web": "bun --cwd apps/web run build",
+    "build:web": "bun run --cwd apps/web build",
     "typecheck:skill-memory": "tsc -p packages/memory/skill-memory-runtime/tsconfig.json",
     "test:skill-memory": "bun test ./packages/memory/skill-memory-runtime/test",
     "typecheck:memory-curator": "tsc -p packages/memory/curator-state-machine/tsconfig.json",
