@@ -1,0 +1,145 @@
+{
+  "slice_id": "M2-S01A-02",
+  "parent_unit": "M2-01A",
+  "date": "2026-07-23",
+  "verdict": "passed",
+  "baseline_commit": "3f51da450bd65fa1f20e53613e1b5bc791b811fb",
+  "parent_baseline_commit": "f53bf78287a2b2a6eec74102e7218d664307c137",
+  "preimplementation_decision_commit": "e38210aca806d4273cfbfa58c2cbdc1e5cb4d6da",
+  "implementation_commit": "4b7f5f8bd5bc3e2819921bc62d27daf36ed8e682",
+  "evidence_commit": "this_commit",
+  "line_count_interval": "3f51da450bd65fa1f20e53613e1b5bc791b811fb..4b7f5f8bd5bc3e2819921bc62d27daf36ed8e682",
+  "effective_line_count": {
+    "raw_additions": 10152,
+    "production_runtime": 21,
+    "ui_behavior": 6653,
+    "ui_presentation_excluded": 1622,
+    "type_declaration_excluded": 762,
+    "schema_data_excluded": 34,
+    "adapter_only_excluded": 0,
+    "generated_excluded": 0,
+    "test_fixture_excluded": 808,
+    "docs_comments_blank_excluded": 252,
+    "effective_production": 6674,
+    "minimum": 6000,
+    "passed": true
+  },
+  "source_language": {
+    "opencode_primary_typescript_tsx": 1743,
+    "claude_supplementary_typescript_tsx": 3666,
+    "openhands_supplementary_typescript_tsx": 1244,
+    "existing_zyra_python_owner_extension": 21,
+    "conformance_only": 0
+  },
+  "parent_closure": {
+    "interval": "f53bf78287a2b2a6eec74102e7218d664307c137..4b7f5f8bd5bc3e2819921bc62d27daf36ed8e682",
+    "raw_additions": 21130,
+    "production_runtime": 6217,
+    "ui_behavior": 7408,
+    "ui_presentation_excluded": 1626,
+    "type_declaration_excluded": 1816,
+    "schema_data_excluded": 985,
+    "adapter_only_excluded": 0,
+    "generated_excluded": 272,
+    "test_fixture_excluded": 1607,
+    "docs_comments_evidence_excluded": 1199,
+    "effective_production": 13625,
+    "minimum": 12000,
+    "passed": true,
+    "source_language": {
+      "opencode_primary_typescript_tsx": 7546,
+      "claude_supplementary_typescript_tsx": 3666,
+      "openhands_supplementary_typescript_tsx": 1666,
+      "existing_zyra_python_owner_extension": 747
+    }
+  },
+  "verification": {
+    "typecheck": {
+      "command": "bun run typecheck:web",
+      "passed": true
+    },
+    "web_and_transport_tests": {
+      "command": "bun run test:web",
+      "passed": 46,
+      "failed": 0,
+      "assertions": 140
+    },
+    "production_build": {
+      "command": "bun run build:web",
+      "passed": true,
+      "bundled_modules": 74,
+      "javascript_bytes": 1309763,
+      "css_bytes": 27789
+    },
+    "real_transport_and_static_adjacent": {
+      "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py tests/unit/test_web_console_static.py",
+      "passed": 3,
+      "failed": 0,
+      "seconds": 21.88
+    },
+    "http_start_smoke": {
+      "root_status": 200,
+      "deep_task_route_status": 200,
+      "javascript_status": 200,
+      "css_status": 200,
+      "old_landing_absent": true,
+      "process_stopped": true
+    },
+    "cleanroom": {
+      "implementation_commit_exported": true,
+      "locked_packages_installed": 6,
+      "frozen_lockfile": true,
+      "typecheck_passed": true,
+      "tests_passed": 46,
+      "build_passed": true
+    },
+    "ledger_sync": {
+      "command": "python scripts/sync_m2_workbench_source_ledger.py --check",
+      "aligned": true,
+      "slice_entries": 3,
+      "slice_findings": 0,
+      "slice_errors": 0,
+      "historical_global_blockers": 3
+    },
+    "dependency_scan": {
+      "direct_fetch_outside_existing_typed_client": 0,
+      "parent_source_runtime_paths": 0,
+      "npm_links_or_editable_parent_paths": 0,
+      "openclaw_runtime_references": 0
+    },
+    "visual_browser": {
+      "available": false,
+      "claimed": false,
+      "reason": "The in-app browser connector exposed no browser instance in this session."
+    }
+  },
+  "canonical_owners": {
+    "task_run_plan": "existing SQLiteStore/TaskState",
+    "events": "existing EventLog",
+    "artifacts": "existing LocalArtifactStore",
+    "control_and_receipts": "existing M1 control runtimes and M2-S01A-01 typed transport",
+    "local_route_focus_overlay": "workbench shell",
+    "local_draft_history_queue_preview": "command runtime",
+    "transient_request_lifecycle": "WorkbenchController"
+  },
+  "risk": {
+    "high_risk_triggered": true,
+    "trigger": "React and ReactDOM added to the default production Web path",
+    "matching_escalation": "frozen-commit cleanroom install, typecheck, test and production build",
+    "external_source_runtime_dependency_added": false,
+    "canonical_owner_transfer": false,
+    "incompatible_persistence_migration": false,
+    "global_policy_change": false
+  },
+  "competition_evidence": {
+    "advances": [
+      "REQ-CLOSE-01",
+      "REQ-TRACE-01",
+      "SCORE-UX",
+      "production workbench default path",
+      "typed receipt-backed task controls"
+    ],
+    "closes": []
+  },
+  "next_slice": "M2-S01B-01"
+}
