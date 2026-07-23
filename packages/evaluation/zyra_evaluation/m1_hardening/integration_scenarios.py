@@ -9,7 +9,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Mapping, MutableMapping, Sequence
 from urllib.parse import quote
 
-from .contracts import Finding, GateResult, GateStatus, Severity, utc_now
+from .contracts import (
+    EvidencePointer,
+    Finding,
+    GateResult,
+    GateStatus,
+    Severity,
+    utc_now,
+)
 from .integration_contracts import (
     ActionRisk,
     AssertionEvaluator,
@@ -1582,14 +1589,32 @@ def scenario_catalog_gate() -> GateResult:
                 capability=capability,
             )
         )
-    result.metrics.update(
-        {
-            "scenario_count": len(suite.definitions()),
-            "kinds": sorted(kind.value for kind in kinds),
-            "disconnect_probe_ids": sorted(probe_ids),
-            "disconnect_capabilities": sorted(mapped_capabilities),
-            "request_count": sum(len(item.requests) for item in suite.definitions()),
-            "assertion_count": sum(len(item.assertions) for item in suite.definitions()),
-        }
+    metrics = {
+        "scenario_count": len(suite.definitions()),
+        "scenario_ids": list(suite.scenario_ids()),
+        "kinds": sorted(kind.value for kind in kinds),
+        "disconnect_probe_ids": sorted(probe_ids),
+        "disconnect_capabilities": sorted(mapped_capabilities),
+        "request_count": sum(len(item.requests) for item in suite.definitions()),
+        "assertion_count": sum(len(item.assertions) for item in suite.definitions()),
+    }
+    result.metrics.update(metrics)
+    result.evidence.append(
+        EvidencePointer(
+            kind="integration_scenario_catalog",
+            location=(
+                "packages/evaluation/zyra_evaluation/m1_hardening/"
+                "integration_scenarios.py::default_integration_scenarios"
+            ),
+            summary=(
+                f"Frozen catalog contains {metrics['scenario_count']} scenarios and "
+                f"{len(probe_ids)} owner-disconnect probes."
+            ),
+            revision=stable_digest(metrics),
+            metadata={
+                "scenario_ids": metrics["scenario_ids"],
+                "disconnect_capability_count": len(mapped_capabilities),
+            },
+        )
     )
     return result.finish()

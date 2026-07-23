@@ -112,6 +112,8 @@ def test_six_scenario_catalog_and_owner_matrix_resolve_real_product_owners() -> 
     )
 
     assert catalog_gate.status is GateStatus.PASSED, catalog_gate.to_dict()
+    assert len(catalog_gate.evidence) == 1
+    assert catalog_gate.evidence[0].kind == "integration_scenario_catalog"
     assert len(definitions) == 6
     assert len({item.kind for item in definitions}) == 6
     assert len(probes.probe_ids()) == 18
