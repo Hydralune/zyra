@@ -14,6 +14,7 @@ from zyra_evaluation.m1_hardening.cleanroom import (
     default_cleanroom_commands,
 )
 from zyra_evaluation.m1_hardening.contracts import GateResult, GateStatus
+from zyra_evaluation.m1_hardening.cross_scenario import TopologyAdversarialGate
 from zyra_evaluation.m1_hardening.disable import DisableProbeRunner, ProbeStatus
 from zyra_evaluation.m1_hardening.evidence_admission import (
     AdmissionPolicy,
@@ -24,7 +25,12 @@ from zyra_evaluation.m1_hardening.evidence_admission import (
     EvidenceOrigin,
 )
 from zyra_evaluation.m1_hardening.exit_gate import ExitBundleBuilder, ExitDecision, ExitPolicy
-from zyra_evaluation.m1_hardening.handoff import HandoffBuilder, HandoffStore
+from zyra_evaluation.m1_hardening.handoff import (
+    HandoffBuilder,
+    HandoffGate,
+    HandoffStore,
+    default_handoff_surfaces,
+)
 from zyra_evaluation.m1_hardening.integration_service import (
     IntegrationOptions,
     M1IntegrationService,
@@ -402,6 +408,96 @@ def test_final_integration_automatically_binds_all_required_evidence_kinds() -> 
     assert len(receipts) == len(EvidenceKind)
     assert all(item.status is AdmissionStatus.ADMITTED for item in receipts)
     assert gate.status is GateStatus.PASSED, gate.to_dict()
+
+
+def test_zero_mock_fixture_line_bucket_is_not_fixture_provenance() -> None:
+    policy = AdmissionPolicy(
+        required_kinds=(EvidenceKind.LINE_AUDIT,),
+        require_chain_for_kinds=(),
+    )
+    envelope = EvidenceEnvelopeFactory().create(
+        evidence_id="line-audit-live-1",
+        kind=EvidenceKind.LINE_AUDIT,
+        origin=EvidenceOrigin.LOCAL_AUDITOR,
+        producer="effective-line-auditor",
+        content={"slice_id": "M1-S08-02", "mock_fixture": 0, "effective_production": 7001},
+        baseline_commit=BASELINE,
+        target_commit=TARGET,
+    )
+
+    receipts, gate = EvidenceAdmissionController(policy).admit(
+        [envelope], expected_target_commit=TARGET, final_completion=True
+    )
+
+    assert receipts[0].status is AdmissionStatus.ADMITTED
+    assert gate.status is GateStatus.PASSED, gate.to_dict()
+
+    fixture = EvidenceEnvelopeFactory().create(
+        evidence_id="line-audit-fixture-1",
+        kind=EvidenceKind.LINE_AUDIT,
+        origin=EvidenceOrigin.LOCAL_AUDITOR,
+        producer="effective-line-auditor",
+        content={"artifact_path": "tests/fixtures/recorded_trace.json"},
+        baseline_commit=BASELINE,
+        target_commit=TARGET,
+    )
+    receipts, gate = EvidenceAdmissionController(policy).admit(
+        [fixture], expected_target_commit=TARGET, final_completion=True
+    )
+    assert receipts[0].status is AdmissionStatus.REJECTED
+    assert "fixture_evidence_rejected" in receipts[0].reasons
+    assert gate.status is GateStatus.BLOCKED
+
+
+def test_default_handoff_exposes_canonical_event_surface() -> None:
+    surfaces = default_handoff_surfaces(("scenario:evidence",))
+
+    assert {item.kind for item in surfaces} == HandoffGate.REQUIRED_SURFACE_KINDS
+    event = next(item for item in surfaces if item.kind == "event")
+    assert event.owner == "RuntimeEventSpine"
+    assert event.state_family == "runtime_event"
+    assert event.event_types
+
+
+def test_topology_gate_accepts_runtime_pending_then_committed_mutation() -> None:
+    events = (
+        {
+            "event_id": "topology-pending-1",
+            "run_id": "run-topology",
+            "task_id": "task-topology",
+            "event_type": "topology_write_pending",
+            "sequence": 1,
+            "payload": {
+                "semantic_key": "topology.node.dynamic-verifier",
+                "commit_state": "pending",
+                "runtime_created": True,
+                "outside_precompiled_set": True,
+                "after": {"node_id": "dynamic-verifier", "status": "pending"},
+            },
+        },
+        {
+            "event_id": "topology-committed-1",
+            "run_id": "run-topology",
+            "task_id": "task-topology",
+            "event_type": "topology_node_added",
+            "sequence": 2,
+            "causation_id": "topology-pending-1",
+            "payload": {
+                "semantic_key": "topology.node.dynamic-verifier",
+                "commit_state": "committed",
+                "runtime_created": True,
+                "outside_precompiled_set": True,
+                "after": {"node_id": "dynamic-verifier", "status": "active"},
+            },
+        },
+    )
+
+    gate = TopologyAdversarialGate().evaluate(events, final_completion=True)
+
+    assert gate.status is GateStatus.PASSED, gate.to_dict()
+    assert gate.metrics["external_mutation_count"] == 2
+    assert gate.metrics["pending_count"] == 1
+    assert gate.metrics["committed_count"] == 1
 
 
 def test_line_audit_excludes_only_source_pool_already_inside_explicit_protection() -> None:

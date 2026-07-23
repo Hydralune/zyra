@@ -621,8 +621,7 @@ class CleanroomVerifier:
             limitations.append(f"cleanroom execution failed: {type(error).__name__}: {error}")
         finally:
             try:
-                shutil.rmtree(temporary)
-                cleanup_ok = not temporary.exists()
+                cleanup_ok = self._remove_temporary(temporary)
             except OSError as error:
                 limitations.append(f"cleanroom cleanup failed: {type(error).__name__}: {error}")
         receipt = CleanroomReceipt(
@@ -645,6 +644,26 @@ class CleanroomVerifier:
             limitations=limitations,
         )
         return receipt, self._gate(receipt, member_count=member_count)
+
+    @staticmethod
+    def _remove_temporary(temporary: Path) -> bool:
+        """Remove a cleanroom after short-lived Windows handles have drained."""
+
+        last_error: OSError | None = None
+        for attempt in range(8):
+            try:
+                shutil.rmtree(temporary)
+                return not temporary.exists()
+            except FileNotFoundError:
+                return True
+            except OSError as error:
+                last_error = error
+                if attempt == 7:
+                    break
+                time.sleep(0.25 * (attempt + 1))
+        if last_error is not None:
+            raise last_error
+        return not temporary.exists()
 
     @staticmethod
     def _materialize_workspace_packages(extracted: Path) -> list[str]:

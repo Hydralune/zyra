@@ -1051,6 +1051,27 @@ class SealedLongHorizonRuntime:
     def _mutate_topology(self, root: Path) -> None:
         assert self._store is not None
         node_id = "traceability-verifier-node"
+        pending_event = self._emit(
+            task_id="m1-sealed-orchestrator",
+            action_id="topology-mutation-add-verifier",
+            event_type="topology_write_pending",
+            semantic_family="topology",
+            semantic_key=f"topology.node.{node_id}",
+            before={"nodes": 2, "roles": ["analysis"]},
+            after={
+                "proposed_node_id": node_id,
+                "proposed_role": "traceability-verifier",
+            },
+            risk="low",
+            effect="allow",
+            extra={
+                "node_id": node_id,
+                "role": "traceability-verifier",
+                "commit_state": "pending",
+                "runtime_created": True,
+                "outside_precompiled_set": True,
+            },
+        )
         self._store.add_topology_node(
             node_id=node_id,
             role="traceability-verifier",
@@ -1068,7 +1089,15 @@ class SealedLongHorizonRuntime:
             after={"nodes": 3, "roles": ["analysis", "traceability-verifier"]},
             risk="low",
             effect="allow",
-            extra={"node_id": node_id, "role": "traceability-verifier"},
+            causation_id=pending_event,
+            extra={
+                "node_id": node_id,
+                "role": "traceability-verifier",
+                "commit_state": "committed",
+                "runtime_created": True,
+                "outside_precompiled_set": True,
+                "process_id": f"pid:{os.getpid()}",
+            },
         )
         artifact = root / "topology-mutation.json"
         artifact.write_text(

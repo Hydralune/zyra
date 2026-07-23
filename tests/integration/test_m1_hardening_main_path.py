@@ -238,6 +238,7 @@ def test_public_api_exposes_integration_status_and_executes_each_main_path(
             )
             assert edge_worker["edge_gateway_receipt"]["accepted"] is True
             assert edge_worker["edge_gateway_receipt"]["artifact_refs"]
+            assert sys.modules["apps.api.zyra_api.main"]._API_EDGE_CONNECTOR is None
         assert all(step.ok for step in run.steps)
 
 

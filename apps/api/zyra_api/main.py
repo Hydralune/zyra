@@ -3688,7 +3688,17 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     try:
                         reset_runtime_event_spine_bridge()
                     finally:
-                        reset_provider_control_client()
+                        try:
+                            reset_provider_control_client()
+                        finally:
+                            # The API composition root owns both long-lived MCP
+                            # and edge-worker child processes.  ThreadingHTTPServer
+                            # shutdown must release them before a cleanroom can
+                            # delete its exact-commit workspace on Windows.
+                            try:
+                                reset_mcp_runtime()
+                            finally:
+                                reset_worker_pool_api()
 
             server.server_close = close_with_runtime_event_spine  # type: ignore[method-assign]
             setattr(server, "_zyra_runtime_event_close_bound", True)

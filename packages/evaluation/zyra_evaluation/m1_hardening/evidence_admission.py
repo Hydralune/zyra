@@ -328,12 +328,30 @@ class EvidenceAdmissionController:
 
     @staticmethod
     def _looks_like_fixture(envelope: EvidenceEnvelope) -> bool:
-        metadata_text = json.dumps(envelope.metadata, ensure_ascii=False, default=str).lower()
-        content_text = json.dumps(envelope.content, ensure_ascii=False, default=str).lower()
         tokens = ("fixture", "golden", "recorded_trace", "mock_provider", "fake_endpoint", "sample-only")
-        return envelope.metadata.get("fixture") is True or any(
-            token in metadata_text or token in content_text[:4096] for token in tokens
-        )
+        if envelope.metadata.get("fixture") is True:
+            return True
+
+        # Evidence schemas legitimately expose quantitative buckets such as
+        # ``mock_fixture: 0``.  Treating serialized mapping keys as provenance
+        # claims rejects the auditor that proves those buckets are empty.
+        # Inspect bounded scalar values instead, while retaining fail-closed
+        # detection for an artifact/path/description that actually identifies
+        # fixture, golden, recorded, mock-provider or fake-endpoint material.
+        pending: list[Any] = [envelope.metadata, envelope.content]
+        inspected = 0
+        while pending and inspected < 512:
+            value = pending.pop()
+            inspected += 1
+            if isinstance(value, Mapping):
+                pending.extend(value.values())
+            elif isinstance(value, (list, tuple, set, frozenset)):
+                pending.extend(value)
+            elif isinstance(value, str):
+                lowered = value.lower()
+                if any(token in lowered for token in tokens):
+                    return True
+        return False
 
     def _gate(self, receipts: Sequence[AdmissionReceipt], *, final_completion: bool) -> GateResult:
         result = GateResult(
