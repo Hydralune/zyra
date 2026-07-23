@@ -181465,27 +181465,780 @@
         }
       ],
       "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "canonical_topology_route_placement_projection",
+      "capability_summary": "One deeply immutable read model for dynamic graph revisions, routes, placements, checkpoints, branches, requirement changes and evidence.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02A-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_a144825469353d79dae9",
+      "license_notice": {
+        "license_hint": "M2 topology projection source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "zyra",
+        "source_url": "",
+        "status": "not_required"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "resource.*",
+          "recovery.*",
+          "requirement.changed"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "canonical_projection_store"
+        ],
+        "ui_panels": [
+          "topology"
+        ],
+        "worker_runtime": "RuntimeEventSpine -> normalized ingress -> CanonicalProjectionStore -> selectTopologyProjection"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_checkpoint_owner": "existing_M1_checkpoint_recovery_stores",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_scheduler_owner": "python.ResourceScheduler",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7ea026f1de635197d84b3179d5494e96ca687577",
+        "migration_mode": "same_language_component_integration",
+        "owner_unit": "M2-S02A-01",
+        "rationale": "The existing TypeScript ingress transaction, canonical state tables, causality index, selector dependency keys and disable semantics are retained. The topology feature is a pure selector and creates no second store, reducer, subscription, cursor or persistence owner.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-01",
+        "source_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=f7fff49be91fb0f797260c03ff9cca76c06c5974; migration_mode=same_language_component_integration; The existing TypeScript ingress transaction, canonical state tables, causality index, selector dependency keys and disable semantics are retained. The topology feature is a pure selector and creates no second store, reducer, subscription, cursor or persistence owner.",
+      "owner_unit": "M2-S02A-01",
+      "replacement_plan": "CanonicalProjectionStore remains replaceable behind normalized ingress and typed selectors.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical backend graph, scheduler and checkpoint stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection state owner.",
+        "The selector cannot write backend or canonical browser state."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/features/topology/projection/projector.ts",
+          "apps/web/src/features/topology/projection/record-reader.ts",
+          "apps/web/src/features/topology/projection/nodes.ts",
+          "apps/web/src/features/topology/projection/edges.ts",
+          "apps/web/src/features/topology/projection/routes.ts",
+          "apps/web/src/features/topology/projection/placements.ts",
+          "apps/web/src/features/topology/projection/checkpoints.ts",
+          "apps/web/src/features/topology/projection/changes.ts",
+          "apps/web/src/features/topology/projection/evidence.ts",
+          "apps/web/src/features/topology/projection/analysis.ts",
+          "apps/web/src/features/topology/projection/diagnostics.ts",
+          "apps/web/src/state/panel-selectors.ts"
+        ],
+        "environment_refs": [],
+        "function": "buildTopologyProjection",
+        "health_check": "bun test ./apps/web/test/topology-projection.test.ts",
+        "module": "apps.web.src.features.topology.projection.projector",
+        "protocol": "zyra.topology-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "apps/web/src/events/ingress;apps/web/src/state/{store,reducer,projectors,selectors,causality,panel-selectors}.ts",
+          "source_repo": "zyra",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "apps/web/src/events/ingress;apps/web/src/state/{store,reducer,projectors,selectors,causality,panel-selectors}.ts",
+      "source_repo": "zyra",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-01",
+        "topology-projection",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/topology/projection/projector.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/record-reader.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/nodes.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/edges.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/routes.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/placements.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/checkpoints.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/changes.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/evidence.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/analysis.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/topology/projection/diagnostics.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/panel-selectors.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-projection.test.ts",
+          "expected_signal": "open-world graph, fixed route, placement, checkpoint, branch, requirement, causality, stale/gap and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/topology-projection.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_route_placement_projection.py",
+          "expected_signal": "real scheduler input changes backend route and projected graph route",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_route_placement_projection.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "single_state_session_topology_view_reference",
+      "capability_summary": "Session hierarchy, status and event-relationship presentation from one synchronized state source.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02A-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_d45467fe3925739df3e0",
+      "license_notice": {
+        "license_hint": "M2 topology projection source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "resource.*",
+          "recovery.*",
+          "requirement.changed"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "canonical_projection_store"
+        ],
+        "ui_panels": [
+          "topology"
+        ],
+        "worker_runtime": "reference_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "existing_M1_checkpoint_recovery_stores",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_scheduler_owner": "python.ResourceScheduler",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7ea026f1de635197d84b3179d5494e96ca687577",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S02A-01",
+        "rationale": "OpenCode is a view-conformance reference only. No Solid store, session cache, UI state owner, command runtime or production code is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "reference_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=reference_only; OpenCode is a view-conformance reference only. No Solid store, session cache, UI state owner, command runtime or production code is migrated.",
+      "owner_unit": "M2-S02A-01",
+      "replacement_plan": "reference_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical backend graph, scheduler and checkpoint stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection state owner.",
+        "The reference/conformance source cannot become a second state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/topology-projection.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "topology projection conformance tests",
+        "health_check": "bun test ./apps/web/test/topology-projection.test.ts",
+        "module": "apps.web.test.topology-projection",
+        "protocol": "zyra.topology-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/tui/src/routes/session/index.tsx",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "packages/tui/src/routes/session/index.tsx",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-01",
+        "topology-projection",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/topology-projection.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-projection.test.ts",
+          "expected_signal": "open-world graph, fixed route, placement, checkpoint, branch, requirement, causality, stale/gap and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/topology-projection.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_route_placement_projection.py",
+          "expected_signal": "real scheduler input changes backend route and projected graph route",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_route_placement_projection.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "planner_hierarchy_event_state_reference",
+      "capability_summary": "Planner/task hierarchy and event-backed state-presentation conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02A-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_dcdcf7a7ac20066232ff",
+      "license_notice": {
+        "license_hint": "M2 topology projection source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "resource.*",
+          "recovery.*",
+          "requirement.changed"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "canonical_projection_store"
+        ],
+        "ui_panels": [
+          "topology"
+        ],
+        "worker_runtime": "reference_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "existing_M1_checkpoint_recovery_stores",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_scheduler_owner": "python.ResourceScheduler",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7ea026f1de635197d84b3179d5494e96ca687577",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S02A-01",
+        "rationale": "OpenHands is a presentation reference only. No router, Redux store, conversation owner, sandbox service or backend is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_role": "reference_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=reference_only; OpenHands is a presentation reference only. No router, Redux store, conversation owner, sandbox service or backend is migrated.",
+      "owner_unit": "M2-S02A-01",
+      "replacement_plan": "reference_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical backend graph, scheduler and checkpoint stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection state owner.",
+        "The reference/conformance source cannot become a second state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/topology-projection.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "topology projection conformance tests",
+        "health_check": "bun test ./apps/web/test/topology-projection.test.ts",
+        "module": "apps.web.test.topology-projection",
+        "protocol": "zyra.topology-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/routes/planner-tab.tsx;frontend/src/routes/task-list-tab.tsx",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/routes/planner-tab.tsx;frontend/src/routes/task-list-tab.tsx",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-01",
+        "topology-projection",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/topology-projection.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-projection.test.ts",
+          "expected_signal": "open-world graph, fixed route, placement, checkpoint, branch, requirement, causality, stale/gap and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/topology-projection.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_route_placement_projection.py",
+          "expected_signal": "real scheduler input changes backend route and projected graph route",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_route_placement_projection.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed_route_revision_interaction_reference",
+      "capability_summary": "Typed route identities, immutable revision changes, request correlation and concise state drill-down conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02A-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_6ba7d6499c7c6f0ca65d",
+      "license_notice": {
+        "license_hint": "M2 topology projection source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "resource.*",
+          "recovery.*",
+          "requirement.changed"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "canonical_projection_store"
+        ],
+        "ui_panels": [
+          "topology"
+        ],
+        "worker_runtime": "reference_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "existing_M1_checkpoint_recovery_stores",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_scheduler_owner": "python.ResourceScheduler",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7ea026f1de635197d84b3179d5494e96ca687577",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S02A-01",
+        "rationale": "OMP is a typed interaction reference only. No RPC, TUI, provider owner or agent loop is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-01",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "reference_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=reference_only; OMP is a typed interaction reference only. No RPC, TUI, provider owner or agent loop is migrated.",
+      "owner_unit": "M2-S02A-01",
+      "replacement_plan": "reference_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical backend graph, scheduler and checkpoint stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection state owner.",
+        "The reference/conformance source cannot become a second state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/topology-projection.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "topology projection conformance tests",
+        "health_check": "bun test ./apps/web/test/topology-projection.test.ts",
+        "module": "apps.web.test.topology-projection",
+        "protocol": "zyra.topology-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/jsonrpc/message-framing.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/jsonrpc/message-framing.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-01",
+        "topology-projection",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/topology-projection.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-projection.test.ts",
+          "expected_signal": "open-world graph, fixed route, placement, checkpoint, branch, requirement, causality, stale/gap and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/topology-projection.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_route_placement_projection.py",
+          "expected_signal": "real scheduler input changes backend route and projected graph route",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_route_placement_projection.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "checkpoint_pending_committed_exact_resume_conformance",
+      "capability_summary": "Checkpoint identity and lineage, pending versus committed writes, stable task identity, interrupt/resume correlation and exact-resume conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S02A-02",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_cafdb5b5a81aaaaaa9a8",
+      "license_notice": {
+        "license_hint": "M2 topology projection source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "langgraph",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [
+          "topology_projection"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "topology.*",
+          "scheduler.*",
+          "resource.*",
+          "recovery.*",
+          "requirement.changed"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "canonical_projection_store"
+        ],
+        "ui_panels": [
+          "topology"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "existing_M1_checkpoint_recovery_stores",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_scheduler_owner": "python.ResourceScheduler",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7ea026f1de635197d84b3179d5494e96ca687577",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S02A-01",
+        "rationale": "LangGraph is limited to the narrow checkpoint conformance contract. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deploy code own no production path.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02A-01",
+        "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
+        "source_role": "conformance_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=5931a5f0b313feff24e2516a586c55601b868ac1; migration_mode=conformance_only; LangGraph is limited to the narrow checkpoint conformance contract. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deploy code own no production path.",
+      "owner_unit": "M2-S02A-01",
+      "replacement_plan": "conformance_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "Canonical backend graph, scheduler and checkpoint stores remain authoritative.",
+        "CanonicalProjectionStore remains the sole browser projection state owner.",
+        "The reference/conformance source cannot become a second state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/topology-projection.test.ts",
+          "tests/integration/test_topology_route_placement_projection.py"
+        ],
+        "environment_refs": [],
+        "function": "topology projection conformance tests",
+        "health_check": "bun test ./apps/web/test/topology-projection.test.ts",
+        "module": "apps.web.test.topology-projection",
+        "protocol": "zyra.topology-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "libs/checkpoint/langgraph/checkpoint/base/__init__.py;libs/langgraph/langgraph/pregel/_loop.py",
+          "source_repo": "langgraph",
+          "symbols": [],
+          "tags": [
+            "m2-02a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "libs/checkpoint/langgraph/checkpoint/base/__init__.py;libs/langgraph/langgraph/pregel/_loop.py",
+      "source_repo": "langgraph",
+      "tags": [
+        "m2-02a",
+        "m2-s02a-01",
+        "topology-projection",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/topology-projection.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_topology_route_placement_projection.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/topology-projection.test.ts",
+          "expected_signal": "open-world graph, fixed route, placement, checkpoint, branch, requirement, causality, stale/gap and disable behavior",
+          "kind": "unit",
+          "path": "apps/web/test/topology-projection.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_topology_route_placement_projection.py",
+          "expected_signal": "real scheduler input changes backend route and projected graph route",
+          "kind": "integration",
+          "path": "tests/integration/test_topology_route_placement_projection.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 473,
+    "active_or_internalized": 474,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 39,
+      "candidate": 43,
       "deferred": 8,
       "planned": 698,
-      "productized": 418
+      "productized": 419
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 39,
+      "inventoried": 43,
       "planned": 503,
-      "tested_main_path": 179,
+      "tested_main_path": 180,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -181537,34 +182290,36 @@
       "M2-S01A-01": 5,
       "M2-S01A-02": 3,
       "M2-S01B-01": 5,
-      "M2-S01B-02": 4
+      "M2-S01B-02": 4,
+      "M2-S02A-01": 5
     },
     "by_source_repo": {
-      "OpenHands": 91,
+      "OpenHands": 92,
       "agent-framework": 94,
       "agentscope": 106,
       "browser-use": 111,
       "claude-code-best": 512,
       "hermes-agent": 86,
-      "langgraph": 85,
-      "oh-my-pi": 23,
+      "langgraph": 86,
+      "oh-my-pi": 24,
       "openclaw": 86,
-      "opencode": 24
+      "opencode": 25,
+      "zyra": 1
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 50,
-      "not_selected": 17,
+      "direct_port": 51,
+      "not_selected": 21,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 737,
+    "planned_or_candidate": 741,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 58,
+      "apps/web": 63,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -181579,6 +182334,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1218
+    "total_entries": 1223
   }
 }

@@ -1,0 +1,208 @@
+{
+  "slice_id": "M2-S02A-01",
+  "parent_unit": "M2-02A",
+  "numeric_stage": "M2-02",
+  "date": "2026-07-24",
+  "verdict": "passed",
+  "baseline_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+  "parent_baseline_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+  "numeric_stage_baseline_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+  "preimplementation_decision_commit": "870c52d6efe833bb501ac93ed2bd5e631464d7eb",
+  "implementation_commit": "7ea026f1de635197d84b3179d5494e96ca687577",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "interval": "f7fff49be91fb0f797260c03ff9cca76c06c5974..7ea026f1de635197d84b3179d5494e96ca687577",
+    "raw_additions": 9146,
+    "raw_deletions": 90,
+    "production_runtime": 6658,
+    "ui_behavior": 0,
+    "ui_presentation_excluded": 0,
+    "type_declaration_excluded": 957,
+    "schema_data_excluded": 1,
+    "adapter_only_excluded": 0,
+    "generated_excluded": 0,
+    "test_fixture_excluded": 1292,
+    "docs_comments_blank_excluded": 238,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 6658,
+    "minimum": 6500,
+    "margin": 158,
+    "passed": true
+  },
+  "source_decisions": [
+    {
+      "source_repo": "zyra",
+      "source_role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "same_language_component_integration",
+      "source_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974"
+    },
+    {
+      "source_repo": "opencode",
+      "source_role": "reference_only",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "reference_only",
+      "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "reference_only",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "reference_only",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "reference_only",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "reference_only",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+    },
+    {
+      "source_repo": "langgraph",
+      "source_role": "conformance_only",
+      "source_language": "python",
+      "target_language": "typescript",
+      "migration_mode": "conformance_only",
+      "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "zyra",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/topology/projection/analysis.ts",
+        "apps/web/src/features/topology/projection/changes.ts",
+        "apps/web/src/features/topology/projection/checkpoints.ts",
+        "apps/web/src/features/topology/projection/contracts.ts",
+        "apps/web/src/features/topology/projection/diagnostics.ts",
+        "apps/web/src/features/topology/projection/edges.ts",
+        "apps/web/src/features/topology/projection/evidence.ts",
+        "apps/web/src/features/topology/projection/nodes.ts",
+        "apps/web/src/features/topology/projection/placements.ts",
+        "apps/web/src/features/topology/projection/projector.ts",
+        "apps/web/src/features/topology/projection/record-reader.ts",
+        "apps/web/src/features/topology/projection/routes.ts",
+        "apps/web/src/state/panel-selectors.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 6500
+      },
+      "cross_language_exception": false
+    }
+  ],
+  "canonical_owners": {
+    "backend_graph": "python.GraphStateCustody/DynamicTopologyRuntime",
+    "backend_scheduler": "python.ResourceScheduler/worker-pool/provider-control",
+    "backend_checkpoint_recovery": "existing M1 checkpoint/recovery stores",
+    "requirement_change": "python symbolic requirement control",
+    "canonical_event_ingress": "typescript.RuntimeEventSpine/TaskEventTransport",
+    "browser_projection": "typescript.CanonicalProjectionStore",
+    "topology_persistent_state_owners": 0
+  },
+  "verification": {
+    "typescript_typecheck": {
+      "command": "node_modules/.bin/tsc.exe -p apps/web/tsconfig.json",
+      "passed": true
+    },
+    "web_behavior": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test",
+      "passed": 79,
+      "failed": 0,
+      "assertions": 366
+    },
+    "backend_and_projection_integration": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_topology_route_placement_projection.py tests/unit/test_dynamic_graph_custody.py tests/unit/test_scheduler.py tests/unit/test_symbolic_control.py -q",
+      "passed": 14,
+      "failed": 0
+    },
+    "production_build": {
+      "command": "node_modules/.bin/bun.exe run --cwd apps/web build",
+      "passed": true,
+      "bundled_modules": 119
+    },
+    "line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s02a_01_effective_lines.mjs --summary",
+      "effective_production": 6658,
+      "minimum": 6500,
+      "passed": true
+    },
+    "source_language_custody": {
+      "command": ".venv/Scripts/python.exe scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/M2-S02A-01-topology-route-placement-projection.json --base f7fff49be91fb0f797260c03ff9cca76c06c5974 --target 7ea026f1de635197d84b3179d5494e96ca687577",
+      "actual_production_languages": [
+        "typescript"
+      ],
+      "raw_language_custody_additions": 7660,
+      "violations": [],
+      "passed": true
+    },
+    "ledger_sync": {
+      "command": ".venv/Scripts/python.exe scripts/sync_m2_topology_projection_source_ledger.py --check",
+      "aligned": true,
+      "entries": 5,
+      "missing_targets": 0
+    },
+    "dependency_scan": {
+      "parent_source_runtime_dependencies": 0,
+      "npm_links": 0,
+      "editable_parent_paths": 0,
+      "external_docker_contexts": 0,
+      "new_dependencies": 0,
+      "new_production_processes": 0,
+      "new_ports": 0,
+      "new_mcp_servers": 0,
+      "excluded_forward_source_references": 0
+    },
+    "global_ledger_observation": {
+      "current_slice_ledger_validated_by_sync": true,
+      "repository_wide_verifier_passed": false,
+      "preexisting_blockers": 3,
+      "unchanged_path": "packages/evaluation/zyra_evaluation/m1_hardening/long_horizon_runtime.py",
+      "unchanged_in_implementation_interval": true,
+      "current_slice_blocker": false
+    }
+  },
+  "concentration_audit": {
+    "files_over_20_percent_effective": [],
+    "production_candidate_over_30_percent_excluded": [
+      {
+        "path": "apps/web/src/features/topology/projection/contracts.ts",
+        "raw": 595,
+        "effective": 14,
+        "excluded": 581,
+        "reason": "578 type/declaration, one schema constant, and two blank/comment lines receive zero credit"
+      }
+    ],
+    "passed": true
+  },
+  "competition_evidence": {
+    "advances": [
+      "REQ-TOPO-01",
+      "REQ-EDGE-01",
+      "REQ-TRACE-01",
+      "dynamic open-world topology mutation visibility",
+      "local/edge/cloud route and placement visibility",
+      "checkpoint and branch causal trace visibility"
+    ],
+    "closes": []
+  },
+  "deferred_verification": {
+    "layer": "M2-02 numeric-stage aggregate after M2-S02A-02",
+    "items": [
+      "full cleanroom",
+      "full repository tests",
+      "numeric-stage source-to-target and ledger aggregation",
+      "parent cumulative effective-line accounting"
+    ]
+  },
+  "next_slice": "docs/milestones/M2-console-demo/slice-02a-02-topology-interaction-large-graph-control.md"
+}
