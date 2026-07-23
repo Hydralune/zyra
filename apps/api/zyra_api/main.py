@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sqlite3
 import threading
 import sys
 import time
@@ -233,6 +234,7 @@ from zyra_runtime.runtime_events import (
     RuntimeEventApiFacade,
     RuntimeEventContractError,
     RuntimeEventProcessError,
+    TypeScriptRuntimeEventPort,
     get_runtime_event_spine,
     release_runtime_event_spine,
 )
@@ -3311,6 +3313,114 @@ def get_store() -> SQLiteStore:
     return store
 
 
+def runtime_readiness_probes(
+    *,
+    typed_receipts: TypedReceiptStore,
+) -> tuple[dict[str, bool], dict[str, Any]]:
+    """Probe each canonical runtime owner instead of returning a fixed health claim."""
+
+    owners = {
+        "task_store": False,
+        "event_log": False,
+        "checkpoint_store": False,
+        "artifact_store": False,
+        "control_runtime": False,
+        "typed_transport": False,
+    }
+    details: dict[str, Any] = {}
+
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = sqlite3.connect(sqlite_path(), timeout=5.0)
+        tables = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        for owner, table in (
+            ("task_store", "tasks"),
+            ("checkpoint_store", "checkpoints"),
+            ("typed_transport", "typed_api_receipts"),
+        ):
+            ready = table in tables
+            owners[owner] = ready
+            details[owner] = {"table": table, "available": ready}
+        owners["typed_transport"] = (
+            owners["typed_transport"] and isinstance(typed_receipts, TypedReceiptStore)
+        )
+    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
+        message = f"{type(error).__name__}: {error}"
+        for owner in ("task_store", "checkpoint_store", "typed_transport"):
+            details[owner] = {"available": False, "error": message}
+    finally:
+        if connection is not None:
+            connection.close()
+
+    event_probe: TypeScriptRuntimeEventPort | None = None
+    try:
+        database = sqlite_path().expanduser().resolve()
+        event_probe = TypeScriptRuntimeEventPort.for_workspace(
+            database_path=database,
+            artifact_root=database.parent / "runtime-event-artifacts",
+            workspace_root=PROJECT_ROOT,
+        )
+        event_health = event_probe.call("health", {})
+        owners["event_log"] = event_health.get("ok") is True
+        details["event_log"] = {
+            "available": owners["event_log"],
+            "status": 200 if owners["event_log"] else 503,
+            "probe": "isolated_typescript_owner",
+        }
+    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
+        details["event_log"] = {
+            "available": False,
+            "error": f"{type(error).__name__}: {error}",
+        }
+    finally:
+        if event_probe is not None:
+            event_probe.close()
+
+    artifact_probe: Path | None = None
+    try:
+        root = artifact_root_path()
+        root.mkdir(parents=True, exist_ok=True)
+        artifact_probe = root / (
+            f".zyra-readiness-{os.getpid()}-{threading.get_ident()}-{time.time_ns()}"
+        )
+        with artifact_probe.open("xb") as stream:
+            stream.write(b"ready")
+        owners["artifact_store"] = artifact_probe.is_file()
+        details["artifact_store"] = {
+            "available": owners["artifact_store"],
+            "root": str(root),
+        }
+    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
+        details["artifact_store"] = {
+            "available": False,
+            "error": f"{type(error).__name__}: {error}",
+        }
+    finally:
+        if artifact_probe is not None:
+            artifact_probe.unlink(missing_ok=True)
+
+    try:
+        dispatcher = get_control_dispatcher()
+        root = control_state_path()
+        owners["control_runtime"] = dispatcher is not None and root.is_dir()
+        details["control_runtime"] = {
+            "available": owners["control_runtime"],
+            "root": str(root),
+        }
+    except Exception as error:  # noqa: BLE001 - readiness must report owner failure.
+        details["control_runtime"] = {
+            "available": False,
+            "error": f"{type(error).__name__}: {error}",
+        }
+
+    return owners, details
+
+
 def graph_execution_context() -> GraphExecutionContext:
     return GraphExecutionContext.from_paths(
         project_root=PROJECT_ROOT,
@@ -4511,9 +4621,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["runtime", "readiness"]:
+            owner_readiness, readiness_details = runtime_readiness_probes(
+                typed_receipts=self._typed_receipts(),
+            )
             self._send_json(
                 HTTPStatus.OK,
-                runtime_readiness_payload(),
+                runtime_readiness_payload(
+                    owner_readiness,
+                    details=readiness_details,
+                ),
             )
             return
 

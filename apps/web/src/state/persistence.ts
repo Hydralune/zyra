@@ -192,22 +192,69 @@ export class IndexedDbProjectionPersistence implements ProjectionPersistence {
     return await new Promise<T>((resolve, reject) => {
       const transaction = database.transaction(this.#storeName, mode)
       const store = transaction.objectStore(this.#storeName)
+      let settled = false
+      let requestSucceeded = false
+      let result: T
+      const fail = (error: unknown) => {
+        if (settled) return
+        settled = true
+        reject(error)
+      }
+      transaction.oncomplete = () => {
+        if (settled) return
+        if (!requestSucceeded) {
+          fail(new Error("IndexedDB transaction completed before its request."))
+          return
+        }
+        settled = true
+        resolve(result)
+      }
+      transaction.onerror = () =>
+        fail(
+          transaction.error ??
+            new Error("IndexedDB projection transaction failed."),
+        )
+      transaction.onabort = () =>
+        fail(
+          transaction.error ??
+            new Error("IndexedDB projection transaction was aborted."),
+        )
       let request: IDBRequest
       try {
         request = create(store)
       } catch (error) {
-        reject(error)
+        fail(error)
         return
       }
-      request.onsuccess = () => resolve(request.result as T)
+      request.onsuccess = () => {
+        result = request.result as T
+        requestSucceeded = true
+      }
       request.onerror = () =>
-        reject(request.error ?? new Error("IndexedDB projection request failed."))
-      transaction.onabort = () =>
-        reject(
-          transaction.error ??
-            new Error("IndexedDB projection transaction was aborted."),
+        fail(
+          request.error ??
+            new Error("IndexedDB projection request failed."),
         )
     })
+  }
+}
+
+interface ProjectionReplica {
+  serialized: string
+  revision: number
+  checksum: string
+}
+
+function inspectProjectionReplica(
+  serialized: string,
+  storeId: string,
+): ProjectionReplica {
+  const restored = decodeProjectionSnapshot(serialized, storeId)
+  const envelope = JSON.parse(serialized) as { checksum?: unknown }
+  return {
+    serialized,
+    revision: restored.state.revision,
+    checksum: String(envelope.checksum ?? ""),
   }
 }
 
@@ -225,15 +272,49 @@ export class FallbackProjectionPersistence implements ProjectionPersistence {
   }
 
   async load(storeId: string): Promise<string | undefined> {
+    let primary: ProjectionReplica | undefined
+    let primaryError: unknown
     if (this.#primaryAvailable) {
       try {
         const value = await this.#primary.load(storeId)
-        if (value !== undefined) return value
-      } catch {
+        if (value !== undefined) {
+          primary = inspectProjectionReplica(value, storeId)
+        }
+      } catch (error) {
         this.#primaryAvailable = false
+        primaryError = error
       }
     }
-    return this.#fallback.load(storeId)
+    let fallback: ProjectionReplica | undefined
+    let fallbackError: unknown
+    try {
+      const value = await this.#fallback.load(storeId)
+      if (value !== undefined) {
+        fallback = inspectProjectionReplica(value, storeId)
+      }
+    } catch (error) {
+      fallbackError = error
+    }
+    if (primary && fallback) {
+      if (
+        primary.revision === fallback.revision &&
+        primary.checksum !== fallback.checksum
+      ) {
+        throw new ProjectionError(
+          "SNAPSHOT_REPLICA_CONFLICT",
+          `Projection replicas for ${storeId} disagree at revision ${primary.revision}.`,
+          { storeId, revision: primary.revision },
+        )
+      }
+      return primary.revision >= fallback.revision
+        ? primary.serialized
+        : fallback.serialized
+    }
+    if (primary) return primary.serialized
+    if (fallback) return fallback.serialized
+    if (primaryError) throw primaryError
+    if (fallbackError) throw fallbackError
+    return undefined
   }
 
   async save(storeId: string, value: string): Promise<void> {
@@ -317,14 +398,15 @@ export class ProjectionPersistenceCoordinator {
       this.#now(),
     )
     const serialized = JSON.stringify(envelope)
-    const operation = this.#persistence
-      .save(this.#storeId, serialized)
-      .then(() => {
-        this.#persistedRevision = Math.max(
-          this.#persistedRevision,
-          state.revision,
-        )
-      })
+    const predecessor = this.#pending
+    const operation = (predecessor
+      ? predecessor.catch(() => undefined)
+      : Promise.resolve()
+    ).then(async () => {
+      if (state.revision <= this.#persistedRevision) return
+      await this.#persistence.save(this.#storeId, serialized)
+      this.#persistedRevision = state.revision
+    })
     this.#pending = operation
     try {
       await operation
@@ -335,6 +417,7 @@ export class ProjectionPersistenceCoordinator {
 
   async clear(): Promise<void> {
     this.#assertAvailable()
+    await this.flush()
     await this.#persistence.remove(this.#storeId)
     this.#persistedRevision = -1
   }

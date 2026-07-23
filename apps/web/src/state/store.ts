@@ -299,16 +299,43 @@ export class CanonicalProjectionStore {
 
   pinTask(taskId: string): void {
     this.#assertAvailable()
-    const runtime = this.#state.runtimes[taskId]
-    if (!runtime || runtime.pinned) return
-    this.#replaceRuntime(taskId, { ...runtime, pinned: true })
+    const normalizedTaskId = taskId.trim()
+    if (!normalizedTaskId) {
+      throw new ProjectionError(
+        "INVALID_TASK_ID",
+        "Projection pin requires a task id.",
+      )
+    }
+    const runtime = this.#state.runtimes[normalizedTaskId]
+    if (runtime?.pinned) return
+    this.#replaceRuntime(
+      normalizedTaskId,
+      runtime
+        ? { ...runtime, pinned: true }
+        : {
+            taskId: normalizedTaskId,
+            generation: this.#state.cursors[normalizedTaskId]?.generation ?? 0,
+            firstSequence: 0,
+            lastSequence: 0,
+            eventCount: 0,
+            duplicateCount: 0,
+            staleCount: 0,
+            orphanCount: 0,
+            tombstoneCount: 0,
+            lastEventAtMs: this.#now(),
+            pinned: true,
+            connected: false,
+          },
+    )
   }
 
   unpinTask(taskId: string): void {
     this.#assertAvailable()
-    const runtime = this.#state.runtimes[taskId]
+    const normalizedTaskId = taskId.trim()
+    if (!normalizedTaskId) return
+    const runtime = this.#state.runtimes[normalizedTaskId]
     if (!runtime || !runtime.pinned) return
-    this.#replaceRuntime(taskId, { ...runtime, pinned: false })
+    this.#replaceRuntime(normalizedTaskId, { ...runtime, pinned: false })
   }
 
   async restore(): Promise<CanonicalProjectionState> {

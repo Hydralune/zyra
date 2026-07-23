@@ -179603,12 +179603,12 @@
         "rationale": "Only the mature prompt, queue, completion and focus mechanisms supplement the OpenCode shell. Claude session, query-engine and permission state do not become frontend owners.",
         "root_source_runtime_dependency": false,
         "slice_id": "M2-S01A-02",
-        "source_commit": "c57f5a29aa7012308252cf739f4f8c3430a1c034",
+        "source_commit": "c57f5a29e88e9a814bea47abeb9a0a6f725dc102",
         "source_role": "supplementary_implementation"
       },
       "migration_strategy": "direct_port",
       "milestone": "M2",
-      "notes": "source_role=supplementary_implementation; source_commit=c57f5a29aa7012308252cf739f4f8c3430a1c034; Only the mature prompt, queue, completion and focus mechanisms supplement the OpenCode shell. Claude session, query-engine and permission state do not become frontend owners.",
+      "notes": "source_role=supplementary_implementation; source_commit=c57f5a29e88e9a814bea47abeb9a0a6f725dc102; Only the mature prompt, queue, completion and focus mechanisms supplement the OpenCode shell. Claude session, query-engine and permission state do not become frontend owners.",
       "owner_unit": "M2-S01A-02",
       "replacement_plan": "Zyra-owned workbench shell is the browser entrypoint and delegates all canonical task, event, receipt and control mutation to existing typed API and M1 owners.",
       "risk_notes": [

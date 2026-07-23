@@ -57,6 +57,39 @@ def _request(
 
 
 class M2TypedApiClientTransportTests(unittest.TestCase):
+    def test_runtime_readiness_payload_fails_closed_for_an_owner_failure(self) -> None:
+        module = importlib.import_module("apps.api.zyra_api.typed_transport")
+        body = module.runtime_readiness_payload(
+            {
+                "task_store": True,
+                "event_log": False,
+                "checkpoint_store": True,
+                "artifact_store": True,
+                "control_runtime": True,
+                "typed_transport": True,
+            },
+            details={"event_log": {"available": False, "status": 503}},
+        )
+        self.assertFalse(body["ready"])
+        self.assertEqual(body["status"], "blocked")
+        self.assertFalse(body["owners"]["event_log"])
+        self.assertIn("event_log", body["blockers"])
+        self.assertEqual(body["details"]["event_log"]["status"], 503)
+
+        omitted = module.runtime_readiness_payload()
+        self.assertFalse(omitted["ready"])
+        self.assertEqual(
+            omitted["blockers"],
+            [
+                "task_store",
+                "event_log",
+                "checkpoint_store",
+                "artifact_store",
+                "control_runtime",
+                "typed_transport",
+            ],
+        )
+
     def test_embedded_real_store_lifecycle_idempotency_and_disable_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

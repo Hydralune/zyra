@@ -587,20 +587,27 @@ def paginate_tasks(
     }
 
 
-def runtime_readiness_payload() -> dict[str, Any]:
-    owners = {
-        "task_store": True,
-        "event_log": True,
-        "checkpoint_store": True,
-        "artifact_store": True,
-        "control_runtime": True,
-        "typed_transport": True,
-    }
-    blockers = [name for name, ready in owners.items() if not ready]
+def runtime_readiness_payload(
+    owner_readiness: Mapping[str, Any] | None = None,
+    *,
+    details: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    expected_owners = (
+        "task_store",
+        "event_log",
+        "checkpoint_store",
+        "artifact_store",
+        "control_runtime",
+        "typed_transport",
+    )
+    supplied = owner_readiness or {}
+    owners = {name: supplied.get(name) is True for name in expected_owners}
+    blockers = [name for name in expected_owners if not owners[name]]
     return {
         "ready": not blockers,
         "status": "ready" if not blockers else "blocked",
         "api_version": API_VERSION,
         "owners": owners,
         "blockers": blockers,
+        "details": dict(details or {}),
     }

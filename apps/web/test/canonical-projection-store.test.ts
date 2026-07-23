@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import {
   CanonicalProjectionStore,
+  FallbackProjectionPersistence,
+  IndexedDbProjectionPersistence,
   MemoryProjectionPersistence,
   ProjectionError,
+  ProjectionPersistenceCoordinator,
   ProjectionStatus,
   assertProjectionIntegrity,
   auditProjectionIntegrity,
@@ -28,6 +31,7 @@ import {
   selectTopologyPanel,
   selectWorkersForTask,
   type CanonicalProjectionState,
+  type ProjectionPersistence,
 } from "../src/state/index.ts"
 import {
   normalizeEventFrame,
@@ -1010,6 +1014,20 @@ describe("canonical causality and selector truth", () => {
 })
 
 describe("snapshot, reconnect, migration, and disable recovery", () => {
+  test("pins the active route before its first event and preserves the pin through reduction", () => {
+    const projection = store()
+    projection.pinTask(TASK)
+    expect(projection.state.runtimes[TASK]?.pinned).toBe(true)
+    expect(projection.state.runtimes[TASK]?.eventCount).toBe(0)
+
+    projection.apply(batch([event(1, { domain: "task" })]))
+    expect(projection.state.runtimes[TASK]?.pinned).toBe(true)
+    expect(projection.state.runtimes[TASK]?.eventCount).toBe(1)
+
+    projection.unpinTask(TASK)
+    expect(projection.state.runtimes[TASK]?.pinned).toBe(false)
+  })
+
   test("persists committed cursor and restores without duplicate effects", async () => {
     const persistence = new MemoryProjectionPersistence()
     const first = new CanonicalProjectionStore({
@@ -1061,6 +1079,161 @@ describe("snapshot, reconnect, migration, and disable recovery", () => {
     expect(replay.appliedEventIds).toEqual(["event_projection_3"])
     expect(reopened.state.workers.worker_restore?.revision).toBe(2)
     expect(reopened.state.cursors[TASK]?.committedSequence).toBe(3)
+  })
+
+  test("serializes persistence revisions so a slow older save cannot overwrite a newer one", async () => {
+    let releaseFirstSave = () => {}
+    const firstSaveGate = new Promise<void>((resolve) => {
+      releaseFirstSave = resolve
+    })
+    const savedRevisions: number[] = []
+    let stored: string | undefined
+    const persistence: ProjectionPersistence = {
+      async load() {
+        return stored
+      },
+      async save(_storeId, serialized) {
+        const revision = Number(
+          (JSON.parse(serialized) as { revision?: unknown }).revision,
+        )
+        savedRevisions.push(revision)
+        if (revision === 1) await firstSaveGate
+        stored = serialized
+      },
+      async remove() {
+        stored = undefined
+      },
+    }
+    const coordinator = new ProjectionPersistenceCoordinator(
+      "serialized-persistence-test",
+      persistence,
+    )
+    const projection = store()
+    projection.apply(batch([event(1, { domain: "task" })]))
+    const firstState = projection.state
+    projection.apply(
+      batch([
+        event(2, {
+          eventType: "task.updated",
+          domain: "task",
+          inline: { status: "running", title: "newer" },
+        }),
+      ]),
+    )
+    const secondState = projection.state
+
+    const first = coordinator.persist(firstState)
+    const second = coordinator.persist(secondState)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(savedRevisions).toEqual([1])
+
+    releaseFirstSave()
+    await Promise.all([first, second])
+    expect(savedRevisions).toEqual([1, 2])
+    expect(
+      decodeProjectionSnapshot(
+        stored!,
+        "serialized-persistence-test",
+      ).state.revision,
+    ).toBe(2)
+  })
+
+  test("restores the newest valid replica after primary persistence previously failed", async () => {
+    const primary = new MemoryProjectionPersistence()
+    const fallback = new MemoryProjectionPersistence()
+    const projection = store()
+    projection.apply(batch([event(1, { domain: "task" })]))
+    const older = JSON.stringify(
+      encodeProjectionSnapshot("replica-test", projection.state),
+    )
+    projection.apply(
+      batch([
+        event(2, {
+          eventType: "task.updated",
+          domain: "task",
+          inline: { status: "running", title: "newest replica" },
+        }),
+      ]),
+    )
+    const newer = JSON.stringify(
+      encodeProjectionSnapshot("replica-test", projection.state),
+    )
+    await primary.save("replica-test", older)
+    await fallback.save("replica-test", newer)
+
+    const persistence = new FallbackProjectionPersistence(primary, fallback)
+    const restored = await persistence.load("replica-test")
+    expect(
+      decodeProjectionSnapshot(restored!, "replica-test").state.revision,
+    ).toBe(2)
+  })
+
+  test("does not acknowledge an IndexedDB save before its transaction commits", async () => {
+    const originalIndexedDb = globalThis.indexedDB
+    const transaction = {
+      error: new Error("transaction aborted after request success"),
+      oncomplete: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      onabort: null as (() => void) | null,
+      objectStore: () => ({
+        put: () => {
+          const request = {
+            result: undefined,
+            error: null,
+            onsuccess: null as (() => void) | null,
+            onerror: null as (() => void) | null,
+          }
+          queueMicrotask(() => {
+            request.onsuccess?.()
+            queueMicrotask(() => transaction.onabort?.())
+          })
+          return request
+        },
+      }),
+    }
+    const database = {
+      objectStoreNames: { contains: () => true },
+      createObjectStore: () => ({}),
+      transaction: () => transaction,
+      close: () => {},
+    }
+    const openRequest = {
+      result: database,
+      error: null,
+      onupgradeneeded: null as (() => void) | null,
+      onsuccess: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      onblocked: null as (() => void) | null,
+    }
+    Object.defineProperty(globalThis, "indexedDB", {
+      configurable: true,
+      writable: true,
+      value: {
+        open: () => {
+          queueMicrotask(() => openRequest.onsuccess?.())
+          return openRequest
+        },
+      },
+    })
+    try {
+      const persistence = new IndexedDbProjectionPersistence(
+        "transaction-commit-test",
+      )
+      await expect(
+        persistence.save("projection", "serialized"),
+      ).rejects.toThrow("transaction aborted after request success")
+    } finally {
+      if (originalIndexedDb === undefined) {
+        Reflect.deleteProperty(globalThis, "indexedDB")
+      } else {
+        Object.defineProperty(globalThis, "indexedDB", {
+          configurable: true,
+          writable: true,
+          value: originalIndexedDb,
+        })
+      }
+    }
   })
 
   test("rejects checksum corruption and a future snapshot version", () => {
