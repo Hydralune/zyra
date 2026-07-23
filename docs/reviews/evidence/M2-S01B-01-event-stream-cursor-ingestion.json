@@ -1,0 +1,211 @@
+{
+  "slice_id": "M2-S01B-01",
+  "parent_unit": "M2-01B",
+  "date": "2026-07-23",
+  "verdict": "passed",
+  "baseline_commit": "1f41ab17864dd789948aeebe3723540007ebaf2b",
+  "parent_baseline_commit": "1f41ab17864dd789948aeebe3723540007ebaf2b",
+  "preimplementation_decision_commit": "93aa6af991082fda8b07cdf240aa233014a0bdce",
+  "implementation_commit": "6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+  "evidence_commit": "this_commit",
+  "line_count_interval": "1f41ab17864dd789948aeebe3723540007ebaf2b..6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+  "effective_line_count": {
+    "raw_additions": 12977,
+    "raw_deletions": 85,
+    "production_runtime": 9600,
+    "ui_behavior": 0,
+    "ui_presentation_excluded": 0,
+    "type_declaration_excluded": 1115,
+    "schema_data_excluded": 155,
+    "adapter_only_excluded": 423,
+    "generated_excluded": 0,
+    "test_fixture_excluded": 1248,
+    "docs_comments_blank_excluded": 436,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 9600,
+    "minimum": 7500,
+    "margin": 2100,
+    "passed": true
+  },
+  "source_language": {
+    "opencode_primary_typescript": 7616,
+    "openhands_supplementary_typescript": 742,
+    "openhands_supplementary_python": 1067,
+    "existing_zyra_typed_transport_extension": 175,
+    "cross_language_exception": 0,
+    "conformance_only": 0,
+    "openclaw": 0
+  },
+  "verification": {
+    "typescript_typecheck": {
+      "command": "bun run --cwd packages/core/typed-api-client typecheck && bun run --cwd apps/web typecheck",
+      "passed": true
+    },
+    "event_ingress_unit": {
+      "command": "bun test ./apps/web/test/event-ingress.test.ts",
+      "passed": 16,
+      "failed": 0,
+      "assertions": 68
+    },
+    "typed_transport_adjacent": {
+      "command": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+      "passed": 15,
+      "failed": 0,
+      "assertions": 35
+    },
+    "production_build": {
+      "command": "bun run --cwd apps/web build",
+      "passed": true,
+      "bundled_modules": 89,
+      "javascript_bytes": 1559679,
+      "css_bytes": 27789
+    },
+    "real_api_browser_and_runtime_adjacent": {
+      "command": "python -m pytest tests/integration/test_m2_typed_api_client_transport.py tests/integration/test_runtime_event_spine_api.py tests/integration/test_event_stream_cursor_ingestion.py -q",
+      "passed": 9,
+      "failed": 0,
+      "seconds": 53.81
+    },
+    "new_slice_integration": {
+      "command": "python -m pytest tests/integration/test_event_stream_cursor_ingestion.py -q",
+      "passed": 2,
+      "failed": 0,
+      "seconds": 17.08
+    },
+    "browser_reconnect_repeat": {
+      "command": "python -m pytest tests/integration/test_event_stream_cursor_ingestion.py::EventStreamCursorIngestionIntegrationTests::test_real_browser_ingress_uses_sse_reconnect_and_long_poll_fallback -q",
+      "passed": 1,
+      "failed": 0,
+      "seconds": 9.42
+    },
+    "python_compile": {
+      "command": "python -m py_compile apps/api/zyra_api/event_stream_ingress.py apps/api/zyra_api/main.py",
+      "passed": true
+    },
+    "effective_line_audit": {
+      "command": "bun scripts/audit_m2_s01b_01_effective_lines.mjs --summary",
+      "passed": true,
+      "effective_production": 9600,
+      "minimum": 7500
+    },
+    "ledger_sync": {
+      "command": "python scripts/sync_m2_event_ingress_source_ledger.py --check",
+      "aligned": true,
+      "slice_entries": 5,
+      "slice_findings": 0,
+      "slice_errors": 0,
+      "historical_global_blockers": 3
+    },
+    "dependency_scan": {
+      "direct_fetch_outside_existing_typed_transport": 0,
+      "parent_source_runtime_paths_in_slice": 0,
+      "npm_links_or_editable_parent_paths": 0,
+      "new_dependencies": 0,
+      "new_processes": 0,
+      "new_ports": 0,
+      "openclaw_runtime_references": 0
+    },
+    "full_web_suite_observation": {
+      "command": "bun test ./packages/core/typed-api-client/test ./apps/web/test",
+      "slice_and_transport_tests_passed": 31,
+      "protected_workbench_tests_passed": 30,
+      "protected_workbench_tests_failed": 1,
+      "failure": "M2-S01A-02 CommandQueue same-millisecond FIFO tie orders random UUIDs",
+      "current_slice_files_in_failure": 0,
+      "current_slice_blocker": false,
+      "deferred_layer": "M2-01 aggregate review"
+    }
+  },
+  "canonical_owners": {
+    "canonical_event_sequence_identity_causality": "typescript.RuntimeEventSpine",
+    "event_persistence": "existing runtime-event spine and EventLog",
+    "python_api_facade": "read-only EventIngressApiFacade",
+    "typed_request_auth_version_cancellation": "existing FetchApiTransport",
+    "transient_browser_ingress": "EventIngressCoordinator",
+    "subscription_union": "TaskEventTransport and IngressSubscriptionRegistry",
+    "ui_projection_store": "not implemented; reserved for M2-S01B-02"
+  },
+  "concentration_audit": {
+    "files_over_500_added_lines": [
+      "apps/api/zyra_api/event_stream_ingress.py",
+      "apps/web/src/events/ingress/assembly.ts",
+      "apps/web/src/events/ingress/contracts.ts",
+      "apps/web/src/events/ingress/coordinator.ts",
+      "apps/web/src/events/ingress/cursor-ledger.ts",
+      "apps/web/src/events/ingress/ordered-buffer.ts",
+      "apps/web/src/events/ingress/snapshot-barrier.ts",
+      "apps/web/src/events/ingress/transport-sources.ts",
+      "apps/web/src/events/ingress/validator.ts",
+      "apps/web/test/event-ingress.test.ts"
+    ],
+    "files_over_20_percent_effective": [],
+    "files_over_30_percent_excluded": [
+      {
+        "path": "apps/web/src/events/ingress/contracts.ts",
+        "raw": 830,
+        "effective": 328,
+        "excluded": 502,
+        "excluded_percent": 60.5,
+        "reason": "482 interface/type lines and 7 schema constant lines receive zero credit; only executable normalization, capacity, filter, identity and priority helpers count"
+      }
+    ],
+    "passed": true
+  },
+  "risk": {
+    "high_risk_triggered": false,
+    "reason": "The slice implements its assigned additive event-ingress owner without incompatible schema migration, canonical-owner transfer, external dependency, subprocess, port, Docker, MCP server or dynamic import.",
+    "cleanroom_deferred_to": "M2-01 aggregate review",
+    "external_source_runtime_dependency_added": false,
+    "canonical_owner_transfer": false,
+    "incompatible_persistence_migration": false,
+    "global_policy_change": false
+  },
+  "adversarial_findings_fixed": [
+    {
+      "code": "M2-01B-01-R01",
+      "severity": "high",
+      "finding": "Finite SSE used keep-alive without chunked transfer or Content-Length, so browser EOF and reconnect were nondeterministic.",
+      "fix": "Finite stream responses now declare Connection: close and close the embedded HTTP connection after the terminal frame."
+    },
+    {
+      "code": "M2-01B-01-R02",
+      "severity": "high",
+      "finding": "Multi-frame snapshot ingestion could start gap healing before the first buffered predecessor was committed.",
+      "fix": "Whole pages are buffered first, committed in predecessor order, and only a remaining post-drain gap starts catch-up."
+    },
+    {
+      "code": "M2-01B-01-R03",
+      "severity": "high",
+      "finding": "Heartbeat timeout aborted the subscription-lifetime controller, causing the run loop to classify transport failure as user cancellation and skip reconnect.",
+      "fix": "Heartbeat timeout now closes only the active transport session; the outer cursor-based reconnect loop remains alive."
+    }
+  ],
+  "source_path_resolution": {
+    "prospective_spelling": "openhands/app_server/event/event_store/event_store_service.py",
+    "resolved_at_pinned_commit": "openhands/app_server/event/event_store.py",
+    "source_repo_changed": false,
+    "source_commit_changed": false,
+    "language_changed": false,
+    "source_role_changed": false,
+    "migration_mode_changed": false,
+    "owner_changed": false
+  },
+  "competition_evidence": {
+    "advances": [
+      "REQ-TRACE-01",
+      "REQ-CLOSE-01",
+      "ordered canonical event stream",
+      "disconnect/reconnect exact cursor resume",
+      "real browser SSE and long-poll fallback",
+      "bounded backpressure and gap recovery"
+    ],
+    "closes": []
+  },
+  "parent_status": {
+    "M2-01B": "in_progress",
+    "current_slice_effective_lines": 9600,
+    "parent_minimum": 15000,
+    "parent_recomputed_at_final_slice": true
+  },
+  "next_slice": "M2-S01B-02"
+}

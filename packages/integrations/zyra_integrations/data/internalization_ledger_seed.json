@@ -179938,19 +179938,810 @@
         }
       ],
       "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "event_transport_generation_reconnect_and_heartbeat",
+      "capability_summary": "One live generation with abort fencing, heartbeat supervision, bounded retry, transport cooldown, frame delivery and last-subscriber shutdown.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_ec0afde0f31f44c6139b",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 event-ingress internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/capabilities",
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> EventIngressCoordinator -> typed API -> EventIngressApiFacade -> RuntimeEventSpineBridge"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "deferred_to_M2-S01B-02",
+        "implementation_commit": "6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+        "migration_mode": "same_language_crop_and_adapt",
+        "owner_unit": "M2-S01B-01",
+        "python_facade_write_allowed": false,
+        "rationale": "OpenCode live-generation and reconnection control flow was cropped into Zyra cursor/session modules. Solid context, SDK event ownership and directory emitters were removed.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation",
+        "transient_ingress_owner": "browser.EventIngressCoordinator"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; OpenCode live-generation and reconnection control flow was cropped into Zyra cursor/session modules. Solid context, SDK event ownership and directory emitters were removed.",
+      "owner_unit": "M2-S01B-01",
+      "replacement_plan": "Zyra-owned browser event ingress is reached through createZyraApi().events and keeps the TypeScript runtime-event spine as canonical event owner.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "The Python ingress facade is read-only and cannot become an event store.",
+        "Ingress batches do not own M2-S01B-02 UI projections.",
+        "Supplementary sources cannot become a second stream controller."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/events/ingress/coordinator.ts",
+          "apps/web/src/events/ingress/reconnect.ts",
+          "apps/web/src/events/ingress/transport-sources.ts",
+          "apps/web/src/api/event-transport.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_API_AUTH_TOKEN",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "TaskEventTransport.subscribe",
+        "health_check": "bun test ./apps/web/test/event-ingress.test.ts",
+        "module": "apps.web.src.api.event-transport",
+        "protocol": "zyra.event-ingress/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/server-sdk.tsx",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/server-sdk.tsx",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-01",
+        "event-ingress",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/events/ingress/coordinator.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/reconnect.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/transport-sources.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/api/event-transport.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/event-ingress.test.ts",
+          "expected_signal": "cursor, ordering, snapshot, duplicate, gap, pressure, partial, orphan, tombstone, retry and disable semantics fail if ingress is disconnected",
+          "kind": "unit",
+          "path": "apps/web/test/event-ingress.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_event_stream_cursor_ingestion.py",
+          "expected_signal": "real API snapshot/delta plus Bun browser SSE reconnect and long-poll fallback fail if the default ingress path is removed",
+          "kind": "integration",
+          "path": "tests/integration/test_event_stream_cursor_ingestion.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "snapshot_live_merge_ordering_identity_and_pressure",
+      "capability_summary": "Subscribe-before-snapshot retention, deterministic predecessor ordering, identity dedupe, partial/final assembly, orphan/tombstone handling and bounded pressure.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_63716548df52fb19d368",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 event-ingress internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/capabilities",
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> EventIngressCoordinator -> typed API -> EventIngressApiFacade -> RuntimeEventSpineBridge"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "deferred_to_M2-S01B-02",
+        "implementation_commit": "6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+        "migration_mode": "same_language_retained_control_flow_adapt",
+        "owner_unit": "M2-S01B-01",
+        "python_facade_write_allowed": false,
+        "rationale": "Event-during-request freshness and deterministic merge behavior were retained, but OpenCode session/message stores and reducers were removed. The result owns transient ingress state only.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation",
+        "transient_ingress_owner": "browser.EventIngressCoordinator"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; Event-during-request freshness and deterministic merge behavior were retained, but OpenCode session/message stores and reducers were removed. The result owns transient ingress state only.",
+      "owner_unit": "M2-S01B-01",
+      "replacement_plan": "Zyra-owned browser event ingress is reached through createZyraApi().events and keeps the TypeScript runtime-event spine as canonical event owner.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "The Python ingress facade is read-only and cannot become an event store.",
+        "Ingress batches do not own M2-S01B-02 UI projections.",
+        "Supplementary sources cannot become a second stream controller."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/events/ingress/snapshot-barrier.ts",
+          "apps/web/src/events/ingress/ordered-buffer.ts",
+          "apps/web/src/events/ingress/identity-window.ts",
+          "apps/web/src/events/ingress/assembly.ts",
+          "apps/web/src/events/ingress/gap-recovery.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_API_AUTH_TOKEN",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "TaskEventTransport.subscribe",
+        "health_check": "bun test ./apps/web/test/event-ingress.test.ts",
+        "module": "apps.web.src.api.event-transport",
+        "protocol": "zyra.event-ingress/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/server-session.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/server-session.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-01",
+        "event-ingress",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/events/ingress/snapshot-barrier.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/ordered-buffer.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/identity-window.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/assembly.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/gap-recovery.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/event-ingress.test.ts",
+          "expected_signal": "cursor, ordering, snapshot, duplicate, gap, pressure, partial, orphan, tombstone, retry and disable semantics fail if ingress is disconnected",
+          "kind": "unit",
+          "path": "apps/web/test/event-ingress.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_event_stream_cursor_ingestion.py",
+          "expected_signal": "real API snapshot/delta plus Bun browser SSE reconnect and long-poll fallback fail if the default ingress path is removed",
+          "kind": "integration",
+          "path": "tests/integration/test_event_stream_cursor_ingestion.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "event_subscription_union_scope_and_diagnostics",
+      "capability_summary": "Reference-counted task subscription union, observer isolation, bounded diagnostics and a single public TaskEventTransport facade.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_266e577906ed976f74e9",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 event-ingress internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/capabilities",
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> EventIngressCoordinator -> typed API -> EventIngressApiFacade -> RuntimeEventSpineBridge"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "deferred_to_M2-S01B-02",
+        "implementation_commit": "6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+        "migration_mode": "same_language_crop_and_adapt",
+        "owner_unit": "M2-S01B-01",
+        "python_facade_write_allowed": false,
+        "rationale": "Normalized scopes, reference counting and consumer isolation were retained. OpenCode global reducers and canonical session cache were explicitly excluded.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation",
+        "transient_ingress_owner": "browser.EventIngressCoordinator"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; Normalized scopes, reference counting and consumer isolation were retained. OpenCode global reducers and canonical session cache were explicitly excluded.",
+      "owner_unit": "M2-S01B-01",
+      "replacement_plan": "Zyra-owned browser event ingress is reached through createZyraApi().events and keeps the TypeScript runtime-event spine as canonical event owner.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "The Python ingress facade is read-only and cannot become an event store.",
+        "Ingress batches do not own M2-S01B-02 UI projections.",
+        "Supplementary sources cannot become a second stream controller."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/events/ingress/subscriptions.ts",
+          "apps/web/src/events/ingress/diagnostics.ts",
+          "apps/web/src/events/ingress/contracts.ts",
+          "apps/web/src/api/event-transport.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_API_AUTH_TOKEN",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "TaskEventTransport.subscribe",
+        "health_check": "bun test ./apps/web/test/event-ingress.test.ts",
+        "module": "apps.web.src.api.event-transport",
+        "protocol": "zyra.event-ingress/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/server-sync.tsx;packages/app/src/context/global-sync/event-reducer.ts;packages/app/src/context/global-sync/session-cache.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/server-sync.tsx;packages/app/src/context/global-sync/event-reducer.ts;packages/app/src/context/global-sync/session-cache.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-01",
+        "event-ingress",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/events/ingress/subscriptions.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/diagnostics.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/contracts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/api/event-transport.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/event-ingress.test.ts",
+          "expected_signal": "cursor, ordering, snapshot, duplicate, gap, pressure, partial, orphan, tombstone, retry and disable semantics fail if ingress is disconnected",
+          "kind": "unit",
+          "path": "apps/web/test/event-ingress.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_event_stream_cursor_ingestion.py",
+          "expected_signal": "real API snapshot/delta plus Bun browser SSE reconnect and long-poll fallback fail if the default ingress path is removed",
+          "kind": "integration",
+          "path": "tests/integration/test_event_stream_cursor_ingestion.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed_event_history_and_long_poll_sources",
+      "capability_summary": "Bounded page and wait validation, typed history/delta requests, missing event failure and protocol-equivalent long-poll fallback.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_bf1015ecc8ce4d19a289",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 event-ingress internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/capabilities",
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> EventIngressCoordinator -> typed API -> EventIngressApiFacade -> RuntimeEventSpineBridge"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "deferred_to_M2-S01B-02",
+        "implementation_commit": "6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+        "migration_mode": "same_language_bounded_integration",
+        "owner_unit": "M2-S01B-01",
+        "python_facade_write_allowed": false,
+        "rationale": "OpenHands request paging and event service boundaries supplement the OpenCode ingress loop. Axios, conversation DTOs and frontend state owners were replaced by Zyra's existing typed client and runtime-event contract.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_role": "supplementary_implementation",
+        "transient_ingress_owner": "browser.EventIngressCoordinator"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; OpenHands request paging and event service boundaries supplement the OpenCode ingress loop. Axios, conversation DTOs and frontend state owners were replaced by Zyra's existing typed client and runtime-event contract.",
+      "owner_unit": "M2-S01B-01",
+      "replacement_plan": "Zyra-owned browser event ingress is reached through createZyraApi().events and keeps the TypeScript runtime-event spine as canonical event owner.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "The Python ingress facade is read-only and cannot become an event store.",
+        "Ingress batches do not own M2-S01B-02 UI projections.",
+        "Supplementary sources cannot become a second stream controller."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/events/ingress/transport-sources.ts",
+          "apps/web/src/events/ingress/validator.ts",
+          "apps/web/src/api/task-api.ts",
+          "packages/core/typed-api-client/src/transport.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_API_AUTH_TOKEN",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "TaskEventTransport.subscribe",
+        "health_check": "bun test ./apps/web/test/event-ingress.test.ts",
+        "module": "apps.web.src.api.event-transport",
+        "protocol": "zyra.event-ingress/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/api/event-service/event-service.api.ts;frontend/src/api/event-service/event-service.types.ts",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/api/event-service/event-service.api.ts;frontend/src/api/event-service/event-service.types.ts",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-01",
+        "event-ingress",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/events/ingress/transport-sources.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/events/ingress/validator.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/api/task-api.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/transport.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/event-ingress.test.ts",
+          "expected_signal": "cursor, ordering, snapshot, duplicate, gap, pressure, partial, orphan, tombstone, retry and disable semantics fail if ingress is disconnected",
+          "kind": "unit",
+          "path": "apps/web/test/event-ingress.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_event_stream_cursor_ingestion.py",
+          "expected_signal": "real API snapshot/delta plus Bun browser SSE reconnect and long-poll fallback fail if the default ingress path is removed",
+          "kind": "integration",
+          "path": "tests/integration/test_event_stream_cursor_ingestion.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "read_only_event_cursor_snapshot_delta_api",
+      "capability_summary": "Signed scoped cursor, stable task ordering, captured snapshot boundary, bounded delta wait, SSE response metadata and explicit transport errors.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_0f4482af0fa094ef06da",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 event-ingress internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/capabilities",
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> EventIngressCoordinator -> typed API -> EventIngressApiFacade -> RuntimeEventSpineBridge"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "deferred_to_M2-S01B-02",
+        "implementation_commit": "6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+        "migration_mode": "same_language_crop_and_adapt",
+        "owner_unit": "M2-S01B-01",
+        "python_facade_write_allowed": false,
+        "rationale": "The bounded OpenHands event-service query and routing behavior was cropped into a read-only facade over Zyra's TypeScript runtime-event spine. It cannot persist, renumber, reduce or fabricate events.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_role": "supplementary_implementation",
+        "transient_ingress_owner": "browser.EventIngressCoordinator"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; The bounded OpenHands event-service query and routing behavior was cropped into a read-only facade over Zyra's TypeScript runtime-event spine. It cannot persist, renumber, reduce or fabricate events.",
+      "owner_unit": "M2-S01B-01",
+      "replacement_plan": "Zyra-owned browser event ingress is reached through createZyraApi().events and keeps the TypeScript runtime-event spine as canonical event owner.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "The Python ingress facade is read-only and cannot become an event store.",
+        "Ingress batches do not own M2-S01B-02 UI projections.",
+        "Supplementary sources cannot become a second stream controller."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/api/zyra_api/event_stream_ingress.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_API_AUTH_TOKEN",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "TaskEventTransport.subscribe",
+        "health_check": "bun test ./apps/web/test/event-ingress.test.ts",
+        "module": "apps.web.src.api.event-transport",
+        "protocol": "zyra.event-ingress/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "openhands/app_server/event/event_service_base.py;openhands/app_server/event/event_router.py;openhands/app_server/event/event_store.py",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "openhands/app_server/event/event_service_base.py;openhands/app_server/event/event_router.py;openhands/app_server/event/event_store.py",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-01",
+        "event-ingress",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/api/zyra_api/event_stream_ingress.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/main.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/event-ingress.test.ts",
+          "expected_signal": "cursor, ordering, snapshot, duplicate, gap, pressure, partial, orphan, tombstone, retry and disable semantics fail if ingress is disconnected",
+          "kind": "unit",
+          "path": "apps/web/test/event-ingress.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_event_stream_cursor_ingestion.py",
+          "expected_signal": "real API snapshot/delta plus Bun browser SSE reconnect and long-poll fallback fail if the default ingress path is removed",
+          "kind": "integration",
+          "path": "tests/integration/test_event_stream_cursor_ingestion.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 464,
+    "active_or_internalized": 469,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 39,
       "deferred": 8,
       "planned": 698,
-      "productized": 409
+      "productized": 414
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -179958,7 +180749,7 @@
       "event_log_connected": 1,
       "inventoried": 39,
       "planned": 503,
-      "tested_main_path": 170,
+      "tested_main_path": 175,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -180008,10 +180799,11 @@
       "M2-01A": 46,
       "M2-03B": 30,
       "M2-S01A-01": 5,
-      "M2-S01A-02": 3
+      "M2-S01A-02": 3,
+      "M2-S01B-01": 5
     },
     "by_source_repo": {
-      "OpenHands": 88,
+      "OpenHands": 90,
       "agent-framework": 94,
       "agentscope": 106,
       "browser-use": 111,
@@ -180020,22 +180812,22 @@
       "langgraph": 85,
       "oh-my-pi": 23,
       "openclaw": 86,
-      "opencode": 18
+      "opencode": 21
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 43,
+      "direct_port": 47,
       "not_selected": 17,
       "planned_adapter": 378,
-      "reimplemented_pattern": 238,
+      "reimplemented_pattern": 239,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 737,
     "primary_target_prefixes": {
-      "apps/api": 31,
+      "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 50,
+      "apps/web": 54,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -180050,6 +180842,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1209
+    "total_entries": 1214
   }
 }
