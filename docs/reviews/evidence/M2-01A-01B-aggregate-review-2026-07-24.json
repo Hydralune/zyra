@@ -1,0 +1,376 @@
+{
+  "schema": "zyra.m2-01-aggregate-review-evidence/v1",
+  "review_id": "M2-01A-01B-aggregate-review-2026-07-24",
+  "review_date": "2026-07-24",
+  "status": "pass_after_fixes",
+  "scope": [
+    "M2-S01A-01",
+    "M2-S01A-02",
+    "M2-S01B-01",
+    "M2-S01B-02"
+  ],
+  "commits": {
+    "numeric_stage_baseline": "f53bf78287a2b2a6eec74102e7218d664307c137",
+    "original_aggregate_target": "087a5afce5cc12b265733489d54a7214d8d938a5",
+    "original_implementation_target": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+    "review_fix_commit": "0f460bb5fd33d8a47b45e9cf724bb9a58ff50d59",
+    "evidence_commit": "this_commit"
+  },
+  "implementation_commits": {
+    "M2-S01A-01": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+    "M2-S01A-02": "4b7f5f8bd5bc3e2819921bc62d27daf36ed8e682",
+    "M2-S01B-01": "6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+    "M2-S01B-02": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3"
+  },
+  "findings": [
+    {
+      "id": "M2-01-RF-001",
+      "severity": "high",
+      "attributed_commit": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+      "summary": "runtime readiness returned fixed true owner claims without probing canonical stores or runtimes",
+      "resolution": "fixed by fail-closed owner probes and an isolated TypeScript event-owner health probe"
+    },
+    {
+      "id": "M2-01-RF-002",
+      "severity": "high",
+      "attributed_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "summary": "concurrent projection saves could let an older revision overwrite a newer durable snapshot",
+      "resolution": "fixed by serialized revision writes and flush-before-clear"
+    },
+    {
+      "id": "M2-01-RF-003",
+      "severity": "high",
+      "attributed_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "summary": "fallback restore always preferred a stale primary replica over a newer valid fallback",
+      "resolution": "fixed by validating both replicas, selecting the highest revision, and failing on equal-revision conflicts"
+    },
+    {
+      "id": "M2-01-RF-004",
+      "severity": "medium",
+      "attributed_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "summary": "IndexedDB persistence acknowledged request success before transaction commit",
+      "resolution": "fixed by resolving only on transaction completion and rejecting abort/error paths"
+    },
+    {
+      "id": "M2-01-RF-005",
+      "severity": "medium",
+      "attributed_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "summary": "the active task route could not be pinned before its first event, allowing retention to miss the active route",
+      "resolution": "fixed by creating a normalized pinned runtime record before ingress"
+    },
+    {
+      "id": "M2-01-RF-006",
+      "severity": "medium",
+      "attributed_commit": "4b7f5f8bd5bc3e2819921bc62d27daf36ed8e682",
+      "summary": "the Claude supplementary ledger entry referenced a nonexistent source commit",
+      "resolution": "corrected to c57f5a29e88e9a814bea47abeb9a0a6f725dc102 and verified source blobs at that commit"
+    },
+    {
+      "id": "M2-01-RF-007",
+      "severity": "high",
+      "attributed_commit": "087a5afce5cc12b265733489d54a7214d8d938a5",
+      "summary": "the aggregate evidence omitted mandatory source-language custody and the source audit was hard-coded to the pre-review target",
+      "resolution": "added fail-closed aggregate language custody and parameterized pinned target/source-commit auditing"
+    }
+  ],
+  "effective_line_audit": {
+    "M2-S01A-01": {
+      "interval": "f53bf78287a2b2a6eec74102e7218d664307c137..b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+      "effective_production": 7002,
+      "minimum": 6000,
+      "passed": true
+    },
+    "M2-S01A-02": {
+      "interval": "3f51da450bd65fa1f20e53613e1b5bc791b811fb..4b7f5f8bd5bc3e2819921bc62d27daf36ed8e682",
+      "effective_production": 6674,
+      "minimum": 6000,
+      "passed": true
+    },
+    "M2-01A": {
+      "interval": "f53bf78287a2b2a6eec74102e7218d664307c137..4b7f5f8bd5bc3e2819921bc62d27daf36ed8e682",
+      "effective_production": 13625,
+      "minimum": 12000,
+      "passed": true
+    },
+    "M2-S01B-01": {
+      "interval": "1f41ab17864dd789948aeebe3723540007ebaf2b..6cd3f3fc259a5d39e96f81c79917ce3159d46efe",
+      "effective_production": 9600,
+      "minimum": 7500,
+      "passed": true
+    },
+    "M2-S01B-02": {
+      "interval": "8f6ea956286a6f84f7c20fc46225fa0b9b5ee9d5..7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "effective_production": 8382,
+      "minimum": 7500,
+      "passed": true
+    },
+    "M2-01B": {
+      "interval": "1f41ab17864dd789948aeebe3723540007ebaf2b..7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "effective_production": 18133,
+      "minimum": 15000,
+      "passed": true
+    },
+    "M2-01": {
+      "interval": "f53bf78287a2b2a6eec74102e7218d664307c137..7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "effective_production": 29504,
+      "minimum": 27000,
+      "passed": true
+    },
+    "review_fix_lines_used_to_backfill_original_minimum": false
+  },
+  "source_to_target_audit": {
+    "target": "0f460bb5fd33d8a47b45e9cf724bb9a58ff50d59",
+    "entry_count": 17,
+    "production_entry_count": 14,
+    "conformance_entry_count": 3,
+    "resolved_source_file_count": 60,
+    "resolved_target_count": 81,
+    "blocking_findings": 0,
+    "passed": true,
+    "nonblocking_findings": [
+      "agent-framework AG-UI conformance descriptor is intentionally prose rather than a production source file"
+    ]
+  },
+  "source_samples": [
+    {
+      "source": "opencode@adf178a6b95c61506ddaadaf4dd062badb4a8fda:packages/protocol/src/middleware/authorization.ts::Authorization",
+      "targets": [
+        "packages/core/typed-api-client/src/auth.ts",
+        "packages/core/typed-api-client/src/transport.ts"
+      ],
+      "verified_effect": "authorization, version, correlation, idempotency and fail-closed retry decisions execute on the typed client path"
+    },
+    {
+      "source": "claude-code-best@c57f5a29e88e9a814bea47abeb9a0a6f725dc102:src/utils/messageQueueManager.ts",
+      "targets": [
+        "apps/web/src/command/queue.ts",
+        "apps/web/src/command/coordinator.ts"
+      ],
+      "verified_effect": "now/next/later priority and FIFO ordering affect real command dispatch"
+    },
+    {
+      "source": "OpenHands@c105a82387898e744423c8831d412e26495b38a9:openhands/app_server/event/event_store.py",
+      "targets": [
+        "apps/web/src/events/ingress/ordered-buffer.ts",
+        "apps/web/src/state/store.ts",
+        "apps/web/src/state/persistence.ts"
+      ],
+      "verified_effect": "ordered event identity, cursor recovery and durable projection restore change visible canonical state"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_adapt",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "packages/core/typed-api-client/src/protocol.ts",
+        "packages/core/typed-api-client/src/transport.ts",
+        "apps/web/src/api/client.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      }
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "same_language_adapt_and_python_owner_extension",
+      "expected_production_languages": [
+        "python",
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/api/lifecycle.ts",
+        "apps/api/zyra_api/typed_transport.py",
+        "apps/api/zyra_api/main.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1,
+        "typescript": 1
+      },
+      "cross_language_exception": true,
+      "cross_language_decision_id": "M2-S01A-01-python-owner-extension"
+    },
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_crop_and_adapt",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/app/workbench-app.tsx",
+        "apps/web/src/shell/router.ts",
+        "apps/web/src/events/ingress/coordinator.ts",
+        "apps/web/src/state/store.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      }
+    },
+    {
+      "source_repo": "claude-code-best",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "same_language_crop_and_adapt",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/command/parser.ts",
+        "apps/web/src/command/queue.ts",
+        "apps/web/src/command/coordinator.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      }
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "same_language_crop_and_adapt",
+      "expected_production_languages": [
+        "python",
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/shell/workbench-controller.ts",
+        "apps/api/zyra_api/event_stream_ingress.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1,
+        "typescript": 1
+      }
+    },
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "same_language_retained_control_flow_adapt",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/events/ingress/snapshot-barrier.ts",
+        "apps/web/src/events/ingress/ordered-buffer.ts",
+        "apps/web/src/state/reducer.ts",
+        "apps/web/src/state/settlement.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      }
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "same_language_bounded_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/events/ingress/transport-sources.ts",
+        "apps/web/src/events/ingress/validator.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      }
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "bounded_cross_language_behavior_port_exception",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/state/history-fold.ts",
+        "apps/web/src/state/migrations.ts",
+        "apps/web/src/state/persistence.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": true,
+      "cross_language_decision_id": "M2-S01B-02-OPENHANDS-PORT-01"
+    }
+  ],
+  "tests": [
+    {
+      "command": "bun run typecheck",
+      "scope": "cleanroom target 0f460bb",
+      "result": "passed"
+    },
+    {
+      "command": "bun run test:web",
+      "scope": "cleanroom target 0f460bb",
+      "result": "88 passed, 0 failed, 342 assertions"
+    },
+    {
+      "command": "bun run build:web",
+      "scope": "cleanroom target 0f460bb",
+      "result": "passed"
+    },
+    {
+      "command": "pytest M2-01 adjacent integration set",
+      "scope": "cleanroom target 0f460bb with cleanroom import-origin assertions",
+      "result": "17 passed"
+    },
+    {
+      "command": "pytest tests",
+      "scope": "cleanroom target 0f460bb",
+      "result": "collection blocked by 6 pre-M2 zyra_runtime export errors"
+    },
+    {
+      "command": "pytest tests excluding the 6 attributed collection blockers",
+      "scope": "cleanroom target 0f460bb",
+      "result": "timed out at 1801 seconds near 27 percent; failures observed; first failure reproduced at the M2 baseline"
+    },
+    {
+      "command": "pytest test_browser_worker_permission_api_resumes_exact_network_action_once",
+      "scope": "baseline f53bf782",
+      "result": "failed before M2, confirming the broad-suite first failure is not introduced by this review"
+    }
+  ],
+  "cleanroom": {
+    "path": "G:/agent-zoo/.tmp/m2-01-aggregate-cleanroom-0f460bb",
+    "target": "0f460bb5fd33d8a47b45e9cf724bb9a58ff50d59",
+    "frozen_install": "passed after scoped access to the Bun package cache",
+    "import_origin_assertions": "passed for apps.api.zyra_api.main, zyra_memory and zyra_runtime",
+    "source_repository_runtime_dependency": false,
+    "notes": [
+      "The cleanroom ran without sibling source repositories.",
+      "The legacy verify_submission_boundary scanner reports its own deny-list literals in audit/recovery code as dependencies; those files are unchanged since the M2 baseline and the cleanroom execution demonstrates no runtime dependency."
+    ]
+  },
+  "dynamic_reachability": {
+    "typed_transport": "real embedded HTTP server and receipt-backed create/resume/cancel lifecycle",
+    "workbench_shell": "default React entry, route loader, command coordinator and backend lifecycle calls",
+    "event_ingress": "real runtime event spine API with SSE reconnect and long-poll fallback",
+    "projection_store": "WorkbenchRuntime binds ingress to the single CanonicalProjectionStore and panel selectors",
+    "disable_effect": "transport, ingress and projection disable paths fail visibly without fallback",
+    "browser_close_semantics": "projection close rejects further local mutation but does not cancel the backend task"
+  },
+  "residual_risks": [
+    {
+      "severity": "high",
+      "scope": "pre-M2 protected M1",
+      "summary": "unscoped Python repository tests cannot collect six legacy runtime foundation files because public exports are listed but not imported",
+      "attribution": "packages/runtime/zyra_runtime/__init__.py is unchanged between f53bf782 and 0f460bb"
+    },
+    {
+      "severity": "medium",
+      "scope": "pre-M2 repository-wide validation",
+      "summary": "the remaining broad Python suite exceeds the 30 minute aggregate review budget and contains baseline failures",
+      "attribution": "the first failure was reproduced at f53bf782"
+    },
+    {
+      "severity": "low",
+      "scope": "audit tooling",
+      "summary": "verify_submission_boundary treats deny-list literals inside audit code as live dependencies",
+      "attribution": "scanner and reported files are unchanged since the M2 baseline"
+    }
+  ],
+  "final_conclusion": "M2-01A-01 through M2-01B-02 pass after fixes at 0f460bb; pre-M2 full-repository blockers remain separately attributed and are not closed by this M2 review."
+}
