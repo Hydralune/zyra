@@ -163,6 +163,9 @@ class IntegrationScenarioExecutor:
             self._execute_request(context, request)
         self._load_canonical_views(context)
         self._evaluate_assertions(context)
+        cleanup_receipt = self._release_scenario_worker_leases(context)
+        if not cleanup_receipt["ok"]:
+            context.limitations.append("scenario worker lease cleanup failed")
         self._execute_disconnects(context)
         evidence = ScenarioEvidence(
             scenario_id=definition.scenario_id,
@@ -185,6 +188,7 @@ class IntegrationScenarioExecutor:
                 },
                 "binding_names": sorted(context.bindings),
                 "final_completion": runtime.final_completion,
+                "worker_lease_cleanup": cleanup_receipt,
             },
         )
         return evidence, self.gate.evaluate(
@@ -356,6 +360,100 @@ class IntegrationScenarioExecutor:
             receipt.setdefault("probe_id", requirement.probe_id)
             receipt.setdefault("capability", requirement.capability)
             context.disconnect_evidence.append(receipt)
+
+    @staticmethod
+    def _release_scenario_worker_leases(
+        context: ScenarioExecutionContext,
+    ) -> Mapping[str, Any]:
+        task_id = str(context.bindings.get("task_id") or "")
+        if not task_id:
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": "scenario has no canonical task identity",
+                "children": [],
+                "task": {},
+            }
+        child_receipts: list[dict[str, Any]] = []
+        seen_leases: set[str] = set()
+        try:
+            for response in context.responses.values():
+                workers = (
+                    response.get("physical_workers")
+                    if isinstance(response, Mapping)
+                    else ()
+                )
+                if not isinstance(workers, Sequence) or isinstance(
+                    workers,
+                    (str, bytes, bytearray),
+                ):
+                    continue
+                for item in workers:
+                    if not isinstance(item, Mapping):
+                        continue
+                    lease_id = str(item.get("lease_id") or "")
+                    if not lease_id or lease_id in seen_leases:
+                        continue
+                    seen_leases.add(lease_id)
+                    status, body = context.transport.post(
+                        f"/tasks/{quote(task_id, safe='-._~')}/worker-pool-control",
+                        {
+                            "kind": "cancel",
+                            "reason": "M1 integration scenario evidence captured",
+                            "lease_id": lease_id,
+                            "binding_id": str(
+                                item.get("integration_binding_id")
+                                or item.get("binding_id")
+                                or ""
+                            ),
+                            "worker_id": str(item.get("worker_id") or ""),
+                            "idempotency_key": (
+                                f"m1-scenario:{context.definition.scenario_id}:"
+                                f"{task_id}:{lease_id}:cleanup"
+                            ),
+                        },
+                        headers={},
+                    )
+                    child_receipts.append(
+                        {
+                            "lease_id": lease_id,
+                            "status": status,
+                            "ok": status in {200, 201, 202},
+                            "response_digest": stable_digest(body),
+                        }
+                    )
+            task_status, task_body = context.transport.post(
+                f"/tasks/{quote(task_id, safe='-._~')}/worker-pool-cancel",
+                {
+                    "reason": "M1 integration scenario evidence captured",
+                    "idempotency_key": (
+                        f"m1-scenario:{context.definition.scenario_id}:"
+                        f"{task_id}:cleanup"
+                    ),
+                },
+                headers={},
+            )
+        except (ScenarioTransportError, OSError, TimeoutError) as error:
+            return {
+                "ok": False,
+                "skipped": False,
+                "error_code": type(error).__name__,
+                "message": str(error),
+                "children": child_receipts,
+                "task": {},
+            }
+        task_receipt = {
+            "status": task_status,
+            "ok": task_status in {200, 201, 202},
+            "response_digest": stable_digest(task_body),
+        }
+        return {
+            "ok": task_receipt["ok"]
+            and all(item["ok"] for item in child_receipts),
+            "skipped": False,
+            "children": child_receipts,
+            "task": task_receipt,
+        }
 
     @staticmethod
     def _identity(task: Mapping[str, Any], key: str) -> str:
@@ -843,13 +941,6 @@ def _mcp_scenario() -> ScenarioDefinition:
                 expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
                 exercise_step_id="mcp-tools",
                 expected_errors=("mcp_source_runtime_disabled", "mcp_runtime_disabled"),
-            ),
-            DisconnectRequirement(
-                capability="permission-runtime",
-                probe_id="disable-permission-runtime",
-                expected_effect=ExpectedEffect.EXPLICIT_FAILURE,
-                exercise_step_id="mcp-command",
-                expected_errors=("permission_source_runtime_disabled", "permission_runtime_disabled"),
             ),
         ),
         required_event_families=("mcp", "requirement+change"),

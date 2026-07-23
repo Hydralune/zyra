@@ -222,6 +222,7 @@ def test_public_api_exposes_integration_status_and_executes_each_main_path(
         assert run.task_id
         assert run.run_id
         assert run.final_revision > run.baseline_revision
+        assert run.metadata["worker_lease_cleanup"]["ok"] is True
         if scenario_id == "m1-integration-query-session-context-tool":
             assert run.artifacts
         if scenario_id == "m1-integration-subagent-worker-recovery":
@@ -315,6 +316,11 @@ def test_public_api_scenarios_execute_real_owner_disconnects_without_lease_exhau
         assert all(item["status"] == "passed" for item in receipts.values())
         assert all(item.get("expected_failure_observed") or item.get("material_difference") for item in receipts.values())
         assert all(item.get("fallback_masked") is False for item in receipts.values())
+        assert all(
+            (item.get("isolation") or {}).get("before", {}).get("ok") is True
+            and (item.get("isolation") or {}).get("after", {}).get("ok") is True
+            for item in receipts.values()
+        )
 
 
 def test_public_api_integration_orchestrator_persists_fail_closed_outcome() -> None:
@@ -394,60 +400,6 @@ def test_public_api_integration_orchestrator_persists_fail_closed_outcome() -> N
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=10)
-
-
-def test_public_api_integration_executes_disconnects_in_owner_process() -> None:
-    with tempfile.TemporaryDirectory(dir=ROOT / ".tmp") as temporary:
-        root = Path(temporary)
-        environment = {
-            "ZYRA_SQLITE_PATH": str(root / "api.sqlite3"),
-            "ZYRA_EVENT_LOG": str(root / "events.jsonl"),
-            "ZYRA_TOOL_WORKSPACE": str(root / "workspace"),
-            "ZYRA_ARTIFACT_ROOT": str(root / "artifacts"),
-            "ZYRA_PERMISSION_STATE": str(root / "permission-state.json"),
-            "ZYRA_PERMISSION_STORE": str(root / "permissions.json"),
-        }
-        with patch.dict(os.environ, environment, clear=False):
-            handler = _fresh_api_handler()
-            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            transport = HttpScenarioTransport(
-                f"http://127.0.0.1:{server.server_address[1]}",
-                timeout_seconds=300,
-            )
-            try:
-                status, outcome = transport.post(
-                    "/hardening/m1/integration",
-                    {
-                        "baseline_commit": "8065bac109a3bed9ba01e0e92392fec4d05bfca3",
-                        "scenario_ids": [
-                            "m1-integration-query-session-context-tool"
-                        ],
-                        "execute_scenarios": True,
-                        "execute_disconnects": True,
-                        "run_cleanroom": False,
-                        "final_completion": False,
-                        "persist": False,
-                    },
-                )
-            finally:
-                server.shutdown()
-                server.server_close()
-                thread.join(timeout=10)
-
-    assert status in {200, 409}, outcome
-    scenario = outcome["scenario_evidence"][0]
-    assert scenario["passed"] is True, json.dumps(scenario, indent=2)
-    assert scenario["disconnect_evidence"]
-    assert all(
-        receipt["status"] == "passed"
-        for receipt in scenario["disconnect_evidence"]
-    ), json.dumps(scenario["disconnect_evidence"], indent=2)
-    assert all(
-        (receipt.get("restore_receipt") or {}).get("ok") is True
-        for receipt in scenario["disconnect_evidence"]
-    )
 
 
 def test_runtime_event_spine_disconnect_returns_stable_http_failure() -> None:

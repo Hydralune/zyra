@@ -710,6 +710,18 @@ class ScenarioDisconnectCoordinator:
                     "observed_worker_locations": locations,
                     "limitation": "real isolated edge dispatch remains an M1 exit blocker",
                 }
+        before_isolation = self._reset_probe_worker_pool()
+        if not before_isolation["ok"]:
+            return {
+                "probe_id": requirement.probe_id,
+                "capability": requirement.capability,
+                "status": "failed",
+                "error_code": "probe_isolation_reset_failed",
+                "error_message": "worker-pool reset failed before owner disconnect",
+                "expected_failure_observed": False,
+                "fallback_masked": False,
+                "isolation": {"before": before_isolation},
+            }
         contract = self.catalog.contract(requirement.probe_id)
         exercise = self._scenario_exercise(requirement, context)
         probe = EnvironmentOwnerDisconnectProbe(
@@ -719,11 +731,15 @@ class ScenarioDisconnectCoordinator:
         )
         suite = DisableModuleProbe()
         suite.register(probe)
-        gate = suite.evaluate(
-            required_capabilities=(requirement.capability,),
-            selected_probe_ids=(requirement.probe_id,),
-            execute=True,
-        )
+        after_isolation: Mapping[str, Any] = {}
+        try:
+            gate = suite.evaluate(
+                required_capabilities=(requirement.capability,),
+                selected_probe_ids=(requirement.probe_id,),
+                execute=True,
+            )
+        finally:
+            after_isolation = self._reset_probe_worker_pool()
         executions = gate.metrics.get("executions") or []
         if not executions:
             return {
@@ -733,12 +749,43 @@ class ScenarioDisconnectCoordinator:
                 "error_code": "probe_execution_missing",
                 "expected_failure_observed": False,
                 "fallback_masked": False,
+                "isolation": {
+                    "before": before_isolation,
+                    "after": after_isolation,
+                },
             }
         receipt = dict(executions[0])
+        receipt["isolation"] = {
+            "before": before_isolation,
+            "after": after_isolation,
+        }
+        if not after_isolation["ok"]:
+            receipt.update(
+                {
+                    "status": "failed",
+                    "error_code": "probe_isolation_cleanup_failed",
+                    "error_message": "worker-pool reset failed after owner disconnect",
+                    "expected_failure_observed": False,
+                }
+            )
         if requirement.expected_effect is ExpectedEffect.MATERIAL_DIFFERENCE:
             difference = receipt.get("difference") if isinstance(receipt.get("difference"), Mapping) else {}
             receipt["material_difference"] = bool(difference.get("semantic_change"))
         return receipt
+
+    def _reset_probe_worker_pool(self) -> Mapping[str, Any]:
+        if "worker-pool" not in self.reset_registry.registered_components():
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": "worker-pool reset is not registered in this process",
+                "components": [],
+            }
+        receipt = self.reset_registry.reset(("worker-pool",))
+        return {
+            **receipt,
+            "skipped": False,
+        }
 
     @staticmethod
     def _scenario_exercise(

@@ -433,6 +433,13 @@ def test_cli_integration_delegates_orchestration_to_owner_process(monkeypatch) -
             )
 
     monkeypatch.setattr(hardening_cli, "HttpScenarioTransport", OwnerProcessTransport)
+    monkeypatch.setattr(
+        hardening_cli,
+        "_git_identity",
+        lambda _root, expression: (
+            "1" * 40 if expression == "HEAD" else str(expression)
+        ),
+    )
     args = SimpleNamespace(
         scenario_timeout=120.0,
         integration_timeout=3600.0,
