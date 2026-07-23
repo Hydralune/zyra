@@ -1,0 +1,208 @@
+{
+  "slice_id": "M2-S01B-02",
+  "parent_unit": "M2-01B",
+  "numeric_stage": "M2-01",
+  "date": "2026-07-23",
+  "verdict": "passed",
+  "baseline_commit": "8f6ea956286a6f84f7c20fc46225fa0b9b5ee9d5",
+  "parent_baseline_commit": "1f41ab17864dd789948aeebe3723540007ebaf2b",
+  "numeric_stage_baseline_commit": "f53bf78287a2b2a6eec74102e7218d664307c137",
+  "preimplementation_decision_commit": "ff0e791",
+  "implementation_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "slice": {
+      "interval": "8f6ea956286a6f84f7c20fc46225fa0b9b5ee9d5..7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "raw_additions": 11652,
+      "raw_deletions": 3,
+      "production_runtime": 8338,
+      "ui_behavior": 44,
+      "ui_presentation_excluded": 43,
+      "type_declaration_excluded": 1183,
+      "schema_data_excluded": 47,
+      "adapter_only_excluded": 17,
+      "generated_excluded": 0,
+      "test_fixture_excluded": 1718,
+      "docs_comments_blank_excluded": 262,
+      "vendor_like_source_pool_excluded": 0,
+      "effective_production": 8382,
+      "minimum": 7500,
+      "margin": 882,
+      "passed": true
+    },
+    "parent": {
+      "interval": "1f41ab17864dd789948aeebe3723540007ebaf2b..7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "raw_additions": 26652,
+      "effective_production": 18133,
+      "minimum": 15000,
+      "margin": 3133,
+      "passed": true
+    },
+    "numeric_stage": {
+      "interval": "f53bf78287a2b2a6eec74102e7218d664307c137..7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "raw_additions": 49356,
+      "production_runtime": 23862,
+      "ui_behavior": 5642,
+      "effective_production": 29504,
+      "minimum": 27000,
+      "margin": 2504,
+      "passed": true
+    }
+  },
+  "source_decisions": {
+    "opencode": {
+      "commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+      "source_language": "TypeScript/TSX",
+      "target_language": "TypeScript/TSX",
+      "role": "primary_implementation",
+      "migration_modes": [
+        "same_language_retained_control_flow_adapt",
+        "same_language_crop_and_adapt"
+      ]
+    },
+    "openhands": {
+      "commit": "c105a82387898e744423c8831d412e26495b38a9",
+      "source_language": "Python",
+      "target_language": "TypeScript",
+      "role": "supplementary_implementation",
+      "migration_mode": "bounded_cross_language_behavior_port_exception",
+      "scope": "history/live accept-only-missing and restore behavior; no second store/router owner"
+    },
+    "openclaw": "excluded_forward_only"
+  },
+  "canonical_owners": {
+    "backend_task_run_session_state": "existing M1 backend stores",
+    "canonical_event_sequence_identity_causality": "typescript.RuntimeEventSpine",
+    "browser_request_and_event_ingress": "existing FetchApiTransport and TaskEventTransport",
+    "canonical_ui_projection": "typescript.CanonicalProjectionStore",
+    "panel_write_owners": 0
+  },
+  "verification": {
+    "typescript_typecheck": {
+      "passed": true,
+      "main_workspace": true,
+      "cleanroom": true
+    },
+    "front_end_behavior": {
+      "command": "bun test ./packages/core/typed-api-client/test ./apps/web/test",
+      "passed": 84,
+      "failed": 0,
+      "assertions": 332,
+      "cleanroom_repeated": true
+    },
+    "production_build": {
+      "command": "bun run --cwd apps/web build",
+      "passed": true,
+      "bundled_modules": 106,
+      "cleanroom_repeated": true
+    },
+    "projection_and_ingress_integration": {
+      "command": "python -m unittest tests.integration.test_canonical_projection_recovery tests.integration.test_event_stream_cursor_ingestion -v",
+      "passed": 3,
+      "failed": 0
+    },
+    "applicable_m2_01_backend": {
+      "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py tests/integration/test_runtime_event_spine_api.py tests/integration/test_event_stream_cursor_ingestion.py tests/integration/test_canonical_projection_recovery.py tests/unit/test_web_console_static.py tests/unit/test_task_graph.py tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_goal_command_mutates_canonical_task_instead_of_event_only_ack",
+      "main_workspace_passed": 16,
+      "main_workspace_failed": 0,
+      "main_workspace_seconds": 68.79,
+      "cleanroom_passed": 16,
+      "cleanroom_failed": 0,
+      "cleanroom_seconds": 84.03
+    },
+    "fifo_repeat": {
+      "command": "bun test ./apps/web/test/workbench-shell.test.tsx --rerun-each 20",
+      "failures": 0,
+      "purpose": "close protected M2-S01A-02 same-millisecond queue tie at the M2-01 aggregate"
+    },
+    "source_to_target": {
+      "command": "python scripts/audit_m2_01_source_to_target.py --summary",
+      "entries": 17,
+      "production_entries": 14,
+      "conformance_entries": 3,
+      "resolved_source_files": 60,
+      "resolved_targets": 81,
+      "blocking_findings": 0,
+      "passed": true
+    },
+    "ledger_sync": {
+      "command": "python scripts/sync_m2_projection_source_ledger.py --check",
+      "aligned": true,
+      "slice_entries": 4,
+      "aggregate_entries": 17,
+      "missing_targets": 0
+    },
+    "ledger_unit_observation": {
+      "passed": 26,
+      "failed": 1,
+      "baseline_reproduced_at_implementation_commit": true,
+      "failure": "protected M1-02B LedgerQuery planned vendored query returns no matches",
+      "current_m2_01_ledger_blocker": false
+    },
+    "unscoped_pytest_observation": {
+      "valid_repository_command": false,
+      "collection_errors": 225,
+      "cause": "discovery enters browser profiles, historical cleanrooms, package caches and vendored BrowserUse tests",
+      "preexisting_runtime_export_findings": 6,
+      "current_slice_blocker": false
+    },
+    "cleanroom": {
+      "path": "G:/agent-zoo/.tmp/m2-s01b-02-cleanroom-7446f4c",
+      "commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+      "frozen_lockfile_install": true,
+      "installed_packages": 8,
+      "git_status_clean": true
+    },
+    "dependency_scan": {
+      "parent_source_runtime_dependencies": 0,
+      "npm_links": 0,
+      "editable_parent_paths": 0,
+      "external_docker_contexts": 0,
+      "new_dependencies": 0,
+      "new_processes": 0,
+      "new_ports": 0,
+      "new_mcp_servers": 0,
+      "openclaw_runtime_references": 0
+    }
+  },
+  "concentration_audit": {
+    "files_over_20_percent_effective": [],
+    "production_candidate_over_30_percent_excluded": [
+      {
+        "path": "apps/web/src/state/contracts.ts",
+        "raw": 651,
+        "effective": 14,
+        "excluded": 637,
+        "reason": "590 type/declaration, 45 schema and 2 comment/blank lines receive zero credit"
+      }
+    ],
+    "passed": true
+  },
+  "adversarial_findings_fixed": [
+    "bounded nested legacy payload normalization",
+    "aggregate task terminal state from every node",
+    "deep immutable committed snapshots",
+    "route task unpin and selector-key memoization",
+    "stable same-timestamp command FIFO",
+    "browser close cannot cancel backend task"
+  ],
+  "aggregate": {
+    "M2_01B_status": "complete",
+    "M2_01_status": "complete",
+    "source_owner_audit_passed": true,
+    "exact_commit_cleanroom_passed": true,
+    "applicable_frontend_backend_regression_passed": true
+  },
+  "competition_evidence": {
+    "advances": [
+      "REQ-TRACE-01",
+      "REQ-CLOSE-01",
+      "canonical causal console projection",
+      "disconnect/reopen projection recovery",
+      "operator-visible permissions and commands",
+      "topology, timeline, artifact and session panel truth"
+    ],
+    "closes": []
+  },
+  "next_slice": "docs/milestones/M2-console-demo/slice-02a-01-topology-route-placement-projection.md"
+}

@@ -178707,7 +178707,7 @@
           "exists_in_workspace": true,
           "reason": "M2-S01A-01 source-to-target decision",
           "source_kind": "file",
-          "source_path": "packages/protocol/src/{api,errors,middleware/auth,middleware/schema-error,groups/session,groups/event,groups/health}.ts;packages/app/src/context/{server-sdk,server-sync,server-session}.tsx;packages/core/src/{util/retry,id/id}.ts",
+          "source_path": "packages/protocol/src/api.ts;packages/protocol/src/errors.ts;packages/protocol/src/middleware/authorization.ts;packages/protocol/src/middleware/schema-error.ts;packages/protocol/src/groups/session.ts;packages/protocol/src/groups/event.ts;packages/protocol/src/groups/health.ts;packages/app/src/context/server-sdk.tsx;packages/app/src/context/server-sync.tsx;packages/app/src/context/server-session.ts;packages/core/src/util/retry.ts;packages/core/src/id/id.ts",
           "source_repo": "opencode",
           "symbols": [],
           "tags": [
@@ -178716,7 +178716,7 @@
           ]
         }
       ],
-      "source_path": "packages/protocol/src/{api,errors,middleware/auth,middleware/schema-error,groups/session,groups/event,groups/health}.ts;packages/app/src/context/{server-sdk,server-sync,server-session}.tsx;packages/core/src/{util/retry,id/id}.ts",
+      "source_path": "packages/protocol/src/api.ts;packages/protocol/src/errors.ts;packages/protocol/src/middleware/authorization.ts;packages/protocol/src/middleware/schema-error.ts;packages/protocol/src/groups/session.ts;packages/protocol/src/groups/event.ts;packages/protocol/src/groups/health.ts;packages/app/src/context/server-sdk.tsx;packages/app/src/context/server-sync.tsx;packages/app/src/context/server-session.ts;packages/core/src/util/retry.ts;packages/core/src/id/id.ts",
       "source_repo": "opencode",
       "tags": [
         "m2-01a",
@@ -180729,19 +180729,755 @@
         }
       ],
       "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "canonical_projection_transaction_reconciliation",
+      "capability_summary": "Immutable revision transactions with deterministic identity merge, optimistic confirmation, partial settlement, tombstones and orphans.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-02A",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_a671a556d53291ee2d95",
+      "license_notice": {
+        "license_hint": "M2 projection mechanism provenance recorded.",
+        "notes": "No runtime dependency on the source workspace.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [
+          "projection_snapshot"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "runtime_event_spine"
+        ],
+        "ui_panels": [
+          "task_detail",
+          "topology",
+          "timeline",
+          "artifact",
+          "permission",
+          "session"
+        ],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> CanonicalProjectionStore -> typed panel selectors"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_backend_state_owner": "existing_M1_stores",
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+        "migration_mode": "same_language_retained_control_flow_adapt",
+        "owner_unit": "M2-S01B-02",
+        "rationale": "OpenCode freshness and reconciliation control flow was retained in Zyra immutable ingress transactions. Session/message DTOs and Solid store ownership were replaced by Zyra events and domain projections.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-02",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=same_language_retained_control_flow_adapt; OpenCode freshness and reconciliation control flow was retained in Zyra immutable ingress transactions. Session/message DTOs and Solid store ownership were replaced by Zyra events and domain projections.",
+      "owner_unit": "M2-S01B-02",
+      "replacement_plan": "The Zyra CanonicalProjectionStore consumes createZyraApi().events and remains replaceable behind normalized ingress and typed selectors.",
+      "risk_notes": [
+        "Backend stores and RuntimeEventSpine remain authoritative.",
+        "No parent repository path or process is required at runtime.",
+        "Supplementary OpenHands behavior cannot become a second state owner.",
+        "Browser close detaches projection only and cannot cancel backend tasks."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/state/reducer.ts",
+          "apps/web/src/state/settlement.ts",
+          "apps/web/src/state/orphans.ts",
+          "apps/web/src/state/history-fold.ts",
+          "apps/web/src/state/causality.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "CanonicalProjectionStore.bind",
+        "health_check": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+        "module": "apps.web.src.state.store",
+        "protocol": "zyra.ui-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-02 prospective source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/server-session.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/server-session.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-02",
+        "projection-store",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/state/reducer.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/settlement.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/orphans.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/history-fold.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/causality.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+          "expected_signal": "domain projection, reconciliation, causality, retention, selectors, persistence, migration and disable semantics",
+          "kind": "unit",
+          "path": "apps/web/test/canonical-projection-store.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_canonical_projection_recovery.py",
+          "expected_signal": "real API snapshot, delta, restore, reconnect and browser-close ownership semantics",
+          "kind": "integration",
+          "path": "tests/integration/test_canonical_projection_recovery.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "projection_domains_indices_selectors_and_retention",
+      "capability_summary": "All required task/runtime domains, reversible indices, dependency-keyed selectors, downstream panel views and protected bounded retention.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-02A",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_533298ad4a1b97182ed9",
+      "license_notice": {
+        "license_hint": "M2 projection mechanism provenance recorded.",
+        "notes": "No runtime dependency on the source workspace.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [
+          "projection_snapshot"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "runtime_event_spine"
+        ],
+        "ui_panels": [
+          "task_detail",
+          "topology",
+          "timeline",
+          "artifact",
+          "permission",
+          "session"
+        ],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> CanonicalProjectionStore -> typed panel selectors"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_backend_state_owner": "existing_M1_stores",
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+        "migration_mode": "same_language_crop_and_adapt",
+        "owner_unit": "M2-S01B-02",
+        "rationale": "Ordered projection, deletion cleanup, permission lifecycle and cache protection were decomposed into Zyra domain projectors, reversible causality and typed panel selectors. OpenCode project caches were removed.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-02",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=same_language_crop_and_adapt; Ordered projection, deletion cleanup, permission lifecycle and cache protection were decomposed into Zyra domain projectors, reversible causality and typed panel selectors. OpenCode project caches were removed.",
+      "owner_unit": "M2-S01B-02",
+      "replacement_plan": "The Zyra CanonicalProjectionStore consumes createZyraApi().events and remains replaceable behind normalized ingress and typed selectors.",
+      "risk_notes": [
+        "Backend stores and RuntimeEventSpine remain authoritative.",
+        "No parent repository path or process is required at runtime.",
+        "Supplementary OpenHands behavior cannot become a second state owner.",
+        "Browser close detaches projection only and cannot cancel backend tasks."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/state/projectors.ts",
+          "apps/web/src/state/selectors.ts",
+          "apps/web/src/state/panel-selectors.ts",
+          "apps/web/src/state/retention.ts",
+          "apps/web/src/state/value.ts",
+          "apps/web/src/state/integrity.ts",
+          "apps/web/src/state/contracts.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "CanonicalProjectionStore.bind",
+        "health_check": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+        "module": "apps.web.src.state.store",
+        "protocol": "zyra.ui-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-02 prospective source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/global-sync/event-reducer.ts;packages/app/src/context/global-sync/session-cache.ts;packages/app/src/context/global-sync/session-trim.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/global-sync/event-reducer.ts;packages/app/src/context/global-sync/session-cache.ts;packages/app/src/context/global-sync/session-trim.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-02",
+        "projection-store",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/state/projectors.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/selectors.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/panel-selectors.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/retention.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/value.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/integrity.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/contracts.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+          "expected_signal": "domain projection, reconciliation, causality, retention, selectors, persistence, migration and disable semantics",
+          "kind": "unit",
+          "path": "apps/web/test/canonical-projection-store.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_canonical_projection_recovery.py",
+          "expected_signal": "real API snapshot, delta, restore, reconnect and browser-close ownership semantics",
+          "kind": "integration",
+          "path": "tests/integration/test_canonical_projection_recovery.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "workbench_projection_lifecycle_persistence_and_restore",
+      "capability_summary": "One workbench-scoped projection store with selector fan-out, task pinning, versioned persistence, restore-before-bind and browser-only cleanup.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-02A",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_6722fcaaa923aa0287c2",
+      "license_notice": {
+        "license_hint": "M2 projection mechanism provenance recorded.",
+        "notes": "No runtime dependency on the source workspace.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [
+          "projection_snapshot"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "runtime_event_spine"
+        ],
+        "ui_panels": [
+          "task_detail",
+          "topology",
+          "timeline",
+          "artifact",
+          "permission",
+          "session"
+        ],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> CanonicalProjectionStore -> typed panel selectors"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_backend_state_owner": "existing_M1_stores",
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+        "migration_mode": "same_language_crop_and_adapt",
+        "owner_unit": "M2-S01B-02",
+        "rationale": "Owner-scoped synchronization and cleanup became the sole Zyra browser projection lifecycle. Solid, TanStack and per-panel stores were removed.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-02",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=same_language_crop_and_adapt; Owner-scoped synchronization and cleanup became the sole Zyra browser projection lifecycle. Solid, TanStack and per-panel stores were removed.",
+      "owner_unit": "M2-S01B-02",
+      "replacement_plan": "The Zyra CanonicalProjectionStore consumes createZyraApi().events and remains replaceable behind normalized ingress and typed selectors.",
+      "risk_notes": [
+        "Backend stores and RuntimeEventSpine remain authoritative.",
+        "No parent repository path or process is required at runtime.",
+        "Supplementary OpenHands behavior cannot become a second state owner.",
+        "Browser close detaches projection only and cannot cancel backend tasks."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/state/store.ts",
+          "apps/web/src/state/state.ts",
+          "apps/web/src/state/persistence.ts",
+          "apps/web/src/state/migrations.ts",
+          "apps/web/src/app/runtime.ts",
+          "apps/web/src/app/hooks.ts",
+          "apps/web/src/components/tasks/task-detail.tsx"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "CanonicalProjectionStore.bind",
+        "health_check": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+        "module": "apps.web.src.state.store",
+        "protocol": "zyra.ui-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-02 prospective source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/server-sync.tsx;packages/app/src/context/global-sync/child-store.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/server-sync.tsx;packages/app/src/context/global-sync/child-store.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-02",
+        "projection-store",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/state/store.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/state.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/persistence.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/migrations.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/app/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/app/hooks.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/components/tasks/task-detail.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+          "expected_signal": "domain projection, reconciliation, causality, retention, selectors, persistence, migration and disable semantics",
+          "kind": "unit",
+          "path": "apps/web/test/canonical-projection-store.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_canonical_projection_recovery.py",
+          "expected_signal": "real API snapshot, delta, restore, reconnect and browser-close ownership semantics",
+          "kind": "integration",
+          "path": "tests/integration/test_canonical_projection_recovery.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "history_live_accept_missing_restore_protocol",
+      "capability_summary": "Stable history pagination, load-before-fold, accept-only-missing identity and one projection effect for each newly committed event.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-02A",
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_9893eb0da8cd910ade0e",
+      "license_notice": {
+        "license_hint": "M2 projection mechanism provenance recorded.",
+        "notes": "No runtime dependency on the source workspace.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /tasks/{task_id}/event-ingress/snapshot",
+          "GET /tasks/{task_id}/event-ingress/delta",
+          "GET /tasks/{task_id}/event-ingress/sse"
+        ],
+        "artifact_kinds": [
+          "projection_snapshot"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "zyra.runtime-event/v1"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "typed_api_client",
+          "runtime_event_spine"
+        ],
+        "ui_panels": [
+          "task_detail",
+          "topology",
+          "timeline",
+          "artifact",
+          "permission",
+          "session"
+        ],
+        "worker_runtime": "createZyraApi().events -> TaskEventTransport -> CanonicalProjectionStore -> typed panel selectors"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_backend_state_owner": "existing_M1_stores",
+        "canonical_event_owner": "typescript.RuntimeEventSpine",
+        "canonical_ui_projection_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "7446f4cb57c4a75f416a5d6707ccf47c03a67cc3",
+        "migration_mode": "bounded_cross_language_behavior_port_exception",
+        "owner_unit": "M2-S01B-02",
+        "rationale": "Only independently testable Python history/live recovery behavior was ported to the TypeScript canonical reducer target. No OpenHands store, router or second projection owner was migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01B-02",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=bounded_cross_language_behavior_port_exception; Only independently testable Python history/live recovery behavior was ported to the TypeScript canonical reducer target. No OpenHands store, router or second projection owner was migrated.",
+      "owner_unit": "M2-S01B-02",
+      "replacement_plan": "The Zyra CanonicalProjectionStore consumes createZyraApi().events and remains replaceable behind normalized ingress and typed selectors.",
+      "risk_notes": [
+        "Backend stores and RuntimeEventSpine remain authoritative.",
+        "No parent repository path or process is required at runtime.",
+        "Supplementary OpenHands behavior cannot become a second state owner.",
+        "Browser close detaches projection only and cannot cancel backend tasks."
+      ],
+      "runtime_entry": {
+        "command": "bun run --cwd apps/web build",
+        "config_refs": [
+          "apps/web/src/state/history-fold.ts",
+          "apps/web/src/state/migrations.ts",
+          "apps/web/src/state/persistence.ts",
+          "apps/web/test/canonical-projection-probe.ts",
+          "tests/integration/test_canonical_projection_recovery.py"
+        ],
+        "environment_refs": [
+          "ZYRA_API_BASE_URL",
+          "ZYRA_EVENT_CURSOR_SECRET"
+        ],
+        "function": "CanonicalProjectionStore.bind",
+        "health_check": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+        "module": "apps.web.src.state.store",
+        "protocol": "zyra.ui-projection/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01B-02 prospective source-to-target decision",
+          "source_kind": "file",
+          "source_path": "openhands/app_server/event/event_service_base.py;openhands/app_server/event/event_router.py;openhands/app_server/sandbox/remote_sandbox_service.py",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-01b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "openhands/app_server/event/event_service_base.py;openhands/app_server/event/event_router.py;openhands/app_server/sandbox/remote_sandbox_service.py",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-01b",
+        "m2-s01b-02",
+        "projection-store",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/state/history-fold.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/migrations.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/state/persistence.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/test/canonical-projection-probe.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "tests/integration/test_canonical_projection_recovery.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/canonical-projection-store.test.ts",
+          "expected_signal": "domain projection, reconciliation, causality, retention, selectors, persistence, migration and disable semantics",
+          "kind": "unit",
+          "path": "apps/web/test/canonical-projection-store.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_canonical_projection_recovery.py",
+          "expected_signal": "real API snapshot, delta, restore, reconnect and browser-close ownership semantics",
+          "kind": "integration",
+          "path": "tests/integration/test_canonical_projection_recovery.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 469,
+    "active_or_internalized": 473,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
       "candidate": 39,
       "deferred": 8,
       "planned": 698,
-      "productized": 414
+      "productized": 418
     },
     "by_main_path_status": {
       "api_connected": 17,
@@ -180749,7 +181485,7 @@
       "event_log_connected": 1,
       "inventoried": 39,
       "planned": 503,
-      "tested_main_path": 175,
+      "tested_main_path": 179,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -180800,10 +181536,11 @@
       "M2-03B": 30,
       "M2-S01A-01": 5,
       "M2-S01A-02": 3,
-      "M2-S01B-01": 5
+      "M2-S01B-01": 5,
+      "M2-S01B-02": 4
     },
     "by_source_repo": {
-      "OpenHands": 90,
+      "OpenHands": 91,
       "agent-framework": 94,
       "agentscope": 106,
       "browser-use": 111,
@@ -180812,22 +181549,22 @@
       "langgraph": 85,
       "oh-my-pi": 23,
       "openclaw": 86,
-      "opencode": 21
+      "opencode": 24
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 47,
+      "direct_port": 50,
       "not_selected": 17,
       "planned_adapter": 378,
-      "reimplemented_pattern": 239,
+      "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
     "planned_or_candidate": 737,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 54,
+      "apps/web": 58,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -180842,6 +181579,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1214
+    "total_entries": 1218
   }
 }
