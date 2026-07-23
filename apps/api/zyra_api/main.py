@@ -8029,7 +8029,10 @@ def run(host: str | None = None, port: int | None = None) -> None:
     print(f"Zyra API listening on http://{bind_host}:{bind_port}")
     print(f"Event log: {event_log_path()}")
     print(f"SQLite: {sqlite_path()}")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 
 def _path_parts(path: str) -> list[str]:
