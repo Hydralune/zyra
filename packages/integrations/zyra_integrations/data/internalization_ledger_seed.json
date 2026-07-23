@@ -178605,27 +178605,772 @@
         }
       ],
       "updated_at": "2026-07-22T14:30:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "typed_api_protocol_transport_and_request_lifecycle",
+      "capability_summary": "Single typed client, version/auth/error envelope, opaque cursor, request correlation, bounded idempotent retry, cancellation, transport registry and transient event polling.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01A",
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_bed00a8bff4c2ba2005a",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 transport internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /health",
+          "GET /runtime/readiness",
+          "GET /tasks",
+          "GET /tasks/{task_id}",
+          "GET /tasks/{task_id}/events",
+          "POST /tasks",
+          "POST /tasks/{task_id}/run",
+          "POST /tasks/{task_id}/cancel"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [
+          "cancel",
+          "resume"
+        ],
+        "event_types": [],
+        "surfaces": [
+          "typed_api_client",
+          "web_api",
+          "zyra_api"
+        ],
+        "ui_panels": [
+          "typed_transport_boundary"
+        ],
+        "worker_runtime": "ZyraApiClient -> TransportRegistry -> FetchApiTransport -> ZyraRequestHandler"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_control_owner": "M1 control runtimes",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "implementation_commit": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+        "migration_mode": "same_language_adapt",
+        "owner_unit": "M2-S01A-01",
+        "rationale": "The OpenCode protocol/SDK/session mechanisms were decomposed into Zyra-owned TypeScript modules. OpenCode schemas, Solid stores and SDK dependencies are absent; M1 task/event/checkpoint owners remain canonical.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01A-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_role": "primary_implementation"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; The OpenCode protocol/SDK/session mechanisms were decomposed into Zyra-owned TypeScript modules. OpenCode schemas, Solid stores and SDK dependencies are absent; M1 task/event/checkpoint owners remain canonical.",
+      "owner_unit": "M2-S01A-01",
+      "replacement_plan": "Zyra-owned typed transport is the only browser client and delegates canonical state to existing M1 owners.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "A conformance source cannot become a second transport or state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/core/typed-api-client/src/protocol.ts",
+          "packages/core/typed-api-client/src/transport.ts",
+          "packages/core/typed-api-client/src/registry.ts",
+          "packages/core/typed-api-client/src/request.ts",
+          "packages/core/typed-api-client/src/response.ts",
+          "packages/core/typed-api-client/src/retry.ts",
+          "packages/core/typed-api-client/src/identifiers.ts",
+          "packages/core/typed-api-client/src/polling.ts",
+          "apps/web/src/api/client.ts",
+          "apps/web/src/api/task-api.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_API_AUTH_TOKEN"
+        ],
+        "function": "ZyraApiClient.endpoint",
+        "health_check": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py",
+        "module": "apps.web.src.api.client",
+        "protocol": "zyra-typed-api-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/protocol/src/{api,errors,middleware/auth,middleware/schema-error,groups/session,groups/event,groups/health}.ts;packages/app/src/context/{server-sdk,server-sync,server-session}.tsx;packages/core/src/{util/retry,id/id}.ts",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-01a",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/protocol/src/{api,errors,middleware/auth,middleware/schema-error,groups/session,groups/event,groups/health}.ts;packages/app/src/context/{server-sdk,server-sync,server-session}.tsx;packages/core/src/{util/retry,id/id}.ts",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-01a",
+        "m2-s01a-01",
+        "typed-transport",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/core/typed-api-client/src/protocol.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/transport.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/registry.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/request.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/response.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/retry.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/identifiers.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "packages/core/typed-api-client/src/polling.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/api/client.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/api/task-api.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+          "expected_signal": "transport/auth/version/timeout/disconnect/malformed/disable contracts fail closed",
+          "kind": "unit",
+          "path": "packages/core/typed-api-client/test/transport.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py",
+          "expected_signal": "embedded real API/store create, resume, cancel and replay produce one canonical mutation per idempotency key",
+          "kind": "integration",
+          "path": "tests/integration/test_m2_typed_api_client_transport.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "task_lifecycle_auth_timeout_and_resume_mapping",
+      "capability_summary": "Create/cancel/resume lifecycle mapping, per-session authentication separation and typed lifecycle error handling.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01A",
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_91c9f8c8c43810a5220e",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 transport internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "GET /health",
+          "GET /runtime/readiness",
+          "GET /tasks",
+          "GET /tasks/{task_id}",
+          "GET /tasks/{task_id}/events",
+          "POST /tasks",
+          "POST /tasks/{task_id}/run",
+          "POST /tasks/{task_id}/cancel"
+        ],
+        "artifact_kinds": [],
+        "control_commands": [
+          "cancel",
+          "resume"
+        ],
+        "event_types": [],
+        "surfaces": [
+          "typed_api_client",
+          "web_api",
+          "zyra_api"
+        ],
+        "ui_panels": [
+          "typed_transport_boundary"
+        ],
+        "worker_runtime": "ZyraApiClient -> TransportRegistry -> FetchApiTransport -> ZyraRequestHandler"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_control_owner": "M1 control runtimes",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "implementation_commit": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+        "migration_mode": "same_language_adapt_and_python_owner_extension",
+        "owner_unit": "M2-S01A-01",
+        "rationale": "Only bounded lifecycle/auth semantics supplement the primary client. No Axios client, runtime URL owner, conversation store or sandbox owner is copied.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01A-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_role": "supplementary_implementation"
+      },
+      "migration_strategy": "reimplemented_pattern",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; Only bounded lifecycle/auth semantics supplement the primary client. No Axios client, runtime URL owner, conversation store or sandbox owner is copied.",
+      "owner_unit": "M2-S01A-01",
+      "replacement_plan": "Zyra-owned typed transport is the only browser client and delegates canonical state to existing M1 owners.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "A conformance source cannot become a second transport or state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/src/api/lifecycle.ts",
+          "apps/web/src/api/task-api.ts",
+          "apps/api/zyra_api/typed_transport.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "environment_refs": [
+          "ZYRA_API_AUTH_TOKEN"
+        ],
+        "function": "ZyraApiClient.endpoint",
+        "health_check": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py",
+        "module": "apps.web.src.api.client",
+        "protocol": "zyra-typed-api-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/api/conversation-service/{conversation-service.api,v1-conversation-service.api}.ts;frontend/src/api/{event-service/event-service.api,sandbox-service/sandbox-service.api}.ts",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-01a",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/api/conversation-service/{conversation-service.api,v1-conversation-service.api}.ts;frontend/src/api/{event-service/event-service.api,sandbox-service/sandbox-service.api}.ts",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-01a",
+        "m2-s01a-01",
+        "typed-transport",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/api/lifecycle.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/api/task-api.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/typed_transport.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/main.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+          "expected_signal": "transport/auth/version/timeout/disconnect/malformed/disable contracts fail closed",
+          "kind": "unit",
+          "path": "packages/core/typed-api-client/test/transport.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py",
+          "expected_signal": "embedded real API/store create, resume, cancel and replay produce one canonical mutation per idempotency key",
+          "kind": "integration",
+          "path": "tests/integration/test_m2_typed_api_client_transport.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "rpc_acp_request_correlation_and_cancellation_conformance",
+      "capability_summary": "Explicit request/response IDs, cancellation targets, malformed envelope rejection and capability/auth separation conformance.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01A",
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_2f116463a308b11e7780",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 transport internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "typed_api_client",
+          "web_api",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "conformance_only; behavior is tested by packages/core/typed-api-client/test/transport.test.ts"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_control_owner": "M1 control runtimes",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "implementation_commit": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S01A-01",
+        "rationale": "OMP RPC/ACP is a behavior oracle only and owns no Zyra production transport, session, permission or terminal state.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01A-01",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_role": "conformance_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; OMP RPC/ACP is a behavior oracle only and owns no Zyra production transport, session, permission or terminal state.",
+      "owner_unit": "M2-S01A-01",
+      "replacement_plan": "Conformance-only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "A conformance source cannot become a second transport or state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/core/typed-api-client/test/transport.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "typed transport conformance tests",
+        "health_check": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+        "module": "packages.core.typed-api-client.test.transport",
+        "protocol": "zyra-typed-api-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/jsonrpc/message-framing.ts;packages/coding-agent/src/modes/acp/acp-client-bridge.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-01a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/jsonrpc/message-framing.ts;packages/coding-agent/src/modes/acp/acp-client-bridge.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-01a",
+        "m2-s01a-01",
+        "typed-transport",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "inventoried"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/core/typed-api-client/test/transport.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+          "expected_signal": "transport/auth/version/timeout/disconnect/malformed/disable contracts fail closed",
+          "kind": "unit",
+          "path": "packages/core/typed-api-client/test/transport.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py",
+          "expected_signal": "embedded real API/store create, resume, cancel and replay produce one canonical mutation per idempotency key",
+          "kind": "integration",
+          "path": "tests/integration/test_m2_typed_api_client_transport.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "agui_envelope_correlation_conformance",
+      "capability_summary": "Approval/history envelope correlation comparison.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01A",
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_2309595aadd1e43b3c91",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 transport internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agent-framework",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "typed_api_client",
+          "web_api",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "conformance_only; behavior is tested by packages/core/typed-api-client/test/transport.test.ts"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_control_owner": "M1 control runtimes",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "implementation_commit": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S01A-01",
+        "rationale": "Agent Framework remains a conformance oracle and does not regain workflow, checkpoint, session or client ownership.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01A-01",
+        "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
+        "source_role": "conformance_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=d50698bb797710bfd1ebf34eb621c905a4009b2d; Agent Framework remains a conformance oracle and does not regain workflow, checkpoint, session or client ownership.",
+      "owner_unit": "M2-S01A-01",
+      "replacement_plan": "Conformance-only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "A conformance source cannot become a second transport or state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/core/typed-api-client/test/transport.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "typed transport conformance tests",
+        "health_check": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+        "module": "packages.core.typed-api-client.test.transport",
+        "protocol": "zyra-typed-api-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "AG-UI approval/history request and response envelopes",
+          "source_repo": "agent-framework",
+          "symbols": [],
+          "tags": [
+            "m2-01a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "AG-UI approval/history request and response envelopes",
+      "source_repo": "agent-framework",
+      "tags": [
+        "m2-01a",
+        "m2-s01a-01",
+        "typed-transport",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "inventoried"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/core/typed-api-client/test/transport.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+          "expected_signal": "transport/auth/version/timeout/disconnect/malformed/disable contracts fail closed",
+          "kind": "unit",
+          "path": "packages/core/typed-api-client/test/transport.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py",
+          "expected_signal": "embedded real API/store create, resume, cancel and replay produce one canonical mutation per idempotency key",
+          "kind": "integration",
+          "path": "tests/integration/test_m2_typed_api_client_transport.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "session_projection_envelope_conformance",
+      "capability_summary": "Session lifecycle projection and correlation comparison.",
+      "created_at": "2026-07-23T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-01A",
+        "M2-01B",
+        "M2-02A",
+        "M2-03A"
+      ],
+      "ledger_id": "ile_24b535b35babc7433d62",
+      "license_notice": {
+        "license_hint": "Source mechanism recorded for Zyra-owned M2 transport internalization.",
+        "notes": "No runtime dependency on the parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agentscope",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [],
+        "artifact_kinds": [],
+        "control_commands": [],
+        "event_types": [],
+        "surfaces": [
+          "typed_api_client",
+          "web_api",
+          "zyra_api"
+        ],
+        "ui_panels": [],
+        "worker_runtime": "conformance_only; behavior is tested by packages/core/typed-api-client/test/transport.test.ts"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_artifact_owner": "LocalArtifactStore",
+        "canonical_control_owner": "M1 control runtimes",
+        "canonical_event_owner": "EventLog",
+        "canonical_task_owner": "SQLiteStore/TaskState",
+        "implementation_commit": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S01A-01",
+        "rationale": "AgentScope is a conformance oracle only for this slice and owns no Zyra session store, event stream or frontend client.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S01A-01",
+        "source_commit": "b6698c5dbaa1aa916925e27402767f45e2405fa4",
+        "source_role": "conformance_only"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=b6698c5dbaa1aa916925e27402767f45e2405fa4; AgentScope is a conformance oracle only for this slice and owns no Zyra session store, event stream or frontend client.",
+      "owner_unit": "M2-S01A-01",
+      "replacement_plan": "Conformance-only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "A conformance source cannot become a second transport or state owner."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "packages/core/typed-api-client/test/transport.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "typed transport conformance tests",
+        "health_check": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+        "module": "packages.core.typed-api-client.test.transport",
+        "protocol": "zyra-typed-api-v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S01A-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "src/agentscope/app/_router/_session.py;src/agentscope/app/_service/{_session,_session_projection}.py;examples/web_ui/frontend/src/api/{chat,session}.ts",
+          "source_repo": "agentscope",
+          "symbols": [],
+          "tags": [
+            "m2-01a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "src/agentscope/app/_router/_session.py;src/agentscope/app/_service/{_session,_session_projection}.py;examples/web_ui/frontend/src/api/{chat,session}.ts",
+      "source_repo": "agentscope",
+      "tags": [
+        "m2-01a",
+        "m2-s01a-01",
+        "typed-transport",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "inventoried"
+          ],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "packages/core/typed-api-client/test/transport.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+          "expected_signal": "transport/auth/version/timeout/disconnect/malformed/disable contracts fail closed",
+          "kind": "unit",
+          "path": "packages/core/typed-api-client/test/transport.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py",
+          "expected_signal": "embedded real API/store create, resume, cancel and replay produce one canonical mutation per idempotency key",
+          "kind": "integration",
+          "path": "tests/integration/test_m2_typed_api_client_transport.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-23T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 459,
+    "active_or_internalized": 461,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 36,
+      "candidate": 39,
       "deferred": 8,
       "planned": 698,
-      "productized": 404
+      "productized": 406
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 36,
+      "inventoried": 39,
       "planned": 503,
-      "tested_main_path": 165,
+      "tested_main_path": 167,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -178673,34 +179418,36 @@
       "M1-S07C-01": 1,
       "M1-S07C-02": 1,
       "M2-01A": 46,
-      "M2-03B": 30
+      "M2-03B": 30,
+      "M2-S01A-01": 5
     },
     "by_source_repo": {
-      "OpenHands": 86,
-      "agent-framework": 93,
-      "agentscope": 105,
+      "OpenHands": 87,
+      "agent-framework": 94,
+      "agentscope": 106,
       "browser-use": 111,
       "claude-code-best": 511,
       "hermes-agent": 86,
       "langgraph": 85,
-      "oh-my-pi": 22,
+      "oh-my-pi": 23,
       "openclaw": 86,
-      "opencode": 16
+      "opencode": 17
     },
     "by_strategy": {
       "adapter": 81,
       "candidate_review": 7,
-      "direct_port": 40,
-      "not_selected": 14,
+      "direct_port": 41,
+      "not_selected": 17,
       "planned_adapter": 378,
-      "reimplemented_pattern": 236,
+      "reimplemented_pattern": 237,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 734,
+    "planned_or_candidate": 737,
     "primary_target_prefixes": {
       "apps/api": 31,
       "apps/code-worker": 34,
-      "apps/web": 46,
+      "apps/web": 47,
+      "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
       "packages/memory": 197,
@@ -178714,6 +179461,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1201
+    "total_entries": 1206
   }
 }

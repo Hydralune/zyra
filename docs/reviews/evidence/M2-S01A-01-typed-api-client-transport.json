@@ -1,0 +1,88 @@
+{
+  "slice_id": "M2-S01A-01",
+  "date": "2026-07-23",
+  "verdict": "passed",
+  "baseline_commit": "f53bf78287a2b2a6eec74102e7218d664307c137",
+  "preimplementation_decision_commit": "5e4d0ae91829aa6315db1ccd8f9e111d39c3e3a6",
+  "implementation_commit": "b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+  "evidence_commit": "this_commit",
+  "line_count_interval": "f53bf78287a2b2a6eec74102e7218d664307c137..b4e6b5b554ff6ee8ebd786bddc239d00efa9cbc2",
+  "effective_line_count": {
+    "raw_additions": 9305,
+    "production_runtime": 6196,
+    "ui_behavior": 806,
+    "ui_presentation_excluded": 34,
+    "type_declaration_excluded": 1055,
+    "schema_data_excluded": 101,
+    "adapter_only_excluded": 0,
+    "generated_excluded": 0,
+    "test_fixture_excluded": 799,
+    "docs_comments_blank_excluded": 314,
+    "effective_production": 7002,
+    "minimum": 6000,
+    "passed": true
+  },
+  "source_language": {
+    "opencode_primary_typescript": 5854,
+    "openhands_supplementary_typescript": 422,
+    "existing_zyra_python_owner_extension": 726,
+    "conformance_only": 0
+  },
+  "verification": {
+    "web_build": {
+      "command": "npm --prefix apps/web run build",
+      "passed": true,
+      "bundled_modules": 28
+    },
+    "typescript_contract": {
+      "command": "bun test ./packages/core/typed-api-client/test/transport.test.ts",
+      "passed": 15,
+      "failed": 0,
+      "assertions": 35
+    },
+    "python_real_behavior_and_adjacent": {
+      "command": "python -m pytest -q -p no:cacheprovider tests/integration/test_m2_typed_api_client_transport.py tests/unit/test_task_graph.py tests/integration/test_api_control_commands.py::ApiControlCommandTests::test_goal_command_mutates_canonical_task_instead_of_event_only_ack",
+      "passed": 7,
+      "failed": 0,
+      "seconds": 34.42
+    },
+    "ledger_sync": {
+      "command": "python scripts/sync_m2_typed_transport_source_ledger.py --check",
+      "aligned": true,
+      "slice_entries": 5,
+      "slice_findings": 0,
+      "slice_blockers": 0
+    },
+    "dependency_scan": {
+      "single_fetch_owner": "packages/core/typed-api-client/src/transport.ts",
+      "parent_source_runtime_paths": 0,
+      "openclaw_references": 0
+    }
+  },
+  "canonical_owners": {
+    "task_run_plan": "existing SQLiteStore/TaskState",
+    "events": "existing EventLog",
+    "artifacts": "existing LocalArtifactStore",
+    "control": "existing M1 control runtimes",
+    "transport_receipts": "TypedReceiptStore",
+    "browser_inflight": "RequestCoordinator/TransportRegistry/cancellation scopes"
+  },
+  "risk": {
+    "high_risk_triggered": false,
+    "external_runtime_dependency_added": false,
+    "canonical_owner_transfer": false,
+    "incompatible_persistence_migration": false,
+    "global_policy_change": false,
+    "full_repository_regression_deferred_to": "M2-01 numeric-stage aggregate",
+    "cleanroom_deferred_to": "M2-01 numeric-stage aggregate"
+  },
+  "competition_evidence": {
+    "advances": [
+      "typed console/API transport foundation",
+      "causal request/receipt correlation",
+      "idempotent control submission boundary"
+    ],
+    "closes": []
+  },
+  "next_slice": "M2-S01A-02"
+}
