@@ -1,119 +1,284 @@
+import { normalizeIdentity } from "../../../../packages/core/typed-api-client/src/index.ts"
 import {
-  BoundedIdentityWindow,
-  CursorPollingLoop,
-  normalizeIdentity,
-  type EventProjection,
-  type PollingSnapshot,
-} from "../../../../packages/core/typed-api-client/src/index.ts"
+  EventIngressCoordinator,
+  EventIngressError,
+  IngressErrorCode,
+  TaskApiEventIngressSource,
+  type ConnectionSnapshot,
+  type EventIngressCoordinatorOptions,
+  type IngressBatch,
+  type IngressDiagnostic,
+  type IngressObserver,
+  type IngressSubscriptionFilter,
+  type JsonValue,
+  type TransportKindValue,
+} from "../events/ingress/index.ts"
 import type { TaskApi } from "./task-api.ts"
 
-export interface EventBatch {
-  taskId: string
-  events: EventProjection[]
+export type EventBatch = IngressBatch
+
+export interface EventSubscriptionOptions {
   cursor?: string
-  receivedAt: number
+  /**
+   * Compatibility alias from the M2-S01A polling facade.  New callers should
+   * pass an opaque event-ingress cursor.  Event ids are rejected explicitly
+   * because they cannot be converted into a signed canonical sequence.
+   */
+  after?: string
+  filter?: IngressSubscriptionFilter
+  signal?: AbortSignal
+  transportPreference?: readonly TransportKindValue[]
+  snapshotPageSize?: number
+  deltaPageSize?: number
+  longPollMs?: number
+  heartbeatTimeoutMs?: number
+  capacity?: EventIngressCoordinatorOptions["capacity"]
+  reconnect?: EventIngressCoordinatorOptions["reconnect"]
+  status?: (snapshot: ConnectionSnapshot) => void
+  diagnostic?: (diagnostic: IngressDiagnostic) => void
+}
+
+interface CoordinatorRecord {
+  coordinator: EventIngressCoordinator
+  optionsKey: string
+  createdAtMs: number
+}
+
+function normalizedCursor(options: EventSubscriptionOptions): string | undefined {
+  const cursor = String(options.cursor || options.after || "").trim()
+  if (!cursor) return undefined
+  if (options.after && !options.cursor && !cursor.includes(".")) {
+    throw new EventIngressError(
+      IngressErrorCode.CURSOR_SCOPE,
+      "Legacy event-id cursors cannot resume the canonical event ingress; request a fresh snapshot.",
+      { resyncRequired: true },
+    )
+  }
+  return cursor
+}
+
+function stableOptions(options: EventSubscriptionOptions): string {
+  return JSON.stringify({
+    cursor: normalizedCursor(options) ?? null,
+    transportPreference: options.transportPreference ?? null,
+    snapshotPageSize: options.snapshotPageSize ?? null,
+    deltaPageSize: options.deltaPageSize ?? null,
+    longPollMs: options.longPollMs ?? null,
+    heartbeatTimeoutMs: options.heartbeatTimeoutMs ?? null,
+    capacity: options.capacity ?? null,
+    reconnect: options.reconnect ?? null,
+  })
 }
 
 export class TaskEventTransport {
-  readonly #api: TaskApi
-  readonly #loops = new Map<string, CursorPollingLoop<EventProjection>>()
-  readonly #windows = new Map<string, BoundedIdentityWindow>()
-  readonly #listeners = new Map<string, Set<(batch: EventBatch) => void>>()
+  readonly #source: TaskApiEventIngressSource
+  readonly #coordinators = new Map<string, CoordinatorRecord>()
+  #closed = false
+  #disabled = false
 
   constructor(api: TaskApi) {
-    this.#api = api
+    this.#source = new TaskApiEventIngressSource(api)
   }
 
   subscribe(
     taskId: string,
-    listener: (batch: EventBatch) => void,
-    options: {
-      after?: string
-      intervalMs?: number
-      idleIntervalMs?: number
-      signal?: AbortSignal
-    } = {},
+    listener: ((batch: EventBatch) => void) | IngressObserver,
+    options: EventSubscriptionOptions = {},
   ): () => void {
+    this.#assertAvailable()
     const normalizedTaskId = normalizeIdentity("task", taskId)
-    const listeners = this.#listeners.get(normalizedTaskId) ?? new Set()
-    listeners.add(listener)
-    this.#listeners.set(normalizedTaskId, listeners)
-    let loop = this.#loops.get(normalizedTaskId)
-    if (!loop) {
-      const window = new BoundedIdentityWindow(20_000)
-      this.#windows.set(normalizedTaskId, window)
-      loop = new CursorPollingLoop<EventProjection>({
-        signal: options.signal,
-        intervalMs: options.intervalMs ?? 250,
-        idleIntervalMs: options.idleIntervalMs ?? 1_000,
-        poll: async (cursor, signal) => {
-          const events = await this.#api.events(normalizedTaskId, {
-            after: cursor ?? options.after,
-            limit: 1_000,
-            signal,
-          })
-          const fresh = window.filter(events, (event) => event.eventId)
-          return {
-            items: fresh,
-            cursor: events.at(-1)?.eventId ?? cursor ?? options.after,
-            caughtUp: events.length < 1_000,
+    const observer: IngressObserver =
+      typeof listener === "function"
+        ? {
+            batch: listener,
+            status: options.status,
+            diagnostic: options.diagnostic,
           }
-        },
-        deliver: (events, cursor) => {
-          const batch: EventBatch = {
-            taskId: normalizedTaskId,
-            events: [...events],
-            cursor,
-            receivedAt: Date.now(),
-          }
-          for (const observer of this.#listeners.get(normalizedTaskId) ?? []) {
-            try {
-              observer(batch)
-            } catch {
-              // A console observer cannot interrupt transport progress.
-            }
-          }
-        },
-      })
-      this.#loops.set(normalizedTaskId, loop)
-      void loop.start(options.after).catch(() => {})
-    }
+        : listener
+    const record = this.#coordinator(normalizedTaskId, options)
+    const handle = record.coordinator.subscribe(observer, {
+      filter: options.filter,
+      signal: options.signal,
+    })
+    void record.coordinator.start()
+    let unsubscribed = false
     return () => {
-      const current = this.#listeners.get(normalizedTaskId)
-      current?.delete(listener)
-      if (current?.size) return
-      this.#listeners.delete(normalizedTaskId)
-      this.stop(normalizedTaskId, "Last event subscriber removed.")
+      if (unsubscribed) return
+      unsubscribed = true
+      handle.close("Browser event observer unsubscribed.")
+      if (record.coordinator.subscriberCount > 0) return
+      record.coordinator.stop("Last browser event subscriber removed.")
+      record.coordinator.close("Task event transport released idle coordinator.")
+      if (this.#coordinators.get(normalizedTaskId) === record) {
+        this.#coordinators.delete(normalizedTaskId)
+      }
     }
   }
 
   stop(taskId: string, reason?: unknown): boolean {
     const normalizedTaskId = normalizeIdentity("task", taskId)
-    const loop = this.#loops.get(normalizedTaskId)
-    if (!loop) return false
-    loop.stop(reason)
-    this.#loops.delete(normalizedTaskId)
-    this.#windows.delete(normalizedTaskId)
+    const record = this.#coordinators.get(normalizedTaskId)
+    if (!record) return false
+    record.coordinator.close(reason ?? "Task event transport stopped.")
+    this.#coordinators.delete(normalizedTaskId)
     return true
   }
 
   stopAll(reason?: unknown): number {
-    let count = 0
-    for (const taskId of [...this.#loops.keys()]) if (this.stop(taskId, reason)) count += 1
-    this.#listeners.clear()
-    return count
+    const records = [...this.#coordinators.entries()]
+    for (const [, record] of records) {
+      record.coordinator.close(reason ?? "All task event transports stopped.")
+    }
+    this.#coordinators.clear()
+    return records.length
   }
 
-  snapshot(taskId: string): PollingSnapshot | undefined {
+  disable(reason = "Task event transport disabled."): void {
+    if (this.#disabled) return
+    this.#disabled = true
+    for (const record of this.#coordinators.values()) {
+      record.coordinator.disable(reason)
+    }
+  }
+
+  enable(): void {
+    if (!this.#disabled || this.#closed) return
+    this.#disabled = false
+    for (const record of this.#coordinators.values()) {
+      record.coordinator.enable()
+    }
+  }
+
+  close(reason?: unknown): void {
+    if (this.#closed) return
+    this.#closed = true
+    this.stopAll(reason ?? "Task event transport closed.")
+  }
+
+  snapshot(taskId: string): ConnectionSnapshot | undefined {
     const normalizedTaskId = normalizeIdentity("task", taskId)
-    return this.#loops.get(normalizedTaskId)?.snapshot()
+    return this.#coordinators.get(normalizedTaskId)?.coordinator.snapshot()
   }
 
-  snapshots(): Record<string, PollingSnapshot> {
+  snapshots(): Record<string, ConnectionSnapshot> {
     return Object.fromEntries(
-      [...this.#loops.entries()]
+      [...this.#coordinators.entries()]
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([taskId, loop]) => [taskId, loop.snapshot()]),
+        .map(([taskId, record]) => [taskId, record.coordinator.snapshot()]),
     )
+  }
+
+  diagnostics(
+    taskId: string,
+    options: {
+      afterId?: number
+      category?: IngressDiagnostic["category"]
+      code?: string
+      limit?: number
+    } = {},
+  ): readonly IngressDiagnostic[] {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    return this.#coordinators
+      .get(normalizedTaskId)
+      ?.coordinator.diagnostics(options) ?? Object.freeze([])
+  }
+
+  audit(taskId: string): ReturnType<EventIngressCoordinator["audit"]> | undefined {
+    const normalizedTaskId = normalizeIdentity("task", taskId)
+    return this.#coordinators.get(normalizedTaskId)?.coordinator.audit()
+  }
+
+  exportState(): JsonValue {
+    return {
+      closed: this.#closed,
+      disabled: this.#disabled,
+      tasks: Object.fromEntries(
+        [...this.#coordinators.entries()]
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([taskId, record]) => [
+            taskId,
+            {
+              createdAtMs: record.createdAtMs,
+              optionsKey: record.optionsKey,
+              ingress: record.coordinator.exportState(),
+            },
+          ]),
+      ),
+    }
+  }
+
+  #coordinator(
+    taskId: string,
+    options: EventSubscriptionOptions,
+  ): CoordinatorRecord {
+    const key = stableOptions(options)
+    const existing = this.#coordinators.get(taskId)
+    if (existing) {
+      if (existing.optionsKey !== key) {
+        const diagnostic = existing.coordinator.snapshot()
+        if (diagnostic.subscribers > 0) {
+          // Per-observer filters may differ, but connection-level capacity,
+          // retry, and cursor policy are immutable while the task is active.
+          const candidate = JSON.parse(key) as Record<string, unknown>
+          const current = JSON.parse(existing.optionsKey) as Record<string, unknown>
+          for (const field of [
+            "cursor",
+            "transportPreference",
+            "snapshotPageSize",
+            "deltaPageSize",
+            "longPollMs",
+            "heartbeatTimeoutMs",
+            "capacity",
+            "reconnect",
+          ]) {
+            if (JSON.stringify(candidate[field]) !== JSON.stringify(current[field])) {
+              throw new EventIngressError(
+                IngressErrorCode.INVALID_CONFIGURATION,
+                `Cannot change active task ingress option ${field}.`,
+                {
+                  context: {
+                    taskId,
+                    details: { field },
+                  },
+                },
+              )
+            }
+          }
+        }
+      }
+      return existing
+    }
+    const coordinator = new EventIngressCoordinator(taskId, this.#source, {
+      cursor: normalizedCursor(options),
+      transportPreference: options.transportPreference,
+      snapshotPageSize: options.snapshotPageSize,
+      deltaPageSize: options.deltaPageSize,
+      longPollMs: options.longPollMs,
+      heartbeatTimeoutMs: options.heartbeatTimeoutMs,
+      capacity: options.capacity,
+      reconnect: options.reconnect,
+    })
+    const record = {
+      coordinator,
+      optionsKey: key,
+      createdAtMs: Date.now(),
+    }
+    this.#coordinators.set(taskId, record)
+    return record
+  }
+
+  #assertAvailable(): void {
+    if (this.#closed) {
+      throw new EventIngressError(
+        IngressErrorCode.CLOSED,
+        "Task event transport is closed.",
+      )
+    }
+    if (this.#disabled) {
+      throw new EventIngressError(
+        IngressErrorCode.DISABLED,
+        "Task event transport is disabled.",
+      )
+    }
   }
 }

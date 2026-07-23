@@ -367,6 +367,11 @@ export function normalizeTaskEvents(value: unknown): EventProjection[] {
   return responseArray(body.events ?? [], "task events.events", normalizeEvent)
 }
 
+export function normalizeEventIngressEnvelope(value: unknown): Record<string, unknown> {
+  const body = objectBody(value, "event ingress response")
+  return { ...body }
+}
+
 export function normalizeTaskMutation(value: unknown): TaskMutationProjection {
   const body = objectBody(value, "task mutation response")
   const task = normalizeTask(body.task)
@@ -413,6 +418,10 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.taskList, normalizeTaskList)
   registry.register(CONTRACT_NAMES.taskDetail, normalizeTaskDetail)
   registry.register(CONTRACT_NAMES.taskEvents, normalizeTaskEvents)
+  registry.register(CONTRACT_NAMES.taskEventIngressCapabilities, normalizeEventIngressEnvelope)
+  registry.register(CONTRACT_NAMES.taskEventIngressSnapshot, normalizeEventIngressEnvelope)
+  registry.register(CONTRACT_NAMES.taskEventIngressDelta, normalizeEventIngressEnvelope)
+  registry.register(CONTRACT_NAMES.taskEventIngressSse, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskMutation, normalizeTaskMutation)
 }
 

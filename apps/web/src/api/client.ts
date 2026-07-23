@@ -21,6 +21,7 @@ import {
   type RegistrySnapshot,
   type RetryPolicy,
   type TransportTrace,
+  type StreamingResponseHandle,
   type VersionPolicy,
 } from "../../../../packages/core/typed-api-client/src/index.ts"
 
@@ -206,6 +207,46 @@ export class ZyraApiClient {
       deduplicate: options.deduplicate,
       latestWins: options.latestWins,
     })
+  }
+
+  openEndpointStream(
+    operation: string,
+    options: {
+      path?: Record<string, unknown>
+      query?: Record<string, string | number | boolean | null | undefined>
+      binding?: ApiRequest["binding"]
+      signal?: AbortSignal
+      timeoutMs?: number
+      headers?: HeadersInit
+      correlationId?: string
+      causationId?: string
+    } = {},
+  ): Promise<StreamingResponseHandle> {
+    this.#assertOpen()
+    const endpoint = this.#protocol.resolve(operation, {
+      path: options.path,
+      query: options.query,
+    })
+    if (endpoint.kind !== "stream") {
+      throw new TypeError(`${operation} is not a streaming endpoint`)
+    }
+    const request = this.#factory.create({
+      operation: endpoint.operation,
+      contract: endpoint.contract,
+      method: endpoint.method,
+      path: endpoint.path,
+      query: endpoint.query,
+      binding: options.binding,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
+      headers: options.headers,
+      correlationId: options.correlationId,
+      causationId: options.causationId,
+      expectedStatuses: endpoint.expectedStatuses,
+      retry: false,
+      metadata: { stream: true },
+    })
+    return this.#transport.openStream(request)
   }
 
   cancel(requestId: string, reason?: unknown): boolean {

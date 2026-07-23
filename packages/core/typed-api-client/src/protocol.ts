@@ -8,7 +8,7 @@ import {
 import { RequestValidationError } from "./errors.ts"
 import { encodePathSegment, normalizePath, type QueryRecord } from "./request.ts"
 
-export type EndpointKind = "query" | "mutation"
+export type EndpointKind = "query" | "mutation" | "stream"
 export type ReceiptRequirement = "none" | "required"
 export type AuthRequirement = "optional" | "required"
 
@@ -202,6 +202,89 @@ export const CORE_ENDPOINTS = {
     expectedStatuses: [200],
     pathParameters: ["task_id"],
     queryParameters: ["after", "cursor", "limit"],
+  }),
+  taskEventIngressCapabilities: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskEventIngressCapabilities,
+    contract: CONTRACT_NAMES.taskEventIngressCapabilities,
+    method: "GET",
+    pathTemplate: "/tasks/{task_id}/event-ingress/capabilities",
+    kind: "query",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200],
+    pathParameters: ["task_id"],
+    queryParameters: [
+      "event_types",
+      "intent",
+      "correlation_id",
+      "artifact_id",
+      "generation",
+      "cursor",
+    ],
+  }),
+  taskEventIngressSnapshot: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskEventIngressSnapshot,
+    contract: CONTRACT_NAMES.taskEventIngressSnapshot,
+    method: "GET",
+    pathTemplate: "/tasks/{task_id}/event-ingress/snapshot",
+    kind: "query",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200],
+    pathParameters: ["task_id"],
+    queryParameters: [
+      "cursor",
+      "generation",
+      "limit",
+      "event_types",
+      "intent",
+      "correlation_id",
+      "artifact_id",
+    ],
+  }),
+  taskEventIngressDelta: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskEventIngressDelta,
+    contract: CONTRACT_NAMES.taskEventIngressDelta,
+    method: "GET",
+    pathTemplate: "/tasks/{task_id}/event-ingress/delta",
+    kind: "query",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200],
+    pathParameters: ["task_id"],
+    queryParameters: [
+      "cursor",
+      "generation",
+      "limit",
+      "wait_ms",
+      "event_types",
+      "intent",
+      "correlation_id",
+      "artifact_id",
+    ],
+  }),
+  taskEventIngressSse: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskEventIngressSse,
+    contract: CONTRACT_NAMES.taskEventIngressSse,
+    method: "GET",
+    pathTemplate: "/tasks/{task_id}/event-ingress/sse",
+    kind: "stream",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200],
+    pathParameters: ["task_id"],
+    queryParameters: [
+      "cursor",
+      "generation",
+      "limit",
+      "wait_ms",
+      "stream_ms",
+      "heartbeat_ms",
+      "event_types",
+      "intent",
+      "correlation_id",
+      "artifact_id",
+    ],
   }),
   taskCreate: normalizeEndpoint({
     operation: OPERATION_NAMES.taskCreate,

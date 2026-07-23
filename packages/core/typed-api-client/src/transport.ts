@@ -7,10 +7,13 @@ import {
 import { createCancellationScope, throwIfAborted } from "./cancellation.ts"
 import {
   IdempotencyRequiredError,
+  HttpResponseError,
   RequestCancelledError,
   RequestTimeoutError,
   TransportDisconnectedError,
   classifyUnknownError,
+  errorCode,
+  errorMessage,
   isAbortLike,
 } from "./errors.ts"
 import { HeaderPolicy, type AuthTokenProvider } from "./headers.ts"
@@ -31,7 +34,7 @@ import {
   type RetryPolicy,
   methodCanRetry,
 } from "./retry.ts"
-import { normalizeVersionPolicy, type VersionPolicy } from "./version.ts"
+import { assertResponseVersion, normalizeVersionPolicy, type VersionPolicy } from "./version.ts"
 import {
   RequestSemaphore,
   TransportCircuitBreaker,
@@ -61,6 +64,15 @@ export interface FetchTransportOptions {
   concurrency?: number
   circuitFailureThreshold?: number
   circuitCooldownMs?: number
+}
+
+export interface StreamingResponseHandle {
+  readonly requestId: string
+  readonly operation: string
+  readonly response: Response
+  readonly openedAt: number
+  readonly closed: boolean
+  close(reason?: unknown): void
 }
 
 function originOf(url: URL): string {
@@ -372,6 +384,182 @@ export class FetchApiTransport implements ApiTransport {
     } finally {
       scope.dispose()
       if (request.signal && callerListener) request.signal.removeEventListener("abort", callerListener)
+    }
+  }
+
+  async openStream(request: PreparedRequest): Promise<StreamingResponseHandle> {
+    if (!this.#enabled) {
+      throw new TransportDisconnectedError("The registered fetch transport is disabled.", {
+        operation: request.operation,
+        method: request.method,
+        requestId: request.requestId,
+      })
+    }
+    request.deadline.assert(request.operation)
+    throwIfAborted(request.signal, request.operation)
+    const controller = new AbortController()
+    this.#controllers.set(request.requestId, controller)
+    this.#inflight.start(request.requestId, request.operation, 1, (reason) => controller.abort(reason))
+    this.#telemetry.record({
+      phase: "queued",
+      operation: request.operation,
+      requestId: request.requestId,
+      method: request.method,
+      path: request.path,
+      binding: request.binding,
+      metadata: { stream: true },
+    })
+    let lease: SemaphoreLease | undefined
+    let callerListener: (() => void) | undefined
+    let settled = false
+    const release = (reason?: unknown) => {
+      if (settled) return
+      settled = true
+      if (!controller.signal.aborted) controller.abort(reason ?? "Streaming response closed.")
+      if (request.signal && callerListener) request.signal.removeEventListener("abort", callerListener)
+      lease?.release()
+      this.#controllers.delete(request.requestId)
+      this.#inflight.finish(request.requestId)
+      this.#telemetry.record({
+        phase: "completed",
+        operation: request.operation,
+        requestId: request.requestId,
+        method: request.method,
+        path: request.path,
+        binding: request.binding,
+        metadata: { stream: true, reason: reason === undefined ? undefined : String(reason) },
+      })
+    }
+    try {
+      this.#circuit.beforeRequest(request.operation)
+      lease = await this.#semaphore.acquire(request.deadline, {
+        signal: controller.signal,
+        priority: Number(request.metadata.priority ?? 0),
+      })
+      if (request.signal) {
+        callerListener = () => controller.abort(request.signal?.reason)
+        if (request.signal.aborted) callerListener()
+        else request.signal.addEventListener("abort", callerListener, { once: true })
+      }
+      const url = buildRequestUrl(this.#baseUrl, request.path, request.query)
+      const headers = await this.#headerPolicy.build(
+        {
+          operation: request.operation,
+          contract: request.contract,
+          requestId: request.requestId,
+          correlationId: request.correlationId,
+          causationId: request.causationId,
+          idempotencyKey: request.idempotencyKey,
+          attempt: 1,
+          deadlineMs: request.deadline.remaining(),
+          hasBody: false,
+        },
+        request.headers,
+      )
+      const startedAt = this.#now()
+      this.#telemetry.record({
+        phase: "started",
+        operation: request.operation,
+        requestId: request.requestId,
+        method: request.method,
+        path: request.path,
+        attempt: 1,
+        binding: request.binding,
+        metadata: { origin: originOf(url), stream: true },
+      })
+      const response = await this.#fetch(url, {
+        method: request.method,
+        headers,
+        signal: controller.signal,
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "error",
+      })
+      this.#telemetry.record({
+        phase: "headers",
+        operation: request.operation,
+        requestId: request.requestId,
+        method: request.method,
+        path: request.path,
+        attempt: 1,
+        binding: request.binding,
+        status: response.status,
+        elapsedMs: Math.max(0, this.#now() - startedAt),
+        metadata: { stream: true },
+      })
+      assertResponseVersion(response.headers, this.#versionPolicy, {
+        operation: request.operation,
+        requestId: request.requestId,
+      })
+      if (!request.expectedStatuses.includes(response.status)) {
+        const text = (await response.text()).slice(0, 64 * 1024)
+        let body: unknown = text
+        try {
+          body = text ? JSON.parse(text) : undefined
+        } catch {
+          // Preserve a bounded text response when the server did not return JSON.
+        }
+        throw new HttpResponseError(
+          response.status,
+          errorMessage(body, `Event stream connection failed with HTTP ${response.status}.`),
+          {
+            code: errorCode(body),
+            headers: response.headers,
+            body,
+            context: {
+              operation: request.operation,
+              method: request.method,
+              requestId: request.requestId,
+              binding: request.binding,
+            },
+          },
+        )
+      }
+      if (!response.body) {
+        throw new TransportDisconnectedError("Streaming response omitted a readable body.", {
+          operation: request.operation,
+          method: request.method,
+          requestId: request.requestId,
+        })
+      }
+      this.#circuit.success()
+      const openedAt = this.#now()
+      let closed = false
+      return {
+        requestId: request.requestId,
+        operation: request.operation,
+        response,
+        openedAt,
+        get closed() {
+          return closed
+        },
+        close(reason?: unknown) {
+          if (closed) return
+          closed = true
+          release(reason)
+        },
+      }
+    } catch (error) {
+      release(error)
+      const classified = classifyUnknownError(error, {
+        operation: request.operation,
+        method: request.method,
+        requestId: request.requestId,
+        binding: request.binding,
+      })
+      this.#circuit.failure(classified)
+      this.#failures.record(request.operation, classified)
+      this.#telemetry.record({
+        phase: classified.category === "cancellation" ? "cancelled" : "failed",
+        operation: request.operation,
+        requestId: request.requestId,
+        method: request.method,
+        path: request.path,
+        binding: request.binding,
+        error: classified,
+        metadata: { stream: true },
+      })
+      throw classified
     }
   }
 

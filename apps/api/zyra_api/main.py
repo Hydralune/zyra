@@ -28,6 +28,11 @@ from .typed_transport import (
     runtime_readiness_payload,
     typed_request_context,
 )
+from .event_stream_ingress import (
+    EventIngressApiFacade,
+    EventIngressError,
+    sse_headers,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_PATHS = [
@@ -66,6 +71,10 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("POST", "/tasks/{task_id}/faults/sources/bind"),
     ("POST", "/tasks/{task_id}/faults/sources/observe"),
     ("POST", "/tasks/{task_id}/faults/runtime-events"),
+    ("GET", "/tasks/{task_id}/event-ingress/capabilities"),
+    ("GET", "/tasks/{task_id}/event-ingress/snapshot"),
+    ("GET", "/tasks/{task_id}/event-ingress/delta"),
+    ("GET", "/tasks/{task_id}/event-ingress/sse"),
     ("POST", "/tasks/{task_id}/faults/observations"),
     ("POST", "/tasks/{task_id}/faults/handoffs/dispatch"),
     ("GET", "/tasks/{task_id}/recovery"),
@@ -222,6 +231,7 @@ from pathlib import Path as _RuntimeEventPath
 
 from zyra_runtime.runtime_events import (
     RuntimeEventApiFacade,
+    RuntimeEventContractError,
     RuntimeEventProcessError,
     get_runtime_event_spine,
     release_runtime_event_spine,
@@ -253,6 +263,12 @@ def get_runtime_event_spine_bridge():
 
 def get_runtime_event_api() -> RuntimeEventApiFacade:
     return RuntimeEventApiFacade(get_runtime_event_spine_bridge())
+
+
+def get_event_ingress_api() -> EventIngressApiFacade:
+    """Return a read-only browser ingress facade over the canonical spine."""
+
+    return EventIngressApiFacade(get_runtime_event_spine_bridge())
 
 
 def reset_runtime_event_spine_bridge() -> None:
@@ -3727,6 +3743,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
     def handle_one_request(self) -> None:
         try:
             super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # Browser cancellation of SSE/long-poll reads is an expected
+            # transport lifecycle event, not a server failure.
+            self.close_connection = True
         except RuntimeEventProcessError as error:
             # Canonical event custody is used by most mutating routes.  An
             # unavailable spine must fail closed as a stable HTTP response,
@@ -4274,6 +4294,90 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
+            return
+
+        if (
+            len(parts) == 4
+            and parts[0] == "tasks"
+            and parts[2] == "event-ingress"
+        ):
+            task_id = parts[1]
+            operation = parts[3]
+            query = _flatten_query(
+                parse_qs(parsed.query, keep_blank_values=True)
+            )
+            ingress = get_event_ingress_api()
+            try:
+                if operation == "capabilities":
+                    result = ingress.capabilities(task_id, query)
+                    self._send_json(
+                        result.status,
+                        dict(result.body),
+                        headers=dict(result.headers),
+                    )
+                    return
+                if operation == "snapshot":
+                    result = ingress.snapshot(task_id, query)
+                    self._send_json(
+                        result.status,
+                        dict(result.body),
+                        headers=dict(result.headers),
+                    )
+                    return
+                if operation == "delta":
+                    result = ingress.delta(task_id, query)
+                    self._send_json(
+                        result.status,
+                        dict(result.body),
+                        headers=dict(result.headers),
+                    )
+                    return
+                if operation == "sse":
+                    self._send_sse_stream(ingress.sse(task_id, query))
+                    return
+            except (EventIngressError, RuntimeEventContractError) as error:
+                if isinstance(error, EventIngressError):
+                    status = error.status
+                    body = error.response()
+                else:
+                    status = HTTPStatus.BAD_REQUEST
+                    body = {
+                        "schema": "zyra.event-ingress/v1",
+                        "ok": False,
+                        "error": "event_ingress_contract_error",
+                        "message": str(error),
+                        "retryable": False,
+                        "resyncRequired": False,
+                        "canonicalWriteAllowed": False,
+                    }
+                self._send_json(status, body)
+                return
+            except RuntimeEventProcessError as error:
+                self._send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "schema": "zyra.event-ingress/v1",
+                        "ok": False,
+                        "error": error.code,
+                        "message": str(error),
+                        "retryable": True,
+                        "resyncRequired": False,
+                        "canonicalWriteAllowed": False,
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus.NOT_FOUND,
+                {
+                    "schema": "zyra.event-ingress/v1",
+                    "ok": False,
+                    "error": "event_ingress_operation_not_found",
+                    "message": f"Unknown event ingress operation: {operation}",
+                    "retryable": False,
+                    "resyncRequired": False,
+                    "canonicalWriteAllowed": False,
+                },
+            )
             return
 
         worker_pool_response = get_worker_pool_api().route_get(
@@ -8201,6 +8305,59 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             self.send_header(normalized, rendered)
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_sse_stream(self, chunks: Any) -> None:
+        iterator = iter(chunks)
+        first_chunk = next(iterator, None)
+        merged_headers = dict(
+            getattr(self, "_zyra_typed_response_headers", {}) or {}
+        )
+        if not merged_headers:
+            try:
+                context = typed_request_context(self.headers)
+                merged_headers.update(context.response_headers())
+            except TypedTransportError as error:
+                _, _, fallback_headers = typed_error_context(error, self.headers)
+                merged_headers.update(fallback_headers)
+        merged_headers.update(sse_headers())
+        self.send_response(HTTPStatus.OK)
+        self._send_cors_headers()
+        for key, value in merged_headers.items():
+            normalized = str(key).strip()
+            rendered = str(value)
+            if (
+                not normalized
+                or "\r" in normalized
+                or "\n" in normalized
+                or "\r" in rendered
+                or "\n" in rendered
+            ):
+                continue
+            self.send_header(normalized, rendered)
+        self.end_headers()
+        try:
+            if first_chunk is not None:
+                chunk = first_chunk
+                if not isinstance(chunk, (bytes, bytearray)) or not chunk:
+                    pass
+                else:
+                    self.wfile.write(bytes(chunk))
+                    self.wfile.flush()
+            for chunk in iterator:
+                if not isinstance(chunk, (bytes, bytearray)) or not chunk:
+                    continue
+                self.wfile.write(bytes(chunk))
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
+        finally:
+            # A finite SSE response has no Content-Length.  The embedded
+            # server therefore uses EOF as the response delimiter so the
+            # browser can deterministically enter cursor-based reconnect.
+            self.close_connection = True
+            close = getattr(iterator, "close", None)
+            if callable(close):
+                close()
 
     def _send_cors_headers(self) -> None:
         origin = str(self.headers.get("Origin") or "").strip()
