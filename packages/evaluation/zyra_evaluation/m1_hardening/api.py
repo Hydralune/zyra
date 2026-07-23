@@ -316,6 +316,11 @@ class M1HardeningApi:
             "evidence_envelopes",
             maximum_items=10_000,
         )
+        benchmark_events = self._mapping_array(
+            payload.get("benchmark_events"),
+            "benchmark_events",
+            maximum_items=10_000,
+        )
         sealed_policy = payload.get("sealed_policy") or {}
         if not isinstance(sealed_policy, Mapping):
             raise HardeningApiRequestError(
@@ -345,6 +350,7 @@ class M1HardeningApi:
                 maximum=1800.0,
             ),
             benchmark_run_id=str(payload.get("benchmark_run_id") or "")[:160],
+            benchmark_events=benchmark_events,
             sealed_policy=dict(sealed_policy),
             line_evidence=lines,
             tier_observations=tiers,

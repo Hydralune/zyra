@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .contracts import HardeningContext
-from .integration_service import IntegrationOptions, M1IntegrationService
+from .integration_service import M1IntegrationService
 from .live_probe import ManagedLiveEvidenceRuntime
 from .long_horizon_runtime import SealedLongHorizonRuntime
 from .reporting import ReportComparator
-from .release_reporting import ReleaseReportBuilder, ReleaseReportStore
+from .scenario import HttpScenarioTransport, ScenarioTransportError
 from .service import AuditOptions, M1HardeningService
 from .store import HardeningStoreError, ReportIntegrityError, ReportNotFound
 
@@ -53,6 +53,12 @@ def build_parser() -> argparse.ArgumentParser:
     integration.add_argument("--final-completion", action="store_true")
     integration.add_argument("--run-cleanroom", action="store_true")
     integration.add_argument("--scenario-timeout", type=float, default=120.0)
+    integration.add_argument(
+        "--integration-timeout",
+        type=float,
+        default=3600.0,
+        help="outer API orchestration timeout, including cleanroom verification",
+    )
     integration.add_argument("--benchmark-run-id", default="")
     integration.add_argument("--benchmark-events-json", default="")
     integration.add_argument("--sealed-policy-json", default="")
@@ -254,6 +260,8 @@ def _scenario(service: M1HardeningService, args: argparse.Namespace) -> int:
 def _integration(service: M1IntegrationService, args: argparse.Namespace) -> int:
     if args.scenario_timeout <= 0 or args.scenario_timeout > 1800:
         raise CliError("--scenario-timeout must be between 0 and 1800 seconds")
+    if args.integration_timeout <= 0 or args.integration_timeout > 7200:
+        raise CliError("--integration-timeout must be between 0 and 7200 seconds")
     policy = _json_argument(args.sealed_policy_json, expected=dict) if args.sealed_policy_json else {}
     line_evidence = tuple(_load_array(args.line_evidence_json)) if args.line_evidence_json else ()
     tier_evidence = tuple(_load_array(args.tier_evidence_json)) if args.tier_evidence_json else ()
@@ -268,33 +276,43 @@ def _integration(service: M1IntegrationService, args: argparse.Namespace) -> int
     evidence_commit = str(args.evidence_commit or "")
     if evidence_commit:
         evidence_commit = _git_identity(service.root, evidence_commit)
-    options = IntegrationOptions(
-        baseline_commit=_git_identity(service.root, args.baseline),
-        implementation_commit=implementation_commit,
-        evidence_commit=evidence_commit,
-        scenario_ids=tuple(args.scenario),
-        execute_scenarios=not args.no_scenarios,
-        execute_disconnects=bool(args.execute_disconnects),
-        final_completion=bool(args.final_completion),
-        run_cleanroom=bool(args.run_cleanroom),
-        scenario_timeout_seconds=float(args.scenario_timeout),
-        benchmark_run_id=str(args.benchmark_run_id or ""),
-        benchmark_events=benchmark_events,
-        sealed_policy=policy,
-        line_evidence=line_evidence,
-        tier_observations=tier_evidence,
-        provider_observations=provider_evidence,
-        evidence_envelopes=evidence_envelopes,
-        unresolved_requirements=tuple(args.unresolved_requirement),
-        persist=not args.no_persist,
-    )
-    outcome = service.execute(args.base_url, options)
-    if options.persist:
-        report = ReleaseReportBuilder().build(outcome)
-        paths = ReleaseReportStore(service.artifact_root / "release").persist(report)
-        outcome.artifact_paths.extend((paths["json"], paths["markdown"]))
-    _write_json(outcome.to_dict(include_scenario_events=False))
-    return 0 if outcome.accepted else 2
+    payload = {
+        "baseline_commit": _git_identity(service.root, args.baseline),
+        "implementation_commit": implementation_commit,
+        "evidence_commit": evidence_commit,
+        "scenario_ids": list(args.scenario),
+        "execute_scenarios": not args.no_scenarios,
+        "execute_disconnects": bool(args.execute_disconnects),
+        "final_completion": bool(args.final_completion),
+        "run_cleanroom": bool(args.run_cleanroom),
+        "scenario_timeout_seconds": float(args.scenario_timeout),
+        "benchmark_run_id": str(args.benchmark_run_id or ""),
+        "benchmark_events": list(benchmark_events),
+        "sealed_policy": policy,
+        "line_evidence": list(line_evidence),
+        "tier_observations": list(tier_evidence),
+        "provider_observations": list(provider_evidence),
+        "evidence_envelopes": list(evidence_envelopes),
+        "unresolved_requirements": list(args.unresolved_requirement),
+        "persist": not args.no_persist,
+    }
+    try:
+        status, outcome = HttpScenarioTransport(
+            args.base_url,
+            timeout_seconds=float(args.integration_timeout),
+        ).post("/hardening/m1/integration", payload)
+    except ScenarioTransportError as error:
+        raise CliError(
+            f"M1 integration API unavailable ({error.code}): {error}"
+        ) from error
+    if outcome.get("schema") != "zyra.m1-integration-outcome/v1":
+        raise CliError(
+            "M1 integration API rejected orchestration: "
+            f"status={status}; error={outcome.get('error') or 'invalid_response'}; "
+            f"message={outcome.get('message') or ''}"
+        )
+    _write_json(outcome)
+    return 0 if status < 400 and outcome.get("accepted") is True else 2
 
 
 def _live_evidence(

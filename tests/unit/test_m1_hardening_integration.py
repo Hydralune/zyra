@@ -5,7 +5,9 @@ import os
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, Mapping
 
+from zyra_evaluation.m1_hardening import cli as hardening_cli
 from zyra_evaluation.m1_hardening.benchmark import BenchmarkAnalyzer
 from zyra_evaluation.m1_hardening.cleanroom import (
     CleanroomBoundaryScanner,
@@ -408,6 +410,61 @@ def test_final_integration_automatically_binds_all_required_evidence_kinds() -> 
     assert len(receipts) == len(EvidenceKind)
     assert all(item.status is AdmissionStatus.ADMITTED for item in receipts)
     assert gate.status is GateStatus.PASSED, gate.to_dict()
+
+
+def test_cli_integration_delegates_orchestration_to_owner_process(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class OwnerProcessTransport:
+        def __init__(self, base_url: str, *, timeout_seconds: float) -> None:
+            captured["base_url"] = base_url
+            captured["timeout_seconds"] = timeout_seconds
+
+        def post(self, path: str, payload: Mapping[str, Any]):
+            captured["path"] = path
+            captured["payload"] = payload
+            return (
+                200,
+                {
+                    "schema": "zyra.m1-integration-outcome/v1",
+                    "accepted": True,
+                    "run_id": "m1-owner-process-test",
+                },
+            )
+
+    monkeypatch.setattr(hardening_cli, "HttpScenarioTransport", OwnerProcessTransport)
+    args = SimpleNamespace(
+        scenario_timeout=120.0,
+        integration_timeout=3600.0,
+        sealed_policy_json="",
+        line_evidence_json="",
+        tier_evidence_json="",
+        provider_evidence_json="",
+        evidence_envelopes_json="",
+        benchmark_events_json="",
+        implementation_commit="HEAD",
+        evidence_commit="",
+        baseline="HEAD",
+        scenario=["m1-integration-query-session-context-tool"],
+        no_scenarios=False,
+        execute_disconnects=True,
+        final_completion=False,
+        run_cleanroom=False,
+        benchmark_run_id="",
+        unresolved_requirement=[],
+        no_persist=True,
+        base_url="http://127.0.0.1:8010",
+    )
+
+    result = hardening_cli._integration(SimpleNamespace(root=ROOT), args)
+
+    assert result == 0
+    assert captured["path"] == "/hardening/m1/integration"
+    assert captured["timeout_seconds"] == 3600.0
+    payload = captured["payload"]
+    assert isinstance(payload, Mapping)
+    assert payload["execute_disconnects"] is True
+    assert payload["scenario_ids"] == ["m1-integration-query-session-context-tool"]
 
 
 def test_zero_mock_fixture_line_bucket_is_not_fixture_provenance() -> None:

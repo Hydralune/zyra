@@ -403,12 +403,26 @@ class M1IntegrationService:
                 limitations=limitations,
             )
             if options.persist:
-                # The self-referential receipt path is deterministic and must
-                # be part of the outcome before its digest is computed.  A
-                # post-persist append would make the API response differ from
-                # the cryptographically bound on-disk record.
+                # All deterministic receipt paths must be present before
+                # either artifact computes a content digest.  This keeps the
+                # API response, integration record and release report bound
+                # to one identical final outcome.
                 path = self.store.path_for(outcome.run_id)
-                outcome.artifact_paths.append(str(path))
+                release_root = self.artifact_root / "release"
+                release_id = f"release-{outcome.run_id}"
+                outcome.artifact_paths.extend(
+                    (
+                        str(path),
+                        str((release_root / f"{release_id}.json").resolve()),
+                        str((release_root / f"{release_id}.md").resolve()),
+                    )
+                )
+                # Deferred import avoids a module cycle: release reporting
+                # consumes IntegrationOutcome as its canonical source.
+                from .release_reporting import ReleaseReportBuilder, ReleaseReportStore
+
+                report = ReleaseReportBuilder().build(outcome)
+                ReleaseReportStore(release_root).persist(report)
                 self.store.persist(outcome)
             return outcome
         finally:

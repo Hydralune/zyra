@@ -7957,10 +7957,18 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         content_type = str(self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if content_type != "application/json" and not content_type.endswith("+json"):
             raise JsonRequestError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "unsupported_media_type", "Content-Type must be application/json.")
+        default_max_bytes = (
+            8 * 1024 * 1024
+            if self.path.split("?", 1)[0].rstrip("/") == "/hardening/m1/integration"
+            else 2 * 1024 * 1024
+        )
         try:
-            max_bytes = max(1024, int(os.environ.get("ZYRA_MAX_JSON_BODY_BYTES", "2097152")))
+            max_bytes = max(
+                1024,
+                int(os.environ.get("ZYRA_MAX_JSON_BODY_BYTES", str(default_max_bytes))),
+            )
         except ValueError:
-            max_bytes = 2097152
+            max_bytes = default_max_bytes
         if length > max_bytes:
             raise JsonRequestError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "request_body_too_large", f"JSON body exceeds {max_bytes} bytes.")
         raw = self.rfile.read(length)
