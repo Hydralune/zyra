@@ -14,6 +14,21 @@ from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
 
+from .typed_transport import (
+    API_VERSION,
+    API_VERSION_HEADER,
+    REQUEST_ID_HEADER,
+    ReceiptReplay,
+    ReceiptReservation,
+    TypedReceiptStore,
+    TypedRequestContext,
+    TypedTransportError,
+    error_context as typed_error_context,
+    paginate_tasks,
+    runtime_readiness_payload,
+    typed_request_context,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_PATHS = [
     PROJECT_ROOT / "packages" / "core",
@@ -3635,6 +3650,80 @@ def _task_node_ids(state: Any) -> set[str]:
 class ZyraRequestHandler(BaseHTTPRequestHandler):
     server_version = "ZyraDevAPI/0.2"
 
+    def _prepare_typed_transport(self) -> bool:
+        try:
+            context = typed_request_context(self.headers)
+        except TypedTransportError as error:
+            status, body, headers = typed_error_context(error, self.headers)
+            self._zyra_typed_response_headers = headers
+            self._send_json(status, body, headers=headers)
+            return False
+        self._zyra_typed_context = context
+        self._zyra_typed_response_headers = context.response_headers()
+        return True
+
+    def _typed_context(self) -> TypedRequestContext:
+        context = getattr(self, "_zyra_typed_context", None)
+        if isinstance(context, TypedRequestContext):
+            return context
+        context = typed_request_context(self.headers)
+        self._zyra_typed_context = context
+        self._zyra_typed_response_headers = context.response_headers()
+        return context
+
+    def _typed_receipts(self) -> TypedReceiptStore:
+        store = getattr(self.server, "_zyra_typed_receipt_store", None)
+        if isinstance(store, TypedReceiptStore):
+            return store
+        with _RUNTIME_EVENT_SPINE_LOCK:
+            store = getattr(self.server, "_zyra_typed_receipt_store", None)
+            if not isinstance(store, TypedReceiptStore):
+                store = TypedReceiptStore(sqlite_path())
+                setattr(self.server, "_zyra_typed_receipt_store", store)
+        return store
+
+    def _begin_typed_receipt(
+        self,
+        *,
+        operation: str,
+        path: str,
+        payload: Mapping[str, Any],
+    ) -> ReceiptReservation | None | bool:
+        try:
+            start = self._typed_receipts().begin(
+                context=self._typed_context(),
+                headers=self.headers,
+                operation=operation,
+                path=path,
+                payload=payload,
+            )
+        except TypedTransportError as error:
+            self._send_json(error.status, error.response())
+            return False
+        if isinstance(start, ReceiptReplay):
+            self._send_json(start.status, start.body, headers=start.headers())
+            return False
+        return start
+
+    def _commit_typed_receipt(
+        self,
+        reservation: ReceiptReservation | None,
+        *,
+        status: HTTPStatus,
+        body: Mapping[str, Any],
+        binding: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, str]] | None:
+        try:
+            return self._typed_receipts().commit(
+                reservation,
+                status=status,
+                body=body,
+                binding=binding,
+            )
+        except TypedTransportError as error:
+            self._send_json(error.status, error.response())
+            return None
+
     def handle_one_request(self) -> None:
         try:
             super().handle_one_request()
@@ -4166,6 +4255,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        if not self._prepare_typed_transport():
+            return
         parsed = urlparse(self.path)
         parts = _path_parts(parsed.path)
         store = get_store()
@@ -4295,8 +4386,16 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 HTTPStatus.OK,
                 {
                     "ok": True,
+                    "status": "ok",
                     "service": "zyra-api",
                     "phase": "m5-resource-scheduler-fault-recovery",
+                    "api_version": API_VERSION,
+                    "capabilities": [
+                        "typed_transport",
+                        "idempotent_task_lifecycle",
+                        "request_correlation",
+                        "opaque_task_cursor",
+                    ],
                     "event_log": str(event_log_path()),
                     "sqlite": str(sqlite_path()),
                     "tool_workspace": str(tool_workspace_path()),
@@ -4304,6 +4403,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     "permission_store": str(permission_store_path()),
                     "workspace": get_workspace_manager().health(),
                 },
+            )
+            return
+
+        if parts == ["runtime", "readiness"]:
+            self._send_json(
+                HTTPStatus.OK,
+                runtime_readiness_payload(),
             )
             return
 
@@ -5413,7 +5519,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["tasks"]:
-            self._send_json(HTTPStatus.OK, {"tasks": store.list_tasks()})
+            try:
+                page = paginate_tasks(
+                    store.list_tasks(),
+                    parse_qs(parsed.query, keep_blank_values=True),
+                )
+            except TypedTransportError as error:
+                self._send_json(error.status, error.response())
+                return
+            self._send_json(HTTPStatus.OK, page)
             return
 
         if len(parts) == 2 and parts[0] == "tasks":
@@ -5694,6 +5808,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found", "path": parsed.path})
 
     def do_POST(self) -> None:
+        if not self._prepare_typed_transport():
+            return
         parsed = urlparse(self.path)
         parts = _path_parts(parsed.path)
         store = get_store()
@@ -5870,6 +5986,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if parts == ["tasks"]:
             user_goal = str(payload.get("goal") or "Unspecified long-horizon task")
             auto_run = payload.get("auto_run", True) is not False
+            receipt_reservation = self._begin_typed_receipt(
+                operation="task.create",
+                path=parsed.path,
+                payload=payload,
+            )
+            if receipt_reservation is False:
+                return
             state, created_event = make_task_created_event(user_goal)
             session_id = str(payload.get("session_id") or f"task:{state.task_id}")
             state.metadata["query_session_id"] = session_id
@@ -5888,6 +6011,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
             except WorkspaceError as error:
                 drain_workspace_events(state.task_id)
+                self._typed_receipts().abandon(receipt_reservation)
                 response = workspace_error_response(error)
                 self._send_json(response.status, response.body, headers=dict(response.headers))
                 return
@@ -5911,6 +6035,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     ),
                 )
             except Exception as error:
+                self._typed_receipts().abandon(receipt_reservation)
                 self._send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE,
                     {
@@ -5936,13 +6061,28 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             persist_events(store, events)
             store.save_checkpoint(state)
             curator = curate_terminal_task(store, state) if auto_run else None
+            response_body = {
+                "task": to_jsonable(state),
+                "events": [to_jsonable(event) for event in events],
+                "memory_curator": curator,
+            }
+            committed = self._commit_typed_receipt(
+                receipt_reservation,
+                status=HTTPStatus.CREATED,
+                body=response_body,
+                binding={
+                    "session_id": session_id,
+                    "run_id": state.run_id,
+                    "task_id": state.task_id,
+                },
+            )
+            if committed is None:
+                return
+            response_body, receipt_headers = committed
             self._send_json(
                 HTTPStatus.CREATED,
-                {
-                    "task": to_jsonable(state),
-                    "events": [to_jsonable(event) for event in events],
-                    "memory_curator": curator,
-                },
+                response_body,
+                headers=receipt_headers,
             )
             return
 
@@ -5950,6 +6090,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             state = store.load_task(parts[1])
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            receipt_reservation = self._begin_typed_receipt(
+                operation="task.resume",
+                path=parsed.path,
+                payload=payload,
+            )
+            if receipt_reservation is False:
                 return
             pool_api = get_worker_pool_api()
             pool_journal = pool_api.pool.store.journal(limit=10000)
@@ -5969,13 +6116,28 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             persist_events(store, events)
             store.save_checkpoint(state)
             curator = curate_terminal_task(store, state)
+            response_body = {
+                "task": to_jsonable(state),
+                "events": [to_jsonable(event) for event in events],
+                "memory_curator": curator,
+            }
+            committed = self._commit_typed_receipt(
+                receipt_reservation,
+                status=HTTPStatus.OK,
+                body=response_body,
+                binding={
+                    "session_id": str(state.metadata.get("query_session_id") or ""),
+                    "run_id": state.run_id,
+                    "task_id": state.task_id,
+                },
+            )
+            if committed is None:
+                return
+            response_body, receipt_headers = committed
             self._send_json(
                 HTTPStatus.OK,
-                {
-                    "task": to_jsonable(state),
-                    "events": [to_jsonable(event) for event in events],
-                    "memory_curator": curator,
-                },
+                response_body,
+                headers=receipt_headers,
             )
             return
 
@@ -5983,6 +6145,13 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             state = store.load_task(parts[1])
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            receipt_reservation = self._begin_typed_receipt(
+                operation="task.cancel",
+                path=parsed.path,
+                payload=payload,
+            )
+            if receipt_reservation is False:
                 return
             reason = str(payload.get("reason") or "Cancelled by control API.")
             backend_cancel = cancel_pending_dispatches(
@@ -6092,22 +6261,37 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             persist_events(store, events)
             store.save_checkpoint(state)
             curator = curate_terminal_task(store, state)
+            response_body = {
+                "task": to_jsonable(state),
+                "events": [to_jsonable(event) for event in events],
+                "cancelled_subagents": [item.safe_dict() for item in cancelled_subagents],
+                "cancelled_physical_children": cancelled_physical_children,
+                "subagent_cancel_errors": subagent_cancel_errors,
+                "canonical_agent_owner": "typescript",
+                "backend_dispatch_control": backend_cancel.to_dict(),
+                "worker_pool_control": {
+                    **pool_cancel.to_dict(),
+                    **dict(pool_cancel.effect.get("cancellation") or {}),
+                },
+                "memory_curator": curator,
+            }
+            committed = self._commit_typed_receipt(
+                receipt_reservation,
+                status=HTTPStatus.OK,
+                body=response_body,
+                binding={
+                    "session_id": str(state.metadata.get("query_session_id") or ""),
+                    "run_id": state.run_id,
+                    "task_id": state.task_id,
+                },
+            )
+            if committed is None:
+                return
+            response_body, receipt_headers = committed
             self._send_json(
                 HTTPStatus.OK,
-                {
-                    "task": to_jsonable(state),
-                    "events": [to_jsonable(event) for event in events],
-                    "cancelled_subagents": [item.safe_dict() for item in cancelled_subagents],
-                    "cancelled_physical_children": cancelled_physical_children,
-                    "subagent_cancel_errors": subagent_cancel_errors,
-                    "canonical_agent_owner": "typescript",
-                    "backend_dispatch_control": backend_cancel.to_dict(),
-                    "worker_pool_control": {
-                        **pool_cancel.to_dict(),
-                        **dict(pool_cancel.effect.get("cancellation") or {}),
-                    },
-                    "memory_curator": curator,
-                },
+                response_body,
+                headers=receipt_headers,
             )
             return
 
@@ -7993,12 +8177,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         *,
         headers: dict[str, str] | None = None,
     ) -> None:
+        merged_headers = dict(getattr(self, "_zyra_typed_response_headers", {}) or {})
+        if not merged_headers:
+            try:
+                context = typed_request_context(self.headers)
+                merged_headers.update(context.response_headers())
+            except TypedTransportError as error:
+                _, _, fallback_headers = typed_error_context(error, self.headers)
+                merged_headers.update(fallback_headers)
+        merged_headers.update(dict(headers or {}))
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        for key, value in dict(headers or {}).items():
+        for key, value in merged_headers.items():
             normalized = str(key).strip()
             if not normalized or "\r" in normalized or "\n" in normalized:
                 continue
@@ -8024,7 +8217,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Vary", "Origin")
         self.send_header(
             "Access-Control-Allow-Headers",
-            "Content-Type, Idempotency-Key, Authorization, X-Zyra-Service-Token",
+            "Content-Type, Idempotency-Key, Authorization, X-Zyra-Service-Token, "
+            "X-Zyra-Api-Version, X-Zyra-Api-Min-Version, X-Request-Id, "
+            "X-Correlation-Id, X-Causation-Id, X-Zyra-Client, "
+            "X-Zyra-Client-Version, X-Zyra-Operation, X-Zyra-Contract, "
+            "X-Zyra-Attempt, X-Zyra-Deadline-Ms",
         )
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 

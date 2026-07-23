@@ -1,0 +1,206 @@
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import threading
+import unittest
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+def _fresh_api_handler() -> type[BaseHTTPRequestHandler]:
+    module_name = "apps.api.zyra_api.main"
+    if module_name in sys.modules:
+        module = importlib.reload(sys.modules[module_name])
+    else:
+        module = importlib.import_module(module_name)
+    return module.ZyraRequestHandler
+
+
+def _request(
+    base_url: str,
+    path: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any], dict[str, str]]:
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        headers=dict(headers or {}),
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return (
+                response.status,
+                json.loads(response.read().decode("utf-8")),
+                dict(response.headers.items()),
+            )
+    except urllib.error.HTTPError as error:
+        return (
+            error.code,
+            json.loads(error.read().decode("utf-8")),
+            dict(error.headers.items()),
+        )
+
+
+class M2TypedApiClientTransportTests(unittest.TestCase):
+    def test_embedded_real_store_lifecycle_idempotency_and_disable_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            workspace = root / "workspace"
+            sqlite_path = root / "api.sqlite3"
+            os.environ["ZYRA_SQLITE_PATH"] = str(sqlite_path)
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+            os.environ["ZYRA_API_AUTH_TOKEN"] = "embedded-transport-secret"
+
+            handler = _fresh_api_handler()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                command = [
+                    str(ROOT / "node_modules" / ".bin" / "bun.exe"),
+                    str(ROOT / "apps" / "web" / "test" / "embedded-client-probe.ts"),
+                    base_url,
+                    "embedded-transport-secret",
+                ]
+                completed = subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                self.assertEqual(
+                    completed.returncode,
+                    0,
+                    msg=f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
+                )
+                result = json.loads(completed.stdout.strip().splitlines()[-1])
+
+                self.assertEqual(result["health"]["status"], "ok")
+                self.assertEqual(result["health"]["apiVersion"], "1.0")
+                self.assertTrue(result["readiness"]["ready"])
+                self.assertTrue(result["readiness"]["owners"]["typed_transport"])
+                self.assertTrue(result["create"]["replayed"])
+                self.assertTrue(result["create"]["pageContainsTask"])
+                self.assertEqual(result["resume"]["status"], "completed")
+                self.assertTrue(result["resume"]["replayed"])
+                self.assertEqual(result["cancel"]["status"], "cancelled")
+                self.assertTrue(result["cancel"]["replayed"])
+                self.assertEqual(result["disable"]["error"], "transport_disabled")
+
+                connection = sqlite3.connect(sqlite_path)
+                try:
+                    task_count = connection.execute(
+                        "SELECT COUNT(*) FROM tasks"
+                    ).fetchone()[0]
+                    receipts = connection.execute(
+                        """
+                        SELECT operation, state, COUNT(*)
+                        FROM typed_api_receipts
+                        GROUP BY operation, state
+                        ORDER BY operation
+                        """
+                    ).fetchall()
+                finally:
+                    connection.close()
+                self.assertEqual(task_count, result["disable"]["taskCountBeforeDisable"])
+                self.assertEqual(
+                    receipts,
+                    [
+                        ("task.cancel", "committed", 1),
+                        ("task.create", "committed", 2),
+                        ("task.resume", "committed", 1),
+                    ],
+                )
+                event_lines = [
+                    line
+                    for line in (root / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+                self.assertGreater(len(event_lines), 0)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=10)
+                os.environ.pop("ZYRA_API_AUTH_TOKEN", None)
+
+    def test_real_server_rejects_auth_and_version_mismatch_with_correlation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(root / "workspace")
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_PERMISSION_STATE"] = str(root / "permission-state.json")
+            os.environ["ZYRA_API_AUTH_TOKEN"] = "server-secret"
+            handler = _fresh_api_handler()
+            server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            request_id = "request_000000000000001_0123456789abcdefabcd"
+            try:
+                status, body, headers = _request(
+                    base_url,
+                    "/health",
+                    headers={
+                        "X-Zyra-Api-Version": "1.0",
+                        "X-Zyra-Client": "zyra-web",
+                        "X-Zyra-Operation": "health",
+                        "X-Zyra-Contract": "zyra.health.v1",
+                        "X-Request-Id": request_id,
+                        "Authorization": "Bearer wrong-secret",
+                    },
+                )
+                self.assertEqual(status, 401)
+                self.assertEqual(body["error"], "authentication_required")
+                self.assertFalse(body["fallback"])
+                self.assertEqual(headers["X-Request-Id"], request_id)
+                self.assertEqual(headers["X-Zyra-Api-Version"], "1.0")
+
+                status, body, headers = _request(
+                    base_url,
+                    "/health",
+                    headers={
+                        "X-Zyra-Api-Version": "9.0",
+                        "X-Zyra-Client": "zyra-web",
+                        "X-Zyra-Operation": "health",
+                        "X-Zyra-Contract": "zyra.health.v1",
+                        "X-Request-Id": request_id,
+                        "Authorization": "Bearer server-secret",
+                    },
+                )
+                self.assertEqual(status, 426)
+                self.assertEqual(body["error"], "api_version_mismatch")
+                self.assertEqual(body["details"]["supported_versions"], ["1.0"])
+                self.assertFalse(body["fallback"])
+                self.assertEqual(headers["X-Request-Id"], request_id)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=10)
+                os.environ.pop("ZYRA_API_AUTH_TOKEN", None)
+
+
+if __name__ == "__main__":
+    unittest.main()
