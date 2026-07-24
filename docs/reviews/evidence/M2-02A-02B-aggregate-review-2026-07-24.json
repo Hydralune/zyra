@@ -1,0 +1,248 @@
+{
+  "schema": "zyra.numeric-stage-aggregate-review/v1",
+  "numeric_stage": "M2-02",
+  "parents": [
+    "M2-02A",
+    "M2-02B"
+  ],
+  "date": "2026-07-24",
+  "verdict": "passed",
+  "numeric_stage_baseline_commit": "f7fff49be91fb0f797260c03ff9cca76c06c5974",
+  "final_target_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+  "evidence_commit": "this_commit",
+  "slice_accounting": [
+    {
+      "slice_id": "M2-S02A-01",
+      "implementation_commit": "7ea026f1de635197d84b3179d5494e96ca687577",
+      "effective_production": 6658,
+      "slice_minimum": 6500,
+      "passed": true
+    },
+    {
+      "slice_id": "M2-S02A-02",
+      "implementation_commit": "6b15c5d8924a113553eac4d21922bc28239696dc",
+      "effective_production": 7369,
+      "slice_minimum": 6500,
+      "passed": true
+    },
+    {
+      "slice_id": "M2-S02B-01",
+      "implementation_commit": "636ba5dc9887c9d563fb0ba2949f50b6d0fcbe42",
+      "effective_production": 6836,
+      "slice_minimum": 6000,
+      "passed": true
+    },
+    {
+      "slice_id": "M2-S02B-02",
+      "implementation_commit": "fdf82f2059153b917ca2486cdcbe1b8d68b790b9",
+      "aggregate_fix_and_final_target_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+      "effective_production": 6037,
+      "slice_minimum": 6000,
+      "passed": true
+    }
+  ],
+  "parent_accounting": {
+    "M2-02A": {
+      "effective_production": 14027,
+      "minimum": 13000,
+      "margin": 1027,
+      "passed": true
+    },
+    "M2-02B": {
+      "effective_production": 12873,
+      "minimum": 12000,
+      "margin": 873,
+      "passed": true
+    },
+    "numeric_stage": {
+      "four_slice_effective_production": 26900,
+      "combined_parent_minimum": 25000,
+      "margin": 1900,
+      "passed": true
+    }
+  },
+  "direct_interval_reclassification": {
+    "interval": "f7fff49be91fb0f797260c03ff9cca76c06c5974..f3302a3c5366218068cb8acf9790c973e4b62033",
+    "raw_additions": 48437,
+    "raw_deletions": 150,
+    "production_runtime": 25869,
+    "ui_behavior": 1152,
+    "ui_presentation_excluded": 2973,
+    "type_declaration_excluded": 3860,
+    "schema_dto_data_excluded": 3363,
+    "generated_excluded": 3277,
+    "test_mock_fixture_excluded": 5442,
+    "docs_comments_blank_excluded": 2501,
+    "adapter_only_excluded": 0,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 27021,
+    "minimum": 25000,
+    "margin": 2021,
+    "passed": true,
+    "accounting_note": "The four-slice sum is authoritative for parent accounting. The direct interval is an independent conservative reclassification and includes later modifications to earlier slice files while excluding inter-slice evidence and data."
+  },
+  "cross_parent_main_path": [
+    "RuntimeEventSpine and task event endpoints",
+    "EventIngressCoordinator",
+    "CanonicalProjectionStore",
+    "topology route/placement projector",
+    "large-graph topology interaction and canonical control",
+    "worker causal timeline projector",
+    "RecoveryControlRuntime and TaskApi.controlCommand",
+    "RuntimeControlDispatcher, permission runtime and canonical M1 owners",
+    "ScaledTimelineRuntime and measured virtual viewport",
+    "TaskDetail production workbench"
+  ],
+  "canonical_ownership": {
+    "frontend_event_truth": "typescript.CanonicalProjectionStore",
+    "dynamic_topology": "python.GraphStateCustody/dynamic topology runtime",
+    "route_and_placement": "python.ResourceScheduler/provider control owners",
+    "worker_and_lease": "python.WorkerPoolStore/WorkerControlRuntime",
+    "control_admission": "python.RuntimeControlDispatcher",
+    "permission": "python.ToolPermissionRuntime/deployment permission owner",
+    "recovery": "python.RecoveryApplication/recovery stores",
+    "checkpoint_resume": "python.SessionControlRuntime/RecoveryApplication",
+    "derived_topology_view": "typescript topology projection/view runtime",
+    "derived_timeline_view": "typescript worker causal and scaled timeline runtimes"
+  },
+  "aggregate_verification": {
+    "main_checkout_all_web": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test",
+      "passed": 110,
+      "failed": 0,
+      "assertions": 761
+    },
+    "main_checkout_python": {
+      "command": ".venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp=.tmp/pytest-m2-s02b-02-main-f3302a3 tests/integration/test_topology_route_placement_projection.py tests/integration/test_topology_interaction_control.py tests/integration/test_worker_causal_timeline_projection.py tests/integration/test_recovery_control_sealed_timeline_integration.py -q",
+      "passed": 6,
+      "failed": 0
+    },
+    "production_build_and_typecheck": {
+      "command": "node_modules/.bin/bun.exe run build:web",
+      "passed": true,
+      "bundled_modules": 172
+    },
+    "cleanroom": {
+      "source": "git archive f3302a3c5366218068cb8acf9790c973e4b62033",
+      "frozen_dependency_install": true,
+      "all_web_passed": 110,
+      "python_passed": 6,
+      "typecheck_passed": true,
+      "build_passed": true,
+      "bundled_modules": 172
+    },
+    "source_to_target": {
+      "command": ".venv/Scripts/python.exe scripts/audit_m2_02_source_to_target.py --target f3302a3c5366218068cb8acf9790c973e4b62033 --summary",
+      "entry_count": 21,
+      "production_target_bindings": 70,
+      "conformance_or_reference_bindings": 17,
+      "missing_targets": 0,
+      "openclaw_forward_entries": 0,
+      "passed": true
+    }
+  },
+  "source_role_review": {
+    "current_slice_primary": [
+      "opencode"
+    ],
+    "current_slice_supplementary": [
+      "OpenHands",
+      "browser-use"
+    ],
+    "current_slice_conformance": [
+      "agent-framework",
+      "langgraph"
+    ],
+    "current_slice_reference": [
+      "oh-my-pi"
+    ],
+    "openclaw": "excluded_forward_only",
+    "duplicate_canonical_owner_created": false,
+    "protected_history_rewritten": false
+  },
+  "dependency_and_clean_boundary": {
+    "changed_files": 107,
+    "changed_production_code_files": 85,
+    "package_or_lockfile_changes": 0,
+    "changed_production_forbidden_parent_path_files": 0,
+    "new_dependencies": 0,
+    "new_processes": 0,
+    "new_ports": 0,
+    "new_mcp_servers": 0,
+    "new_dynamic_imports": 0,
+    "npm_links": 0,
+    "editable_parent_paths": 0,
+    "external_docker_contexts": 0,
+    "cleanroom_source_dependency": false
+  },
+  "generic_repository_verifier": {
+    "ok": false,
+    "pre_existing_blocker_count": 3,
+    "unchanged_file": "packages/evaluation/zyra_evaluation/m1_hardening/long_horizon_runtime.py",
+    "tokens": [
+      "../OpenHands",
+      "../browser-use",
+      "../claude-code-best"
+    ],
+    "changed_in_numeric_stage": false,
+    "disposition": "protected historical M1 blocker retained and not attributed to M2-02"
+  },
+  "critical_review_matrix": {
+    "code_and_real_behavior_tests": "passed",
+    "default_main_path_reachability": "passed",
+    "canonical_state_owner_consistency": "passed",
+    "event_and_control_causality": "passed",
+    "disable_and_stale_owner_failure": "passed",
+    "sealed_no_human_wait": "passed",
+    "large_graph_and_timeline_scale": "passed",
+    "effective_code_buckets": "passed",
+    "source_language_and_migration_roles": "passed",
+    "source_to_target_completeness": "passed",
+    "dependency_and_parent_path_boundary": "passed",
+    "exact_commit_cleanroom": "passed",
+    "production_build": "passed",
+    "cross_parent_regression": "passed"
+  },
+  "findings": [
+    {
+      "severity": "fixed",
+      "finding": "M2-S02B-02 request-scoped route state could overwrite a newer canonical owner commit.",
+      "resolution": "Synchronize canonical owner state before final route persistence."
+    },
+    {
+      "severity": "fixed",
+      "finding": "Empty control announcement reads could advance the React external-store revision.",
+      "resolution": "Empty reads are now no-ops and covered by a focused test."
+    },
+    {
+      "severity": "fixed",
+      "finding": "Virtual row measurements needed a long-lived cache bound.",
+      "resolution": "Active-row LRU pruning preserves anchor and selection while bounding cache."
+    },
+    {
+      "severity": "fixed",
+      "finding": "Aggregate Python test ordering exposed a stale command-source coordinator persistence path.",
+      "resolution": "Reset control runtime on test-context entry and exit; main and cleanroom aggregates pass."
+    },
+    {
+      "severity": "environment",
+      "finding": "The in-app browser connector exposed no browser instance.",
+      "resolution": "No fallback controller or static screenshot was claimed; automated production mount, interaction and build evidence was used because browser automation is not an authority-file gate."
+    }
+  ],
+  "high_risk_upgrade": {
+    "triggered": false,
+    "numeric_stage_aggregate_required": true,
+    "numeric_stage_aggregate_completed": true,
+    "owner_transfer": false,
+    "incompatible_schema_or_persistence_change": false,
+    "global_policy_change": false,
+    "new_external_runtime_dependency": false
+  },
+  "completion": {
+    "M2-S02B-02": true,
+    "M2-02B": true,
+    "M2-02": true,
+    "next_entry_source": "docs/milestones/execution-state.yaml"
+  }
+}

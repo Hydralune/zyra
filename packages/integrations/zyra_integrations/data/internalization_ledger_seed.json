@@ -183920,27 +183920,1137 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "durable_recovery_control_and_scaled_timeline_orchestration",
+      "capability_summary": "Durable control submission, abort-before-revert ordering, canonical completion reconciliation, stable row identity and bounded large-history window behavior.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_48708c323d518a020646",
+      "license_notice": {
+        "license_hint": "M2 recovery control and scaled timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "control_receipt",
+          "scaled_timeline_projection"
+        ],
+        "control_commands": [
+          "/kill",
+          "/steer",
+          "/retry",
+          "/reassign",
+          "/resume"
+        ],
+        "event_types": [
+          "command.*",
+          "permission.*",
+          "worker.*",
+          "recovery.*",
+          "topology.*",
+          "checkpoint.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "recovery_control_panel",
+          "worker_causal_timeline",
+          "scaled_timeline_viewport"
+        ],
+        "worker_runtime": "TaskDetail -> RecoveryControlRuntime -> TaskApi.controlCommand -> RuntimeControlDispatcher -> canonical owner -> CanonicalProjectionStore -> timeline receipt observer"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.SessionControlRuntime/RecoveryApplication",
+        "canonical_command_owner": "python.RuntimeControlDispatcher",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.ToolPermissionRuntime",
+        "canonical_recovery_owner": "python.RecoveryApplication",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "frontend_event_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S02B-02",
+        "rationale": "The TypeScript session-control and timeline mechanisms were cropped into Zyra control and scale modules over TaskApi and CanonicalProjectionStore. OpenCode session, permission, provider, tool and persistence owners are not copied or invoked.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-02",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_control_owner": "typescript.RecoveryControlRuntime",
+        "transient_scale_owner": "typescript.ScaledTimelineRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; The TypeScript session-control and timeline mechanisms were cropped into Zyra control and scale modules over TaskApi and CanonicalProjectionStore. OpenCode session, permission, provider, tool and persistence owners are not copied or invoked.",
+      "owner_unit": "M2-S02B-02",
+      "replacement_plan": "Replace behind RecoveryControlRuntime or ScaledTimelineRuntime without moving command, permission, worker, recovery, graph, checkpoint or event custody.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/timeline/control/commands.ts",
+          "apps/web/src/features/timeline/control/contracts.ts",
+          "apps/web/src/features/timeline/control/observation.ts",
+          "apps/web/src/features/timeline/control/transport.ts",
+          "apps/web/src/features/timeline/control/validation.ts",
+          "apps/web/src/features/timeline/scale/causal-fold.ts",
+          "apps/web/src/features/timeline/scale/contracts.ts",
+          "apps/web/src/features/timeline/scale/goal-drift.ts",
+          "apps/web/src/features/timeline/scale/projector.ts",
+          "apps/web/src/features/timeline/scale/search-index.ts",
+          "apps/web/src/features/timeline/scale/virtualizer.ts",
+          "apps/web/src/features/timeline/view/timeline-workbench.tsx"
+        ],
+        "environment_refs": [],
+        "function": "RecoveryControlRuntime/ScaledTimelineRuntime",
+        "health_check": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts ./apps/web/test/scaled-recovery-timeline.test.ts",
+        "module": "apps.web.src.features.timeline.control.runtime",
+        "protocol": "zyra.recovery-control-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/pages/session/use-session-commands.tsx;packages/app/src/context/permission.tsx;packages/app/src/pages/session/timeline/{model.ts,row-reconciliation.ts,message-timeline.tsx}",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/pages/session/use-session-commands.tsx;packages/app/src/context/permission.tsx;packages/app/src/pages/session/timeline/{model.ts,row-reconciliation.ts,message-timeline.tsx}",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-02",
+        "recovery-control",
+        "scaled-timeline",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/timeline/control/commands.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/control/contracts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/control/observation.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/control/transport.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/control/validation.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/scale/causal-fold.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/scale/contracts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/scale/goal-drift.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/scale/projector.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/scale/search-index.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/scale/virtualizer.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/view/timeline-workbench.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "expected_signal": "five control mappings, durable timeout/late receipt, sealed denial, race, disconnect and disabled binding",
+          "kind": "unit",
+          "path": "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scaled-recovery-timeline.test.ts",
+          "expected_signal": "five-thousand-row bounded virtualization, causal folds, indexed search, goal drift and effective overlays",
+          "kind": "unit",
+          "path": "apps/web/test/scaled-recovery-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "expected_signal": "real HTTP kill/steer/retry/reassign/resume, sealed deny/replan and canonical state-owner effects",
+          "kind": "integration",
+          "path": "tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "control_receipt_connection_and_panel_state_reconciliation",
+      "capability_summary": "Stop/resume pending state, rollback/refetch recovery, live status and connection-aware receipt reconciliation without optimistic worker mutation.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_c89ddf2fcb048aac2c10",
+      "license_notice": {
+        "license_hint": "M2 recovery control and scaled timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "control_receipt",
+          "scaled_timeline_projection"
+        ],
+        "control_commands": [
+          "/kill",
+          "/steer",
+          "/retry",
+          "/reassign",
+          "/resume"
+        ],
+        "event_types": [
+          "command.*",
+          "permission.*",
+          "worker.*",
+          "recovery.*",
+          "topology.*",
+          "checkpoint.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "recovery_control_panel",
+          "worker_causal_timeline",
+          "scaled_timeline_viewport"
+        ],
+        "worker_runtime": "TaskDetail -> RecoveryControlRuntime -> TaskApi.controlCommand -> RuntimeControlDispatcher -> canonical owner -> CanonicalProjectionStore -> timeline receipt observer"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.SessionControlRuntime/RecoveryApplication",
+        "canonical_command_owner": "python.RuntimeControlDispatcher",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.ToolPermissionRuntime",
+        "canonical_recovery_owner": "python.RecoveryApplication",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "frontend_event_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+        "migration_mode": "cropped_migration",
+        "owner_unit": "M2-S02B-02",
+        "rationale": "Only receipt and connection-state mechanics supplement the OpenCode-derived orchestration. OpenHands Redux, router, sandbox, conversation and approval owners remain excluded.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-02",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_control_owner": "typescript.RecoveryControlRuntime",
+        "transient_scale_owner": "typescript.ScaledTimelineRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=cropped_migration; Only receipt and connection-state mechanics supplement the OpenCode-derived orchestration. OpenHands Redux, router, sandbox, conversation and approval owners remain excluded.",
+      "owner_unit": "M2-S02B-02",
+      "replacement_plan": "Replace behind RecoveryControlRuntime or ScaledTimelineRuntime without moving command, permission, worker, recovery, graph, checkpoint or event custody.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/timeline/control/ledger.ts",
+          "apps/web/src/features/timeline/control/runtime.ts",
+          "apps/web/src/features/timeline/view/recovery-control-panel.tsx"
+        ],
+        "environment_refs": [],
+        "function": "RecoveryControlRuntime/ScaledTimelineRuntime",
+        "health_check": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts ./apps/web/test/scaled-recovery-timeline.test.ts",
+        "module": "apps.web.src.features.timeline.control.runtime",
+        "protocol": "zyra.recovery-control-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/hooks/mutation/{use-unified-stop-conversation.ts,use-unified-start-conversation.ts,use-v1-resume-conversation.ts};frontend/src/components/features/controls/agent-status.tsx;frontend/src/hooks/use-sandbox-recovery.ts",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/hooks/mutation/{use-unified-stop-conversation.ts,use-unified-start-conversation.ts,use-v1-resume-conversation.ts};frontend/src/components/features/controls/agent-status.tsx;frontend/src/hooks/use-sandbox-recovery.ts",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-02",
+        "recovery-control",
+        "scaled-timeline",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/timeline/control/ledger.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/control/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/view/recovery-control-panel.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "expected_signal": "five control mappings, durable timeout/late receipt, sealed denial, race, disconnect and disabled binding",
+          "kind": "unit",
+          "path": "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scaled-recovery-timeline.test.ts",
+          "expected_signal": "five-thousand-row bounded virtualization, causal folds, indexed search, goal drift and effective overlays",
+          "kind": "unit",
+          "path": "apps/web/test/scaled-recovery-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "expected_signal": "real HTTP kill/steer/retry/reassign/resume, sealed deny/replan and canonical state-owner effects",
+          "kind": "integration",
+          "path": "tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "action_failure_reconnect_bounded_retry_timeline_semantics",
+      "capability_summary": "Action failures remain visible until canonical recovery, connection restoration supersedes without erasure, bounded retry attempts stay observable and no missing result becomes success.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_f13ad6da6e8ca5cded03",
+      "license_notice": {
+        "license_hint": "M2 recovery control and scaled timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "control_receipt",
+          "scaled_timeline_projection"
+        ],
+        "control_commands": [
+          "/kill",
+          "/steer",
+          "/retry",
+          "/reassign",
+          "/resume"
+        ],
+        "event_types": [
+          "command.*",
+          "permission.*",
+          "worker.*",
+          "recovery.*",
+          "topology.*",
+          "checkpoint.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "recovery_control_panel",
+          "worker_causal_timeline",
+          "scaled_timeline_viewport"
+        ],
+        "worker_runtime": "TaskDetail -> RecoveryControlRuntime -> TaskApi.controlCommand -> RuntimeControlDispatcher -> canonical owner -> CanonicalProjectionStore -> timeline receipt observer"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.SessionControlRuntime/RecoveryApplication",
+        "canonical_command_owner": "python.RuntimeControlDispatcher",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.ToolPermissionRuntime",
+        "canonical_recovery_owner": "python.RecoveryApplication",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "frontend_event_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+        "migration_mode": "semantic_port/production",
+        "owner_unit": "M2-S02B-02",
+        "rationale": "This bounded Python-to-TypeScript presentation port consumes canonical action and recovery facts only. It does not port the browser controller, DOM state, executor, retry loop, persistence or watchdog.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-02",
+        "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+        "source_language": "python",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_control_owner": "typescript.RecoveryControlRuntime",
+        "transient_scale_owner": "typescript.ScaledTimelineRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "semantic_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=18484f23ac96bb955259a1c54530a7d265dfffdb; migration_mode=semantic_port/production; This bounded Python-to-TypeScript presentation port consumes canonical action and recovery facts only. It does not port the browser controller, DOM state, executor, retry loop, persistence or watchdog.",
+      "owner_unit": "M2-S02B-02",
+      "replacement_plan": "Replace behind RecoveryControlRuntime or ScaledTimelineRuntime without moving command, permission, worker, recovery, graph, checkpoint or event custody.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/timeline/control/receipts.ts",
+          "apps/web/src/features/timeline/control/sealed.ts",
+          "apps/web/src/features/timeline/scale/overlays.ts"
+        ],
+        "environment_refs": [],
+        "function": "RecoveryControlRuntime/ScaledTimelineRuntime",
+        "health_check": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts ./apps/web/test/scaled-recovery-timeline.test.ts",
+        "module": "apps.web.src.features.timeline.control.runtime",
+        "protocol": "zyra.recovery-control-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "browser_use/agent/views.py::{AgentState,ActionResult,AgentHistoryList.errors};browser_use/agent/service.py::{_check_stop_or_pause,pause,resume,reconnection recovery,consecutive-failure reset}",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "browser_use/agent/views.py::{AgentState,ActionResult,AgentHistoryList.errors};browser_use/agent/service.py::{_check_stop_or_pause,pause,resume,reconnection recovery,consecutive-failure reset}",
+      "source_repo": "browser-use",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-02",
+        "recovery-control",
+        "scaled-timeline",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/timeline/control/receipts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/control/sealed.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/timeline/scale/overlays.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "expected_signal": "five control mappings, durable timeout/late receipt, sealed denial, race, disconnect and disabled binding",
+          "kind": "unit",
+          "path": "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scaled-recovery-timeline.test.ts",
+          "expected_signal": "five-thousand-row bounded virtualization, causal folds, indexed search, goal drift and effective overlays",
+          "kind": "unit",
+          "path": "apps/web/test/scaled-recovery-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "expected_signal": "real HTTP kill/steer/retry/reassign/resume, sealed deny/replan and canonical state-owner effects",
+          "kind": "integration",
+          "path": "tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "control_approval_history_conformance",
+      "capability_summary": "Checkpoint lifecycle and approval/history behavior conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_29cc25d054bcec798ec3",
+      "license_notice": {
+        "license_hint": "M2 recovery control and scaled timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agent-framework",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "control_receipt",
+          "scaled_timeline_projection"
+        ],
+        "control_commands": [
+          "/kill",
+          "/steer",
+          "/retry",
+          "/reassign",
+          "/resume"
+        ],
+        "event_types": [
+          "command.*",
+          "permission.*",
+          "worker.*",
+          "recovery.*",
+          "topology.*",
+          "checkpoint.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "recovery_control_panel",
+          "worker_causal_timeline",
+          "scaled_timeline_viewport"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.SessionControlRuntime/RecoveryApplication",
+        "canonical_command_owner": "python.RuntimeControlDispatcher",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.ToolPermissionRuntime",
+        "canonical_recovery_owner": "python.RecoveryApplication",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "frontend_event_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S02B-02",
+        "rationale": "Agent Framework is behavior comparison only. No workflow, checkpoint, history, middleware or approval owner is migrated.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-02",
+        "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
+        "source_language": "python/dotnet",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_control_owner": "typescript.RecoveryControlRuntime",
+        "transient_scale_owner": "typescript.ScaledTimelineRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=d50698bb797710bfd1ebf34eb621c905a4009b2d; migration_mode=conformance_only; Agent Framework is behavior comparison only. No workflow, checkpoint, history, middleware or approval owner is migrated.",
+      "owner_unit": "M2-S02B-02",
+      "replacement_plan": "conformance_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "apps/web/test/scaled-recovery-timeline.test.ts"
+        ],
+        "environment_refs": [],
+        "function": "recovery control conformance tests",
+        "health_check": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts ./apps/web/test/scaled-recovery-timeline.test.ts",
+        "module": "apps.web.test.recovery-control-sealed-timeline",
+        "protocol": "zyra.recovery-control-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "workflow/checkpoint and AG-UI approval/history contracts",
+          "source_repo": "agent-framework",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "workflow/checkpoint and AG-UI approval/history contracts",
+      "source_repo": "agent-framework",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-02",
+        "recovery-control",
+        "scaled-timeline",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/recovery-control-sealed-timeline.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "apps/web/test/scaled-recovery-timeline.test.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "expected_signal": "five control mappings, durable timeout/late receipt, sealed denial, race, disconnect and disabled binding",
+          "kind": "unit",
+          "path": "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scaled-recovery-timeline.test.ts",
+          "expected_signal": "five-thousand-row bounded virtualization, causal folds, indexed search, goal drift and effective overlays",
+          "kind": "unit",
+          "path": "apps/web/test/scaled-recovery-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "expected_signal": "real HTTP kill/steer/retry/reassign/resume, sealed deny/replan and canonical state-owner effects",
+          "kind": "integration",
+          "path": "tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "sealed_control_negative_examples",
+      "capability_summary": "Lifecycle and control negative examples for fail-closed tests.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_6b7d3a71183e4c4979da",
+      "license_notice": {
+        "license_hint": "M2 recovery control and scaled timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "control_receipt",
+          "scaled_timeline_projection"
+        ],
+        "control_commands": [
+          "/kill",
+          "/steer",
+          "/retry",
+          "/reassign",
+          "/resume"
+        ],
+        "event_types": [
+          "command.*",
+          "permission.*",
+          "worker.*",
+          "recovery.*",
+          "topology.*",
+          "checkpoint.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "recovery_control_panel",
+          "worker_causal_timeline",
+          "scaled_timeline_viewport"
+        ],
+        "worker_runtime": "reference_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.SessionControlRuntime/RecoveryApplication",
+        "canonical_command_owner": "python.RuntimeControlDispatcher",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.ToolPermissionRuntime",
+        "canonical_recovery_owner": "python.RecoveryApplication",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "frontend_event_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+        "migration_mode": "reference_only",
+        "owner_unit": "M2-S02B-02",
+        "rationale": "OMP is used only for bounded negative examples. It owns no production control, recovery, process, tool or session path.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-02",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "reference_only",
+        "target_language": "none",
+        "transient_control_owner": "typescript.RecoveryControlRuntime",
+        "transient_scale_owner": "typescript.ScaledTimelineRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=reference_only; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=reference_only; OMP is used only for bounded negative examples. It owns no production control, recovery, process, tool or session path.",
+      "owner_unit": "M2-S02B-02",
+      "replacement_plan": "reference_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "tests/integration/test_recovery_control_sealed_timeline_integration.py"
+        ],
+        "environment_refs": [],
+        "function": "recovery control conformance tests",
+        "health_check": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts ./apps/web/test/scaled-recovery-timeline.test.ts",
+        "module": "apps.web.test.recovery-control-sealed-timeline",
+        "protocol": "zyra.recovery-control-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "lifecycle/control contracts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "reference_only"
+          ]
+        }
+      ],
+      "source_path": "lifecycle/control contracts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-02",
+        "recovery-control",
+        "scaled-timeline",
+        "reference_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/recovery-control-sealed-timeline.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_recovery_control_sealed_timeline_integration.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "expected_signal": "five control mappings, durable timeout/late receipt, sealed denial, race, disconnect and disabled binding",
+          "kind": "unit",
+          "path": "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scaled-recovery-timeline.test.ts",
+          "expected_signal": "five-thousand-row bounded virtualization, causal folds, indexed search, goal drift and effective overlays",
+          "kind": "unit",
+          "path": "apps/web/test/scaled-recovery-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "expected_signal": "real HTTP kill/steer/retry/reassign/resume, sealed deny/replan and canonical state-owner effects",
+          "kind": "integration",
+          "path": "tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "exact_resume_control_conformance",
+      "capability_summary": "Checkpoint identity, pending/committed writes, stable task id and interrupt/resume correlation conformance.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-03A",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_22074ef748a5f722495e",
+      "license_notice": {
+        "license_hint": "M2 recovery control and scaled timeline source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "langgraph",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/commands"
+        ],
+        "artifact_kinds": [
+          "control_receipt",
+          "scaled_timeline_projection"
+        ],
+        "control_commands": [
+          "/kill",
+          "/steer",
+          "/retry",
+          "/reassign",
+          "/resume"
+        ],
+        "event_types": [
+          "command.*",
+          "permission.*",
+          "worker.*",
+          "recovery.*",
+          "topology.*",
+          "checkpoint.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "recovery_control_panel",
+          "worker_causal_timeline",
+          "scaled_timeline_viewport"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "canonical_checkpoint_owner": "python.SessionControlRuntime/RecoveryApplication",
+        "canonical_command_owner": "python.RuntimeControlDispatcher",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_graph_owner": "python.GraphStateCustody",
+        "canonical_permission_owner": "python.ToolPermissionRuntime",
+        "canonical_recovery_owner": "python.RecoveryApplication",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "frontend_event_owner": "typescript.CanonicalProjectionStore",
+        "implementation_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S02B-02",
+        "rationale": "LangGraph remains limited to exact-resume conformance. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deployment code own no production path.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S02B-02",
+        "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1",
+        "source_language": "python/typescript",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_control_owner": "typescript.RecoveryControlRuntime",
+        "transient_scale_owner": "typescript.ScaledTimelineRuntime",
+        "transient_view_owner": "typescript.TimelineWorkbenchController"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=5931a5f0b313feff24e2516a586c55601b868ac1; migration_mode=conformance_only; LangGraph remains limited to exact-resume conformance. StateGraph, channels, reducers, Pregel, stream, Store, ToolNode, SDK, server and deployment code own no production path.",
+      "owner_unit": "M2-S02B-02",
+      "replacement_plan": "conformance_only source; no production runtime is selected.",
+      "risk_notes": [
+        "No runtime path may depend on a parent source repository.",
+        "CanonicalProjectionStore remains the sole frontend fact owner; timeline rows are derived and read-only.",
+        "M1 worker, lease, failure, recovery, scheduler and artifact stores remain authoritative.",
+        "The source cannot become a second canonical owner or command path."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "tests/integration/test_recovery_control_sealed_timeline_integration.py"
+        ],
+        "environment_refs": [],
+        "function": "recovery control conformance tests",
+        "health_check": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts ./apps/web/test/scaled-recovery-timeline.test.ts",
+        "module": "apps.web.test.recovery-control-sealed-timeline",
+        "protocol": "zyra.recovery-control-timeline/v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "source-graphs/langgraph/source-graph.md#12 narrow checkpoint/interrupt contracts",
+          "source_repo": "langgraph",
+          "symbols": [],
+          "tags": [
+            "m2-02b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "source-graphs/langgraph/source-graph.md#12 narrow checkpoint/interrupt contracts",
+      "source_repo": "langgraph",
+      "tags": [
+        "m2-02b",
+        "m2-s02b-02",
+        "recovery-control",
+        "scaled-timeline",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/recovery-control-sealed-timeline.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_recovery_control_sealed_timeline_integration.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "expected_signal": "five control mappings, durable timeout/late receipt, sealed denial, race, disconnect and disabled binding",
+          "kind": "unit",
+          "path": "apps/web/test/recovery-control-sealed-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "bun test ./apps/web/test/scaled-recovery-timeline.test.ts",
+          "expected_signal": "five-thousand-row bounded virtualization, causal folds, indexed search, goal drift and effective overlays",
+          "kind": "unit",
+          "path": "apps/web/test/scaled-recovery-timeline.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "expected_signal": "real HTTP kill/steer/retry/reassign/resume, sealed deny/replan and canonical state-owner effects",
+          "kind": "integration",
+          "path": "tests/integration/test_recovery_control_sealed_timeline_integration.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 479,
+    "active_or_internalized": 482,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 48,
+      "candidate": 51,
       "deferred": 8,
       "planned": 698,
-      "productized": 424
+      "productized": 427
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 48,
+      "inventoried": 51,
       "planned": 503,
-      "tested_main_path": 185,
+      "tested_main_path": 188,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -183995,35 +185105,36 @@
       "M2-S01B-02": 4,
       "M2-S02A-01": 5,
       "M2-S02A-02": 4,
-      "M2-S02B-01": 6
+      "M2-S02B-01": 6,
+      "M2-S02B-02": 6
     },
     "by_source_repo": {
-      "OpenHands": 94,
-      "agent-framework": 95,
+      "OpenHands": 95,
+      "agent-framework": 96,
       "agentscope": 106,
-      "browser-use": 112,
+      "browser-use": 113,
       "claude-code-best": 512,
       "hermes-agent": 86,
-      "langgraph": 88,
-      "oh-my-pi": 25,
+      "langgraph": 89,
+      "oh-my-pi": 26,
       "openclaw": 86,
-      "opencode": 27,
+      "opencode": 28,
       "zyra": 2
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 10,
-      "direct_port": 53,
-      "not_selected": 26,
+      "candidate_review": 12,
+      "direct_port": 54,
+      "not_selected": 29,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 746,
+    "planned_or_candidate": 749,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 73,
+      "apps/web": 79,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -184038,6 +185149,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1233
+    "total_entries": 1239
   }
 }

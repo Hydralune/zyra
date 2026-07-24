@@ -1,0 +1,365 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M2-S02B-02",
+  "parent_unit": "M2-02B",
+  "numeric_stage": "M2-02",
+  "date": "2026-07-24",
+  "verdict": "passed",
+  "baseline_commit": "46be71eb4ced2da38f5b05fce24907da7ffc8f6c",
+  "preimplementation_decision_commit": "482cc5f4b582e1b81eeda48c0163e88838f295e8",
+  "implementation_commit": "fdf82f2059153b917ca2486cdcbe1b8d68b790b9",
+  "aggregate_fix_and_final_target_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "interval": "46be71eb4ced2da38f5b05fce24907da7ffc8f6c..f3302a3c5366218068cb8acf9790c973e4b62033",
+    "raw_additions": 9808,
+    "raw_deletions": 24,
+    "production_runtime": 5707,
+    "ui_behavior": 330,
+    "ui_presentation_excluded": 494,
+    "type_declaration_excluded": 823,
+    "schema_data_excluded": 24,
+    "adapter_only_excluded": 0,
+    "generated_and_python_owner_integration_excluded": 694,
+    "test_fixture_probe_excluded": 1230,
+    "docs_comments_blank_excluded": 506,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 6037,
+    "minimum": 6000,
+    "margin": 37,
+    "passed": true
+  },
+  "source_decisions": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9"
+    },
+    {
+      "source_repo": "browser-use",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "typescript",
+      "migration_mode": "semantic_port/production",
+      "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+      "cross_language_decision_id": "M2-S02B-02-browser-action-recovery-semantic-port"
+    },
+    {
+      "source_repo": "agent-framework",
+      "source_role": "conformance_only",
+      "source_language": "python/dotnet",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "reference_only",
+      "source_language": "typescript",
+      "target_language": "none",
+      "migration_mode": "reference_only",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+    },
+    {
+      "source_repo": "langgraph",
+      "source_role": "conformance_only",
+      "source_language": "python/typescript",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "source_commit": "5931a5f0b313feff24e2516a586c55601b868ac1"
+    },
+    {
+      "source_repo": "OpenClaw",
+      "source_role": "excluded_forward_only",
+      "source_language": "none",
+      "target_language": "none",
+      "migration_mode": "excluded_forward_only",
+      "source_commit": "none"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/timeline/control/commands.ts",
+        "apps/web/src/features/timeline/control/contracts.ts",
+        "apps/web/src/features/timeline/control/observation.ts",
+        "apps/web/src/features/timeline/control/transport.ts",
+        "apps/web/src/features/timeline/control/validation.ts",
+        "apps/web/src/features/timeline/scale/causal-fold.ts",
+        "apps/web/src/features/timeline/scale/contracts.ts",
+        "apps/web/src/features/timeline/scale/goal-drift.ts",
+        "apps/web/src/features/timeline/scale/projector.ts",
+        "apps/web/src/features/timeline/scale/search-index.ts",
+        "apps/web/src/features/timeline/scale/virtualizer.ts",
+        "apps/web/src/features/timeline/view/timeline-workbench.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/timeline/control/ledger.ts",
+        "apps/web/src/features/timeline/control/runtime.ts",
+        "apps/web/src/features/timeline/view/recovery-control-panel.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "browser-use",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "semantic_port/production",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/timeline/control/receipts.ts",
+        "apps/web/src/features/timeline/control/sealed.ts",
+        "apps/web/src/features/timeline/scale/overlays.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": true,
+      "cross_language_decision_id": "M2-S02B-02-browser-action-recovery-semantic-port"
+    }
+  ],
+  "canonical_owners": {
+    "control_admission_and_idempotency": "python.RuntimeControlDispatcher",
+    "permission_and_sealed_denial": "python.ToolPermissionRuntime/deployment permission owner",
+    "worker_attempt_and_lease": "python.WorkerPoolStore/WorkerControlRuntime",
+    "recovery_plan_and_application": "python.RecoveryApplication/recovery stores",
+    "graph_mutation": "python.GraphStateCustody",
+    "exact_checkpoint_resume": "python.SessionControlRuntime/RecoveryApplication",
+    "frontend_event_facts": "typescript.CanonicalProjectionStore",
+    "transient_control_receipts": "typescript.RecoveryControlRuntime",
+    "transient_scale_projection": "typescript.ScaledTimelineRuntime"
+  },
+  "command_mapping": {
+    "kill": "WorkerControlRuntime cancel/stop and real lease fencing",
+    "steer": "RecoveryApplication requirement_changed -> GraphStateCustody",
+    "retry": "RecoveryApplication bounded retry -> QueryEngine continuation",
+    "reassign": "RecoveryApplication worker_lost -> WorkerPoolStore successor",
+    "resume": "existing exact checkpoint SessionControlRuntime/RecoveryApplication path"
+  },
+  "verification": {
+    "focused_web_behavior": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test/recovery-control-sealed-timeline.test.ts ./apps/web/test/scaled-recovery-timeline.test.ts ./apps/web/test/worker-causal-timeline.test.ts",
+      "passed": 25,
+      "failed": 0,
+      "assertions": 311
+    },
+    "focused_python_and_adjacent": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_recovery_control_sealed_timeline_integration.py tests/integration/test_topology_interaction_control.py tests/integration/test_worker_causal_timeline_projection.py tests/scenarios/test_m5_scheduler_fault_recovery.py -q",
+      "passed": 7,
+      "failed": 0
+    },
+    "main_checkout_all_web": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test",
+      "passed": 110,
+      "failed": 0,
+      "assertions": 761
+    },
+    "main_checkout_m2_02_python": {
+      "command": ".venv/Scripts/python.exe -m pytest -p no:cacheprovider --basetemp=.tmp/pytest-m2-s02b-02-main-f3302a3 tests/integration/test_topology_route_placement_projection.py tests/integration/test_topology_interaction_control.py tests/integration/test_worker_causal_timeline_projection.py tests/integration/test_recovery_control_sealed_timeline_integration.py -q",
+      "passed": 6,
+      "failed": 0
+    },
+    "web_typecheck": {
+      "command": "node_modules/.bin/bun.exe run typecheck:web",
+      "passed": true
+    },
+    "production_build": {
+      "command": "node_modules/.bin/bun.exe run build:web",
+      "passed": true,
+      "bundled_modules": 172
+    },
+    "effective_line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s02b_02_effective_lines.mjs --baseline=46be71eb4ced2da38f5b05fce24907da7ffc8f6c --target=f3302a3c5366218068cb8acf9790c973e4b62033 --minimum=6000 --summary",
+      "passed": true,
+      "effective_production": 6037
+    },
+    "source_ledger_sync": {
+      "command": ".venv/Scripts/python.exe scripts/sync_m2_recovery_control_timeline_source_ledger.py --check",
+      "passed": true,
+      "decision_count": 6,
+      "entry_count": 6,
+      "missing_targets": 0
+    },
+    "m2_02_source_to_target": {
+      "command": ".venv/Scripts/python.exe scripts/audit_m2_02_source_to_target.py --target f3302a3c5366218068cb8acf9790c973e4b62033 --summary",
+      "passed": true,
+      "entry_count": 21,
+      "production_target_bindings": 70,
+      "conformance_or_reference_bindings": 17,
+      "missing_targets": 0,
+      "openclaw_forward_entries": 0
+    },
+    "source_language_custody": {
+      "command": ".venv/Scripts/python.exe scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/M2-S02B-02-recovery-control-sealed-timeline-integration.json --base 46be71eb4ced2da38f5b05fce24907da7ffc8f6c --target f3302a3c5366218068cb8acf9790c973e4b62033",
+      "passed": true,
+      "production_roles": 3
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "passed": true
+    }
+  },
+  "cleanroom": {
+    "source": "git archive f3302a3c5366218068cb8acf9790c973e4b62033",
+    "path": ".tmp/cleanroom-M2-S02B-02-f3302a3",
+    "frozen_install": true,
+    "all_web_passed": 110,
+    "m2_02_python_passed": 6,
+    "typecheck_passed": true,
+    "build_passed": true,
+    "bundled_modules": 172,
+    "cache_or_residual_source_dependency": false
+  },
+  "semantic_effects": [
+    "Five named timeline actions submit deterministic, owner-fenced, idempotent requests through the existing command route.",
+    "Direct responses remain provisional until canonical evidence and cannot become frontend-owned approval or worker truth.",
+    "Timeout, late receipt, owner loss, stale revision, race, disconnect and reconnect remain distinguishable.",
+    "Viewer detach never aborts or replays a durable request.",
+    "Sealed autonomous denial records one operator attempt, keeps human intervention zero, never waits and applies safe replan or fail-closed.",
+    "Kill fences the real lease, reassign acquires a successor, steer commits graph recovery, retry applies recovery continuation and resume retains exact checkpoint identity.",
+    "Measured-height virtualization keeps five thousand rows bounded and preserves anchors and far selection.",
+    "Causal folds preserve failure, control, critical and boundary evidence.",
+    "Indexed search, goal drift and compact/checkpoint/placement/replacement/effective-step overlays are derived from canonical facts.",
+    "Heartbeat, replay and no-op events do not inflate effective-step overlays."
+  ],
+  "aggregate_fix": {
+    "finding": "A process-global command-source coordinator retained a prior test temporary persistence path.",
+    "fix": "The recovery-control API test context resets the control runtime on entry and exit.",
+    "fix_commit": "f3302a3c5366218068cb8acf9790c973e4b62033",
+    "post_fix_main_passed": 6,
+    "post_fix_cleanroom_passed": 6
+  },
+  "browser_validation": {
+    "attempted": true,
+    "browser_instance_available": false,
+    "fallback_browser_used": false,
+    "static_screenshot_claimed": false,
+    "completion_gate": false,
+    "replacement_evidence": [
+      "production TaskDetail mount behavior test",
+      "all Web interaction tests",
+      "production typecheck and build"
+    ]
+  },
+  "dependency_scan": {
+    "parent_source_runtime_dependencies_added": 0,
+    "changed_production_forbidden_path_files": 0,
+    "npm_links_added": 0,
+    "editable_parent_paths_added": 0,
+    "external_docker_contexts_added": 0,
+    "package_or_lockfile_changes": 0,
+    "new_dependencies": 0,
+    "new_production_processes": 0,
+    "new_local_ports": 0,
+    "new_mcp_servers": 0,
+    "dynamic_package_imports": 0,
+    "cache_or_residual_state_dependencies": 0,
+    "openclaw_reads_or_dependencies": 0
+  },
+  "generic_ledger_verifier": {
+    "command": ".venv/Scripts/python.exe scripts/verify_internalization_ledger.py --base 46be71eb4ced2da38f5b05fce24907da7ffc8f6c --unit M2-S02B-02 --minimum-effective-lines 6000 --json",
+    "slice_line_count_ok": true,
+    "repository_wide_ok": false,
+    "pre_existing_blockers": 3,
+    "unchanged_file": "packages/evaluation/zyra_evaluation/m1_hardening/long_horizon_runtime.py",
+    "unchanged_tokens": [
+      "../OpenHands",
+      "../browser-use",
+      "../claude-code-best"
+    ],
+    "introduced_by_slice": false
+  },
+  "large_file_review": {
+    "over_500_raw_additions": [
+      "apps/api/zyra_api/main.py",
+      "apps/web/src/features/timeline/control/ledger.ts",
+      "apps/web/src/features/timeline/control/receipts.ts",
+      "apps/web/src/features/timeline/control/runtime.ts",
+      "apps/web/src/features/timeline/control/validation.ts",
+      "apps/web/src/features/timeline/scale/causal-fold.ts",
+      "apps/web/src/features/timeline/scale/virtualizer.ts"
+    ],
+    "over_20_percent_effective": [],
+    "over_30_percent_excluded_production": [
+      "apps/web/src/features/timeline/control/contracts.ts",
+      "apps/web/src/features/timeline/view/recovery-control-panel.tsx",
+      "apps/web/src/features/timeline/view/timeline-workbench.tsx"
+    ],
+    "maximum_effective_file": {
+      "path": "apps/web/src/features/timeline/control/receipts.ts",
+      "effective_lines": 642,
+      "share_percent": 10.63
+    },
+    "high_exclusion_files_reviewed": true,
+    "python_owner_integration_counted": false
+  },
+  "high_risk_upgrade": {
+    "triggered": false,
+    "numeric_stage_aggregate_executed": true,
+    "reasons": [
+      "No incompatible public schema, event or persistence migration was introduced.",
+      "No canonical owner or transaction, lease, idempotency or restore semantics moved.",
+      "No global permission, scheduler, recovery, compact or fallback default changed.",
+      "No external dependency, process, port, MCP server, plugin or dynamic import was added."
+    ]
+  },
+  "parent_status": {
+    "parent_complete": true,
+    "m2_s02b_01_effective_production": 6836,
+    "m2_s02b_02_effective_production": 6037,
+    "parent_effective_production": 12873,
+    "parent_minimum": 12000,
+    "parent_margin": 873,
+    "passed": true
+  },
+  "numeric_stage_status": {
+    "numeric_stage_complete": true,
+    "m2_02a_effective_production": 14027,
+    "m2_02b_effective_production": 12873,
+    "four_slice_effective_production": 26900,
+    "combined_parent_minimum": 25000,
+    "combined_parent_margin": 1900,
+    "direct_interval": "f7fff49be91fb0f797260c03ff9cca76c06c5974..f3302a3c5366218068cb8acf9790c973e4b62033",
+    "direct_raw_additions": 48437,
+    "direct_raw_deletions": 150,
+    "direct_production_runtime": 25869,
+    "direct_ui_behavior": 1152,
+    "direct_effective_production": 27021,
+    "direct_minimum": 25000,
+    "passed": true
+  },
+  "next_entry": "execution-state.yaml"
+}
