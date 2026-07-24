@@ -1,0 +1,322 @@
+{
+  "schema": "zyra.slice-evidence/v1",
+  "slice_id": "M2-S03A-01",
+  "parent_unit": "M2-03A",
+  "numeric_stage": "M2-03",
+  "date": "2026-07-24",
+  "verdict": "passed",
+  "baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+  "preimplementation_decision_commit": "228c1cfa41c3a8c2b5d6f45350576413f258fb29",
+  "implementation_commit": "9ca93e348731ae2d3dded26b8efa9d87165583cc",
+  "evidence_commit": "this_commit",
+  "effective_line_count": {
+    "interval": "1833319acdb8a09fac3438b12356da0e9c78d6bb..9ca93e348731ae2d3dded26b8efa9d87165583cc",
+    "raw_additions": 15640,
+    "raw_deletions": 118,
+    "production_runtime": 8585,
+    "ui_behavior": 492,
+    "ui_presentation_excluded": 1366,
+    "type_declaration_excluded": 1322,
+    "schema_data_excluded": 57,
+    "adapter_only_excluded": 0,
+    "generated_and_python_owner_integration_excluded": 1975,
+    "test_fixture_probe_excluded": 1394,
+    "docs_comments_blank_excluded": 449,
+    "vendor_like_source_pool_excluded": 0,
+    "effective_production": 9077,
+    "minimum": 7500,
+    "margin": 1577,
+    "passed": true
+  },
+  "source_decisions": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9"
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "source_language": "python",
+      "target_language": "python",
+      "migration_mode": "cropped_migration/canonical_owner_integration",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9"
+    },
+    {
+      "source_repo": "agent-framework",
+      "source_role": "conformance_only",
+      "source_language": "python",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d"
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_role": "conformance_only",
+      "source_language": "typescript",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca"
+    }
+  ],
+  "language_custody": [
+    {
+      "source_repo": "opencode",
+      "source_role": "primary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/artifacts/cache.ts",
+        "apps/web/src/features/artifacts/catalog.ts",
+        "apps/web/src/features/artifacts/content.ts",
+        "apps/web/src/features/artifacts/runtime.ts",
+        "apps/web/src/features/artifacts/search-index.ts"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "expected_production_languages": [
+        "typescript"
+      ],
+      "production_paths": [
+        "apps/web/src/features/artifacts/security.ts",
+        "apps/web/src/features/artifacts/viewers.ts",
+        "apps/web/src/features/artifacts/view/artifact-workbench.tsx"
+      ],
+      "minimum_added_lines_by_language": {
+        "typescript": 1
+      },
+      "cross_language_exception": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_role": "supplementary_implementation",
+      "migration_mode": "cropped_migration/canonical_owner_integration",
+      "expected_production_languages": [
+        "python"
+      ],
+      "production_paths": [
+        "packages/runtime/zyra_runtime/artifacts.py",
+        "apps/api/zyra_api/artifact_api.py",
+        "apps/api/zyra_api/main.py"
+      ],
+      "minimum_added_lines_by_language": {
+        "python": 1
+      },
+      "cross_language_exception": false
+    }
+  ],
+  "canonical_owners": {
+    "artifact_reference_and_task_membership": "python.SQLiteStore.TaskState.artifacts",
+    "artifact_bytes_and_integrity_metadata": "python.LocalArtifactStore",
+    "catalog_read_download_policy_and_receipts": "python.ArtifactCatalogService",
+    "frontend_event_facts": "typescript.CanonicalProjectionStore",
+    "transient_catalog_content_and_view_state": "typescript.ArtifactWorkbenchRuntime",
+    "bounded_reconstructible_cache": "typescript.ArtifactContentCache",
+    "view_preferences_and_bookmarks": "typescript browser-bounded preference stores",
+    "diff_patch_and_review_receipts": "not implemented; M2-S03A-02"
+  },
+  "verification": {
+    "focused_backend_artifact_api": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_artifact_custody_catalog_viewers.py -q",
+      "passed": 11,
+      "failed": 0
+    },
+    "runtime_protocol_adjacency": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/unit/test_runtime_protocol.py -q",
+      "passed": 18,
+      "failed": 0
+    },
+    "focused_web_behavior": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test/artifact-custody-catalog-viewers.test.ts",
+      "passed": 13,
+      "failed": 0,
+      "assertions": 70
+    },
+    "all_web": {
+      "command": "node_modules/.bin/bun.exe test ./apps/web/test",
+      "passed": 124,
+      "failed": 0,
+      "assertions": 837
+    },
+    "web_typecheck": {
+      "command": "node_modules/.bin/bun.exe run typecheck",
+      "working_directory": "apps/web",
+      "passed": true
+    },
+    "production_build": {
+      "command": "node_modules/.bin/bun.exe run build",
+      "working_directory": "apps/web",
+      "passed": true,
+      "bundled_modules": 184
+    },
+    "effective_line_audit": {
+      "command": "node_modules/.bin/bun.exe scripts/audit_m2_s03a_01_effective_lines.mjs --baseline=1833319acdb8a09fac3438b12356da0e9c78d6bb --target=9ca93e3 --minimum=7500 --summary",
+      "passed": true,
+      "effective_production": 9077
+    },
+    "source_ledger_sync": {
+      "command": ".venv/Scripts/python.exe scripts/sync_m2_artifact_viewer_source_ledger.py --check",
+      "passed": true,
+      "decision_count": 5,
+      "entry_count": 5,
+      "missing_targets": 0
+    },
+    "source_language_custody": {
+      "command": ".venv/Scripts/python.exe scripts/verify_source_language_custody.py --evidence docs/reviews/evidence/M2-S03A-01-artifact-custody-catalog-viewers.json --base 1833319acdb8a09fac3438b12356da0e9c78d6bb --target 9ca93e3",
+      "passed": true,
+      "production_roles": 3,
+      "primary_typescript_added": 4810,
+      "supplementary_typescript_added": 3247,
+      "supplementary_python_added": 1975
+    },
+    "broad_historical_api_suite": {
+      "command": ".venv/Scripts/python.exe -m pytest tests/integration/test_api_control_commands.py -q",
+      "passed": false,
+      "failed": 0,
+      "timed_out_seconds": 300,
+      "claimed_as_passed": false,
+      "disposition": "unrelated long suite deferred to M2-03 numeric-stage aggregate; directly affected task-scoped HTTP routes passed focused integration"
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "passed": true
+    }
+  },
+  "semantic_effects": [
+    "New artifact writes atomically bind canonical bytes to digest, immutable revision, media, encoding, producer, security and retention metadata.",
+    "Catalog reads enumerate only canonical task artifact references and use deterministic task/filter-bound cursors.",
+    "Every content or download request resolves the task-owned reference, enforces the artifact-root boundary, hashes full bytes and returns a bounded range receipt.",
+    "Secret, active, executable, corrupt, missing, cross-task and wrong-revision artifacts fail before browser admission.",
+    "Untrusted text is independently redacted and prompt-quarantined by server and browser boundaries.",
+    "Text, Markdown, JSON, binary, image, audio and video viewer selection cannot downgrade policy.",
+    "Large catalogs, content and search use bounded cache, virtualization, indexing, concurrency and cancellation.",
+    "Verified media bytes are completely assembled and SHA-256 checked before an object URL is created; close/revoke releases it.",
+    "Timeline and topology references dispatch immutable artifact identity into the same workbench.",
+    "Bookmarks, pins and view state never mutate canonical artifact metadata."
+  ],
+  "dependency_scan": {
+    "parent_source_runtime_dependencies_added": 0,
+    "changed_production_forbidden_path_files": 0,
+    "npm_links_added": 0,
+    "editable_parent_paths_added": 0,
+    "external_docker_contexts_added": 0,
+    "package_or_lockfile_changes": 0,
+    "new_dependencies": 0,
+    "new_production_processes": 0,
+    "new_local_ports": 0,
+    "new_mcp_servers": 0,
+    "dynamic_package_imports": 0,
+    "cache_or_residual_state_dependencies": 0,
+    "openclaw_reads_or_dependencies": 0
+  },
+  "generic_ledger_verifier": {
+    "command": ".venv/Scripts/python.exe scripts/verify_internalization_ledger.py --base 1833319acdb8a09fac3438b12356da0e9c78d6bb --unit M2-S03A-01 --minimum-effective-lines 7500 --fail-on-shortfall --json",
+    "slice_line_count_ok": true,
+    "repository_wide_ok": false,
+    "pre_existing_blockers": 3,
+    "unchanged_file": "packages/evaluation/zyra_evaluation/m1_hardening/long_horizon_runtime.py",
+    "unchanged_tokens": [
+      "../OpenHands",
+      "../browser-use",
+      "../claude-code-best"
+    ],
+    "introduced_by_slice": false
+  },
+  "large_file_review": {
+    "over_500_raw_additions": [
+      "apps/api/zyra_api/artifact_api.py",
+      "apps/web/src/features/artifacts/audit.ts",
+      "apps/web/src/features/artifacts/cache.ts",
+      "apps/web/src/features/artifacts/catalog.ts",
+      "apps/web/src/features/artifacts/content.ts",
+      "apps/web/src/features/artifacts/contracts.ts",
+      "apps/web/src/features/artifacts/runtime.ts",
+      "apps/web/src/features/artifacts/search-index.ts",
+      "apps/web/src/features/artifacts/security.ts",
+      "apps/web/src/features/artifacts/view/artifact-workbench.tsx",
+      "apps/web/src/features/artifacts/viewers.ts",
+      "apps/web/src/styles.css",
+      "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+      "packages/runtime/zyra_runtime/artifacts.py",
+      "tests/integration/test_artifact_custody_catalog_viewers.py"
+    ],
+    "over_20_percent_effective": [],
+    "over_30_percent_excluded_or_presentation": [
+      "apps/api/zyra_api/artifact_api.py",
+      "apps/web/src/components/tasks/task-detail.tsx",
+      "apps/web/src/features/artifacts/view/artifact-workbench.tsx",
+      "apps/web/src/features/timeline/view/timeline-workbench.tsx",
+      "apps/web/src/styles.css",
+      "packages/runtime/zyra_runtime/artifacts.py"
+    ],
+    "maximum_effective_file": {
+      "path": "apps/web/src/features/artifacts/contracts.ts",
+      "effective_lines": 1090,
+      "share_percent": 12.01
+    },
+    "high_exclusion_files_reviewed": true,
+    "python_owner_integration_counted": false,
+    "opaque_or_generated_runtime_found": false
+  },
+  "browser_validation": {
+    "local_api_started": true,
+    "local_api_http_status": 200,
+    "production_bundle_started": true,
+    "production_bundle_http_status": 200,
+    "browser_control_attempted": true,
+    "browser_instance_available": false,
+    "static_screenshot_claimed": false,
+    "completion_gate": false,
+    "replacement_evidence": [
+      "production TaskDetail mount behavior",
+      "all Web tests",
+      "TypeScript check",
+      "production bundle"
+    ],
+    "temporary_state_removed": true
+  },
+  "high_risk_upgrade": {
+    "triggered": false,
+    "reasons": [
+      "ArtifactRef metadata additions are backward compatible and no existing public persistence schema was replaced.",
+      "TaskStore and LocalArtifactStore remain canonical; no state owner or transaction, lease, idempotency or restore semantics moved.",
+      "No global permission, scheduler, recovery, compact or fallback policy changed.",
+      "No external dependency, runtime subprocess, product port, MCP server, plugin or dynamic import was added."
+    ]
+  },
+  "parent_status": {
+    "parent_complete": false,
+    "m2_s03a_01_effective_production": 9077,
+    "parent_minimum": 15000,
+    "residual_minimum_for_m2_s03a_02": 5923,
+    "next_slice": "M2-S03A-02"
+  },
+  "numeric_stage_status": {
+    "numeric_stage_complete": false,
+    "aggregate_review_required_after": [
+      "M2-03A",
+      "M2-03B"
+    ]
+  },
+  "next_entry": "execution-state.yaml"
+}

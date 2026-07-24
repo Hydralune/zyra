@@ -185021,27 +185021,880 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "bounded_artifact_catalog_content_and_view_state",
+      "capability_summary": "Byte-accounted cache, stable immutable selection, bounded range loading, explicit viewer lifecycle, virtualization and search.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03A-02",
+        "M2-03B",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_63c63f0c9a7d86d0c6c9",
+      "license_notice": {
+        "license_hint": "M2 artifact catalog/viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "opencode",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content",
+          "/tasks/{task_id}/artifacts/{artifact_id}/download",
+          "/tasks/{task_id}/artifacts/{artifact_id}/receipts"
+        ],
+        "artifact_kinds": [
+          "text",
+          "markdown",
+          "structured_data",
+          "image",
+          "audio",
+          "video",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "artifact.*",
+          "tool.*",
+          "topology.*",
+          "timeline.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "artifact_catalog",
+          "artifact_viewer",
+          "artifact_bookmarks"
+        ],
+        "worker_runtime": "TaskStore ArtifactRef -> ArtifactCatalogService -> LocalArtifactStore -> typed TaskApi -> ArtifactWorkbenchRuntime -> policy-selected viewer"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+        "canonical_artifact_api_owner": "python.ArtifactCatalogService",
+        "canonical_artifact_byte_owner": "python.LocalArtifactStore",
+        "canonical_artifact_reference_owner": "python.SQLiteStore.TaskState",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9ca93e3",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03A-01",
+        "rationale": "OpenCode file cache, stable selection and file-view lifecycle mechanics were cropped into Zyra artifact modules over typed task-scoped APIs. OpenCode session, store and provider owners were not copied.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-01",
+        "source_commit": "adf178a6b95c61506ddaadaf4dd062badb4a8fda",
+        "source_language": "typescript",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_cache_owner": "typescript.ArtifactContentCache",
+        "transient_view_owner": "typescript.ArtifactWorkbenchRuntime"
+      },
+      "migration_strategy": "direct_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=adf178a6b95c61506ddaadaf4dd062badb4a8fda; migration_mode=cropped_migration/same_language_component_integration; OpenCode file cache, stable selection and file-view lifecycle mechanics were cropped into Zyra artifact modules over typed task-scoped APIs. OpenCode session, store and provider owners were not copied.",
+      "owner_unit": "M2-S03A-01",
+      "replacement_plan": "Replace behind ArtifactWorkbenchRuntime or ArtifactCatalogService without moving TaskStore or LocalArtifactStore custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TaskStore ArtifactRef and LocalArtifactStore remain the only canonical metadata and byte owners.",
+        "Browser cache, bookmarks, selection and media URLs are bounded projections and never artifact truth.",
+        "This slice owns no PatchEngine, diff mutation or review receipt state."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/artifacts/cache.ts",
+          "apps/web/src/features/artifacts/catalog.ts",
+          "apps/web/src/features/artifacts/content.ts",
+          "apps/web/src/features/artifacts/runtime.ts",
+          "apps/web/src/features/artifacts/search-index.ts"
+        ],
+        "environment_refs": [
+          "ZYRA_ARTIFACT_ROOT"
+        ],
+        "function": "ArtifactWorkbenchRuntime/ArtifactCatalogService",
+        "health_check": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts; python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+        "module": "apps.web.src.features.artifacts.runtime",
+        "protocol": "zyra.artifact.v2"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/app/src/context/file/{content-cache.ts,view-cache.ts};packages/app/src/pages/session/{file-tabs.tsx,v2/session-file-list-v2.tsx}",
+          "source_repo": "opencode",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/app/src/context/file/{content-cache.ts,view-cache.ts};packages/app/src/pages/session/{file-tabs.tsx,v2/session-file-list-v2.tsx}",
+      "source_repo": "opencode",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-01",
+        "artifact-custody",
+        "artifact-viewer",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/artifacts/cache.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/artifacts/catalog.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/artifacts/content.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/artifacts/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/artifacts/search-index.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "expected_signal": "strict contracts, double redaction, bounded cache/catalog/search, safe viewers, media hash verification, audit chain, disconnect and disabled admission",
+          "kind": "unit",
+          "path": "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+          "expected_signal": "real files and task-scoped HTTP prove digest/revision custody, range reads, cursor filters, policy denial and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_artifact_custody_catalog_viewers.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "safe_artifact_viewers_and_file_interaction",
+      "capability_summary": "Safe Markdown tokenization, non-executable links, explicit file interaction and content-security presentation boundaries.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03A-02",
+        "M2-03B",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_8b7bfc8f03b57cdfa8b3",
+      "license_notice": {
+        "license_hint": "M2 artifact catalog/viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content",
+          "/tasks/{task_id}/artifacts/{artifact_id}/download",
+          "/tasks/{task_id}/artifacts/{artifact_id}/receipts"
+        ],
+        "artifact_kinds": [
+          "text",
+          "markdown",
+          "structured_data",
+          "image",
+          "audio",
+          "video",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "artifact.*",
+          "tool.*",
+          "topology.*",
+          "timeline.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "artifact_catalog",
+          "artifact_viewer",
+          "artifact_bookmarks"
+        ],
+        "worker_runtime": "TaskStore ArtifactRef -> ArtifactCatalogService -> LocalArtifactStore -> typed TaskApi -> ArtifactWorkbenchRuntime -> policy-selected viewer"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+        "canonical_artifact_api_owner": "python.ArtifactCatalogService",
+        "canonical_artifact_byte_owner": "python.LocalArtifactStore",
+        "canonical_artifact_reference_owner": "python.SQLiteStore.TaskState",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9ca93e3",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03A-01",
+        "rationale": "Only file interaction and safe Markdown element mechanics supplement the primary browser runtime. OpenHands conversation, Redux, sandbox and server owners remain excluded.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_cache_owner": "typescript.ArtifactContentCache",
+        "transient_view_owner": "typescript.ArtifactWorkbenchRuntime"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=cropped_migration/same_language_component_integration; Only file interaction and safe Markdown element mechanics supplement the primary browser runtime. OpenHands conversation, Redux, sandbox and server owners remain excluded.",
+      "owner_unit": "M2-S03A-01",
+      "replacement_plan": "Replace behind ArtifactWorkbenchRuntime or ArtifactCatalogService without moving TaskStore or LocalArtifactStore custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TaskStore ArtifactRef and LocalArtifactStore remain the only canonical metadata and byte owners.",
+        "Browser cache, bookmarks, selection and media URLs are bounded projections and never artifact truth.",
+        "This slice owns no PatchEngine, diff mutation or review receipt state."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/artifacts/security.ts",
+          "apps/web/src/features/artifacts/viewers.ts",
+          "apps/web/src/features/artifacts/view/artifact-workbench.tsx"
+        ],
+        "environment_refs": [
+          "ZYRA_ARTIFACT_ROOT"
+        ],
+        "function": "ArtifactWorkbenchRuntime/ArtifactCatalogService",
+        "health_check": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts; python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+        "module": "apps.web.src.features.artifacts.runtime",
+        "protocol": "zyra.artifact.v2"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/components/features/files/{file-list,file-item}.tsx;frontend/src/components/features/markdown/{markdown-renderer,anchor,code,table}.tsx",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/components/features/files/{file-list,file-item}.tsx;frontend/src/components/features/markdown/{markdown-renderer,anchor,code,table}.tsx",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-01",
+        "artifact-custody",
+        "artifact-viewer",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/artifacts/security.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/artifacts/viewers.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/artifacts/view/artifact-workbench.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "expected_signal": "strict contracts, double redaction, bounded cache/catalog/search, safe viewers, media hash verification, audit chain, disconnect and disabled admission",
+          "kind": "unit",
+          "path": "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+          "expected_signal": "real files and task-scoped HTTP prove digest/revision custody, range reads, cursor filters, policy denial and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_artifact_custody_catalog_viewers.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "atomic_artifact_custody_and_streamed_read_gate",
+      "capability_summary": "Atomic byte custody, stream-oriented hashing/copying and task-scoped bounded file reads integrated with Zyra metadata.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03A-02",
+        "M2-03B",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_f7e6484e48f5cd546484",
+      "license_notice": {
+        "license_hint": "M2 artifact catalog/viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content",
+          "/tasks/{task_id}/artifacts/{artifact_id}/download",
+          "/tasks/{task_id}/artifacts/{artifact_id}/receipts"
+        ],
+        "artifact_kinds": [
+          "text",
+          "markdown",
+          "structured_data",
+          "image",
+          "audio",
+          "video",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "artifact.*",
+          "tool.*",
+          "topology.*",
+          "timeline.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "artifact_catalog",
+          "artifact_viewer",
+          "artifact_bookmarks"
+        ],
+        "worker_runtime": "TaskStore ArtifactRef -> ArtifactCatalogService -> LocalArtifactStore -> typed TaskApi -> ArtifactWorkbenchRuntime -> policy-selected viewer"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+        "canonical_artifact_api_owner": "python.ArtifactCatalogService",
+        "canonical_artifact_byte_owner": "python.LocalArtifactStore",
+        "canonical_artifact_reference_owner": "python.SQLiteStore.TaskState",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9ca93e3",
+        "migration_mode": "cropped_migration/canonical_owner_integration",
+        "owner_unit": "M2-S03A-01",
+        "rationale": "Atomic and streaming mechanics were integrated inside the existing LocalArtifactStore and task API. The Zyra TaskStore and LocalArtifactStore remain canonical; no OpenHands runtime or filesystem owner is invoked.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-01",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "python",
+        "source_role": "supplementary_implementation",
+        "target_language": "python",
+        "transient_cache_owner": "typescript.ArtifactContentCache",
+        "transient_view_owner": "typescript.ArtifactWorkbenchRuntime"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=cropped_migration/canonical_owner_integration; Atomic and streaming mechanics were integrated inside the existing LocalArtifactStore and task API. The Zyra TaskStore and LocalArtifactStore remain canonical; no OpenHands runtime or filesystem owner is invoked.",
+      "owner_unit": "M2-S03A-01",
+      "replacement_plan": "Replace behind ArtifactWorkbenchRuntime or ArtifactCatalogService without moving TaskStore or LocalArtifactStore custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TaskStore ArtifactRef and LocalArtifactStore remain the only canonical metadata and byte owners.",
+        "Browser cache, bookmarks, selection and media URLs are bounded projections and never artifact truth.",
+        "This slice owns no PatchEngine, diff mutation or review receipt state."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "packages/runtime/zyra_runtime/artifacts.py",
+          "apps/api/zyra_api/artifact_api.py",
+          "apps/api/zyra_api/main.py"
+        ],
+        "environment_refs": [
+          "ZYRA_ARTIFACT_ROOT"
+        ],
+        "function": "ArtifactWorkbenchRuntime/ArtifactCatalogService",
+        "health_check": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts; python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+        "module": "apps.web.src.features.artifacts.runtime",
+        "protocol": "zyra.artifact.v2"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "openhands/app_server/file_store/files.py::write_from_path;openhands/app_server/file_store/local.py::{write,write_from_path}",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "openhands/app_server/file_store/files.py::write_from_path;openhands/app_server/file_store/local.py::{write,write_from_path}",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-01",
+        "artifact-custody",
+        "artifact-viewer",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "packages/runtime/zyra_runtime/artifacts.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/artifact_api.py"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/api/zyra_api/main.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "expected_signal": "strict contracts, double redaction, bounded cache/catalog/search, safe viewers, media hash verification, audit chain, disconnect and disabled admission",
+          "kind": "unit",
+          "path": "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+          "expected_signal": "real files and task-scoped HTTP prove digest/revision custody, range reads, cursor filters, policy denial and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_artifact_custody_catalog_viewers.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "artifact_reference_lifecycle_conformance",
+      "capability_summary": "Event/history ordering and run-lifecycle artifact reference conformance without production ownership.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03A-02",
+        "M2-03B",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_c078b7af1f3d4826a2db",
+      "license_notice": {
+        "license_hint": "M2 artifact catalog/viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "agent-framework",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content",
+          "/tasks/{task_id}/artifacts/{artifact_id}/download",
+          "/tasks/{task_id}/artifacts/{artifact_id}/receipts"
+        ],
+        "artifact_kinds": [
+          "text",
+          "markdown",
+          "structured_data",
+          "image",
+          "audio",
+          "video",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "artifact.*",
+          "tool.*",
+          "topology.*",
+          "timeline.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "artifact_catalog",
+          "artifact_viewer",
+          "artifact_bookmarks"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+        "canonical_artifact_api_owner": "python.ArtifactCatalogService",
+        "canonical_artifact_byte_owner": "python.LocalArtifactStore",
+        "canonical_artifact_reference_owner": "python.SQLiteStore.TaskState",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9ca93e3",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S03A-01",
+        "rationale": "Agent Framework is behavior comparison only and contributes no artifact store, event reducer, workflow or viewer runtime.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-01",
+        "source_commit": "d50698bb797710bfd1ebf34eb621c905a4009b2d",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_cache_owner": "typescript.ArtifactContentCache",
+        "transient_view_owner": "typescript.ArtifactWorkbenchRuntime"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=d50698bb797710bfd1ebf34eb621c905a4009b2d; migration_mode=conformance_only; Agent Framework is behavior comparison only and contributes no artifact store, event reducer, workflow or viewer runtime.",
+      "owner_unit": "M2-S03A-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TaskStore ArtifactRef and LocalArtifactStore remain the only canonical metadata and byte owners.",
+        "Browser cache, bookmarks, selection and media URLs are bounded projections and never artifact truth.",
+        "This slice owns no PatchEngine, diff mutation or review receipt state."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "tests/integration/test_artifact_custody_catalog_viewers.py"
+        ],
+        "environment_refs": [],
+        "function": "artifact conformance tests",
+        "health_check": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts; python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+        "module": "apps.web.test.artifact-custody-catalog-viewers",
+        "protocol": "zyra.artifact.v2"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "python/packages/ag-ui/agent_framework_ag_ui/{_agent.py,_agent_run.py} event/history contracts",
+          "source_repo": "agent-framework",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "python/packages/ag-ui/agent_framework_ag_ui/{_agent.py,_agent_run.py} event/history contracts",
+      "source_repo": "agent-framework",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-01",
+        "artifact-custody",
+        "artifact-viewer",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/artifact-custody-catalog-viewers.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_artifact_custody_catalog_viewers.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "expected_signal": "strict contracts, double redaction, bounded cache/catalog/search, safe viewers, media hash verification, audit chain, disconnect and disabled admission",
+          "kind": "unit",
+          "path": "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+          "expected_signal": "real files and task-scoped HTTP prove digest/revision custody, range reads, cursor filters, policy denial and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_artifact_custody_catalog_viewers.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "hash_bound_artifact_receipt_conformance",
+      "capability_summary": "Exact-file/version receipt discipline used only for immutable read-receipt negative tests before the later PatchEngine slice.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03A-02",
+        "M2-03B",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_3612107d0e5aca281add",
+      "license_notice": {
+        "license_hint": "M2 artifact catalog/viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content",
+          "/tasks/{task_id}/artifacts/{artifact_id}/download",
+          "/tasks/{task_id}/artifacts/{artifact_id}/receipts"
+        ],
+        "artifact_kinds": [
+          "text",
+          "markdown",
+          "structured_data",
+          "image",
+          "audio",
+          "video",
+          "file"
+        ],
+        "control_commands": [],
+        "event_types": [
+          "artifact.*",
+          "tool.*",
+          "topology.*",
+          "timeline.*"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail"
+        ],
+        "ui_panels": [
+          "artifact_catalog",
+          "artifact_viewer",
+          "artifact_bookmarks"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "1833319acdb8a09fac3438b12356da0e9c78d6bb",
+        "canonical_artifact_api_owner": "python.ArtifactCatalogService",
+        "canonical_artifact_byte_owner": "python.LocalArtifactStore",
+        "canonical_artifact_reference_owner": "python.SQLiteStore.TaskState",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "9ca93e3",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S03A-01",
+        "rationale": "OMP hashline vocabulary is conformance only. No patch, apply, review, file mutation or receipt owner is migrated in this slice.",
+        "root_source_runtime_dependency": false,
+        "slice_id": "M2-S03A-01",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_cache_owner": "typescript.ArtifactContentCache",
+        "transient_view_owner": "typescript.ArtifactWorkbenchRuntime"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=conformance_only; OMP hashline vocabulary is conformance only. No patch, apply, review, file mutation or receipt owner is migrated in this slice.",
+      "owner_unit": "M2-S03A-01",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "TaskStore ArtifactRef and LocalArtifactStore remain the only canonical metadata and byte owners.",
+        "Browser cache, bookmarks, selection and media URLs are bounded projections and never artifact truth.",
+        "This slice owns no PatchEngine, diff mutation or review receipt state."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "tests/integration/test_artifact_custody_catalog_viewers.py"
+        ],
+        "environment_refs": [],
+        "function": "artifact conformance tests",
+        "health_check": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts; python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+        "module": "apps.web.test.artifact-custody-catalog-viewers",
+        "protocol": "zyra.artifact.v2"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/hashline/src/apply.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-03a",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "packages/hashline/src/apply.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-03a",
+        "m2-s03a-01",
+        "artifact-custody",
+        "artifact-viewer",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/artifact-custody-catalog-viewers.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_artifact_custody_catalog_viewers.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "expected_signal": "strict contracts, double redaction, bounded cache/catalog/search, safe viewers, media hash verification, audit chain, disconnect and disabled admission",
+          "kind": "unit",
+          "path": "apps/web/test/artifact-custody-catalog-viewers.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_artifact_custody_catalog_viewers.py",
+          "expected_signal": "real files and task-scoped HTTP prove digest/revision custody, range reads, cursor filters, policy denial and owner disable",
+          "kind": "integration",
+          "path": "tests/integration/test_artifact_custody_catalog_viewers.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 481,
+    "active_or_internalized": 484,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 52,
+      "candidate": 54,
       "deferred": 8,
       "planned": 698,
-      "productized": 426
+      "productized": 429
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 52,
+      "inventoried": 54,
       "planned": 503,
-      "tested_main_path": 187,
+      "tested_main_path": 190,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -185097,41 +185950,42 @@
       "M2-S02A-01": 5,
       "M2-S02A-02": 4,
       "M2-S02B-01": 6,
-      "M2-S02B-02": 6
+      "M2-S02B-02": 6,
+      "M2-S03A-01": 5
     },
     "by_source_repo": {
-      "OpenHands": 95,
-      "agent-framework": 96,
+      "OpenHands": 97,
+      "agent-framework": 97,
       "agentscope": 106,
       "browser-use": 113,
       "claude-code-best": 512,
       "hermes-agent": 86,
       "langgraph": 89,
-      "oh-my-pi": 26,
+      "oh-my-pi": 27,
       "openclaw": 86,
-      "opencode": 28,
+      "opencode": 29,
       "zyra": 2
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 11,
-      "direct_port": 54,
-      "not_selected": 30,
+      "candidate_review": 13,
+      "direct_port": 55,
+      "not_selected": 32,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 750,
+    "planned_or_candidate": 752,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 79,
+      "apps/web": 83,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
       "packages/memory": 197,
       "packages/orchestration": 59,
-      "packages/runtime": 174,
+      "packages/runtime": 175,
       "packages/scheduler": 83,
       "packages/skills": 48,
       "packages/symbolic": 1,
@@ -185140,6 +185994,6 @@
       "tests/integration": 3,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1239
+    "total_entries": 1244
   }
 }

@@ -12,11 +12,15 @@
 - Baseline Zyra commit:
   `1833319acdb8a09fac3438b12356da0e9c78d6bb`
 - Baseline worktree: clean
-- Decision commit: pending until this document is committed.
-- Implementation commit: pending; it must be later than the decision commit and
-  contain production code plus directly related behavior tests.
-- Evidence commit: pending; it must be later than the implementation commit and
-  contain the exact-commit audit, source-ledger update and critical self-review.
+- Decision commit:
+  `228c1cfa41c3a8c2b5d6f45350576413f258fb29`.
+- Implementation commit:
+  `9ca93e348731ae2d3dded26b8efa9d87165583cc`; it is later than the
+  decision commit and contains production code plus directly related behavior
+  tests.
+- Evidence commit: `this_commit`; it is later than the implementation commit
+  and contains the exact-commit audit, source-ledger update and critical
+  self-review.
 
 The authority state protects every slice through `M2-S02B-02`. This decision
 does not reopen their event, projection, topology, timeline, command,
