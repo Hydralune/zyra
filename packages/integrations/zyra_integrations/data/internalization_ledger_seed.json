@@ -187410,27 +187410,861 @@
         }
       ],
       "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser_observability_projection_and_artifact_lineage",
+      "capability_summary": "Browser state/action/result models, target and frame views, screenshot metadata, DOM/AX summaries, downloads and health signals projected over the existing BrowserWorker protocol.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_64a1f3349a285a3ae2e4",
+      "license_notice": {
+        "license_hint": "M2 browser viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "browser-use",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/browser-observability",
+          "/tasks/{task_id}/workers/browser",
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content"
+        ],
+        "artifact_kinds": [
+          "browser screenshot",
+          "browser download",
+          "browser trace",
+          "browser DOM snapshot"
+        ],
+        "control_commands": [
+          "navigate",
+          "stop",
+          "retry",
+          "inspect"
+        ],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message",
+          "control_command",
+          "artifact_published",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "browser_observability_api"
+        ],
+        "ui_panels": [
+          "browser_sessions",
+          "target_frame_tree",
+          "virtual_action_history",
+          "verified_screenshot",
+          "dom_ax_summary",
+          "browser_controls"
+        ],
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserObservabilityApplication -> CanonicalProjectionStore/ArtifactWorkbenchRuntime -> BrowserViewerRuntime; controls return through BrowserWorkerRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "7e9483c00cd422afc537b916ab234c9221b53bda",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_browser_owner": "python.BrowserWorkerRuntime",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_observability_owner": "python.BrowserObservabilityApplication",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_session_owner": "python.BrowserRuntimeRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "25b58af8aca0efd6650b2a391eab08f625117b77",
+        "migration_mode": "bounded_cross_language_semantic_integration",
+        "owner_unit": "M2-S03B-02",
+        "rationale": "The slice allocates a TypeScript/React viewer over an already internalized Python BrowserWorker. Only observable model and association semantics crossed language; execution loop, CDP, permission, screenshot writing and state ownership remain Python.",
+        "root_source_runtime_dependency": false,
+        "second_browser_store": false,
+        "slice_id": "M2-S03B-02",
+        "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+        "source_language": "python",
+        "source_role": "primary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.BrowserViewerRuntime"
+      },
+      "migration_strategy": "semantic_port",
+      "milestone": "M2",
+      "notes": "source_role=primary_implementation; source_commit=18484f23ac96bb955259a1c54530a7d265dfffdb; migration_mode=bounded_cross_language_semantic_integration; The slice allocates a TypeScript/React viewer over an already internalized Python BrowserWorker. Only observable model and association semantics crossed language; execution loop, CDP, permission, screenshot writing and state ownership remain Python.",
+      "owner_unit": "M2-S03B-02",
+      "replacement_plan": "Replace behind BrowserViewerRuntime and the typed BrowserWorker control boundary without moving browser, workspace, artifact, permission, event or checkpoint custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "BrowserWorkerRuntime and BrowserRuntimeRegistry remain the only browser session/action/target owners.",
+        "ArtifactWorkbenchRuntime and LocalArtifactStore retain integrity, MIME, redaction, range, cache and download custody.",
+        "The viewer keeps only bounded selection, filter, virtual window and inflight-request state; it has no replay store.",
+        "Sealed controls record one attempt, apply no mutation, enter no approval wait and preserve human_intervention_count zero."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/browser/projection/reader.ts",
+          "apps/web/src/features/browser/projection/targets.ts",
+          "apps/web/src/features/browser/projection/dom.ts",
+          "apps/web/src/features/browser/projection/steps.ts",
+          "apps/web/src/features/browser/projection/artifacts.ts",
+          "apps/web/src/features/browser/projection/health.ts",
+          "apps/web/src/features/browser/projection/projector.ts",
+          "apps/web/src/features/browser/contracts.ts"
+        ],
+        "environment_refs": [],
+        "function": "BrowserViewerRuntime/BrowserWorkbench",
+        "health_check": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts; python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py tests/integration/test_browser_observability_main_path.py tests/integration/test_browser_session_productization_api.py",
+        "module": "apps.web.src.features.browser.runtime",
+        "protocol": "zyra.browser-observability.api.v1/zyra.browser-viewer.control.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "browser_use/browser/views.py;browser_use/agent/views.py;browser_use/tools/views.py;browser_use/screenshots/service.py",
+          "source_repo": "browser-use",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "primary_implementation"
+          ]
+        }
+      ],
+      "source_path": "browser_use/browser/views.py;browser_use/agent/views.py;browser_use/tools/views.py;browser_use/screenshots/service.py",
+      "source_repo": "browser-use",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-02",
+        "browser",
+        "artifact",
+        "control",
+        "primary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/browser/projection/reader.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/projection/targets.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/projection/dom.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/projection/steps.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/projection/artifacts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/projection/health.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/projection/projector.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/contracts.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts",
+          "expected_signal": "strict admission, target/frame/action/DOM/artifact projection, virtualization, crash/reconnect and sealed control behavior",
+          "kind": "unit",
+          "path": "apps/web/test/browser-artifact-control-viewer.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py",
+          "expected_signal": "real HTTP sealed denial and BrowserWorker delegation with idempotent typed receipts",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_artifact_control_viewer.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_observability_main_path.py",
+          "expected_signal": "durable BrowserWorker observation, tool/action/artifact linkage and real Chrome process crash detection",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_observability_main_path.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_session_productization_api.py",
+          "expected_signal": "productized CDP session, actions, artifact projection, diagnose and stop through one BrowserRuntimeRegistry",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser_task_panel_and_snapshot_composition",
+      "capability_summary": "Task-bound browser panel, current URL/snapshot composition, empty/error states and accessible action-history navigation.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_909e3bbf47ba7c14146e",
+      "license_notice": {
+        "license_hint": "M2 browser viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "OpenHands",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/browser-observability",
+          "/tasks/{task_id}/workers/browser",
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content"
+        ],
+        "artifact_kinds": [
+          "browser screenshot",
+          "browser download",
+          "browser trace",
+          "browser DOM snapshot"
+        ],
+        "control_commands": [
+          "navigate",
+          "stop",
+          "retry",
+          "inspect"
+        ],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message",
+          "control_command",
+          "artifact_published",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "browser_observability_api"
+        ],
+        "ui_panels": [
+          "browser_sessions",
+          "target_frame_tree",
+          "virtual_action_history",
+          "verified_screenshot",
+          "dom_ax_summary",
+          "browser_controls"
+        ],
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserObservabilityApplication -> CanonicalProjectionStore/ArtifactWorkbenchRuntime -> BrowserViewerRuntime; controls return through BrowserWorkerRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "7e9483c00cd422afc537b916ab234c9221b53bda",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_browser_owner": "python.BrowserWorkerRuntime",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_observability_owner": "python.BrowserObservabilityApplication",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_session_owner": "python.BrowserRuntimeRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "25b58af8aca0efd6650b2a391eab08f625117b77",
+        "migration_mode": "cropped_migration/same_language_component_integration",
+        "owner_unit": "M2-S03B-02",
+        "rationale": "Only panel composition supplemented the browser-use primary projection. OpenHands Redux, browser service and state ownership were not migrated.",
+        "root_source_runtime_dependency": false,
+        "second_browser_store": false,
+        "slice_id": "M2-S03B-02",
+        "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.BrowserViewerRuntime"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c105a82387898e744423c8831d412e26495b38a9; migration_mode=cropped_migration/same_language_component_integration; Only panel composition supplemented the browser-use primary projection. OpenHands Redux, browser service and state ownership were not migrated.",
+      "owner_unit": "M2-S03B-02",
+      "replacement_plan": "Replace behind BrowserViewerRuntime and the typed BrowserWorker control boundary without moving browser, workspace, artifact, permission, event or checkpoint custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "BrowserWorkerRuntime and BrowserRuntimeRegistry remain the only browser session/action/target owners.",
+        "ArtifactWorkbenchRuntime and LocalArtifactStore retain integrity, MIME, redaction, range, cache and download custody.",
+        "The viewer keeps only bounded selection, filter, virtual window and inflight-request state; it has no replay store.",
+        "Sealed controls record one attempt, apply no mutation, enter no approval wait and preserve human_intervention_count zero."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/browser/view/browser-workbench.tsx",
+          "apps/web/src/styles.css",
+          "apps/web/src/components/tasks/task-detail.tsx"
+        ],
+        "environment_refs": [],
+        "function": "BrowserViewerRuntime/BrowserWorkbench",
+        "health_check": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts; python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py tests/integration/test_browser_observability_main_path.py tests/integration/test_browser_session_productization_api.py",
+        "module": "apps.web.src.features.browser.runtime",
+        "protocol": "zyra.browser-observability.api.v1/zyra.browser-viewer.control.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "frontend/src/components/features/browser/browser.tsx;frontend/src/components/features/browser/browser-snapshot.tsx",
+          "source_repo": "OpenHands",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "frontend/src/components/features/browser/browser.tsx;frontend/src/components/features/browser/browser-snapshot.tsx",
+      "source_repo": "OpenHands",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-02",
+        "browser",
+        "artifact",
+        "control",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/browser/view/browser-workbench.tsx"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/styles.css"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/components/tasks/task-detail.tsx"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts",
+          "expected_signal": "strict admission, target/frame/action/DOM/artifact projection, virtualization, crash/reconnect and sealed control behavior",
+          "kind": "unit",
+          "path": "apps/web/test/browser-artifact-control-viewer.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py",
+          "expected_signal": "real HTTP sealed denial and BrowserWorker delegation with idempotent typed receipts",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_artifact_control_viewer.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_observability_main_path.py",
+          "expected_signal": "durable BrowserWorker observation, tool/action/artifact linkage and real Chrome process crash detection",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_observability_main_path.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_session_productization_api.py",
+          "expected_signal": "productized CDP session, actions, artifact projection, diagnose and stop through one BrowserRuntimeRegistry",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser_control_correlation_and_receipt_settlement",
+      "capability_summary": "Typed request/response correlation, idempotent receipt handling, abort/timeout settlement and late-result fencing for browser viewer controls.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_4760d86d24093e759156",
+      "license_notice": {
+        "license_hint": "M2 browser viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "oh-my-pi",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "productized",
+      "line_count_policy": "counts_as_runtime",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/browser-observability",
+          "/tasks/{task_id}/workers/browser",
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content"
+        ],
+        "artifact_kinds": [
+          "browser screenshot",
+          "browser download",
+          "browser trace",
+          "browser DOM snapshot"
+        ],
+        "control_commands": [
+          "navigate",
+          "stop",
+          "retry",
+          "inspect"
+        ],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message",
+          "control_command",
+          "artifact_published",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "browser_observability_api"
+        ],
+        "ui_panels": [
+          "browser_sessions",
+          "target_frame_tree",
+          "virtual_action_history",
+          "verified_screenshot",
+          "dom_ax_summary",
+          "browser_controls"
+        ],
+        "worker_runtime": "BrowserWorkerRuntime -> BrowserObservabilityApplication -> CanonicalProjectionStore/ArtifactWorkbenchRuntime -> BrowserViewerRuntime; controls return through BrowserWorkerRuntime"
+      },
+      "main_path_status": "tested_main_path",
+      "metadata": {
+        "baseline_commit": "7e9483c00cd422afc537b916ab234c9221b53bda",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_browser_owner": "python.BrowserWorkerRuntime",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_observability_owner": "python.BrowserObservabilityApplication",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_session_owner": "python.BrowserRuntimeRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "25b58af8aca0efd6650b2a391eab08f625117b77",
+        "migration_mode": "bounded_same_language_semantic_integration",
+        "owner_unit": "M2-S03B-02",
+        "rationale": "OMP RPC settlement semantics were cropped into a browser-specific typed control runtime. OMP transport breadth, process and session owners do not enter Zyra.",
+        "root_source_runtime_dependency": false,
+        "second_browser_store": false,
+        "slice_id": "M2-S03B-02",
+        "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+        "source_language": "typescript",
+        "source_role": "supplementary_implementation",
+        "target_language": "typescript",
+        "transient_view_owner": "typescript.BrowserViewerRuntime"
+      },
+      "migration_strategy": "selective_port",
+      "milestone": "M2",
+      "notes": "source_role=supplementary_implementation; source_commit=c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca; migration_mode=bounded_same_language_semantic_integration; OMP RPC settlement semantics were cropped into a browser-specific typed control runtime. OMP transport breadth, process and session owners do not enter Zyra.",
+      "owner_unit": "M2-S03B-02",
+      "replacement_plan": "Replace behind BrowserViewerRuntime and the typed BrowserWorker control boundary without moving browser, workspace, artifact, permission, event or checkpoint custody.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "BrowserWorkerRuntime and BrowserRuntimeRegistry remain the only browser session/action/target owners.",
+        "ArtifactWorkbenchRuntime and LocalArtifactStore retain integrity, MIME, redaction, range, cache and download custody.",
+        "The viewer keeps only bounded selection, filter, virtual window and inflight-request state; it has no replay store.",
+        "Sealed controls record one attempt, apply no mutation, enter no approval wait and preserve human_intervention_count zero."
+      ],
+      "runtime_entry": {
+        "command": "bun run build:web",
+        "config_refs": [
+          "apps/web/src/features/browser/control/policy.ts",
+          "apps/web/src/features/browser/control/receipts.ts",
+          "apps/web/src/features/browser/control/runtime.ts",
+          "apps/web/src/features/browser/projection/causality.ts",
+          "apps/web/src/features/browser/runtime.ts"
+        ],
+        "environment_refs": [],
+        "function": "BrowserViewerRuntime/BrowserWorkbench",
+        "health_check": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts; python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py tests/integration/test_browser_observability_main_path.py tests/integration/test_browser_session_productization_api.py",
+        "module": "apps.web.src.features.browser.runtime",
+        "protocol": "zyra.browser-observability.api.v1/zyra.browser-viewer.control.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/modes/rpc/rpc-client.ts",
+          "source_repo": "oh-my-pi",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "supplementary_implementation"
+          ]
+        }
+      ],
+      "source_path": "packages/coding-agent/src/modes/rpc/rpc-types.ts;packages/coding-agent/src/modes/rpc/rpc-client.ts",
+      "source_repo": "oh-my-pi",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-02",
+        "browser",
+        "artifact",
+        "control",
+        "supplementary_implementation"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "primary",
+          "target_path": "apps/web/src/features/browser/control/policy.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/control/receipts.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/control/runtime.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/projection/causality.ts"
+        },
+        {
+          "must_exist_for_statuses": [
+            "tested_main_path"
+          ],
+          "required_for_main_path": true,
+          "role": "supporting",
+          "target_path": "apps/web/src/features/browser/runtime.ts"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts",
+          "expected_signal": "strict admission, target/frame/action/DOM/artifact projection, virtualization, crash/reconnect and sealed control behavior",
+          "kind": "unit",
+          "path": "apps/web/test/browser-artifact-control-viewer.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py",
+          "expected_signal": "real HTTP sealed denial and BrowserWorker delegation with idempotent typed receipts",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_artifact_control_viewer.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_observability_main_path.py",
+          "expected_signal": "durable BrowserWorker observation, tool/action/artifact linkage and real Chrome process crash detection",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_observability_main_path.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_session_productization_api.py",
+          "expected_signal": "productized CDP session, actions, artifact projection, diagnose and stop through one BrowserRuntimeRegistry",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": true
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
+    },
+    {
+      "blockers": [],
+      "capability_name": "browser_control_auth_and_replay_conformance",
+      "capability_summary": "Authentication, request correlation and replay-negative behavior used only as conformance for typed viewer controls.",
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "dependencies": [],
+      "downstream_units": [
+        "M2-S03B-03",
+        "M2-04A"
+      ],
+      "ledger_id": "ile_afc31fd9d8709ad8326d",
+      "license_notice": {
+        "license_hint": "M2 browser viewer source role recorded.",
+        "notes": "No runtime dependency on a parent source repository.",
+        "notice_path": "third_party/NOTICE.md",
+        "source_repo": "hermes-agent",
+        "source_url": "",
+        "status": "recorded"
+      },
+      "lifecycle": "candidate",
+      "line_count_policy": "excluded_inventory_only",
+      "main_path": {
+        "api_routes": [
+          "/tasks/{task_id}/browser-observability",
+          "/tasks/{task_id}/workers/browser",
+          "/tasks/{task_id}/artifacts",
+          "/tasks/{task_id}/artifacts/{artifact_id}/content"
+        ],
+        "artifact_kinds": [
+          "browser screenshot",
+          "browser download",
+          "browser trace",
+          "browser DOM snapshot"
+        ],
+        "control_commands": [
+          "navigate",
+          "stop",
+          "retry",
+          "inspect"
+        ],
+        "event_types": [
+          "browser_session_lifecycle",
+          "agent_message",
+          "control_command",
+          "artifact_published",
+          "recovery_planned"
+        ],
+        "surfaces": [
+          "web_workbench",
+          "task_detail",
+          "task_api",
+          "browser_observability_api"
+        ],
+        "ui_panels": [
+          "browser_sessions",
+          "target_frame_tree",
+          "virtual_action_history",
+          "verified_screenshot",
+          "dom_ax_summary",
+          "browser_controls"
+        ],
+        "worker_runtime": "conformance_only; behavior only"
+      },
+      "main_path_status": "inventoried",
+      "metadata": {
+        "baseline_commit": "7e9483c00cd422afc537b916ab234c9221b53bda",
+        "canonical_artifact_owner": "python.LocalArtifactStore+TaskState",
+        "canonical_browser_owner": "python.BrowserWorkerRuntime",
+        "canonical_event_owner": "typescript.CanonicalProjectionStore",
+        "canonical_observability_owner": "python.BrowserObservabilityApplication",
+        "canonical_permission_owner": "typescript.PermissionCoordinator",
+        "canonical_recovery_owner": "python.RecoveryPlanner",
+        "canonical_session_owner": "python.BrowserRuntimeRegistry",
+        "canonical_worker_owner": "python.WorkerPoolStore",
+        "canonical_workspace_owner": "python.WorkspaceManagerRuntime",
+        "derived_projection_owner": "typescript.selectWorkerCausalTimeline",
+        "implementation_commit": "25b58af8aca0efd6650b2a391eab08f625117b77",
+        "migration_mode": "conformance_only",
+        "owner_unit": "M2-S03B-02",
+        "rationale": "Hermes contributes negative conformance only. It owns no browser state, replay store, gateway, process or production code in Zyra.",
+        "root_source_runtime_dependency": false,
+        "second_browser_store": false,
+        "slice_id": "M2-S03B-02",
+        "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+        "source_language": "python",
+        "source_role": "conformance_only",
+        "target_language": "none",
+        "transient_view_owner": "typescript.BrowserViewerRuntime"
+      },
+      "migration_strategy": "not_selected",
+      "milestone": "M2",
+      "notes": "source_role=conformance_only; source_commit=44ddc552f5e054759a6970af8997ea588a9d81c9; migration_mode=conformance_only; Hermes contributes negative conformance only. It owns no browser state, replay store, gateway, process or production code in Zyra.",
+      "owner_unit": "M2-S03B-02",
+      "replacement_plan": "conformance_only source; no production owner is selected.",
+      "risk_notes": [
+        "No runtime path depends on a parent source repository.",
+        "BrowserWorkerRuntime and BrowserRuntimeRegistry remain the only browser session/action/target owners.",
+        "ArtifactWorkbenchRuntime and LocalArtifactStore retain integrity, MIME, redaction, range, cache and download custody.",
+        "The viewer keeps only bounded selection, filter, virtual window and inflight-request state; it has no replay store.",
+        "Sealed controls record one attempt, apply no mutation, enter no approval wait and preserve human_intervention_count zero."
+      ],
+      "runtime_entry": {
+        "command": "",
+        "config_refs": [
+          "apps/web/test/browser-artifact-control-viewer.test.ts",
+          "tests/integration/test_browser_artifact_control_viewer.py"
+        ],
+        "environment_refs": [],
+        "function": "browser viewer conformance tests",
+        "health_check": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts; python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py tests/integration/test_browser_observability_main_path.py tests/integration/test_browser_session_productization_api.py",
+        "module": "tests.browser_viewer_conformance",
+        "protocol": "zyra.browser-observability.api.v1/zyra.browser-viewer.control.v1"
+      },
+      "source_evidence": [
+        {
+          "exists_in_workspace": true,
+          "reason": "M2-S02B-01 source-to-target decision",
+          "source_kind": "file",
+          "source_path": "tui_gateway/server.py;tui_gateway/ws.py",
+          "source_repo": "hermes-agent",
+          "symbols": [],
+          "tags": [
+            "m2-03b",
+            "conformance_only"
+          ]
+        }
+      ],
+      "source_path": "tui_gateway/server.py;tui_gateway/ws.py",
+      "source_repo": "hermes-agent",
+      "tags": [
+        "m2-03b",
+        "m2-s03b-02",
+        "browser",
+        "artifact",
+        "control",
+        "conformance_only"
+      ],
+      "target_bindings": [
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "primary",
+          "target_path": "apps/web/test/browser-artifact-control-viewer.test.ts"
+        },
+        {
+          "must_exist_for_statuses": [],
+          "required_for_main_path": false,
+          "role": "supporting",
+          "target_path": "tests/integration/test_browser_artifact_control_viewer.py"
+        }
+      ],
+      "test_entries": [
+        {
+          "command": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts",
+          "expected_signal": "strict admission, target/frame/action/DOM/artifact projection, virtualization, crash/reconnect and sealed control behavior",
+          "kind": "unit",
+          "path": "apps/web/test/browser-artifact-control-viewer.test.ts",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_artifact_control_viewer.py",
+          "expected_signal": "real HTTP sealed denial and BrowserWorker delegation with idempotent typed receipts",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_artifact_control_viewer.py",
+          "required": true
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_observability_main_path.py",
+          "expected_signal": "durable BrowserWorker observation, tool/action/artifact linkage and real Chrome process crash detection",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_observability_main_path.py",
+          "required": false
+        },
+        {
+          "command": "python -m pytest -q tests/integration/test_browser_session_productization_api.py",
+          "expected_signal": "productized CDP session, actions, artifact projection, diagnose and stop through one BrowserRuntimeRegistry",
+          "kind": "integration",
+          "path": "tests/integration/test_browser_session_productization_api.py",
+          "required": false
+        }
+      ],
+      "updated_at": "2026-07-24T00:00:00.000Z"
     }
   ],
   "kind": "zyra.internalization_ledger",
   "schema_version": "1.0",
   "summary": {
-    "active_or_internalized": 490,
+    "active_or_internalized": 493,
     "blocked_or_rejected": 8,
     "by_lifecycle": {
       "active": 55,
-      "candidate": 56,
+      "candidate": 57,
       "deferred": 8,
       "planned": 698,
-      "productized": 435
+      "productized": 438
     },
     "by_main_path_status": {
       "api_connected": 17,
       "control_command_connected": 1,
       "event_log_connected": 1,
-      "inventoried": 56,
+      "inventoried": 57,
       "planned": 503,
-      "tested_main_path": 196,
+      "tested_main_path": 199,
       "vendored": 203,
       "worker_runtime_connected": 275
     },
@@ -187489,35 +188323,36 @@
       "M2-S02B-02": 6,
       "M2-S03A-01": 5,
       "M2-S03A-02": 3,
-      "M2-S03B-01": 5
+      "M2-S03B-01": 5,
+      "M2-S03B-02": 4
     },
     "by_source_repo": {
-      "OpenHands": 99,
+      "OpenHands": 100,
       "agent-framework": 97,
       "agentscope": 106,
-      "browser-use": 113,
+      "browser-use": 114,
       "claude-code-best": 512,
-      "hermes-agent": 87,
+      "hermes-agent": 88,
       "langgraph": 89,
-      "oh-my-pi": 30,
+      "oh-my-pi": 31,
       "openclaw": 86,
       "opencode": 31,
       "zyra": 2
     },
     "by_strategy": {
       "adapter": 81,
-      "candidate_review": 17,
+      "candidate_review": 20,
       "direct_port": 57,
-      "not_selected": 34,
+      "not_selected": 35,
       "planned_adapter": 378,
       "reimplemented_pattern": 240,
       "vendored_runtime": 445
     },
-    "planned_or_candidate": 754,
+    "planned_or_candidate": 755,
     "primary_target_prefixes": {
       "apps/api": 32,
       "apps/code-worker": 34,
-      "apps/web": 89,
+      "apps/web": 93,
       "packages/core": 4,
       "packages/evaluation": 34,
       "packages/integrations": 78,
@@ -187532,6 +188367,6 @@
       "tests/integration": 5,
       "vendor-runtimes/claude-code-runtime": 240
     },
-    "total_entries": 1252
+    "total_entries": 1256
   }
 }

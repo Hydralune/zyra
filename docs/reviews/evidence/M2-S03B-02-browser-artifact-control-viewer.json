@@ -1,0 +1,284 @@
+{
+  "schema_version": "1.0",
+  "kind": "zyra.slice_evidence",
+  "slice_id": "M2-S03B-02",
+  "title": "browser artifact and control viewer",
+  "verdict": "passed",
+  "baseline_commit": "7e9483c00cd422afc537b916ab234c9221b53bda",
+  "preimplementation_decision_commit": "a9967d69c98215b996e1f7fd5448339adf115386",
+  "implementation_commit": "25b58af8aca0efd6650b2a391eab08f625117b77",
+  "evidence_commit": "pending_at_commit_creation",
+  "effective_code": {
+    "minimum": 5500,
+    "effective_typescript_react": 8935,
+    "passed": true,
+    "raw_additions": 14351,
+    "raw_deletions": 1,
+    "buckets": {
+      "typescript_production_runtime": 8433,
+      "react_ui_behavior": 502,
+      "ui_presentation": 1793,
+      "type_declaration": 1249,
+      "schema_dto_data": 42,
+      "python_production_excluded_from_floor": 456,
+      "test_mock_fixture": 1639,
+      "docs_comments_blank": 237,
+      "adapter_only": 0,
+      "vendor_like_source_pool": 0
+    },
+    "audit_command": "bun scripts/audit_m2_s03b_02_effective_lines.mjs --summary",
+    "interval": "7e9483c00cd422afc537b916ab234c9221b53bda..25b58af8aca0efd6650b2a391eab08f625117b77"
+  },
+  "source_decisions": [
+    {
+      "source_repo": "browser-use",
+      "source_commit": "18484f23ac96bb955259a1c54530a7d265dfffdb",
+      "role": "primary_implementation",
+      "source_language": "python",
+      "target_language": "typescript",
+      "migration_mode": "bounded_cross_language_semantic_integration",
+      "mechanism": "browser state, action, result, target, frame, screenshot, DOM, download and health projection",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "OpenHands",
+      "source_commit": "c105a82387898e744423c8831d412e26495b38a9",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "cropped_migration/same_language_component_integration",
+      "mechanism": "browser panel and verified snapshot composition",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "oh-my-pi",
+      "source_commit": "c6b83c1d96d0e48d169a0519a6f2a72f2c3797ca",
+      "role": "supplementary_implementation",
+      "source_language": "typescript",
+      "target_language": "typescript",
+      "migration_mode": "bounded_same_language_semantic_integration",
+      "mechanism": "typed control correlation, abort, timeout, idempotency and receipt settlement",
+      "runtime_dependency": false
+    },
+    {
+      "source_repo": "hermes-agent",
+      "source_commit": "44ddc552f5e054759a6970af8997ea588a9d81c9",
+      "role": "conformance_only",
+      "source_language": "python",
+      "target_language": "none",
+      "migration_mode": "conformance_only",
+      "mechanism": "auth, correlation and replay negative conformance",
+      "runtime_dependency": false
+    }
+  ],
+  "state_custody": {
+    "chrome_cdp_reconnect": "python BrowserRuntimeRegistry",
+    "session_target_focus_process_epoch": "python BrowserSessionControlRuntime and browser session state store",
+    "action_execution_and_control": "python BrowserActionApplication and BrowserActionControlRuntime",
+    "history_trace_health_lineage": "python BrowserObservabilityApplication",
+    "task_checkpoint_event": "SQLiteStore and canonical runtime event spine",
+    "artifact_bytes_revision": "LocalArtifactStore and canonical task state",
+    "artifact_web_admission": "S03A ArtifactWorkbenchRuntime",
+    "permission": "typescript PermissionCoordinator",
+    "workspace": "python WorkspaceManagerRuntime",
+    "transient_view": "typescript BrowserViewerRuntime"
+  },
+  "behavior_tests": [
+    {
+      "command": "bun test ./apps/web/test/browser-artifact-control-viewer.test.ts",
+      "result": "14 passed, 73 assertions",
+      "status": "passed"
+    },
+    {
+      "command": "bun test browser viewer plus 03A artifact, terminal, worker timeline and sealed timeline adjacent files",
+      "result": "65 passed, 445 assertions",
+      "status": "passed"
+    },
+    {
+      "command": "python -m pytest browser viewer, observability, productized session, session integration and permission-gate files -q",
+      "result": "36 passed, 2 subtests passed in 126.27s",
+      "status": "passed"
+    },
+    {
+      "command": "bun test ./packages/core/typed-api-client/test",
+      "result": "15 passed, 35 assertions",
+      "status": "passed"
+    },
+    {
+      "command": "bun run typecheck:web",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "bun run build:web",
+      "result": "passed; production bundle contains 229 modules",
+      "status": "passed"
+    },
+    {
+      "command": "python -m py_compile apps/api/zyra_api/main.py",
+      "result": "passed",
+      "status": "passed"
+    },
+    {
+      "command": "python scripts/sync_m2_browser_viewer_source_ledger.py --check",
+      "result": "4 entries, 0 missing implementation targets",
+      "status": "passed"
+    },
+    {
+      "command": "python -m pytest tests/unit/test_internalization_ledger_contracts.py -q",
+      "result": "6 passed",
+      "status": "passed"
+    }
+  ],
+  "semantic_evidence": {
+    "task_run_session_scope_enforced": true,
+    "url_title_target_frame_projected": true,
+    "popup_and_download_projected": true,
+    "dom_ax_bounded_and_secret_attributes_stripped": true,
+    "action_result_tool_span_mutation_artifact_joined": true,
+    "screenshot_cross_plane_hash_mismatch_fails": true,
+    "s03a_artifact_integrity_mime_redaction_cache_reused": true,
+    "large_history_steps": 3000,
+    "virtual_window_bounded": true,
+    "crash_reconnect_generation_projected": true,
+    "viewer_close_submits_stop": false,
+    "navigate_delegates_to_browserworker": true,
+    "stop_delegates_to_existing_lifecycle_owner": true,
+    "retry_is_bounded_to_selected_action": true,
+    "inspect_delegates_to_diagnose": true,
+    "idempotent_replay_executes_worker_twice": false,
+    "disabled_owner_fallback": false
+  },
+  "sealed_evidence": {
+    "http_status": 403,
+    "operator_intervention_attempt_count": 1,
+    "canonical_control_event_count": 1,
+    "manual_mutation_applied": false,
+    "approval_wait_entered": false,
+    "human_intervention_count": 0,
+    "automatic_recovery_action": "fail_closed",
+    "replay_increments_attempt_count": false,
+    "invalid_sealed_success_rejected_by_web_runtime": true
+  },
+  "security_evidence": {
+    "navigate_protocols": [
+      "http",
+      "https"
+    ],
+    "url_credentials_forbidden": true,
+    "prompt_injection_display_only": true,
+    "page_text_can_change_control_policy": false,
+    "secret_dom_attributes_projected": false,
+    "artifact_mismatch_rendered_verified": false,
+    "raw_artifact_root_disclosed": false
+  },
+  "large_file_review": [
+    {
+      "path": "apps/web/src/features/browser/projection/steps.ts",
+      "raw": 1443,
+      "effective": 1314,
+      "judgment": "session projector action/result/tool/step correlation; declarations and comments excluded"
+    },
+    {
+      "path": "apps/web/src/features/browser/view/browser-workbench.tsx",
+      "raw": 1384,
+      "effective": 502,
+      "judgment": "TaskDetail-mounted handlers count; 825 presentation and 52 declaration lines excluded"
+    },
+    {
+      "path": "apps/web/test/browser-artifact-control-viewer.test.ts",
+      "raw": 1088,
+      "effective": 0,
+      "judgment": "test-only"
+    },
+    {
+      "path": "apps/web/src/features/browser/contracts.ts",
+      "raw": 1008,
+      "effective": 514,
+      "judgment": "strict executable admission counts; 448 declaration and 42 schema/DTO lines excluded"
+    },
+    {
+      "path": "apps/web/src/styles.css",
+      "raw": 966,
+      "effective": 0,
+      "judgment": "presentation-only"
+    },
+    {
+      "path": "apps/web/src/features/browser/projection/reader.ts",
+      "raw": 733,
+      "effective": 655,
+      "judgment": "scoped durable observability reader used by every projection"
+    },
+    {
+      "path": "apps/web/src/features/browser/runtime.ts",
+      "raw": 720,
+      "effective": 639,
+      "judgment": "mounted controller composing selectors, API, projection, virtualization and control"
+    },
+    {
+      "path": "apps/web/src/features/browser/projection/targets.ts",
+      "raw": 652,
+      "effective": 586,
+      "judgment": "page/popup/frame projection consumed by workbench and filters"
+    },
+    {
+      "path": "apps/web/src/features/browser/projection/causality.ts",
+      "raw": 640,
+      "effective": 607,
+      "judgment": "action/result/span/tool/mutation/artifact audit affects partial and verified status"
+    },
+    {
+      "path": "apps/web/src/features/browser/projection/dom.ts",
+      "raw": 570,
+      "effective": 527,
+      "judgment": "bounded DOM/AX projection and injection/secret filtering"
+    },
+    {
+      "path": "apps/web/src/features/browser/projection/artifacts.ts",
+      "raw": 561,
+      "effective": 509,
+      "judgment": "joins BrowserWorker, canonical and S03A artifact evidence"
+    },
+    {
+      "path": "tests/integration/test_browser_artifact_control_viewer.py",
+      "raw": 551,
+      "effective": 0,
+      "judgment": "integration-test-only"
+    },
+    {
+      "path": "apps/web/src/features/browser/history/navigator.ts",
+      "raw": 542,
+      "effective": 510,
+      "judgment": "production search/filter/previous/next/follow-live behavior"
+    },
+    {
+      "path": "apps/web/src/features/browser/control/runtime.ts",
+      "raw": 540,
+      "effective": 456,
+      "judgment": "production idempotency/concurrency/timeout/settlement path"
+    }
+  ],
+  "ledger": {
+    "entry_count": 4,
+    "schema_errors": 0,
+    "missing_implementation_targets": 0,
+    "sync_check": "passed",
+    "contract_tests": "6 passed"
+  },
+  "dependency_audit": {
+    "manifest_or_lockfile_change": false,
+    "new_process_or_port": false,
+    "parent_source_runtime_dependency_matches": 0,
+    "openclaw_matches": 0,
+    "vendor_or_source_pool_matches": 0,
+    "second_browser_store": false
+  },
+  "deferred": {
+    "full_cleanroom": "M2-03 numeric-stage aggregate",
+    "broad_cross_unit_regression": "M2-03 numeric-stage aggregate",
+    "sustained_multi_session_load": "M2-03 aggregate and milestone exit",
+    "cross_view_trace_navigation": "M2-S03B-03",
+    "packaging_and_live_scenarios": "M2-03 aggregate and milestone exit"
+  },
+  "openclaw_forward_exclusion_preserved": true
+}
