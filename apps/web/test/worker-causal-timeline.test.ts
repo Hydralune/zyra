@@ -1012,6 +1012,24 @@ describe("worker causal timeline projection", () => {
     expect(engine.audit().disabled).toBe(true)
   })
 
+  test("is mounted by the production TaskDetail route", async () => {
+    const source = await Bun.file(
+      new URL(
+        "../src/components/tasks/task-detail.tsx",
+        import.meta.url,
+      ),
+    ).text()
+    expect(source).toContain(
+      'import { WorkerCausalTimelineWorkbench } from "../../features/timeline/view/timeline-workbench.tsx"',
+    )
+    expect(source).toContain(
+      "<WorkerCausalTimelineWorkbench runtime={runtime} task={task} />",
+    )
+    expect(source.indexOf("<WorkerCausalTimelineWorkbench")).toBeGreaterThan(
+      source.indexOf("<TopologyWorkbench"),
+    )
+  })
+
   test("transient controller changes filters, selection, expansion, and window without mutating the projection", () => {
     const { projection } = projectComplete()
     const controller = new TimelineWorkbenchController(TASK, projection, {
